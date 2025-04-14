@@ -9,11 +9,13 @@ from pytimeloop.fastfusion.pareto import makepareto
 DATAFLOW_COLUMN = "dataflow"
 
 
-def plot_ski_slope(data: pd.DataFrame,
-                   categorize_by_dataflow: bool=False,
-                   split_by_dataflow: bool=False,
-                   ax: mpax.Axes=None,
-                   **kwargs):
+def plot_ski_slope(
+    data: pd.DataFrame,
+    categorize_by_dataflow: bool = False,
+    split_by_dataflow: bool = False,
+    ax: mpax.Axes = None,
+    **kwargs
+):
     if ax is None:
         fig, ax = plt.subplots()
     else:
@@ -36,10 +38,13 @@ def plot_ski_slope(data: pd.DataFrame,
         labels.append(None)
 
     for label, sub_df in zip(labels, separated_datas):
-        ax.plot(*_make_staircase(sub_df["Occupancy"].to_numpy(),
-                                 sub_df["Offchip Accesses"].to_numpy()),
-                label=label,
-                **kwargs)
+        ax.plot(
+            *_make_staircase(
+                sub_df["Occupancy"].to_numpy(), sub_df["Offchip Accesses"].to_numpy()
+            ),
+            label=label,
+            **kwargs
+        )
 
     ax.set_xlabel("Capacity")
     ax.set_ylabel("Off-chip Accesses")
@@ -78,8 +83,5 @@ def _dataflow_from_fulltiling(fulltiling: str):
     return tuple(dataflow)
 
 
-if __name__ == '__main__':
-    print(_make_staircase(
-        np.array([1, 2, 3, 4]),
-        np.array([4, 3, 2, 1])
-    ))
+if __name__ == "__main__":
+    print(_make_staircase(np.array([1, 2, 3, 4]), np.array([4, 3, 2, 1])))

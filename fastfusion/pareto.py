@@ -31,13 +31,20 @@ VALID = "__VALID"
 PER_COMPONENT_ACCESSES_ENERGY = "Per-Component Energy"
 
 DICT_COLUMNS = set(
-    [LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH, TAGS, PER_COMPONENT_ACCESSES_ENERGY]
+    [
+        LOGSTRING,
+        MAPPING,
+        STATS,
+        TENSORS,
+        IN_PROGRESS_STATS,
+        MAPPING_HASH,
+        TAGS,
+        PER_COMPONENT_ACCESSES_ENERGY,
+    ]
 )
 RESERVED_COLUMNS = set([VALID]) | DICT_COLUMNS
 
-TUPLABE_COLUMNS = set(
-    [MAPPING, TENSORS]
-)
+TUPLABE_COLUMNS = set([MAPPING, TENSORS])
 
 CHECK_CORRECTNESS = False
 
@@ -98,7 +105,8 @@ def max_to_col(df, target, source):
         df.loc[:, target] = df[[target, source]].max(axis=1)
     else:
         df.loc[:, target] = df[source]
-        
+
+
 def is_special_col(c):
     return c in RESERVED_COLUMNS or col2nameloop(c) is not None
 
@@ -125,12 +133,15 @@ def quick_pareto(df):
         df = df[~dominated]
     return df.drop(columns=["chosen"])
 
+
 def makepareto(
     data: pd.DataFrame,
     reverse_free: bool = True,
 ) -> pd.DataFrame:
     # Drop any columns that are all zeros or all equal
-    columns = [c for c in data.columns if c not in RESERVED_COLUMNS and not is_merge_col(c)]
+    columns = [
+        c for c in data.columns if c not in RESERVED_COLUMNS and not is_merge_col(c)
+    ]
     for c in list(columns):
         if not data[c].any():
             data = data.drop(columns=[c])
@@ -147,10 +158,13 @@ def makepareto(
 
     return data[paretoset(data[columns])].reset_index(drop=True)
 
+
 def _reverse_free(data: pd.DataFrame) -> pd.DataFrame:
     resource_name_to_max_level = defaultdict(int)
     resource_name_to_min_level = defaultdict(int)
-    keep_columns = [c for c in data.columns if col2nameloop(c) is None and c not in RESERVED_COLUMNS]
+    keep_columns = [
+        c for c in data.columns if col2nameloop(c) is None and c not in RESERVED_COLUMNS
+    ]
     for c in data.columns:
         if (name_nloops := col2nameloop(c)) is not None:
             if is_left_col(c):
@@ -165,12 +179,15 @@ def _reverse_free(data: pd.DataFrame) -> pd.DataFrame:
                     target[name] = f(target[name], n)
 
     for name in resource_name_to_max_level:
-        min_level, max_level = resource_name_to_min_level[name], resource_name_to_max_level[name]
+        min_level, max_level = (
+            resource_name_to_min_level[name],
+            resource_name_to_max_level[name],
+        )
         for i in range(min_level, max_level):
             target = nameloop2col(name, i)
             next_target = nameloop2col(name, i + 1)
             next_target_left = nameloop2col(name, i + 1, left=True)
-                
+
             if next_target_left in data:
                 add_to_col(data, next_target_left, target)
 
@@ -182,13 +199,15 @@ def _reverse_free(data: pd.DataFrame) -> pd.DataFrame:
 
             if next_target_left in data:
                 max_to_col(data, next_target_left, next_target)
-                
+
         keep_columns.append(nameloop2col(name, max_level))
 
     return data[keep_columns]
 
 
-def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None, return_needs_pareto: bool = False) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
+def squish_left_right(
+    data: pd.DataFrame, shared_loop_index: int = None, return_needs_pareto: bool = False
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
     nloops2left = defaultdict(set)
     dropcols = []
     needs_pareto = False
@@ -208,6 +227,7 @@ def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None, return_
     if return_needs_pareto:
         return data[[c for c in data.columns if c not in dropcols]], needs_pareto
     return data[[c for c in data.columns if c not in dropcols]]
+
 
 def _free_to_loop_index(
     data: pd.DataFrame,
@@ -266,6 +286,7 @@ def _free_to_loop_index(
 def paretofy_by(data: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return data[paretoset(data[columns])].reset_index(drop=True)
 
+
 def draw_looptree(row: pd.DataFrame, live_tensors: set[int]):
     from pytimeloop.fastfusion.plot.looptree import tilings2looptree
 
@@ -281,7 +302,8 @@ def draw_looptree(row: pd.DataFrame, live_tensors: set[int]):
     looptree.to_pydot(graph)
     with open(f"test.png", "wb") as f:
         f.write(graph.create_png())
-        
+
+
 def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
     from pytimeloop.fastfusion.plot.looptree import tilings2looptree
     from pytimeloop.fastfusion.sim import TensorStorage
@@ -304,7 +326,7 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
         reservations = dict(looptree.get_reservations())
         for k, v in reservations.items():
             col = nameloop2col(k, -1)
-            if str(k) == '0':
+            if str(k) == "0":
                 continue
             if col not in df_check.columns:
                 got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
@@ -322,6 +344,7 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
                 raise ValueError(
                     f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}"
                 )
+
 
 def merge_cross(
     left: pd.DataFrame,
@@ -400,7 +423,7 @@ def merge_cross(
     #         if capacity is not None:
     #             df = df[df[colname] <= capacity]
     #         del df[colname]
-    
+
     df.drop(columns=dropcols, inplace=True)
     if not CHECK_CORRECTNESS:
         cols = [c for c in df.columns if c in RESERVED_COLUMNS or not is_merge_col(c)]
@@ -444,7 +467,7 @@ class Pareto:
         return fzs(self.data[LOGSTRING].iloc[0].keys())
 
     @staticmethod
-    def concat(paretos: list["Pareto"], skip_pareto: bool=False) -> "Pareto":
+    def concat(paretos: list["Pareto"], skip_pareto: bool = False) -> "Pareto":
         return Pareto(
             pd.concat([p.data for p in paretos]).fillna(0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
@@ -472,22 +495,30 @@ class Pareto:
         return Pareto(df)
 
     def free_to_loop_index(
-        self, 
-        n: int, 
+        self,
+        n: int,
         resource2capacity: Optional[dict[str, Optional[int]]] = None,
     ) -> bool:
-        self.data, needs_pareto = _free_to_loop_index(self.data, n, return_needs_pareto=True)
+        self.data, needs_pareto = _free_to_loop_index(
+            self.data, n, return_needs_pareto=True
+        )
         if resource2capacity is not None:
             self.limit_capacity(n, resource2capacity)
         return needs_pareto
 
-    def alloc(self, resource_name: str, size: int, above_loop_index: int, resource2capacity: dict[str, Optional[int]]):
+    def alloc(
+        self,
+        resource_name: str,
+        size: int,
+        above_loop_index: int,
+        resource2capacity: dict[str, Optional[int]],
+    ):
         resource2capacity = resource2capacity or {}
         resource_name = str(resource_name)
-        
+
         if resource_name not in resource2capacity:
             return
-        
+
         n = nameloop2col(resource_name, above_loop_index)
         if n in self.data:
             self.data[n] = self.data[n] + size
@@ -507,7 +538,9 @@ class Pareto:
     def copy(self) -> "Pareto":
         return Pareto(self.data.copy())
 
-    def limit_capacity(self, n: int, resource2capacity: dict[str, Optional[int]]) -> bool:
+    def limit_capacity(
+        self, n: int, resource2capacity: dict[str, Optional[int]]
+    ) -> bool:
         resource2capacity = resource2capacity or {}
         if resource2capacity:
             assert all(isinstance(v, str) for v in resource2capacity.keys())
@@ -524,7 +557,9 @@ class Pareto:
                     del self.data[c]
 
     def squish_left_right(self, shared_loop_index: int = None) -> bool:
-        self.data, needs_pareto = squish_left_right(self.data, shared_loop_index, return_needs_pareto = True)
+        self.data, needs_pareto = squish_left_right(
+            self.data, shared_loop_index, return_needs_pareto=True
+        )
         return needs_pareto
 
     def filter_by_mapping_hashes(self, hashes: set[int]):
@@ -537,29 +572,36 @@ class Pareto:
 
     def make_pareto(self):
         self.data = makepareto(self.data)
-        
+
     def has_reservations(self):
         return any(col2nameloop(c) is not None for c in self.data.columns)
 
     def get_reservations(self):
-        return tuple(sorted(c for c in self.data.columns if col2nameloop(c) is not None))
+        return tuple(
+            sorted(c for c in self.data.columns if col2nameloop(c) is not None)
+        )
 
     def tuplefy_data(self):
         if self.data.empty:
             return
         from pytimeloop.fastfusion.sim import Tiling
+
         for col in self.data.columns:
             if col in TUPLABE_COLUMNS:
-                self.data[col] = self.data[col].apply(lambda x: {k: v.to_tuple() for k, v in x.items()})
-            
+                self.data[col] = self.data[col].apply(
+                    lambda x: {k: v.to_tuple() for k, v in x.items()}
+                )
+
     def detuplefy_data(self):
         if self.data.empty:
             return
         from pytimeloop.fastfusion.sim import Tiling
+
         for col in self.data.columns:
             if col in TUPLABE_COLUMNS:
-                self.data[col] = self.data[col].apply(lambda x: {k: Tiling.from_dict_small(v) for k, v in x.items()})
-
+                self.data[col] = self.data[col].apply(
+                    lambda x: {k: Tiling.from_dict_small(v) for k, v in x.items()}
+                )
 
 
 import unittest

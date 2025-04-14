@@ -91,14 +91,14 @@ class Loop:
 
     def update(self, **kwargs) -> "Loop":
         return Loop(**{**self.__dict__, **kwargs})
-        
+
     def to_tuple(self):
         return (
             tuple(r for r in self.rank_names),
             self.bound,
             self.is_spatial,
         )
-        
+
     @staticmethod
     def from_tuple(t: tuple) -> "Loop":
         return Loop(
@@ -180,7 +180,7 @@ class TensorStorage:
             if a != "*" and b != "*" and a != b:
                 return False
         return True
-    
+
     @staticmethod
     def from_tuple(t: tuple) -> "TensorStorage":
         return TensorStorage(
@@ -197,6 +197,7 @@ class TensorStorage:
             self.above_loop_index,
             self.tile_size,
         )
+
 
 @dataclass(frozen=True)
 class Tiling:
@@ -362,13 +363,14 @@ class Tiling:
             tuple(t.to_tuple() for t in self.storage),
             tuple(t.to_tuple() for t in self.tags),
         )
-        
+
     @staticmethod
     def from_tuple(t: tuple) -> "Tiling":
         loops = tuple(Loop.from_dict_small(l) for l in t[0])
         storage = fzs(TensorStorage.from_dict_small(t) for t in t[1])
         tags = Tags(fzs(t) for t in t[2])
         return Tiling(loops, storage, tags)
+
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -644,6 +646,7 @@ class SIM:
         left_list = [s for k in left for s in left[k] if k in right_keys]
         right_list = [s for k in right for s in right[k] if k in left_keys]
         return left_list, right_list
+
 
 import unittest
 

@@ -11,10 +11,18 @@ import pandas as pd
 
 from pytimeloop.fastfusion.fastmodel import compile_mapping
 from pytimeloop.fastfusion.mapper.constraints import *
-from pytimeloop.fastfusion.mapper.per_einsum_mapper import explore_tile_shape, process_result, get_hardware_levels
+from pytimeloop.fastfusion.mapper.per_einsum_mapper import (
+    explore_tile_shape,
+    process_result,
+    get_hardware_levels,
+)
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat import make_subspaces
-from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
-from pytimeloop.fastfusion.mapper.per_einsum_subspaces.four_level_arch import make_subspaces as make_four_level_subspaces
+from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat_ffmt import (
+    make_ffmt_subspaces,
+)
+from pytimeloop.fastfusion.mapper.per_einsum_subspaces.four_level_arch import (
+    make_subspaces as make_four_level_subspaces,
+)
 from pytimeloop.fastfusion.pareto import MAPPING, Pareto, makepareto
 from pytimeloop.fastfusion.sim import SIM, Loop, Tiling, TensorStorage
 from pytimeloop.fastfusion.util import fzs, parallel
@@ -28,28 +36,30 @@ from combinatorics.integer import integer_factorizations_to_n_parts
 
 import functools
 import re
+
+
 @functools.lru_cache(maxsize=None)
 def parse_constraint(constraint_str: str):
-    parser = re.compile('^(>=|>|<|<=|==)\s*(\d+)')
+    parser = re.compile("^(>=|>|<|<=|==)\s*(\d+)")
     match = parser.match(constraint_str)
     if match is None:
-        raise RuntimeError(f'Cannot parse constraint {constraint_str}')
+        raise RuntimeError(f"Cannot parse constraint {constraint_str}")
     comparison, limit = match.groups()
     limit = int(limit)
     # if limit == 128:
     #     comparison = "=="
-    if comparison == '>=':
-        return lambda x: x >= limit#, lambda x: x >= limit
-    elif comparison == '>':
-        return lambda x: x > limit#, lambda x: x > limit
-    elif comparison == '<=':
-        return lambda x: x <= limit#, None
-    elif comparison == '<':
-        return lambda x: x < limit#, None
-    elif comparison == '==':
-        return lambda x: x == limit#, lambda x: x >= limit
+    if comparison == ">=":
+        return lambda x: x >= limit  # , lambda x: x >= limit
+    elif comparison == ">":
+        return lambda x: x > limit  # , lambda x: x > limit
+    elif comparison == "<=":
+        return lambda x: x <= limit  # , None
+    elif comparison == "<":
+        return lambda x: x < limit  # , None
+    elif comparison == "==":
+        return lambda x: x == limit  # , lambda x: x >= limit
     else:
-        raise RuntimeError(f'Unknown comparison operator {comparison}')
+        raise RuntimeError(f"Unknown comparison operator {comparison}")
 
 
 def join_string_columns(df, cols, str_base):
@@ -57,7 +67,6 @@ def join_string_columns(df, cols, str_base):
     # Response from 3UqU57GnaX
     columns_strings = [f"df['{c}']" for c in cols]
     return eval("+','+".join(columns_strings) + f"+','+'{str_base}'")
-
 
 
 def per_worker_exploration(
@@ -88,16 +97,16 @@ def per_worker_exploration(
 ):
     # analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
     local_task_spaces = deepcopy(task_spaces)
-    local_task_spaces[0] = lambda : task_spaces[0](*task_space_args)
+    local_task_spaces[0] = lambda: task_spaces[0](*task_space_args)
     result = {}
     n_mappings = 0
-    
+
     t0 = time.time()
     for partial_mapping in dependent_product(local_task_spaces):
         # _, compiled_results = compile_mapping(
         #     partial_mapping, workload, analyzer
         # )
-        
+
         all_loops = []
         all_storages = []
         all_dspaces = set()
@@ -124,18 +133,18 @@ def per_worker_exploration(
                             tensor_id_to_name[t],
                             len(all_loops),
                             bindings[pm["target"]],
-                            0 # TODO: fill out tile size here
+                            0,  # TODO: fill out tile size here
                         )
                     )
-                    
+
         backing_storage = fzs(backing_storage)
-                
+
         rank2loops = {}
         for loop in all_loops:
             rank2loops.setdefault(loop["rank"], []).append(loop)
-            
+
         all_dfs = {}
-        
+
         # Create a dataframe with the factors for each rank
         for rank_id, loops in rank2loops.items():
             rank_size = einsum_shape[rank_id]
@@ -155,7 +164,9 @@ def per_worker_exploration(
                             satisfies_constrains[i] = False
                             break
                     # TODO: Tile constraint
-            choices = [choice for i, choice in enumerate(choices) if satisfies_constrains[i]]
+            choices = [
+                choice for i, choice in enumerate(choices) if satisfies_constrains[i]
+            ]
 
             df = pd.DataFrame(choices, columns=[l["column name"] for l in loops])
             for s in all_storages:
@@ -176,18 +187,22 @@ def per_worker_exploration(
                 df.loc[:, colto] = rank_size // df[colfrom]
 
             all_dfs[rank_id] = df
-            
+
         # Put together a dataframe to populate
-        df = pd.DataFrame(columns=[
-            f"storage {s['target']} tensor{tensor_id_to_name[dspace]} tile size"
-            for s in all_storages
-            for dspace in s["dspace"]
-        ] + [f"storage {s['target']} tensor{tensor_id_to_name[dspace]} repeats"
-            for s in all_storages
-            for dspace in s["dspace"]]
+        df = pd.DataFrame(
+            columns=[
+                f"storage {s['target']} tensor{tensor_id_to_name[dspace]} tile size"
+                for s in all_storages
+                for dspace in s["dspace"]
+            ]
+            + [
+                f"storage {s['target']} tensor{tensor_id_to_name[dspace]} repeats"
+                for s in all_storages
+                for dspace in s["dspace"]
+            ]
         )
         df.loc[0] = 1
-        
+
         # For each rank, merge the dataframes. We update the tile size and repeats
         # as early as possible because the dataframe will grow with each rank
         # we add
@@ -202,9 +217,11 @@ def per_worker_exploration(
                             continue
                         for target in ["tile size", "repeats"]:
                             colfrom = f"storage {s['target']} rank{rank} {target}"
-                            colto = f"storage {s['target']} tensor{tensor_name} {target}"
+                            colto = (
+                                f"storage {s['target']} tensor{tensor_name} {target}"
+                            )
                             df.loc[:, colto] *= df[colfrom]
-            
+
         if len(df) == 0:
             continue
         n_mappings += len(df)
@@ -212,7 +229,7 @@ def per_worker_exploration(
         # Trim to only the columns we care about
         # TODO: Preserve fused loops
         # TODO: Record everything in some way so we can recover the mappings
-        
+
         # Memory usage. We do this earlier so we can clear invalid mappings
         for s in all_storages:
             colto = f"{s['target']} usage"
@@ -239,11 +256,11 @@ def per_worker_exploration(
         df[cols] = 0
         df["energy"] = df["energy"].astype("float64")
         df["latency"] = df["latency"].astype("float64")
-        
+
         # Need a real calculation that takes into account reads/write datasoaces
         # and mutlicast. Also need to take into account reads to the compute
         # node. I'm just doing a quick and dirty here.
-        
+
         for i, s in enumerate(all_storages):
             for dspace in s["dspace"]:
                 tensor_name = tensor_id_to_name[dspace]
@@ -256,18 +273,19 @@ def per_worker_exploration(
                         df[f"storage {s['target']} writes"] += transfers
                         break
 
-        
         for i, s in enumerate(all_storages):
             memory_name = bindings[s["target"]]
             for action in ["reads", "writes"]:
                 energy = energy_dict.get((memory_name, action[:-1]), 0)
                 if energy != 0:
-                    df.loc[:, "energy"] += df[f"storage {s['target']} {action}"].astype("float64") * energy
-                    
+                    df.loc[:, "energy"] += (
+                        df[f"storage {s['target']} {action}"].astype("float64") * energy
+                    )
+
         # TODO: Could we pareto prune here?
-        
+
         # Pack everything into a column so that we can recover later
-        # TODO: We may want to move this later so we don't have to do any recording until we've 
+        # TODO: We may want to move this later so we don't have to do any recording until we've
         #       picked Pareto-optimal mappings. Depends on whether we're memory limited by the
         #       dataframe size or not.
 
@@ -275,15 +293,26 @@ def per_worker_exploration(
             looptype = "S" if loop["type"] == "spatial" else "T"
             return f"{looptype}{loop['rank']}-"
 
-        storage_str = ",".join([f"{s['target']}|" + "-".join([str(d) for d in sorted(s["dspace"])]) for s in all_storages])
+        storage_str = ",".join(
+            [
+                f"{s['target']}|" + "-".join([str(d) for d in sorted(s["dspace"])])
+                for s in all_storages
+            ]
+        )
 
         for i, l in enumerate(all_loops):
             df[f"loop{i}"] = loop2str(l) + df[l["column name"]].astype(str)
 
         # Pack into one string
-        df[MAPPING] = join_string_columns(df, [f"loop{i}" for i in range(len(all_loops))], storage_str)
-        
-        keepcols = [c for c in df.columns if "rank" not in c and "loop" not in c and "repeats" not in c]
+        df[MAPPING] = join_string_columns(
+            df, [f"loop{i}" for i in range(len(all_loops))], storage_str
+        )
+
+        keepcols = [
+            c
+            for c in df.columns
+            if "rank" not in c and "loop" not in c and "repeats" not in c
+        ]
         keepcols = [
             MAPPING,
             "energy",
@@ -293,9 +322,9 @@ def per_worker_exploration(
         fused_loop_cols = [l["column name"] for l in all_loops[:n_fused_loops]]
         keepcols = [c for c in df.columns if any(k in c for k in keepcols)]
         df = df[keepcols + fused_loop_cols]
-        
+
         grouped = df.groupby(fused_loop_cols) if fused_loop_cols else [((), df)]
-        
+
         # Partition by fused loops
         total_added = 0
         for i, (key, group) in enumerate(grouped):
@@ -304,23 +333,27 @@ def per_worker_exploration(
                     rank_names=fzs((rank_id_to_name[l["rank"]],)),
                     bound=int(b),
                     is_spatial=l["type"] == "spatial",
-                ) for l, b in zip(all_loops, key)
+                )
+                for l, b in zip(all_loops, key)
             )
             group = group.drop(columns=fused_loop_cols)
             tiling = Tiling(loops=loops, storage=backing_storage)
             if tiling in result:
-                result[tiling] = makepareto(pd.concat([result[tiling], group]).fillna(0))
+                result[tiling] = makepareto(
+                    pd.concat([result[tiling], group]).fillna(0)
+                )
             else:
                 result[tiling] = group
             total_added += len(group)
-    
+
     t1 = time.time()
     pareto_optimal_mappings = sum(len(v) for v in result.values())
-    print(f'Found {pareto_optimal_mappings}/{n_mappings}. Mappings per second: {n_mappings/(t1-t0)}')
+    print(
+        f"Found {pareto_optimal_mappings}/{n_mappings}. Mappings per second: {n_mappings/(t1-t0)}"
+    )
 
     return einsum_id, result, n_mappings
-        
-    
+
     #     tile_shape_explorer = explore_tile_shape(
     #         partial_mapping,
     #         einsum_shape,
@@ -364,10 +397,11 @@ def per_worker_exploration(
     #             prune=prune,
     #             valid=valid,
     #         )
-            
+
     # if prune:
     #     return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}, n_mappings
     # return einsum_id, {k: pd.DataFrame(v).fillna(0) for k, v in result.items()}, n_mappings
+
 
 def _per_einsum_mapper_snowcat(
     config,
@@ -393,11 +427,12 @@ def _per_einsum_mapper_snowcat(
     equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
     einsum_id_to_name = workload.einsum_id_to_name()
-    rank_name_to_id   = workload.dimension_name_to_id()
+    rank_name_to_id = workload.dimension_name_to_id()
     tensor_name_to_id = workload.data_space_name_to_id()
 
-    tensors = workload.tensors_read_by_einsum(einsum_id) \
-            | workload.tensors_written_by_einsum(einsum_id)
+    tensors = workload.tensors_read_by_einsum(
+        einsum_id
+    ) | workload.tensors_written_by_einsum(einsum_id)
     intermediate_tensors = tensors & get_intermediate_tensors(workload)
     all_ranks = workload.einsum_ospace_dimensions(einsum_id)
 
@@ -413,12 +448,14 @@ def _per_einsum_mapper_snowcat(
     }
 
     if not ffmt and not four_level:
-        subspaces = make_subspaces(tensors,
-                                    intermediate_tensors,
-                                    tensor_to_relevant_ranks,
-                                    einsum_id,
-                                    workload,
-                                    dataflow_constraint[einsum_id])
+        subspaces = make_subspaces(
+            tensors,
+            intermediate_tensors,
+            tensor_to_relevant_ranks,
+            einsum_id,
+            workload,
+            dataflow_constraint[einsum_id],
+        )
     elif four_level:
         subspaces = make_four_level_subspaces(
             tensors,
@@ -430,28 +467,36 @@ def _per_einsum_mapper_snowcat(
             fuse=fuse,
         )
     else:
-        subspaces = make_ffmt_subspaces(tensors,
-                                        intermediate_tensors,
-                                        tensor_to_relevant_ranks,
-                                        einsum_id,
-                                        workload,
-                                        refetch_weights=ffmt_refetch_weights)
+        subspaces = make_ffmt_subspaces(
+            tensors,
+            intermediate_tensors,
+            tensor_to_relevant_ranks,
+            einsum_id,
+            workload,
+            refetch_weights=ffmt_refetch_weights,
+        )
 
     n_jobs = 1024
-    parallelized_spaces, task_spaces = \
-        split_dependent_product(n_split_min=n_jobs, spaces=subspaces)
+    parallelized_spaces, task_spaces = split_dependent_product(
+        n_split_min=n_jobs, spaces=subspaces
+    )
 
     partial_mappings = list(dependent_product(parallelized_spaces))
     partial_mappings = [x if isinstance(x, tuple) else (x,) for x in partial_mappings]
     rank_id_to_name = {v: k for k, v in rank_name_to_id.items()}
     tensor_id_to_name = {v: k for k, v in tensor_name_to_id.items()}
-    input_tensors = set(tensor_id_to_name[t] for t in workload.tensors_read_by_einsum(einsum_id))
-    output_tensors = set(tensor_id_to_name[t] for t in workload.tensors_written_by_einsum(einsum_id))
+    input_tensors = set(
+        tensor_id_to_name[t] for t in workload.tensors_read_by_einsum(einsum_id)
+    )
+    output_tensors = set(
+        tensor_id_to_name[t] for t in workload.tensors_written_by_einsum(einsum_id)
+    )
     rank_name_to_shared_name = {
         rank_id_to_name[k]: v for k, v in equivalent_groups.rank_to_group_id.items()
     }
     tensor_to_relevant_ranks = {
-        tensor_id_to_name[t]: {rank_id_to_name[r] for r in v} for t, v in tensor_to_relevant_ranks.items()
+        tensor_id_to_name[t]: {rank_id_to_name[r] for r in v}
+        for t, v in tensor_to_relevant_ranks.items()
     }
 
     # successful_partial_mappings = []
@@ -474,9 +519,8 @@ def _per_einsum_mapper_snowcat(
     #         if not fail:
     #             successful_partial_mappings.append(p)
     # partial_mappings = successful_partial_mappings
-    
-    # Remove things that won't be used later or in per_worker_exploration
 
+    # Remove things that won't be used later or in per_worker_exploration
 
     # # for pm in partial_mappings:
     # #     per_worker_exploration(*pm)
@@ -488,7 +532,7 @@ def _per_einsum_mapper_snowcat(
     # ):
     #     for k, v in res.items():
     #         data[einsum_id][k[0]] += v
-    
+
     worker_args = dict(
         workload=workload,
         task_spaces=task_spaces,
@@ -515,7 +559,11 @@ def _per_einsum_mapper_snowcat(
         prune=prune,
     )
 
-    return [delayed(per_worker_exploration)(task_space_args=pm, **worker_args) for pm in partial_mappings]
+    return [
+        delayed(per_worker_exploration)(task_space_args=pm, **worker_args)
+        for pm in partial_mappings
+    ]
+
 
 def per_einsum_mapper_snowcat(
     config,
@@ -533,7 +581,9 @@ def per_einsum_mapper_snowcat(
     dataflow=None,
     fuse=True,
 ):
-    bindings, max_fanout, max_capacity, words_per_read = get_hardware_levels(spec.architecture)
+    bindings, max_fanout, max_capacity, words_per_read = get_hardware_levels(
+        spec.architecture
+    )
     energy_dict = deepcopy(energy_dict)
     bandwidth_dict = words_per_read
     words_per_read = {bindings[k]: v for k, v in words_per_read.items()}
@@ -541,7 +591,10 @@ def per_einsum_mapper_snowcat(
         if k[0] in words_per_read:
             energy_dict[k] /= words_per_read[k[0]]
 
-    jobs = list(j for einsum_id in einsums_to_explore for j in _per_einsum_mapper_snowcat(
+    jobs = list(
+        j
+        for einsum_id in einsums_to_explore
+        for j in _per_einsum_mapper_snowcat(
             config,
             bindings,
             max_fanout,
@@ -564,7 +617,9 @@ def per_einsum_mapper_snowcat(
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}
 
     n_mappings = 0
-    for einsum_id, result, n_mappings_this_job in parallel(jobs, pbar="Generating Single-Einsum Mappings", return_as="generator"):
+    for einsum_id, result, n_mappings_this_job in parallel(
+        jobs, pbar="Generating Single-Einsum Mappings", return_as="generator"
+    ):
         d = data[einsum_id]
         n_mappings += n_mappings_this_job
         for k, v in result.items():
@@ -572,9 +627,11 @@ def per_einsum_mapper_snowcat(
 
     def makesim(einsum_id, tiling, data):
         return einsum_id, SIM(tiling, makepareto(data))
-    
+
     def makepareto(data):
-        return Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1 or not prune)
+        return Pareto(
+            pd.concat(data).fillna(0), skip_pareto=len(data) == 1 or not prune
+        )
 
     jobs = []
     for einsum_id, tilings in data.items():
@@ -585,7 +642,9 @@ def per_einsum_mapper_snowcat(
     # - Deleting data dict, replace with new fresh dict
     # - Delete jobs after running
     data = defaultdict(list)
-    for einsum_id, sim in parallel(jobs, pbar="Generating SIMs", return_as="generator", delete_job_after=True):
+    for einsum_id, sim in parallel(
+        jobs, pbar="Generating SIMs", return_as="generator", delete_job_after=True
+    ):
         data[einsum_id].append(sim)
 
     return dict(data), n_mappings

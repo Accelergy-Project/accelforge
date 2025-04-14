@@ -43,6 +43,8 @@ class Metrics(Flag):
 
 # DEBUG_VISUALIZATION = Metrics.ALL_TENSORS | METRICS.PARTIAL_STATS
 first_print = False
+
+
 def process_result(
     result,
     shape,
@@ -73,7 +75,7 @@ def process_result(
 ):
     if not prune:
         metrics = metrics | Metrics.VALID
-    
+
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
     )
@@ -88,15 +90,20 @@ def process_result(
 
     memory_latency = max(
         (
-            sum(read_count
+            sum(
+                read_count
                 for (this_level, _, _), read_count in reads.items()
-                if this_level == level)
-            +
-            sum(write_count
+                if this_level == level
+            )
+            + sum(
+                write_count
                 for (this_level, _, _), write_count in writes.items()
-                if this_level == level)
-        ) / (bandwidth_dict[level] * reduce(mul, fanout, 1))
-        for level, fanout in result.fanout.items() if level in bandwidth_dict
+                if this_level == level
+            )
+        )
+        / (bandwidth_dict[level] * reduce(mul, fanout, 1))
+        for level, fanout in result.fanout.items()
+        if level in bandwidth_dict
     )
 
     energy = sum(
@@ -125,7 +132,7 @@ def process_result(
             if store.tensor_name not in found_tensors:
                 found_tensors.add(store.tensor_name)
                 backing_storage.append(store)
-                
+
         if Metrics.DEBUG in metrics:
             logstring.append(f"Strg({node['dspace']} in {node['target']})")
 
@@ -140,14 +147,16 @@ def process_result(
         # rank_name = rank_name_to_shared_name[rank_id_to_name[node["rank"]]]
         rank_name = rank_id_to_name[node["rank"]]
         loop = Loop(
-            fzs((str(rank_name),)), #rank_id_to_name[rank_name],
+            fzs((str(rank_name),)),  # rank_id_to_name[rank_name],
             tile_shape,
             node["type"] == "spatial",
         )
         ranks_remaining[node["rank"]] = tile_shape
         full_tiling.append(loop)
         if Metrics.DEBUG in metrics:
-            logstring.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
+            logstring.append(
+                f"{node['type'][0].upper()}{node['rank']} size {tile_shape}"
+            )
 
     logstring = []
     full_tiling = []
@@ -156,19 +165,21 @@ def process_result(
             record_storage(node)
         elif node["type"] == "spatial" or node["type"] == "temporal":
             record_loop(node)
-        
+
     # If this Einsum is a copy op, consider only the movement from one backing
     # storage to another.
     copy_einsum = einsum_name in copy_einsums
     if copy_einsum:
         all_storage = backing_storage
-        
+
     # If this Einsum is a copy op and the source and destination locations are
     # the same, then it is a null operation. Assume that the input tensors are
     # the output tensors. We don't want to double count, so get rid of the input
     # tensor occupancies. Note that we would like to keep the output tensor
-    # occupancies in case their reservatinos get propagated to later Einsums. 
-    null_copy_einsum = copy_einsum and len(set(t.memory_name for t in backing_storage)) == 1
+    # occupancies in case their reservatinos get propagated to later Einsums.
+    null_copy_einsum = (
+        copy_einsum and len(set(t.memory_name for t in backing_storage)) == 1
+    )
     if null_copy_einsum:
         for i, r in enumerate(backing_storage):
             if r.tensor_name in input_tensors:
@@ -179,18 +190,17 @@ def process_result(
                     tile_size=0,
                 )
 
-
     n_fused_loops = max(t.above_loop_index for t in backing_storage)
     tiling_full = Tiling(
         loops=tuple(full_tiling),
         storage=fzs(all_storage),
     )
-    
+
     for i, l in enumerate(tiling_full.loops):
-        for l2 in tiling_full.loops[i+1:]:
+        for l2 in tiling_full.loops[i + 1 :]:
             if l.rank_name == l2.rank_name:
                 assert l.bound >= l2.bound, f"{l} {l2}"
-    
+
     tagger_args = dict(
         einsum_name=einsum_name,
         backing_storage=backing_storage,
@@ -200,7 +210,7 @@ def process_result(
         rank_name_to_shared_name=rank_name_to_shared_name,
         tensor_to_relevant_ranks=tensor_to_relevant_ranks,
     )
-    
+
     tags = []
     for t in tag_with:
         tag = t(**tagger_args)
@@ -216,10 +226,7 @@ def process_result(
     results = {}
 
     if Metrics.LATENCY in metrics:
-        results["Latency"] = max(
-            result.temporal_steps[einsum_id],
-            memory_latency
-        )
+        results["Latency"] = max(result.temporal_steps[einsum_id], memory_latency)
 
     if Metrics.ENERGY in metrics:
         results["Energy"] = energy
@@ -232,7 +239,7 @@ def process_result(
         results["Offchip Accesses"] = offchip_ac
         if Metrics.DEBUG in metrics:
             logstring.append(f"Ac_{level}_{tensor}={count:.2e}")
-        
+
     # Only record non-backing reservations. We'll reserve backing storage later
     # when we free the tensors & we know all operations for which the tensor must
     # be backed.
@@ -240,7 +247,9 @@ def process_result(
         for r in all_storage:
             r: TensorStorage
             if r not in backing_storage:
-                key = nameloop2col(r.memory_name, min(r.above_loop_index, n_fused_loops))
+                key = nameloop2col(
+                    r.memory_name, min(r.above_loop_index, n_fused_loops)
+                )
                 results.setdefault(key, 0)
                 results[key] += r.tile_size
 
@@ -252,7 +261,7 @@ def process_result(
 
     if Metrics.OP_INTENSITY in metrics:
         results["Op_Intensity"] = result.op_intensity[1]
-        
+
     if Metrics.VALID in metrics:
         results[VALID] = valid
 
@@ -261,7 +270,6 @@ def process_result(
             for k, v in list(results.items()):
                 results[k] = {} if k in DICT_COLUMNS else 0
 
-    
     key = (tiling_compatibility, fzs(results.keys()))
     if prune:
         for prev_stats in compatibility_to_df[key]:
@@ -276,10 +284,14 @@ def process_result(
     if Metrics.DEBUG in metrics:
         logstring.append(f"Results: {results}")
         results[LOGSTRING] = {einsum_name: str(logstring)}
-        results[STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[STATS] = {
+            einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}
+        }
         results[TAGS] = {einsum_name: tiling_compatibility.tags}
         results[MAPPING_HASH] = {einsum_name: hash((einsum_id, tiling_compatibility))}
-        results[IN_PROGRESS_STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[IN_PROGRESS_STATS] = {
+            einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}
+        }
         results[TENSORS] = {einsum_name: backing_storage}
 
     if Metrics.MAPPING in metrics:

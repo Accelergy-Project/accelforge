@@ -3,12 +3,12 @@ from pytimeloop.fastfusion.util import fzs
 
 class TagClass(fzs):
     pass
-        
+
 
 class Tags(fzs):
     def __repr__(self):
         return f"Tags(({super().__repr__()}))"
-    
+
     def __str__(self):
         return f"Tags({super().__repr__()})"
 
@@ -16,24 +16,23 @@ class Tags(fzs):
         return all(class_string in self for class_string in tag_class)
 
     def are_compatible_with(self, tag2):
-        return (
-            all(tag2_string in self for tag2_string in tag2)
-            or
-            all(tag1_string in tag2 for tag1_string in self)
+        return all(tag2_string in self for tag2_string in tag2) or all(
+            tag1_string in tag2 for tag1_string in self
         )
-        
+
     # def filter_membership(tags: set["Tag"], tag_class: TagClass) -> set["Tag"]:
     #     return {tag for tag in tags if are_compatible_with(tag, tag_class)}
 
     def matches(self, tag2):
         return self == tag2
-    
+
     def to_tuple(self):
         return tuple(sorted(self))
-    
+
     @staticmethod
     def from_tuple(t: tuple):
         return Tags(t)
+
 
 class TagMatch:
     def __init__(self, tags: Tags):
