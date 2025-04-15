@@ -10,7 +10,7 @@ import pandas as pd
 
 from .pareto import Pareto, LOGSTRING, nameloop2col
 from .tags import Tags
-from .util import expfmt, fzs, parallel
+from .util.util import expfmt, fzs, parallel
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the

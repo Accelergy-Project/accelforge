@@ -3,7 +3,7 @@ from enum import auto, Flag
 from functools import reduce
 from operator import or_, mul
 
-from pytimeloop.fastfusion.pareto import (
+from fastfusion.pareto import (
     LOGSTRING,
     MAPPING,
     MAPPING_HASH,
@@ -16,14 +16,11 @@ from pytimeloop.fastfusion.pareto import (
     TAGS,
     VALID,
 )
-from pytimeloop.fastfusion.sim import Tags, TensorStorage, Tiling, Loop
+from fastfusion.sim import Tags, TensorStorage, Tiling, Loop
 
-from pytimeloop.fastfusion.util import fzs
+from fastfusion.util.util import fzs
 from pytimeloop.looptree.energy import gather_actions, get_accesses
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
-
-import pytimeloop.fastfusion.looptreedisplay as looptreedisplay
-
 
 class Metrics(Flag):
     LATENCY = auto()

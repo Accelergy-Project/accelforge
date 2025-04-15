@@ -1,4 +1,4 @@
-from pytimeloop.fastfusion.util import fzs
+from fastfusion.util.util import fzs
 
 
 class TagClass(fzs):

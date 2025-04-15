@@ -17,26 +17,26 @@ from pytimeloop.looptree.equivalent_ranks import (
     PairwiseEquivalentRanks,
 )
 
-from pytimeloop.fastfusion.mapper.constraints import *
-from pytimeloop.fastfusion.layerdeduplication import is_equivalent
-from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
-from pytimeloop.fastfusion.mapper.per_einsum_mapper_snowcat import (
+from fastfusion.exploration.constraints import *
+from fastfusion.layerdeduplication import is_equivalent
+from fastfusion.util.logging import make_queue_and_listener
+from fastfusion.exploration.per_einsum_mapper_snowcat import (
     per_einsum_mapper_snowcat,
     get_hardware_levels,
 )
-from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
-from pytimeloop.fastfusion.pareto import (
+from fastfusion.sim import Tiling, Loop, TensorStorage
+from fastfusion.pareto import (
     LOGSTRING,
     MAPPING,
     STATS,
     DICT_COLUMNS,
     TENSORS,
 )
-from pytimeloop.fastfusion.mapper.process_results import Metrics
+from fastfusion.exploration.process_results import Metrics
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
-from pytimeloop.fastfusion.sim import SIM
+from fastfusion.sim import SIM
 
 
 def mapper(

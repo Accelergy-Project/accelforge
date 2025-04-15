@@ -9,7 +9,7 @@ from typing import Optional, Tuple, Union
 
 from joblib import delayed
 
-from pytimeloop.fastfusion.util import fzs
+from fastfusion.util.util import fzs
 
 sys.modules["numba"] = None
 
@@ -288,7 +288,7 @@ def paretofy_by(data: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
 
 
 def draw_looptree(row: pd.DataFrame, live_tensors: set[int]):
-    from pytimeloop.fastfusion.plot.looptree import tilings2looptree
+    from fastfusion.visualization.reservationtree import tilings2looptree
 
     looptree = tilings2looptree(
         row[MAPPING],
@@ -305,8 +305,8 @@ def draw_looptree(row: pd.DataFrame, live_tensors: set[int]):
 
 
 def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
-    from pytimeloop.fastfusion.plot.looptree import tilings2looptree
-    from pytimeloop.fastfusion.sim import TensorStorage
+    from fastfusion.visualization.reservationtree import tilings2looptree
+    from fastfusion.sim import TensorStorage
 
     def fail(index):
         draw_looptree(data.iloc[index], live_tensors)
@@ -584,7 +584,7 @@ class Pareto:
     def tuplefy_data(self):
         if self.data.empty:
             return
-        from pytimeloop.fastfusion.sim import Tiling
+        from fastfusion.sim import Tiling
 
         for col in self.data.columns:
             if col in TUPLABE_COLUMNS:
@@ -595,7 +595,7 @@ class Pareto:
     def detuplefy_data(self):
         if self.data.empty:
             return
-        from pytimeloop.fastfusion.sim import Tiling
+        from fastfusion.sim import Tiling
 
         for col in self.data.columns:
             if col in TUPLABE_COLUMNS:

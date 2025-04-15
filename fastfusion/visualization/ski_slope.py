@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from pytimeloop.fastfusion.pareto import makepareto
+from fastfusion.pareto import makepareto
 
 
 DATAFLOW_COLUMN = "dataflow"

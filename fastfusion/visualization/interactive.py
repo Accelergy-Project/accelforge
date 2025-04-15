@@ -9,10 +9,10 @@ from ipywidgets import Output, VBox, HBox
 import pandas as pd
 import plotly.express as px
 
-from pytimeloop.fastfusion.sim import Loop, TensorStorage, Tiling
-from pytimeloop.fastfusion.util import expfmt
-from pytimeloop.fastfusion.plot.looptree import tilings2svg
-from pytimeloop.fastfusion.pareto import (
+from fastfusion.sim import Loop, TensorStorage, Tiling
+from fastfusion.util.util import expfmt
+from fastfusion.visualization.reservationtree import tilings2svg
+from fastfusion.pareto import (
     MAPPING,
     STATS,
     TENSORS,

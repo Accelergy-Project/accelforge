@@ -9,9 +9,9 @@ from joblib import delayed
 
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
 
-from pytimeloop.fastfusion.sim import SIM, Loop, Tiling
-from pytimeloop.fastfusion.pareto import MAPPING, VALID, Pareto
-from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
+from fastfusion.sim import SIM, Loop, Tiling
+from fastfusion.pareto import MAPPING, VALID, Pareto
+from fastfusion.util.util import fzs, parallel, debugger_active
 
 
 def explore_fusion(
@@ -467,7 +467,7 @@ def fuse_sims(
     # check_correctness(data, set())
 
     # einsum2tiling = data.iloc[3]["__LOOPNEST"]
-    # from pytimeloop.fastfusion.plot.looptree import tilings2looptree
+    # from fastfusion.visualization.reservationtree import tilings2looptree
     # import pydot
     # tree = tilings2looptree(einsum2tiling)
     # graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")

@@ -1,9 +1,9 @@
 from collections import defaultdict
 import pydot
 from typing import Any, Iterable
-from pytimeloop.fastfusion.sim import Tiling, TensorStorage, Loop
-from pytimeloop.fastfusion.util import expfmt
-from pytimeloop.fastfusion.pareto import IN_PROGRESS_STATS, col2nameloop
+from fastfusion.sim import Tiling, TensorStorage, Loop
+from fastfusion.util.util import expfmt
+from fastfusion.pareto import IN_PROGRESS_STATS, col2nameloop
 
 PYDOT_NODE_DEFAULTS = {
     "shape": "box",

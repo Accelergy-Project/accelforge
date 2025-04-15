@@ -1,0 +1,512 @@
+problem:
+  - shape:
+      name: Matmul1
+      dimensions: [ M1, N1, K1 ]
+      data_spaces:
+      - name: Fmap1   
+        dimensions: [ Fmap1_K, Fmap1_M ]     
+        projection: '[ K1, M1 ]'
+      - name: Filter1 
+        dimensions: [ Filter1_K, Filter1_N ] 
+        projection: '[ K1, N1 ]'
+      - name: Fmap2   
+        dimensions: [ Fmap2_K, Fmap2_M ]     
+        projection: '[ N1, M1 ]'
+        read_write: True
+    instance: 0 <= M1 < {M} and 0 <= N1 < {N1} and 0 <= K1 < {N1}
+
+  - shape:
+      name: Matmul2
+      dimensions: [ M2, N2, K2 ]
+      data_spaces:
+      - name: Fmap2   
+        dimensions: [ Fmap2_K, Fmap2_M ]     
+        projection: '[ K2, M2 ]'
+      - name: Filter2 
+        dimensions: [ Filter2_K, Filter2_N ] 
+        projection: '[ K2, N2 ]'
+      - name: Fmap3   
+        dimensions: [ Fmap3_K, Fmap3_M ]     
+        projection: '[ N2, M2 ]'
+        read_write: True
+    instance: 0 <= M2 < {M} and 0 <= N2 < {N2} and 0 <= K2 < {N1}
+
+  - shape:
+      name: Matmul3
+      dimensions: [ M3, N3, K3 ]
+      data_spaces:
+      - name: Fmap3   
+        dimensions: [ Fmap3_K, Fmap3_M ]     
+        projection: '[ K3, M3 ]'
+      - name: Filter3 
+        dimensions: [ Filter3_K, Filter3_N ] 
+        projection: '[ K3, N3 ]'
+      - name: Fmap4   
+        dimensions: [ Fmap4_K, Fmap4_M ]     
+        projection: '[ N3, M3 ]'
+        read_write: True
+    instance: 0 <= M3 < {M} and 0 <= N3 < {N2} and 0 <= K3 < {N2}
+
+  - shape:
+      name: Matmul4
+      dimensions: [ M4, N4, K4 ]
+      data_spaces:
+      - name: Fmap4   
+        dimensions: [ Fmap4_K, Fmap4_M ]     
+        projection: '[ K4, M4 ]'
+      - name: Filter4
+        dimensions: [ Filter4_K, Filter4_N ] 
+        projection: '[ K4, N4 ]'
+      - name: Fmap5
+        dimensions: [ Fmap5_K, Fmap5_M ]     
+        projection: '[ N4, M4 ]'
+        read_write: True
+    instance: 0 <= M4 < {M} and 0 <= N4 < {N1} and 0 <= K4 < {N2}
+
+  - shape:
+      name: Matmul5
+      dimensions: [ M5, N5, K5 ]
+      data_spaces:
+      - name: Fmap5   
+        dimensions: [ Fmap5_K, Fmap5_M ]     
+        projection: '[ K5, M5 ]'
+      - name: Filter5
+        dimensions: [ Filter5_K, Filter5_N ] 
+        projection: '[ K5, N5 ]'
+      - name: Fmap6
+        dimensions: [ Fmap6_K, Fmap6_M ]     
+        projection: '[ N5, M5 ]'
+        read_write: True
+    instance: 0 <= M5 < {M} and 0 <= N5 < {N1} and 0 <= K5 < {N1}
+
+  - shape:
+      name: Matmul6
+      dimensions: [ M6, N6, K6 ]
+      data_spaces:
+      - name: Fmap6   
+        dimensions: [ Fmap6_K, Fmap6_M ]     
+        projection: '[ K6, M6 ]'
+      - name: Filter6
+        dimensions: [ Filter6_K, Filter6_N ] 
+        projection: '[ K6, N6 ]'
+      - name: Fmap7
+        dimensions: [ Fmap7_K, Fmap7_M ]     
+        projection: '[ N6, M6 ]'
+        read_write: True
+    instance: 0 <= M6 < {M} and 0 <= N6 < {N2} and 0 <= K6 < {N1}
+
+  - shape:
+      name: Matmul7
+      dimensions: [ M7, N7, K7 ]
+      data_spaces:
+      - name: Fmap7   
+        dimensions: [ Fmap7_K, Fmap7_M ]     
+        projection: '[ K7, M7 ]'
+      - name: Filter7
+        dimensions: [ Filter7_K, Filter7_N ] 
+        projection: '[ K7, N7 ]'
+      - name: Fmap8
+        dimensions: [ Fmap8_K, Fmap8_M ]     
+        projection: '[ N7, M7 ]'
+        read_write: True
+    instance: 0 <= M7 < {M} and 0 <= N7 < {N2} and 0 <= K7 < {N2}
+
+  - shape:
+      name: Matmul8
+      dimensions: [ M8, N8, K8 ]
+      data_spaces:
+      - name: Fmap8   
+        dimensions: [ Fmap8_K, Fmap8_M ]     
+        projection: '[ K8, M8 ]'
+      - name: Filter8
+        dimensions: [ Filter8_K, Filter8_N ] 
+        projection: '[ K8, N8 ]'
+      - name: Fmap9
+        dimensions: [ Fmap9_K, Fmap9_M ]     
+        projection: '[ N8, M8 ]'
+        read_write: True
+    instance: 0 <= M8 < {M} and 0 <= N8 < {N1} and 0 <= K8 < {N2}
+
+  - shape:
+      name: Matmul9
+      dimensions: [ M9, N9, K9 ]
+      data_spaces:
+      - name: Fmap9   
+        dimensions: [ Fmap9_K, Fmap9_M ]     
+        projection: '[ K9, M9 ]'
+      - name: Filter9
+        dimensions: [ Filter9_K, Filter9_N ] 
+        projection: '[ K9, N9 ]'
+      - name: Fmap10
+        dimensions: [ Fmap10_K, Fmap10_M ]     
+        projection: '[ N9, M9 ]'
+        read_write: True
+    instance: 0 <= M9 < {M} and 0 <= N9 < {N1} and 0 <= K9 < {N1}
+
+  - shape:
+      name: Matmul10
+      dimensions: [ M10, N10, K10 ]
+      data_spaces:
+      - name: Fmap10   
+        dimensions: [ Fmap10_K, Fmap10_M ]     
+        projection: '[ K10, M10 ]'
+      - name: Filter10
+        dimensions: [ Filter10_K, Filter10_N ] 
+        projection: '[ K10, N10 ]'
+      - name: Fmap11
+        dimensions: [ Fmap11_K, Fmap11_M ]     
+        projection: '[ N10, M10 ]'
+        read_write: True
+    instance: 0 <= M10 < {M} and 0 <= N10 < {N2} and 0 <= K10 < {N1}
+
+  - shape:
+      name: Matmul11
+      dimensions: [ M11, N11, K11 ]
+      data_spaces:
+      - name: Fmap11   
+        dimensions: [ Fmap11_K, Fmap11_M ]     
+        projection: '[ K11, M11 ]'
+      - name: Filter11
+        dimensions: [ Filter11_K, Filter11_N ] 
+        projection: '[ K11, N11 ]'
+      - name: Fmap12
+        dimensions: [ Fmap12_K, Fmap12_M ]     
+        projection: '[ N11, M11 ]'
+        read_write: True
+    instance: 0 <= M11 < {M} and 0 <= N11 < {N2} and 0 <= K11 < {N2}
+
+  - shape:
+      name: Matmul12
+      dimensions: [ M12, N12, K12 ]
+      data_spaces:
+      - name: Fmap12   
+        dimensions: [ Fmap12_K, Fmap12_M ]     
+        projection: '[ K12, M12 ]'
+      - name: Filter12
+        dimensions: [ Filter12_K, Filter12_N ] 
+        projection: '[ K12, N12 ]'
+      - name: Fmap13
+        dimensions: [ Fmap13_K, Fmap13_M ]     
+        projection: '[ N12, M12 ]'
+        read_write: True
+    instance: 0 <= M12 < {M} and 0 <= N12 < {N1} and 0 <= K12 < {N2}
+
+  - shape:
+      name: Matmul13
+      dimensions: [ M13, N13, K13 ]
+      data_spaces:
+      - name: Fmap13   
+        dimensions: [ Fmap13_K, Fmap13_M ]     
+        projection: '[ K13, M13 ]'
+      - name: Filter13
+        dimensions: [ Filter13_K, Filter13_N ] 
+        projection: '[ K13, N13 ]'
+      - name: Fmap14
+        dimensions: [ Fmap14_K, Fmap14_M ]     
+        projection: '[ N13, M13 ]'
+        read_write: True
+    instance: 0 <= M13 < {M} and 0 <= N13 < {N1} and 0 <= K13 < {N1}
+
+  - shape:
+      name: Matmul14
+      dimensions: [ M14, N14, K14 ]
+      data_spaces:
+      - name: Fmap14   
+        dimensions: [ Fmap14_K, Fmap14_M ]     
+        projection: '[ K14, M14 ]'
+      - name: Filter14
+        dimensions: [ Filter14_K, Filter14_N ] 
+        projection: '[ K14, N14 ]'
+      - name: Fmap15
+        dimensions: [ Fmap15_K, Fmap15_M ]     
+        projection: '[ N14, M14 ]'
+        read_write: True
+    instance: 0 <= M14 < {M} and 0 <= N14 < {N2} and 0 <= K14 < {N1}
+
+  - shape:
+      name: Matmul15
+      dimensions: [ M15, N15, K15 ]
+      data_spaces:
+      - name: Fmap15   
+        dimensions: [ Fmap15_K, Fmap15_M ]     
+        projection: '[ K15, M15 ]'
+      - name: Filter15
+        dimensions: [ Filter15_K, Filter15_N ] 
+        projection: '[ K15, N15 ]'
+      - name: Fmap16
+        dimensions: [ Fmap16_K, Fmap16_M ]     
+        projection: '[ N15, M15 ]'
+        read_write: True
+    instance: 0 <= M15 < {M} and 0 <= N15 < {N2} and 0 <= K15 < {N2}
+
+  - shape:
+      name: Matmul16
+      dimensions: [ M16, N16, K16 ]
+      data_spaces:
+      - name: Fmap16   
+        dimensions: [ Fmap16_K, Fmap16_M ]     
+        projection: '[ K16, M16 ]'
+      - name: Filter16
+        dimensions: [ Filter16_K, Filter16_N ] 
+        projection: '[ K16, N16 ]'
+      - name: Fmap17
+        dimensions: [ Fmap17_K, Fmap17_M ]     
+        projection: '[ N16, M16 ]'
+        read_write: True
+    instance: 0 <= M16 < {M} and 0 <= N16 < {N1} and 0 <= K16 < {N2}
+
+  - shape:
+      name: Matmul17
+      dimensions: [ M17, N17, K17 ]
+      data_spaces:
+      - name: Fmap17   
+        dimensions: [ Fmap17_K, Fmap17_M ]     
+        projection: '[ K17, M17 ]'
+      - name: Filter17
+        dimensions: [ Filter17_K, Filter17_N ] 
+        projection: '[ K17, N17 ]'
+      - name: Fmap18
+        dimensions: [ Fmap18_K, Fmap18_M ]     
+        projection: '[ N17, M17 ]'
+        read_write: True
+    instance: 0 <= M17 < {M} and 0 <= N17 < {N1} and 0 <= K17 < {N1}
+
+  - shape:
+      name: Matmul18
+      dimensions: [ M18, N18, K18 ]
+      data_spaces:
+      - name: Fmap18   
+        dimensions: [ Fmap18_K, Fmap18_M ]     
+        projection: '[ K18, M18 ]'
+      - name: Filter18
+        dimensions: [ Filter18_K, Filter18_N ] 
+        projection: '[ K18, N18 ]'
+      - name: Fmap19
+        dimensions: [ Fmap19_K, Fmap19_M ]     
+        projection: '[ N18, M18 ]'
+        read_write: True
+    instance: 0 <= M18 < {M} and 0 <= N18 < {N2} and 0 <= K18 < {N1}
+
+  - shape:
+      name: Matmul19
+      dimensions: [ M19, N19, K19 ]
+      data_spaces:
+      - name: Fmap19   
+        dimensions: [ Fmap19_K, Fmap19_M ]     
+        projection: '[ K19, M19 ]'
+      - name: Filter19
+        dimensions: [ Filter19_K, Filter19_N ] 
+        projection: '[ K19, N19 ]'
+      - name: Fmap20
+        dimensions: [ Fmap20_K, Fmap20_M ]     
+        projection: '[ N19, M19 ]'
+        read_write: True
+    instance: 0 <= M19 < {M} and 0 <= N19 < {N2} and 0 <= K19 < {N2}
+
+  - shape:
+      name: Matmul20
+      dimensions: [ M20, N20, K20 ]
+      data_spaces:
+      - name: Fmap20   
+        dimensions: [ Fmap20_K, Fmap20_M ]     
+        projection: '[ K20, M20 ]'
+      - name: Filter20
+        dimensions: [ Filter20_K, Filter20_N ] 
+        projection: '[ K20, N20 ]'
+      - name: Fmap21
+        dimensions: [ Fmap21_K, Fmap21_M ]     
+        projection: '[ N20, M20 ]'
+        read_write: True
+    instance: 0 <= M20 < {M} and 0 <= N20 < {N1} and 0 <= K20 < {N2}
+
+  - shape:
+      name: Matmul21
+      dimensions: [ M21, N21, K21 ]
+      data_spaces:
+      - name: Fmap21   
+        dimensions: [ Fmap21_K, Fmap21_M ]     
+        projection: '[ K21, M21 ]'
+      - name: Filter21
+        dimensions: [ Filter21_K, Filter21_N ] 
+        projection: '[ K21, N21 ]'
+      - name: Fmap22
+        dimensions: [ Fmap22_K, Fmap22_M ]     
+        projection: '[ N21, M21 ]'
+        read_write: True
+    instance: 0 <= M21 < {M} and 0 <= N21 < {N1} and 0 <= K21 < {N1}
+
+  - shape:
+      name: Matmul22
+      dimensions: [ M22, N22, K22 ]
+      data_spaces:
+      - name: Fmap22   
+        dimensions: [ Fmap22_K, Fmap22_M ]     
+        projection: '[ K22, M22 ]'
+      - name: Filter22
+        dimensions: [ Filter22_K, Filter22_N ] 
+        projection: '[ K22, N22 ]'
+      - name: Fmap23
+        dimensions: [ Fmap23_K, Fmap23_M ]     
+        projection: '[ N22, M22 ]'
+        read_write: True
+    instance: 0 <= M22 < {M} and 0 <= N22 < {N2} and 0 <= K22 < {N1}
+
+  - shape:
+      name: Matmul23
+      dimensions: [ M23, N23, K23 ]
+      data_spaces:
+      - name: Fmap23   
+        dimensions: [ Fmap23_K, Fmap23_M ]     
+        projection: '[ K23, M23 ]'
+      - name: Filter23
+        dimensions: [ Filter23_K, Filter23_N ] 
+        projection: '[ K23, N23 ]'
+      - name: Fmap24
+        dimensions: [ Fmap24_K, Fmap24_M ]     
+        projection: '[ N23, M23 ]'
+        read_write: True
+    instance: 0 <= M23 < {M} and 0 <= N23 < {N2} and 0 <= K23 < {N2}
+
+  - shape:
+      name: Matmul24
+      dimensions: [ M24, N24, K24 ]
+      data_spaces:
+      - name: Fmap24   
+        dimensions: [ Fmap24_K, Fmap24_M ]     
+        projection: '[ K24, M24 ]'
+      - name: Filter24
+        dimensions: [ Filter24_K, Filter24_N ] 
+        projection: '[ K24, N24 ]'
+      - name: Fmap25
+        dimensions: [ Fmap25_K, Fmap25_M ]     
+        projection: '[ N24, M24 ]'
+        read_write: True
+    instance: 0 <= M24 < {M} and 0 <= N24 < {N1} and 0 <= K24 < {N2}
+
+  - shape:
+      name: Matmul25
+      dimensions: [ M25, N25, K25 ]
+      data_spaces:
+      - name: Fmap25   
+        dimensions: [ Fmap25_K, Fmap25_M ]     
+        projection: '[ K25, M25 ]'
+      - name: Filter25
+        dimensions: [ Filter25_K, Filter25_N ] 
+        projection: '[ K25, N25 ]'
+      - name: Fmap26
+        dimensions: [ Fmap26_K, Fmap26_M ]     
+        projection: '[ N25, M25 ]'
+        read_write: True
+    instance: 0 <= M25 < {M} and 0 <= N25 < {N1} and 0 <= K25 < {N1}
+
+  - shape:
+      name: Matmul26
+      dimensions: [ M26, N26, K26 ]
+      data_spaces:
+      - name: Fmap26   
+        dimensions: [ Fmap26_K, Fmap26_M ]     
+        projection: '[ K26, M26 ]'
+      - name: Filter26
+        dimensions: [ Filter26_K, Filter26_N ] 
+        projection: '[ K26, N26 ]'
+      - name: Fmap27
+        dimensions: [ Fmap27_K, Fmap27_M ]     
+        projection: '[ N26, M26 ]'
+        read_write: True
+    instance: 0 <= M26 < {M} and 0 <= N26 < {N2} and 0 <= K26 < {N1}
+
+  - shape:
+      name: Matmul27
+      dimensions: [ M27, N27, K27 ]
+      data_spaces:
+      - name: Fmap27   
+        dimensions: [ Fmap27_K, Fmap27_M ]     
+        projection: '[ K27, M27 ]'
+      - name: Filter27
+        dimensions: [ Filter27_K, Filter27_N ] 
+        projection: '[ K27, N27 ]'
+      - name: Fmap28
+        dimensions: [ Fmap28_K, Fmap28_M ]     
+        projection: '[ N27, M27 ]'
+        read_write: True
+    instance: 0 <= M27 < {M} and 0 <= N27 < {N2} and 0 <= K27 < {N2}
+
+  - shape:
+      name: Matmul28
+      dimensions: [ M28, N28, K28 ]
+      data_spaces:
+      - name: Fmap28   
+        dimensions: [ Fmap28_K, Fmap28_M ]     
+        projection: '[ K28, M28 ]'
+      - name: Filter28
+        dimensions: [ Filter28_K, Filter28_N ] 
+        projection: '[ K28, N28 ]'
+      - name: Fmap29
+        dimensions: [ Fmap29_K, Fmap29_M ]     
+        projection: '[ N28, M28 ]'
+        read_write: True
+    instance: 0 <= M28 < {M} and 0 <= N28 < {N1} and 0 <= K28 < {N2}
+
+  - shape:
+      name: Matmul29
+      dimensions: [ M29, N29, K29 ]
+      data_spaces:
+      - name: Fmap29   
+        dimensions: [ Fmap29_K, Fmap29_M ]     
+        projection: '[ K29, M29 ]'
+      - name: Filter29
+        dimensions: [ Filter29_K, Filter29_N ] 
+        projection: '[ K29, N29 ]'
+      - name: Fmap30
+        dimensions: [ Fmap30_K, Fmap30_M ]     
+        projection: '[ N29, M29 ]'
+        read_write: True
+    instance: 0 <= M29 < {M} and 0 <= N29 < {N1} and 0 <= K29 < {N1}
+
+  - shape:
+      name: Matmul30
+      dimensions: [ M30, N30, K30 ]
+      data_spaces:
+      - name: Fmap30   
+        dimensions: [ Fmap30_K, Fmap30_M ]     
+        projection: '[ K30, M30 ]'
+      - name: Filter30
+        dimensions: [ Filter30_K, Filter30_N ] 
+        projection: '[ K30, N30 ]'
+      - name: Fmap31
+        dimensions: [ Fmap31_K, Fmap31_M ]     
+        projection: '[ N30, M30 ]'
+        read_write: True
+    instance: 0 <= M30 < {M} and 0 <= N30 < {N2} and 0 <= K30 < {N1}
+
+  - shape:
+      name: Matmul31
+      dimensions: [ M31, N31, K31 ]
+      data_spaces:
+      - name: Fmap31   
+        dimensions: [ Fmap31_K, Fmap31_M ]     
+        projection: '[ K31, M31 ]'
+      - name: Filter31
+        dimensions: [ Filter31_K, Filter31_N ] 
+        projection: '[ K31, N31 ]'
+      - name: Fmap32
+        dimensions: [ Fmap32_K, Fmap32_M ]     
+        projection: '[ N31, M31 ]'
+        read_write: True
+    instance: 0 <= M31 < {M} and 0 <= N31 < {N2} and 0 <= K31 < {N2}
+
+  - shape:
+      name: Matmul32
+      dimensions: [ M32, N32, K32 ]
+      data_spaces:
+      - name: Fmap32   
+        dimensions: [ Fmap32_K, Fmap32_M ]     
+        projection: '[ K32, M32 ]'
+      - name: Filter32
+        dimensions: [ Filter32_K, Filter32_N ] 
+        projection: '[ K32, N32 ]'
+      - name: Fmap33
+        dimensions: [ Fmap33_K, Fmap33_M ]     
+        projection: '[ N32, M32 ]'
+        read_write: True
+    instance: 0 <= M32 < {M} and 0 <= N32 < {N1} and 0 <= K32 < {N2}

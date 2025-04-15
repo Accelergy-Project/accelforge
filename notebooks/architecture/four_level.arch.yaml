@@ -1,0 +1,90 @@
+variables:
+  global_cycle_seconds: 1e-9
+  technology: "7nm"
+
+architecture:
+  version: 0.4
+  nodes:
+  - !Component
+    name: MainMemory
+    class: DRAM
+    attributes: 
+      width: 4678 # 614 GB/s at 1.05GHz
+      datawidth: 8
+    # Upper end of the range from the TPU paper. The lower end came from their
+    # reference, and they said it left out some things.
+    energy_scale: (450 / 64) / 8 
+    required_actions: ['read', 'write']
+  - !Component
+    name: GlobalBuffer
+    class: SRAM
+    attributes:
+      depth: 131072
+      width: 8192
+      n_banks: 2
+      datawidth: 8
+    required_actions: ['read', 'write']
+  # - !Container
+  #   name: Core
+  #   spatial: {meshX: 4}
+  - !Component
+    name: LocalBuffer
+    class: SRAM 
+    spatial: {meshX: 4}
+    attributes:
+      depth: 16384
+      width: 2048
+      datawidth: 8
+    required_actions: ['read', 'write']
+  # - !Container
+  #   name: PE
+  #   spatial: {meshX: 128, meshY: 128}
+  - !Component
+    name: Register
+    class: dummy_storage
+    spatial: {meshX: 128, meshY: 128}
+    attributes:
+      depth: 1
+      width: 8
+      datawidth: 8
+    required_actions: ['read', 'write']
+  - !Component
+    name: MAC
+    class: intmac
+    attributes: {multiplier_width: 8, adder_width: 16, cycle_time: 1e-9}
+    required_actions: ['compute']
+    energy_scale: 0.78436603748
+
+compound_components:
+  version: 0.4         # REQUIRED version number
+  classes:
+  - name: intmac
+    attributes:
+      technology: "must_specify"
+      multiplier_width: "must_specify"
+      adder_width: "must_specify"
+      global_cycle_seconds: "must_specify"
+    subcomponents:
+    - name: intadder
+      class: aladdin_adder
+      attributes: {width: adder_width}
+    - name: intmultiplier
+      class: aladdin_multiplier
+      attributes: {width_a: multiplier_width, width_b: multiplier_width}
+    actions:
+    - name: compute
+      subcomponents:
+      - name: intadder
+        actions: [{name: read}]
+      - name: intmultiplier
+        actions: [{name: read}]
+    - name: leak
+      subcomponents:
+      - name: intadder
+        actions: [{name: leak}]
+      - name: intmultiplier
+        actions: [{name: leak}]
+
+
+# 32k, 4k, 2k
+# 8k, 16k, 4k
