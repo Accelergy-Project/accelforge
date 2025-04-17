@@ -34,27 +34,32 @@ class SIM:
         return SIM(self.compatibility, self.mappings.copy())
 
     def merge_next(
-        self, n: "SIM", live_tensors: set[str], delay: bool = False
+        self, right: "SIM", live_tensors: set[str], delay: bool = False
     ) -> "SIM":
         shared_loop_index = self.compatibility.shared_loop_index(
-            n.compatibility.names | live_tensors
+            right.compatibility.tensor_names | live_tensors
         )
-        compatibility = self.compatibility.merge_next(n.compatibility, live_tensors)
+        compatibility = self.compatibility.merge_next(right.compatibility, live_tensors)
         next_shared_loop_index = compatibility.shared_loop_index(live_tensors)
-        mapping = self.mappings.merge_next(
-            n.mappings, shared_loop_index, live_tensors, delay=delay
-        )
+        shared_storage = self.compatibility.storage & right.compatibility.storage
+        mapping = delayed(
+            self.mappings.merge_next
+        )(right.mappings, shared_loop_index, live_tensors, shared_storage)
+
+        if not delay:
+            mapping = mapping[0](*mapping[1], **mapping[2])
+        
         s = SIM(compatibility, mapping)
         assert (
             len(compatibility.loops) == next_shared_loop_index + 1
-        ), f"{self.compatibility} {n.compatibility} {next_shared_loop_index + 1} -> {compatibility} {len(compatibility.loops)}"
-        s.storage.update(n.storage)
+        ), f"{self.compatibility} {right.compatibility} {next_shared_loop_index + 1} -> {compatibility} {len(compatibility.loops)}"
+        s.storage.update(right.storage)
         s.storage.update(self.storage)
-        s.n_pre_prune_mappings = len(self.mappings.data) * len(n.mappings.data)
+        s.n_pre_prune_mappings = len(self.mappings.data) * len(right.mappings.data)
         return s
 
     def get_shared_loop_index(self, live_tensors: set[str]) -> int:
-        live_tensors = list(self.compatibility.names) + [live_tensors]
+        live_tensors = list(self.compatibility.tensor_names) + [live_tensors]
         return self.compatibility.shared_loop_index(live_tensors)
 
     def free_squish(
@@ -64,7 +69,7 @@ class SIM:
     ):
         needs_pareto = False
         needs_pareto = (
-            self.mappings.free_to_loop_index(index, resource2capacity) or needs_pareto
+            self.mappings.free_to_loop_index(index) or needs_pareto
         )
         needs_pareto = self.mappings.squish_left_right(index) or needs_pareto
         if needs_pareto:
@@ -81,9 +86,9 @@ class SIM:
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.storage.pop(t)
-            self.mappings.alloc(
-                t.resource_name, t.size, t.above_loop_index, resource2capacity
-            )
+            # self.mappings.alloc(
+            #     t.resource_name, t.size, t.above_loop_index, resource2capacity
+            # )
 
         if live_tensors is None:
             self.free_squish(0, resource2capacity)
@@ -105,9 +110,9 @@ class SIM:
                 t.above_loop_index > shared_loop_index
                 or t.name not in check_tensors
             ):
-                self.mappings.alloc(
-                    t.resource_name, t.size, t.above_loop_index, resource2capacity
-                )
+                # self.mappings.alloc(
+                #     t.resource_name, t.size, t.above_loop_index, resource2capacity
+                # )
                 tensors_to_add.append(t)
         if live_tensors is None:
             self.free_squish(-1, resource2capacity)

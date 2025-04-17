@@ -24,12 +24,6 @@ from pytimeloop.timeloopfe.v4fused import Specification
 from pytimeloop.fastfusion.filter_mappings import get_tileflow_tag_mha, get_ffmt_tag_mha, get_layernorm_tag_mha, get_looptree_tag_mha, get_optimus_tag
 
 from tests.util import CONFIG_DIR, TEST_TMP_DIR
-from fastfusion.pareto import (
-    nameloop2col,
-    paretofy_by,
-    _free_to_loop_index,
-    makepareto,
-)
 
 import pandas as pd
 
@@ -236,7 +230,7 @@ class Experiment:
             f.write(config_str)
         spec = Specification.from_yaml_files([TEST_TMP_DIR / "tmp.yaml"])
 
-        metrics = Metrics.ENERGY | Metrics.LATENCY
+        metrics = Metrics.ENERGY | Metrics.LATENCY | Metrics.MAPPING
         if not prune:
             metrics |= Metrics.VALID
 

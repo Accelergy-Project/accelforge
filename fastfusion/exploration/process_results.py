@@ -241,13 +241,20 @@ def process_result(
     # when we free the tensors & we know all operations for which the tensor must
     # be backed.
     if not copy_einsum:
+        all_keys = set()
         for r in all_storage:
             r: TensorStorage
-            if r not in backing_storage:
-                key = nameloop2col(
-                    r.resource_name, min(r.above_loop_index, n_fused_loops)
-                )
-                results.setdefault(key, 0)
+            key = nameloop2col(r.resource_name, min(r.above_loop_index, n_fused_loops))
+            all_keys.add(key)
+
+        for r in all_storage:
+            r: TensorStorage
+            for i in range(min(r.above_loop_index, n_fused_loops), n_fused_loops + 1):
+                key = nameloop2col(r.resource_name, i)
+                if key not in all_keys:
+                    continue
+                if key not in results:
+                    results[key] = 0
                 results[key] += r.size
 
     if Metrics.LATENCY in metrics and Metrics.DEBUG in metrics:

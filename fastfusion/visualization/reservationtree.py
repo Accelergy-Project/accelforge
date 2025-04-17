@@ -75,7 +75,7 @@ class Node:
                 reservations[k] = max(reservations[k], v)
         for t in self.this_level:
             if isinstance(t, TensorStorage):
-                reservations[str(t.resource_name)] += t.tile_size
+                reservations[str(t.resource_name)] += t.size
         return dict(reservations)
 
     def get_all_storage(

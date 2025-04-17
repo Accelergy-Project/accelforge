@@ -82,11 +82,11 @@ class Loop(Updatable):
     def to_yaml(self):
         return {"type": "loop", **self.__dict__}
 
-    def merge_next(self, other: "Loop") -> "Loop":
-        assert self.bound == other.bound
-        assert self.is_spatial == other.is_spatial
+    def merge_next(self, right: "Loop") -> "Loop":
+        assert self.bound == right.bound
+        assert self.is_spatial == right.is_spatial
         return Loop(
-            self.rank_names | other.rank_names,
+            self.rank_names | right.rank_names,
             self.bound,
             self.is_spatial,
         )
@@ -131,6 +131,9 @@ class Mapping(Updatable):
     def shared_loop_index(self, live_tensors: set[str]) -> int:
         n = [l for t, l in self.get_backing_levels().items() if t in live_tensors]
         return max(n) - 1 if n else -1
+    
+    def shared_storage(self, other: "Mapping") -> set[str]:
+        return set(self.storage) & set(other.storage)
 
     def __len__(self) -> int:
         return len(self.loops)
@@ -161,19 +164,19 @@ class Mapping(Updatable):
     def __repr__(self):
         return f"Mapping(loops={self.loops.__repr__()}, storage={self.storage.__repr__()}, tags={self.tags.__repr__()})"
 
-    def merge_next(self, n: "Mapping", live_tensors: set[str]) -> "Mapping":
+    def merge_next(self, right: "Mapping", live_tensors: set[str]) -> "Mapping":
         tensors = fzs(
-            t for t in (n.storage | self.storage) if t.name in live_tensors
+            t for t in (right.storage | self.storage) if t.name in live_tensors
         )
-        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, n])
+        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, right])
 
-        merged_loops = [l.merge_next(l2) for l, l2 in zip(self.loops, n.loops)]
-        additional_loops = n.loops[len(merged_loops) : shared_loop_index + 1]
+        merged_loops = [l.merge_next(l2) for l, l2 in zip(self.loops, right.loops)]
+        additional_loops = right.loops[len(merged_loops) : shared_loop_index + 1]
 
         return Mapping(
             tuple(merged_loops + list(additional_loops))[: shared_loop_index + 1],
             tensors,
-            n.tags,
+            right.tags,
         )
 
     def rename(

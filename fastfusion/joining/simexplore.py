@@ -133,7 +133,7 @@ class GroupOfSIMsHolder:
     def __init__(self, einsum_id: str, sim_list: list[SIM]):
         self.einsum_id: str = einsum_id
         self.sims: list[SIM] = sim_list
-        self.names: set[str] = set(sim_list[0].names)
+        self.tensor_names: set[str] = set(sim_list[0].tensor_names)
 
     def __getitem__(self, i):
         return self.sims[i]
@@ -153,6 +153,7 @@ def fuse_sims(
     skip_invalid: bool = True,
     size_scale: float = 1.0,
 ):
+    resource2capacity = None
     full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
     changed = True
 
@@ -210,10 +211,10 @@ def fuse_sims(
         if i == 0:
             continue
         t0 = time.time()
-        left_tensors = set.union(set(), *[s.names for s in sims[:i]])
-        right_tensors = set.union(set(), *[s.names for s in sims[i + 1 :]])
+        left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
+        right_tensors = set.union(set(), *[s.tensor_names for s in sims[i + 1 :]])
         live_tensors = right_tensors
-        shared_tensors = left_tensors & sim_holder.names
+        shared_tensors = left_tensors & sim_holder.tensor_names
         sim_holder.sims = sorted(
             sim_holder.sims, key=lambda x: len(x.mappings.data), reverse=True
         )
@@ -248,7 +249,7 @@ def fuse_sims(
         nonlocal n_iterations
         n_iterations += 1
         holder = sims.pop(0)
-        return holder.sims, holder.einsum_id, holder.names
+        return holder.sims, holder.einsum_id, holder.tensor_names
 
     if sims:
         left, left_einsum, left_tensors = grab_sim_holder()
@@ -268,7 +269,7 @@ def fuse_sims(
 
         partial_mapping_size += 1
 
-        live_tensors = set.union(set(), *[s.names for s in sims])
+        live_tensors = set.union(set(), *[s.tensor_names for s in sims])
         shared_tensors = set(left_tensors) & set(right_tensors)
 
         # ======================================================================
@@ -372,7 +373,7 @@ def fuse_sims(
         # compatibilty problems
         if sims and lookahead_filter and not optimus_optimizations_only:
             prev_len = len(combined)
-            next_right_tensors = sims[0].names
+            next_right_tensors = sims[0].tensor_names
             next_right_ranks = einsum2ranks[sims[0].einsum_id]
             combined = SIM.group_left(combined, next_right_tensors, drop_tags=True)
             for k in list(combined):
@@ -411,12 +412,12 @@ def fuse_sims(
         # ======================================================================
         if DELAY:
             mappings = parallel(
-                [c.compatibility for c in combined],
+                [c.mappings for c in combined],
                 pbar=f"Merging mappings {left_einsum} <--> {right_einsum}",
                 return_as="generator",
             )
             for c, mapping in zip(combined, mappings):
-                c.compatibility = mapping
+                c.mappings = mapping
                 cur_nmappings += c.n_pre_prune_mappings
         print_time("Mapping merging")
 
