@@ -23,9 +23,6 @@ class SIM:
         compatibility += " || " + ", ".join(str(t) for t in self.storage.values())
         return compatibility
 
-    def mapping_str(self):
-        return str(self.mappings.einsum_ids())
-
     @cached_property
     def tensor_names(self) -> set[str]:
         return set(self.storage)
@@ -79,24 +76,9 @@ class SIM:
         live_tensors = list(self.compatibility.tensor_names) + [live_tensors]
         return self.compatibility.shared_loop_index(live_tensors)
 
-    def free_squish(
-        self,
-        index: Optional[int],
-        resource2capacity: dict[str, int] = None,
-        live_tensors: set[str] = None,
-    ):
-        needs_pareto = False
-        needs_pareto = (
-            self.mappings.free_to_loop_index(index, live_tensors=live_tensors) or needs_pareto
-        )
-        needs_pareto = self.mappings.squish_left_right(index) or needs_pareto
-        if needs_pareto:
-            self.mappings.make_pareto()
-
     def _right_consolidate(
         self,
         live_tensors: set[str] = None,
-        resource2capacity: dict[str, int] = None,
         shared_tensors: set[str] = None,
     ):
         dead_tensors = set(self.storage) - (live_tensors or set())
@@ -104,19 +86,12 @@ class SIM:
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.storage.pop(t)
-
-        if live_tensors is None:
-            self.free_squish(0, resource2capacity, live_tensors=live_tensors)
-        else:
-            self.free_squish(shared_loop_index + 1, resource2capacity, live_tensors=live_tensors)
+        if self.mappings.free_to_loop_index(shared_loop_index, live_tensors=live_tensors):
+            self.mappings.make_pareto()
         return self
 
-    def _left_consolidate(
-        self,
-        live_tensors: set[str] = None,
-        shared_tensors: set[str] = None
-    ):
-        check_tensors = (shared_tensors or set()) | (live_tensors or set())
+    def _left_consolidate(self, live_tensors: set[str] = None):
+        check_tensors = (live_tensors or set())
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         self.mappings.free_to_loop_index(shared_loop_index, live_tensors=live_tensors)
         return self
@@ -125,12 +100,11 @@ class SIM:
     def right_consolidate(
         sims: list["SIM"],
         live_tensors: set[str],
-        resource2capacity: dict[str, int] = None,
         shared_tensors: set[str] = None,
         pbar: str = None,
     ) -> list["SIM"]:
         def job(s):
-            return s._right_consolidate(live_tensors, resource2capacity, shared_tensors)
+            return s._right_consolidate(live_tensors, shared_tensors)
 
         return parallel([delayed(job)(s) for s in sims], pbar=pbar)
 
@@ -138,12 +112,10 @@ class SIM:
     def left_consolidate(
         sims: list["SIM"],
         live_tensors: set[str],
-        resource2capacity: dict[str, int] = None,
-        shared_tensors: set[str] = None,
         pbar: str = None,
     ) -> list["SIM"]:
         def job(s):
-            return s._left_consolidate(live_tensors, shared_tensors)
+            return s._left_consolidate(live_tensors)
 
         return parallel([delayed(job)(s) for s in sims], pbar=pbar)
 
@@ -263,20 +235,3 @@ class SIM:
     @property
     def tags(self) -> fzs[Any]:
         return self.compatibility.tags
-
-    @staticmethod
-    def get_possibly_compatible(
-        left: list["SIM"],
-        right: list["SIM"],
-        left_live_tensors: set[str],
-        right_live_tensors: set[str],
-    ):
-        assert left and right, "Cannot check for compatibility with empty list"
-        shared_tensors = left[0].names & right[0].names
-        left = SIM._group(left, right_live_tensors, keep_tensors=shared_tensors)
-        right = SIM._group(right, left_live_tensors, keep_tensors=shared_tensors)
-        left_keys = set().union(*(l.all_n_loops() for l in left))
-        right_keys = set(right)
-        left_list = [s for k in left for s in left[k] if k in right_keys]
-        right_list = [s for k in right for s in right[k] if k in left_keys]
-        return left_list, right_list

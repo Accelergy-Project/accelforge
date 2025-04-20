@@ -1,31 +1,12 @@
 from collections import defaultdict
 from collections.abc import Mapping
-import copy
 import itertools
 import time
-
 import pandas as pd
-from joblib import delayed
-
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
-
 from fastfusion.joining.sim import SIM, Loop, Mapping
-from fastfusion.pareto import MAPPING, VALID, Pareto
+from fastfusion.pareto import VALID, Pareto
 from fastfusion.util import fzs, parallel, debugger_active
-
-
-def explore_fusion(
-    einsum_to_result: Mapping,
-    equivalent_ranks: PairwiseEquivalentRanks,
-    resource2capacity: dict = None,
-    return_nmappings_nbuckets: bool = False,
-):
-    return fuse_sims(
-        mapping2sims(einsum_to_result),
-        equivalent_ranks,
-        resource2capacity,
-        return_nmappings_nbuckets,
-    )
 
 
 def mapping2sims(einsum_to_result: Mapping):
@@ -101,16 +82,6 @@ def print_total_time():
     print(f"============================\n")
 
 
-def consolidate(x, live_tensors: set):
-    x = SIM.combine_combineable(x, live_tensors)
-    # We freed these
-    for x2 in x:
-        for t in list(x2.storage):
-            if t not in live_tensors:
-                del x2.storage[t]
-    return x
-
-
 class GroupOfSIMsHolder:
     def __init__(self, einsum_id: str, sim_list: list[SIM]):
         self.einsum_id: str = einsum_id
@@ -120,6 +91,19 @@ class GroupOfSIMsHolder:
     def __getitem__(self, i):
         return self.sims[i]
 
+def make_full_equivalent_ranks(pairwise_equivalent_ranks):
+    full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
+    changed = True
+    while changed:
+        changed = False
+        for r in full_equivalent_ranks:
+            for r2 in list(full_equivalent_ranks[r]):
+                for r3 in list(full_equivalent_ranks[r2]):
+                    if r3 in full_equivalent_ranks[r]:
+                        continue
+                    changed = True
+                    full_equivalent_ranks[r].add(r3)
+    return full_equivalent_ranks
 
 def fuse_sims(
     sims: dict[str, list[SIM]],
@@ -128,8 +112,6 @@ def fuse_sims(
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
     lookahead_filter: bool = True,
-    optimus_fused_group_constraint: bool = False,
-    optimus_optimizations_only: bool = False,
     evaluations_tracker=None,
     combine_reservations: bool = True,
     skip_invalid: bool = True,
@@ -148,21 +130,10 @@ def fuse_sims(
     """
     
     aliased_tensors = {"I_n_to_I": "I_I_to_Q_K_V"}
-    resource2capacity = None
-    full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
-    changed = True
 
-    while changed:
-        changed = False
-        for r in full_equivalent_ranks:
-            for r2 in list(full_equivalent_ranks[r]):
-                for r3 in list(full_equivalent_ranks[r2]):
-                    if r3 in full_equivalent_ranks[r]:
-                        continue
-                    changed = True
-                    full_equivalent_ranks[r].add(r3)
+    full_equivalent_ranks = make_full_equivalent_ranks(pairwise_equivalent_ranks)
 
-    for einsum_name, sim_list in sims.items():
+    for sim_list in sims.values():
         for s in sim_list:
             if VALID in s.mappings.data:
                 s.mappings.data = s.mappings.data[s.mappings.data[VALID] == 1]
@@ -178,7 +149,6 @@ def fuse_sims(
     n_evaluations = 0
 
     sims = list(sims.items())
-    n_sims = len(sims)
 
     if not skip_invalid:
         lookahead_filter = False
@@ -186,15 +156,6 @@ def fuse_sims(
     for einsum_id, s in sims:
         print(f"SIM {einsum_id} tensors: {s[0].tensor_names}")
     init_print_time()
-    if len(sims) == 1:
-        left = consolidate(
-            x=copy.deepcopy(sims[0][1]),
-            left=True,
-            live_tensors=set(),
-            resource2capacity=resource2capacity,
-            shared_tensors=set(),
-        )
-        sims = []
 
     sims = [GroupOfSIMsHolder(*s) for s in sims]
 
@@ -207,10 +168,10 @@ def fuse_sims(
         if i == 0:
             sim_holder.sims = SIM.left_consolidate(
                 sim_holder.sims,
-                set(),
-                resource2capacity,
+                right_tensors,
                 pbar=f"Inital consolidate {sim_holder.einsum_id}",
             )
+            continue
         t0 = time.time()
         left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
         live_tensors = right_tensors
@@ -221,7 +182,6 @@ def fuse_sims(
         sim_holder.sims = SIM.right_consolidate(
             sim_holder.sims,
             live_tensors,
-            resource2capacity,
             shared_tensors,
             pbar=f"Inital consolidate {sim_holder.einsum_id}",
         )
@@ -277,35 +237,13 @@ def fuse_sims(
         # Clean up the previously-combined SIMs. Consolidate, combine, group
         # them into buckets.
         # ======================================================================
-        left = SIM.left_consolidate(
-            left,
-            live_tensors,
-            resource2capacity,
-            shared_tensors,
-            pbar=f"Consolidate {left_einsum}",
-        )
-        if optimus_fused_group_constraint:
-            left = [
-                s
-                for s in left
-                if len(
-                    set(
-                        l.resource_name
-                        for l in s.compatibility.storage
-                        if l.name in live_tensors
-                    )
-                )
-                <= 1
-            ]
-
         print_time(f"Consolidating")
 
-        # Optimus can't combine SIMs that have reserved data
         left = SIM.combine_combineable(
             left,
             live_tensors | right_tensors,
             combine_reservations=combine_reservations,
-        )  # not optimus_optimizations_only)
+        )
 
         print_time(f"Combining")
         # Group left and right into buckets
@@ -325,14 +263,6 @@ def fuse_sims(
         DO_PRINT = False
         DELAY = not debugger_active()
 
-        # Optimus doesn't do compatibility-based bagging. Compares every mapping to every other mapping.
-        if optimus_optimizations_only:
-            n_left_mappings = sum(len(s.mappings.data) for k in left.values() for s in k)
-            n_right_mappings = sum(
-                len(s.mappings.data) for k in right.values() for s in k
-            )
-            n_evaluations += partial_mapping_size * n_left_mappings * n_right_mappings
-
         # ======================================================================
         # Merge the left and right buckets.
         # ======================================================================
@@ -346,8 +276,15 @@ def fuse_sims(
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
                     if a.compatibility.tags.are_compatible_with(b.compatibility.tags):
                         found = True
-                        combined.append(a.merge_next(b, live_tensors, live_tensors_with_right, aliased_tensors, delay=DELAY))
-                        if not DELAY and not optimus_optimizations_only:
+                        combined.append(a.merge_next(
+                            b, 
+                            live_tensors, 
+                            live_tensors_with_right, 
+                            aliased_tensors, 
+                            resource2capacity,
+                            delay=DELAY
+                        ))
+                        if not DELAY:
                             cur_nmappings += len(a.mappings.data) * len(b.mappings.data)
                         if DO_PRINT:
                             s = f"\t{a.compatibility} <--> {b.compatibility}"
@@ -370,9 +307,7 @@ def fuse_sims(
         # Look ahead to the next Einsum and see if any of our buckets will not
         # be able to merge with it. If so, we can drop them immediately.
         # ======================================================================
-        # Optimus can't look ahead to future Einsums to see if we'll have
-        # compatibilty problems
-        if sims and lookahead_filter and not optimus_optimizations_only:
+        if sims and lookahead_filter:
             prev_len = len(combined)
             next_right_tensors = sims[0].tensor_names
             next_right_ranks = einsum2ranks[sims[0].einsum_id]
@@ -462,7 +397,7 @@ def fuse_sims(
     # Final consolidate and group
     # ======================================================================
     t0 = time.time()
-    left = SIM.left_consolidate(left, None, resource2capacity, pbar="Final consolidate")
+    left = SIM.left_consolidate(left, None, pbar="Final consolidate")
     s_final = SIM.combine_combineable(left, set(), drop_tags=True)
     assert len(s_final) == 1
     data = s_final[0].mappings.data

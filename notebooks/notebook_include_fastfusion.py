@@ -259,10 +259,15 @@ class Experiment:
             max_evaluations=max_evaluations,
             stop_at_score=stop_at_score,
         )
+        resource2capacity = {
+            f"{k}_{self.bindings[k]}": v
+            for k, v in self.max_capacity.items()
+        }
+
         t0 = time.time()
         self.inter_result = fuse_function(
             self.intra_result,
-            resource2capacity=self.max_capacity,
+            resource2capacity=resource2capacity,
             pairwise_equivalent_ranks=self.equiv_ranks,
             einsum2ranks=self.einsum2ranks,
             evaluations_tracker=evaluations_tracker,
