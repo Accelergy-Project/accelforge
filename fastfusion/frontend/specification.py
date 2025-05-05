@@ -10,7 +10,8 @@ from .variables import Variables
 from .components import Components
 from .config import Config, get_config
 from fastfusion.yamlparse.processor import ProcessorError, References2CopiesProcessor
-from .energyarea import ComponentEnergy, ComponentArea
+from .area_table import ComponentArea
+from .energy_table import ComponentEnergy
 
 from typing import Any, Dict, List, Optional, Union
 from fastfusion.yamlparse.base_specification import BaseSpecification, class2obj

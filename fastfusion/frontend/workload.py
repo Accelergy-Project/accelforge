@@ -62,7 +62,7 @@ class Workload(DictNode):
                         f"Tensor is in Einsums "
                         f"{', '.join(e.name for e in self.einsums_with_tensor(tensor))}"
                     )
-                    
+
     def einsums_with_tensor(self, tensor: "Tensor") -> set["Einsum"]:
         return [e for e in self.einsums if tensor.name in e.tensor_names]
 
@@ -83,11 +83,11 @@ class Workload(DictNode):
         einsum_shape = einsum.shape
         global_shape = [self.shape[r] for r in einsum.rank_variables if r in self.shape]
         return " and ".join(einsum_shape + global_shape)
-    
+
     @property
     def tensors(self) -> set["Tensor"]:
         return set([t for e in self.einsums for t in e.tensors])
-    
+
     def mermaid_graph(self) -> str:
         """
         Get the mermaid graph of the workload.
@@ -130,7 +130,7 @@ class Workload(DictNode):
         # Set the configuration to ignore node order
         config = md.Config()
         graph.config = config
-        
+
         return md.Mermaid(graph)
 
 
