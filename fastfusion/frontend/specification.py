@@ -19,6 +19,7 @@ from ..plugin.gather_plug_ins import gather_plug_ins
 
 from . import energyarea
 
+
 class Specification(BaseSpecification):
     """
     A top-level class for the Timeloop specification.
@@ -52,8 +53,12 @@ class Specification(BaseSpecification):
         super().add_attr("variables", Variables, {"version": 0.5})
         super().add_attr("workload", Workload, {"version": 0.5})
         super().add_attr("config", Config, {"version": 0.5}, part_name_match=True)
-        super().add_attr("component_energy", ComponentEnergy, {"version": 0.5, "tables": []})
-        super().add_attr("component_area", ComponentArea, {"version": 0.5, "tables": []})
+        super().add_attr(
+            "component_energy", ComponentEnergy, {"version": 0.5, "tables": []}
+        )
+        super().add_attr(
+            "component_area", ComponentArea, {"version": 0.5, "tables": []}
+        )
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("_required_processors", [])
@@ -92,7 +97,9 @@ class Specification(BaseSpecification):
         parsed_ids.add(id(self.variables))
         symbol_table["spec"] = self
         with ParseExpressionsContext(self):
-            parsed_variables = self.variables.parse_expressions(symbol_table, parsed_ids)
+            parsed_variables = self.variables.parse_expressions(
+                symbol_table, parsed_ids
+            )
             symbol_table.update(parsed_variables)
             symbol_table["variables"] = parsed_variables
             super().parse_expressions(symbol_table, parsed_ids)
@@ -116,10 +123,28 @@ class Specification(BaseSpecification):
             area = ComponentArea()
             energy = ComponentEnergy()
             for component in components:
-                area.tables.append(energyarea.AreaEntry.from_plug_ins(component._class, component.attributes, processed, plug_ins, name=component.name))
-                
+                area.tables.append(
+                    energyarea.AreaEntry.from_plug_ins(
+                        component._class,
+                        component.attributes,
+                        processed,
+                        plug_ins,
+                        name=component.name,
+                    )
+                )
+
                 action_names = [action.name for action in component.actions]
                 action_args = [action.arguments for action in component.actions]
-                energy.tables.append(energyarea.EnergyEntry.from_plug_ins(component._class, component.attributes, action_args, action_names, processed, plug_ins, name=component.name))
+                energy.tables.append(
+                    energyarea.EnergyEntry.from_plug_ins(
+                        component._class,
+                        component.attributes,
+                        action_args,
+                        action_names,
+                        processed,
+                        plug_ins,
+                        name=component.name,
+                    )
+                )
             self.component_area = area
             self.component_energy = energy

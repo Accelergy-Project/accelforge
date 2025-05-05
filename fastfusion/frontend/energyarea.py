@@ -9,8 +9,9 @@ from fastfusion.plugin.query_plug_ins import get_best_estimate
 class ComponentArea(DictNode):
     """
     A the table of component areas.
-    
+
     """
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -25,11 +26,13 @@ class ComponentArea(DictNode):
     def isempty(self) -> bool:
         return self.tables.isempty()
 
+
 class AreaTable(ListNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", AreaEntry)
+
 
 class AreaEntry(DictNode):
     @classmethod
@@ -38,13 +41,13 @@ class AreaEntry(DictNode):
         super().add_attr("name", str)
         super().add_attr("area", Number)
         super().add_attr("subcomponents", AreaSubcomponents, [])
-        
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name: str = self["name"]
         self.area: Number = self["area"]
         self.subcomponents: AreaSubcomponents = self["subcomponents"]
-        
+
     @staticmethod
     def from_plug_ins(
         class_name: str,
@@ -64,53 +67,55 @@ class AreaEntry(DictNode):
         predefined_area = attributes.get("area", None)
 
         if predefined_area is not None:
-            entries = [AreaSubcomponent(
-                name=name,
-                attributes=attributes,
-                area=predefined_area * attributes.area_scale,
-                estimator=None,
-                messages=["Using predefined area value"],
-            )]
+            entries = [
+                AreaSubcomponent(
+                    name=name,
+                    attributes=attributes,
+                    area=predefined_area * attributes.area_scale,
+                    estimator=None,
+                    messages=["Using predefined area value"],
+                )
+            ]
         elif definition is not None:
             for component in definition.subcomponents:
                 component_attributes = component.attributes.parse(attributes)
                 entries.extend(
                     AreaEntry.from_plug_ins(
-                        component._class, 
-                        component_attributes, 
-                        spec, 
-                        plug_ins, 
-                        return_subcomponents=True
+                        component._class,
+                        component_attributes,
+                        spec,
+                        plug_ins,
+                        return_subcomponents=True,
                     )
                 )
         else:
             query = EnergyAreaQuery(class_name, attributes)
             estimation = get_best_estimate(plug_ins, query, False)
             area = estimation.value
-            entries.append(AreaSubcomponent(
-                name=class_name,
-                attributes=attributes,
-                area=area * attributes.area_scale,
-                estimator=estimation.estimator_name,
-                messages=estimation.messages
-            ))
-                
+            entries.append(
+                AreaSubcomponent(
+                    name=class_name,
+                    attributes=attributes,
+                    area=area * attributes.area_scale,
+                    estimator=estimation.estimator_name,
+                    messages=estimation.messages,
+                )
+            )
+
         if return_subcomponents:
             return entries
 
         area = sum(subcomponent.area for subcomponent in entries)
         assert name is not None, f"Name is required for AreaEntry"
-        return AreaEntry(
-            name=name,
-            area=area,
-            subcomponents=entries
-        )
+        return AreaEntry(name=name, area=area, subcomponents=entries)
+
 
 class AreaSubcomponents(ListNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", AreaSubcomponent)
+
 
 class AreaSubcomponent(DictNode):
     @classmethod
@@ -121,7 +126,7 @@ class AreaSubcomponent(DictNode):
         super().add_attr("estimator", str)
         super().add_attr("messages", list, [])
         super().add_attr("attributes", dict, {})
-        
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name: str = self["name"]
@@ -129,6 +134,7 @@ class AreaSubcomponent(DictNode):
         self.estimator: str = self["estimator"]
         self.messages: list = self["messages"]
         self.attributes: dict = self["attributes"]
+
 
 class ComponentEnergy(DictNode):
     @classmethod
@@ -141,20 +147,20 @@ class ComponentEnergy(DictNode):
         super().__init__(*args, **kwargs)
         self.version: str = self["version"]
         self.tables: EnergyTable = self["tables"]
-        
+
     def find_component(self, name: str):
         for table in self.tables:
             # Component names in ERT are compound, e.g.,
             # Parent1.Parent0[0..NumOfParent].Component[0..NumOfComponent]
             full_name = table.name
-            last_component_in_compound_name: str = full_name.split('.')[-1]
+            last_component_in_compound_name: str = full_name.split(".")[-1]
             if name == last_component_in_compound_name:
                 return table
-        raise KeyError(f'Could not find component {name}')
+        raise KeyError(f"Could not find component {name}")
 
     def isempty(self) -> bool:
         return self.tables.isempty()
-    
+
     def to_dict(self):
         r = {}
         for t in self.tables:
@@ -168,6 +174,7 @@ class EnergyTable(ListNode):
     """
     A table of component energy values.
     """
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -183,7 +190,7 @@ class EnergyEntry(DictNode):
         super().__init__(*args, **kwargs)
         self.name: str = self["name"]
         self.actions: Actions = self["actions"]
-    
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -195,10 +202,10 @@ class EnergyEntry(DictNode):
         for action in self.actions:
             if name == action.name:
                 return action
-            
+
     def __hash__(self) -> int:
         return id(self)
-            
+
     @staticmethod
     def from_plug_ins(
         class_name: str,
@@ -211,24 +218,24 @@ class EnergyEntry(DictNode):
     ):
         actions = []
         for action_name, action_arguments in zip(action_names, arguments):
-            actions.append(Action.from_plug_ins(
-                class_name,
-                attributes,
-                action_arguments,
-                action_name,
-                spec, 
-                plug_ins, 
-            ))
-        return EnergyEntry(
-            name=name,
-            actions=actions
-        )
+            actions.append(
+                Action.from_plug_ins(
+                    class_name,
+                    attributes,
+                    action_arguments,
+                    action_name,
+                    spec,
+                    plug_ins,
+                )
+            )
+        return EnergyEntry(name=name, actions=actions)
+
 
 class Actions(ListNode):
     """
     List of actions.
     """
-    
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -239,6 +246,7 @@ class Action(DictNode):
     """
     Action with arguments and energy value.
     """
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -253,7 +261,7 @@ class Action(DictNode):
         self.arguments: ActionArguments = self["arguments"]
         self.energy: Number = self["energy"]
         self.subactions: Subactions = self["subactions"]
-        
+
     @staticmethod
     def from_plug_ins(
         class_name: str,
@@ -266,13 +274,13 @@ class Action(DictNode):
     ) -> Union["EnergyEntry", list["Subaction"]]:
         attributes, arguments = copy.deepcopy((attributes, arguments))
         entries = []
-        
+
         definition = None
         try:
             definition = spec.components.classes[class_name]
         except KeyError:
             pass
-        
+
         predefined_energy = None
         if attributes.get("energy", None) is not None:
             predefined_energy = attributes["energy"]
@@ -280,40 +288,55 @@ class Action(DictNode):
             predefined_energy = arguments["energy"]
 
         if predefined_energy is not None:
-            entries = [Subaction(
-                name=action_name,
-                attributes=attributes,
-                arguments=arguments,
-                energy=predefined_energy * attributes.energy_scale * arguments.energy_scale,
-                messages=["Using predefined energy value"],
-            )]
+            entries = [
+                Subaction(
+                    name=action_name,
+                    attributes=attributes,
+                    arguments=arguments,
+                    energy=predefined_energy
+                    * attributes.energy_scale
+                    * arguments.energy_scale,
+                    messages=["Using predefined energy value"],
+                )
+            ]
         elif definition is not None:
-            for component, component_attributes, sub_arguments, subaction_name in definition.get_subcomponent_actions(action_name, attributes, arguments):
-                entries.extend(Action.from_plug_ins(
-                    component,
-                    component_attributes,
-                    sub_arguments,
-                    subaction_name,
-                    spec,
-                    plug_ins,
-                    return_subactions=True
-                ))
+            for (
+                component,
+                component_attributes,
+                sub_arguments,
+                subaction_name,
+            ) in definition.get_subcomponent_actions(
+                action_name, attributes, arguments
+            ):
+                entries.extend(
+                    Action.from_plug_ins(
+                        component,
+                        component_attributes,
+                        sub_arguments,
+                        subaction_name,
+                        spec,
+                        plug_ins,
+                        return_subactions=True,
+                    )
+                )
         else:
             query = EnergyAreaQuery(class_name, attributes, action_name, arguments)
             estimation = get_best_estimate(plug_ins, query, True)
             energy = estimation.value
-            entries.append(Subaction(
-                name=class_name,
-                attributes=attributes,
-                arguments=arguments,
-                energy=energy * attributes.energy_scale * arguments.energy_scale,
-                estimator=estimation.estimator_name,
-                messages=estimation.messages
-            ))
-            
+            entries.append(
+                Subaction(
+                    name=class_name,
+                    attributes=attributes,
+                    arguments=arguments,
+                    energy=energy * attributes.energy_scale * arguments.energy_scale,
+                    estimator=estimation.estimator_name,
+                    messages=estimation.messages,
+                )
+            )
+
         if return_subactions:
             return entries
-        
+
         energy = sum(subaction.energy for subaction in entries)
         return Action(
             name=action_name,
@@ -321,12 +344,12 @@ class Action(DictNode):
             energy=energy,
         )
 
-        
+
 class ActionArguments(DictNode):
     """
     Arguments for an action.
     """
-    
+
     pass
 
 
@@ -334,7 +357,7 @@ class Subactions(ListNode):
     """
     List of subactions.
     """
-    
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -345,16 +368,17 @@ class Subaction(DictNode):
     """
     Subaction with arguments and energy value.
     """
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("name", str) 
+        super().add_attr("name", str)
         super().add_attr("arguments", ActionArguments)
         super().add_attr("energy", Number)
         super().add_attr("estimator", str, "")
         super().add_attr("attributes", dict, {})
         super().add_attr("messages", list, [])
-        
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name: str = self["name"]

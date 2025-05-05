@@ -2,15 +2,11 @@ import logging
 import copy
 from numbers import Number
 from typing import Any, Callable, Dict, List, Tuple, Union
-from .logging import (
-    get_logger,
-    pop_all_messages,
-    log_all_lines,
-    clear_logs
-)
+from .logging import get_logger, pop_all_messages, log_all_lines, clear_logs
 from .estimator_wrapper import EnergyAreaEstimatorWrapper, EnergyAreaQuery, Estimation
 
 RAISED_WARNINGS_FOR_CLASSES = []
+
 
 def indent_list_text_block(prefix: str, list_to_print: List[str]):
     if not list_to_print:
@@ -18,6 +14,7 @@ def indent_list_text_block(prefix: str, list_to_print: List[str]):
     return "\n| ".join(
         [f"{prefix}"] + [str(l).replace("\n", "\n|  ") for l in list_to_print]
     )
+
 
 def call_plug_in(
     plug_in: EnergyAreaEstimatorWrapper,
@@ -59,6 +56,7 @@ def get_energy_estimation(plug_in: Any, query: EnergyAreaQuery) -> Estimation:
         e.value *= n_instances
     return e
 
+
 def get_area_estimation(plug_in: Any, query: EnergyAreaQuery) -> Estimation:
     e = call_plug_in(plug_in, query, plug_in.estimate_area)
     if e and e.success:
@@ -74,8 +72,7 @@ def get_best_estimate(
     is_energy_estimation: bool,
 ) -> Estimation:
     est_func = get_energy_estimation if is_energy_estimation else get_area_estimation
-    
-    
+
     target = "ENERGY" if is_energy_estimation else "AREA"
     if logging.getLogger("").isEnabledFor(logging.INFO):
         logging.getLogger("").info("")
@@ -85,22 +82,21 @@ def get_best_estimate(
         for drop_from in [query.class_attrs, query.action_args]:
             if to_drop in drop_from:
                 del drop_from[to_drop]
-    
 
     estimations = []
-    supported_plug_ins = sorted(plug_ins, key=lambda x: x.percent_accuracy, reverse=True)
+    supported_plug_ins = sorted(
+        plug_ins, key=lambda x: x.percent_accuracy, reverse=True
+    )
     supported_plug_ins = [p for p in supported_plug_ins if p.is_class_supported(query)]
-    
+
     if not supported_plug_ins:
         if not plug_ins:
-            raise KeyError(
-                f"No plug-ins found. Please check your configuration."
-            )
+            raise KeyError(f"No plug-ins found. Please check your configuration.")
         supported_classes = set.union(*[set(p.get_class_names()) for p in plug_ins])
         raise KeyError(
             f"Class {query.class_name} is not supported by any plug-ins. Supported classes: {supported_classes}"
         )
-        
+
     estimation = None
     for plug_in in supported_plug_ins:
         estimation = est_func(plug_in, copy.deepcopy(query))
@@ -151,7 +147,7 @@ def get_best_estimate(
 
     if estimation and estimation.success:
         return estimation
-    
+
     clear_logs()
 
     estimation_target = "energy" if is_energy_estimation else "area"

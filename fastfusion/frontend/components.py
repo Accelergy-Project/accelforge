@@ -4,6 +4,8 @@ from fastfusion.yamlparse.nodes import DictNode, ListNode, FlatteningListNode
 from .version import assert_version
 from fastfusion.yamlparse.parse_expressions import parse_expression
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+
 class Components(DictNode):
     """
     A collection of components.
@@ -23,7 +25,7 @@ class Components(DictNode):
         super().__init__(*args, **kwargs)
         self.version: str = self["version"]
         self.classes: FlatteningListNode = self["classes"]
-        
+
     def to_component_dict(self):
         d = {}
         for c in self.classes:
@@ -71,28 +73,40 @@ class CompoundComponent(DictNode):
         self.subcomponents: SubcomponentList = self["subcomponents"]
         self.actions: ActionsList = self["actions"]
 
-    def get_subcomponent_actions(self, action_name: str, attributes: dict, arguments: dict):
+    def get_subcomponent_actions(
+        self, action_name: str, attributes: dict, arguments: dict
+    ):
         try:
             action: Action = self.actions[action_name]
         except KeyError:
             raise KeyError(f"Action {action_name} not found in {self.name}") from None
-        
+
         for subcomponent in action.subcomponents:
             try:
                 component: Subcomponent = self.subcomponents[subcomponent.name]
             except KeyError:
-                raise KeyError(f"Subcomponent {subcomponent.name} referenced in action {action_name} of {self.name} not found") from None
+                raise KeyError(
+                    f"Subcomponent {subcomponent.name} referenced in action {action_name} of {self.name} not found"
+                ) from None
             component_attributes = component.attributes.parse(attributes)
             for subaction in subcomponent.actions:
-                subaction_args = subaction.arguments.parse(arguments, multiply_multipliers=False)
+                subaction_args = subaction.arguments.parse(
+                    arguments, multiply_multipliers=False
+                )
                 yield component._class, component_attributes, subaction_args, subaction.name
 
-        
+
 class ComponentEnergyAreaDictNode(DictNode):
     def declare_attrs(self, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("technology", str, "<SPECIFY ME>. technology must be specified in a parent.")
-        super().add_attr("global_cycle_seconds", (Number, str), "<SPECIFY ME>. global_cycle_seconds must be specified in a parent.")
+        super().add_attr(
+            "technology", str, "<SPECIFY ME>. technology must be specified in a parent."
+        )
+        super().add_attr(
+            "global_cycle_seconds",
+            (Number, str),
+            "<SPECIFY ME>. global_cycle_seconds must be specified in a parent.",
+        )
         super().add_attr("n_instances", (Number, str), 1)
         super().add_attr("energy_scale", (Number, str), 1)
         super().add_attr("area_scale", (Number, str), 1)
@@ -109,13 +123,19 @@ class ComponentEnergyAreaDictNode(DictNode):
         self.energy: Optional[float] = self["energy"]
         self.area: Optional[float] = self["area"]
 
-    def parse(self, symbol_table: dict, location: str="", inherit_all: bool=False, multiply_multipliers: bool=True):
+    def parse(
+        self,
+        symbol_table: dict,
+        location: str = "",
+        inherit_all: bool = False,
+        multiply_multipliers: bool = True,
+    ):
         parsed = DictNode()
 
         for key, value in self.items():
             parsed[key] = parse_expression(
-                value, 
-                symbol_table, 
+                value,
+                symbol_table,
                 f'{self.get_name()}["{key}"] in {location}',
                 strings_allowed=True,
             )
@@ -123,14 +143,18 @@ class ComponentEnergyAreaDictNode(DictNode):
                 parsed[key] = DoubleQuotedScalarString(parsed[key])
 
         if "global_cycle_seconds" not in symbol_table:
-            raise KeyError(f'Required key "global_cycle_seconds" not found in {self.get_name()}["{location}"]')
+            raise KeyError(
+                f'Required key "global_cycle_seconds" not found in {self.get_name()}["{location}"]'
+            )
         if "technology" not in symbol_table:
-            raise KeyError(f'Required key "technology" not found in {self.get_name()}["{location}"]')
-        
+            raise KeyError(
+                f'Required key "technology" not found in {self.get_name()}["{location}"]'
+            )
+
         def copy_attr_if_needed(attr_name):
             if attr_name in symbol_table and parsed.get(attr_name, None) is None:
                 parsed[attr_name] = symbol_table[attr_name]
-        
+
         copy_attr_if_needed("global_cycle_seconds")
         copy_attr_if_needed("technology")
         # copy_attr_if_needed("energy")
@@ -153,18 +177,27 @@ class ComponentEnergyAreaDictNode(DictNode):
 
         return ComponentEnergyAreaDictNode(parsed)
 
-
-    def parse_expressions(self, symbol_table: Optional[Dict[str, Any]] = None, parsed_ids: Optional[set] = None, *args, **kwargs):
+    def parse_expressions(
+        self,
+        symbol_table: Optional[Dict[str, Any]] = None,
+        parsed_ids: Optional[set] = None,
+        *args,
+        **kwargs,
+    ):
         def update_attr_if_needed(attr_name):
             attr_value = getattr(self, attr_name)
-            if (attr_name in symbol_table and 
-                    isinstance(attr_value, str) and 
-                    "<SPECIFY ME>" in attr_value):
+            if (
+                attr_name in symbol_table
+                and isinstance(attr_value, str)
+                and "<SPECIFY ME>" in attr_value
+            ):
                 setattr(self, attr_name, symbol_table[attr_name])
+
         if symbol_table:
             update_attr_if_needed("technology")
             update_attr_if_needed("global_cycle_seconds")
         super().parse_expressions(**kwargs)
+
 
 class SubcomponentList(ListNode):
     """
@@ -210,7 +243,8 @@ class ComponentAttributes(ComponentEnergyAreaDictNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", part_name_match=True, no_change_key=True)
-        
+
+
 class ActionsList(ListNode):
     """
     A list of actions for a component.

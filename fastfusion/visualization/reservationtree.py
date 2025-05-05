@@ -138,13 +138,16 @@ class Node:
                 if n_ranks_in_einsum > 1:
                     return False
         return True
-    
+
     def deduplicate_reservations(self, to_deduplicate):
         for c in self.children:
             c.deduplicate_reservations(to_deduplicate)
         i = 0
         while i < len(self.this_level):
-            if self.this_level[i] in self.this_level[:i] and self.this_level[i] in to_deduplicate:
+            if (
+                self.this_level[i] in self.this_level[:i]
+                and self.this_level[i] in to_deduplicate
+            ):
                 self.this_level.pop(i)
             else:
                 i += 1
@@ -272,7 +275,7 @@ def mappings2reservationtree(
                 name, _ = nameloop
                 node = root.find_node_with(get_einsum_key(einsum))
                 node.this_level.append(TensorStorage("Reservation", -1, name, size))
-                
+
     root.deduplicate_reservations(backers)
 
     return root

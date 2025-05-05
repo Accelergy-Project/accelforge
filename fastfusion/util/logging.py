@@ -11,6 +11,7 @@ def log_worker(log_name):
 
     If log_queue is None, then the function is left unmodified.
     """
+
     def decorator(f: callable):
         def wrapper(*args, **kwargs):
             if "log_queue" not in kwargs:
@@ -26,7 +27,9 @@ def log_worker(log_name):
             kwargs["log_queue"] = worker_logger
 
             return f(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -34,6 +37,5 @@ def make_queue_and_listener():
     log = logging.getLogger()
     manager = Manager()
     log_queue = manager.Queue()
-    log_queue_listener = logging.handlers.QueueListener(log_queue,
-                                                        *log.handlers)
+    log_queue_listener = logging.handlers.QueueListener(log_queue, *log.handlers)
     return log_queue, log_queue_listener

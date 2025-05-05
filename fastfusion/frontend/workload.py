@@ -17,7 +17,10 @@ CLIST_OPERATORS = [
     "OR",
 ]
 
-ISL_REGEX = re.compile(r'\b(?!(?:' + '|'.join(CLIST_OPERATORS) + r')\b)[a-zA-Z#$@][a-zA-Z0-9_]*\b')
+ISL_REGEX = re.compile(
+    r"\b(?!(?:" + "|".join(CLIST_OPERATORS) + r")\b)[a-zA-Z#$@][a-zA-Z0-9_]*\b"
+)
+
 
 class Workload(DictNode):
     """
@@ -66,7 +69,7 @@ class Workload(DictNode):
         Get the einsums that write to the given tensor.
         """
         return {e for e in self.einsums if tensor in e.tensors and tensor.output}
-    
+
     def get_shape_isl_string(self, einsum_name: str) -> str:
         """
         Get the shape of the given einsum as an ISL string.
@@ -75,7 +78,8 @@ class Workload(DictNode):
         einsum_shape = einsum.shape
         global_shape = [self.shape[r] for r in einsum.rank_variables if r in self.shape]
         return " and ".join(einsum_shape + global_shape)
-    
+
+
 class EinsumList(ListNode):
     """
     A list of einsums in the workload.
@@ -85,6 +89,7 @@ class EinsumList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", Einsum)
+
 
 class Einsum(DictNode):
     """
@@ -98,14 +103,15 @@ class Einsum(DictNode):
         super().add_attr("rank_variables", list, [])
         super().add_attr("tensors", TensorList)
         super().add_attr("shape", Shape, [])
-        
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name: str = self["name"]
         self.rank_variables: list = self["rank_variables"]
         self.tensors: TensorList = self["tensors"]
         self.shape: Shape = self["shape"]
-        
+
+
 class TensorList(ListNode):
     """
     A list of tensors in the workload.
@@ -115,7 +121,8 @@ class TensorList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", Tensor)
-        
+
+
 class Tensor(DictNode):
     """
     A tensor object in the workload.
@@ -126,6 +133,7 @@ class Tensor(DictNode):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("name", str)
         super().add_attr("shape", Shape)
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -168,18 +176,18 @@ class Tensor(DictNode):
     @property
     def ranks(self):
         return list(self.projection.keys())
-    
+
     @property
     def rank_variables(self):
         # Projection values may be expressions, so we need to grab all identifiers
         return set(re.findall(ISL_REGEX, " ".join(self.projection.values())))
-    
-    
+
     def __eq__(self, other):
         return self.name == other.name
-    
+
     def __hash__(self):
         return hash(self.name)
+
 
 def projection_factory(projection: dict | list):
     if isinstance(projection, list):
@@ -200,15 +208,14 @@ def projection_factory(projection: dict | list):
         )
     for key in projection:
         if not isinstance(key, str):
-            raise TypeError(
-                f"Invalid projection key: {key}. Must be a string."
-            )
+            raise TypeError(f"Invalid projection key: {key}. Must be a string.")
         if not key.isidentifier():
             raise ValueError(
                 f"Invalid projection key: {key}. Must be a valid identifier."
                 f"Check with the Python isidentifier() function."
             )
     return projection
+
 
 class Shape(ListNode):
     """

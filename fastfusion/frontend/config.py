@@ -8,14 +8,17 @@ def get_config():
     import os
     import sys
     from pathlib import Path
-    
-    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+
+    if hasattr(sys, "real_prefix") or (
+        hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+    ):
         f = os.path.join(sys.prefix, "fastfusion", "config.yaml")
     else:
         f = os.path.join(user_config_dir("fastfusion"), "config.yaml")
-        
+
     if not os.path.exists(f):
         from fastfusion.yamlparse import yaml
+
         logging.warning(f"No configuration file found. Creating config file at {f}.")
         os.makedirs(os.path.dirname(f), exist_ok=True)
         config = Config()

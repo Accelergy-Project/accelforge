@@ -13,6 +13,7 @@ from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 BUFFER_CLASSES = ("DRAM", "SRAM", "regfile", "smartbuffer", "storage")
 COMPUTE_CLASSES = ("mac", "intmac", "fpmac", "compute")
 
+
 class ArchNode(Node):
     """
     A node in the architecture hierarchy.
@@ -111,7 +112,6 @@ class ArchNodes(ArchNode, ListNode):
             callfunc=component_factory,
         )
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -196,23 +196,28 @@ class Hierarchical(Branch):
     """
     A hierarchical branch in the architecture.
     """
-    def _flatten(self, attributes: dict, fanout: int=1, return_fanout: bool=False):
+
+    def _flatten(self, attributes: dict, fanout: int = 1, return_fanout: bool = False):
         def replace(src, dst):
             for k, v in src.items():
                 found = dst.get(k, "<SPECIFY ME>")
                 if isinstance(found, str) and "<SPECIFY ME>" in found:
                     dst[k] = v
-        
+
         nodes = []
         for node in self.nodes:
             if isinstance(node, Hierarchical):
-                new_nodes, new_fanout = node._flatten(attributes, fanout, return_fanout=True)
+                new_nodes, new_fanout = node._flatten(
+                    attributes, fanout, return_fanout=True
+                )
                 nodes.extend(new_nodes)
                 fanout *= new_fanout
             elif isinstance(node, Leaf) and not isinstance(node, Container):
                 fanout *= node.get_fanout()
                 node2 = type(node)(**node)
-                node2.attributes = type(node.attributes)({**attributes, **node.attributes})
+                node2.attributes = type(node.attributes)(
+                    {**attributes, **node.attributes}
+                )
                 node2.attributes["n_instances"] *= fanout
                 replace(attributes, node2.attributes)
                 nodes.append(node2)
@@ -224,6 +229,7 @@ class Hierarchical(Branch):
         if return_fanout:
             return nodes, fanout
         return nodes
+
 
 class Architecture(Hierarchical):
     """
@@ -241,12 +247,13 @@ class Architecture(Hierarchical):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.version: Union[str, Number] = self["version"]
-        
+
     def get_storage_nodes(self):
         return self.get_nodes_of_type(Storage)
-    
+
     def get_compute_node(self):
         return self.get_nodes_of_type(Compute)[0]
+
 
 class Leaf(ArchNode, DictNode, ABC):
     """
@@ -266,7 +273,9 @@ class Leaf(ArchNode, DictNode, ABC):
         # Class named _class to avoid clashing with class keyword
         super().add_attr("attributes", Attributes, {})
         super().add_attr("spatial", Spatial, {})
-        super().add_attr("constraints", constraints.ConstraintGroup, {"name": "parentname"})
+        super().add_attr(
+            "constraints", constraints.ConstraintGroup, {"name": "parentname"}
+        )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -307,7 +316,8 @@ class Leaf(ArchNode, DictNode, ABC):
 
     def get_fanout(self):
         return self.spatial.get_fanout()
-    
+
+
 class Component(Leaf, ABC):
     """
     A component in the architecture.
@@ -332,13 +342,16 @@ class Component(Leaf, ABC):
         self.enabled: bool = self["enabled"]
         self.power_gated_at: Optional[str] = self["power_gated_at"]
         self.actions: Actions = self["actions"]
+
     def _check_unrecognized(self, *args, **kwargs):
         return super()._check_unrecognized(*args, **kwargs)
+
 
 class Actions(ListNode):
     """
     A list of actions.
     """
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -371,6 +384,7 @@ class Storage(Component):
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
         self.attributes: StorageAttributes = self["attributes"]
+
 
 class Compute(Component):
     """
@@ -433,7 +447,7 @@ class Attributes(ComponentEnergyAreaDictNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._default_parse = True
-        
+
 
 class StorageAttributes(Attributes):
     """Represents the attributes of a storage element.
@@ -475,6 +489,7 @@ class StorageAttributes(Attributes):
 
     def parse_expressions(self, *args, **kwargs):
         super().parse_expressions(*args, **kwargs)
+
 
 def component_factory(*args, **kwargs) -> "Component":
     """
@@ -519,23 +534,23 @@ def component_factory(*args, **kwargs) -> "Component":
     raise ValueError(
         f"Unknown element class {element_class}. " f"Accepted classes: {class2class}"
     )
-    
-    
+
+
 class Datawidth(DictNode):
     """
     A class representing the datawidth of a storage element. It is a dictionary
     with keys for each tensor and values being the datawidth of the tensor.
     """
-    
+
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", int, part_name_match=True, no_change_key=True)
-        
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-    
-    
+
+
 def datawidth_factory(*args, **kwargs) -> "Datawidth":
     if isinstance(args[0], dict):
         return Datawidth(**args[0])
@@ -543,4 +558,5 @@ def datawidth_factory(*args, **kwargs) -> "Datawidth":
         return Datawidth({"*": args[0]})
     raise ValueError(
         f"Invalid datawidth: {args[0]}. Expected a single integer or a dictionary "
-        f"with tensor names as keys and datawidths as values.")
+        f"with tensor names as keys and datawidths as values."
+    )

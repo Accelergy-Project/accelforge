@@ -6,6 +6,7 @@ from typing import Callable, List, Union
 from fastfusion.plugin.logging import ListLoggable
 from fastfusion.yamlparse.yaml import load_yaml, write_yaml_file
 
+
 def actionDynamicEnergy(func: Callable) -> Callable:
     """
     Decorator that adds an action to an energy/area estimator. Actions are
@@ -84,9 +85,11 @@ def uninstall(path: str, remove_full_dir: bool = False):
         info(f"Removed path {path} from the list of python paths.")
         write_yaml_file(cfg_yaml, cfg)
 
+
 def add_estimator_path(*args, **kwargs):
     """Alias for install"""
     install(*args, **kwargs)
+
 
 def remove_estimator_path(*args, **kwargs):
     """Alias for uninstall"""

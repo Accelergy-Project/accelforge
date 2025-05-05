@@ -5,7 +5,7 @@ from .specification import Specification
 def to_looptree(spec: Specification):
     # Architecture
     arch = spec.architecture
-    
+
     nodes = arch.flatten()
     for i, n in enumerate(nodes[:-1]):
         assert isinstance(n, Storage), (
@@ -14,9 +14,9 @@ def to_looptree(spec: Specification):
         )
     name2leaf = {n.name: n for n in nodes}
     memory_names = [n.name for n in nodes[:-1]]
-    assert isinstance(nodes[-1], Compute), (
-        "The last node in the architecture must be a compute node"
-    )
+    assert isinstance(
+        nodes[-1], Compute
+    ), "The last node in the architecture must be a compute node"
 
     workload = spec.workload
     looptree_workload = LooptreeWorkload()
@@ -29,9 +29,13 @@ def to_looptree(spec: Specification):
             # ranks.
             looptree_workload.set_tensor_ranks(tensor, tensor.ranks)
             # TODO: Ensure that projection is well-formed
-            looptree_workload.set_projection(einsum, tensor, tensor.projection, tensor.output)
+            looptree_workload.set_projection(
+                einsum, tensor, tensor.projection, tensor.output
+            )
         shape = list(einsum.shape)
-        shape += [workload.shape[r] for r in einsum.rank_variables if r in workload.shape]
+        shape += [
+            workload.shape[r] for r in einsum.rank_variables if r in workload.shape
+        ]
         shape = " and ".join(shape)
         looptree_workload.set_einsum_shape(einsum, shape)
 
@@ -54,28 +58,25 @@ def to_looptree(spec: Specification):
         if constraint.spatial_Y:
             assert has_y_fanout, f"{name} has a spatial_Y constraint but no Y fanout."
         if constraint.spatial:
-            assert has_x_fanout or has_y_fanout, (
-                f"{name} has a spatial constraint but no X or Y fanout."
-            )
+            assert (
+                has_x_fanout or has_y_fanout
+            ), f"{name} has a spatial constraint but no X or Y fanout."
             assert not (has_x_fanout and has_y_fanout), (
                 f"{name} has a spatial constraint and both X and Y fanout."
                 f"Please specify spatial_X and spatial_Y constraints instead."
             )
-            
+
         if constraint.tensors or constraint.temporal:
             constraint_type = "tensors" if constraint.tensors else "temporal"
             assert isinstance(leaf, Storage), (
                 f"{name} has a tensors or temporal constraint, but is not a storage. "
                 f"Ensure that it has a !Storage tag in the architecture."
             )
-        
-            
-        # TODO: Constraints
-        
 
-    
-    
+        # TODO: Constraints
+
     return looptree
+
 
 # Each Einsum and tensor must have a dictionary so we can add keys if needed.
 # Tensor dictionaries must be unique to each Einsum in case the properties of the tensor

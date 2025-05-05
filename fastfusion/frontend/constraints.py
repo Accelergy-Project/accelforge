@@ -6,63 +6,83 @@ from .version import assert_version
 # Registry for classes that need to declare attrs
 _classes_to_declare: Set[Type] = set()
 
+
 def declare_attrs_after_imports():
     """Call declare_attrs on all registered classes after imports are complete."""
     for cls in _classes_to_declare:
         cls.declare_attrs()
 
+
 class DeclarableNode:
     """Mixin class that delays declare_attrs until after imports."""
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if hasattr(cls, 'declare_attrs'):
+        if hasattr(cls, "declare_attrs"):
             _classes_to_declare.add(cls)
+
 
 class InvertibleSet(set):
     def __init__(self, *args, full_space: set, **kwargs):
         super().__init__(*args, **kwargs)
         self.full_space = full_space
-        
+
     def __invert__(self):
         return InvertibleSet(self.full_space - self, full_space=self.full_space)
 
+
 class ConstraintSetResolver:
     def __init__(
-        self, 
+        self,
         tensor2rank_variables: dict[str, list[str]],
         intermediate_tensors: set[str],
     ):
         self._all_tensors = set(self.tensor2rank_variables.keys())
         self._all_rank_variables = set.union(*self.tensor2rank_variables.values())
-        
+
         all_tensors = set(self.tensor2rank_variables.keys())
-        self._tensor_set = {name: self.make_tensor_set([name]) for name in tensor2rank_variables}
+        self._tensor_set = {
+            name: self.make_tensor_set([name]) for name in tensor2rank_variables
+        }
         self._tensor_set["All"] = self.make_tensor_set(all_tensors)
         self._tensor_set["Intermediates"] = self.make_tensor_set(intermediate_tensors)
-        
+
         all_rank_variables = set.union(*tensor2rank_variables.values())
         self._rank_variable_sets = {
             name: self.make_variable_set(tensor2rank_variables[name])
             for name in tensor2rank_variables
         }
         self._rank_variable_sets["All"] = self.make_variable_set(all_rank_variables)
-        self._rank_variable_sets["Intermediates"] = self.make_variable_set(tensor_names=intermediate_tensors)
-        
+        self._rank_variable_sets["Intermediates"] = self.make_variable_set(
+            tensor_names=intermediate_tensors
+        )
+
     def make_tensor_set(self, tensor_names: list[str]) -> InvertibleSet:
         return InvertibleSet(set(tensor_names), full_space=self._all_tensors)
-        
-    def make_variable_set(self, variable_names: list[str]=(), tensor_names: list[str]=()) -> InvertibleSet:
-        variable_names = set.union(variable_names, *(self._rank_variable_sets[t] for t in tensor_names))
+
+    def make_variable_set(
+        self, variable_names: list[str] = (), tensor_names: list[str] = ()
+    ) -> InvertibleSet:
+        variable_names = set.union(
+            variable_names, *(self._rank_variable_sets[t] for t in tensor_names)
+        )
         return InvertibleSet(variable_names, full_space=self._all_rank_variables)
 
-    def resolve_tensor_set(self, expression: str, extra_tensor_set: dict[str, set] = {}) -> list[str]:
+    def resolve_tensor_set(
+        self, expression: str, extra_tensor_set: dict[str, set] = {}
+    ) -> list[str]:
         extra_sets = {k: self.make_tensor_set(v) for k, v in extra_tensor_set.items()}
         return self._resolve(expression, {**self._tensor_set, **extra_sets})
-    
-    def resolve_rank_variable_set(self, expression: str, extra_tensor_set: dict[str, set] = {}) -> list[str]:
-        extra_sets = {k: self.make_variable_set(tensor_names=v) for k, v in extra_tensor_set.items()}
+
+    def resolve_rank_variable_set(
+        self, expression: str, extra_tensor_set: dict[str, set] = {}
+    ) -> list[str]:
+        extra_sets = {
+            k: self.make_variable_set(tensor_names=v)
+            for k, v in extra_tensor_set.items()
+        }
         return self._resolve(expression, {**self._rank_variable_sets, **extra_sets})
-    
+
     def _resolve(self, expression: str, sets: dict[str, InvertibleSet]) -> list[str]:
         if not expression:
             return set()
@@ -73,7 +93,8 @@ class ConstraintSetResolver:
                 f"Invalid set expression: {expression}. Error: {str(e)}. "
                 f"Available sets: {', '.join(sets.keys())}"
             )
-            
+
+
 class ResolvesToTensorSet:
     def resolve(self, resolver: ConstraintSetResolver) -> list[str]:
         try:
@@ -81,13 +102,15 @@ class ResolvesToTensorSet:
         except Exception as e:
             raise ValueError(f"Error in {self.get_name()}: {e}")
 
+
 class EntriesResolveToRankVariableSet:
     def resolve(self, resolver: ConstraintSetResolver) -> list[str]:
         try:
             return [resolver.resolve_rank_variable_set(e) for e in self]
         except Exception as e:
             raise ValueError(f"Error in {self.get_name()}: {e}")
-        
+
+
 class FirstEntryResolvesToRankVariableSet:
     def resolve(self, resolver: ConstraintSetResolver) -> list[str]:
         try:
@@ -95,7 +118,8 @@ class FirstEntryResolvesToRankVariableSet:
         except Exception as e:
             raise ValueError(f"Error in {self.get_name()}: {e}")
 
-def constraint_factory(constraint: dict):  
+
+def constraint_factory(constraint: dict):
     # Support the old "type" field
     if "type" in constraint:
         ctype = constraint["type"]
@@ -109,6 +133,7 @@ def constraint_factory(constraint: dict):
         constraint = {k: v for k, v in constraint.items() if k != "type"}
         return ConstraintGroup(ctype=type2class[ctype](**constraint))
     return ConstraintGroup(**constraint)
+
 
 class Constraints(DictNode):
     """
@@ -130,6 +155,7 @@ class Constraints(DictNode):
         self.version: str = self["version"]
         self.constraints: ConstraintsList = self["constraints"]
 
+
 class ConstraintsList(CombinableListNode):
     """
     A class representing a list of constraints.
@@ -139,6 +165,7 @@ class ConstraintsList(CombinableListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", ConstraintGroup, callfunc=constraint_factory)
+
 
 class ConstraintGroup(DictNode):
     """
@@ -170,6 +197,7 @@ class ConstraintGroup(DictNode):
         self.temporal: Temporal = self["temporal"]
         self.tensors: Storage = self["tensors"]
 
+
 class Iteration(DictNode):
     """
     An iteration (spatial or temporal) constraint.
@@ -194,6 +222,7 @@ class Iteration(DictNode):
         self.factors: LoopBounds = self["factors"]
         self.permutation: LoopOrder = self["permutation"]
 
+
 class Spatial(Iteration):
     """
     A spatial iteration constraint.
@@ -207,6 +236,7 @@ class Spatial(Iteration):
                 "constraints instead."
             )
         super().__init__(*args, **kwargs)
+
 
 class Temporal(Iteration):
     """
@@ -225,6 +255,7 @@ class Temporal(Iteration):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.rmw_first_update: List[str] = self["rmw_first_update"]
+
 
 class Storage(DictNode):
     """
@@ -249,11 +280,14 @@ class Storage(DictNode):
         self.keep: List[str] = self["keep"]
         self.coalesce: List[str] = self["coalesce"]
 
+
 class LoopOrder(ListNode, EntriesResolveToRankVariableSet):
     """
     A permutation of ranks.
     """
+
     pass
+
 
 class LoopBounds(ListNode, FirstEntryResolvesToRankVariableSet):
     """
@@ -264,9 +298,10 @@ class LoopBounds(ListNode, FirstEntryResolvesToRankVariableSet):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", str)
-        
+
     def get_rank_variables(self):
         pass
+
 
 class TensorList(ListNode, ResolvesToTensorSet):
     """
@@ -284,6 +319,7 @@ class TensorList(ListNode, ResolvesToTensorSet):
     # Override the in operator
     def __contains__(self, item):
         return super().__contains__(item) or super().__contains__("*")
+
 
 """
 ### Constraints Specification

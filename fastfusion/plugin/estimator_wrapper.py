@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 from .estimator import EnergyAreaEstimator
 from .logging import move_queue_from_one_logger_to_another, ListLoggable
 
+
 class PrintableCall:
     def __init__(
         self,
@@ -25,8 +26,10 @@ class PrintableCall:
 
         return f"{n}({', '.join(args)})"
 
+
 class EnergyAreaQuery:
     """A query to a EnergyArea plug-in."""
+
     def __init__(
         self,
         class_name: str,
@@ -52,6 +55,7 @@ class EnergyAreaQuery:
             )
             s += f".{self.action_name}({args_stringified})"
         return s
+
 
 class Estimation:
     """Estimation object for storing estimation results."""
@@ -99,6 +103,7 @@ class Estimation:
 
     def get_value(self):
         return self.value
+
 
 class CallableFunction:
     """Wrapper for a function to provide error checking and argument
@@ -192,6 +197,7 @@ class CallableFunction:
                 {a: b for a, b in zip(self.default_args, self.default_arg_values)},
             )
         )
+
 
 class EnergyAreaEstimatorWrapper(ListLoggable):
     """EnergyArea primitive component estimator that wraps a Python class."""
@@ -334,7 +340,9 @@ class EnergyAreaEstimatorWrapper(ListLoggable):
 def check_for_valid_estimator_attrs(estimator: EnergyAreaEstimator):
     # Check for valid class_name. Must be a string or list of strings
     if getattr(estimator, "name", None) is None:
-        raise AttributeError(f"EnergyAreaEstimator {estimator} must have a name attribute")
+        raise AttributeError(
+            f"EnergyAreaEstimator {estimator} must have a name attribute"
+        )
     name = estimator.name
     if not isinstance(name, str) and not (
         isinstance(name, list) and all(isinstance(n, str) for n in name)
