@@ -9,10 +9,10 @@ from ipywidgets import Output, VBox, HBox
 import pandas as pd
 import plotly.express as px
 
-from fastfusion.joining.sim import Loop, TensorStorage, Mapping
+from fastfusion.mapper.FFM.joining.sim import Loop, TensorStorage, Mapping
 from fastfusion.util import expfmt
 from fastfusion.visualization.reservationtree import mappings2svg
-from fastfusion.pareto import (
+from fastfusion.mapper.FFM.pareto import (
     MAPPING,
     STATS,
     TENSORS,

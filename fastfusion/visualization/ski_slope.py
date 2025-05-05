@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from fastfusion.pareto import Pareto
+from fastfusion.mapper.FFM.pareto import Pareto
 
 
 DATAFLOW_COLUMN = "dataflow"
