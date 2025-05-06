@@ -9,7 +9,7 @@ def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:
     return isl.Set(f'{{ [{rank_variable_names}] : {einsum_shape} }}')
 
 
-def get_dim_bounds(isl_set: isl.Set) -> [int]:
+def get_dim_bounds(isl_set: isl.Set) -> list[int]:
     bounds = []
     for i in range(isl_set.dim(isl.dim_type.set)):
         max_val = isl_set.dim_max_val(i)
