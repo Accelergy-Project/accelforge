@@ -1,5 +1,6 @@
 import logging
 
+from fastfusion.frontend.renames import Renames
 from fastfusion.yamlparse.parse_expressions import ParseExpressionsContext
 from . import arch, constraints, variables, workload
 from fastfusion.yamlparse.nodes import ListNode
@@ -58,6 +59,7 @@ class Specification(BaseSpecification):
         super().add_attr(
             "component_area", ComponentArea, {"version": 0.5, "tables": []}
         )
+        super().add_attr("renames", Renames, {"version": 0.5})
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("_required_processors", [])
@@ -147,7 +149,3 @@ class Specification(BaseSpecification):
                 )
             self.component_area = area
             self.component_energy = energy
-
-    @classmethod
-    def from_yaml(cls, *args, **kwargs) -> "Specification":
-        return super().from_yaml(*args, **kwargs)

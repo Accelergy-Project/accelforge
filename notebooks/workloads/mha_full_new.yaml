@@ -59,27 +59,27 @@ workload:
     - {name: WFFB, projection: [ c, j ]}
     - {name: FFB, projection: [ b, m, j ], output: True}
 
-# renames:
-#   version: 0.5
-#   einsums:
-#   - name: default
-#     tensors:
-#     - name: weight
-#       source: ~(Outputs() | Intermediates())
-#       injective: True
-#     - name: output
-#       source: Outputs()
-#       injective: True
-#     - name: input
-#       source: ~(output | weight)
-#       injective: True
-#   - name: QK
-#     tensors:
-#     - name: weight
-#       source: QK
-#       injective: True
-#   - name: AV
-#     tensors:
-#     - name: weight
-#       source: AV
-#       injective: True
+renames:
+  version: 0.5
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: weight
+      source: ~(Outputs() | Intermediates())
+      injective: True
+    - name: output
+      source: Outputs()
+      injective: True
+    - name: input
+      source: ~(output | weight)
+      injective: True
+  - name: QK
+    tensor_accesses:
+    - name: weight
+      source: QK
+      injective: True
+  - name: AV
+    tensor_accesses:
+    - name: weight
+      source: AV
+      injective: True
