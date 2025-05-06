@@ -26,7 +26,7 @@ class PerEinsumDataflowConstraint:
     rank_order: list
 
     @staticmethod
-    def parse(pattern: list[str]):
+    def _parse(pattern: list[str]):
         if SEPARATOR in pattern:
             separator_idx = pattern.index(SEPARATOR)
             disallowed_ranks = set(pattern[:separator_idx])
@@ -44,7 +44,7 @@ class DataflowConstraint:
     einsum_to_constraint: dict[int, PerEinsumDataflowConstraint]
 
     @staticmethod
-    def parse(pattern: dict[str, list[str]]):
+    def _parse(pattern: dict[str, list[str]]):
         return DataflowConstraint({
             einsum_name : PerEinsumDataflowConstraint.parse(constraint)
             for einsum_name, constraint in pattern.items()

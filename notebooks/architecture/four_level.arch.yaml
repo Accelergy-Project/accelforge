@@ -17,9 +17,9 @@ architecture:
       energy_scale: (450 / 64) / 8 
       energy: 1
       area: 1
-    constraints:
-      storage:
-        keep: [~Intermediates()]
+    # constraints:
+    #   storage:
+    #     keep: ~Intermediates()
 
     
   - !Storage
@@ -32,17 +32,14 @@ architecture:
       depth: 1000
       energy: 1
       area: 1
-    constraints:
-      storage:
-        keep: [~MainMemory()]
+    # constraints:
+    #   storage:
+    #     keep: ~MainMemory()
 
-  # - !Container
-  #   name: Core
-  #   spatial: {meshX: 4}
   - !Storage
     name: LocalBuffer
     class: SRAM 
-    spatial: {meshX: 4}
+    spatial: {fanoutX: 4, fanoutY: 4}
     attributes:
       size: 1024*1024*32*8 # 32MB
       width: 2048
@@ -51,25 +48,38 @@ architecture:
       energy: 1
       area: 1
     constraints:
-      storage:
-        keep: [~Outputs()]
+      # storage:
+      #   keep: Intermediates()
+      temporal:
+        loop_order: []
+      # spatial:
+        # loop_order: sorted(All().ranks())
+        # loop_bounds:
+        # - [All(), product<=, 16]
 
-  # - !Container
-  #   name: PE
-  #   spatial: {meshX: 128, meshY: 128}
   - !Storage
     name: Register
     class: dummy_storage
-    spatial: {meshX: 128, meshY: 128}
+    spatial: {fanoutX: 128, fanoutY: 128}
     attributes:
       size: 8 # 8b
+      datawidth: 8
       width: 8
       depth: 1000
-      datawidth: 8
       energy: 1
       area: 1
-  
-
+    # constraints:
+      # storage:
+      #   keep: weight
+      # temporal:
+        # loop_bounds:
+        # - ranks: weight
+        #   operator: ==
+        #   bound: 1
+      # spatial:
+        # loop_order: sorted(All().ranks())
+        # loop_bounds:
+        # - [All(), product<=, 128]
 
   - !Compute
     name: MAC
