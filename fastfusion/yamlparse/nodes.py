@@ -1396,11 +1396,11 @@ class DictNode(Node, dict):
 
     @classmethod
     def from_yaml(
-        cls,
+        cls: type[T],
         *files: Union[str, List[str], Path, list[Path]],
         jinja_parse_data: Dict[str, Any] = None,
         **kwargs,
-    ) -> "DictNode":
+    ) -> T:
         """
         Loads a dictionary from one more more yaml files.
 
