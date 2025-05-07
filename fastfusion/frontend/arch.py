@@ -166,6 +166,9 @@ class ArchNodes(ArchNode, ListNode):
 
         return super().parse_expressions(n_symbol_table, parsed_ids, callfunc)
 
+    def __getitem__(self, key: Union[str, int]) -> ArchNode:
+        return super().__getitem__(key)
+
 
 class Branch(ArchNode, DictNode, ABC):
     """
@@ -364,6 +367,9 @@ class Actions(ListNode):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key: Union[str, int]) -> "SubcomponentAction":
+        return super().__getitem__(key)
 
 
 class Container(Leaf, ABC):

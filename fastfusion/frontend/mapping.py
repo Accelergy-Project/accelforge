@@ -1,5 +1,6 @@
 from fastfusion.yamlparse.nodes import DictNode, ListNode
 from .version import assert_version
+from typing import Union
 
 
 class Mapping(DictNode):
@@ -20,6 +21,9 @@ class MappingNodeList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", MappingNode)
+        
+    def __getitem__(self, key: Union[str, int]) -> "MappingNode":
+        return super().__getitem__(key)
 
 
 class MappingNode(DictNode):

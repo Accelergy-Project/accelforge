@@ -34,6 +34,9 @@ class AreaTable(ListNode):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", AreaEntry)
 
+    def __getitem__(self, key: Union[str, int]) -> "AreaEntry":
+        return super().__getitem__(key)
+
 
 class AreaEntry(DictNode):
     @classmethod

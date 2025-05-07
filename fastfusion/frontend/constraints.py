@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Any, List
+from typing import Any, List, Union
 from fastfusion.frontend._set_parse import eval_set_expression
 from fastfusion.yamlparse.nodes import DictNode, ListNode, CombinableListNode
 from .version import assert_version
@@ -282,6 +282,9 @@ class LoopBoundsList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", LoopBounds)
+        
+    def __getitem__(self, key: Union[str, int]) -> "LoopBounds":
+        return super().__getitem__(key)
         
     def _parse(self, symbol_table: dict[str, Any]):
         # return [x._parse(symbol_table) for x in self]

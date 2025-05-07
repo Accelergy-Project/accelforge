@@ -51,6 +51,9 @@ class EnergyTable(ListNode):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", EnergyEntry)
 
+    def __getitem__(self, key: Union[str, int]) -> "EnergyEntry":
+        return super().__getitem__(key)
+
 
 class EnergyEntry(DictNode):
     """
@@ -111,6 +114,9 @@ class Actions(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", Action)
+
+    def __getitem__(self, key: Union[str, int]) -> "Action":
+        return super().__getitem__(key)
 
 
 class Action(DictNode):
@@ -233,6 +239,9 @@ class Subactions(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", Subaction)
+
+    def __getitem__(self, key: Union[str, int]) -> "Subaction":
+        return super().__getitem__(key)
 
 
 class Subaction(DictNode):

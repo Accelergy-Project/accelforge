@@ -16,6 +16,9 @@ class ProcessorListHolder(ListNode):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", callfunc=class2obj)
 
+    def __getitem__(self, key: Union[str, int]) -> Any:
+        return super().__getitem__(key)
+
 
 ProcessorListHolder.declare_attrs()
 

@@ -1,6 +1,7 @@
 import copy
 from fastfusion.yamlparse.nodes import DictNode, ListNode
 from fastfusion.frontend.version import assert_version
+from typing import Union
 
 class Renames(DictNode):
     """
@@ -32,7 +33,7 @@ class EinsumRenameList(ListNode):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", EinsumRename)
         
-    def __getitem__(self, key: str) -> "EinsumRename":
+    def __getitem__(self, key: Union[str, int]) -> "EinsumRename":
         return super().__getitem__(key)
 
 class EinsumRename(DictNode):
@@ -53,7 +54,7 @@ class TensorAccessRenameList(ListNode):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", TensorRename)
         
-    def __getitem__(self, key: str) -> "TensorRename":
+    def __getitem__(self, key: Union[str, int]) -> "TensorRename":
         return super().__getitem__(key)
     
 class TensorRename(DictNode):

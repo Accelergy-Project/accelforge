@@ -1,5 +1,5 @@
 from numbers import Number
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from fastfusion.yamlparse.nodes import DictNode, ListNode, FlatteningListNode
 from .version import assert_version
 from fastfusion.yamlparse.parse_expressions import parse_expression
@@ -254,6 +254,9 @@ class ActionsList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", Action, part_name_match=True, no_change_key=True)
+        
+    def __getitem__(self, key: Union[str, int]) -> "Action":
+        return super().__getitem__(key)
 
 
 class Action(DictNode):
@@ -292,6 +295,9 @@ class ActionSubcomponentsList(ListNode):
             part_name_match=True,
             no_change_key=True,
         )
+        
+    def __getitem__(self, key: Union[str, int]) -> "SubcomponentActionGroup":
+        return super().__getitem__(key)
 
 
 class SubcomponentActionGroup(DictNode):
@@ -320,6 +326,9 @@ class SubcomponentActionList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", SubcomponentAction)
+        
+    def __getitem__(self, key: Union[str, int]) -> "SubcomponentAction":
+        return super().__getitem__(key)
 
 
 class SubcomponentAction(DictNode):

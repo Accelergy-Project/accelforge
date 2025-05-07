@@ -3,6 +3,7 @@ from fastfusion.frontend._set_parse import InvertibleSet, eval_set_expression
 from fastfusion.frontend.renames import Renames
 from fastfusion.yamlparse.nodes import ListNode, DictNode
 from ..version import assert_version
+from typing import Union
 
 
 CLIST_OPERATORS = [
@@ -210,6 +211,9 @@ class EinsumList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", Einsum)
+        
+    def __getitem__(self, key: str) -> "Einsum":
+        return super().__getitem__(key)
 
 
 class Einsum(DictNode):
@@ -262,6 +266,9 @@ class TensorAccessList(ListNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", TensorAccess)
+
+    def __getitem__(self, key: Union[str, int]) -> "TensorAccess":
+        return super().__getitem__(key)
 
 class TensorAccess(DictNode):
     """
