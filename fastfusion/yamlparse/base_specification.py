@@ -20,9 +20,6 @@ class ProcessorListHolder(ListNode):
         return super().__getitem__(key)
 
 
-ProcessorListHolder.declare_attrs()
-
-
 class BaseSpecification(DictNode):
     """
     Base class for specifications in the Timeloop framework.
@@ -217,6 +214,3 @@ class BaseSpecification(DictNode):
         new_instance = super().__deepcopy__(memo)
         new_instance._claim_nodes()
         return new_instance
-
-
-BaseSpecification.declare_attrs()
