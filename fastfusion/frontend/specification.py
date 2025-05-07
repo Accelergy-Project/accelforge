@@ -120,7 +120,7 @@ class Specification(BaseSpecification):
         plug_ins = gather_plug_ins(self.config.component_plug_ins)
         with ParseExpressionsContext(self):
             processed = self._process()
-            components = processed.architecture._flatten(self.variables)
+            components = processed.architecture._flatten(processed.variables)
             area = ComponentArea()
             energy = ComponentEnergy()
             for component in components:
@@ -149,3 +149,8 @@ class Specification(BaseSpecification):
                 )
             self.component_area = area
             self.component_energy = energy
+
+    def get_flattened_architecture(self) -> list[arch.Leaf]:
+        with ParseExpressionsContext(self):
+            processed = self._process()
+            return processed.architecture._flatten(processed.variables)

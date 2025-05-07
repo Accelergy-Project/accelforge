@@ -435,6 +435,8 @@ class Node(ABC):
             checks = {}
             for k, v in enumerate(self):
                 check = specifiers.get(Node._get_tag(v), None)
+                if check is None and k in specifiers:
+                    check = specifiers[k]
                 if check is None:
                     check = specifiers.get("!" + v.__class__.__name__, None)
                 checks[k] = check
@@ -806,6 +808,7 @@ class Node(ABC):
                     tag_str = f"'{t}'"
                 else:
                     tag_str = f"'{t}' {tag_clarif}"
+                checks = self._get_index2checker()
                 raise ParseError(
                     f"Unrecognized {keytag} {tag_str} in {name}{idxstr}.  "
                     f"Recognized {keytag}s: {list(recognized.keys())}."
@@ -1234,6 +1237,7 @@ class ListNode(Node, list):
         self.from_data = list(self)
         if not __node_skip_parse:
             self._parse_elems()
+            self.check_unrecognized()
 
     def __getitem__(self, key: Union[str, int]) -> Any:
         """
@@ -1275,6 +1279,27 @@ class ListNode(Node, list):
             f"No element with name \"{key}\" found in {self.get_name()}. "
             f"Candidates are {', '.join(found)}"
         )
+        
+    def __contains__(self, key: str) -> bool:
+        if isinstance(key, str):
+            try:
+                self[key]
+                return True
+            except KeyError:
+                pass
+        return super().__contains__(key)
+        
+    def extend_no_name_repeat(self, other: "ListNode"):
+        try:
+            for elem in other:
+                if elem["name"] in self:
+                    continue
+                self.append(elem)
+            return
+        except KeyError as exc:
+            raise KeyError(
+                f"Can not extend {self.get_name()} with {other.get_name()}."
+            ) from exc
 
 
 class CombinableListNode(ListNode):
@@ -1337,8 +1362,7 @@ class DictNode(Node, dict):
                 self[k] = default_unspecified_
         if not __node_skip_parse:
             self._parse_elems()
-            
-        self.check_unrecognized()
+            self.check_unrecognized()
 
     def _update_combine_pre_parse(self, other: dict):
         for k, v in other.items():
@@ -1446,7 +1470,6 @@ class DictNode(Node, dict):
         extra_elems = []
         to_parse = []
         for f in files:
-            logging.info("Loading yaml file %s", f)
             globbed = [x for x in glob.glob(f) if os.path.isfile(x)]
             if not globbed:
                 raise FileNotFoundError(f"Could not find file {f}")

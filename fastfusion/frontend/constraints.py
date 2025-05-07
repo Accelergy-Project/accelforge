@@ -1,26 +1,9 @@
+import copy
 import logging
-from typing import List, Union, Set, Dict, Type, Any
-from fastfusion.yamlparse.nodes import DictNode, ListNode, isempty, CombinableListNode
+from typing import Any, List
+from fastfusion.frontend._set_parse import eval_set_expression
+from fastfusion.yamlparse.nodes import DictNode, ListNode, CombinableListNode
 from .version import assert_version
-
-# Registry for classes that need to declare attrs
-_classes_to_declare: Set[Type] = set()
-
-
-def declare_attrs_after_imports():
-    """Call declare_attrs on all registered classes after imports are complete."""
-    for cls in _classes_to_declare:
-        cls.declare_attrs()
-
-
-class DeclarableNode:
-    """Mixin class that delays declare_attrs until after imports."""
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if hasattr(cls, "declare_attrs"):
-            _classes_to_declare.add(cls)
-
 
 class InvertibleSet(set):
     def __init__(self, *args, full_space: set, **kwargs):
@@ -29,7 +12,6 @@ class InvertibleSet(set):
 
     def __invert__(self):
         return InvertibleSet(self.full_space - self, full_space=self.full_space)
-
 
 class ConstraintSetResolver:
     def __init__(
@@ -93,7 +75,6 @@ class ConstraintSetResolver:
                 f"Invalid set expression: {expression}. Error: {str(e)}. "
                 f"Available sets: {', '.join(sets.keys())}"
             )
-
 
 class ResolvesToTensorSet:
     def resolve(self, resolver: ConstraintSetResolver) -> list[str]:
@@ -196,7 +177,73 @@ class ConstraintGroup(DictNode):
         self.spatial_Y: Spatial = self["spatial_Y"]
         self.temporal: Temporal = self["temporal"]
         self.storage: Storage = self["storage"]
+        
 
+    # def validate_spatial(self, fanout_X: int, fanout_Y: int):
+    #     has_X = self.spatial_X.notempty_recursive()
+    #     has_Y = self.spatial_Y.notempty_recursive()
+    #     has_spatial = self.spatial.notempty_recursive()
+    #     if has_X and fanout_X == 1:
+    #         logging.warning(
+    #             f"Spatial_X constraint is set for {self.name}, but fanout_X is 1. "
+    #             f"The constraint will be ignored."
+    #         )
+    #     if has_Y and fanout_Y == 1:
+    #         logging.warning(
+    #             f"Spatial_Y constraint is set for {self.name}, but fanout_Y is 1. "
+    #             f"The constraint will be ignored."
+    #         )
+    #     if has_spatial and (has_X or has_Y):
+    #         raise ValueError(
+    #             f"{self.name} has a \"spatial\" constraint, but has fanout in both "
+    #             "X and Y dimensions. Please specify spatial_X and spatial_Y constraints "
+    #             "instead."
+    #         )
+    #     if has_spatial and (has_X or has_Y):
+    #         raise ValueError(
+    #             f"{self.name} has a \"spatial\" constraint, and a \"spatial_X\" or "
+    #             "\"spatial_Y\" constraint. Please specify either one \"spatial\" constraint "
+    #             "or both \"spatial_X\" and \"spatial_Y\" constraints."
+    #         )
+            
+    def get_spatial_constraint(self, for_X: bool=False, for_Y: bool=False) -> "Spatial":
+        base = copy.deepcopy(self.spatial)
+        if for_X:
+            base.combine(self.spatial_X)
+        elif for_Y:
+            base.combine(self.spatial_Y)
+        return base
+        
+        # if not for_X and not for_Y:
+        #     raise ValueError(
+        #         f"{self.name} has no spatial constraints. Please specify either "
+        #         "spatial_X or spatial_Y constraints."
+        #     )
+        # if for_X and self.spatial_X.notempty_recursive():
+        #     return self.spatial_X
+        # if for_Y and self.spatial_Y.notempty_recursive():
+        #     return self.spatial_Y
+        # return self.spatial
+            
+    def _parse_storage(self, symbol_table: dict[str, Any]):
+        return self.storage._parse(symbol_table)
+            
+    def _parse(
+        self, 
+        symbol_table: dict[str, Any],
+        fanoutX: int,
+        fanoutY: int,
+    ):
+        self.validate_spatial(fanoutX, fanoutY)
+        return ConstraintGroup(
+            self.spatial._parse(symbol_table),
+            self.spatial_X._parse(symbol_table),
+            self.spatial_Y._parse(symbol_table),
+            self.temporal._parse(symbol_table),
+            self.storage._parse(symbol_table),
+            __node_skip_parse=True,
+        )
+        
 
 class Iteration(DictNode):
     """
@@ -204,7 +251,7 @@ class Iteration(DictNode):
 
     Attributes:
         factors (LoopBounds): The factors associated with the iteration.
-        permutation (LoopOrder): The permutation associated with the iteration.
+        loop_order (LoopOrder): The loop_order associated with the iteration.
         default_max_factor (int): The default maximum factor value.
         default_min_factor (int): The default minimum factor value.
     """
@@ -212,17 +259,37 @@ class Iteration(DictNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("reuse", TensorList, ["All"])
-        super().add_attr("factors", LoopBounds, [], LoopBounds)
-        super().add_attr("permutation", LoopOrder, [], LoopOrder)
+        super().add_attr("reuse", str, "All")
+        super().add_attr("loop_bounds", LoopBoundsList, [])
+        super().add_attr("loop_order", LoopOrder, [], LoopOrder)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reuse: List[str] = self["reuse"]
-        self.factors: LoopBounds = self["factors"]
-        self.permutation: LoopOrder = self["permutation"]
-
-
+        self.loop_bounds: LoopBounds = self["loop_bounds"]
+        self.loop_order: LoopOrder = self["loop_order"]
+        
+    def _parse(self, symbol_table: dict[str, Any]):
+        return type(self)(
+            loop_bounds=self.loop_bounds._parse(symbol_table),
+            loop_order=self.loop_order._parse(symbol_table),
+            reuse=self.reuse,
+            __node_skip_parse=True,
+        )
+    
+class LoopBoundsList(ListNode):
+    @classmethod
+    def declare_attrs(cls, *args, **kwargs):
+        super().declare_attrs(*args, **kwargs)
+        super().add_attr("", LoopBounds)
+        
+    def _parse(self, symbol_table: dict[str, Any]):
+        # return [x._parse(symbol_table) for x in self]
+        return LoopBoundsList(
+            *[x._parse(symbol_table) for x in self],
+            __node_skip_parse=True,
+        )
+    
 class Spatial(Iteration):
     """
     A spatial iteration constraint.
@@ -250,12 +317,16 @@ class Temporal(Iteration):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("rmw_first_update", TensorList, [])
+        super().add_attr("rmw_first_update", str, "~All")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.rmw_first_update: List[str] = self["rmw_first_update"]
-
+        
+    def _parse(self, symbol_table: dict[str, Any]):
+        new_temporal = super()._parse(symbol_table)
+        new_temporal.rmw_first_update = eval_set_expression(self.rmw_first_update, symbol_table, "tensors")
+        return new_temporal
 
 class Storage(DictNode):
     """
@@ -270,23 +341,40 @@ class Storage(DictNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("bypass", TensorList, [])
-        super().add_attr("keep", TensorList, [])
-        super().add_attr("coalesce", TensorList, ["All"])
+        super().add_attr("bypass", str, "~All")
+        super().add_attr("keep", str, "~All")
+        super().add_attr("coalesce", str, "All")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.bypass: List[str] = self["bypass"]
-        self.keep: List[str] = self["keep"]
-        self.coalesce: List[str] = self["coalesce"]
-
+        self.bypass: str = self["bypass"]
+        self.keep: str = self["keep"]
+        self.coalesce: str = self["coalesce"]
+        
+    def _parse(self, symbol_table: dict[str, Any]):
+        # new_storage = Storage()
+        # new_storage.bypass = eval_set_expression(self.bypass, symbol_table, "tensors")
+        # new_storage.keep = eval_set_expression(self.keep, symbol_table, "tensors")
+        # new_storage.coalesce = eval_set_expression(self.coalesce, symbol_table, "tensors")
+        # return new_storage
+        return type(self)(
+            bypass=eval_set_expression(self.bypass, symbol_table, "tensors"),
+            keep=eval_set_expression(self.keep, symbol_table, "tensors"),
+            coalesce=eval_set_expression(self.coalesce, symbol_table, "tensors"),
+            __node_skip_parse=True,
+        )
 
 class LoopOrder(ListNode, EntriesResolveToRankVariableSet):
     """
-    A permutation of ranks.
+    A loop_order of ranks.
     """
 
-    pass
+    def _parse(self, symbol_table: dict[str, Any]):
+        # return [x._parse(symbol_table) for x in self]
+        return LoopOrder(
+            [eval_set_expression(x, symbol_table, "rank_variables") for x in self],
+            __node_skip_parse=True,
+        )
 
 
 class LoopBounds(ListNode, FirstEntryResolvesToRankVariableSet):
@@ -297,28 +385,50 @@ class LoopBounds(ListNode, FirstEntryResolvesToRankVariableSet):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("", str)
-
-    def get_rank_variables(self):
-        pass
-
-
-class TensorList(ListNode, ResolvesToTensorSet):
-    """
-    A list of workload tensorss.
-    """
-
-    @classmethod
-    def declare_attrs(cls, *args, **kwargs):
-        super().declare_attrs(*args, **kwargs)
-        super().add_attr("", str)
-
+        super().add_attr(0, str)
+        super().add_attr(1, (
+            "==",
+            "<=",
+            ">=",
+            "<",
+            ">",
+            "product==",
+            "product<=",
+            "product>=",
+            "product<",
+            "product>",
+        ))
+        super().add_attr(2, int)
+        
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if len(self) != 3:
+            raise ValueError(f"LoopBounds can only have 3 elements. got {len(self)}")
+        self.expression = self[0]
+        self.operator = self[1]
+        self.value = self[2]
 
-    # Override the in operator
-    def __contains__(self, item):
-        return super().__contains__(item) or super().__contains__("*")
+    # def get_rank_variables(self):
+    #     pass
+    
+    def _parse(self, symbol_table: dict[str, Any]):
+        if len(self) != 3:
+            raise ValueError(f"LoopBounds can only have 3 elements. got {len(self)}")
+        return type(self)(
+            [eval_set_expression(self.expression, symbol_table, "rank_variables"),
+            self.operator,
+            self.value],
+            __node_skip_parse=True,
+        )
+        
+        # new_loop_bounds = LoopBounds(*self)
+        # new_loop_bounds.expression = eval_set_expression(self.expression, symbol_table, "rank_variables")
+        # new_loop_bounds.operator = self.operator
+        # new_loop_bounds.value = self.value
+        # new_loop_bounds[0] = new_loop_bounds.expression
+        # new_loop_bounds[1] = new_loop_bounds.operator
+        # new_loop_bounds[2] = new_loop_bounds.value
+        # return new_loop_bounds
 
 
 """

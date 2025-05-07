@@ -20,7 +20,7 @@ from fastfusion.exploration.mapper_snowcat import mapper
 from fastfusion.joining.simexplore import fuse_sims
 from fastfusion.visualization.ski_slope import plot_ski_slope
 from fastfusion.exploration.process_results import Metrics
-from pytimeloop.timeloopfe.v4fused import Specification
+from pytimeloop.frontend.v4fused import Specification
 from pytimeloop.fastfusion.filter_mappings import get_tileflow_tag_mha, get_ffmt_tag_mha, get_layernorm_tag_mha, get_looptree_tag_mha, get_optimus_tag
 
 from tests.util import CONFIG_DIR, TEST_TMP_DIR

@@ -1,0 +1,41 @@
+renames:
+  version: 0.5
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: weight
+      source: ~(Outputs() | Intermediates())
+      injective: True
+    - name: output
+      source: Outputs()
+      injective: True
+    - name: input
+      source: ~(output | weight)
+      injective: True
+
+  - name: Q
+    tensor_accesses:
+    - name: weight
+      source: WQ
+      injective: True
+  - name: K
+    tensor_accesses:
+    - name: weight
+      source: WK
+      injective: True
+  - name: V
+    tensor_accesses:
+    - name: weight
+      source: WV
+      injective: True
+
+  - name: QK
+    tensor_accesses:
+    - name: weight
+      source: K
+      injective: True
+  - name: AV
+    tensor_accesses:
+    - name: weight
+      source: V
+      injective: True

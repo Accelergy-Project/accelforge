@@ -160,16 +160,32 @@ class Workload(DictNode):
         outputs = einsum.output_tensors()
         all_ = inputs | outputs
         intermediates = {t for t in all_ if self.einsums_that_read_tensor(t) and self.einsums_that_write_tensor(t)}
+        shared = {
+            t for t in all_ if len(self.einsums_that_read_tensor(t) | self.einsums_that_write_tensor(t)) > 1
+        }
+
+        element_to_child_space = {}
+        all_rank_variables = einsum.rank_variables
+        for tensor in all_:
+            rank_variables = einsum.tensor_accesses[tensor.name].rank_variables
+            element_to_child_space[tensor.name] = InvertibleSet(
+                rank_variables,
+                full_space=all_rank_variables,
+                space_name=f"rank_variables",
+            )
                 
         kwargs = dict(
             full_space=all_,
-            space_name=f"Einsum {einsum_name} Tensors",
+            space_name=f"tensors",
+            child_access_name="rank_variables",
+            element_to_child_space=element_to_child_space,
         )
         symbol_table = {
             "All": InvertibleSet(all_, **kwargs),
             "Inputs": InvertibleSet(inputs, **kwargs),
             "Outputs": InvertibleSet(outputs, **kwargs),
             "Intermediates": InvertibleSet(intermediates, **kwargs),
+            "Shared": InvertibleSet(shared, **kwargs),
             **{t.name: InvertibleSet((t,), **kwargs) for t in all_},
         }
         
@@ -180,21 +196,9 @@ class Workload(DictNode):
                 name = rename_tensor.name
                 source = rename_tensor.source
                 injective = rename_tensor.injective
-                symbol_table[name] = eval_set_expression(source, symbol_table, injective=injective)
-        
+                symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", injective=injective)
+                
         return symbol_table
-
-    # def rename(self, renames: Renames) -> "Einsum":
-    #     try:
-    #         defaults = renames.einsums[einsum_name].tensor_accesses
-    #     except KeyError:
-    #         defaults = {}
-
-    #     my_rename = renames.einsums[einsum_name].tensor_accesses
-    #     my_rename.extend_no_name_repeat(defaults)
-    #     symbol_table = self.get_constraint_symbol_table(einsum_name)
-    #     for tensor in my_rename:
-    #         symbol_table[tensor.name] = eval_set_expression(tensor.source, symbol_table)
 
 
 class EinsumList(ListNode):

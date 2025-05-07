@@ -17,10 +17,9 @@ architecture:
       energy_scale: (450 / 64) / 8 
       energy: 1
       area: 1
-    # constraints:
-    #   storage:
-    #     keep: ~Intermediates()
-
+    constraints:
+      storage:
+        keep: ~Intermediates()
     
   - !Storage
     name: GlobalBuffer
@@ -32,9 +31,9 @@ architecture:
       depth: 1000
       energy: 1
       area: 1
-    # constraints:
-    #   storage:
-    #     keep: ~MainMemory()
+    constraints:
+      storage:
+        keep: ~MainMemory.tensors()
 
   - !Storage
     name: LocalBuffer
@@ -48,14 +47,14 @@ architecture:
       energy: 1
       area: 1
     constraints:
-      # storage:
-      #   keep: Intermediates()
+      storage:
+        keep: Intermediates()
       temporal:
         loop_order: []
-      # spatial:
+      spatial:
         # loop_order: sorted(All().ranks())
-        # loop_bounds:
-        # - [All(), product<=, 16]
+        loop_bounds:
+        - [All().rank_variables(), product<=, 16]
 
   - !Storage
     name: Register
@@ -68,18 +67,16 @@ architecture:
       depth: 1000
       energy: 1
       area: 1
-    # constraints:
-      # storage:
-      #   keep: weight
-      # temporal:
-        # loop_bounds:
-        # - ranks: weight
-        #   operator: ==
-        #   bound: 1
-      # spatial:
-        # loop_order: sorted(All().ranks())
-        # loop_bounds:
-        # - [All(), product<=, 128]
+    constraints:
+      storage:
+        keep: weight
+      temporal:
+        loop_bounds:
+        - [weight.rank_variables(), ==, 1]
+      spatial:
+        loop_order: [Outputs().rank_variables(), Inputs().rank_variables()]
+        loop_bounds:
+        - [All().rank_variables(), product<=, 128]
 
   - !Compute
     name: MAC

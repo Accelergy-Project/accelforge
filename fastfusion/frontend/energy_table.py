@@ -1,5 +1,6 @@
 import copy
 from typing import Union
+from fastfusion.frontend.version import assert_version
 from fastfusion.yamlparse.nodes import DictNode, ListNode
 from numbers import Number
 from fastfusion.plugin.query_plug_ins import EnergyAreaQuery
@@ -10,7 +11,7 @@ class ComponentEnergy(DictNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("version", default="0.5")
+        super().add_attr("version", default="0.5", callfunc=assert_version)
         super().add_attr("tables", EnergyTable, [])
 
     def __init__(self, *args, **kwargs):

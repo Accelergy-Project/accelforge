@@ -32,7 +32,7 @@ workload:
   - name: QK
     tensor_accesses:
     - {name: Q, projection: [ b, m, h, e ]}
-    - {name: K, projection: { B: b, M: P, H: h, E: e }}
+    - {name: K, projection: { B: b, M: p, H: h, E: e }}
     - {name: QK, projection: [ b, m, p, h ], output: True}
 
   - name: AV
@@ -58,28 +58,3 @@ workload:
     - {name: FFA, projection: [ b, m, c ]}
     - {name: WFFB, projection: [ c, j ]}
     - {name: FFB, projection: [ b, m, j ], output: True}
-
-renames:
-  version: 0.5
-  einsums:
-  - name: default
-    tensor_accesses:
-    - name: weight
-      source: ~(Outputs() | Intermediates())
-      injective: True
-    - name: output
-      source: Outputs()
-      injective: True
-    - name: input
-      source: ~(output | weight)
-      injective: True
-  - name: QK
-    tensor_accesses:
-    - name: weight
-      source: QK
-      injective: True
-  - name: AV
-    tensor_accesses:
-    - name: weight
-      source: AV
-      injective: True

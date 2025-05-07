@@ -123,7 +123,7 @@ class ComponentEnergyAreaDictNode(DictNode):
         self.energy: Optional[float] = self["energy"]
         self.area: Optional[float] = self["area"]
 
-    def parse(
+    def _parse(
         self,
         symbol_table: dict,
         location: str = "",

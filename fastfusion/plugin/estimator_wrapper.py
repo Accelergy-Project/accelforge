@@ -40,10 +40,8 @@ class EnergyAreaQuery:
         self.class_name = class_name
         self.action_name = action_name
         # Attributes and arguments are only included if they are not None
-        if action_args is None:
-            self.action_args = {}
-        else:
-            self.action_args = {k: v for k, v in action_args.items() if v is not None}
+        action_args = {} if action_args is None else action_args
+        self.action_args = {k: v for k, v in action_args.items() if v is not None}
         self.class_attrs = {k: v for k, v in class_attrs.items() if v is not None}
 
     def __str__(self):
