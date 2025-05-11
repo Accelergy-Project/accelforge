@@ -14,12 +14,14 @@ architecture:
       datawidth: 8
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-      energy_scale: (450 / 64) / 8 
+      energy_scale: (450 / 64) / 8
       energy: 1
       area: 1
     constraints:
       storage:
         keep: ~Intermediates()
+      # temporal:
+      #   loop_order: [b, d, m, h, e]
     
   - !Storage
     name: GlobalBuffer
@@ -34,11 +36,12 @@ architecture:
     constraints:
       storage:
         keep: ~MainMemory.tensors()
+        # uneven: True
 
   - !Storage
     name: LocalBuffer
     class: SRAM 
-    spatial: {fanoutX: 4, fanoutY: 4}
+    spatial: {fanout_X: 16} #, fanout_Y: 4}
     attributes:
       size: 1024*1024*32*8 # 32MB
       width: 2048
@@ -48,7 +51,8 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: Intermediates()
+        keep: Intermediates() # - GlobalBuffer.tensors()
+        # uneven: True
       temporal:
         loop_order: []
       spatial:
@@ -59,7 +63,7 @@ architecture:
   - !Storage
     name: Register
     class: dummy_storage
-    spatial: {fanoutX: 128, fanoutY: 128}
+    spatial: {fanout_X: 128, fanout_Y: 128}
     attributes:
       size: 8 # 8b
       datawidth: 8
@@ -70,6 +74,8 @@ architecture:
     constraints:
       storage:
         keep: weight
+        bypass: ~weight
+        # uneven: True
       temporal:
         loop_bounds:
         - [weight.rank_variables(), ==, 1]

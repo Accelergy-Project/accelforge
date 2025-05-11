@@ -1,5 +1,4 @@
-import logging
-
+from fastfusion.frontend import renames
 from fastfusion.frontend.renames import Renames
 from fastfusion.yamlparse.parse_expressions import ParseExpressionsContext
 from . import arch, constraints, variables, workload
@@ -75,6 +74,7 @@ class Specification(BaseSpecification):
         self.variables: variables.Variables = self["variables"]
         self.components: ListNode = self["components"]
         self.config: Config = self["config"]
+        self.renames: renames.Renames = self["renames"]
 
     def parse_expressions(
         self,

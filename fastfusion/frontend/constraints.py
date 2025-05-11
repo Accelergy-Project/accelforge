@@ -5,101 +5,6 @@ from fastfusion.frontend._set_parse import eval_set_expression
 from fastfusion.yamlparse.nodes import DictNode, ListNode, CombinableListNode
 from .version import assert_version
 
-class InvertibleSet(set):
-    def __init__(self, *args, full_space: set, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.full_space = full_space
-
-    def __invert__(self):
-        return InvertibleSet(self.full_space - self, full_space=self.full_space)
-
-class ConstraintSetResolver:
-    def __init__(
-        self,
-        tensor2rank_variables: dict[str, list[str]],
-        intermediate_tensors: set[str],
-    ):
-        self._all_tensors = set(self.tensor2rank_variables.keys())
-        self._all_rank_variables = set.union(*self.tensor2rank_variables.values())
-
-        all_tensors = set(self.tensor2rank_variables.keys())
-        self._tensor_set = {
-            name: self.make_tensor_set([name]) for name in tensor2rank_variables
-        }
-        self._tensor_set["All"] = self.make_tensor_set(all_tensors)
-        self._tensor_set["Intermediates"] = self.make_tensor_set(intermediate_tensors)
-
-        all_rank_variables = set.union(*tensor2rank_variables.values())
-        self._rank_variable_sets = {
-            name: self.make_variable_set(tensor2rank_variables[name])
-            for name in tensor2rank_variables
-        }
-        self._rank_variable_sets["All"] = self.make_variable_set(all_rank_variables)
-        self._rank_variable_sets["Intermediates"] = self.make_variable_set(
-            tensor_names=intermediate_tensors
-        )
-
-    def make_tensor_set(self, tensor_names: list[str]) -> InvertibleSet:
-        return InvertibleSet(set(tensor_names), full_space=self._all_tensors)
-
-    def make_variable_set(
-        self, variable_names: list[str] = (), tensor_names: list[str] = ()
-    ) -> InvertibleSet:
-        variable_names = set.union(
-            variable_names, *(self._rank_variable_sets[t] for t in tensor_names)
-        )
-        return InvertibleSet(variable_names, full_space=self._all_rank_variables)
-
-    def resolve_tensor_set(
-        self, expression: str, extra_tensor_set: dict[str, set] = {}
-    ) -> list[str]:
-        extra_sets = {k: self.make_tensor_set(v) for k, v in extra_tensor_set.items()}
-        return self._resolve(expression, {**self._tensor_set, **extra_sets})
-
-    def resolve_rank_variable_set(
-        self, expression: str, extra_tensor_set: dict[str, set] = {}
-    ) -> list[str]:
-        extra_sets = {
-            k: self.make_variable_set(tensor_names=v)
-            for k, v in extra_tensor_set.items()
-        }
-        return self._resolve(expression, {**self._rank_variable_sets, **extra_sets})
-
-    def _resolve(self, expression: str, sets: dict[str, InvertibleSet]) -> list[str]:
-        if not expression:
-            return set()
-        try:
-            return eval(expression, {"__builtins__": {}}, sets)
-        except Exception as e:
-            raise ValueError(
-                f"Invalid set expression: {expression}. Error: {str(e)}. "
-                f"Available sets: {', '.join(sets.keys())}"
-            )
-
-class ResolvesToTensorSet:
-    def resolve(self, resolver: ConstraintSetResolver) -> list[str]:
-        try:
-            return set.union(*(resolver.resolve_tensor_set(e) for e in self))
-        except Exception as e:
-            raise ValueError(f"Error in {self.get_name()}: {e}")
-
-
-class EntriesResolveToRankVariableSet:
-    def resolve(self, resolver: ConstraintSetResolver) -> list[str]:
-        try:
-            return [resolver.resolve_rank_variable_set(e) for e in self]
-        except Exception as e:
-            raise ValueError(f"Error in {self.get_name()}: {e}")
-
-
-class FirstEntryResolvesToRankVariableSet:
-    def resolve(self, resolver: ConstraintSetResolver) -> list[str]:
-        try:
-            return [resolver.resolve_rank_variable_set(self[0])] + self[1:]
-        except Exception as e:
-            raise ValueError(f"Error in {self.get_name()}: {e}")
-
-
 def constraint_factory(constraint: dict):
     # Support the old "type" field
     if "type" in constraint:
@@ -231,10 +136,10 @@ class ConstraintGroup(DictNode):
     def _parse(
         self, 
         symbol_table: dict[str, Any],
-        fanoutX: int,
-        fanoutY: int,
+        fanout_X: int,
+        fanout_Y: int,
     ):
-        self.validate_spatial(fanoutX, fanoutY)
+        self.validate_spatial(fanout_X, fanout_Y)
         return ConstraintGroup(
             self.spatial._parse(symbol_table),
             self.spatial_X._parse(symbol_table),
@@ -276,7 +181,7 @@ class Iteration(DictNode):
             reuse=self.reuse,
             __node_skip_parse=True,
         )
-    
+            
 class LoopBoundsList(ListNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
@@ -289,9 +194,12 @@ class LoopBoundsList(ListNode):
     def _parse(self, symbol_table: dict[str, Any]):
         # return [x._parse(symbol_table) for x in self]
         return LoopBoundsList(
-            *[x._parse(symbol_table) for x in self],
+            [x._parse(symbol_table) for x in self],
             __node_skip_parse=True,
         )
+        
+    def get_constrained_one_rank_variables(self) -> set[str]:
+        return set.union(*[set(x.get_constrained_one_rank_variables()) for x in self], set())
     
 class Spatial(Iteration):
     """
@@ -347,13 +255,15 @@ class Storage(DictNode):
         super().add_attr("bypass", str, "~All")
         super().add_attr("keep", str, "~All")
         super().add_attr("coalesce", str, "All")
+        super().add_attr("uneven", bool, False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bypass: str = self["bypass"]
         self.keep: str = self["keep"]
         self.coalesce: str = self["coalesce"]
-        
+        self.uneven: bool = self["uneven"]
+    
     def _parse(self, symbol_table: dict[str, Any]):
         # new_storage = Storage()
         # new_storage.bypass = eval_set_expression(self.bypass, symbol_table, "tensors")
@@ -367,7 +277,7 @@ class Storage(DictNode):
             __node_skip_parse=True,
         )
 
-class LoopOrder(ListNode, EntriesResolveToRankVariableSet):
+class LoopOrder(ListNode):
     """
     A loop_order of ranks.
     """
@@ -380,7 +290,7 @@ class LoopOrder(ListNode, EntriesResolveToRankVariableSet):
         )
 
 
-class LoopBounds(ListNode, FirstEntryResolvesToRankVariableSet):
+class LoopBounds(ListNode):
     """
     A list of factors used to describe loop bounds
     """
@@ -410,9 +320,6 @@ class LoopBounds(ListNode, FirstEntryResolvesToRankVariableSet):
         self.expression = self[0]
         self.operator = self[1]
         self.value = self[2]
-
-    # def get_rank_variables(self):
-    #     pass
     
     def _parse(self, symbol_table: dict[str, Any]):
         if len(self) != 3:
@@ -424,43 +331,9 @@ class LoopBounds(ListNode, FirstEntryResolvesToRankVariableSet):
             __node_skip_parse=True,
         )
         
-        # new_loop_bounds = LoopBounds(*self)
-        # new_loop_bounds.expression = eval_set_expression(self.expression, symbol_table, "rank_variables")
-        # new_loop_bounds.operator = self.operator
-        # new_loop_bounds.value = self.value
-        # new_loop_bounds[0] = new_loop_bounds.expression
-        # new_loop_bounds[1] = new_loop_bounds.operator
-        # new_loop_bounds[2] = new_loop_bounds.value
-        # return new_loop_bounds
-
-
-"""
-### Constraints Specification
-
-## Keywords
-
-Keywords specify a set of tensors. The following keywords are supported:
-
-- All -> All tensors
-- Intermediates -> All intermediate tensors
-- (Any tensor name) -> Specific tensor
-- (Any memory name) -> All tensors stored in a memory
-
-## Constraint Types
-
-### Storage
-
-Keep, bypass, and coalesce constraints are lists. Entries in the list are joined
-with a union. Keywords are replaced by the set of tensors they represent.
-
-### Spatial and Temporal
-
-Reuse acts like keep, bypass, and coalesce.
-
-- loop_bound and tile_size: These are lists of constraints. A mapping is valid
-  iff all constraints in the list are valid. Keywords are replaced by the set of
-  ranks in the tensors that they represent. The .shape attribute returns the
-  shape of either the loop bounds or the tile size, depending on the constraint.
-  The .product attribute returns the product of the shape.
-
-"""
+    def get_constrained_one_rank_variables(self) -> set[str]:
+        if self.value != 1:
+            return set()
+        if self.operator not in ["==", "<=", "product==", "product<="]:
+            return set()
+        return self.expression

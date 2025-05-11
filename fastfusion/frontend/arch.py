@@ -322,7 +322,7 @@ class Leaf(ArchNode, DictNode, ABC):
     
     def _parse_constraints(self, outer_scope: dict[str, Any]):
         self.constraints.name = self.name
-        # self.constraints.validate_spatial(self.spatial.fanoutX, self.spatial.fanoutY)
+        # self.constraints.validate_spatial(self.spatial.fanout_X, self.spatial.fanout_Y)
         return self.constraints._parse(outer_scope)
 
 
@@ -413,30 +413,30 @@ class Spatial(DictNode):
     A spatial configuration in a system architecture.
 
     Attributes:
-        fanoutX (int): The number of elements in the X dimension.
-        fanoutY (int): The number of elements in the Y dimension.
+        fanout_X (int): The number of elements in the X dimension.
+        fanout_Y (int): The number of elements in the Y dimension.
         get_fanout (Callable): A function that returns the fanout of the spatial configuration.
     """
 
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("fanoutX", (int), 1)
-        super().add_attr("fanoutY", (int), 1)
+        super().add_attr("fanout_X", (int), 1)
+        super().add_attr("fanout_Y", (int), 1)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fanoutX: int = self["fanoutX"]
-        self.fanoutY: int = self["fanoutY"]
+        self.fanout_X: int = self["fanout_X"]
+        self.fanout_Y: int = self["fanout_Y"]
 
     def validate_fanout(self):
-        for target in ["fanoutX", "fanoutY"]:
+        for target in ["fanout_X", "fanout_Y"]:
             v = self[target]
             assert int(v) == v, f"{target} must be an integer, but is {v}"
             assert v > 0, f"{target} must be positive, but is {v}"
 
     def get_fanout(self):
-        return self.fanoutX * self.fanoutY
+        return self.fanout_X * self.fanout_Y
 
     def to_fanout_string(self):
         return f"[1..{self.get_fanout()}]"

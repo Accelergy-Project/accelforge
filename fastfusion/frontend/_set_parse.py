@@ -111,6 +111,6 @@ def eval_set_expression(
             )
     except Exception as e:
         raise ValueError(
-            f"{e}.Symbol table:\n\t" + "\n\t".join(f"{k}: {v}" for k, v in symbol_table.items())
+            f"{e}. Symbol table:\n\t" + "\n\t".join(f"{k}: {v}" for k, v in symbol_table.items())
         ) from e
     return result

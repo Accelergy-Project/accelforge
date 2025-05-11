@@ -23,8 +23,7 @@ ISL_REGEX = re.compile(
     r"\b(?!(?:" + "|".join(CLIST_OPERATORS) + r")\b)[a-zA-Z#$@][a-zA-Z0-9_]*\b"
 )
 
-
-class Tensor:
+class CompareByName:
     def __init__(self, name: str):
         self.name = name
         
@@ -32,14 +31,39 @@ class Tensor:
         return self.name
     
     def __repr__(self):
-        return f"Tensor({self.name})"
+        return f"{self.name}"
     
     def __eq__(self, other):
         return self.name == getattr(other, "name", other)
     
     def __hash__(self):
         return hash(self.name)
+    
+    def __lt__(self, other):
+        return self.name < other.name
+    
+    def __le__(self, other):
+        return self.name <= other.name
+    
+    def __ge__(self, other):
+        return self.name >= other.name
+    
+    def __gt__(self, other):
+        return self.name > other.name
+    
+    def __ne__(self, other):
+        return self.name != other.name
 
+class Tensor(CompareByName):
+    pass
+
+class RankVariable(CompareByName):
+    pass
+    
+class Rank(CompareByName):
+    pass
+    
+    
 class Workload(DictNode):
     """
     The top-level workload object in Timeloop.
@@ -199,6 +223,9 @@ class Workload(DictNode):
                 injective = rename_tensor.injective
                 symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", injective=injective)
                 
+        for rank_variable in einsum.rank_variables:
+            symbol_table[rank_variable] = InvertibleSet((rank_variable,), space_name="rank_variables", full_space=einsum.rank_variables)
+                
         return symbol_table
 
 
@@ -235,7 +262,7 @@ class Einsum(DictNode):
         self.shape: Shape = self["shape"]
         
     @property
-    def rank_variables(self) -> set[str]:
+    def rank_variables(self) -> set[RankVariable]:
         if not self.tensor_accesses:
             return set()
         return set.union(*[t.rank_variables for t in self.tensor_accesses])
@@ -243,6 +270,14 @@ class Einsum(DictNode):
     @property
     def tensor_names(self) -> set[str]:
         return set([t.name for t in self.tensor_accesses])
+    
+    @property
+    def tensors(self) -> set[Tensor]:
+        return set([Tensor(t.name) for t in self.tensor_accesses])
+    
+    @property
+    def tensor2rank_variables(self) -> dict[str, set[RankVariable]]:
+        return {t.name: t.rank_variables for t in self.tensor_accesses}
     
     def to_formatted_string(self, compress: bool = False) -> str:
         lhs_join = ",\n" if compress else " , "
@@ -317,13 +352,13 @@ class TensorAccess(DictNode):
         return "".join(string)
 
     @property
-    def ranks(self):
-        return list(self.projection.keys())
+    def ranks(self) -> tuple[Rank, ...]:
+        return tuple(Rank(x) for x in self.projection.keys())
 
     @property
-    def rank_variables(self):
+    def rank_variables(self) -> set[RankVariable]:
         # Projection values may be expressions, so we need to grab all identifiers
-        return set(re.findall(ISL_REGEX, " ".join(self.projection.values())))
+        return set(RankVariable(x) for x in re.findall(ISL_REGEX, " ".join(self.projection.values())))
 
     # def __eq__(self, other):
     #     return self.name == other.name
