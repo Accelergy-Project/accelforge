@@ -1,5 +1,5 @@
 import re
-from fastfusion.frontend._set_parse import InvertibleSet, eval_set_expression
+from fastfusion.frontend._set_parsing import InvertibleSet, eval_set_expression
 from fastfusion.frontend.renames import Renames
 from fastfusion.yamlparse.nodes import ListNode, DictNode
 from ..version import assert_version
@@ -114,11 +114,11 @@ class Workload(DictNode):
     def tensors_written_by_einsum(self, einsum_name: str) -> set[Tensor]:
         return self.einsums[einsum_name].output_tensors()
 
-    def einsums_that_read_tensor(self, tensor: Tensor) -> set["Einsum"]:
-        return {e.name for e in self.einsums if tensor.name in e.input_tensors()}
+    def einsums_that_read_tensor(self, tensor: Tensor) -> list["Einsum"]:
+        return [e for e in self.einsums if tensor.name in e.input_tensors()]
 
-    def einsums_that_write_tensor(self, tensor: Tensor) -> set["Einsum"]:
-        return {e.name for e in self.einsums if tensor.name in e.output_tensors()}
+    def einsums_that_write_tensor(self, tensor: Tensor) -> list["Einsum"]:
+        return [e for e in self.einsums if tensor.name in e.output_tensors()]
 
     def get_shape_isl_string(self, einsum_name: str) -> str:
         einsum = self.einsums[einsum_name]
