@@ -1,4 +1,5 @@
 from math import prod
+from fastfusion.frontend import arch
 from fastfusion.frontend.workload.workload_spec import RankVariable, Tensor
 from fastfusion.yamlparse.nodes import DictNode, ListNode
 from .version import assert_version
@@ -33,6 +34,8 @@ class MappingNode(DictNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._constraint_lambdas: List[Callable[[], bool]] = []
+        self._must_be_here: bool = False # Can the mapper move this node?
+        self._required: bool = False # Must the mapper keep this node?
 
 class Iteration(MappingNode):
     @classmethod
@@ -49,6 +52,7 @@ class Iteration(MappingNode):
         self.loop_bound: Optional[int] = self["loop_bound"]
         self.stride: Optional[int] = self["stride"]
         self.tile_shape: Optional[int] = self["tile_shape"]
+
     def _matching_iterations(self, children: List[MappingNode]) -> List["Iteration"]:
         return [c for c in children if isinstance(c, Iteration) and c.rank_variable == self.rank_variable]
     
@@ -88,20 +92,30 @@ class Storage(Iteration):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("tensor", Tensor)
-        
+        super().add_attr("memory", arch.Storage)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tensor: Tensor = self["tensor"]
+        self.memory: arch.Storage = self["memory"]
+        self._must_exist: bool = False # Must the mapper keep this node?
 
     @property
     def tile_shape(self) -> dict[RankVariable, int]:
         raise NotImplementedError("tile_shape is not implemented for Storage")
-    
+
     @property
     def tile_size(self) -> int:
         raise NotImplementedError("tile_size is not implemented for Storage")
-    
-        
+
+    @property
+    def tensor_name(self) -> str:
+        return self.tensor.name
+
+    @property
+    def memory_name(self) -> str:
+        return self.memory.name
+
 class Split(MappingNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):

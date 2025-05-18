@@ -120,7 +120,6 @@ class AreaSubcomponents(ListNode):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("", AreaSubcomponent)
 
-
 class AreaSubcomponent(DictNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
