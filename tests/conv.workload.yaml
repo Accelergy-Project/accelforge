@@ -8,6 +8,6 @@ shape:
 einsums:
 - name: conv
   tensor_accesses:
-  - {name: I, projection: [ c, p+r ]}
+  - {name: I, projection: { C: c, H: p+r }}
   - {name: W, projection: [ m, c, r ]}
   - {name: O, projection: [ m, p ], output: True}

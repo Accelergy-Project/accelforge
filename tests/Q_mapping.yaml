@@ -3,18 +3,25 @@ mapping:
   nodes:
   - type: temporal
     rank: b
-    factor: 1
+    tile_shape: 1
   - type: temporal
     rank: h
     tile_shape: 1
+  - type: temporal
+    rank: e
+    tile_shape: 1
   - type: spatial
+    rank: d
+    tile_shape: 1
+    level: LocalBuffer
+  - type: storage
+    tensor: [Q]
+    level: LocalBuffer
+  - type: temporal
     rank: m
     tile_shape: 1
   - type: storage
     tensor: [I]
-    level: GlobalBuffer
-  - type: storage
-    tensor: [Q]
-    level: GlobalBuffer
+    level: LocalBuffer
   - type: compute
     einsum: Q

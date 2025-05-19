@@ -1,11 +1,22 @@
-from typing import Any
+from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import reduce
+from operator import add, mul
+from typing import Any
 
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import (
     Workload,
+    Tensor,
     get_rank_variable_bounds,
     get_tensor_size
+)
+from fastfusion.frontend.workload.symbolic import (
+    get_projection_expr,
+    get_rank_variable_relevancy,
+    Irrelevant,
+    Relevant,
+    PartiallyRelevant
 )
 
 import sympy
@@ -24,24 +35,61 @@ class Compute:
     level: str
 
 
+class Uninitialized:
+    def __init__(self):
+        pass
+
+    def __str__(self):
+        return 'Uninitialized'
+
+    def __repr__(self):
+        return 'Uninitialized()'
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __mul__(self, other):
+        return self
+
+    def __radd__(self, other):
+        return self + other
+
+    def __add__(self, other):
+        return self
+
+
 @dataclass
 class BuffetStats:
-    fills: Any = field(default=None)
-    reads_to_peer: Any = field(default=None)
-    reads_to_parent: Any = field(default=None)
-    occupancy: Any = field(default=None)
-    fanout: Any = field(default=None)
+    fills: Any = field(default=0)
+    reads_to_peer: Any = field(default=0)
+    reads_to_parent: Any = field(default=0)
+    occupancy: Any = field(default=0)
 
 
 @dataclass
 class SummarizedAnalysisOutput:
     per_einsum_ops: dict = field(default_factory=dict)
-    op_occupancy: dict = field(default_factory=dict)
 
     buffet_stats: dict[Buffet, BuffetStats] = field(default_factory=dict)
 
+    # Mapping [level, einsum] to the fanout
+    fanout: dict = field(default_factory=dict)
+
     temporal_steps: dict = field(default_factory=dict)
-    op_intensity: dict = field(default_factory=dict)
+
+
+@dataclass
+class AnalysisInfo:
+    """Information needed within the analysis step by multiple functions that
+    can be computed once at the beginning.
+    """
+    mapping: Mapping
+    workload: Workload
+    full_rank_variable_shapes: dict
+    all_tensors: set
+
+    einsum_tensor_to_projection: dict
+    tensor_to_relevancy: dict
 
 
 def analyze_reuse(
@@ -52,89 +100,400 @@ def analyze_reuse(
     einsum_name = mapping[-1]['einsum']
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
 
-    all_tensors = (
-        workload.tensors_read_by_einsum(einsum_name)
-        |
-        workload.tensors_written_by_einsum(einsum_name)
-    )
+    einsum_tensor_to_projection = {}
+    einsum = workload.einsums[einsum_name]
+    all_tensors = einsum.input_tensors() | einsum.output_tensors()
+    for tensor in all_tensors:
+        einsum_tensor_to_projection[(einsum_name, tensor)] = \
+            get_projection_expr(einsum, tensor)
 
-    tensor_size = {
-        tensor: get_tensor_size(workload, tensor) for tensor in all_tensors
+    tensor_to_relevancy = {
+        tensor: get_rank_variable_relevancy(einsum, tensor)
+        for tensor in all_tensors
     }
-    original_tensor_size = tensor_size.copy()
 
+    info = AnalysisInfo(
+        mapping=mapping,
+        workload=workload,
+        full_rank_variable_shapes=get_rank_variable_bounds(workload,
+                                                           einsum_name),
+        all_tensors=all_tensors,
+        einsum_tensor_to_projection=einsum_tensor_to_projection,
+        tensor_to_relevancy=tensor_to_relevancy
+    )
     # symbols = add_symbols_if_needed(mapping)
 
-    # insert_reservation_nodes(mapping)
+    insert_reservation_nodes(mapping, info)
 
-    result = SummarizedAnalysisOutput()
-
-    analyze_node(result, 0, einsum_shape, mapping)
+    return analyze_node(0, einsum_shape, info)
 
 
-def analyze_node(result_accumulator, node_idx, current_shape, mapping):
-    for cur_idx in range(node_idx, len(mapping)):
-        node = mapping[cur_idx]
-        print(node)
+class ReservationAnalysisTracker:
+    def __init__(self, buffet):
+        self.buffet: Buffet = buffet
+        self.last = False
+
+        # These are interface (TODO: should be property)
+        self.is_fill_level = False
+        self.is_should_stop = False
+
+        # Temporary values
+        self.has_filled = False
+
+    def track_temporal_loop(self, relevancy, node):
+        self.is_fill_level = False
+        if self.last:
+            if not self.has_filled:
+                self.is_fill_level = True
+                self.has_filled = True
+
+            self.is_should_stop = True
+        elif isinstance(relevancy, Irrelevant):
+            if not self.has_filled:
+                self.is_fill_level = True
+                self.has_filled = True
+
+            self.is_should_stop = True
+        elif isinstance(relevancy, Relevant):
+            self.is_should_stop = False
+        elif isinstance(relevancy, PartiallyRelevant):
+            self.last = True
+
+            if not self.has_filled:
+                self.is_fill_level = True
+                self.has_filled = True
+
+            self.is_should_stop = False
+
+        else:
+            raise ValueError(f'Unknown relevancy {relevancy}')
+
+    def track_compute(self):
+        self.is_should_stop = True
+        if not self.has_filled:
+            self.is_fill_level = True
+            self.has_filled = True
+
+    def track_spatial_loop(self, relevancy, node):
+        if node['level'] != self.buffet.level:
+            self.is_should_stop = True
+            if not self.has_filled:
+                self.is_fill_level = True
+                self.has_filled = True
+            return
+
+        self.is_fill_level = False
+        self.is_should_stop = False
+
+
+def insert_reservation_nodes(mapping, info: AnalysisInfo):
+    trackers: list[ReservationAnalysisTracker] = []
+    for i, node in enumerate(mapping):
+        fills = []
+        to_remove = []
         if node['type'] == 'temporal':
-            analyze_temporal(result_accumulator, node_idx, current_shape, mapping)
-            break
+            rank = node['rank']
+            for tracker_idx, tracker in enumerate(trackers):
+                relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
+                tracker.track_temporal_loop(relevancy[rank], node)
+
+                if tracker.is_fill_level:
+                    fills.append(tracker.buffet)
+
+                if tracker.is_should_stop:
+                    to_remove.append(tracker_idx)
         elif node['type'] == 'spatial':
-            analyze_spatial(result_accumulator, node_idx, current_shape, mapping)
-            break
+            rank = node['rank']
+            for tracker_idx, tracker in enumerate(trackers):
+                relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
+                tracker.track_spatial_loop(relevancy[rank], node)
+
+                if tracker.is_fill_level:
+                    fills.append(tracker.buffet)
+
+                if tracker.is_should_stop:
+                    to_remove.append(tracker_idx)
         elif node['type'] == 'storage':
-            analyze_storage(result_accumulator, node_idx, current_shape, mapping)
+            for tensor in node['tensor']:
+                tensor = Tensor(tensor)
+                buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
+                trackers.append(ReservationAnalysisTracker(buffet))
+        elif node['type'] == 'compute':
+            for tracker_idx, tracker in enumerate(trackers):
+                tracker.track_compute()
+
+                if tracker.is_fill_level:
+                    fills.append(tracker.buffet)
+                
+                if tracker.is_should_stop:
+                    to_remove.append(tracker_idx)
         elif node['type'] == 'reservation':
             pass
-            # analyze_reservation(result_accumulator, node_idx, current_shape, mapping)
-        elif node['type'] == 'compute':
-            # analyze_compute(result_accumulator, node_idx, current_shape, mapping)
-            break
+        elif node['type'] == 'fill':
+            pass
+        else:
+            raise NotImplementedError()
+
+        for tracker_idx in reversed(to_remove):
+            tracker = trackers.pop(tracker_idx)
+            mapping.insert(i,
+                           {'type': 'reservation',
+                            'tensor': tracker.buffet.tensor,
+                            'level': tracker.buffet.level})
+
+        for fill in fills:
+            mapping.insert(i,
+                           {'type': 'fill',
+                            'tensor': fill.tensor,
+                            'level': fill.level})
 
 
-def analyze_temporal(result_accumulator, node_idx, current_shape, mapping):
+def analyze_node(node_idx, current_shape, info: AnalysisInfo):
+    node = info.mapping[node_idx]
+    if node['type'] == 'temporal':
+        return analyze_temporal(node_idx, current_shape, info)
+    elif node['type'] == 'spatial':
+        return analyze_spatial(node_idx, current_shape, info)
+    elif node['type'] == 'storage':
+        return analyze_storage(node_idx, current_shape, info)
+    elif node['type'] == 'reservation':
+        return analyze_reservation(node_idx, current_shape, info)
+    elif node['type'] == 'compute':
+        return analyze_compute(node_idx, current_shape, info)
+    elif node['type'] == 'fill':
+        return analyze_fill(node_idx, current_shape, info)
+
+
+def analyze_temporal(node_idx,
+                     current_shape,
+                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
+    mapping = info.mapping
+    einsum_name = mapping[-1]['einsum']
     node = mapping[node_idx]
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
 
-    analyze_node(result_accumulator, node_idx+1, current_shape, mapping)
+    result_accumulator = SummarizedAnalysisOutput()
+
+    def handle_repeated_value(repeated_shape):
+        shape_value = repeated_shape.value
+        shape_repeats = repeated_shape.repeats
+
+        child_shape = current_shape.copy()
+        child_shape[node['rank']] = shape_value
+
+        child_result = analyze_node(node_idx+1, child_shape, info)
+
+        accumulated_buffet_stats = result_accumulator.buffet_stats
+        for buffet, buffet_stats in child_result.buffet_stats.items():
+            if buffet not in accumulated_buffet_stats:
+                accumulated_stats = BuffetStats()
+            else:
+                accumulated_stats = accumulated_buffet_stats[buffet]
+
+            accumulated_stats.reads_to_parent += \
+                buffet_stats.reads_to_parent * shape_repeats
+            accumulated_stats.reads_to_peer += \
+                buffet_stats.reads_to_peer * shape_repeats
+            accumulated_stats.fills += \
+                buffet_stats.fills * shape_repeats
+            accumulated_stats.occupancy = max(
+                accumulated_stats.occupancy,
+                buffet_stats.occupancy
+            )
+
+            accumulated_buffet_stats[buffet] = accumulated_stats
+
+        reduce_dicts(child_result.temporal_steps,
+                     result_accumulator.temporal_steps,
+                     max)
+
+        for key, child_fanout in child_result.fanout.items():
+            if key not in result_accumulator.fanout:
+                result_accumulator.fanout[key] = child_fanout
+            else:
+                acc_fanout = result_accumulator.fanout[key]
+                for i, _ in enumerate(zip(acc_fanout, child_fanout)):
+                    acc_fanout[i] = max(acc_fanout[i], child_fanout[i])
+
+        if einsum_name not in result_accumulator.per_einsum_ops:
+            result_accumulator.per_einsum_ops[einsum_name] = 0
+        result_accumulator.per_einsum_ops[einsum_name] += \
+            child_result.per_einsum_ops[einsum_name] * shape_repeats
 
 
-def analyze_spatial(result_accumulator, node_idx, current_shape, mapping):
-    analyze_node(result_accumulator, node_idx+1, current_shape, mapping)
-
-
-def analyze_storage(result_accumulator, node_idx, current_shape, mapping):
-    node = mapping[node_idx]
-
-    for tensor in node['tensor']:
-        buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
-        buffet_stats = BuffetStats()
-        buffet_stats.reads_to_parent = None # TODO
-        result_accumulator.buffet_stats[buffet] = buffet_stats
-
-
-def recurse_next_loop(node_idx, last_shape, stride_and_shape, mapping):
-    stride = stride_and_shape.stride
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
         for repeated_shape in shape.sequence:
             assert isinstance(repeated_shape, RepeatedValue)
-            shape_value = repeated_shape.value
-            shape_repeats = repeated_shape.repeats
-            full_shape = update_full_shape(full_shape)
-            result = analyze_loop(mapping, node_idx, full_shape)
-            full_shape = reset_full_shape()
-
-            consolidate_result(accumulated_result, result, repeated_shape)
+            handle_repeated_value(repeated_shape)
     elif isinstance(shape, RepeatedValue):
-        shape_value = shape.value
-        shape_repeats = shape.repeats
+        handle_repeated_value(repeated_shape)
 
-        full_shape = update_full_shape(full_shape)
-        result = analyze_loop(mapping, node_idx, full_shape)
-        full_shape = reset_full_shape()
+    return result_accumulator
 
-        consolidate_result(accumulated_result, result, repeated_shape)
+
+def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
+    mapping = info.mapping
+    einsum_name = mapping[-1]['einsum']
+    node = mapping[node_idx]
+    rank_var = node['rank']
+    if 'dim' in node:
+        dim = node['dim']
+    else:
+        dim = 0
+    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
+
+    result_accumulator = SummarizedAnalysisOutput()
+
+    def handle_repeated_value(repeated_shape):
+        shape_value = repeated_shape.value
+        shape_repeats = repeated_shape.repeats
+
+        child_shape = current_shape.copy()
+        child_shape[node['rank']] = shape_value
+
+        child_result = analyze_node(node_idx+1, child_shape, info)
+
+        accumulated_buffet_stats = result_accumulator.buffet_stats
+        for buffet, buffet_stats in child_result.buffet_stats.items():
+            if buffet not in accumulated_buffet_stats:
+                accumulated_stats = BuffetStats()
+            else:
+                accumulated_stats = accumulated_buffet_stats[buffet]
+
+            relevancy = info.tensor_to_relevancy[buffet.tensor][rank_var]
+            if buffet.level == node['level'] and isinstance(relevancy, Irrelevant):
+                accumulated_stats.reads_to_parent = buffet_stats.reads_to_parent
+            else:
+                accumulated_stats.reads_to_parent += \
+                    buffet_stats.reads_to_parent * shape_repeats
+
+            accumulated_stats.reads_to_peer = 0  # TODO: peer-to-peer support
+            accumulated_stats.fills += \
+                buffet_stats.fills * shape_repeats
+            accumulated_stats.occupancy = max(
+                accumulated_stats.occupancy,
+                buffet_stats.occupancy
+            )
+
+            accumulated_buffet_stats[buffet] = accumulated_stats
+
+        reduce_dicts(child_result.temporal_steps,
+                     result_accumulator.temporal_steps,
+                     max)
+
+        key = (node['level'], einsum_name)
+        child_fanout = child_result.fanout[key]
+        if key not in result_accumulator.fanout:
+            result_accumulator.fanout[key] = [1]*max(dim+1, len(child_fanout))
+            result_accumulator.fanout[key][dim] = 0
+        fanout = result_accumulator.fanout[key]
+        for i, _ in enumerate(fanout):
+            if i == dim and i < len(child_fanout):
+                fanout[i] += child_fanout[i]*shape_repeats
+            elif i == dim:
+                fanout[i] = shape_repeats
+            elif i < len(child_fanout):
+                fanout[i] = max(fanout[i], child_fanout[i])
+
+        if einsum_name not in result_accumulator.per_einsum_ops:
+            result_accumulator.per_einsum_ops[einsum_name] = 0
+        result_accumulator.per_einsum_ops[einsum_name] += \
+            child_result.per_einsum_ops[einsum_name] * shape_repeats
+
+    shape = stride_and_shape.shape
+    if isinstance(shape, SequenceOfRepatedvalues):
+        for repeated_shape in shape.sequence:
+            assert isinstance(repeated_shape, RepeatedValue)
+            handle_repeated_value(repeated_shape)
+    elif isinstance(shape, RepeatedValue):
+        handle_repeated_value(repeated_shape)
+
+    return result_accumulator
+
+
+def reduce_dicts(dict1: dict, dict2: dict, reduce_op, initial=0):
+    for key in dict1:
+        if key not in dict2:
+            dict2[key] = initial
+        dict2[key] = reduce_op(dict1[key], dict2[key])
+
+
+def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
+    mapping = info.mapping
+    einsum_name = mapping[-1]['einsum']
+    node = mapping[node_idx]
+
+    child_result = analyze_node(node_idx+1, current_shape, info)
+
+    for tensor in node['tensor']:
+        tensor = Tensor(tensor)
+        buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
+        buffet_stats = child_result.buffet_stats[buffet]
+        projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
+        buffet_stats.reads_to_parent = \
+            compute_dense_tile_occupancy(projection, current_shape)
+        buffet_stats.reads_to_peer = 0  # TODO: peer-to-peer support
+
+    return child_result
+
+
+def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
+    mapping = info.mapping
+    einsum_name = mapping[-1]['einsum']
+    node = mapping[node_idx]
+
+    child_result = analyze_node(node_idx+1, current_shape, info)
+
+    tensor = Tensor(node['tensor'])
+    buffet = Buffet(tensor, einsum_name, node['level'])
+
+    # Reservation nodes are the first to produce stats for a buffet
+    assert buffet not in child_result.buffet_stats
+
+    buffet_stats = BuffetStats()
+    projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
+    buffet_stats.occupancy = \
+        compute_dense_tile_occupancy(projection, current_shape)
+    child_result.buffet_stats[buffet] = buffet_stats
+
+    fanout_key = (node['level'], einsum_name)
+    if fanout_key not in child_result.fanout:
+        child_result.fanout[fanout_key] = []
+
+    return child_result
+
+
+def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnalysisOutput:
+    mapping = info.mapping
+    einsum_name = mapping[-1]['einsum']
+    node = mapping[node_idx]
+
+    child_result = analyze_node(node_idx+1, current_shape, info)
+    
+    tensor = Tensor(node['tensor'])
+    buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
+
+    buffet_stats = child_result.buffet_stats[buffet]
+    projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
+    buffet_stats.fills = \
+        compute_dense_tile_occupancy(projection, current_shape)
+    buffet_stats.reads_to_parent = buffet_stats.fills
+
+    return child_result
+
+
+def analyze_compute(node_idx,
+                    current_shape,
+                    info: AnalysisInfo) -> SummarizedAnalysisOutput:
+    einsum_name = info.mapping[-1]['einsum']
+
+    result_accumulator = SummarizedAnalysisOutput()
+    result_accumulator.temporal_steps[einsum_name] = 1
+    result_accumulator.per_einsum_ops[einsum_name] = 1
+
+    return result_accumulator
+
 
 @dataclass
 class RepeatedValue[T]:
@@ -235,3 +594,17 @@ def make_possibly_different_last(common_tile_shape, factor, full_shape):
         RepeatedValue(last_shape, 1)
     ])
     return StrideAndShape(common_tile_shape, all_shapes)
+
+
+def compute_dense_tile_occupancy(projection_expr, rank_variable_shapes):
+    substitutions = [
+        (rank_variable.name, rank_variable_shape - 1)
+        for rank_variable, rank_variable_shape in rank_variable_shapes.items()
+    ]
+    return reduce(
+        mul,
+        [
+            index_expr.subs(substitutions) + 1
+            for index_expr in projection_expr.values()
+        ]
+    )

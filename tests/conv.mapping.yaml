@@ -4,17 +4,19 @@ mapping:
   - type: temporal
     rank: c
     tile_shape: 1
+  - type: spatial
+    rank: r
+    tile_shape: 1
+    level: LocalBuffer
+  - type: spatial
+    rank: m
+    tile_shape: 1
+    level: LocalBuffer
   - type: storage
     tensor: [I]
     level: LocalBuffer
   - type: temporal
     rank: p
-    tile_shape: 1
-  - type: spatial
-    rank: r
-    tile_shape: 1
-  - type: spatial
-    rank: m
     tile_shape: 1
   - type: compute
     einsum: conv
