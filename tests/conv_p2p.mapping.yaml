@@ -1,0 +1,20 @@
+mapping:
+  version: 0.5
+  nodes:
+  - type: temporal
+    rank: c
+    tile_shape: 1
+  - type: storage
+    tensor: [I]
+    level: LocalBuffer
+  - type: temporal
+    rank: p
+    tile_shape: 1
+  - type: spatial
+    rank: r
+    tile_shape: 1
+  - type: spatial
+    rank: m
+    tile_shape: 1
+  - type: compute
+    einsum: conv
