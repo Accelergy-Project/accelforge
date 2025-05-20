@@ -177,14 +177,14 @@ def _get_property_tree(
 
 
 def get_property_yaml(
-    node: Node, top: "BaseSpecification" = None, skip: Union[List[str], None] = None
+    node: Node, top: "Specification" = None, skip: Union[List[str], None] = None
 ):
     """
     Returns all node subtypes and their attributes in a YAML format.
 
     Parameters:
         node (Node): The node for which to generate the YAML.
-        top (BaseSpecification, optional): The top-level specification. Defaults to None.
+        top (Specification, optional): The top-level specification. Defaults to None.
         skip (Union[List[str], None], optional): List of attributes to skip. Defaults to None.
 
     Returns:
@@ -207,7 +207,7 @@ def get_property_yaml(
 
 
 def _get_property_yaml(
-    node: Node, top: "BaseSpecification" = None, skip: Union[List[str], None] = None
+    node: Node, top: "Specification" = None, skip: Union[List[str], None] = None
 ):
     """Returns a yaml representation of the specification."""
     top = top or node

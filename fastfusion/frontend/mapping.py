@@ -67,12 +67,6 @@ class Iteration(DictNode):
     def _matching_iterations(self, children: List[MappingNode]) -> List["Iteration"]:
         return [c for c in children if isinstance(c, Iteration) and c.rank_variable == self.rank_variable]
     
-    @property
-    def tile_size(self) -> int:
-        # tile_size = prod(c.loop_bound for c in self._matching_iterations(children))
-        # return tile_size
-        raise NotImplementedError("tile_size is not implemented for Iteration")
-
 class Temporal(Iteration):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):

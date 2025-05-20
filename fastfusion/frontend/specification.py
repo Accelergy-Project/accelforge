@@ -1,4 +1,6 @@
+import copy
 from fastfusion.frontend import renames
+from fastfusion.frontend._refs2copies import refs2copies_fast
 from fastfusion.frontend.renames import Renames
 from fastfusion.yamlparse.parse_expressions import ParseExpressionsContext
 from . import arch, constraints, variables, workload
@@ -9,17 +11,16 @@ from .workload import Workload
 from .variables import Variables
 from .components import Components
 from .config import Config, get_config
-from fastfusion.yamlparse.processor import ProcessorError, References2CopiesProcessor
 from .area_table import ComponentArea, AreaEntry
 from .energy_table import ComponentEnergy, EnergyEntry
 
 from typing import Any, Dict, List, Optional, Union
-from fastfusion.yamlparse.base_specification import BaseSpecification, class2obj
+from fastfusion.yamlparse.nodes import DictNode
 
 from ..plugin.gather_plug_ins import gather_plug_ins
 
 
-class Specification(BaseSpecification):
+class Specification(DictNode):
     """
     A top-level class for the Timeloop specification.
 
@@ -35,7 +36,6 @@ class Specification(BaseSpecification):
         mapspace: The top-level mapspace description.
         config: Configuration of extra parsing functions and environment variables.
 
-    Note: Inherits from BaseSpecification.
     """
 
     @classmethod
@@ -61,7 +61,6 @@ class Specification(BaseSpecification):
         super().add_attr("renames", Renames, {"version": 0.5})
 
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault("_required_processors", [])
         i = 0
         while f"config{i}" in kwargs:
             i += 1
@@ -80,17 +79,9 @@ class Specification(BaseSpecification):
         self,
         symbol_table: Optional[Dict[str, Any]] = None,
         parsed_ids: Optional[set] = None,
-    ):
-        if self.needs_processing([References2CopiesProcessor]):
-            raise ProcessorError(
-                f"Must run References2CopiesProcessor before "
-                f"parsing expressions. Call process() with "
-                f"any arguments."
-            )
-        for p in self.processors:
-            if self.needs_processing([p], pre_parse=True):
-                class2obj(p).pre_parse_process(self)
-                self._processors_run_pre_parse.append(p)
+    ) -> "Specification":
+        self = copy.deepcopy(self)
+        self = refs2copies_fast(self, self)
 
         symbol_table = {} if symbol_table is None else symbol_table.copy()
         parsed_ids = set() if parsed_ids is None else parsed_ids
@@ -104,6 +95,8 @@ class Specification(BaseSpecification):
             symbol_table.update(parsed_variables)
             symbol_table["variables"] = parsed_variables
             super().parse_expressions(symbol_table, parsed_ids)
+            
+        return self
 
     def to_diagram(
         self,
@@ -119,7 +112,7 @@ class Specification(BaseSpecification):
     def estimate_energy_area(self):
         plug_ins = gather_plug_ins(self.config.component_plug_ins)
         with ParseExpressionsContext(self):
-            processed = self._process()
+            processed = self.parse_expressions()
             components = processed.architecture._flatten(processed.variables)
             area = ComponentArea()
             energy = ComponentEnergy()
@@ -152,5 +145,5 @@ class Specification(BaseSpecification):
 
     def get_flattened_architecture(self) -> list[arch.Leaf]:
         with ParseExpressionsContext(self):
-            processed = self._process()
+            processed = self.parse_expressions()
             return processed.architecture._flatten(processed.variables)

@@ -293,31 +293,6 @@ class Node(ABC):
         self.from_data = None
 
     @classmethod
-    def get_specifiers_from_processors(cls, spec: "BaseSpecification"):
-        """Get the specifiers that have been set from processors."""
-        if spec is None or not hasattr(spec, "_processor_attributes"):
-            result = {}
-        else:
-            result = spec._processor_attributes.setdefault(cls.unique_class_name(), {})
-        return result
-
-    @classmethod
-    def reset_specifiers_from_processors(cls, processor: Optional[Type] = None):
-        """Reset the specifiers that have been set from processors."""
-        spec = Node.get_global_spec()
-        if spec is None or not hasattr(spec, "_processor_attributes"):
-            return {}
-
-        d = spec._processor_attributes.setdefault(cls.unique_class_name(), {})
-        for k, v in list(d.items()):
-            if (
-                processor is None
-                or type(v.set_from) == processor
-                or v.set_from is processor
-            ):
-                del d[k]
-
-    @classmethod
     def declare_attrs(cls, *args, **kwargs):
         """Initialize the attributes of this node."""
         setattr(cls, "_param_type_specifiers", {})
@@ -331,11 +306,6 @@ class Node(ABC):
             no_change_key=True,
         )
         _subclassed.add(cls)
-
-    @classmethod
-    def reset_processor_elems(cls, processor: Optional[Type] = None):
-        for s in list(_subclassed):
-            s.reset_specifiers_from_processors(processor=processor)
 
     @classmethod
     def recognize_all(cls, recognize_all: bool = True):
@@ -354,7 +324,7 @@ class Node(ABC):
 
     @classmethod
     def _get_type_specifiers(
-        cls, spec: "BaseSpecification"
+        cls, spec: "Specification"
     ) -> Dict[str, TypeSpecifier]:
         """
         Get the type specifiers for this node.
@@ -402,12 +372,12 @@ class Node(ABC):
         return tag.value
 
     @staticmethod
-    def get_global_spec() -> "BaseSpecification":
+    def get_global_spec() -> "Specification":
         """Get the global specification object."""
         return _thread_local.top_spec
 
     @staticmethod
-    def set_global_spec(spec: "BaseSpecification"):
+    def set_global_spec(spec: "Specification"):
         """Set the global specification object."""
         _thread_local.top_spec = spec
 
