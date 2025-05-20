@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Any, List, Union
+from typing import Any, Callable, List, Tuple, Union
 
 import numpy as np
 from fastfusion.frontend._set_parsing import eval_set_expression
@@ -350,15 +350,15 @@ class LoopBounds(ListNode):
 
     def to_constraint_lambda(
             self, 
-            rank_variable_to_index: dict[str, int],
             increasing_sizes: bool,
         ) -> Callable[Tuple[bool, int, ...], bool]:
-        def relevant_sizes(sizes: np.ndarray) -> np.ndarray:
-            return sizes[:, [rank_variable_to_index[x] for x in self.expression]]
+        
+        # def relevant_sizes(sizes: np.ndarray, rank_variable_to_index: dict[str, int]) -> np.ndarray:
+        #     return sizes[:, [rank_variable_to_index[x] for x in self.expression]]
 
         # Equal operators can only evaluate when all sizes are known
         if self.operator == "==":
-            return lambda final, sizes: not final or np.all(relevant_sizes(sizes) == self.value, axis=1)
+            return lambda final, sizes: not final or np.all(sizes == self.value, axis=1)
         if self.operator == "product==":
             return lambda final, sizes: not final or np.all(np.prod(sizes, axis=1) == self.value)
 
@@ -368,16 +368,16 @@ class LoopBounds(ListNode):
         # If we're increasing, we can evaluate leq immediately. If we're
         # decreasing, we can evaluate geq immediately. The other must wait
         # until all sizes are known.
-        le_wrapper = lambda op: lambda final, sizes: op(relevant_sizes(sizes)) if final or increasing_sizes else True
-        ge_wrapper = lambda op: lambda final, sizes: op(relevant_sizes(sizes)) if final or not increasing_sizes else True
+        le_wrapper = lambda op: lambda final, sizes: op(sizes) if final or increasing_sizes else True
+        ge_wrapper = lambda op: lambda final, sizes: op(sizes) if final or not increasing_sizes else True
         
         _all = lambda sizes: np.all(sizes, axis=1)
         _prod = lambda sizes: np.prod(sizes, axis=1)
 
         # fmt: off
         operator_to_wrapper = {
-            "==":        lambda final, sizes: _all(eq_op(final)(relevant_sizes(sizes), self.value)),
-            "product==": lambda final, sizes: eq_op(final)(_prod(relevant_sizes(sizes)), self.value),
+            "==":        lambda final, sizes: _all(eq_op(final)(sizes), self.value),
+            "product==": lambda final, sizes: eq_op(final)(_prod((sizes), self.value)),
             "<=":        le_wrapper(lambda sizes: _all(sizes)  <= self.value),
             ">=":        ge_wrapper(lambda sizes: _all(sizes)  >= self.value),
             "<":         le_wrapper(lambda sizes: _all(sizes)  <  self.value),
