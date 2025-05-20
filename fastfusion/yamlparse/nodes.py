@@ -28,6 +28,15 @@ from .parse_expressions import parse_expression, is_quoted_string
 
 class ParseError(Exception):
     """Exception for nodes."""
+    def __init__(self, *args, _keys: List[str] = (), **kwargs):
+        super().__init__(*args, **kwargs)
+        self._keys = list(_keys)
+
+    def add_key(self, key):
+        self._keys.append(key)
+        
+    def __str__(self):
+        return f"Exception in {'.'.join(str(s) for s in self._keys[::-1])}: {self.args[0]}"
 
 
 class Unspecified:
@@ -153,21 +162,19 @@ class TypeSpecifier:
             last_non_node_exception = getattr(exc, "_last_non_node_exception", None)
 
             if not isinstance(exc, ParseError):
-                last_non_node_exception = exc
-            if casted_successfully:
-                raise exc
-
-            estr = ""
-            if last_non_node_exception is not None:
                 estr = f"\n\n{last_non_node_exception}"
+                new_exc = ParseError(
+                    f'Error calling cast function "{callname}" '
+                    f'for value "{value}" in {node.get_name()}[{key}]. '
+                    f"{self.removed_by_str()}{estr}. {exc.__class__.__name__}: {exc}",
+                    _keys=[key],
+                )
+                new_exc._last_non_node_exception = last_non_node_exception
+                raise new_exc from exc
 
-            new_exc = ParseError(
-                f'Error calling cast function "{callname}" '
-                f'for value "{value}" in {node.get_name()}[{key}]. '
-                f"{self.removed_by_str()}{estr}. {exc.__class__.__name__}: {exc}"
-            )
-            new_exc._last_non_node_exception = last_non_node_exception
-            raise new_exc from exc
+            exc.add_key(key)
+            raise exc from None
+
 
         # self.check_type(casted, node, key)
         return casted
@@ -522,7 +529,8 @@ class Node(ABC):
                 raise ParseError(
                     f"The key {reserved} is reserved for use by the YAML "
                     f"parser. Please use a different key. Found in "
-                    f"{self.get_name()}. {tagstr}"
+                    f"{self.get_name()}. {tagstr}",
+                    _keys=[key],
                 )
         tag = Node._get_tag(v)
         if check is not None:
@@ -1352,7 +1360,7 @@ class DictNode(Node, dict):
                 to_update.extend(t)
             else:
                 raise TypeError(
-                    f"DictNode {self.__class__.__name__} got a {type(t)} argument."
+                    f"DictNode {self.__class__.__name__} got a {type(t)} argument. "
                     f"Expected a dict or list of dicts."
                 )
 
