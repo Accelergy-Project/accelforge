@@ -15,10 +15,10 @@ class TestWorkload(unittest.TestCase):
 
         rank_variable_bounds = get_rank_variable_bounds(workload, 'Q')
         REF_RANK_VARIABLE_BOUNDS = {
-            'm': 1, 'b': 1, 'h': 1, 'e': 1, 'd': 1
+            'm': 2, 'b': 2, 'h': 2, 'e': 2, 'd': 4
         }
         self.assertEqual(REF_RANK_VARIABLE_BOUNDS, rank_variable_bounds)
 
-        REF_TENSOR_Q_SIZE = 1  # B*H*M*E
+        REF_TENSOR_Q_SIZE = 16  # B*H*M*E
         self.assertEqual(REF_TENSOR_Q_SIZE,
                          get_tensor_size(workload, Tensor('Q')))

@@ -2,26 +2,21 @@ mapping:
   version: 0.5
   nodes:
   - type: temporal
-    rank: b
-    tile_shape: 1
-  - type: temporal
-    rank: h
-    tile_shape: 1
-  - type: temporal
-    rank: e
+    rank: c
     tile_shape: 1
   - type: spatial
-    rank: d
+    rank: r
     tile_shape: 1
     level: LocalBuffer
-  - type: storage
-    tensor: [Q]
-    level: LocalBuffer
-  - type: temporal
+  - type: spatial
     rank: m
     tile_shape: 1
+    level: LocalBuffer
   - type: storage
     tensor: [I]
     level: LocalBuffer
+  - type: temporal
+    rank: p
+    tile_shape: 1
   - type: compute
-    einsum: Q
+    einsum: conv

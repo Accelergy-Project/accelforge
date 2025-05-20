@@ -1,10 +1,10 @@
 # no top-level key since this file will be loaded alone
 shape:
-  b: 0 <= b < 1
-  m: 0 <= m < 1
-  h: 0 <= h < 1
-  e: 0 <= e < 1
-  d: 0 <= d < 1
+  b: 0 <= b < 2
+  m: 0 <= m < 2
+  h: 0 <= h < 2
+  e: 0 <= e < 2
+  d: 0 <= d < 4
   c: 0 <= c < 1
   j: 0 <= j < 1
   g: 0 <= g < 1
