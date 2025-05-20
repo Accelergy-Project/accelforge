@@ -48,7 +48,7 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: Intermediates() # - GlobalBuffer.tensors()
+        keep: Intermediates()
       spatial:
         loop_bounds:
         - [All().rank_variables(), product<=, 16]
@@ -70,10 +70,12 @@ architecture:
         bypass: ~weight
         # tile_size:
         # - [weight.rank_variables(), ==, 1]
-      spatial:
-        # loop_order: [Outputs().rank_variables(), Inputs().rank_variables()]
+      spatial_X:
         loop_bounds:
-        - [All().rank_variables(), product<=, 128]
+        - [input.rank_variables(), ==, 1]
+      spatial_Y:
+        loop_bounds:
+        - [output.rank_variables(), ==, 1]
 
   - !Compute
     name: MAC

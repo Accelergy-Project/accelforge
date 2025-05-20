@@ -134,7 +134,7 @@ class ConstraintGroup(DictNode):
             
     def _parse_storage(self, symbol_table: dict[str, Any]):
         return self.storage._parse(symbol_table)
-            
+
     def _parse(
         self, 
         symbol_table: dict[str, Any],
@@ -157,7 +157,7 @@ class Iteration(DictNode):
     An iteration (spatial or temporal) constraint.
 
     Attributes:
-        factors (LoopBounds): The factors associated with the iteration.
+        factors (Comparison): The factors associated with the iteration.
         loop_order (LoopOrder): The loop_order associated with the iteration.
         default_max_factor (int): The default maximum factor value.
         default_min_factor (int): The default minimum factor value.
@@ -173,7 +173,7 @@ class Iteration(DictNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reuse: List[str] = self["reuse"]
-        self.loop_bounds: LoopBounds = self["loop_bounds"]
+        self.loop_bounds: Comparison = self["loop_bounds"]
         self.loop_order: LoopOrder = self["loop_order"]
         
     def _parse(self, symbol_table: dict[str, Any]):
@@ -188,9 +188,9 @@ class ShapeList(ListNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("", LoopBounds)
+        super().add_attr("", Comparison)
         
-    def __getitem__(self, key: Union[str, int]) -> "LoopBounds":
+    def __getitem__(self, key: Union[str, int]) -> "Comparison":
         return super().__getitem__(key)
 
     def _parse(self, symbol_table: dict[str, Any]):
@@ -300,11 +300,7 @@ class LoopOrder(ListNode):
         )
 
 
-class LoopBounds(ListNode):
-    """
-    A list of factors used to describe loop bounds
-    """
-
+class Comparison(ListNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
@@ -326,14 +322,14 @@ class LoopBounds(ListNode):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if len(self) != 3:
-            raise ValueError(f"LoopBounds can only have 3 elements. got {len(self)}")
+            raise ValueError(f"Comparison can only have 3 elements. got {len(self)}")
         self.expression = self[0]
         self.operator = self[1]
         self.value = self[2]
     
     def _parse(self, symbol_table: dict[str, Any]):
         if len(self) != 3:
-            raise ValueError(f"LoopBounds can only have 3 elements. got {len(self)}")
+            raise ValueError(f"Comparison can only have 3 elements. got {len(self)}")
         return type(self)(
             [eval_set_expression(self.expression, symbol_table, "rank_variables"),
             self.operator,
@@ -341,27 +337,13 @@ class LoopBounds(ListNode):
             __node_skip_parse=True,
         )
         
-    def get_constrained_one_rank_variables(self) -> set[str]:
-        if self.value != 1:
-            return set()
-        if self.operator not in ["==", "<=", "product==", "product<="]:
-            return set()
-        return self.expression
+    def constrained_to_one(self) -> bool:
+        return self.value == 1 and self.operator in ["==", "<=", "product==", "product<="]
 
     def to_constraint_lambda(
             self, 
             increasing_sizes: bool,
-        ) -> Callable[Tuple[bool, int, ...], bool]:
-        
-        # def relevant_sizes(sizes: np.ndarray, rank_variable_to_index: dict[str, int]) -> np.ndarray:
-        #     return sizes[:, [rank_variable_to_index[x] for x in self.expression]]
-
-        # Equal operators can only evaluate when all sizes are known
-        if self.operator == "==":
-            return lambda final, sizes: not final or np.all(sizes == self.value, axis=1)
-        if self.operator == "product==":
-            return lambda final, sizes: not final or np.all(np.prod(sizes, axis=1) == self.value)
-
+        ) -> Callable[[bool, np.ndarray], Union[bool, np.ndarray]]:
         # Equal operators can only evaluate when all sizes are known
         eq_op = lambda final: (np.equal if final else (np.less_equal if increasing_sizes else np.greater_equal))
 
@@ -390,5 +372,8 @@ class LoopBounds(ListNode):
         # fmt: on
 
         if self.operator in operator_to_wrapper:
-            return operator_to_wrapper[self.operator](lambda sizes: np.all(sizes, axis=1) <= self.value)
+            return operator_to_wrapper[self.operator]
         raise KeyError(f"Unknown operator: {self.operator}. Known operators: {list(operator_to_wrapper.keys())}")
+
+    def force_to_one(self):
+        return self.value == 1 and self.operator in ["==", "<=", "product==", "product<="]

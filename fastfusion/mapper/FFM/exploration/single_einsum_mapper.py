@@ -1,7 +1,13 @@
+from collections import defaultdict
 from itertools import chain, combinations
 import copy
+from typing import Optional
 
-from fastfusion.frontend.mapping import MappingNodeList, Storage, Temporal, Spatial
+import numpy as np
+
+from fastfusion.frontend import constraints
+from fastfusion.frontend.constraints import Comparison, ConstraintGroup
+from fastfusion.frontend.mapping import Iteration, MappingNodeList, Storage, Temporal, Spatial
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.arch import Leaf
 from fastfusion.frontend._set_parsing import InvertibleSet
@@ -107,6 +113,28 @@ def valid_storage_order(mapping: MappingNodeList, node_names: list[str]):
                 return False
     return True
 
+# def recursive_order_storage_choices(
+#     mapping: MappingNodeList,
+#     nodes: list[arch.Memory],
+#     choices: list,
+#     _remaining_choices: Optional[set[int]]=None,
+# ):
+#     if _remaining_choices is None:
+#         _remaining_choices = set(range(len(choices)))
+
+#     if not choices:
+#         yield mapping
+#         return
+
+#     for choice in list(choices):
+#         mapping.append(choices)
+#         choices.remove(choice)
+#         label_backing_storages(mapping)
+#         if valid_storage_order(mapping, [n.name for n in nodes]):
+#             yield from recursive_order_storage_choices(mapping, nodes, choices, _remaining_choices)
+#         mapping.pop()
+#         choices.add(choice)
+
 def recursive_order_storage_choices(
     mapping: MappingNodeList,
     nodes: list[arch.Memory],
@@ -124,6 +152,7 @@ def recursive_order_storage_choices(
             yield from recursive_order_storage_choices(mapping, nodes, remaining_choices)
         mapping.pop()
         remaining_choices.append(choice)
+
 
 def get_storage_choices(
     nodes: list[arch.Memory],
@@ -156,34 +185,96 @@ def insert_temporal_loops(
     einsum: Einsum,
     first_memory: arch.Memory,
 ):
-    seen_tensors = set()
-    seen_non_first_memory = False
-    rank_variables = set(einsum.rank_variables)
+    # First establish insertion points. Insertion points are:
+    # - Below the last instance of the first memory
+    # - Between any two storage nodes
+    # - After the last storage node
     
-    i = 0
-    while i < len(mapping):
-        if mapping[i].memory.name != first_memory.name:
-            seen_non_first_memory = True
-        if i < len(mapping) - 1 and mapping[i+1].memory.name != first_memory.name:
-            seen_non_first_memory = True
-        if not seen_non_first_memory:
-            i += 1
-            continue
+    split_mapping = []
+    for m in mapping:
+        split_mapping.append([])
+        split_mapping[-1].append(m)
+        if m.memory_name == first_memory.name:
+            while len(split_mapping) > 1:
+                split_mapping[0].extend(split_mapping.pop(1))
+    
+    
+    full_mapping = []
+    seen_tensors = set()
+    for i, prev in enumerate(split_mapping):
+        full_mapping.extend(prev)
+        cur = split_mapping[i+1] if i < len(split_mapping) - 1 else []
+
+        rank_variables = set(einsum.rank_variables)
+        seen_tensors |= set(t.tensor for t in prev)
         
-        rank_vars = set(rank_variables)
-        if not mapping[i]._must_be_here:
-            rank_vars &= einsum.tensor2rank_variables[mapping[i].tensor]
-        if i < len(mapping) - 1:
-            if not mapping[i+1]._must_be_here:
-                rank_vars &= einsum.tensor2rank_variables[mapping[i+1].tensor]
-        seen_tensors.add(mapping[i].tensor)
+        # If we haven't seen a tensor yet, must only iterate over relevant rank
+        # variables.
         for t in einsum.tensors - seen_tensors:
-            rank_vars &= einsum.tensor2rank_variables[t]
+            rank_variables &= einsum.tensor2rank_variables[t]
+
+        
+        # If there is a backing storage in the next block, include everything.
+        if any(s._backing for s in cur):
+            rank_variables = set(einsum.rank_variables)
             
-        if rank_vars:
-            mapping.insert(i+1, Temporal(rank_variable=rank_vars))
-            i += 1
-        i += 1
+        # Otherwise include loops that will get reuse for the previous block of
+        # storage nodes
+        else:
+            rank_variables = set()
+            for s in prev:
+                rank_variables |= einsum.tensor2rank_variables[s.tensor]
+                
+        # Loops must also index into the next block of storage nodes.
+        for s in cur:
+            rank_variables &= einsum.tensor2rank_variables[s.tensor]
+                
+        # If there are any tensors we haven't seen yet, we may only iterate over
+        # their relevant rank variables.
+        for t in einsum.tensors - seen_tensors:
+            rank_variables &= einsum.tensor2rank_variables[t]
+                    
+        if rank_variables:
+            full_mapping.append(Temporal(rank_variable=rank_variables))
+
+    full_mapping = MappingNodeList(full_mapping, __node_skip_parse=True)
+    return full_mapping
+    
+    # seen_tensors = set()
+    # seen_non_first_memory = False
+    # rank_variables = set(einsum.rank_variables)
+    
+    # i = 0
+    # while i < len(mapping):
+    #     if mapping[i].memory.name != first_memory.name:
+    #         seen_non_first_memory = True
+    #     if i < len(mapping) - 1 and mapping[i+1].memory.name != first_memory.name:
+    #         seen_non_first_memory = True
+    #     if not seen_non_first_memory:
+    #         i += 1
+    #         continue
+        
+    #     rank_vars = set(rank_variables)
+    #     # Can't restrict based on relevant rank variables if one of this storage
+    #     # must be here or these are fused loops (we haven't seen all backing
+    #     # storages yet).
+    #     seen_tensors.add(mapping[i].tensor)
+    #     j = i
+    #     while j >= 0 and isinstance(mapping[j], Storage):
+    #         if not mapping[j]._must_be_here and not (einsum.tensors - seen_tensors):
+    #             rank_vars -= einsum.tensor2rank_variables[mapping[j].tensor]
+    #         j -= 1
+
+    #     if i < len(mapping) - 1:
+    #         if not mapping[i+1]._must_be_here:
+    #             rank_vars &= einsum.tensor2rank_variables[mapping[i+1].tensor]
+    #     for t in einsum.tensors - seen_tensors:
+    #         rank_vars &= einsum.tensor2rank_variables[t]
+            
+    #     if rank_vars:
+    #         mapping.insert(i+1, Temporal(rank_variable=rank_vars))
+    #         i += 1
+    #     i += 1
     return mapping
 
 def insert_spatial_loops(
@@ -206,24 +297,35 @@ def insert_spatial_loops(
 
         rv = einsum.rank_variables
         if fanout.spatial.fanout_Y > 1:
-            mapping.insert(insertion_point, Spatial(rank_variable=rv, dimension="Y"))
+            mapping.insert(insertion_point, Spatial(rank_variable=rv, dimension="Y", across=fanout))
         if fanout.spatial.fanout_X > 1:
-            mapping.insert(insertion_point, Spatial(rank_variable=rv, dimension="X"))
+            mapping.insert(insertion_point, Spatial(rank_variable=rv, dimension="X", across=fanout))
+
+def unpack_loops_to_rank_variables(mapping: MappingNodeList):
+    mapping_new = MappingNodeList()
+    for node in mapping:
+        if not isinstance(node, Iteration) or not isinstance(node.rank_variable, set):
+            mapping_new.append(node)
+            continue
+
+        for r in sorted(node.rank_variable):
+            mapping_new.append(
+                type(node)(
+                    rank_variable=r,
+                    __node_skip_parse=True,
+                    **{k: v for k, v in node.items() if k != "rank_variable"},
+                )
+            )
+    return mapping_new
 
 # =================================================================================================
 # Iterate over mappings
 # =================================================================================================
-
-def iterate_mappings(
+def iterate_mappings_no_constraints(
     spec: Specification,
-    einsum_names: list[str] | str | None = None,
+    einsum_name: str,
+    arch_flattened: list[arch.Leaf],
 ):
-    if isinstance(einsum_names, str):
-        einsum_names = [einsum_names]
-    if einsum_names is None:
-        einsum_names = [e.name for e in spec.workload.einsums]
-
-    arch_flattened = spec.get_flattened_architecture()
     first_memory = None
     for node in arch_flattened:
         if isinstance(node, arch.Memory):
@@ -232,11 +334,120 @@ def iterate_mappings(
     if first_memory is None:
         raise ValueError("No memory found in architecture")
 
+    symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
+    einsum = spec.workload.einsums[einsum_name]
+    for mapping, symbol_table in get_storage_choices(arch_flattened, symbol_table):
+        mapping = insert_temporal_loops(mapping, einsum, first_memory)
+        insert_spatial_loops(mapping, einsum, arch_flattened)
+        mapping = unpack_loops_to_rank_variables(mapping)
+        yield mapping, symbol_table
+
+# =================================================================================================
+# Attach constraints to mapping
+# =================================================================================================
+class TileSizeConstraintLambda:
+    def __init__(
+        self,
+        constraint: Comparison,
+        target_mapping_nodes: list[Storage],
+        rank_variables: set[str],
+    ):
+        self.constraint = constraint
+        self.constraint_lambda = constraint.to_constraint_lambda(True)
+        self.target_mapping_nodes = target_mapping_nodes
+        self.rank_variables = rank_variables
+
+    def __call__(self, final: bool, sizes: np.ndarray) -> bool:
+        return self.constraint(final, sizes)
+    
+class LoopBoundsConstraintLambda:
+    def __init__(
+        self,
+        constraint: Comparison,
+        target_mapping_nodes: list[Iteration],
+    ):
+        self.constraint = constraint
+        self.constraint_lambda = constraint.to_constraint_lambda(True)
+        self.target_mapping_nodes = target_mapping_nodes
+
+    def __call__(self, final: bool, sizes: np.ndarray) -> bool:
+        return self.constraint(final, sizes)
+
+def get_constraints(
+    mapping: MappingNodeList,
+    symbol_table: dict[str, InvertibleSet],
+):
+    parsed = {}
+    def get_parsed_storage_constraint(constraint: ConstraintGroup) -> ConstraintGroup:
+        key = id(constraint.storage)
+        if key not in parsed:
+            parsed[key] = constraint.storage._parse_non_keep_bypass(symbol_table)
+        return parsed[key]
+    
+    def get_parsed_spatial_constraint(constraint: ConstraintGroup, for_X: bool) -> ConstraintGroup:
+        key = id((id(constraint), for_X))
+        if key not in parsed:
+            constraint = constraint.get_spatial_constraint(for_X=for_X, for_Y=not for_X)
+            parsed[key] = constraint._parse(symbol_table)
+        return parsed[key]
+            
+    tile_shape_constraint_id_to_mapping_nodes = defaultdict(list)
+    loop_bounds_constraint_id_to_mapping_nodes = defaultdict(list)
+    tile_shape_constraints: list[Comparison] = []
+    loop_bounds_constraints: list[Comparison] = []
+    
+    def add_storage_constraint(m: Storage, constraint: Comparison):
+        if id(constraint) not in tile_shape_constraint_id_to_mapping_nodes:
+            tile_shape_constraints.append(constraint)
+        tile_shape_constraint_id_to_mapping_nodes[id(constraint)].append(m)
+        
+    def add_loop_bounds_constraint(m: Iteration, constraint: Comparison):
+        if id(constraint) not in loop_bounds_constraint_id_to_mapping_nodes:
+            loop_bounds_constraints.append(constraint)
+        loop_bounds_constraint_id_to_mapping_nodes[id(constraint)].append(m)
+    
+    for m in mapping:
+        if isinstance(m, Storage):
+            constraint = get_parsed_storage_constraint(m.memory.constraints)
+            for c in constraint.tile_shape:
+                add_storage_constraint(m, c)
+
+        for dim, for_x in [("X", True), ("Y", False)]:
+            if isinstance(m, Spatial) and m.dimension == dim:
+                constraint = get_parsed_spatial_constraint(m.across.constraints, for_x)
+                for c in constraint.loop_bounds:
+                    if m.rank_variable in c.expression:
+                        add_loop_bounds_constraint(m, c)
+
+    constraint_lambdas = []
+    for constraint in tile_shape_constraints:
+        mapping_nodes = tile_shape_constraint_id_to_mapping_nodes[id(constraint)]
+        constraint_lambdas.append(TileSizeConstraintLambda(constraint, mapping_nodes, constraint.expression))
+
+    for constraint in loop_bounds_constraints:
+        mapping_nodes = loop_bounds_constraint_id_to_mapping_nodes[id(constraint)]
+        if constraint.constrained_to_one():
+            for m in mapping_nodes:
+                mapping.remove(m)
+            continue
+        constraint_lambdas.append(LoopBoundsConstraintLambda(constraint, mapping_nodes))
+    
+    return constraint_lambdas
+
+# =================================================================================================
+# Top level
+# =================================================================================================
+def iterate_mappings_constraints(
+    spec: Specification,
+    einsum_names: list[str] | str | None = None,
+):
+    arch_flattened = spec.get_flattened_architecture()
+    if isinstance(einsum_names, str):
+        einsum_names = [einsum_names]
+    if einsum_names is None:
+        einsum_names = [e.name for e in spec.workload.einsums]
+
     for einsum_name in einsum_names:
-        symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
-        einsum = spec.workload.einsums[einsum_name]
-        for mapping, symbol_table in get_storage_choices(arch_flattened, symbol_table):
-            mapping = MappingNodeList(mapping)
-            insert_temporal_loops(mapping, einsum, first_memory)
-            insert_spatial_loops(mapping, einsum, arch_flattened)
-            yield mapping
+        for mapping, symbol_table in iterate_mappings_no_constraints(spec, einsum_name, arch_flattened):
+            constraints = get_constraints(mapping, symbol_table)
+            yield mapping, constraints

@@ -52,14 +52,14 @@ class Iteration(DictNode):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("rank_variable", (str, set))
+        super().add_attr("rank_variable", (set, RankVariable))
         super().add_attr("loop_bound", (int, None), default=None)
         super().add_attr("tile_shape", (int, None), default=None)
         super().add_attr("stride", (int, None), default=None)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.rank_variable: str | set[str] = self["rank_variable"]
+        self.rank_variable: set[RankVariable] | RankVariable = self["rank_variable"]
         self.loop_bound: Optional[int] = self["loop_bound"]
         self.stride: Optional[int] = self["stride"]
         self.tile_shape: Optional[int] = self["tile_shape"]
@@ -86,10 +86,12 @@ class Spatial(Iteration):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("dimension", str)
+        super().add_attr("across", arch.Leaf, default=None)
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dimension: str = self["dimension"]
+        self.across: Optional[arch.Leaf] = self["across"]
 
     def compact_string(self) -> str:
         return f"S{self.dimension}-{self.rank_variable}-{self.loop_bound}"
