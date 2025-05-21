@@ -1,18 +1,19 @@
 from dataclasses import dataclass
-from functools import reduce
-from operator import mul
 from typing import Optional, overload
 
 from bindings.looptree import TemporalTag, SequentialTag, PipelineTemporalTag
 
 import islpy as isl
 
-from pytimeloop.looptree.reuse.isl import IslReuseAnalysisOutput
-from pytimeloop.looptree.reuse.summarized import SummarizedAnalysisOutput
+from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse.summarized.symbolic_new import SummarizedAnalysisOutput
+from fastfusion.model.looptree.mapping_utilities import get_einsums_with_complete_mappings, get_paths, get_leaves
+
+from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.workload import Workload, get_tensor_size
 
 from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
 from pytimeloop.isl.sum import sum_with_mask
-from pytimeloop.looptree.mapping_utilities import *
 
 
 @dataclass
@@ -44,6 +45,9 @@ class BufferAccesses:
             if buffer == ref_buffer
         )
 
+    def __str__(self):
+        return str(self.accesses)
+
 
 @overload
 def summarize_total_and_per_unit_actions(
@@ -60,9 +64,9 @@ def summarize_total_and_per_unit_actions(
     reuse_analysis_result
 ):
     result = {}
-    reads_to_parent = reuse_analysis_result.reads_to_parent
-    reads_to_peer = reuse_analysis_result.reads_to_peer
     if isinstance(reuse_analysis_result, IslReuseAnalysisOutput):
+        reads_to_parent = reuse_analysis_result.reads_to_parent
+        reads_to_peer = reuse_analysis_result.reads_to_peer
         for key, (tags, fill) in reuse_analysis_result.fills.items():
             read_to_parent = reads_to_parent[key][1]
             read_to_peer = reads_to_peer[key][1]
@@ -89,36 +93,24 @@ def summarize_total_and_per_unit_actions(
                            max_per_unit_read_to_parent,
                            max_per_unit_read_to_peer)
     elif isinstance(reuse_analysis_result, SummarizedAnalysisOutput):
-        for key, (tags, fill) in reuse_analysis_result.fills.items():
-            buffer_name = key[0]
+        for buffet, buffet_stats in reuse_analysis_result.buffet_stats.items():
+            level = buffet.level
+            einsum = buffet.einsum
 
-            if key in reads_to_parent:
-                read_to_parent = reads_to_parent[key][1]
-            else:
-                read_to_parent = 0
+            key = (level, buffet.tensor, einsum)
 
-            if key in reads_to_peer:
-                read_to_peer = reads_to_peer[key][1]
-            else:
-                read_to_peer = 0
+            total_fill = buffet_stats.total_fills
+            total_read_to_parent = buffet_stats.total_reads_to_parent
+            total_read_to_peer = buffet_stats.reads_to_peer
 
-            total_fill = fill
-            total_read_to_parent = read_to_parent
-            total_read_to_peer = read_to_peer
-
-            fanout = reuse_analysis_result.fanout[buffer_name]
-            total_fanout = reduce(mul, fanout, 1)
-
-            max_per_unit_fill = fill / total_fanout
-            max_per_unit_read_to_parent = read_to_parent / total_fanout
-            max_per_unit_read_to_peer = read_to_peer / total_fanout
-
-            result[key] = (total_fill,
-                           total_read_to_parent,
-                           total_read_to_peer,
-                           max_per_unit_fill,
-                           max_per_unit_read_to_parent,
-                           max_per_unit_read_to_peer)
+            result[key] = (
+                buffet_stats.total_fills,
+                buffet_stats.total_reads_to_parent,
+                buffet_stats.reads_to_peer,
+                buffet_stats.max_per_unit_fills,
+                buffet_stats.max_per_parent_reads_to_parent,
+                0 # TODO: peer-to-peer
+            )
     return result
 
 
@@ -143,15 +135,13 @@ def buffer_accesses_from_buffet_actions(
 def buffer_accesses_from_buffet_actions(
     reuse_analysis_result,
     mapping,
-    workload,
+    workload: Workload,
     is_path=False
 ) -> BufferAccesses:
     mapping = mapping['nodes']
-    dspace_id_to_name = workload.data_space_id_to_name()
-    einsum_id_to_name = workload.einsum_id_to_name()
-
 
     parent_buffers = get_parent_buffers(mapping, workload, is_path)
+    print(parent_buffers)
 
     einsums_with_complete_mappings = \
         get_einsums_with_complete_mappings(mapping, workload, is_path)
@@ -159,13 +149,14 @@ def buffer_accesses_from_buffet_actions(
     compute_targets = set()
     for compute_node in get_leaves(mapping, is_path):
         assert compute_node["type"] == "compute"
-        compute_targets.add(compute_node["target"])
+        compute_targets.add(compute_node["level"])
 
     summarized_actions = \
         summarize_total_and_per_unit_actions(reuse_analysis_result)
+    print(summarized_actions)
 
     accesses_results = BufferAccesses()
-    for (buffer_id, dspace_id, einsum_id), value in summarized_actions.items():
+    for (buffer_id, tensor, einsum), value in summarized_actions.items():
         (
             fill,
             read_to_parent,
@@ -175,27 +166,25 @@ def buffer_accesses_from_buffet_actions(
             max_per_unit_read_to_peer
         ) = value
 
-        dspace_name = dspace_id_to_name[dspace_id]
-        einsum_name = einsum_id_to_name[einsum_id]
-        if einsum_id not in einsums_with_complete_mappings:
+        if einsum not in einsums_with_complete_mappings:
             continue
 
-        parent_buffer = parent_buffers[(buffer_id, dspace_id, einsum_id)]
+        parent_buffer = parent_buffers[(buffer_id, tensor, einsum)]
         if parent_buffer is not None:
             accesses = accesses_results.get_accesses(parent_buffer,
-                                                     dspace_name,
-                                                     einsum_name)
-            if dspace_id in workload.tensors_written_by_einsum(einsum_id):
+                                                     tensor,
+                                                     einsum)
+            if tensor in workload.tensors_written_by_einsum(einsum):
                 accesses.total_writes += read_to_parent
                 accesses.total_reads += read_to_parent
 
                 # TODO: figure out how to do this per unit
-                total_elided_reads = workload.get_tensor_volume(dspace_id)
+                total_elided_reads = get_tensor_size(workload, tensor)
                 accesses.total_reads -= total_elided_reads
 
                 accesses.max_per_unit_reads += max_per_unit_read_to_parent
                 accesses.max_per_unit_writes += max_per_unit_read_to_parent
-            elif dspace_id in workload.tensors_read_by_einsum(einsum_id):
+            elif tensor in workload.tensors_read_by_einsum(einsum):
                 accesses.total_reads += read_to_parent
 
                 accesses.max_per_unit_reads += read_to_parent
@@ -203,15 +192,15 @@ def buffer_accesses_from_buffet_actions(
         # Fills will write into current buffer except for compute (which does
         # not have write action) and top-level buffer
         accesses = accesses_results.get_accesses(buffer_id,
-                                                 dspace_name,
-                                                 einsum_name)
+                                                 tensor,
+                                                 einsum)
         if buffer_id not in compute_targets and parent_buffer is not None:
-            if dspace_id in workload.tensors_written_by_einsum(einsum_id):
+            if tensor in workload.tensors_written_by_einsum(einsum):
                 accesses.total_writes += fill
                 accesses.max_per_unit_writes += max_per_unit_fill
 
                 # TODO: figure out how to do this per unit
-                total_elided_writes = workload.get_tensor_volume(dspace_id)
+                total_elided_writes = get_tensor_size(workload, tensor)
                 accesses.total_writes -= total_elided_writes
             else:
                 accesses.total_writes += fill
@@ -223,7 +212,7 @@ def buffer_accesses_from_buffet_actions(
     return accesses_results
 
 
-def get_parent_buffers(mapping, workload, is_path):
+def get_parent_buffers(mapping: Mapping, workload: Workload, is_path):
     parent_buffers = {}
     if is_path:
         paths = [mapping]
@@ -232,35 +221,27 @@ def get_parent_buffers(mapping, workload, is_path):
 
     for path in paths:
         leaf = path[-1]
-        einsum_name = leaf['einsum']
-        if isinstance(einsum_name, int):
-            einsum_id = einsum_name
-        else:
-            einsum_id = workload.einsum_name_to_id()[einsum_name]
+        einsum = leaf['einsum']
 
-        dspace_to_top_buffer = {}
+        tensor_to_top_buffer = {}
         for node in path:
             if node['type'] == 'storage':
-                for dspace in node['dspace']:
-                    if isinstance(dspace, int):
-                        dspace_id = dspace
-                    else:
-                        dspace_id = workload.data_space_name_to_id()[dspace]
-                    key = (node['target'], dspace_id, einsum_id)
-                    if dspace_id in dspace_to_top_buffer:
-                        parent_buffers[key] = dspace_to_top_buffer[dspace_id]
+                for tensor in node['tensor']:
+                    key = (node['level'], tensor, einsum)
+                    if tensor in tensor_to_top_buffer:
+                        parent_buffers[key] = tensor_to_top_buffer[tensor]
                     else:
                         parent_buffers[key] = None
-                    dspace_to_top_buffer[dspace_id] = node['target']
+                    tensor_to_top_buffer[tensor] = node['level']
             elif node['type'] == 'compute':
-                for dspace_id in workload.tensors_read_by_einsum(einsum_id):
-                    key = (node['target'], dspace_id, einsum_id)
-                    if dspace_id in dspace_to_top_buffer:
-                        parent_buffers[key] = dspace_to_top_buffer[dspace_id]
-                for dspace_id in workload.tensors_written_by_einsum(einsum_id):
-                    key = (node['target'], dspace_id, einsum_id)
-                    if dspace_id in dspace_to_top_buffer:
-                        parent_buffers[key] = dspace_to_top_buffer[dspace_id]
+                for dspace in workload.tensors_read_by_einsum(einsum):
+                    key = (node['level'], dspace, einsum)
+                    if tensor in tensor_to_top_buffer:
+                        parent_buffers[key] = tensor_to_top_buffer[tensor]
+                for tensor in workload.tensors_written_by_einsum(einsum):
+                    key = (node['level'], tensor, einsum)
+                    if tensor in tensor_to_top_buffer:
+                        parent_buffers[key] = tensor_to_top_buffer[tensor]
 
     return parent_buffers
 

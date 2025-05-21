@@ -1,6 +1,9 @@
 mapping:
   version: 0.5
   nodes:
+  - type: storage
+    tensor: [I, Q]
+    level: MainMemory
   - type: temporal
     rank: b
     tile_shape: 1
@@ -25,3 +28,4 @@ mapping:
     level: LocalBuffer
   - type: compute
     einsum: Q
+    level: MAC

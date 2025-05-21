@@ -1,7 +1,8 @@
-from bindings.looptree import LooptreeWorkload
+from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.workload import Workload
 
 
-def get_paths(mapping):
+def get_paths(mapping: Mapping):
     cur_path = []
     for node in mapping:
         cur_path.append(node)
@@ -13,7 +14,7 @@ def get_paths(mapping):
             yield cur_path.copy()
 
 
-def get_leaves(mapping, is_path):
+def get_leaves(mapping: Mapping, is_path):
     if is_path:
         yield mapping[-1]
         return
@@ -25,22 +26,18 @@ def get_leaves(mapping, is_path):
             yield node
 
 
-def get_einsums_with_complete_mappings(mapping, workload, is_path):
+def get_einsums_with_complete_mappings(mapping: Mapping, workload: Workload, is_path):
     einsums_with_complete_mappings = set()
     for compute_node in get_leaves(mapping, is_path):
-        einsum_name = compute_node['einsum']
-        if isinstance(einsum_name, int):
-            einsum_id = einsum_name
-        else:
-            einsum_id = workload.einsum_name_to_id()[einsum_name]
+        einsum = compute_node['einsum']
         if 'incomplete' not in compute_node:
-            einsums_with_complete_mappings.add(einsum_id)
+            einsums_with_complete_mappings.add(einsum)
         if 'incomplete' in compute_node and not compute_node['incomplete']:
-            einsums_with_complete_mappings.add(einsum_id)
+            einsums_with_complete_mappings.add(einsum)
     return einsums_with_complete_mappings
 
 
-def get_intermediate_tensors(workload: LooptreeWorkload):
+def get_intermediate_tensors(workload: Workload):
     result = set()
     for einsum in workload.einsum_id_to_name():
         written_tensors = workload.tensors_written_by_einsum(einsum)

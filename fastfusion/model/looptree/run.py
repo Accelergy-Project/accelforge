@@ -27,6 +27,12 @@ class LoopTreeStatistics:
     capacity_usage: dict
 
 
+def run_symbolic_model(mapping, workload, architecture):
+    result = analyze_reuse(mapping, workload)
+    actions = gather_actions(result, mapping, workload, bindings, use_name=True)
+    pass
+
+
 def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     yaml_str = gather_yaml_configs(config_dir, paths)
     config = Config(yaml_str, 'yaml')

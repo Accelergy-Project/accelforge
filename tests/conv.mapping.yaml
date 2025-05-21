@@ -20,3 +20,4 @@ mapping:
     tile_shape: 1
   - type: compute
     einsum: conv
+    level: MAC

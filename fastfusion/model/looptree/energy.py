@@ -1,10 +1,11 @@
 from collections.abc import Mapping
 from numbers import Real
 
+from fastfusion.frontend.energy_table import ComponentEnergy
+from fastfusion.model.looptree.mapping_utilities import get_einsums_with_complete_mappings
+from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions
+
 from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
-from pytimeloop.timeloopfe.v4.ert import Ert
-from pytimeloop.looptree.accesses import *
-from pytimeloop.looptree.mapping_utilities import *
 
 
 def gather_actions(looptree_results, mapping, workload, bindings, is_path=False, use_name=False):
@@ -45,7 +46,7 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False,
 
 
 def compute_energy_from_actions(action_counts: Mapping[(str, str), Real],
-                   ert: Ert):
+                                ert: ComponentEnergy):
     energy_result = {}
     for (component, action), counts in action_counts.items():
         if counts == 0:

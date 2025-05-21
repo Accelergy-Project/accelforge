@@ -24,7 +24,7 @@ import sympy
 
 @dataclass(eq=True, frozen=True)
 class Buffet:
-    tensor: str
+    tensor: Tensor
     einsum: str
     level: str
 
@@ -60,9 +60,11 @@ class Uninitialized:
 
 @dataclass
 class BuffetStats:
-    fills: Any = field(default=0)
+    total_fills: Any = field(default=0)
+    max_per_unit_fills: Any = field(default=0)
     reads_to_peer: Any = field(default=0)
-    reads_to_parent: Any = field(default=0)
+    total_reads_to_parent: Any = field(default=0)
+    max_per_parent_reads_to_parent: Any = field(default=0)
     occupancy: Any = field(default=0)
 
 
@@ -238,13 +240,13 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
             tracker = trackers.pop(tracker_idx)
             mapping.insert(i,
                            {'type': 'reservation',
-                            'tensor': tracker.buffet.tensor,
+                            'tensor': tracker.buffet.tensor.name,
                             'level': tracker.buffet.level})
 
         for fill in fills:
             mapping.insert(i,
                            {'type': 'fill',
-                            'tensor': fill.tensor,
+                            'tensor': fill.tensor.name,
                             'level': fill.level})
 
 
@@ -290,12 +292,16 @@ def analyze_temporal(node_idx,
             else:
                 accumulated_stats = accumulated_buffet_stats[buffet]
 
-            accumulated_stats.reads_to_parent += \
-                buffet_stats.reads_to_parent * shape_repeats
+            accumulated_stats.total_reads_to_parent += \
+                buffet_stats.total_reads_to_parent * shape_repeats
+            accumulated_stats.max_per_parent_reads_to_parent += \
+                buffet_stats.max_per_parent_reads_to_parent * shape_repeats
             accumulated_stats.reads_to_peer += \
                 buffet_stats.reads_to_peer * shape_repeats
-            accumulated_stats.fills += \
-                buffet_stats.fills * shape_repeats
+            accumulated_stats.total_fills += \
+                buffet_stats.total_fills * shape_repeats
+            accumulated_stats.max_per_unit_fills += \
+                buffet_stats.max_per_unit_fills * shape_repeats
             accumulated_stats.occupancy = max(
                 accumulated_stats.occupancy,
                 buffet_stats.occupancy
@@ -363,14 +369,29 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
 
             relevancy = info.tensor_to_relevancy[buffet.tensor][rank_var]
             if buffet.level == node['level'] and isinstance(relevancy, Irrelevant):
-                accumulated_stats.reads_to_parent = buffet_stats.reads_to_parent
+                accumulated_stats.total_reads_to_parent = buffet_stats.total_reads_to_parent
+                accumulated_stats.max_per_parent_reads_to_parent = buffet_stats.max_per_parent_reads_to_parent
+            elif buffet.level == node['level']:
+                accumulated_stats.total_reads_to_parent += \
+                    buffet_stats.total_reads_to_parent * shape_repeats
+                accumulated_stats.max_per_parent_reads_to_parent += \
+                    buffet_stats.max_per_parent_reads_to_parent * shape_repeats
             else:
-                accumulated_stats.reads_to_parent += \
-                    buffet_stats.reads_to_parent * shape_repeats
+                accumulated_stats.total_reads_to_parent += \
+                    buffet_stats.total_reads_to_parent * shape_repeats
+                accumulated_stats.max_per_parent_reads_to_parent = max(
+                    accumulated_stats.max_per_parent_reads_to_parent,
+                    buffet_stats.max_per_parent_reads_to_parent
+                )
 
             accumulated_stats.reads_to_peer = 0  # TODO: peer-to-peer support
-            accumulated_stats.fills += \
-                buffet_stats.fills * shape_repeats
+
+            accumulated_stats.total_fills += \
+                buffet_stats.total_fills * shape_repeats
+            accumulated_stats.max_per_unit_fills = max(
+                accumulated_stats.max_per_unit_fills,
+                buffet_stats.max_per_unit_fills
+            )
             accumulated_stats.occupancy = max(
                 accumulated_stats.occupancy,
                 buffet_stats.occupancy
@@ -430,9 +451,6 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
         tensor = Tensor(tensor)
         buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
         buffet_stats = child_result.buffet_stats[buffet]
-        projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-        buffet_stats.reads_to_parent = \
-            compute_dense_tile_occupancy(projection, current_shape)
         buffet_stats.reads_to_peer = 0  # TODO: peer-to-peer support
 
     return child_result
@@ -476,9 +494,12 @@ def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnaly
 
     buffet_stats = child_result.buffet_stats[buffet]
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-    buffet_stats.fills = \
+    buffet_stats.total_fills = \
         compute_dense_tile_occupancy(projection, current_shape)
-    buffet_stats.reads_to_parent = buffet_stats.fills
+    buffet_stats.max_per_unit_fills = buffet_stats.total_fills
+    buffet_stats.total_reads_to_parent = buffet_stats.total_fills
+    buffet_stats.max_per_parent_reads_to_parent = \
+        buffet_stats.total_reads_to_parent
 
     return child_result
 
@@ -487,10 +508,22 @@ def analyze_compute(node_idx,
                     current_shape,
                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
     einsum_name = info.mapping[-1]['einsum']
+    node = info.mapping[node_idx]
 
     result_accumulator = SummarizedAnalysisOutput()
     result_accumulator.temporal_steps[einsum_name] = 1
     result_accumulator.per_einsum_ops[einsum_name] = 1
+
+    for tensor in info.all_tensors:
+        buffet = Buffet(tensor, einsum_name, node['level'])
+        buffet_stats = BuffetStats()
+        buffet_stats.total_fills = 1
+        buffet_stats.max_per_unit_fills = 1
+        buffet_stats.reads_to_peer = 0
+        buffet_stats.total_reads_to_parent = 1
+        buffet_stats.max_per_parent_reads_to_parent = 1
+        buffet_stats.occupancy = 1
+        result_accumulator.buffet_stats[buffet] = buffet_stats
 
     return result_accumulator
 
