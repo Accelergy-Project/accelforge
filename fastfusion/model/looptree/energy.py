@@ -1,4 +1,6 @@
 from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 from numbers import Real
 
 from fastfusion.frontend.energy_table import ComponentEnergy
@@ -6,6 +8,16 @@ from fastfusion.model.looptree.mapping_utilities import get_einsums_with_complet
 from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions
 
 # from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
+
+
+@dataclass
+class ActionCount:
+    total: Any
+    max_per_unit: Any
+
+    @staticmethod
+    def default():
+        return ActionCount(0, 0)
 
 
 def gather_actions(looptree_results, mapping, workload, bindings, is_path=False, use_name=False):
@@ -16,7 +28,7 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False,
                                                          mapping,
                                                          workload,
                                                          is_path)
-    actions = {}
+    actions: dict[tuple, ActionCount] = {}
     for (buf, tensor, einsum), accesses in accesses_stats.items():
         if use_name:
             buf = buf
@@ -25,20 +37,23 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False,
 
         key = (buf, 'read')
         if key not in actions:
-            actions[key] = 0
-        actions[key] += accesses.total_reads
+            actions[key] = ActionCount.default()
+        actions[key].total += accesses.total_reads
+        actions[key].max_per_unit += accesses.max_per_unit_reads
 
         key = (buf, 'write')
         if key not in actions:
-            actions[key] = 0
-        actions[key] += accesses.total_writes
+            actions[key] = ActionCount.default()
+        actions[key].total += accesses.total_writes
+        actions[key].max_per_unit += accesses.max_per_unit_writes
 
     # ops = gather_ops(looptree_results.per_einsum_ops, einsums_with_complete_mapping)
-    for (level, einsum), ops in looptree_results.per_einsum_ops.items():
-        key = (level, 'compute')
+    for compute, ops in looptree_results.compute_stats.items():
+        key = (compute.level, 'compute')
         if key not in actions:
-            actions[key] = 0
-        actions[key] += ops
+            actions[key] = ActionCount.default()
+        actions[key].total += ops.total_ops
+        actions[key].max_per_unit += ops.max_per_unit_ops
 
     return actions
 

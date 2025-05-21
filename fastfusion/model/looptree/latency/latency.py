@@ -1,28 +1,26 @@
 from typing import overload
 from sympy import Max
 
-from pytimeloop.isl.singular import get_value_from_singular_qpolynomial
-from pytimeloop.looptree.latency.processors import LATENCY_PROCESSORS
-from pytimeloop.looptree.reuse.isl import IslReuseAnalysisOutput
-from pytimeloop.looptree.reuse.summarized import SummarizedAnalysisOutput
-from pytimeloop.looptree.latency.memory import memory_latency
+# from fastfusion.model.looptree.isl.singular import get_value_from_singular_qpolynomial
+from fastfusion.model.looptree.latency.processors import LATENCY_PROCESSORS
+from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
+from fastfusion.model.looptree.latency.memory import memory_latency
 
-from bindings.looptree import SpatialTag
+# from bindings.looptree import SpatialTag
 
 
 def get_latency(looptree_results,
                 mapping,
                 workload,
-                arch,
-                bindings):
+                arch):
     comp_latency = calculate_compute_latency(looptree_results,
                                              mapping,
                                              workload)
     mem_latency = memory_latency(looptree_results,
                                  arch,
                                  mapping,
-                                 workload,
-                                 bindings)
+                                 workload)
     overall_latency = Max(comp_latency, Max(*mem_latency.values()))
     return overall_latency, comp_latency, mem_latency
 
@@ -44,7 +42,7 @@ def calculate_compute_latency(reuse_analysis_results, mapping, workload):
                                    workload)
     elif isinstance(reuse_analysis_results, SummarizedAnalysisOutput):
         return compute_summarized_latency(
-            reuse_analysis_results.temporal_steps,
+            reuse_analysis_results.compute_stats,
             mapping,
             workload
         )
@@ -56,9 +54,15 @@ def compute_isl_latency(temporal_steps, mapping, workload):
     ).to_python()
 
 
-def compute_summarized_latency(temporal_steps, mapping, workload):
+def compute_summarized_latency(compute_stats, mapping, workload):
     # TODO: this is only for single-Einsum!!!
-    return sum(value for key, value in temporal_steps.items())
+    longest_compute_latency = 0
+    for compute, stats in compute_stats.items():
+        longest_compute_latency = max(
+            longest_compute_latency,
+            stats.max_per_unit_ops
+        )
+    return longest_compute_latency
 
 
 def _compute_latency(mapping, top_idx: int, temporal_steps, workload):

@@ -1,13 +1,13 @@
-# no top-level key since this file will be loaded alone
-shape:
-  p: 0 <= p < 5
-  r: 0 <= r < 3
-  m: 0 <= m < 4
-  c: 0 <= c < 2
+workload:
+  shape:
+    p: 0 <= p < 5
+    r: 0 <= r < 3
+    m: 0 <= m < 4
+    c: 0 <= c < 2
 
-einsums:
-- name: conv
-  tensor_accesses:
-  - {name: I, projection: { C: c, H: p+r }}
-  - {name: W, projection: [ m, c, r ]}
-  - {name: O, projection: [ m, p ], output: True}
+  einsums:
+  - name: conv
+    tensor_accesses:
+    - {name: I, projection: { C: c, H: p+r }}
+    - {name: W, projection: [ m, c, r ]}
+    - {name: O, projection: [ m, p ], output: True}

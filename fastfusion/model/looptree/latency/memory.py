@@ -1,17 +1,18 @@
 from collections import defaultdict
 from sympy import Max, Min
 
-from pytimeloop.looptree.accesses import buffer_accesses_from_buffet_actions
-from pytimeloop.looptree.reuse.isl import IslReuseAnalysisOutput
-from pytimeloop.looptree.reuse.summarized import SummarizedAnalysisOutput
+from fastfusion.frontend.arch import Memory
+
+from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions
+from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
 
 
 def memory_latency(
     looptree_results: IslReuseAnalysisOutput | SummarizedAnalysisOutput,
     arch,
     mapping,
-    workload,
-    bindings
+    workload
 ):
     accesses_stats = buffer_accesses_from_buffet_actions(
         looptree_results,
@@ -20,25 +21,25 @@ def memory_latency(
         is_path=False
     )
 
+    bandwidths, component_tensor_datawidth = get_bandwidth(arch)
+
     component_to_read_writes = defaultdict(lambda: [None, None])
-    for level, component in bindings.items():
-        if isinstance(looptree_results, SummarizedAnalysisOutput):
-            level = component
-        read_count = 0
-        write_count = 0
-        for key, accesses in accesses_stats.items_with_buffer(level):
-            read_count += accesses.max_per_unit_reads
-            write_count += accesses.max_per_unit_writes
+    for (component, tensor, _), accesses in accesses_stats.items():
+        if (component, tensor.name) in component_tensor_datawidth:
+            datawidth = component_tensor_datawidth[(component, tensor.name)]
+        elif (component, '*') in component_tensor_datawidth:
+            datawidth = component_tensor_datawidth[(component, '*')]
+        else:
+            raise RuntimeError(f'No datawidth for {component} and {tensor}')
 
         if component not in component_to_read_writes:
-            component_to_read_writes[component][0] = read_count
-            component_to_read_writes[component][1] = write_count
+            component_to_read_writes[component][0] = accesses.max_per_unit_reads*datawidth
+            component_to_read_writes[component][1] = accesses.max_per_unit_writes*datawidth
         else:
-            component_to_read_writes[component][0] += read_count
-            component_to_read_writes[component][1] += write_count
+            component_to_read_writes[component][0] += accesses.max_per_unit_reads*datawidth
+            component_to_read_writes[component][1] += accesses.max_per_unit_writes*datawidth
 
     component_latency = {}
-    bandwidths = get_bandwidth(arch)
     for component, (reads, writes) in component_to_read_writes.items():
         read_bw, write_bw, shared_bw = bandwidths[component]
 
@@ -71,8 +72,12 @@ def memory_latency(
 
 
 def get_bandwidth(arch):
+    """Returns a dictionary from memory to bandwidth in bits/cycle"""
     component_bandwidths = {}
+    component_tensor_datawidth = {}
     for node in arch['nodes']:
+        if not isinstance(node, Memory):
+            continue
         attributes = node.attributes
         n_rd_ports = attributes.get('n_rd_ports', 0)
         n_wr_ports = attributes.get('n_wr_ports', 0)
@@ -81,13 +86,13 @@ def get_bandwidth(arch):
             n_rdwr_ports = 1
 
         width = attributes['width']
-        datawidth = attributes['datawidth']
-        width_in_words = width/datawidth
 
         component_bandwidths[node['name']] = [
-            n_rd_ports*width_in_words,
-            n_wr_ports*width_in_words,
-            n_rdwr_ports*width_in_words
+            n_rd_ports*width,
+            n_wr_ports*width,
+            n_rdwr_ports*width
         ]
-    return component_bandwidths
 
+        for tensor, datawidth in attributes['datawidth'].items():
+            component_tensor_datawidth[(node['name'], tensor)] = datawidth
+    return component_bandwidths, component_tensor_datawidth

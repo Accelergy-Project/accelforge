@@ -5,7 +5,7 @@ variables:
 architecture:
   version: 0.5
   nodes:
-  - !Storage
+  - !Memory
     name: MainMemory
     class: DRAM
     attributes:
@@ -20,10 +20,8 @@ architecture:
     constraints:
       storage:
         keep: ~Intermediates()
-      # temporal:
-      #   loop_order: [b, d, m, h, e]
     
-  - !Storage
+  - !Memory
     name: GlobalBuffer
     class: SRAM
     attributes:
@@ -36,12 +34,11 @@ architecture:
     constraints:
       storage:
         keep: ~MainMemory.tensors()
-        # uneven: True
 
-  - !Storage
+  - !Memory
     name: LocalBuffer
     class: SRAM 
-    spatial: {fanout_X: 16} #, fanout_Y: 4}
+    spatial: {fanout_X: 16}
     attributes:
       size: 1024*1024*32*8 # 32MB
       width: 2048
@@ -51,16 +48,12 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: Intermediates() # - GlobalBuffer.tensors()
-        # uneven: True
-      temporal:
-        loop_order: []
+        keep: Intermediates()
       spatial:
-        # loop_order: sorted(All().ranks())
         loop_bounds:
         - [All().rank_variables(), product<=, 16]
 
-  - !Storage
+  - !Memory
     name: Register
     class: dummy_storage
     spatial: {fanout_X: 128, fanout_Y: 128}
@@ -75,14 +68,14 @@ architecture:
       storage:
         keep: weight
         bypass: ~weight
-        # uneven: True
-      temporal:
+        # tile_size:
+        # - [weight.rank_variables(), ==, 1]
+      spatial_X:
         loop_bounds:
-        - [weight.rank_variables(), ==, 1]
-      spatial:
-        loop_order: [Outputs().rank_variables(), Inputs().rank_variables()]
+        - [input.rank_variables(), ==, 1]
+      spatial_Y:
         loop_bounds:
-        - [All().rank_variables(), product<=, 128]
+        - [output.rank_variables(), ==, 1]
 
   - !Compute
     name: MAC

@@ -163,7 +163,7 @@ def buffer_accesses_from_buffet_actions(
             read_to_parent,
             read_to_peer,
             max_per_unit_fill,
-            max_per_unit_read_to_parent,
+            max_per_parent_read_to_parent,
             max_per_unit_read_to_peer
         ) = value
 
@@ -183,12 +183,12 @@ def buffer_accesses_from_buffet_actions(
                 # total_elided_reads = get_tensor_size(workload, tensor)
                 # accesses.total_reads -= total_elided_reads
 
-                accesses.max_per_unit_reads += max_per_unit_read_to_parent
-                accesses.max_per_unit_writes += max_per_unit_read_to_parent
+                accesses.max_per_unit_reads += max_per_parent_read_to_parent
+                accesses.max_per_unit_writes += max_per_parent_read_to_parent
             elif tensor in workload.tensors_read_by_einsum(einsum):
                 accesses.total_reads += read_to_parent
 
-                accesses.max_per_unit_reads += read_to_parent
+                accesses.max_per_unit_reads += max_per_parent_read_to_parent
 
         # Fills will write into current buffer except for compute (which does
         # not have write action) and top-level buffer

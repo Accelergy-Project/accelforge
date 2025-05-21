@@ -1,59 +1,59 @@
-# no top-level key since this file will be loaded alone
-shape:
-  b: 0 <= b < 2
-  m: 0 <= m < 2
-  h: 0 <= h < 2
-  e: 0 <= e < 2
-  d: 0 <= d < 4
-  c: 0 <= c < 1
-  j: 0 <= j < 1
-  g: 0 <= g < 1
+workload:
+  shape:
+    b: 0 <= b < 2
+    m: 0 <= m < 2
+    h: 0 <= h < 2
+    e: 0 <= e < 2
+    d: 0 <= d < 4
+    c: 0 <= c < 1
+    j: 0 <= j < 1
+    g: 0 <= g < 1
 
-einsums:
-- name: V
-  tensor_accesses:
-  - {name: I, projection: [ b, m, d ]}
-  - {name: WV, projection: [ h, e, d ]}
-  - {name: V, projection: [ b, m, h, e ], output: True}
+  einsums:
+  - name: V
+    tensor_accesses:
+    - {name: I, projection: [ b, m, d ]}
+    - {name: WV, projection: [ h, e, d ]}
+    - {name: V, projection: [ b, m, h, e ], output: True}
 
-- name: K
-  tensor_accesses:
-  - {name: I, projection: [ b, m, d ]} 
-  - {name: WK, projection: [ h, e, d ]}
-  - {name: K, projection: [ b, m, h, e ], output: True}
+  - name: K
+    tensor_accesses:
+    - {name: I, projection: [ b, m, d ]} 
+    - {name: WK, projection: [ h, e, d ]}
+    - {name: K, projection: [ b, m, h, e ], output: True}
 
-- name: Q
-  tensor_accesses:
-  - {name: I, projection: [ b, m, d ]}
-  - {name: WQ, projection: [ h, e, d ]}
-  - {name: Q, projection: [ b, m, h, e ], output: True}
+  - name: Q
+    tensor_accesses:
+    - {name: I, projection: [ b, m, d ]}
+    - {name: WQ, projection: [ h, e, d ]}
+    - {name: Q, projection: [ b, m, h, e ], output: True}
 
-- name: QK
-  tensor_accesses:
-  - {name: Q, projection: [ b, m, h, e ]}
-  - {name: K, projection: { B: b, M: P, H: h, E: e }}
-  - {name: QK, projection: [ b, m, P, h ], output: True}
+  - name: QK
+    tensor_accesses:
+    - {name: Q, projection: [ b, m, h, e ]}
+    - {name: K, projection: { B: b, M: P, H: h, E: e }}
+    - {name: QK, projection: [ b, m, P, h ], output: True}
 
-- name: AV
-  tensor_accesses:
-  - {name: QK, projection: [ b, m, p, h ]}
-  - {name: V, projection: { B: b, M: p, H: h, E: f}}
-  - {name: AV, projection: [ b, m, h, f ], output: True}
+  - name: AV
+    tensor_accesses:
+    - {name: QK, projection: [ b, m, p, h ]}
+    - {name: V, projection: { B: b, M: p, H: h, E: f}}
+    - {name: AV, projection: [ b, m, h, f ], output: True}
 
-- name: Z
-  tensor_accesses:
-  - {name: AV, projection: [ b, m, h, F ]}  
-  - {name: WZ, projection: [ h, F, g ]}
-  - {name: Z, projection: [ b, m, g ], output: True}
+  - name: Z
+    tensor_accesses:
+    - {name: AV, projection: [ b, m, h, F ]}  
+    - {name: WZ, projection: [ h, F, g ]}
+    - {name: Z, projection: [ b, m, g ], output: True}
 
-- name: FFA
-  tensor_accesses:
-  - {name: Z, projection: [ b, m, g ]}
-  - {name: WFFA, projection: [ g, c ]}
-  - {name: FFA, projection: [ b, m, c ], output: True}
+  - name: FFA
+    tensor_accesses:
+    - {name: Z, projection: [ b, m, g ]}
+    - {name: WFFA, projection: [ g, c ]}
+    - {name: FFA, projection: [ b, m, c ], output: True}
 
-- name: FFB
-  tensor_accesses:
-  - {name: FFA, projection: [ b, m, c ]}
-  - {name: WFFB, projection: [ c, j ]}
-  - {name: FFB, projection: [ b, m, j ], output: True}
+  - name: FFB
+    tensor_accesses:
+    - {name: FFA, projection: [ b, m, c ]}
+    - {name: WFFB, projection: [ c, j ]}
+    - {name: FFB, projection: [ b, m, j ], output: True}

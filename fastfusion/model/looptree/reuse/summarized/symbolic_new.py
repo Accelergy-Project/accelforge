@@ -29,7 +29,7 @@ class Buffet:
     level: str
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class Compute:
     einsum: str
     level: str
@@ -69,8 +69,14 @@ class BuffetStats:
 
 
 @dataclass
+class ComputeStats:
+    total_ops: Any = field(default=0)
+    max_per_unit_ops: Any = field(default=0)
+
+
+@dataclass
 class SummarizedAnalysisOutput:
-    per_einsum_ops: dict = field(default_factory=dict)
+    compute_stats: dict[Compute, ComputeStats] = field(default_factory=dict)
 
     buffet_stats: dict[Buffet, BuffetStats] = field(default_factory=dict)
 
@@ -321,11 +327,13 @@ def analyze_temporal(node_idx,
                 for i, _ in enumerate(zip(acc_fanout, child_fanout)):
                     acc_fanout[i] = max(acc_fanout[i], child_fanout[i])
 
-        for key in child_result.per_einsum_ops:
-            if key not in result_accumulator.per_einsum_ops:
-                result_accumulator.per_einsum_ops[key] = 0
-            result_accumulator.per_einsum_ops[key] += \
-                child_result.per_einsum_ops[key] * shape_repeats
+        for key in child_result.compute_stats:
+            if key not in result_accumulator.compute_stats:
+                result_accumulator.compute_stats[key] = ComputeStats()
+            result_accumulator.compute_stats[key].total_ops += \
+                child_result.compute_stats[key].total_ops * shape_repeats
+            result_accumulator.compute_stats[key].max_per_unit_ops += \
+                child_result.compute_stats[key].max_per_unit_ops * shape_repeats
 
 
     shape = stride_and_shape.shape
@@ -418,11 +426,15 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             elif i < len(child_fanout):
                 fanout[i] = max(fanout[i], child_fanout[i])
 
-        for key in child_result.per_einsum_ops:
-            if key not in result_accumulator.per_einsum_ops:
-                result_accumulator.per_einsum_ops[key] = 0
-            result_accumulator.per_einsum_ops[key] += \
-                child_result.per_einsum_ops[key] * shape_repeats
+        for key in child_result.compute_stats:
+            if key not in result_accumulator.compute_stats:
+                result_accumulator.compute_stats[key] = ComputeStats()
+            result_accumulator.compute_stats[key].total_ops += \
+                child_result.compute_stats[key].total_ops * shape_repeats
+            result_accumulator.compute_stats[key].max_per_unit_ops = max(
+                result_accumulator.compute_stats[key].max_per_unit_ops,
+                child_result.compute_stats[key].max_per_unit_ops
+            )
 
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
@@ -509,15 +521,15 @@ def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnaly
 def analyze_compute(node_idx,
                     current_shape,
                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
-    einsum_name = info.mapping[-1]['einsum']
+    einsum = info.mapping[-1]['einsum']
     node = info.mapping[node_idx]
 
     result_accumulator = SummarizedAnalysisOutput()
-    result_accumulator.temporal_steps[einsum_name] = 1
-    result_accumulator.per_einsum_ops[(node['level'], einsum_name)] = 1
+    result_accumulator.temporal_steps[einsum] = 1
+    result_accumulator.compute_stats[Compute(einsum, node['level'])] = ComputeStats(1, 1)
 
     for tensor in info.all_tensors:
-        buffet = Buffet(tensor, einsum_name, node['level'])
+        buffet = Buffet(tensor, einsum, node['level'])
         buffet_stats = BuffetStats()
         buffet_stats.total_fills = 1
         buffet_stats.max_per_unit_fills = 1
