@@ -9,7 +9,7 @@ class TestTileShapeExploration(unittest.TestCase):
     def test_pmapping(self):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'conv_sym.mapping.yaml')
         explore_tile_shapes(mapping,
-                            {'p': 10,
+                            {'p': 36,
                              'r': 3,
                              'c': 2,
                              'm': 4},

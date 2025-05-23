@@ -23,7 +23,13 @@ mapping:
     tile_shape: symbol
   - type: temporal
     rank: p
+    tile_shape: symbol
+  - type: temporal
+    rank: p
     tile_shape: 4
+  - type: temporal
+    rank: p
+    tile_shape: symbol
   - type: temporal
     rank: p
     tile_shape: symbol
