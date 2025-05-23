@@ -7,12 +7,12 @@ architecture:
   nodes:
   - !Component
     name: MainMemory
-    class: DRAM
+    component_class: DRAM
     attributes: {width: 256, block_size: 32, word_bits: 8, datawidth: 8}
     required_actions: ['read', 'write']
   - !Component
     name: GlobalBuffer
-    class: SRAM
+    component_class: SRAM
     attributes:
       depth: 4294967295
       width: 4294967295
@@ -25,6 +25,6 @@ architecture:
     required_actions: ['read', 'write']
   - !Component
     name: MACC
-    class: intmac
+    component_class: intmac
     attributes: {datawidth: 8, width: 8, cycle_time: 1e-9}
     required_actions: ['compute']

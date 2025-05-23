@@ -1,18 +1,17 @@
 from collections import defaultdict
 from itertools import chain, combinations
 import copy
-from typing import Optional
+from typing import List
 
 import numpy as np
 
-from fastfusion.frontend import constraints
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup
-from fastfusion.frontend.mapping import Iteration, MappingNodeList, Storage, Temporal, Spatial
-import fastfusion.frontend.arch as arch
-from fastfusion.frontend.arch import Leaf
-from fastfusion.frontend._set_parsing import InvertibleSet
+from fastfusion.frontend.mapping import Iteration, MappingNode, Storage, Temporal, Spatial
+import fastfusion.frontend.architecture as architecture
+from fastfusion.frontend.architecture import Leaf
+from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload.workload_spec import Einsum, Tensor
+from fastfusion.frontend.workload.workload import Einsum, Tensor
 
 def powerset(iterable):
     s = list(iterable)
@@ -29,14 +28,14 @@ def make_storage_choices_one_level(
     assert "All" in symbol_table
     tensors = symbol_table["All"]
 
-    if not isinstance(node, arch.Memory):
+    if not isinstance(node, architecture.Memory):
         yield [], symbol_table
         return
 
     new_symbol_table = copy.copy(symbol_table)
     storage_constraints = node.constraints.storage._parse_keep_bypass(symbol_table)
-    must_keep = tensors.to_my_space(storage_constraints["keep"])
-    must_bypass = tensors.to_my_space(storage_constraints["bypass"])
+    must_keep = tensors.to_my_space(storage_constraints.keep)
+    must_bypass = tensors.to_my_space(storage_constraints.bypass)
 
     if must_keep - tensors:
         raise KeyError(f"Keep constraint for {node.name} includes tensors that are "
@@ -84,13 +83,14 @@ def make_storage_choices_all_levels(
 # Order storage nodes (dataflow).
 # =================================================================================================
 
-def label_backing_storages(mapping: MappingNodeList):
+def label_backing_storages(mapping: List[MappingNode]):
     seen_tensors = set()
-    for _, s in mapping.enumerate_type(Storage):
-        s._backing = s.tensor not in seen_tensors
-        seen_tensors.add(s.tensor)
+    for i, s in enumerate(mapping):
+        if isinstance(s, Storage):
+            s._backing = s.tensor not in seen_tensors
+            seen_tensors.add(s.tensor)
 
-def valid_storage_order(mapping: MappingNodeList, node_names: list[str]):
+def valid_storage_order(mapping: List[MappingNode], node_names: list[str]):
     for i in range(len(mapping)):
         for j in range(i, len(mapping)):
             t1, t2 = mapping[i].tensor, mapping[j].tensor
@@ -113,31 +113,9 @@ def valid_storage_order(mapping: MappingNodeList, node_names: list[str]):
                 return False
     return True
 
-# def recursive_order_storage_choices(
-#     mapping: MappingNodeList,
-#     nodes: list[arch.Memory],
-#     choices: list,
-#     _remaining_choices: Optional[set[int]]=None,
-# ):
-#     if _remaining_choices is None:
-#         _remaining_choices = set(range(len(choices)))
-
-#     if not choices:
-#         yield mapping
-#         return
-
-#     for choice in list(choices):
-#         mapping.append(choices)
-#         choices.remove(choice)
-#         label_backing_storages(mapping)
-#         if valid_storage_order(mapping, [n.name for n in nodes]):
-#             yield from recursive_order_storage_choices(mapping, nodes, choices, _remaining_choices)
-#         mapping.pop()
-#         choices.add(choice)
-
 def recursive_order_storage_choices(
-    mapping: MappingNodeList,
-    nodes: list[arch.Memory],
+    mapping: List[MappingNode],
+    nodes: list[architecture.Memory],
     remaining_choices: list,
 ):
     if not remaining_choices:
@@ -155,10 +133,10 @@ def recursive_order_storage_choices(
 
 
 def get_storage_choices(
-    nodes: list[arch.Memory],
+    nodes: list[architecture.Memory],
     symbol_table: dict[str, InvertibleSet],
 ):
-    while not isinstance(nodes[0], arch.Memory):
+    while not isinstance(nodes[0], architecture.Memory):
         nodes = nodes[1:]
     first_storage = nodes[0]
     
@@ -167,7 +145,7 @@ def get_storage_choices(
         for v in choice.values():
             all_storage_nodes.extend(v)
             
-        base_mapping = MappingNodeList()
+        base_mapping = []
         for node in list(all_storage_nodes[::-1]):
             if node.memory.name == first_storage.name:
                 all_storage_nodes.remove(node)
@@ -181,9 +159,9 @@ def get_storage_choices(
 # =================================================================================================
 
 def insert_temporal_loops(
-    mapping: MappingNodeList,
+    mapping: List[MappingNode],
     einsum: Einsum,
-    first_memory: arch.Memory,
+    first_memory: architecture.Memory,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -237,50 +215,13 @@ def insert_temporal_loops(
         if rank_variables:
             full_mapping.append(Temporal(rank_variable=rank_variables))
 
-    full_mapping = MappingNodeList(full_mapping, __node_skip_parse=True)
+    full_mapping = list(full_mapping)
     return full_mapping
-    
-    # seen_tensors = set()
-    # seen_non_first_memory = False
-    # rank_variables = set(einsum.rank_variables)
-    
-    # i = 0
-    # while i < len(mapping):
-    #     if mapping[i].memory.name != first_memory.name:
-    #         seen_non_first_memory = True
-    #     if i < len(mapping) - 1 and mapping[i+1].memory.name != first_memory.name:
-    #         seen_non_first_memory = True
-    #     if not seen_non_first_memory:
-    #         i += 1
-    #         continue
-        
-    #     rank_vars = set(rank_variables)
-    #     # Can't restrict based on relevant rank variables if one of this storage
-    #     # must be here or these are fused loops (we haven't seen all backing
-    #     # storages yet).
-    #     seen_tensors.add(mapping[i].tensor)
-    #     j = i
-    #     while j >= 0 and isinstance(mapping[j], Storage):
-    #         if not mapping[j]._must_be_here and not (einsum.tensors - seen_tensors):
-    #             rank_vars -= einsum.tensor2rank_variables[mapping[j].tensor]
-    #         j -= 1
-
-    #     if i < len(mapping) - 1:
-    #         if not mapping[i+1]._must_be_here:
-    #             rank_vars &= einsum.tensor2rank_variables[mapping[i+1].tensor]
-    #     for t in einsum.tensors - seen_tensors:
-    #         rank_vars &= einsum.tensor2rank_variables[t]
-            
-    #     if rank_vars:
-    #         mapping.insert(i+1, Temporal(rank_variable=rank_vars))
-    #         i += 1
-    #     i += 1
-    return mapping
 
 def insert_spatial_loops(
-    mapping: MappingNodeList,
+    mapping: List[MappingNode],
     einsum: Einsum,
-    arch_flattened: list[arch.Memory],
+    arch_flattened: list[architecture.Memory],
 ):
     nodes_with_fanout = [n for n in arch_flattened if n.spatial.get_fanout() > 1]
     arch_node_names = [n.name for n in arch_flattened]
@@ -301,8 +242,8 @@ def insert_spatial_loops(
         if fanout.spatial.fanout_X > 1:
             mapping.insert(insertion_point, Spatial(rank_variable=rv, dimension="X", across=fanout))
 
-def unpack_loops_to_rank_variables(mapping: MappingNodeList):
-    mapping_new = MappingNodeList()
+def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
+    mapping_new = []
     for node in mapping:
         if not isinstance(node, Iteration) or not isinstance(node.rank_variable, set):
             mapping_new.append(node)
@@ -312,8 +253,7 @@ def unpack_loops_to_rank_variables(mapping: MappingNodeList):
             mapping_new.append(
                 type(node)(
                     rank_variable=r,
-                    __node_skip_parse=True,
-                    **{k: v for k, v in node.items() if k != "rank_variable"},
+                    **node.model_dump(exclude={"rank_variable"}),
                 )
             )
     return mapping_new
@@ -324,11 +264,11 @@ def unpack_loops_to_rank_variables(mapping: MappingNodeList):
 def iterate_mappings_no_constraints(
     spec: Specification,
     einsum_name: str,
-    arch_flattened: list[arch.Leaf],
+    arch_flattened: list[architecture.Leaf],
 ):
     first_memory = None
     for node in arch_flattened:
-        if isinstance(node, arch.Memory):
+        if isinstance(node, architecture.Memory):
             first_memory = node
             break
     if first_memory is None:
@@ -374,7 +314,7 @@ class LoopBoundsConstraintLambda:
         return self.constraint(final, sizes)
 
 def get_constraints(
-    mapping: MappingNodeList,
+    mapping: List[MappingNode],
     symbol_table: dict[str, InvertibleSet],
 ):
     parsed = {}

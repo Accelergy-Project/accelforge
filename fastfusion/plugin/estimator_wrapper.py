@@ -60,7 +60,7 @@ class Estimation:
 
     def __init__(
         self,
-        value: Number,
+        value: Union[int, float],
         success: bool = True,
     ):
         self.value = value

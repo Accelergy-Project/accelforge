@@ -4,7 +4,7 @@ from numbers import Number
 import os
 from typing import Callable, List, Union
 from fastfusion.plugin.logging import ListLoggable
-from fastfusion.yamlparse.yaml import load_yaml, write_yaml_file
+from fastfusion.util.yaml import load_yaml, write_yaml_file
 
 
 def actionDynamicEnergy(func: Callable) -> Callable:

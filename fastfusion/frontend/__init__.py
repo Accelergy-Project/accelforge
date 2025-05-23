@@ -1,12 +1,14 @@
 """Timeloop Specification. Each piece below (minus processors) corresponds to a top key in the Timeloop specification. """
 
 from .specification import *
-from ..yamlparse import *
-
-from . import arch
-from . import components
-from . import constraints
-from . import workload
-from . import specification
-from . import variables
-from . import config
+import fastfusion.frontend.architecture as architecture
+import fastfusion.frontend.component_area as component_area
+import fastfusion.frontend.component_classes as component_classes
+import fastfusion.frontend.component_energy as component_energy
+import fastfusion.frontend.config as config
+import fastfusion.frontend.constraints as constraints
+import fastfusion.frontend.mapping as mapping
+import fastfusion.frontend.renames as renames
+import fastfusion.frontend.specification as specification
+import fastfusion.frontend.variables as variables
+import fastfusion.frontend.workload as workload

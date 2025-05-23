@@ -3,11 +3,11 @@ variables:
   technology: "7nm"
 
 architecture:
-  version: 0.5
+  version: "0.5"
   nodes:
   - !Memory
     name: MainMemory
-    class: DRAM
+    component_class: DRAM
     attributes:
       size: 9999999999999
       width: 4678 # 614 GB/s at 1.05GHz
@@ -23,7 +23,7 @@ architecture:
     
   - !Memory
     name: GlobalBuffer
-    class: SRAM
+    component_class: SRAM
     attributes:
       size: 1024*1024*128*8 # 128MB
       width: 8192
@@ -55,7 +55,7 @@ architecture:
 
   - !Memory
     name: Register
-    class: dummy_storage
+    component_class: dummy_storage
     spatial: {fanout_X: 128, fanout_Y: 128}
     attributes:
       size: 8 # 8b
@@ -79,24 +79,24 @@ architecture:
 
   - !Compute
     name: MAC
-    class: intmac
+    component_class: intmac
     attributes: {multiplier_width: 8, adder_width: 16, energy_scale: 0.78436603748, energy: 1, area: 1}
 
-compound_components:
-  version: 0.5         # REQUIRED version number
-  classes:
+components:
+  version: "0.5"         # REQUIRED version number
+  component_classes:
   - name: intmac
     attributes:
-      technology: "must_specify"
-      multiplier_width: "must_specify"
-      adder_width: "must_specify"
-      global_cycle_seconds: "must_specify"
+      technology: REQUIRED
+      multiplier_width: REQUIRED
+      adder_width: REQUIRED
+      global_cycle_seconds: REQUIRED
     subcomponents:
     - name: intadder
-      class: aladdin_adder
+      component_class: aladdin_adder
       attributes: {width: adder_width}
     - name: intmultiplier
-      class: aladdin_multiplier
+      component_class: aladdin_multiplier
       attributes: {width_a: multiplier_width, width_b: multiplier_width}
     actions:
     - name: compute

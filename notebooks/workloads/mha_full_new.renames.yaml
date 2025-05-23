@@ -1,5 +1,5 @@
 renames:
-  version: 0.5
+  version: "0.5"
   einsums:
   - name: default
     tensor_accesses:

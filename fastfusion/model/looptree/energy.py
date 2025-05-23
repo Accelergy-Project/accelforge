@@ -64,8 +64,7 @@ def compute_energy_from_actions(action_counts: Mapping[(str, str), Real],
     for (component, action), counts in action_counts.items():
         if counts == 0:
             continue
-        component_table = ert.find_component(component)
-        action_table = component_table.find_action(action)
+        action_table = ert[component][action]
         if action_table is None:
             raise RuntimeError(
                 f'Could not find action {action} for component {component}'

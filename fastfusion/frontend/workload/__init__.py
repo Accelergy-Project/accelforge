@@ -1,2 +1,2 @@
-from .workload_spec import *
+from .workload import *
 from .isl import *

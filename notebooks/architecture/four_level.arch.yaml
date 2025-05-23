@@ -3,11 +3,11 @@ variables:
   technology: "7nm"
 
 architecture:
-  version: 0.5
+  version: "0.5"
   nodes:
   - !Memory
     name: MainMemory
-    class: DRAM
+    component_class: DRAM
     attributes:
       size: 9999999999999
       width: 4678 # 614 GB/s at 1.05GHz
@@ -15,55 +15,58 @@ architecture:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
       energy_scale: (450 / 64) / 8
-      energy: 1
-      area: 1
+      # energy: 1
+      # area: 1
     constraints:
       storage:
         keep: ~Intermediates()
     
   - !Memory
     name: GlobalBuffer
-    class: SRAM
+    component_class: SRAM
     attributes:
       size: 1024*1024*128*8 # 128MB
       width: 8192
-      datawidth: 8
-      depth: 1000
-      energy: 1
-      area: 1
+      datawidth: 8 * width
+      depth: 1000 
+      # energy: 1
+      # area: 1
     constraints:
       storage:
         keep: ~MainMemory.tensors()
 
   - !Memory
     name: LocalBuffer
-    class: SRAM 
+    component_class: SRAM 
     spatial: {fanout_X: 16}
     attributes:
       size: 1024*1024*32*8 # 32MB
       width: 2048
       depth: 1000
       datawidth: 8
-      energy: 1
-      area: 1
+      # energy: 1
+      # area: 1
+      energy_scale: 12
     constraints:
       storage:
         keep: Intermediates()
       spatial:
         loop_bounds:
-        - [All().rank_variables(), product<=, 16]
+        - expression: All().rank_variables()
+          operator: product<=
+          value: 16
 
   - !Memory
     name: Register
-    class: dummy_storage
+    component_class: dummy_storage
     spatial: {fanout_X: 128, fanout_Y: 128}
     attributes:
       size: 8 # 8b
       datawidth: 8
       width: 8
       depth: 1000
-      energy: 1
-      area: 1
+      # energy: 1
+      # area: 1
     constraints:
       storage:
         keep: weight
@@ -72,31 +75,36 @@ architecture:
         # - [weight.rank_variables(), ==, 1]
       spatial_X:
         loop_bounds:
-        - [input.rank_variables(), ==, 1]
+        - expression: input.rank_variables()
+          operator: ==
+          value: 1
       spatial_Y:
         loop_bounds:
-        - [output.rank_variables(), ==, 1]
+        - expression: output.rank_variables()
+          operator: ==
+          value: 1
 
   - !Compute
     name: MAC
-    class: intmac
-    attributes: {multiplier_width: 8, adder_width: 16, energy_scale: 0.78436603748, energy: 1, area: 1}
+    component_class: intmac
+    attributes: {multiplier_width: 8, adder_width: 16} # , energy: 1, area: 1
+    actions: [{name: compute, arguments: {energy_scale: 1}}]
 
-compound_components:
-  version: 0.5         # REQUIRED version number
-  classes:
+component_classes:
+  version: "0.5"         # REQUIRED version number
+  component_classes:
   - name: intmac
     attributes:
-      technology: "must_specify"
-      multiplier_width: "must_specify"
-      adder_width: "must_specify"
-      global_cycle_seconds: "must_specify"
+      technology: REQUIRED
+      multiplier_width: REQUIRED
+      adder_width: REQUIRED
+      global_cycle_seconds: REQUIRED
     subcomponents:
     - name: intadder
-      class: aladdin_adder
-      attributes: {width: adder_width}
+      component_class: aladdin_adder
+      attributes: {width: adder_width, energy_scale: 0}
     - name: intmultiplier
-      class: aladdin_multiplier
+      component_class: aladdin_multiplier
       attributes: {width_a: multiplier_width, width_b: multiplier_width}
     actions:
     - name: compute
@@ -110,4 +118,4 @@ compound_components:
       - name: intadder
         actions: [{name: leak}]
       - name: intmultiplier
-        actions: [{name: leak}]
+        actions: [{name: leak, arguments: {energy: 2}}]

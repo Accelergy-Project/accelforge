@@ -1,6 +1,6 @@
 import islpy as isl
 
-from .workload_spec import Workload, Tensor, Einsum
+from .workload import Workload, Tensor, Einsum
 
 
 def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:

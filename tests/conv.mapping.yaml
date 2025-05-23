@@ -1,5 +1,5 @@
 mapping:
-  version: 0.5
+  version: "0.5"
   nodes:
   - type: temporal
     rank: c

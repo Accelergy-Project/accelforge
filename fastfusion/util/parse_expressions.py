@@ -13,6 +13,23 @@ import ruamel.yaml
 import os
 import keyword
 
+class ParseError(Exception):
+    def __init__(self, *args, source_field: Any=None, message: str=None, **kwargs):
+        self._fields = [source_field] if source_field is not None else []
+        if message is None and len(args) > 0:
+            message = args[0]
+        self.message = message
+        super().__init__(*args, **kwargs)
+
+    def add_field(self, field: Any):
+        self._fields.append(field)
+
+    def __str__(self) -> str:
+        s = f"{self.__class__.__name__} in {'.'.join(str(field) for field in self._fields[::-1])}"
+        if self.message is not None:
+            s += f": {self.message}"
+        return s
+
 MATH_FUNCS = {
     "ceil": math.ceil,
     "comb": math.comb,
@@ -145,13 +162,6 @@ def cast_to_numeric(x: Any) -> Union[int, float, bool]:
         return int(x)
     return float(x)
 
-
-def is_quoted_string(expression):
-    return isinstance(
-        expression, ruamel.yaml.scalarstring.DoubleQuotedScalarString
-    ) or isinstance(expression, ruamel.yaml.scalarstring.SingleQuotedScalarString)
-
-
 def get_callable_lambda(func, expression):
     l = lambda *args, **kwargs: func(*args, **kwargs)
     l.__name__ = func.__name__
@@ -161,16 +171,7 @@ def get_callable_lambda(func, expression):
     return l
 
 
-def parse_expression(
-    expression,
-    binding_dictionary,
-    location: str,
-    strings_allowed: bool = True,
-    use_bindings_after: str = None,
-):
-    if strings_allowed and is_quoted_string(expression):
-        return expression
-
+def parse_expression(expression, symbol_table):
     try:
         return cast_to_numeric(expression)
     except:
@@ -178,13 +179,9 @@ def parse_expression(
 
     if not isinstance(expression, str):
         return expression
-
-    if use_bindings_after is not None:
-        keys = list(binding_dictionary.keys())
-        index = keys.index(use_bindings_after)
-        if index != -1:
-            keys = keys[:index]
-            binding_dictionary = {k: binding_dictionary[k] for k in keys}
+    
+    if expression in symbol_table:
+        return symbol_table[expression]
 
     FUNCTION_BINDINGS = {}
     FUNCTION_BINDINGS["__builtins__"] = None  # Safety
@@ -192,8 +189,8 @@ def parse_expression(
     FUNCTION_BINDINGS.update(MATH_FUNCS)
 
     try:
-        v = eval(expression, FUNCTION_BINDINGS, binding_dictionary)
-        infostr = f'Calculated {location} as "{expression}" = {v}.'
+        v = eval(expression, FUNCTION_BINDINGS, symbol_table)
+        infostr = f'Calculated "{expression}" = {v}.'
         if isinstance(v, str):
             v = ruamel.yaml.scalarstring.DoubleQuotedScalarString(v)
         if isinstance(v, Callable):
@@ -201,11 +198,10 @@ def parse_expression(
         success = True
     except Exception as e:
         errstr = f"Failed to evaluate: {expression}\n"
-        errstr += f"Location: {location}\n"
         if (
             isinstance(expression, str)
             and expression.isidentifier()
-            and expression not in binding_dictionary
+            and expression not in symbol_table
             and expression not in FUNCTION_BINDINGS
         ):
             e = NameError(f"Name '{expression}' is not defined.")
@@ -213,7 +209,7 @@ def parse_expression(
         err = errstr
         errstr += f"Available bindings: "
         bindings = {}
-        bindings.update(binding_dictionary)
+        bindings.update(symbol_table)
         bindings.update(parse_expressions_local.script_funcs)
         extras = []
         for k, v in bindings.items():
@@ -232,18 +228,19 @@ def parse_expression(
             if k not in keyword.kwlist
         }
         if possibly_used:
-            errstr += f"The following may have been used in the expression:"
-            errstr += "".join(f"\n\t{k} = {v}" for k, v in possibly_used.items())
-            errstr += "\n"
-        if strings_allowed:
-            errstr += "Strings are allowed here. If you meant to enter a string, please wrap the\n"
-            errstr += "expression in single or double quotes:\n"
-            errstr += f"    Found expression: {expression}\n"
-            errstr += f'    Expression as valid string: "{expression}"\n'
+            errstr += (
+                f"The following may have been used in the expression:\n\t"
+                + "\n\t".join(f"{k} = {v}" for k, v in possibly_used.items())
+            )
+        errstr += (
+            f"\n\nIf you meant to enter a string in a YAML file, please wrap the\n"
+            f"expression in single or double quotes. If you meant to enter a raw string,:\n"
+            f"use the RawString class."
+        )
         success = False
 
     if not success:
-        raise ArithmeticError(f"{errstr}\n")
+        raise ParseError(errstr)
 
     logging.info(infostr)
     return v
