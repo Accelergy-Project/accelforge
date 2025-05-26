@@ -58,6 +58,15 @@ class Storage(MappingNode):
 class Split(MappingNode):
     children: ParsableList[MappingNode]
 
+
+class Compute(MappingNode):
+    einsum: str
+    compute: str
+
+    def compact_string(self) -> str:
+        return f"C{self.einsum}"
+
+
 class Mapping(ParsableModel):
     version: Annotated[str, assert_version] = __version__
     nodes: ParsableList[MappingNode] = ParsableList()

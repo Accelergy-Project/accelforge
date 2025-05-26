@@ -6,7 +6,7 @@ from typing import List
 import numpy as np
 
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup
-from fastfusion.frontend.mapping import Iteration, MappingNode, Storage, Temporal, Spatial
+from fastfusion.frontend.mapping import Iteration, MappingNode, Storage, Temporal, Spatial, Compute
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.architecture import Leaf
 from fastfusion.util.setexpressions import InvertibleSet
@@ -382,6 +382,8 @@ def iterate_mappings_constraints(
     einsum_names: list[str] | str | None = None,
 ):
     arch_flattened = spec.get_flattened_architecture()
+    compute_name = arch_flattened[-1].name
+
     if isinstance(einsum_names, str):
         einsum_names = [einsum_names]
     if einsum_names is None:
@@ -390,4 +392,5 @@ def iterate_mappings_constraints(
     for einsum_name in einsum_names:
         for mapping, symbol_table in iterate_mappings_no_constraints(spec, einsum_name, arch_flattened):
             constraints = get_constraints(mapping, symbol_table)
+            mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             yield mapping, constraints
