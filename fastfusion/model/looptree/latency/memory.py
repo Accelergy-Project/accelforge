@@ -1,7 +1,7 @@
 from collections import defaultdict
 from sympy import Max, Min
 
-from fastfusion.frontend.arch import Memory
+from fastfusion.frontend.architecture import Memory
 
 from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions
 from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
@@ -75,24 +75,17 @@ def get_bandwidth(arch):
     """Returns a dictionary from memory to bandwidth in bits/cycle"""
     component_bandwidths = {}
     component_tensor_datawidth = {}
-    for node in arch['nodes']:
+    for node in arch.nodes:
         if not isinstance(node, Memory):
             continue
         attributes = node.attributes
-        n_rd_ports = attributes.get('n_rd_ports', 0)
-        n_wr_ports = attributes.get('n_wr_ports', 0)
-        n_rdwr_ports = attributes.get('n_rdwr_ports', 0)
-        if n_rd_ports + n_wr_ports + n_rdwr_ports < 1:
-            n_rdwr_ports = 1
 
-        width = attributes['width']
-
-        component_bandwidths[node['name']] = [
-            n_rd_ports*width,
-            n_wr_ports*width,
-            n_rdwr_ports*width
+        component_bandwidths[node.name] = [
+            node.attributes.read_bandwidth,
+            node.attributes.write_bandwidth,
+            node.attributes.shared_bandwidth
         ]
 
-        for tensor, datawidth in attributes['datawidth'].items():
-            component_tensor_datawidth[(node['name'], tensor)] = datawidth
+        # NOTE: supports per-tensor datawidth in the future. '*' can be tensor name
+        component_tensor_datawidth[(node.name, '*')] = attributes.datawidth
     return component_bandwidths, component_tensor_datawidth

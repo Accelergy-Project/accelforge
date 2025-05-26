@@ -4,7 +4,8 @@ from functools import reduce
 from operator import add, mul
 from typing import Any
 
-from fastfusion.frontend.mapping import Mapping
+import fastfusion.frontend.mapping as mapping_spec
+from fastfusion.frontend.mapping import Mapping, Spatial, Temporal, Storage, Reservation, Fill
 from fastfusion.frontend.workload import (
     Workload,
     Tensor,
@@ -105,7 +106,7 @@ def analyze_reuse(
     workload: Workload
 ) -> SummarizedAnalysisOutput:
     mapping = mapping.nodes
-    einsum_name = mapping[-1]['einsum']
+    einsum_name = mapping[-1].einsum
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
 
     einsum_tensor_to_projection = {}
@@ -172,7 +173,6 @@ class ReservationAnalysisTracker:
                 self.has_filled = True
 
             self.is_should_stop = False
-
         else:
             raise ValueError(f'Unknown relevancy {relevancy}')
 
@@ -183,7 +183,7 @@ class ReservationAnalysisTracker:
             self.has_filled = True
 
     def track_spatial_loop(self, relevancy, node):
-        if node['level'] != self.buffet.level:
+        if node.across != self.buffet.level:
             self.is_should_stop = True
             if not self.has_filled:
                 self.is_fill_level = True
@@ -199,8 +199,8 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
     for i, node in enumerate(mapping):
         fills = []
         to_remove = []
-        if node['type'] == 'temporal':
-            rank = node['rank']
+        if isinstance(node, Temporal):
+            rank = node.rank_variable
             for tracker_idx, tracker in enumerate(trackers):
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_temporal_loop(relevancy[rank], node)
@@ -210,8 +210,8 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
 
                 if tracker.is_should_stop:
                     to_remove.append(tracker_idx)
-        elif node['type'] == 'spatial':
-            rank = node['rank']
+        elif isinstance(node, Spatial):
+            rank = node.rank_variable
             for tracker_idx, tracker in enumerate(trackers):
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_spatial_loop(relevancy[rank], node)
@@ -221,12 +221,12 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
 
                 if tracker.is_should_stop:
                     to_remove.append(tracker_idx)
-        elif node['type'] == 'storage':
-            for tensor in node['tensor']:
+        elif isinstance(node, Storage):
+            for tensor in node.tensor:
                 tensor = Tensor(tensor)
-                buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
+                buffet = Buffet(tensor, mapping[-1].einsum, node.memory)
                 trackers.append(ReservationAnalysisTracker(buffet))
-        elif node['type'] == 'compute':
+        elif isinstance(node, mapping_spec.Compute):
             for tracker_idx, tracker in enumerate(trackers):
                 tracker.track_compute()
 
@@ -235,40 +235,42 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
                 
                 if tracker.is_should_stop:
                     to_remove.append(tracker_idx)
-        elif node['type'] == 'reservation':
+        elif isinstance(node, Reservation):
             pass
-        elif node['type'] == 'fill':
+        elif isinstance(node, Fill):
             pass
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(f"Unknown node type {type(node)}")
 
         for tracker_idx in reversed(to_remove):
             tracker = trackers.pop(tracker_idx)
-            mapping.insert(i,
-                           {'type': 'reservation',
-                            'tensor': tracker.buffet.tensor.name,
-                            'level': tracker.buffet.level})
+            mapping.insert(
+                i,
+                Reservation(tensor=tracker.buffet.tensor.name,
+                            memory=tracker.buffet.level)
+            )
 
         for fill in fills:
-            mapping.insert(i,
-                           {'type': 'fill',
-                            'tensor': fill.tensor.name,
-                            'level': fill.level})
+            mapping.insert(
+                i,
+                Fill(tensor=fill.tensor.name,
+                     memory=fill.level)
+            )
 
 
 def analyze_node(node_idx, current_shape, info: AnalysisInfo):
     node = info.mapping[node_idx]
-    if node['type'] == 'temporal':
+    if isinstance(node, Temporal):
         return analyze_temporal(node_idx, current_shape, info)
-    elif node['type'] == 'spatial':
+    elif isinstance(node, Spatial):
         return analyze_spatial(node_idx, current_shape, info)
-    elif node['type'] == 'storage':
+    elif isinstance(node, Storage):
         return analyze_storage(node_idx, current_shape, info)
-    elif node['type'] == 'reservation':
+    elif isinstance(node, Reservation):
         return analyze_reservation(node_idx, current_shape, info)
-    elif node['type'] == 'compute':
+    elif isinstance(node, mapping_spec.Compute):
         return analyze_compute(node_idx, current_shape, info)
-    elif node['type'] == 'fill':
+    elif isinstance(node, Fill):
         return analyze_fill(node_idx, current_shape, info)
 
 
@@ -276,7 +278,6 @@ def analyze_temporal(node_idx,
                      current_shape,
                      info: AnalysisInfo) -> SummarizedAnalysisOutput:
     mapping = info.mapping
-    einsum_name = mapping[-1]['einsum']
     node = mapping[node_idx]
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
 
@@ -287,7 +288,7 @@ def analyze_temporal(node_idx,
         shape_repeats = repeated_shape.repeats
 
         child_shape = current_shape.copy()
-        child_shape[node['rank']] = shape_value
+        child_shape[node.rank_variable] = shape_value
 
         child_result = analyze_node(node_idx+1, child_shape, info)
 
@@ -349,13 +350,10 @@ def analyze_temporal(node_idx,
 
 def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
-    einsum_name = mapping[-1]['einsum']
+    einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
-    rank_var = node['rank']
-    if 'dim' in node:
-        dim = node['dim']
-    else:
-        dim = 0
+    rank_var = node.rank_variable
+    dim = node.dimension
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
 
     result_accumulator = SummarizedAnalysisOutput()
@@ -365,7 +363,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         shape_repeats = repeated_shape.repeats
 
         child_shape = current_shape.copy()
-        child_shape[node['rank']] = shape_value
+        child_shape[node.rank_variable] = shape_value
 
         child_result = analyze_node(node_idx+1, child_shape, info)
 
@@ -377,10 +375,10 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 accumulated_stats = accumulated_buffet_stats[buffet]
 
             relevancy = info.tensor_to_relevancy[buffet.tensor][rank_var]
-            if buffet.level == node['level'] and isinstance(relevancy, Irrelevant):
+            if buffet.level == node.across and isinstance(relevancy, Irrelevant):
                 accumulated_stats.total_reads_to_parent = buffet_stats.total_reads_to_parent
                 accumulated_stats.max_per_parent_reads_to_parent = buffet_stats.max_per_parent_reads_to_parent
-            elif buffet.level == node['level']:
+            elif buffet.level == node.across:
                 accumulated_stats.total_reads_to_parent += \
                     buffet_stats.total_reads_to_parent * shape_repeats
                 accumulated_stats.max_per_parent_reads_to_parent += \
@@ -412,7 +410,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                      result_accumulator.temporal_steps,
                      max)
 
-        key = (node['level'], einsum_name)
+        key = (node.across, einsum_name)
         child_fanout = child_result.fanout[key]
         if key not in result_accumulator.fanout:
             result_accumulator.fanout[key] = [1]*max(dim+1, len(child_fanout))
@@ -456,14 +454,14 @@ def reduce_dicts(dict1: dict, dict2: dict, reduce_op, initial=0):
 
 def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
-    einsum_name = mapping[-1]['einsum']
+    einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
 
     child_result = analyze_node(node_idx+1, current_shape, info)
 
-    for tensor in node['tensor']:
+    for tensor in node.tensor:
         tensor = Tensor(tensor)
-        buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
+        buffet = Buffet(tensor, einsum_name, node.memory)
         buffet_stats = child_result.buffet_stats[buffet]
         buffet_stats.reads_to_peer = 0  # TODO: peer-to-peer support
 
@@ -472,13 +470,13 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
 
 def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
-    einsum_name = mapping[-1]['einsum']
+    einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
 
     child_result = analyze_node(node_idx+1, current_shape, info)
 
-    tensor = Tensor(node['tensor'])
-    buffet = Buffet(tensor, einsum_name, node['level'])
+    tensor = Tensor(node.tensor)
+    buffet = Buffet(tensor, einsum_name, node.memory)
 
     # Reservation nodes are the first to produce stats for a buffet
     assert buffet not in child_result.buffet_stats
@@ -489,7 +487,7 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
         compute_dense_tile_occupancy(projection, current_shape)
     child_result.buffet_stats[buffet] = buffet_stats
 
-    fanout_key = (node['level'], einsum_name)
+    fanout_key = (node.memory, einsum_name)
     if fanout_key not in child_result.fanout:
         child_result.fanout[fanout_key] = []
 
@@ -498,13 +496,13 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
 
 def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnalysisOutput:
     mapping = info.mapping
-    einsum_name = mapping[-1]['einsum']
+    einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
 
     child_result = analyze_node(node_idx+1, current_shape, info)
     
-    tensor = Tensor(node['tensor'])
-    buffet = Buffet(tensor, mapping[-1]['einsum'], node['level'])
+    tensor = Tensor(node.tensor)
+    buffet = Buffet(tensor, mapping[-1].einsum, node.memory)
 
     buffet_stats = child_result.buffet_stats[buffet]
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
@@ -521,15 +519,15 @@ def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnaly
 def analyze_compute(node_idx,
                     current_shape,
                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
-    einsum = info.mapping[-1]['einsum']
+    einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
 
     result_accumulator = SummarizedAnalysisOutput()
     result_accumulator.temporal_steps[einsum] = 1
-    result_accumulator.compute_stats[Compute(einsum, node['level'])] = ComputeStats(1, 1)
+    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(1, 1)
 
     for tensor in info.all_tensors:
-        buffet = Buffet(tensor, einsum, node['level'])
+        buffet = Buffet(tensor, einsum, node.compute)
         buffet_stats = BuffetStats()
         buffet_stats.total_fills = 1
         buffet_stats.max_per_unit_fills = 1
@@ -560,11 +558,11 @@ class StrideAndShape:
 
 
 def get_stride_and_tile_shape(node, full_shape, n: int):
-    rank = node['rank']
+    rank = node.rank_variable
     rank_shape = full_shape[rank]
 
-    if "tile_shape" in node:
-        tile_shape = node['tile_shape']
+    if node.tile_shape is not None:
+        tile_shape = node.tile_shape
 
         assume_perfect_factor = \
             "assume_perfect" in node and node["assume_perfect"]
@@ -576,8 +574,8 @@ def get_stride_and_tile_shape(node, full_shape, n: int):
             factor = sympy.ceiling(rank_shape / tile_shape)
             return make_possibly_different_last(tile_shape, factor, rank_shape)
 
-    elif "factor" in node:
-        factor = node['factor']
+    elif node.loop_bound is not None:
+        factor = node.loop_bound
 
         assume_perfect_factor = \
             "assume_perfect" in node and node["assume_perfect"]
@@ -589,7 +587,7 @@ def get_stride_and_tile_shape(node, full_shape, n: int):
             tile_shape = sympy.ceiling(rank_shape / factor)
             return make_possibly_different_last(tile_shape, factor, rank_shape)
     
-    elif "tile_pattern" in node:
+    elif node.tile_pattern is not None:
         stride = node["tile_pattern"]["stride"]
 
         if "first_shape" in node["tile_pattern"]:
@@ -625,6 +623,8 @@ def get_stride_and_tile_shape(node, full_shape, n: int):
                     RepeatedValue(last_shapes, last_case_factor)
                 ])
             )
+    else:
+        raise ValueError(f"Neither tile_shape, factor, nor tile_pattern found")
 
 
 def known_perfect_factor(divisor, full_shape):

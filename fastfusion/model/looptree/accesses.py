@@ -9,7 +9,7 @@ from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized.symbolic_new import SummarizedAnalysisOutput
 from fastfusion.model.looptree.mapping_utilities import get_einsums_with_complete_mappings, get_paths, get_leaves
 
-from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.mapping import Mapping, Storage, Compute
 from fastfusion.frontend.workload import Workload, get_tensor_size
 
 # from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
@@ -141,7 +141,7 @@ def buffer_accesses_from_buffet_actions(
     workload: Workload,
     is_path=False
 ) -> BufferAccesses:
-    mapping = mapping['nodes']
+    mapping = mapping.nodes
 
     parent_buffers = get_parent_buffers(mapping, workload, is_path)
 
@@ -150,8 +150,8 @@ def buffer_accesses_from_buffet_actions(
 
     compute_targets = set()
     for compute_node in get_leaves(mapping, is_path):
-        assert compute_node["type"] == "compute"
-        compute_targets.add(compute_node["level"])
+        assert isinstance(compute_node, Compute)
+        compute_targets.add(compute_node.compute)
 
     summarized_actions = \
         summarize_total_and_per_unit_actions(reuse_analysis_result)
@@ -222,25 +222,25 @@ def get_parent_buffers(mapping: Mapping, workload: Workload, is_path):
 
     for path in paths:
         leaf = path[-1]
-        einsum = leaf['einsum']
+        einsum = leaf.einsum
 
         tensor_to_top_buffer = {}
         for node in path:
-            if node['type'] == 'storage':
-                for tensor in node['tensor']:
-                    key = (node['level'], tensor, einsum)
+            if isinstance(node, Storage):
+                for tensor in node.tensor:
+                    key = (node.memory, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
                     else:
                         parent_buffers[key] = None
-                    tensor_to_top_buffer[tensor] = node['level']
-            elif node['type'] == 'compute':
+                    tensor_to_top_buffer[tensor] = node.memory
+            elif isinstance(node, Compute):
                 for tensor in workload.tensors_read_by_einsum(einsum):
-                    key = (node['level'], tensor, einsum)
+                    key = (node.compute, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
                 for tensor in workload.tensors_written_by_einsum(einsum):
-                    key = (node['level'], tensor, einsum)
+                    key = (node.compute, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
 

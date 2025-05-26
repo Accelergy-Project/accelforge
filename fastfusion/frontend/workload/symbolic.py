@@ -3,7 +3,7 @@ from typing import Any
 
 import sympy
 
-from .workload_spec import Tensor, Einsum
+from .workload import Tensor, Einsum
 
 
 def get_projection_expr(einsum: Einsum, tensor: Tensor):

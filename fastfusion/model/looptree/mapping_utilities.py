@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential, Storage
 from fastfusion.frontend.workload import Workload
 
 
@@ -6,11 +6,11 @@ def get_paths(mapping: Mapping):
     cur_path = []
     for node in mapping:
         cur_path.append(node)
-        if node['type'] in ['pipeline', 'sequential']:
-            for child in node['branches']:
+        if isinstance(node, Pipeline) or isinstance(node, Sequential):
+            for child in node.children:
                 for subpath in get_paths(child):
                     yield cur_path + subpath
-        elif node['type'] == 'compute':
+        elif isinstance(node, Compute):
             yield cur_path.copy()
 
 
@@ -19,17 +19,17 @@ def get_leaves(mapping: Mapping, is_path):
         yield mapping[-1]
         return
     for node in mapping:
-        if node['type'] in ['pipeline', 'sequential']:
-            for child in node['branches']:
+        if isinstance(node, Pipeline) or isinstance(node, Sequential):
+            for child in node.children:
                 yield from get_leaves(child, is_path)
-        elif node['type'] == 'compute':
+        elif isinstance(node, Compute):
             yield node
 
 
 def get_einsums_with_complete_mappings(mapping: Mapping, workload: Workload, is_path):
     einsums_with_complete_mappings = set()
     for compute_node in get_leaves(mapping, is_path):
-        einsum = compute_node['einsum']
+        einsum = compute_node.compute
         if 'incomplete' not in compute_node:
             einsums_with_complete_mappings.add(einsum)
         if 'incomplete' in compute_node and not compute_node['incomplete']:
@@ -53,7 +53,7 @@ def get_intermediate_tensors(workload: Workload):
 
 def get_last_storage_node(mapping, tensor):
     for i, node in enumerate(mapping):
-        if node['type'] == 'storage' and tensor in node['dspace']:
+        if isinstance(node, Storage) and tensor in node.tensor:
             return i
     return None
 

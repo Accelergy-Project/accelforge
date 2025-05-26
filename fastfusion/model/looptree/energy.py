@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 from numbers import Real
 
-from fastfusion.frontend.energy_table import ComponentEnergy
+from fastfusion.frontend.component_energy import ComponentEnergy
 from fastfusion.model.looptree.mapping_utilities import get_einsums_with_complete_mappings
 from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions
 
@@ -22,7 +22,7 @@ class ActionCount:
 
 def gather_actions(looptree_results, mapping, workload, bindings, is_path=False, use_name=False):
     einsums_with_complete_mapping = \
-        get_einsums_with_complete_mappings(mapping['nodes'], workload, is_path)
+        get_einsums_with_complete_mappings(mapping.nodes, workload, is_path)
 
     accesses_stats = buffer_accesses_from_buffet_actions(looptree_results,
                                                          mapping,

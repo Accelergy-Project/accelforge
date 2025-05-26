@@ -1,31 +1,32 @@
 mapping:
   version: "0.5"
   nodes:
-  - type: storage
+  - !Storage
     tensor: [I, WQ, Q]
-    level: MainMemory
-  - type: temporal
-    rank: b
+    memory: MainMemory
+  - !Temporal
+    rank_variable: b
     tile_shape: 1
-  - type: temporal
-    rank: h
+  - !Temporal
+    rank_variable: h
     tile_shape: 1
-  - type: temporal
-    rank: e
+  - !Temporal
+    rank_variable: e
     tile_shape: 1
-  - type: spatial
-    rank: d
+  - !Spatial
+    rank_variable: d
     tile_shape: 1
-    level: LocalBuffer
-  - type: storage
+    dimension: 0
+    across: LocalBuffer
+  - !Storage
     tensor: [Q]
-    level: LocalBuffer
-  - type: temporal
-    rank: m
+    memory: LocalBuffer
+  - !Temporal
+    rank_variable: m
     tile_shape: 1
-  - type: storage
+  - !Storage
     tensor: [I]
-    level: LocalBuffer
-  - type: compute
+    memory: LocalBuffer
+  - !Compute
     einsum: Q
-    level: MAC
+    compute: MAC
