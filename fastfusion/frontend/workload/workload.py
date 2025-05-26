@@ -257,7 +257,7 @@ class Workload(ParsableModel):
         einsum = self.einsums[einsum_name]
         einsum_shape = einsum.shape
         global_shape = [self.shape[r] for r in einsum.rank_variables if r in self.shape]
-        return " and ".join(term[0] for term in einsum_shape + global_shape)
+        return " and ".join(term for term in einsum_shape + global_shape)
 
     @property
     def tensors(self) -> set[Tensor]:
