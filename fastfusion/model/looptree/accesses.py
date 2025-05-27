@@ -6,7 +6,7 @@ from typing import Optional, overload
 import islpy as isl
 
 from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
-from fastfusion.model.looptree.reuse.summarized.symbolic_new import SummarizedAnalysisOutput
+from fastfusion.model.looptree.reuse.summarized.symbolic import SummarizedAnalysisOutput
 from fastfusion.model.looptree.mapping_utilities import get_einsums_with_complete_mappings, get_paths, get_leaves
 
 from fastfusion.frontend.mapping import Mapping, Storage, Compute

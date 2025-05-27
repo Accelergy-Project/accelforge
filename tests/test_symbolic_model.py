@@ -8,7 +8,7 @@ from fastfusion.frontend.workload import Workload
 from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions, Accesses
 from fastfusion.model.looptree.energy import gather_actions
 from fastfusion.model.looptree.latency import get_latency
-from fastfusion.model.looptree.reuse.summarized.symbolic_new import analyze_reuse, Compute
+from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse, Compute
 
 
 class TestSymbolicModel(unittest.TestCase):

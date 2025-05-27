@@ -60,6 +60,7 @@ class Iteration(MappingNode):
     loop_bound: ParsesTo[Union[Literal['symbol'], int, None]] = None
     tile_shape: ParsesTo[Union[Literal['symbol'], int, None]] = None
     tile_pattern: ParsesTo[Union[Pattern, None]] = None
+    assume_perfect_factor: bool = True
 
     # @model_validator(mode='after')
     # def check_at_least_one_tiling_info(self):

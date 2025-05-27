@@ -58,7 +58,7 @@ def compute_summarized_latency(compute_stats, mapping, workload):
     # TODO: this is only for single-Einsum!!!
     longest_compute_latency = 0
     for compute, stats in compute_stats.items():
-        longest_compute_latency = max(
+        longest_compute_latency = Max(
             longest_compute_latency,
             stats.max_per_unit_ops
         )
