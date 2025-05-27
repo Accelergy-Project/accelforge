@@ -15,8 +15,8 @@ architecture:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
       energy_scale: (450 / 64) / 8
-      # energy: 1
-      # area: 1
+      energy: 1
+      area: 1
     constraints:
       storage:
         keep: ~Intermediates()
@@ -29,8 +29,8 @@ architecture:
       width: 8192
       datawidth: 8 * width
       depth: 1000 
-      # energy: 1
-      # area: 1
+      energy: 1
+      area: 1
     constraints:
       storage:
         keep: ~MainMemory.tensors()
@@ -44,9 +44,8 @@ architecture:
       width: 2048
       depth: 1000
       datawidth: 8
-      # energy: 1
-      # area: 1
-      energy_scale: 12
+      energy: 1
+      area: 1
     constraints:
       storage:
         keep: Intermediates()
@@ -65,8 +64,8 @@ architecture:
       datawidth: 8
       width: 8
       depth: 1000
-      # energy: 1
-      # area: 1
+      energy: 1
+      area: 1
     constraints:
       storage:
         keep: weight
@@ -87,7 +86,7 @@ architecture:
   - !Compute
     name: MAC
     component_class: intmac
-    attributes: {multiplier_width: 8, adder_width: 16} # , energy: 1, area: 1
+    attributes: {multiplier_width: 8, adder_width: 16, energy: 1, area: 1}
     actions: [{name: compute, arguments: {energy_scale: 1}}]
 
 component_classes:
@@ -102,7 +101,7 @@ component_classes:
     subcomponents:
     - name: intadder
       component_class: aladdin_adder
-      attributes: {width: adder_width, energy_scale: 0}
+      attributes: {width: adder_width}
     - name: intmultiplier
       component_class: aladdin_multiplier
       attributes: {width_a: multiplier_width, width_b: multiplier_width}
@@ -118,4 +117,4 @@ component_classes:
       - name: intadder
         actions: [{name: leak}]
       - name: intmultiplier
-        actions: [{name: leak, arguments: {energy: 2}}]
+        actions: [{name: leak}]
