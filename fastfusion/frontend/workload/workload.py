@@ -129,6 +129,7 @@ class Einsum(ParsableModel):
     name: str
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape[str] = Shape()
+    is_copy_operation: bool = False
 
     @property
     def rank_variables(self) -> set[RankVariableName]:
