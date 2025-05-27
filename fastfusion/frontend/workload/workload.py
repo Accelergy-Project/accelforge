@@ -211,7 +211,7 @@ class Workload(ParsableModel):
 
     @property
     def tensors(self) -> set[TensorName]:
-        return {TensorName(t) for e in self.einsums for t in e.tensor_accesses}
+        return {TensorName(t.name) for e in self.einsums for t in e.tensor_accesses}
 
     def mermaid_graph(self) -> str:
         """

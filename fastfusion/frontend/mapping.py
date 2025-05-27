@@ -60,6 +60,7 @@ class Iteration(MappingNode):
     loop_bound: ParsesTo[Union[Literal['symbol'], int, None]] = None
     tile_shape: ParsesTo[Union[Literal['symbol'], int, None]] = None
     tile_pattern: ParsesTo[Union[Pattern, None]] = None
+    assume_perfect_factor: bool = True
 
     # @model_validator(mode='after')
     # def check_at_least_one_tiling_info(self):
@@ -105,7 +106,7 @@ class Storage(MappingNode):
     def tensor(self) -> TensorName:
         if len(self.tensors) != 1:
             raise ValueError(
-                f"Storage node {self.name} has {len(self.tensors)} tensors"
+                f"Storage node {repr(self)} has {len(self.tensors)} tensors. "
                 f"Access the tensors property instead."
             )
         return self.tensors[0]

@@ -1,3 +1,4 @@
+from math import isclose
 import unittest
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from fastfusion.frontend.workload import Workload
 from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions, Accesses
 from fastfusion.model.looptree.energy import gather_actions
 from fastfusion.model.looptree.latency import get_latency
-from fastfusion.model.looptree.reuse.summarized.symbolic_new import analyze_reuse, Compute
+from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse, Compute
 
 
 class TestSymbolicModel(unittest.TestCase):
@@ -18,8 +19,8 @@ class TestSymbolicModel(unittest.TestCase):
 
         result = analyze_reuse(mapping, workload)
 
-        self.assertEqual(result.compute_stats[Compute('Q', 'MAC')].total_ops, 64)
-        self.assertEqual(result.compute_stats[Compute('Q', 'MAC')].max_per_unit_ops, 16)
+        self.assertEqual(result.compute_stats[Compute('Q', 'MAC')].total_ops, 64.0)
+        self.assertEqual(result.compute_stats[Compute('Q', 'MAC')].max_per_unit_ops, 16.0)
 
     def test_conv_mapping(self):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'conv.mapping.yaml')
@@ -27,8 +28,8 @@ class TestSymbolicModel(unittest.TestCase):
 
         result = analyze_reuse(mapping, workload)
 
-        self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].total_ops, 120)
-        self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].max_per_unit_ops, 10)
+        self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].total_ops, 120.0)
+        self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].max_per_unit_ops, 10.0)
 
 
 class TestSymbolicAccesses(unittest.TestCase):
@@ -42,24 +43,24 @@ class TestSymbolicAccesses(unittest.TestCase):
 
         main_memory_I_accesses = accesses.get_accesses('MainMemory', 'I', 'Q')
         self.assertEqual(main_memory_I_accesses,
-                         Accesses(total_reads=64,
-                                  total_writes=0,
-                                  max_per_unit_reads=64,
-                                  max_per_unit_writes=0))
+                         Accesses(total_reads=64.0,
+                                  total_writes=0.0,
+                                  max_per_unit_reads=64.0,
+                                  max_per_unit_writes=0.0))
 
         local_buffer_I_accesses = accesses.get_accesses('LocalBuffer', 'I', 'Q')
         self.assertEqual(local_buffer_I_accesses,
-                         Accesses(total_reads=64,
-                                  total_writes=64,
-                                  max_per_unit_reads=16,
-                                  max_per_unit_writes=16))
+                         Accesses(total_reads=64.0,
+                                  total_writes=64.0,
+                                  max_per_unit_reads=16.0,
+                                  max_per_unit_writes=16.0))
 
         local_buffer_Q_accesses = accesses.get_accesses('LocalBuffer', 'Q', 'Q')
         self.assertEqual(local_buffer_Q_accesses,
-                         Accesses(total_reads=64,
-                                  total_writes=128,
-                                  max_per_unit_reads=16,
-                                  max_per_unit_writes=32))
+                         Accesses(total_reads=64.0,
+                                  total_writes=128.0,
+                                  max_per_unit_reads=16.0,
+                                  max_per_unit_writes=32.0))
 
 
 class TestSymbolicActions(unittest.TestCase):
@@ -70,13 +71,13 @@ class TestSymbolicActions(unittest.TestCase):
         result = analyze_reuse(mapping, workload)
         actions = gather_actions(result, mapping, workload, None, is_path=True, use_name=True)
 
-        self.assertEqual(actions[('LocalBuffer', 'read')].total, 128)
-        self.assertEqual(actions[('LocalBuffer', 'read')].max_per_unit, 32)
-        self.assertEqual(actions[('LocalBuffer', 'write')].total, 192)
-        self.assertEqual(actions[('LocalBuffer', 'write')].max_per_unit, 48)
+        self.assertEqual(actions[('LocalBuffer', 'read')].total, 128.0)
+        self.assertEqual(actions[('LocalBuffer', 'read')].max_per_unit, 32.0)
+        self.assertEqual(actions[('LocalBuffer', 'write')].total, 192.0)
+        self.assertEqual(actions[('LocalBuffer', 'write')].max_per_unit, 48.0)
 
-        self.assertEqual(actions[('MAC', 'compute')].total, 64)
-        self.assertEqual(actions[('MAC', 'compute')].max_per_unit, 16)
+        self.assertEqual(actions[('MAC', 'compute')].total, 64.0)
+        self.assertEqual(actions[('MAC', 'compute')].max_per_unit, 16.0)
 
 
 class TestSymbolicLatency(unittest.TestCase):
@@ -93,4 +94,4 @@ class TestSymbolicLatency(unittest.TestCase):
         result = analyze_reuse(mapping, workload)
         overall_latency, _, _ = get_latency(result, mapping, workload, architecture)
 
-        self.assertEqual(overall_latency, 16)
+        self.assertEqual(overall_latency, 16.0)

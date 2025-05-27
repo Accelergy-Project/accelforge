@@ -1,5 +1,5 @@
 from typing import overload
-from sympy import Max
+from sympy import Max, Piecewise
 
 # from fastfusion.model.looptree.isl.singular import get_value_from_singular_qpolynomial
 from fastfusion.model.looptree.latency.processors import LATENCY_PROCESSORS
@@ -21,7 +21,13 @@ def get_latency(looptree_results,
                                  arch,
                                  mapping,
                                  workload)
-    overall_latency = Max(comp_latency, Max(*mem_latency.values()))
+    max_mem_latency = Max(*mem_latency.values())
+    # The following form helps broadcasting a NumPy input after lambdify.
+    # May be needed in other places
+    overall_latency = Piecewise(
+        (comp_latency, comp_latency > max_mem_latency),
+        (max_mem_latency, True)
+    )
     return overall_latency, comp_latency, mem_latency
 
 
@@ -58,10 +64,13 @@ def compute_summarized_latency(compute_stats, mapping, workload):
     # TODO: this is only for single-Einsum!!!
     longest_compute_latency = 0
     for compute, stats in compute_stats.items():
-        longest_compute_latency = max(
-            longest_compute_latency,
-            stats.max_per_unit_ops
-        )
+        if longest_compute_latency == 0:
+            longest_compute_latency = stats.max_per_unit_ops
+        else:
+            longest_compute_latency = Max(
+                longest_compute_latency,
+                stats.max_per_unit_ops
+            )
     return longest_compute_latency
 
 

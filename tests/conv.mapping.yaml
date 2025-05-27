@@ -1,6 +1,9 @@
 mapping:
   version: "0.5"
   nodes:
+  - !Storage
+    tensors: [I, W, O]
+    memory: MainMemory
   - !Temporal
     rank_variable: c
     tile_shape: 1
@@ -15,7 +18,7 @@ mapping:
     dimension: 0
     across: LocalBuffer
   - !Storage
-    tensor: [I]
+    tensors: [I]
     memory: LocalBuffer
   - !Temporal
     rank_variable: p

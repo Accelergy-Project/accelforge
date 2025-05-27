@@ -2,7 +2,7 @@ mapping:
   version: "0.5"
   nodes:
   - !Storage
-    tensor: [I, WQ, Q]
+    tensors: [I, WQ, Q]
     memory: MainMemory
   - !Temporal
     rank_variable: b
@@ -19,13 +19,13 @@ mapping:
     dimension: 0
     across: LocalBuffer
   - !Storage
-    tensor: [Q]
+    tensors: [Q]
     memory: LocalBuffer
   - !Temporal
     rank_variable: m
     tile_shape: 1
   - !Storage
-    tensor: [I]
+    tensors: [I]
     memory: LocalBuffer
   - !Compute
     einsum: Q
