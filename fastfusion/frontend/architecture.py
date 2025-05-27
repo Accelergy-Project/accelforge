@@ -138,9 +138,9 @@ class MemoryAttributes(Attributes):
     datawidth: ParsesTo[Union[int, float]]
     size: ParsesTo[Union[int, float]]
     multiple_buffering: ParsesTo[Union[int, float]] = 1
-    shared_bandwidth: ParsesTo[Union[int, float, None]] = None
-    read_bandwidth: ParsesTo[Union[int, float, None]] = None
-    write_bandwidth: ParsesTo[Union[int, float, None]] = None
+    shared_read_write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
+    read_bandwidth: ParsesTo[Union[int, float]] = float('inf')
+    write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
 
 
 class Branch(ArchNode, ABC):
