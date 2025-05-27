@@ -1,7 +1,7 @@
 from collections import defaultdict
 import pydot
 from typing import Any, Iterable
-from fastfusion.mapper.FFM.joining.sim import Mapping, TensorStorage, Loop
+from fastfusion.mapper.FFM.joining.sim import Compatibility, TensorStorage, Loop
 from fastfusion.util import expfmt
 from fastfusion.mapper.FFM.pareto import IN_PROGRESS_STATS, col2nameloop
 
@@ -134,7 +134,7 @@ class Node:
             if not isinstance(l, Loop):
                 continue
             for einsum, ranks in einsum2ranks.items():
-                n_ranks_in_einsum = sum(1 for r in l.rank_names if r in ranks)
+                n_ranks_in_einsum = sum(1 for r in l.rank_variable_names if r in ranks)
                 if n_ranks_in_einsum > 1:
                     return False
         return True
@@ -154,7 +154,7 @@ class Node:
 
 
 def mappings2reservationtree(
-    mappings: dict[str, Mapping],
+    mappings: dict[str, Compatibility],
     stats: dict[str, Any] = None,
     skip_backing_tensors_in_right_branch: Iterable[str] = (),
     still_live_tensors: set[str] = (),
@@ -282,7 +282,7 @@ def mappings2reservationtree(
 
 
 def mappings2svg(
-    mappings: dict[str, Mapping],
+    mappings: dict[str, Compatibility],
     stats: dict[str, Any],
     per_component_energy: dict[dict[str, float]] = None,
 ):
@@ -294,6 +294,6 @@ def mappings2svg(
     return graph.create_svg()
 
 
-def mappings2yaml(mappings: dict[str, Mapping], stats: dict[str, Any]):
+def mappings2yaml(mappings: dict[str, Compatibility], stats: dict[str, Any]):
     root = mappings2reservationtree(mappings, stats)
     return root.to_yaml()

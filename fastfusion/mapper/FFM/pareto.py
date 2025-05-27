@@ -21,7 +21,7 @@ import pandas as pd
 import functools
 
 LOGSTRING = "__Mappings"
-MAPPING = "__LOOPNEST"
+MAPPING_COLUMN = "__MAPPING"
 STATS = "__STATS"
 OCCUPANCY = "__Occupancy"
 TENSORS = "__TENSORS"
@@ -34,7 +34,7 @@ PER_COMPONENT_ACCESSES_ENERGY = "Per-Component Energy"
 DICT_COLUMNS = set(
     [
         LOGSTRING,
-        MAPPING,
+        MAPPING_COLUMN,
         STATS,
         TENSORS,
         IN_PROGRESS_STATS,
@@ -45,7 +45,7 @@ DICT_COLUMNS = set(
 )
 RESERVED_COLUMNS = set([VALID]) | DICT_COLUMNS
 
-TUPLABE_COLUMNS = set([MAPPING, TENSORS])
+TUPLABE_COLUMNS = set([MAPPING_COLUMN, TENSORS])
 
 CHECK_CORRECTNESS = False
 
@@ -142,7 +142,7 @@ def is_special_col(c):
 
 # PIPELINE CHANGES REQUIRED:
 # - Latency above above loop index (first tile), below (all subsequent tiles)
-# - Mapping includes information for how may be fused:
+# - Compatibility includes information for how may be fused:
 #   - Pipelined: Max below latencies,
 #   - Non-pipelined:
 # Shared resources:
@@ -625,6 +625,7 @@ class Pareto:
         if len(self._data) <= 1:
             return
         columns = [c for c in self.data.columns if c not in RESERVED_COLUMNS]
+        columns = [c for c in columns if not c.startswith("__")]
         self._data = self.data[paretoset(self.data[columns])].reset_index(drop=True)
 
     def has_reservations(self):
@@ -672,7 +673,7 @@ class Pareto:
 
         for i, r in self.data.iterrows():
             looptree = mappings2reservationtree(
-                r[MAPPING],
+                r[MAPPING_COLUMN],
                 r.get(STATS, None),
                 still_live_tensors=live_tensors
             )
@@ -695,7 +696,7 @@ class Pareto:
                     got = r[[c for c in self.data.columns if col2nameloop(c) is not None]]
                     self.fail(i, live_tensors)
                     looptree = mappings2reservationtree(
-                        r[MAPPING],
+                        r[MAPPING_COLUMN],
                         r.get(STATS, None),
                         # skip_backing_tensors_in_right_branch=live_tensors,
                         still_live_tensors=live_tensors,
@@ -710,7 +711,7 @@ class Pareto:
         assert not self.data.isnull().values.any(), f"NaN in {self.data}"
         self = self.copy()
         self._draw_index(index, live_tensors, self._get_target_path(suffix="fail"))
-        all_tensors = set(t for tn in r[MAPPING].values() for t in tn.storage)
+        all_tensors = set(t for tn in r[MAPPING_COLUMN].values() for t in tn.storage)
         all_tensors = TensorStorage.get_backing_stores(all_tensors)
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")
@@ -719,7 +720,7 @@ class Pareto:
         from fastfusion.visualization.reservationtree import mappings2reservationtree
         import pydot
         looptree = mappings2reservationtree(
-            self.data.iloc[index][MAPPING],
+            self.data.iloc[index][MAPPING_COLUMN],
             self.data.iloc[index].get(STATS, None),
             still_live_tensors=live_tensors,
         )

@@ -1,15 +1,15 @@
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Compatibility
 import itertools
 import time
 import pandas as pd
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
-from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Mapping
+from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
 from fastfusion.mapper.FFM.pareto import VALID, Pareto
 from fastfusion.util import fzs, parallel, debugger_active
 
 
-def mapping2sims(einsum_to_result: Mapping):
+def mapping2sims(einsum_to_result: Compatibility):
     r = {}
     for einsum_id, compat_dict in einsum_to_result.items():
         r[einsum_id] = [paretofy(k, v) for k, v in compat_dict.items()]
@@ -21,7 +21,7 @@ def paretofy(k, v):
 
 
 def get_possible_translations(
-    t: Mapping,
+    t: Compatibility,
     pairwise_equivalent_ranks: dict[str, set[str]],
     full_equivalent_ranks: dict[str, set[str]],
     right_ranks: set[str],
@@ -49,7 +49,7 @@ def get_possible_translations(
             yield Loop(fzs((n,)), l.bound, l.is_spatial)
 
     for loops in itertools.product(*map(translate_loop, t.loops)):
-        yield Mapping(loops, t.storage, t.tags)
+        yield Compatibility(loops, t.storage, t.tags)
 
 
 prev_time = 0
@@ -104,6 +104,8 @@ def make_full_equivalent_ranks(pairwise_equivalent_ranks):
                     changed = True
                     full_equivalent_ranks[r].add(r3)
     return full_equivalent_ranks
+
+def compress(sims: dict[str, list[SIM]]) -> 
 
 def fuse_sims(
     sims: dict[str, list[SIM]],
@@ -205,7 +207,7 @@ def fuse_sims(
     n_iterations = 0
     total_iterations = len(sims)
 
-    def grab_sim_holder() -> tuple[dict[Mapping, list[SIM]], str, set[str]]:
+    def grab_sim_holder() -> tuple[dict[Compatibility, list[SIM]], str, set[str]]:
         nonlocal n_iterations
         n_iterations += 1
         holder = sims.pop(0)

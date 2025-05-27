@@ -9,11 +9,11 @@ from ipywidgets import Output, VBox, HBox
 import pandas as pd
 import plotly.express as px
 
-from fastfusion.mapper.FFM.joining.sim import Loop, TensorStorage, Mapping
+from fastfusion.mapper.FFM.joining.sim import Loop, TensorStorage, Compatibility
 from fastfusion.util import expfmt
 from fastfusion.visualization.reservationtree import mappings2svg
 from fastfusion.mapper.FFM.pareto import (
-    MAPPING,
+    MAPPING_COLUMN,
     STATS,
     TENSORS,
     IN_PROGRESS_STATS,
@@ -27,7 +27,7 @@ import pandas as pd
 def mapping2svg(mapping: pd.Series):
     return SVG(
         mappings2svg(
-            mapping[MAPPING],
+            mapping[MAPPING_COLUMN],
             mapping.get(STATS, None),
             mapping.get(PER_COMPONENT_ACCESSES_ENERGY, None),
         )
@@ -57,12 +57,12 @@ def diplay_mappings_on_fig(
         index = points.point_inds[0]
         display(mapping2svg(d.iloc[index]))
         backing_tensors = set(
-            t for tn in d.iloc[index][MAPPING].values() for t in tn.storage
+            t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.storage
         )
         backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
         for t in sorted(backing_tensors):
             print(f"{t.__repr__()},")
-        for v in d.iloc[index][MAPPING].values():
+        for v in d.iloc[index][MAPPING_COLUMN].values():
             print(v)
 
     out2 = Output()
@@ -81,12 +81,12 @@ def diplay_mappings_on_fig(
             with open(f"plots/{trace.name}.svg", "w") as f:
                 f.write(svg.data)
         backing_tensors = set(
-            t for tn in d.iloc[index][MAPPING].values() for t in tn.storage
+            t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.storage
         )
         backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
         for t in sorted(backing_tensors):
             print(f"{t.__repr__()},")
-        for v in d.iloc[index][MAPPING].values():
+        for v in d.iloc[index][MAPPING_COLUMN].values():
             print(v)
 
     for i in fig.data:

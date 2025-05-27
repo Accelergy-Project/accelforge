@@ -17,7 +17,7 @@ from fastfusion.mapper.FFM.exploration.per_einsum_subspaces.snowcat import make_
 from fastfusion.mapper.FFM.exploration.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
 from fastfusion.mapper.FFM.exploration.per_einsum_subspaces.four_level_arch import make_subspaces as make_four_level_subspaces
 from fastfusion.mapper.FFM.pareto import MAPPING, Pareto
-from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Mapping, TensorStorage
+from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility, TensorStorage
 from fastfusion.util import fzs, parallel
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
@@ -324,13 +324,13 @@ def per_worker_exploration(
     #     for i, (key, group) in enumerate(grouped):
     #         loops = tuple(
     #             Loop(
-    #                 rank_names=fzs((rank_id_to_name[l["rank"]],)),
+    #                 rank_variable_names=fzs((rank_id_to_name[l["rank"]],)),
     #                 bound=int(b),
     #                 is_spatial=l["type"] == "spatial",
     #             ) for l, b in zip(all_loops, key)
     #         )
     #         group = group.drop(columns=fused_loop_cols)
-    #         mapping = Mapping(loops=loops, storage=backing_storage)
+    #         mapping = Compatibility(loops=loops, storage=backing_storage)
     #         if mapping in result:
     #             result[mapping] = Pareto(pd.concat([result[mapping], group]).fillna(0))
     #         else:

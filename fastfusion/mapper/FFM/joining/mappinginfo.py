@@ -1,7 +1,9 @@
 from collections import defaultdict
 from dataclasses import dataclass, replace
+from numbers import Number
 from typing import Any
-from fastfusion.tags import Tags
+from fastfusion.frontend.workload.workload import RankVariableName
+# from fastfusion.tags import Tags
 from fastfusion.util import expfmt, fzs
 
 # Abstractions:
@@ -50,34 +52,33 @@ class Reservation(Updatable):
 
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
-    rank_names: fzs[str]
-    bound: int
+    rank_variable_names: fzs[RankVariableName]
+    bound: Number
     is_spatial: bool
 
     def __post_init__(self):
-        assert isinstance(self.rank_names, fzs)
-        assert isinstance(self.bound, int)
+        assert isinstance(self.rank_variable_names, fzs)
+        assert isinstance(self.bound, Number)
         assert isinstance(self.is_spatial, bool)
 
     @property
-    def rank_name(self):
-        assert len(self.rank_names) == 1
-        return next(iter(self.rank_names))
+    def rank_variable_name(self):
+        assert len(self.rank_variable_names) == 1
+        return next(iter(self.rank_variable_names))
 
     def __repr__(self):
-        # return ("S-" if self.is_spatial else "") + f"{self.rank_name}-{self.bound}"
-        return f"Loop({self.rank_names.__repr__()}, {self.bound}, {self.is_spatial})"
+        return f"Loop({self.rank_variable_names.__repr__()}, {self.bound}, {self.is_spatial})"
 
     def __str__(self):
-        return ("S-" if self.is_spatial else "") + f"{self.rank_names}-{self.bound}"
+        return ("S-" if self.is_spatial else "") + f"{self.rank_variable_names}-{self.bound}"
 
     def pydot_str(self):
         if self.is_spatial:
-            return f"S-for R{self.rank_names} size {expfmt(self.bound)}"
-        return f"for {self.rank_names} size {expfmt(self.bound)}"
+            return f"S-for R{self.rank_variable_names} size {expfmt(self.bound)}"
+        return f"for {self.rank_variable_names} size {expfmt(self.bound)}"
 
     def rename(self, rank_renaming: dict[str, str]) -> "Loop":
-        return replace(self, rank_names=fzs(rank_renaming[r] for r in self.rank_names))
+        return replace(self, rank_variable_names=fzs(rank_renaming[r] for r in self.rank_variable_names))
 
     def to_yaml(self):
         return {"type": "loop", **self.__dict__}
@@ -86,7 +87,7 @@ class Loop(Updatable):
         assert self.bound == right.bound
         assert self.is_spatial == right.is_spatial
         return Loop(
-            self.rank_names | right.rank_names,
+            self.rank_variable_names | right.rank_variable_names,
             self.bound,
             self.is_spatial,
         )
@@ -107,15 +108,15 @@ class TensorStorage(Reservation):
 
 
 @dataclass(frozen=True)
-class Mapping(Updatable):
+class Compatibility(Updatable):
     loops: tuple[Loop, ...]
     storage: fzs[TensorStorage]
-    tags: Tags = Tags(fzs())
+    # tags: Tags = Tags(fzs())
 
     def __post_init__(self):
         assert isinstance(self.storage, fzs)
         assert isinstance(self.loops, tuple)
-        assert isinstance(self.tags, Tags)
+        # assert isinstance(self.tags, Tags)
 
     def get_backing_levels(self) -> dict[str, int]:
         backings = {}
@@ -132,7 +133,7 @@ class Mapping(Updatable):
         n = [l for t, l in self.get_backing_levels().items() if t in live_tensors]
         return max(n) - 1 if n else -1
     
-    def shared_storage(self, other: "Mapping") -> set[str]:
+    def shared_storage(self, other: "Compatibility") -> set[str]:
         return set(self.storage) & set(other.storage)
 
     def __len__(self) -> int:
@@ -143,8 +144,8 @@ class Mapping(Updatable):
         live_tensors: set[str],
         keep_loops: bool = False,
         keep_tensors: set[str] = None,
-        drop_tags: bool = False,
-    ) -> "Mapping":
+        # drop_tags: bool = False,
+    ) -> "Compatibility":
         loops = (
             self.loops
             if keep_loops
@@ -152,8 +153,8 @@ class Mapping(Updatable):
         )
         keep_tensors = keep_tensors if keep_tensors is not None else live_tensors
         tensors = fzs(t for t in self.storage if t.name in keep_tensors)
-        tags = self.tags if not drop_tags else Tags(fzs())
-        return Mapping(loops, tensors, tags)
+        # tags = self.tags if not drop_tags else Tags(fzs())
+        return Compatibility(loops, tensors)#, tags)
 
     def __lt__(self, other):
         return (self.loops, self.storage) < (other.loops, other.storage)
@@ -162,9 +163,9 @@ class Mapping(Updatable):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Mapping(loops={self.loops.__repr__()}, storage={self.storage.__repr__()}, tags={self.tags.__repr__()})"
+        return f"Compatibility(loops={self.loops.__repr__()}, storage={self.storage.__repr__()})"#, tags={self.tags.__repr__()})"
 
-    def merge_next(self, right: "Mapping", live_tensors: set[str]) -> "Mapping":
+    def merge_next(self, right: "Compatibility", live_tensors: set[str]) -> "Compatibility":
         tensors = fzs(
             t for t in (right.storage | self.storage) if t.name in live_tensors
         )
@@ -173,15 +174,15 @@ class Mapping(Updatable):
         merged_loops = [l.merge_next(l2) for l, l2 in zip(self.loops, right.loops)]
         additional_loops = right.loops[len(merged_loops) : shared_loop_index + 1]
 
-        return Mapping(
+        return Compatibility(
             tuple(merged_loops + list(additional_loops))[: shared_loop_index + 1],
             tensors,
-            right.tags,
+            # right.tags,
         )
 
     def rename(
         self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
-    ) -> "Mapping":
+    ) -> "Compatibility":
         return replace(
             self,
             loops=tuple(l.rename(rank_renaming) for l in self.loops),
@@ -197,12 +198,12 @@ class Mapping(Updatable):
                 return False
 
             # Mismatch!
-            if i == len(self.loops) or self.loops[i].rank_name != permutation[j]:
+            if i == len(self.loops) or self.loops[i].rank_variable_name != permutation[j]:
                 if permutation[j] != "*":
                     return False
                 j += 1
                 while i < len(self.loops) and (
-                    j == len(permutation) or self.loops[i].rank_name != permutation[j]
+                    j == len(permutation) or self.loops[i].rank_variable_name != permutation[j]
                 ):
                     i += 1
             else:
@@ -211,12 +212,12 @@ class Mapping(Updatable):
     def has_tensor(self, *tensors: TensorStorage) -> bool:
         return all(any(t == tensor for t in self.storage) for tensor in tensors)
 
-    def set_tags(self, *new_tags: Any) -> "Mapping":
-        return self.update(tags=Tags(new_tags))
+    # def set_tags(self, *new_tags: Any) -> "Compatibility":
+    #     return self.update(tags=Tags(new_tags))
 
-    def all_n_loops(self) -> list["Mapping"]:
+    def all_n_loops(self) -> list["Compatibility"]:
         min_loops = max(t.above_loop_index for t in self.storage)
         return list(
-            Mapping(self.loops[:i], self.storage, self.tags)
+            Compatibility(self.loops[:i], self.storage)#, self.tags)
             for i in range(min_loops, len(self.loops) + 1)
         )

@@ -73,7 +73,7 @@ def dummy_tile_shape_exploration(pmapping, workload, constraints):
     N_ROWS = 1000
     n_loops = 0
     memory_levels = []
-    for node in pmapping:
+    for node in pmapping.nodes:
         if isinstance(node, Temporal) or isinstance(node, Spatial):
             n_loops += 1
         elif isinstance(node, Storage):

@@ -10,8 +10,8 @@ from fastfusion.mapper.FFM.joining.mappinginfo import *
 from fastfusion.util import parallel
 
 class SIM:
-    def __init__(self, compatibility: Mapping, mapping: Pareto):
-        self.compatibility: Mapping = compatibility
+    def __init__(self, compatibility: Compatibility, mapping: Pareto):
+        self.compatibility: Compatibility = compatibility
         self.mappings: Pareto = mapping
         self.storage: dict[str, TensorStorage] = {
             t.name: t for t in self.compatibility.storage
@@ -143,7 +143,7 @@ class SIM:
         every_possible_n_loops: bool = False,
         keep_tensors: set[str] = None,
         drop_tags: bool = False,
-    ) -> dict[tuple[Mapping, ...], list["SIM"]]:
+    ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
             compatibility = s.compatibility.clear_dead_tensors(
@@ -190,7 +190,7 @@ class SIM:
 
     @staticmethod
     def filter_by_tensor_storage(
-        sims: list["SIM"] | dict[Mapping, Any], tensors: set[str]
+        sims: list["SIM"] | dict[Compatibility, Any], tensors: set[str]
     ) -> list["SIM"]:
         def check(tensors_to_check):
             for t in tensors_to_check:
@@ -211,13 +211,13 @@ class SIM:
     @staticmethod
     def group_left(
         sims: list["SIM"], live_tensors: set[str], drop_tags: bool = False
-    ) -> dict[tuple[Mapping, ...], list["SIM"]]:
+    ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors, keep_loops=True, drop_tags=drop_tags)
 
     @staticmethod
     def group_right(
         sims: list["SIM"], live_tensors: set[str], drop_tags: bool = False
-    ) -> dict[tuple[Mapping, ...], list["SIM"]]:
+    ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         return SIM._group(
             sims, live_tensors, drop_tags=drop_tags, every_possible_n_loops=True
         )

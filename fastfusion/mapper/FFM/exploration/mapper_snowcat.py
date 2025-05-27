@@ -24,7 +24,7 @@ from fastfusion.mapper.FFM.exploration.per_einsum_mapper_snowcat import (
     per_einsum_mapper_snowcat,
     get_hardware_levels,
 )
-from fastfusion.mapper.FFM.joining.sim import Mapping, Loop, TensorStorage
+from fastfusion.mapper.FFM.joining.sim import Compatibility, Loop, TensorStorage
 from fastfusion.mapper.FFM.pareto import (
     LOGSTRING,
     MAPPING,
@@ -219,7 +219,7 @@ def generate_data(
     }
 
 
-def _convert_mapping(mapping: Mapping, rank_renaming, tensor_renaming):
+def _convert_mapping(mapping: Compatibility, rank_renaming, tensor_renaming):
     return mapping.rename(rank_renaming, tensor_renaming)
 
 
@@ -306,5 +306,5 @@ def get_ffmt_separated_einsums(workload):
 
 
 def _convert_rank_renaming(rank_renaming, equiv_ranks):
-    # The Mapping class uses string ids
+    # The Compatibility class uses string ids
     return {str(r1): str(r2) for r1, r2 in rank_renaming.items()}

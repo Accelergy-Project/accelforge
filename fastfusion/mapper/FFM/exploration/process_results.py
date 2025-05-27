@@ -16,7 +16,7 @@ from fastfusion.mapper.FFM.pareto import (
     TAGS,
     VALID,
 )
-from fastfusion.mapper.FFM.joining.sim import Tags, TensorStorage, Mapping, Loop
+from fastfusion.mapper.FFM.joining.sim import Tags, TensorStorage, Compatibility, Loop
 
 from fastfusion.util import fzs
 from pytimeloop.looptree.energy import gather_actions, get_accesses
@@ -174,14 +174,14 @@ def process_result(
                 )
 
     n_fused_loops = max(t.above_loop_index for t in backing_storage)
-    mapping_full = Mapping(
+    mapping_full = Compatibility(
         loops=tuple(full_mapping),
         storage=fzs(all_storage),
     )
 
     for i, l in enumerate(mapping_full.loops):
         for l2 in mapping_full.loops[i + 1 :]:
-            if l.rank_name == l2.rank_name:
+            if l.rank_variable_name == l2.rank_variable_name:
                 assert l.bound >= l2.bound, f"{l} {l2}"
 
     tagger_args = dict(
@@ -200,7 +200,7 @@ def process_result(
         assert isinstance(tag, tuple), "Tagger must return a tuple"
         tags.extend(tag)
 
-    mapping_compatibility = Mapping(
+    mapping_compatibility = Compatibility(
         loops=tuple(full_mapping[:n_fused_loops]),
         storage=fzs(backing_storage),
         tags=Tags(fzs(tags)),

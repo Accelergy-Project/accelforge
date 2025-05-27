@@ -1,3 +1,4 @@
+import copy
 from pydantic import BaseModel, model_validator
 from fastfusion.frontend import architecture
 from typing import Callable, List, Union, Annotated, Literal, TypeVar, TypeAlias
@@ -165,10 +166,45 @@ MappingNodeTypes: TypeAlias = Union[
 ]
 
 
-class Mapping(ParsableModel):
+class Mapping(ParsableModel): # TODO: Make this a partial mapping
     version: Annotated[str, assert_version] = __version__
     nodes: ParsableList[MappingNodeTypes] = ParsableList()
 
-class MappingTree(MappingNode):
+    @property
+    def n_fused_loops(self) -> int:
+        seen_tensors = set()
+        n_fused_loops = 0
+        n_seen_loops = 0
+        for node in self.nodes:
+            if isinstance(node, Iteration):
+                n_seen_loops += 1
+            elif isinstance(node, Storage):
+                if set(node.tensors) - seen_tensors:
+                    n_fused_loops = n_seen_loops
+                seen_tensors.update(node.tensors)
+        return n_fused_loops
+    
+    def make_pmapping_compatibility(self, tile_shapes: list[int]) -> "Mapping":
+        compatibility = Mapping(nodes=[])
+        i = 0
+        for node in self.nodes:
+            while i < len(tile_shapes) and tile_shapes[i] is None:
+                i += 1
+            if i >= len(tile_shapes):
+                break
+            new_node = copy.deepcopy(node)
+            if isinstance(node, Iteration):
+                new_node.tile_shape = tile_shapes[i]
+                i += 1
+            compatibility.nodes.append(new_node)
+        return compatibility
+    
+    @property
+    def loops(self) -> list[Iteration]:
+        return [node for node in self.nodes if isinstance(node, Iteration)]
+        
+        
+        
+class MappingTree(MappingNode): # TODO: Make this a full mapping
     version: Annotated[str, assert_version] = __version__
 
