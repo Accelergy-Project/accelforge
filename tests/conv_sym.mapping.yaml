@@ -1,38 +1,40 @@
 mapping:
-  version: 0.5
+  version: "0.5"
   nodes:
-  - type: temporal
-    rank: c
+  - !Temporal
+    rank_variable: c
     tile_shape: symbol
-  - type: spatial
-    rank: r
+  - !Spatial
+    rank_variable: r
     tile_shape: symbol
-    level: LocalBuffer
-  - type: spatial
-    rank: m
+    dimension: 0
+    across: LocalBuffer
+  - !Spatial
+    rank_variable: m
     tile_shape: symbol
-    level: LocalBuffer
-  - type: temporal
-    rank: m
+    dimension: 0
+    across: LocalBuffer
+  - !Temporal
+    rank_variable: m
     tile_shape: symbol
-  - type: storage
+  - !Storage
     tensor: [I]
-    level: LocalBuffer
-  - type: temporal
-    rank: p
+    memory: LocalBuffer
+  - !Temporal
+    rank_variable: p
     tile_shape: symbol
-  - type: temporal
-    rank: p
+  - !Temporal
+    rank_variable: p
     tile_shape: symbol
-  - type: temporal
-    rank: p
+  - !Temporal
+    rank_variable: p
     tile_shape: 4
-  - type: temporal
-    rank: p
+  - !Temporal
+    rank_variable: p
     tile_shape: symbol
-  - type: temporal
-    rank: p
+  - !Temporal
+    rank_variable: p
     tile_shape: symbol
-  - type: compute
+  - !Compute
     einsum: conv
-    level: MAC
+    compute: MAC

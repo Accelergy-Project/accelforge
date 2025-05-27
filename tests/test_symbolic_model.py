@@ -40,21 +40,21 @@ class TestSymbolicAccesses(unittest.TestCase):
 
         accesses = buffer_accesses_from_buffet_actions(result, mapping, workload, is_path=True)
 
-        main_memory_I_accesses= accesses.get_accesses('MainMemory', 'I', 'Q')
+        main_memory_I_accesses = accesses.get_accesses('MainMemory', 'I', 'Q')
         self.assertEqual(main_memory_I_accesses,
                          Accesses(total_reads=64,
                                   total_writes=0,
                                   max_per_unit_reads=64,
                                   max_per_unit_writes=0))
 
-        local_buffer_I_accesses= accesses.get_accesses('LocalBuffer', 'I', 'Q')
+        local_buffer_I_accesses = accesses.get_accesses('LocalBuffer', 'I', 'Q')
         self.assertEqual(local_buffer_I_accesses,
                          Accesses(total_reads=64,
                                   total_writes=64,
                                   max_per_unit_reads=16,
                                   max_per_unit_writes=16))
 
-        local_buffer_Q_accesses= accesses.get_accesses('LocalBuffer', 'Q', 'Q')
+        local_buffer_Q_accesses = accesses.get_accesses('LocalBuffer', 'Q', 'Q')
         self.assertEqual(local_buffer_Q_accesses,
                          Accesses(total_reads=64,
                                   total_writes=128,

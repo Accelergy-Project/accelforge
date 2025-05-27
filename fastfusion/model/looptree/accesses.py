@@ -145,9 +145,6 @@ def buffer_accesses_from_buffet_actions(
 
     parent_buffers = get_parent_buffers(mapping, workload, is_path)
 
-    einsums_with_complete_mappings = \
-        get_einsums_with_complete_mappings(mapping, workload, is_path)
-
     compute_targets = set()
     for compute_node in get_leaves(mapping, is_path):
         assert isinstance(compute_node, Compute)
@@ -166,9 +163,6 @@ def buffer_accesses_from_buffet_actions(
             max_per_parent_read_to_parent,
             max_per_unit_read_to_peer
         ) = value
-
-        if einsum not in einsums_with_complete_mappings:
-            continue
 
         parent_buffer = parent_buffers[(buffer_id, tensor, einsum)]
         if parent_buffer is not None:

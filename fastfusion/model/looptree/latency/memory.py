@@ -83,7 +83,7 @@ def get_bandwidth(arch):
         component_bandwidths[node.name] = [
             node.attributes.read_bandwidth,
             node.attributes.write_bandwidth,
-            node.attributes.shared_bandwidth
+            node.attributes.shared_read_write_bandwidth
         ]
 
         # NOTE: supports per-tensor datawidth in the future. '*' can be tensor name
