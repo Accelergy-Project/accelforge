@@ -24,12 +24,14 @@ class Specification(ParsableModel):
     mapping: Mapping = Mapping()
     workload: Workload = Workload()
     variables: Variables = Variables()
-    config: Config = get_config()
+    config: Config = None
     component_energy: ComponentEnergy = ComponentEnergy()
     component_area: ComponentArea = ComponentArea()
     renames: Renames = Renames()
 
     def __init__(self, **data):
+        if data.get("config") is None:
+            data["config"] = get_config()
         super().__init__(**data)
 
     def parse_expressions(
