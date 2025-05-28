@@ -98,6 +98,12 @@ class Component(Leaf, ABC):
     enabled: ParsesTo[bool] = True
     power_gated_at: ParsesTo[Optional[str]] = None
     actions: ParsableList[SubcomponentAction]
+    
+    def _update_actions(self, new_actions: ParsableList[SubcomponentAction]):
+        has_actions = set(x.name for x in self.actions)
+        for action in new_actions:
+            if action.name not in has_actions:
+                self.actions.append(action)
 
 
 class Actions(ParsableList[SubcomponentAction]):
@@ -123,11 +129,18 @@ COMPUTE_ACTIONS = ParsableList(
 class Memory(Component):
     attributes: 'MemoryAttributes'
     actions: ParsableList[SubcomponentAction] = MEMORY_ACTIONS
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._update_actions(MEMORY_ACTIONS)
 
 
 class Compute(Component):
     actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._update_actions(COMPUTE_ACTIONS)
 
 
 class Attributes(ComponentAttributes):

@@ -39,8 +39,20 @@ class Action(ParsableModel):
             definition = spec.component_classes.component_classes[class_name]
         except KeyError:
             pass
-
-        if attributes.energy is not None:
+                
+        if arguments.energy is not None:
+            entries = [
+                Subaction(
+                    name=action_name,
+                    attributes=attributes,
+                    arguments=arguments,
+                    energy=arguments.energy
+                    * attributes.energy_scale
+                    * arguments.energy_scale,
+                    messages=["Using predefined energy value"],
+                )
+            ]
+        elif attributes.energy is not None:
             entries = [
                 Subaction(
                     name=action_name,

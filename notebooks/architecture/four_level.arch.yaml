@@ -14,13 +14,15 @@ architecture:
       datawidth: 8
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-      energy_scale: (450 / 64) / 8
-      energy: 1
       area: 1
     constraints:
       storage:
         keep: ~Intermediates()
-    
+    actions:
+    - {name: read, arguments: {energy: 7.03}}
+    - {name: write, arguments: {energy: 7.03}}
+    - {name: leak, arguments: {energy: 0}}
+
   - !Memory
     name: GlobalBuffer
     component_class: SRAM
@@ -29,11 +31,14 @@ architecture:
       width: 8192
       datawidth: 8 * width
       depth: 1000 
-      energy: 1
       area: 1
     constraints:
       storage:
         keep: ~MainMemory.tensors()
+    actions:
+    - {name: read, arguments: {energy: 7.53}}
+    - {name: write, arguments: {energy: 9.44}}
+    - {name: leak, arguments: {energy: 0}}
 
   - !Memory
     name: LocalBuffer
@@ -44,7 +49,6 @@ architecture:
       width: 2048
       depth: 1000
       datawidth: 8
-      energy: 1
       area: 1
     constraints:
       storage:
@@ -54,6 +58,10 @@ architecture:
         - expression: All().rank_variables()
           operator: product<=
           value: 16
+    actions:
+    - {name: read, arguments: {energy: 3.98}}
+    - {name: write, arguments: {energy: 4.69}}
+    - {name: leak, arguments: {energy: 0}}
 
   - !Memory
     name: Register
@@ -64,7 +72,6 @@ architecture:
       datawidth: 8
       width: 8
       depth: 1000
-      energy: 1
       area: 1
     constraints:
       storage:
@@ -82,12 +89,18 @@ architecture:
         - expression: output.rank_variables()
           operator: ==
           value: 1
+    actions:
+    - {name: read, arguments: {energy: 0}}
+    - {name: write, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
 
   - !Compute
     name: MAC
     component_class: intmac
-    attributes: {multiplier_width: 8, adder_width: 16, energy: 1, area: 1}
-    actions: [{name: compute, arguments: {energy_scale: 1}}]
+    attributes: {multiplier_width: 8, adder_width: 16, area: 1}
+    actions:
+    - {name: compute, arguments: {energy: 0.84}}
+    - {name: leak, arguments: {energy: 0}}
 
 component_classes:
   version: "0.5"         # REQUIRED version number
