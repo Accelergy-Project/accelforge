@@ -9,6 +9,7 @@ from fastfusion.mapper.FFM.pareto import Pareto
 from fastfusion.mapper.FFM.joining.mappinginfo import *
 from fastfusion.util import parallel
 
+
 class SIM:
     def __init__(self, compatibility: Compatibility, mapping: Pareto):
         self.compatibility: Compatibility = compatibility
@@ -31,9 +32,9 @@ class SIM:
         return SIM(self.compatibility, self.mappings.copy())
 
     def merge_next(
-        self, 
-        right: "SIM", 
-        live_tensors: set[str], 
+        self,
+        right: "SIM",
+        live_tensors: set[str],
         live_tensors_with_right: set[str],
         aliased_tensors: dict[str, str],
         resource2capacity: dict[str, int] = None,
@@ -45,9 +46,13 @@ class SIM:
         compatibility = self.compatibility.merge_next(right.compatibility, live_tensors)
         next_shared_loop_index = compatibility.shared_loop_index(live_tensors)
         shared_storage = self.compatibility.storage & right.compatibility.storage
-        
-        still_live_reservations = [r for r in self.compatibility.storage if r.name in live_tensors and r.name not in right.compatibility.tensor_names]
-        
+
+        still_live_reservations = [
+            r
+            for r in self.compatibility.storage
+            if r.name in live_tensors and r.name not in right.compatibility.tensor_names
+        ]
+
         duplicated_aliased_tensors = set()
         for name, my_tensor in self.storage.items():
             aliased_tensor = right.storage.get(aliased_tensors.get(name, None), None)
@@ -55,14 +60,21 @@ class SIM:
                 continue
             if my_tensor.resource_name == aliased_tensor.resource_name:
                 duplicated_aliased_tensors.add(aliased_tensor)
-        
-        mapping = delayed(
-            self.mappings.merge_next
-        )(right.mappings, shared_loop_index, next_shared_loop_index, live_tensors_with_right, shared_storage, still_live_reservations, duplicated_aliased_tensors, resource2capacity)
+
+        mapping = delayed(self.mappings.merge_next)(
+            right.mappings,
+            shared_loop_index,
+            next_shared_loop_index,
+            live_tensors_with_right,
+            shared_storage,
+            still_live_reservations,
+            duplicated_aliased_tensors,
+            resource2capacity,
+        )
 
         if not delay:
             mapping = mapping[0](*mapping[1], **mapping[2])
-        
+
         s = SIM(compatibility, mapping)
         assert (
             len(compatibility.loops) == next_shared_loop_index + 1
@@ -86,12 +98,14 @@ class SIM:
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.storage.pop(t)
-        if self.mappings.free_to_loop_index(shared_loop_index, live_tensors=live_tensors):
+        if self.mappings.free_to_loop_index(
+            shared_loop_index, live_tensors=live_tensors
+        ):
             self.mappings.make_pareto()
         return self
 
     def _left_consolidate(self, live_tensors: set[str] = None):
-        check_tensors = (live_tensors or set())
+        check_tensors = live_tensors or set()
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         self.mappings.free_to_loop_index(shared_loop_index, live_tensors=live_tensors)
         return self
@@ -123,7 +137,9 @@ class SIM:
         return self.mappings, fzs(self.storage.items())
 
     @staticmethod
-    def concat(sims: Iterable["SIM"], allow_different_compatibilitys: bool = False) -> "SIM":
+    def concat(
+        sims: Iterable["SIM"], allow_different_compatibilitys: bool = False
+    ) -> "SIM":
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
         if not allow_different_compatibilitys:
@@ -174,7 +190,7 @@ class SIM:
             has_reservations = [s.mappings.has_reservations() for s in sims]
             no_combine = [s for s, h in zip(sims, has_reservations) if h]
             sims = [s for s, h in zip(sims, has_reservations) if not h]
-        groups = list(SIM._group(sims, live_tensors).values()) # , drop_tags=drop_tags
+        groups = list(SIM._group(sims, live_tensors).values())  # , drop_tags=drop_tags
         groups_with_one = [g[0] for g in groups if len(g) == 1]
         if len(groups_with_one) == len(groups):
             return groups_with_one + no_combine
@@ -195,9 +211,7 @@ class SIM:
         def check(tensors_to_check):
             for t in tensors_to_check:
                 for t2 in tensors:
-                    if (
-                        t2.name == "*" or t.name == t2.name
-                    ) and t != t2:
+                    if (t2.name == "*" or t.name == t2.name) and t != t2:
                         return False
             return True
 
@@ -210,16 +224,18 @@ class SIM:
 
     @staticmethod
     def group_left(
-        sims: list["SIM"], live_tensors: set[str]#, drop_tags: bool = False
+        sims: list["SIM"], live_tensors: set[str]  # , drop_tags: bool = False
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors, keep_loops=True) # , drop_tags=drop_tags
+        return SIM._group(sims, live_tensors, keep_loops=True)  # , drop_tags=drop_tags
 
     @staticmethod
     def group_right(
-        sims: list["SIM"], live_tensors: set[str]#, drop_tags: bool = False
+        sims: list["SIM"], live_tensors: set[str]  # , drop_tags: bool = False
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         return SIM._group(
-            sims, live_tensors, every_possible_n_loops=True, # drop_tags=drop_tags
+            sims,
+            live_tensors,
+            every_possible_n_loops=True,  # drop_tags=drop_tags
         )
 
     @staticmethod

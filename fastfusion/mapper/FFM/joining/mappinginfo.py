@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 from numbers import Number
 from typing import Any
 from fastfusion.frontend.workload.workload import RankVariableName
+
 # from fastfusion.tags import Tags
 from fastfusion.util import expfmt, fzs
 
@@ -11,9 +12,11 @@ from fastfusion.util import expfmt, fzs
 #    next-innermost...
 # 2. All loops above any shared tensor are co-tiled and must match between SIMs.
 
+
 class Updatable:
     def update(self, **kwargs) -> "Updatable":
         return replace(self, **kwargs)
+
 
 @dataclass(frozen=True)
 class Reservation(Updatable):
@@ -70,7 +73,9 @@ class Loop(Updatable):
         return f"Loop({self.rank_variable_names.__repr__()}, {self.bound}, {self.is_spatial})"
 
     def __str__(self):
-        return ("S-" if self.is_spatial else "") + f"{self.rank_variable_names}-{self.bound}"
+        return (
+            "S-" if self.is_spatial else ""
+        ) + f"{self.rank_variable_names}-{self.bound}"
 
     def pydot_str(self):
         if self.is_spatial:
@@ -78,7 +83,10 @@ class Loop(Updatable):
         return f"for {self.rank_variable_names} size {expfmt(self.bound)}"
 
     def rename(self, rank_renaming: dict[str, str]) -> "Loop":
-        return replace(self, rank_variable_names=fzs(rank_renaming[r] for r in self.rank_variable_names))
+        return replace(
+            self,
+            rank_variable_names=fzs(rank_renaming[r] for r in self.rank_variable_names),
+        )
 
     def to_yaml(self):
         return {"type": "loop", **self.__dict__}
@@ -91,6 +99,7 @@ class Loop(Updatable):
             self.bound,
             self.is_spatial,
         )
+
 
 @dataclass(frozen=True, order=True)
 class TensorStorage(Reservation):
@@ -124,7 +133,7 @@ class Compatibility(Updatable):
             prev = backings.get(t.name, t.above_loop_index)
             backings[t.name] = min(prev, t.above_loop_index)
         return backings
-    
+
     @property
     def tensor_names(self) -> set[str]:
         return {t.name for t in self.storage}
@@ -132,7 +141,7 @@ class Compatibility(Updatable):
     def shared_loop_index(self, live_tensors: set[str]) -> int:
         n = [l for t, l in self.get_backing_levels().items() if t in live_tensors]
         return max(n) - 1 if n else -1
-    
+
     def shared_storage(self, other: "Compatibility") -> set[str]:
         return set(self.storage) & set(other.storage)
 
@@ -154,7 +163,7 @@ class Compatibility(Updatable):
         keep_tensors = keep_tensors if keep_tensors is not None else live_tensors
         tensors = fzs(t for t in self.storage if t.name in keep_tensors)
         # tags = self.tags if not drop_tags else Tags(fzs())
-        return Compatibility(loops, tensors)#, tags)
+        return Compatibility(loops, tensors)  # , tags)
 
     def __lt__(self, other):
         return (self.loops, self.storage) < (other.loops, other.storage)
@@ -163,13 +172,17 @@ class Compatibility(Updatable):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Compatibility(loops={self.loops.__repr__()}, storage={self.storage.__repr__()})"#, tags={self.tags.__repr__()})"
+        return f"Compatibility(loops={self.loops.__repr__()}, storage={self.storage.__repr__()})"  # , tags={self.tags.__repr__()})"
 
-    def merge_next(self, right: "Compatibility", live_tensors: set[str]) -> "Compatibility":
+    def merge_next(
+        self, right: "Compatibility", live_tensors: set[str]
+    ) -> "Compatibility":
         tensors = fzs(
             t for t in (right.storage | self.storage) if t.name in live_tensors
         )
-        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, right])
+        shared_loop_index = max(
+            t.shared_loop_index(live_tensors) for t in [self, right]
+        )
 
         merged_loops = [l.merge_next(l2) for l, l2 in zip(self.loops, right.loops)]
         additional_loops = right.loops[len(merged_loops) : shared_loop_index + 1]
@@ -203,7 +216,8 @@ class Compatibility(Updatable):
                     return False
                 j += 1
                 while i < len(self.loops) and (
-                    j == len(permutation) or self.loops[i].rank_variable != permutation[j]
+                    j == len(permutation)
+                    or self.loops[i].rank_variable != permutation[j]
                 ):
                     i += 1
             else:
@@ -218,39 +232,45 @@ class Compatibility(Updatable):
     def all_n_loops(self) -> list["Compatibility"]:
         min_loops = max(t.above_loop_index for t in self.storage)
         return list(
-            Compatibility(self.loops[:i], self.storage)#, self.tags)
+            Compatibility(self.loops[:i], self.storage)  # , self.tags)
             for i in range(min_loops, len(self.loops) + 1)
         )
 
-    def populate_tile_shape(self, 
-                            tile_shape: list[int], 
-                            rank_variable_to_size: dict[RankVariableName, int]) -> "Compatibility":
+    def populate_tile_shape(
+        self, tile_shape: list[int], rank_variable_to_size: dict[RankVariableName, int]
+    ) -> "Compatibility":
         new_loops = []
         storages = []
         null_loop_indices = []
-        
+
         assert len(tile_shape) == len(self.loops)
-        
-        
+
         for i, l in zip(tile_shape, self.loops):
             prev_size = rank_variable_to_size[l.rank_variable]
             if i > 0:
-                prev_loop = next(iter(l for l in self.loops[i-1::-1] if l.rank_variable == l.rank_variable), None)
+                prev_loop = next(
+                    iter(
+                        l
+                        for l in self.loops[i - 1 :: -1]
+                        if l.rank_variable == l.rank_variable
+                    ),
+                    None,
+                )
                 if prev_loop is not None:
                     prev_size = tile_shape[self.loops.index(prev_loop)]
             if prev_size == i:
                 null_loop_indices.append(i)
             else:
                 new_loops.append(l.update(bound=i))
-                
+
         storages = []
         for s in self.storage:
             above = s.above_loop_index
             above -= sum(above > i for i in null_loop_indices)
             storages.append(s.update(above_loop_index=above))
-            
+
         return Compatibility(tuple(new_loops), fzs(storages))
-        
+
     # loops = mapping.loops
     # null_loops = []
     # for i, t in enumerate(tile_shape):
