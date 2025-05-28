@@ -479,7 +479,7 @@ class Pareto:
         dropcols = [c for c in df.columns if c.endswith("_RIGHT_MERGE")]
         for source in dropcols:
             target = source[:-len("_RIGHT_MERGE")]
-            assert col2nameloop(target)
+            assert col_used_in_pareto(target), f"{target} is not used in pareto"
             df.loc[:, target] += df[source]
         df = df.drop(columns=dropcols)
         result = Pareto(df, skip_pareto=True, check_above_subset_below=False)
