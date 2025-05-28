@@ -70,7 +70,7 @@ def compute_energy_from_actions(action_counts: Mapping[(str, str), Real],
                 f'Could not find action {action} for component {component}'
             )
         energy_per_ac = action_table.energy
-        energy_result[(component, action)] = counts*energy_per_ac
+        energy_result[(component, action)] = counts.total*energy_per_ac
 
     return energy_result
 

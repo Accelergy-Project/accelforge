@@ -114,8 +114,7 @@ def explore_tile_shapes(pmapping, constraints, specification: Specification):
     reuse = analyze_reuse(pmapping, workload)
     overall_latency, _, _ = get_latency(reuse, pmapping, workload, architecture)
     actions = gather_actions(reuse, pmapping, workload, None, is_path=True, use_name=True)
-    # TODO: energy
-    # energy = compute_energy_from_actions(actions, ert)
+    energy = compute_energy_from_actions(actions, ert)
 
     df = {}
     total_occupancy = {}
@@ -142,13 +141,16 @@ def explore_tile_shapes(pmapping, constraints, specification: Specification):
         for n_loop in range(max_n_loops):
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
-            df[nameloop2col(memory, n_loop)]= running_total
+            df[nameloop2col(memory, n_loop)] = running_total
 
     if isinstance(overall_latency, Number):
         overall_latency = np.repeat(overall_latency, n_shapes)
     else:
         overall_latency = sympy.lambdify(reuse.symbols, overall_latency)(*tile_shapes)
     df['Latency'] = overall_latency
+
+    total_energy = sum(energy.values())
+    df['Energy'] = sympy.lambdify(reuse.symbols, total_energy)(*tile_shapes)
 
     return df
 
