@@ -3,9 +3,8 @@ import re
 from pydantic_core import CoreSchema
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
-from fastfusion.frontend.renames import Renames
 from fastfusion.version import assert_version, __version__
-from typing import Annotated, Any, Callable, TypeAlias
+from typing import Annotated, Any, Callable, TypeAlias, Union
 from pydantic_core.core_schema import CoreSchema, chain_schema, no_info_plain_validator_function
 
 
@@ -29,6 +28,7 @@ ISL_REGEX = re.compile(
 TensorName: TypeAlias = str
 RankVariableName: TypeAlias = str
 RankName: TypeAlias = str
+EinsumName: TypeAlias = str
 
 class TensorAccess(ParsableModel):
     name: TensorName
@@ -126,7 +126,7 @@ class Shape(ParsableList):
         return set.union(*[set(re.findall(ISL_REGEX, x)) for x in self])
 
 class Einsum(ParsableModel):
-    name: str
+    name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape[str] = Shape()
     is_copy_operation: bool = False
@@ -138,16 +138,16 @@ class Einsum(ParsableModel):
         return set.union(*[t.rank_variables for t in self.tensor_accesses])
     
     @property
-    def tensor_names(self) -> set[str]:
-        return set([t.name for t in self.tensor_accesses])
+    def tensor_names(self) -> set[TensorName]:
+        return set([TensorName(t.name) for t in self.tensor_accesses])
     
     @property
     def tensors(self) -> set[TensorName]:
         return set([TensorName(t.name) for t in self.tensor_accesses])
     
     @property
-    def tensor2rank_variables(self) -> dict[str, set[RankVariableName]]:
-        return {t.name: t.rank_variables for t in self.tensor_accesses}
+    def tensor2rank_variables(self) -> dict[TensorName, set[RankVariableName]]:
+        return {TensorName(t.name): t.rank_variables for t in self.tensor_accesses}
     
     def to_formatted_string(self, compress: bool = False) -> str:
         lhs_join = ",\n" if compress else " , "
@@ -165,7 +165,7 @@ class Einsum(ParsableModel):
 class Workload(ParsableModel):
     version: Annotated[str, assert_version] = __version__
     einsums: ParsableList[Einsum] = []
-    shape: ParsableDict[str, str] = {}
+    shape: ParsableDict[RankVariableName, str] = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -187,6 +187,10 @@ class Workload(ParsableModel):
                         f"TensorName is in Einsums "
                         f"{', '.join(e.name for e in self.einsums_with_tensor(tensor_accesses))}"
                     )
+
+    @property
+    def einsum_names(self) -> set[EinsumName]:
+        return set(EinsumName(e.name) for e in self.einsums)
 
     def einsums_with_tensor(self, tensor: TensorName) -> list["Einsum"]:
         return [e for e in self.einsums if tensor in e.tensor_names]
@@ -260,8 +264,8 @@ class Workload(ParsableModel):
 
     def get_constraint_symbol_table(
             self, 
-            einsum_name: str,
-            renames: Renames | None = None,
+            einsum_name: EinsumName,
+            renames: Union["Renames", None] = None,
         ) -> dict[str, InvertibleSet]:
         einsum = self.einsums[einsum_name]
         inputs = einsum.input_tensors()
@@ -289,6 +293,7 @@ class Workload(ParsableModel):
             element_to_child_space=element_to_child_space,
         )
         symbol_table = {
+            "Nothing": InvertibleSet(instance=(), **kwargs),
             "All": InvertibleSet(instance=all_, **kwargs),
             "Inputs": InvertibleSet(instance=inputs, **kwargs),
             "Outputs": InvertibleSet(instance=outputs, **kwargs),
