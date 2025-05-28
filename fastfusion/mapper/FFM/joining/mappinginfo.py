@@ -245,7 +245,7 @@ class Compatibility(Updatable):
 
         assert len(tile_shape) == len(self.loops)
 
-        for i, l in zip(tile_shape, self.loops):
+        for i, (t, l) in enumerate(zip(tile_shape, self.loops)):
             prev_size = rank_variable_to_size[l.rank_variable]
             if i > 0:
                 prev_loop = next(
@@ -258,10 +258,10 @@ class Compatibility(Updatable):
                 )
                 if prev_loop is not None:
                     prev_size = tile_shape[self.loops.index(prev_loop)]
-            if prev_size == i:
+            if prev_size == t:
                 null_loop_indices.append(i)
             else:
-                new_loops.append(l.update(bound=i))
+                new_loops.append(l.update(bound=t))
 
         storages = []
         for s in self.storage:

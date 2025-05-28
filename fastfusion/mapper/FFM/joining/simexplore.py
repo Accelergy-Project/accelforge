@@ -174,10 +174,6 @@ def join_sims(
             if VALID in s.mappings.data:
                 s.mappings.data = s.mappings.data[s.mappings.data[VALID] == 1]
 
-    print(
-        f"Do the optimization where we put all the full mappings in a dict and grab them later"
-    )
-
     n_mappings = {}
     runtime = {}
     nbuckets = []

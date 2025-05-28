@@ -462,6 +462,12 @@ def add_to_compatibility2sim(compatibility2sim: dict[Compatibility, SIM], sim: S
     if sim.compatibility not in compatibility2sim:
         compatibility2sim[sim.compatibility] = sim
     prev = compatibility2sim[sim.compatibility]
+    for col in prev.mappings.data.columns:
+        if col not in sim.mappings.data.columns:
+            sim.mappings.data[col] = 0
+    for col in sim.mappings.data.columns:
+        if col not in prev.mappings.data.columns:
+            prev.mappings.data[col] = 0
     prev.mappings = Pareto.concat([prev.mappings, sim.mappings])
 
     
@@ -529,8 +535,8 @@ def get_single_einsum_sims(
         pbar=f"Generating pmappings for Einsum {einsum_name}",
         n_jobs=32,
     )
-    for compatibility2sim in per_proc_compatibility2sim:
-        for sim in compatibility2sim.values():
+    for compatibility2sim_proc in per_proc_compatibility2sim:
+        for sim in compatibility2sim_proc.values():
             add_to_compatibility2sim(compatibility2sim, sim)
     
     # for i, (mapping, constraints) in enumerate(tqdm(mappings_constraints)):
