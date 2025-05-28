@@ -15,7 +15,7 @@ from fastfusion.frontend.architecture import Leaf
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import dummy_tile_shape_exploration
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, Pareto
+from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, Pareto, is_reservation_col
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import Einsum, RankVariableName, TensorName, Workload
@@ -458,16 +458,21 @@ def make_compatibility(mapping: Mapping):
     )
     return compatibility
 
+
+import random
 def add_to_compatibility2sim(compatibility2sim: dict[Compatibility, SIM], sim: SIM):
     if sim.compatibility not in compatibility2sim:
         compatibility2sim[sim.compatibility] = sim
     prev = compatibility2sim[sim.compatibility]
+    
     for col in prev.mappings.data.columns:
         if col not in sim.mappings.data.columns:
-            sim.mappings.data[col] = 0
+            if not is_reservation_col(col):
+                sim.mappings.data[col] = 0
     for col in sim.mappings.data.columns:
         if col not in prev.mappings.data.columns:
-            prev.mappings.data[col] = 0
+            if not is_reservation_col(col):
+                prev.mappings.data[col] = 0
     prev.mappings = Pareto.concat([prev.mappings, sim.mappings])
 
     

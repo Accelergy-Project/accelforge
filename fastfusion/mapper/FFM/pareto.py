@@ -108,6 +108,8 @@ def col2nameloopleft(x):
     m = _resource_name_nloops_reg.match(x)
     return (m.group(1), int(m.group(2)), is_left_col(x)) if m is not None else None
 
+def is_reservation_col(x):
+    return col2nameloop(x) is not None
 
 @dict_cached
 def is_left_col(x):
@@ -742,8 +744,8 @@ class Pareto:
         self.data[src_idx_col] = self.data.index
         keep_cols = [src_id_col, src_idx_col]
         keep_cols.extend([c for c in self.data.columns if col_used_in_pareto(c)])
-        recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + [src_idx_col]].copy()
-        self._data = self.data[keep_cols].copy()
+        recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + [src_idx_col]]
+        self._data = self.data[keep_cols]
         return recovery
 
     def _decompress_data(self, recovery_map: dict[int, pd.DataFrame], prefix: str | list[str] = None):
