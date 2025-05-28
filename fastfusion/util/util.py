@@ -1,5 +1,4 @@
 import itertools
-from math import ceil
 from numbers import Number
 
 # import joblib.externals.loky
@@ -46,7 +45,7 @@ class fzs(frozenset):
 
 
 def debugger_active():
-    return sys.gettrace() is not None
+    return 'pydevd' in sys.modules or sys.gettrace() is not None
 
 
 def expfmt(x):
