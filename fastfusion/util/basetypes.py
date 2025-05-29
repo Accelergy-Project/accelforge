@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_core.core_schema import CoreSchema, chain_schema, list_schema, union_schema, no_info_plain_validator_function, str_schema, dict_schema
-from typing import Iterator, List, TypeVar, Generic, Any, Callable, Union, Dict, Optional, Type, TypeAlias, get_args, get_origin
+from typing import Iterator, List, TypeVar, Generic, Any, Callable, TypeVarTuple, Union, Dict, Optional, Type, TypeAlias, get_args, get_origin
 
 from fastfusion.util import yaml
 from fastfusion.util.parse_expressions import parse_expression, ParseError, RawString, is_raw_string
@@ -17,6 +17,75 @@ T = TypeVar('T')
 M = TypeVar('M', bound=BaseModel)
 K = TypeVar('K')
 V = TypeVar('V')
+
+Ts = TypeVarTuple('Ts')
+
+class InferFromTag(Generic[*Ts]):
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Callable) -> CoreSchema:          
+        type_args = get_args(source_type)
+        if not type_args:
+            raise TypeError(f"InferFromTag must be used with a type parameter, e.g. InferFromTag[int]")
+        
+        # type_args contains all the possible types: (Compute, Memory, "Hierarchical")
+        target_types = []
+        for arg in type_args:
+            if isinstance(arg, str):
+                # Handle string type names - we'll need to resolve them later
+                target_types.append(arg)
+            elif isinstance(arg, type):
+                target_types.append(arg)
+            else:
+                target_types.append(arg)
+                
+        # Create tag to class mapping
+        tag2class = {}
+        for target_type in target_types:
+            if isinstance(target_type, str):
+                # For string types, use the string as both key and placeholder
+                tag2class[target_type] = target_type
+            elif hasattr(target_type, '__name__'):
+                tag2class[target_type.__name__] = target_type
+            else:
+                # Fallback for other types
+                tag2class[str(target_type)] = target_type
+        
+        def validate(value: Any) -> T:
+            if hasattr(value, "_yaml_tag"):
+                tag = value._yaml_tag
+            elif hasattr(value, "_type"):
+                tag = value._type
+            else:
+                for to_try in ("_yaml_tag", "_type", "type"):
+                    try:
+                        tag = value[to_try]
+                        break
+                    except:
+                        pass
+                else:
+                    raise ValueError(
+                        f"No tag found for. Either set the type field "
+                        "or use a YAML tag."
+                    )
+            tag = str(tag)
+            if tag.startswith("!"):
+                tag = tag[1:]
+            print(f'Tag found! {tag}')
+            if tag in tag2class:
+               return tag2class[tag](**value)
+            else:
+                raise ValueError(f"Unknown tag: {tag}")
+        
+        # target_schema = handler.generate_schema(target_types)
+        schemas = []
+        for t in target_types:
+            schemas.append(handler.generate_schema(t))
+        target_schema = union_schema(schemas)
+        return chain_schema([
+            no_info_plain_validator_function(validate),
+            target_schema
+        ])
+        
 
 class ParsesTo(Generic[T]):
     """A type that parses to the specified type T.
@@ -43,12 +112,6 @@ class ParsesTo(Generic[T]):
 
     def __repr__(self) -> str:
         return f"ParsesTo({repr(self._value)})"
-
-    def check_type(self, value: Any) -> None:
-        if not isinstance(value, self._type):
-            raise ParseError(
-                f"Incorrect type. Expected {self._type.__name__}, got {type(value).__name__}",
-            )
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source_type: Any, handler: Callable) -> CoreSchema:
@@ -325,6 +388,15 @@ def get_parsable_field_order(order: tuple[str, ...], field_value_validator_tripl
 
 class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
+    _type: Optional[str] = None
+    
+    def __post_init__(self):
+        if self._type is not None:
+            if not isinstance(self, self._type):
+                raise TypeError(
+                    f"_type field {self._type} does not match" 
+                    f"{self.__class__.__name__}"
+                )
     
     def get_validator(self, field: str) -> type:
         if field in self.__class__.model_fields:
@@ -339,6 +411,9 @@ class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
 
 
     def __init__(self, **data):
+        if "type" in data:
+            data["_type"] = data["type"]
+            del data["type"]
         try:
             super().__init__(**data)
         except ValidationError as e:

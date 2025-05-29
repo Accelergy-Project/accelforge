@@ -5,7 +5,7 @@ from numbers import Number
 from typing import Any, Dict, List, Optional, Tuple, Union, Annotated, TypeVar, TypeAlias
 from pydantic import ConfigDict, RootModel, BaseModel
 
-from fastfusion.util.basetypes import ParsableDict, ParsableModel, ParsableList, ParsesTo, PostCall, parse_field, T
+from fastfusion.util.basetypes import InferFromTag, ParsableDict, ParsableModel, ParsableList, ParsesTo, PostCall, parse_field, T
 from fastfusion.util.parse_expressions import ParseError
 
 from .component_classes import ComponentAttributes, SubcomponentAction
@@ -150,41 +150,10 @@ class MemoryAttributes(Attributes):
 
 
 class Branch(ArchNode, ABC):
-    nodes: ArchNodes[ARCHNODE_TYPE] = ArchNodes()
+    nodes: ArchNodes[InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
     
     def __init__(self, **kwargs):
-        if "nodes" in kwargs:
-            kwargs["nodes"] = ArchNodes([make_arch_node(node) for node in kwargs["nodes"]])
         super().__init__(**kwargs)
-
-def make_arch_node(node: Union[Memory, Compute, "Hierarchical", Any]):
-    tag_to_class = {
-        "!Memory": Memory,
-        "!Compute": Compute,
-        "!Hierarchical": Hierarchical,
-    }
-    
-    if isinstance(node, ArchNode):
-        for k, v in tag_to_class.items():
-            if isinstance(node, v):
-                node._yaml_tag = k
-                return node
-        raise ValueError(f"Unknown node type {type(node)}. Should be one of {sorted(tag_to_class.values())}")
-    
-    tag = getattr(node, "_yaml_tag", None)
-    if tag is None:
-        raise ValueError(f"Unknown node type. Set _yaml_tag in {node}")
-    tag = str(tag)
-    if tag not in tag_to_class:
-        raise ValueError(f"Unknown node type {tag}. Set _yaml_tag "
-                         f" in {node} to one of {sorted(tag_to_class.keys())}")
-    
-    node = tag_to_class[tag](**node)
-    node._yaml_tag = tag
-    return node
-
-def arch_nodes_factory(nodes: ArchNodes[ARCHNODE_TYPE]):
-    return ArchNodes([make_arch_node(node) for node in nodes])
 
 class Hierarchical(Branch):
     def _flatten(self, attributes: dict, fanout: int = 1, return_fanout: bool = False):
@@ -218,3 +187,6 @@ class Hierarchical(Branch):
 
 class Architecture(Hierarchical):
     version: Annotated[str, assert_version] = __version__
+
+# We had to reference Hierarchical before it was defined
+Branch.model_rebuild()
