@@ -10,7 +10,7 @@ from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
 
 def memory_latency(
     looptree_results: IslReuseAnalysisOutput | SummarizedAnalysisOutput,
-    arch,
+    flattened_arch,
     mapping,
     workload
 ):
@@ -21,7 +21,7 @@ def memory_latency(
         is_path=False
     )
 
-    bandwidths, component_tensor_datawidth = get_bandwidth(arch)
+    bandwidths, component_tensor_datawidth = get_bandwidth(flattened_arch)
 
     component_to_read_writes = defaultdict(lambda: [None, None])
     for (component, tensor, _), accesses in accesses_stats.items():
@@ -31,7 +31,7 @@ def memory_latency(
             datawidth = component_tensor_datawidth[(component, '*')]
         else:
             raise RuntimeError(f'No datawidth for {component} and {tensor}')
-
+        
         if component not in component_to_read_writes:
             component_to_read_writes[component][0] = accesses.max_per_unit_reads*datawidth
             component_to_read_writes[component][1] = accesses.max_per_unit_writes*datawidth
@@ -71,11 +71,11 @@ def memory_latency(
     return component_latency
 
 
-def get_bandwidth(arch):
+def get_bandwidth(flattened_arch):
     """Returns a dictionary from memory to bandwidth in bits/cycle"""
     component_bandwidths = {}
     component_tensor_datawidth = {}
-    for node in arch.nodes:
+    for node in flattened_arch:
         if not isinstance(node, Memory):
             continue
         attributes = node.attributes

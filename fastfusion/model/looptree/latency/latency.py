@@ -13,12 +13,12 @@ from fastfusion.model.looptree.latency.memory import memory_latency
 def get_latency(looptree_results,
                 mapping,
                 workload,
-                arch):
+                flattened_arch):
     comp_latency = calculate_compute_latency(looptree_results,
                                              mapping,
                                              workload)
     mem_latency = memory_latency(looptree_results,
-                                 arch,
+                                 flattened_arch,
                                  mapping,
                                  workload)
     max_mem_latency = Max(*mem_latency.values())
@@ -54,12 +54,6 @@ def calculate_compute_latency(reuse_analysis_results, mapping, workload):
         )
 
 
-def compute_isl_latency(temporal_steps, mapping, workload):
-    return get_value_from_singular_qpolynomial(
-        _compute_latency(mapping.nodes, 0, temporal_steps, workload)[1]
-    ).to_python()
-
-
 def compute_summarized_latency(compute_stats, mapping, workload):
     # TODO: this is only for single-Einsum!!!
     longest_compute_latency = 0
@@ -74,7 +68,15 @@ def compute_summarized_latency(compute_stats, mapping, workload):
     return longest_compute_latency
 
 
+def compute_isl_latency(temporal_steps, mapping, workload):
+    raise NotImplementedError()
+    return get_value_from_singular_qpolynomial(
+        _compute_latency(mapping.nodes, 0, temporal_steps, workload)[1]
+    ).to_python()
+
+
 def _compute_latency(mapping, top_idx: int, temporal_steps, workload):
+    raise NotImplementedError()
     einsum_name_to_id = workload.einsum_name_to_id()
 
     next_top_idx = top_idx
@@ -98,6 +100,7 @@ def _compute_latency(mapping, top_idx: int, temporal_steps, workload):
 
 
 def ops_to_latency(dims, map):
+    raise NotImplementedError()
     mask = [False]*len(dims)
     new_dims = []
     for i, d in enumerate(dims):
