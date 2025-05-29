@@ -127,11 +127,8 @@ def explore_tile_shapes(pmapping, constraints, specification: Specification, fla
     for buffet, stats in reuse.buffet_stats.items():
         if buffet.level == compute_unit:
             continue
-        occupancy = stats.occupancy
-        if isinstance(occupancy, Number):
-            occupancy = np.repeat(occupancy, n_shapes)
-        else:
-            occupancy = sympy.lambdify(reuse.symbols, stats.occupancy)(*tile_shapes)
+        occupancy = sympy.lambdify(reuse.symbols, stats.occupancy)(*tile_shapes)
+        occupancy = np.asarray(occupancy, dtype=np.float32)
 
         if buffet.level not in total_occupancy:
             total_occupancy[buffet.level] = {stats.n_loops_above: occupancy}
@@ -141,7 +138,7 @@ def explore_tile_shapes(pmapping, constraints, specification: Specification, fla
         max_n_loops = max(max_n_loops, stats.n_loops_above+1)
 
     for memory, occupancies in total_occupancy.items():
-        running_total = 0
+        running_total = 0.0
         for n_loop in range(max_n_loops):
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]

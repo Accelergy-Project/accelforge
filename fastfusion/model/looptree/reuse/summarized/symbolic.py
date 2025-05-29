@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from functools import reduce
 from operator import mul
 from typing import Any
+from itertools import chain
 
 import fastfusion.frontend.mapping as mapping_spec
 from fastfusion.frontend.mapping import Mapping, Spatial, Temporal, Storage, Reservation, Fill, Iteration
@@ -342,8 +343,15 @@ def analyze_temporal(node_idx,
                 result_accumulator.fanout[key] = child_fanout
             else:
                 acc_fanout = result_accumulator.fanout[key]
-                for i, _ in enumerate(zip(acc_fanout, child_fanout)):
-                    acc_fanout[i] = Max(acc_fanout[i], child_fanout[i])
+                for i_dim in chain(acc_fanout, child_fanout):
+                    if i_dim in acc_fanout and i_dim in child_fanout:
+                        acc_fanout[i_dim] = Max(acc_fanout[i_dim], child_fanout[i_dim])
+                    elif i_dim in child_fanout:
+                        acc_fanout[i_dim] = child_fanout[i_dim]
+                    elif i_dim in acc_fanout:
+                        pass
+                    else:
+                        raise RuntimeError('BUG!')
 
         for key in child_result.compute_stats:
             if key not in result_accumulator.compute_stats:
@@ -432,20 +440,25 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         key = (node.across, einsum_name)
         if key in child_result.fanout:
             child_fanout = child_result.fanout[key]
+
             if key not in result_accumulator.fanout:
-                result_accumulator.fanout[key] = [1]*Max(dim+1, len(child_fanout))
-                result_accumulator.fanout[key][dim] = 0
+                result_accumulator.fanout[key] = {dim: 0}
             fanout = result_accumulator.fanout[key]
-            for i, _ in enumerate(fanout):
-                if i == dim and i < len(child_fanout):
-                    fanout[i] += child_fanout[i]*shape_repeats
-                elif i == dim:
-                    fanout[i] = shape_repeats
-                elif i < len(child_fanout):
-                    fanout[i] = Max(fanout[i], child_fanout[i])
+
+            for i_dim in chain(fanout, child_fanout):
+                if i_dim in child_fanout and i_dim == dim: # true: dim in fanout
+                    fanout[i_dim] += child_fanout[i_dim]*shape_repeats
+                elif i_dim == dim:
+                    fanout[i_dim] += shape_repeats
+                elif i_dim in child_fanout and i_dim in fanout:
+                    fanout[i_dim] = Max(fanout[i_dim], child_fanout[i_dim])
+                elif i_dim in child_fanout:
+                    fanout[i_dim] = child_fanout[i_dim]
+                else:
+                    raise RuntimeError('BUG!')
         else:  # happens if node.across is bypassed by all tensors: no storage node seen yet
             if key not in result_accumulator.fanout:
-                result_accumulator.fanout[key] = [1]*(dim+1)
+                result_accumulator.fanout[key] = {}
             result_accumulator.fanout[key][dim] = shape_repeats
 
 
