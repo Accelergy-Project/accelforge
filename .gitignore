@@ -175,3 +175,6 @@ cython_debug/
 
 # Pickles
 *.pkl
+
+# MacOS system files
+.DS_Store
