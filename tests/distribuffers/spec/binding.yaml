@@ -1,0 +1,56 @@
+binding:
+  version: 0.4
+  
+  nodes:
+  - # name: DRAM # Redundant as for error-handling we can just state that logical
+    # failed to bind to physical.
+    logical: DRAM
+    physical: DRAM
+    tensor: tensorA
+    # attributes: # Redundant, check tht logical and physical match.
+    #   datawidth: datawidth
+    #   width: 64                # width in bits
+    relation:
+      {
+        LogicalDRAM[i] -> PhysicalDRAM[i] : i = 0
+      } # We will call this the bijection relation.
+  - # name: DRAM # Redundant as for error-handling we can just state that logical
+    # failed to bind to physical.
+    logical: DRAM
+    physical: DRAM
+    tensor: tensorB
+    # attributes: # Redundant, check tht logical and physical match.
+    #   datawidth: datawidth
+    #   width: 64                # width in bits
+    relation:
+      {
+        LogicalDRAM[i] -> PhysicalDRAM[i] : i = 0
+      } # We will call this the bijection relation.
+  - logical:
+      name: PE
+      dims: [i]
+    physical: 
+      name: PE
+      dims: [x, y]
+    relation:
+      tensorA: i = x + y * 2
+        } # This is a dimension-major compression into the logical. It is bijective.
+      tensorB: i = x + y * 2
+        } # This is a dimension-major compression into the logical. It is bijective.
+  # Bindings for a hypothetical scratchpad.
+  - logical: scratchpad
+    physical: scratchpad
+    relation:
+      {
+        LogicalScratchpad[i] -> PhysicalScratchpad[x, y] :
+          i = x
+      }  # This is a dimension-based compression into the logical. It is not surjective.
+  - !Binding
+    logical: scratchpad
+    physical: scratchpad
+    relation:
+      {
+        LogicalScratchpad[i] -> PhysicalScratchpad[x, y] :
+          x = floor(i / 2) and y = i
+      } # This is a dimension based expansion into the logical. It is not injective.
+  - 
