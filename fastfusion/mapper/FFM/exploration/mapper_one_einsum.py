@@ -461,7 +461,6 @@ def make_compatibility(mapping: Mapping, intermediate_tensors: set[TensorName]):
     return compatibility
 
 
-import random
 def add_to_compatibility2sim(compatibility2sim: dict[Compatibility, SIM], sim: SIM):
     if sim.compatibility not in compatibility2sim:
         compatibility2sim[sim.compatibility] = sim
