@@ -18,6 +18,8 @@ from fastfusion.frontend.workload.symbolic import (
     PartiallyRelevant
 )
 
+from fastfusion.util.sympy.broadcast_max import Max
+
 import sympy
 
 
@@ -323,9 +325,8 @@ def analyze_temporal(node_idx,
                 buffet_stats.total_fills * shape_repeats
             accumulated_stats.max_per_unit_fills += \
                 buffet_stats.max_per_unit_fills * shape_repeats
-            accumulated_stats.occupancy = sympy.Max(
-                accumulated_stats.occupancy,
-                buffet_stats.occupancy
+            accumulated_stats.occupancy = Max(
+                accumulated_stats.occupancy, buffet_stats.occupancy
             )
 
             accumulated_stats.n_loops_above = buffet_stats.n_loops_above + 1
@@ -334,7 +335,7 @@ def analyze_temporal(node_idx,
 
         reduce_dicts(child_result.temporal_steps,
                      result_accumulator.temporal_steps,
-                     sympy.Max)
+                     Max)
 
         for key, child_fanout in child_result.fanout.items():
             if key not in result_accumulator.fanout:
@@ -342,7 +343,7 @@ def analyze_temporal(node_idx,
             else:
                 acc_fanout = result_accumulator.fanout[key]
                 for i, _ in enumerate(zip(acc_fanout, child_fanout)):
-                    acc_fanout[i] = sympy.Max(acc_fanout[i], child_fanout[i])
+                    acc_fanout[i] = Max(acc_fanout[i], child_fanout[i])
 
         for key in child_result.compute_stats:
             if key not in result_accumulator.compute_stats:
@@ -403,7 +404,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             else:
                 accumulated_stats.total_reads_to_parent += \
                     buffet_stats.total_reads_to_parent * shape_repeats
-                accumulated_stats.max_per_parent_reads_to_parent = sympy.Max(
+                accumulated_stats.max_per_parent_reads_to_parent = Max(
                     accumulated_stats.max_per_parent_reads_to_parent,
                     buffet_stats.max_per_parent_reads_to_parent
                 )
@@ -412,13 +413,12 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
 
             accumulated_stats.total_fills += \
                 buffet_stats.total_fills * shape_repeats
-            accumulated_stats.max_per_unit_fills = sympy.Max(
+            accumulated_stats.max_per_unit_fills = Max(
                 accumulated_stats.max_per_unit_fills,
                 buffet_stats.max_per_unit_fills
             )
-            accumulated_stats.occupancy = sympy.Max(
-                accumulated_stats.occupancy,
-                buffet_stats.occupancy
+            accumulated_stats.occupancy = Max(
+                accumulated_stats.occupancy, buffet_stats.occupancy
             )
 
             accumulated_stats.n_loops_above = buffet_stats.n_loops_above + 1
@@ -427,13 +427,13 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
 
         reduce_dicts(child_result.temporal_steps,
                      result_accumulator.temporal_steps,
-                     sympy.Max)
+                     Max)
 
         key = (node.across, einsum_name)
         if key in child_result.fanout:
             child_fanout = child_result.fanout[key]
             if key not in result_accumulator.fanout:
-                result_accumulator.fanout[key] = [1]*sympy.Max(dim+1, len(child_fanout))
+                result_accumulator.fanout[key] = [1]*Max(dim+1, len(child_fanout))
                 result_accumulator.fanout[key][dim] = 0
             fanout = result_accumulator.fanout[key]
             for i, _ in enumerate(fanout):
@@ -442,7 +442,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 elif i == dim:
                     fanout[i] = shape_repeats
                 elif i < len(child_fanout):
-                    fanout[i] = sympy.Max(fanout[i], child_fanout[i])
+                    fanout[i] = Max(fanout[i], child_fanout[i])
         else:  # happens if node.across is bypassed by all tensors: no storage node seen yet
             if key not in result_accumulator.fanout:
                 result_accumulator.fanout[key] = [1]*(dim+1)
@@ -458,7 +458,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             if compute_stats.max_per_unit_ops == 0:
                 compute_stats.max_per_unit_ops = child_result.compute_stats[key].max_per_unit_ops
             else:
-                compute_stats.max_per_unit_ops = sympy.Max(
+                compute_stats.max_per_unit_ops = Max(
                     compute_stats.max_per_unit_ops,
                     child_result.compute_stats[key].max_per_unit_ops
                 )
@@ -686,10 +686,10 @@ def insert_sympy_symbols(mapping):
     for node in mapping:
         if isinstance(node, Spatial) or isinstance(node, Temporal):
             if node.tile_shape == SYMBOL:
-                node.tile_shape = sympy.symbols(f'tileshape{loop_idx}')
+                node.tile_shape = sympy.symbols(f'tileshape{loop_idx}', positive=True, integer=True)
                 symbols.append(node.tile_shape)
             elif node.loop_bound == SYMBOL:
-                node.loop_bound = sympy.symbols(f'loopbound{loop_idx}')
+                node.loop_bound = sympy.symbols(f'loopbound{loop_idx}', positive=True, integer=True)
                 symbols.append(node.loop_bound)
             loop_idx += 1
     return symbols
