@@ -14,6 +14,7 @@ class TestExploration(unittest.TestCase):
             PARENT_DIR / "mha.workload.yaml",
             PARENT_DIR / "mha.renames.yaml",
         )
+        spec.estimate_energy_area()
 
         workload = spec.workload
 

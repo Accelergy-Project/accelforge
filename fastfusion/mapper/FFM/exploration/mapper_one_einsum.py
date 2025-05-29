@@ -520,9 +520,10 @@ def _per_proc_compatibility2sim(
     specification: Specification,
     rank_variable_to_size: dict[RankVariableName, int],
     intermediate_tensors: set[TensorName],
+    flattend_arch: list[architecture.Leaf],
 ) -> dict[Compatibility, SIM]:
     compatibility2sim = {}
-    result = explore_tile_shapes(mapping, constraints, specification)
+    result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
     make_sims(mapping, result, rank_variable_to_size, compatibility2sim, intermediate_tensors)
     return compatibility2sim
 
@@ -530,22 +531,26 @@ def get_single_einsum_sims(
     spec: Specification,
     einsum_name: str,
     rank_variable_to_size: dict[RankVariableName, int],
-    arch_flattened: list[architecture.Leaf] | None = None,
+    flattened_arch: list[architecture.Leaf] | None = None,
 ) -> list[SIM]:
     compatibility2sim = {}
     workload = spec.workload
     intermediate_tensors = workload.intermediate_tensors()
+
+    if flattened_arch is None:
+        flattened_arch = spec.get_flattened_architecture()
     
     mappings_constraints = list(iterate_mappings_constraints(spec,
                                                              einsum_name,
-                                                             arch_flattened))
+                                                             flattened_arch))
     per_proc_compatibility2sim = parallel(
         [
             delayed(_per_proc_compatibility2sim)(mapping,
                                                  constraints,
                                                  spec,
                                                  rank_variable_to_size,
-                                                 intermediate_tensors)
+                                                 intermediate_tensors,
+                                                 flattened_arch)
             for mapping, constraints in mappings_constraints
         ],
         pbar=f"Generating pmappings for Einsum {einsum_name}",
