@@ -1,11 +1,12 @@
 from collections import defaultdict
 import itertools
 import time
+from typing import Union
 import pandas as pd
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
-from fastfusion.mapper.FFM.pareto import VALID, Pareto
+from fastfusion.mapper.FFM.pareto import VALID, PartialMappings, CompressedRecoveryMap
 from fastfusion.util import fzs, parallel, debugger_active
 
 
@@ -17,7 +18,7 @@ def mapping2sims(einsum_to_result: Compatibility):
 
 
 def paretofy(k, v):
-    return SIM(k, Pareto(pd.DataFrame(v).fillna(0)))
+    return SIM(k, PartialMappings(pd.DataFrame(v).fillna(0)))
 
 
 def get_possible_translations(
@@ -110,23 +111,23 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
     return full_equivalent_rank_variables
 
 
-def compress(sims: dict[str, list[SIM]]) -> dict[int, pd.DataFrame]:
-    recovery_map = {}
-    for einsum_name, sim_list in sims.items():
-        for s in sim_list:
-            s.mappings.prefix_data(einsum_name)
-        recovery_map.update(
-            Pareto.compress_paretos([s.mappings for s in sim_list], einsum_name)
-        )
-    return recovery_map
+def compress(sims: dict[str, list[SIM]]) -> CompressedRecoveryMap:
+    # sims_flattened = list(itertools.chain.from_iterable(sims.values()))
+    sims_flattened = (
+        (s, einsum_name)
+        for einsum_name, sim_list in sims.items()
+        for s in sim_list
+    )
+    
+    return PartialMappings.compress_paretos([(s.mappings, einsum_name) for s, einsum_name in sims_flattened])
 
 
-def decompress(
-    recovery_map: dict[int, pd.DataFrame], sims: list[SIM], prefix: list[str] = None
-):
-    for s in sims:
-        Pareto.decompress_paretos([s.mappings], recovery_map, prefix)
-
+def decompress(recovery_map: CompressedRecoveryMap, data: list[Union[SIM, PartialMappings]], prefix: list[str] = None):
+    for d in data:
+        if isinstance(d, PartialMappings):
+            PartialMappings.decompress_paretos(d, recovery_map, prefix)
+        else:
+            PartialMappings.decompress_paretos([d.mappings], recovery_map, prefix)
 
 def join_sims(
     sims: dict[str, list[SIM]],
@@ -152,7 +153,7 @@ def join_sims(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
-    recovery_map = compress(sims)
+    # recovery_map = compress(sims)
 
     resource2capacity = {}
     for l in flattened_architecture:
@@ -440,7 +441,7 @@ def join_sims(
     t0 = time.time()
     left = SIM.left_consolidate(left, None, pbar="Final consolidate")
     s_final = SIM.combine_combineable(left, set())  # , drop_tags=True)
-    decompress(recovery_map, s_final, prefix=spec.workload.einsum_names)
+    # decompress(recovery_map, s_final, prefix=spec.workload.einsum_names)
     assert len(s_final) == 1
     data = s_final[0].mappings.data
 

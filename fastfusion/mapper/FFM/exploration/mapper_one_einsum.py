@@ -15,7 +15,7 @@ from fastfusion.frontend.architecture import Leaf
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import dummy_tile_shape_exploration
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, Pareto, is_reservation_col
+from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, PartialMappings, is_reservation_col
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import Einsum, RankVariableName, TensorName, Workload
@@ -421,8 +421,8 @@ def iterate_mappings_constraints(
 # =================================================================================================
 # Make sims
 # =================================================================================================
-def make_compatibility(mapping: Mapping):
-    compatibility = mapping.get_fused_slice()
+def make_compatibility(mapping: Mapping, intermediate_tensors: set[TensorName]):
+    compatibility = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
     reservations = {}
     for node in compatibility.nodes:
@@ -473,7 +473,7 @@ def add_to_compatibility2sim(compatibility2sim: dict[Compatibility, SIM], sim: S
         if col not in prev.mappings.data.columns:
             if not is_reservation_col(col):
                 prev.mappings.data[col] = 0
-    prev.mappings = Pareto.concat([prev.mappings, sim.mappings])
+    prev.mappings = PartialMappings.concat([prev.mappings, sim.mappings])
 
     
 def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mapping":
@@ -492,8 +492,8 @@ def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mappin
     return compatibility
 
 
-def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_size: dict[RankVariableName, int], compatibility2sim: dict[Compatibility, SIM]):
-    compatibility = make_compatibility(mapping)
+def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_size: dict[RankVariableName, int], compatibility2sim: dict[Compatibility, SIM], intermediate_tensors: set[TensorName]):
+    compatibility = make_compatibility(mapping, intermediate_tensors)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
     
     if fused_loop_columns:
@@ -506,7 +506,7 @@ def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_si
         new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
         mappings.drop(columns=fused_loop_columns, inplace=True)
         mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
-        sim = SIM(new_compatibility, Pareto(mappings))
+        sim = SIM(new_compatibility, PartialMappings(mappings))
         add_to_compatibility2sim(compatibility2sim, sim)
 
 # =================================================================================================
@@ -517,11 +517,12 @@ def _per_proc_compatibility2sim(
     constraints: list[Comparison],
     workload: Workload,
     rank_variable_to_size: dict[RankVariableName, int],
+    intermediate_tensors: set[TensorName],
 ) -> dict[Compatibility, SIM]:
     compatibility2sim = {}
     result = dummy_tile_shape_exploration(mapping, workload, constraints)
     _rename_columns_we_should_fix_this_later(result)
-    make_sims(mapping, result, rank_variable_to_size, compatibility2sim)
+    make_sims(mapping, result, rank_variable_to_size, compatibility2sim, intermediate_tensors)
     return compatibility2sim
 
 def get_single_einsum_sims(
@@ -532,10 +533,11 @@ def get_single_einsum_sims(
 ) -> list[SIM]:
     compatibility2sim = {}
     workload = spec.workload
+    intermediate_tensors = workload.intermediate_tensors()
     
     mappings_constraints = list(iterate_mappings_constraints(spec, einsum_name, arch_flattened))
     per_proc_compatibility2sim = parallel(
-        [delayed(_per_proc_compatibility2sim)(mapping, constraints, workload, rank_variable_to_size)
+        [delayed(_per_proc_compatibility2sim)(mapping, constraints, workload, rank_variable_to_size, intermediate_tensors)
         for mapping, constraints in mappings_constraints],
         pbar=f"Generating pmappings for Einsum {einsum_name}",
         n_jobs=32,

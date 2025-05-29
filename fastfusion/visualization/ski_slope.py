@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from fastfusion.mapper.FFM.pareto import Pareto
+from fastfusion.mapper.FFM.pareto import PartialMappings
 
 
 DATAFLOW_COLUMN = "dataflow"
@@ -25,13 +25,13 @@ def plot_ski_slope(
         _add_dataflow_to_data(data)
 
     if not split_by_dataflow:
-        data = Pareto(data).data
+        data = PartialMappings(data).data
 
     separated_datas = []
     labels = []
     if categorize_by_dataflow or split_by_dataflow:
         for dataflow, sub_df in data.groupby(by=DATAFLOW_COLUMN):
-            separated_datas.append(Pareto(sub_df).data)
+            separated_datas.append(PartialMappings(sub_df).data)
             labels.append(dataflow)
     else:
         separated_datas.append(data)

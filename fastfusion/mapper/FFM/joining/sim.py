@@ -4,16 +4,16 @@ from typing import Any, Iterable, Optional
 
 from joblib import delayed
 
-from fastfusion.mapper.FFM.pareto import Pareto
+from fastfusion.mapper.FFM.pareto import PartialMappings
 
 from fastfusion.mapper.FFM.joining.mappinginfo import *
 from fastfusion.util import parallel
 
 
 class SIM:
-    def __init__(self, compatibility: Compatibility, mapping: Pareto):
+    def __init__(self, compatibility: Compatibility, mapping: PartialMappings):
         self.compatibility: Compatibility = compatibility
-        self.mappings: Pareto = mapping
+        self.mappings: PartialMappings = mapping
         self.storage: dict[str, TensorStorage] = {
             t.name: t for t in self.compatibility.storage
         }
@@ -149,7 +149,7 @@ class SIM:
             ), f"Cannot concat SIMs with different tensors:\n\t" + "\n\t".join(
                 str(s2) for s2 in s
             )
-        return SIM(sims[0].compatibility, Pareto.concat([s.mappings for s in sims]))
+        return SIM(sims[0].compatibility, PartialMappings.concat([s.mappings for s in sims]))
 
     @staticmethod
     def _group(

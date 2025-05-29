@@ -1,7 +1,7 @@
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from numbers import Number
-from typing import Any
+from typing import Any, NamedTuple, Union
 from fastfusion.frontend.workload.workload import RankVariableName
 
 # from fastfusion.tags import Tags
@@ -56,12 +56,12 @@ class Reservation(Updatable):
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
     rank_variable_names: fzs[RankVariableName]
-    bound: Number
+    bound: Union[Number, NamedTuple]
     is_spatial: bool
 
     def __post_init__(self):
         assert isinstance(self.rank_variable_names, fzs)
-        assert isinstance(self.bound, Number)
+        assert isinstance(self.bound, (Number, NamedTuple))
         assert isinstance(self.is_spatial, bool)
 
     @property

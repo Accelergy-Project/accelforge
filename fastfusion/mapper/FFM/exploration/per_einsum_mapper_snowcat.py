@@ -16,7 +16,7 @@ from fastfusion.mapper.FFM.exploration.per_einsum_mapper import explore_tile_sha
 from fastfusion.mapper.FFM.exploration.per_einsum_subspaces.snowcat import make_subspaces
 from fastfusion.mapper.FFM.exploration.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
 from fastfusion.mapper.FFM.exploration.per_einsum_subspaces.four_level_arch import make_subspaces as make_four_level_subspaces
-from fastfusion.mapper.FFM.pareto import MAPPING, Pareto
+from fastfusion.mapper.FFM.pareto import MAPPING, PartialMappings
 from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility, TensorStorage
 from fastfusion.util import fzs, parallel
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
@@ -304,7 +304,7 @@ def per_worker_exploration(
         
         
     #     # ===========================================================================================================
-    #     # Pareto and record the results
+    #     # PartialMappings and record the results
     #     # ===========================================================================================================
     #     keepcols = [c for c in df.columns if "rank" not in c and "loop" not in c and "repeats" not in c]
     #     keepcols = [
@@ -332,7 +332,7 @@ def per_worker_exploration(
     #         group = group.drop(columns=fused_loop_cols)
     #         mapping = Compatibility(loops=loops, storage=backing_storage)
     #         if mapping in result:
-    #             result[mapping] = Pareto(pd.concat([result[mapping], group]).fillna(0))
+    #             result[mapping] = PartialMappings(pd.concat([result[mapping], group]).fillna(0))
     #         else:
     #             result[mapping] = group
     #         total_added += len(group)
@@ -341,7 +341,7 @@ def per_worker_exploration(
     # pareto_optimal_mappings = sum(len(v) for v in result.values())
     # percent_valid = n_valid_mappings / max(n_mappings, 1) * 100
     # percent_pareto = pareto_optimal_mappings / max(n_mappings, 1) * 100
-    # print(f'Checked {n_mappings}. Valid: {n_valid_mappings} ({percent_valid:.4f}%). Pareto: {pareto_optimal_mappings} ({percent_pareto:.4f}%). Mappings per second: {n_mappings/(t1-t0)}')
+    # print(f'Checked {n_mappings}. Valid: {n_valid_mappings} ({percent_valid:.4f}%). PartialMappings: {pareto_optimal_mappings} ({percent_pareto:.4f}%). Mappings per second: {n_mappings/(t1-t0)}')
 
     # return einsum_id, result, n_mappings
     
@@ -390,7 +390,7 @@ def per_worker_exploration(
             )
             
     if prune:
-        return einsum_id, {k[0]: Pareto(pd.DataFrame(v).fillna(0)).data for k, v in result.items()}, n_mappings
+        return einsum_id, {k[0]: PartialMappings(pd.DataFrame(v).fillna(0)).data for k, v in result.items()}, n_mappings
     return einsum_id, {k[0]: pd.DataFrame(v).fillna(0) for k, v in result.items()}, n_mappings
 
 def _per_einsum_mapper_snowcat(
@@ -599,7 +599,7 @@ def per_einsum_mapper_snowcat(
     
     def makepareto(data):
         multiple_data = len(data) > 1
-        return Pareto(pd.concat(data).fillna(0), skip_pareto=not multiple_data or not prune, fill_reservation_cols='auto')
+        return PartialMappings(pd.concat(data).fillna(0), skip_pareto=not multiple_data or not prune, fill_reservation_cols='auto')
 
     jobs = []
     for einsum_id, mappings in data.items():

@@ -170,26 +170,30 @@ class Mapping(ParsableModel): # TODO: Make this a partial mapping
     version: Annotated[str, assert_version] = __version__
     nodes: ParsableList[MappingNodeTypes] = ParsableList()
 
-    def get_fused_slice(self) -> "Mapping":
+    def get_fused_slice(self, intermediate_tensors: set[TensorName]) -> "Mapping":
+        """
+        Return a mapping with:
+        - All backing storage nodes for intermediate tensors
+        - Loop nodes above any backing storage nodes
+        """
         fused_slice = Mapping(nodes=[])
         seen_tensors = set()
         to_add = []
         for node in self.nodes:
             new_node = copy.deepcopy(node)
-            to_add.append(new_node)
             if isinstance(new_node, Storage):
-                tensors = set(new_node.tensors)
+                tensors = set(new_node.tensors) & intermediate_tensors
                 if tensors - seen_tensors:
-                    fused_slice.nodes.extend(to_add)
+                    fused_slice.nodes.extend(to_add + [new_node])
                     to_add = []
                     seen_tensors.update(tensors)
+            else:
+                to_add.append(new_node)
         return fused_slice
     
     @property
     def loops(self) -> list[Iteration]:
         return [node for node in self.nodes if isinstance(node, Iteration)]
-        
-        
         
 class MappingTree(MappingNode): # TODO: Make this a full mapping
     version: Annotated[str, assert_version] = __version__

@@ -14,14 +14,14 @@ def get_sims(
     spec: Specification,
     rank_variable_to_size: dict[RankVariableName, int],
     flattened_architecture: Optional[list[architecture.Leaf]] = None,
-    pkl_cache: Optional[Path] = None,
+    # pkl_cache: Optional[Path] = None,
 ) -> dict[EinsumName, list[SIM]]:
-    if pkl_cache is not None:
-        try:
-            with open(pkl_cache, "rb") as f:
-                return pickle.load(f)
-        except FileNotFoundError:
-            pass
+    # if pkl_cache is not None:
+    #     try:
+    #         with open(pkl_cache, "rb") as f:
+    #             return pickle.load(f)
+    #     except FileNotFoundError:
+    #         pass
     sims = {}
     if flattened_architecture is None:
         flattened_architecture = spec.get_flattened_architecture()
@@ -32,7 +32,7 @@ def get_sims(
             rank_variable_to_size,
             flattened_architecture,
         )
-    if pkl_cache is not None:
-        with open(pkl_cache, "wb") as f:
-            pickle.dump(sims, f)
+    # if pkl_cache is not None:
+    #     with open(pkl_cache, "wb") as f:
+    #         pickle.dump(sims, f)
     return sims

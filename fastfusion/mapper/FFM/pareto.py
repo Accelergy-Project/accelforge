@@ -5,12 +5,13 @@ import re
 
 # Disable numba. We need user_has_package("numba") to be False
 import sys
-from typing import Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Tuple, Union, NamedTuple
 
 from joblib import delayed
 
 from fastfusion.mapper.FFM.joining.mappinginfo import TensorStorage
 from fastfusion.util import fzs
+from fastfusion.util.util import parallel
 
 sys.modules["numba"] = None
 
@@ -85,7 +86,7 @@ def error_check_wrapper(func):
                     if idx < len(args):
                         live_tensors = args[idx]
             for prev_arg in itertools.chain(prev_args, prev_kwargs.values()):
-                if isinstance(prev_arg, Pareto):
+                if isinstance(prev_arg, PartialMappings):
                     prev_arg.fail(0, live_tensors)
                 break
             func(*args, **kwargs) # For debugging
@@ -169,7 +170,11 @@ def col_used_in_pareto(c):
 # Shared index -1: Sum -1 resources, max everyone below
 # Shared index 0: Sum 0 resources, max everyone below
 
-class Pareto:
+class CompressedRecoveryMap(NamedTuple):
+    multiplier: int
+    recovery_map: dict[int, pd.DataFrame]
+
+class PartialMappings:
     def __init__(
             self, 
             data: pd.DataFrame, 
@@ -185,11 +190,11 @@ class Pareto:
         self._prev_free_to_loop_index = None
         self._make_reservations()
         
-        if fill_reservation_cols: # Affects Pareto so must go before
+        if fill_reservation_cols: # Affects PartialMappings so must go before
             self.fill_reservation_cols(fill_reservation_cols)
         if check_above_subset_below:
             self.check_above_subset_below()
-        if max_right_to_left: # Affects Pareto so must go before
+        if max_right_to_left: # Affects PartialMappings so must go before
             self.max_right_to_left()
         if check_above_subset_below:
             self.check_above_subset_below()
@@ -391,7 +396,7 @@ class Pareto:
     @error_check_wrapper
     def merge_next(
         self,
-        right: "Pareto",
+        right: "PartialMappings",
         shared_loop_index: int,
         next_shared_loop_index: int,
         live_tensors: set[int],
@@ -399,7 +404,7 @@ class Pareto:
         still_live_reservations: set[TensorStorage],
         duplicated_aliased_tensors: set[TensorStorage],
         resource2capacity: dict[str, int] = None,
-    ) -> "Pareto":
+    ) -> "PartialMappings":
         """
             A  B            A2
              / | --- 0      |
@@ -484,14 +489,14 @@ class Pareto:
             assert col_used_in_pareto(target), f"{target} is not used in pareto"
             df.loc[:, target] += df[source]
         df = df.drop(columns=dropcols)
-        result = Pareto(df, skip_pareto=True, check_above_subset_below=False)
+        result = PartialMappings(df, skip_pareto=True, check_above_subset_below=False)
         # Remove tensors that were allocated in both branches and got added
         # together.
         shared_to_free = [s for s in shared_storage if s.above_loop_index <= shared_loop_index]
         live_to_alloc = [s for s in still_live_reservations if s.above_loop_index > shared_loop_index]
         result.adjust_reservations(
             alloc=live_to_alloc,
-            free=itertools.chain(shared_to_free, duplicated_aliased_tensors),
+            free=list(itertools.chain(shared_to_free, duplicated_aliased_tensors)),
         )
 
         if CHECK_CORRECTNESS:
@@ -560,7 +565,7 @@ class Pareto:
                 self._adjust_reservations_one_resource(resource, cur_alloc, cur_free)
 
     @staticmethod
-    def concat(paretos: list["Pareto"], skip_pareto: bool = False) -> "Pareto":
+    def concat(paretos: list["PartialMappings"], skip_pareto: bool = False) -> "PartialMappings":
         if len(paretos) == 1:
             return paretos[0]
         
@@ -568,7 +573,7 @@ class Pareto:
         shared_cols = set.intersection(*[set(p.data.columns) for p in paretos])
         fill_cols = required_cols - shared_cols
         
-        p = Pareto(
+        p = PartialMappings(
             pd.concat([p.data for p in paretos]).fillna(0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
             fill_reservation_cols=fill_cols,
@@ -576,8 +581,8 @@ class Pareto:
         p.parents = paretos[0].parents
         return p
 
-    def copy(self) -> "Pareto":
-        p = Pareto(self.data.copy(), skip_pareto=True, check_above_subset_below=False)
+    def copy(self) -> "PartialMappings":
+        p = PartialMappings(self.data.copy(), skip_pareto=True, check_above_subset_below=False)
         p.parents = copy.deepcopy(self.parents)
         return p
 
@@ -736,56 +741,63 @@ class Pareto:
         rename = lambda col: f"{prefix}_{col}" if not col_used_in_pareto(col) else col
         self.data.rename(columns=rename, inplace=True)
 
-    def _compress_data(self, prefix: str = None) -> pd.DataFrame:
+    def _compress_data(self, prefix: str = None, offset: int = 0, multiplier: int = 1) -> pd.DataFrame:
         self.data.reset_index(drop=True, inplace=True)
-        src_id_col = "data_source_id" if prefix is None else f"{prefix}_data_source_id"
         src_idx_col = "data_source_index" if prefix is None else f"{prefix}_data_source_index"
-        self.data[src_id_col] = id(self)
-        self.data[src_idx_col] = self.data.index
-        keep_cols = [src_id_col, src_idx_col]
-        keep_cols.extend([c for c in self.data.columns if col_used_in_pareto(c)])
+        self.data[src_idx_col] = self.data.index * multiplier + offset
+        keep_cols = [src_idx_col] + [c for c in self.data.columns if col_used_in_pareto(c)]
         recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + [src_idx_col]]
         self._data = self.data[keep_cols]
         return recovery
 
-    def _decompress_data(self, recovery_map: dict[int, pd.DataFrame], prefix: str | list[str] = None):
+    def _decompress_data(self, recovery_map: CompressedRecoveryMap, prefix: str | list[str] = None):
         if isinstance(prefix, str):
             prefix = [prefix]
         
-        if prefix is None:
-            prefix = [""]
-        else:
-            prefix = [f"{p}_" for p in prefix]
-            
+        prefix = [""] if prefix is None else [f"{p}_" for p in prefix]
             
         for p in prefix:
-            src_id_col = f"{p}data_source_id"
             src_idx_col = f"{p}data_source_index"
         
             dfs = []
             prev_len = len(self.data)
             
-            for recovery_key, recovery_df in self.data.groupby(src_id_col):
+            self.data["_recovery_key"] = self.data[src_idx_col] // recovery_map.multiplier
+            self.data["_recovery_offset"] = self.data[src_idx_col] % recovery_map.multiplier
+            
+            for recovery_key, recovery_df in self.data.groupby("_recovery_key"):
                 recovery_df = pd.merge(
                     recovery_df,
-                    recovery_map[recovery_key],
-                    on=[src_idx_col],
+                    recovery_map.recovery_map[recovery_key],
+                    on=["_recovery_offset"],
                     how="left"
                 )
-                recovery_df.drop(columns=[src_id_col, src_idx_col], inplace=True)
+                recovery_df.drop(columns=["_recovery_key", "_recovery_offset", src_idx_col], inplace=True)
                 dfs.append(recovery_df)
             self._data = pd.concat(dfs)
             assert len(self.data) == prev_len, \
                 f"Decompressed data has {len(self.data)} rows, expected {prev_len}"
 
     @classmethod
-    def compress_paretos(cls, paretos: list["Pareto"], prefix: str = None) -> dict[int, pd.DataFrame]:
+    def compress_paretos(cls, paretos: list["PartialMappings"], prefix: str = None) -> CompressedRecoveryMap:
+        multiplier = len(paretos)
+        
+        def _compress(pareto, offset):
+            if isinstance(pareto, tuple):
+                pareto, prefix = pareto
+                assert isinstance(prefix, str)
+            return pareto._compress_data(prefix, offset, multiplier), pareto
+
+        result = parallel([delayed(_compress)(p, i) for i, p in enumerate(paretos)], pbar="Compressing PartialMappings", return_as="generator")
         recovery_map = {}
-        for p in paretos:
-            recovery_map[id(p)] = p._compress_data(prefix)
-        return recovery_map
+        for p, (r, new_p) in zip(paretos, result):
+            recovery_map.update(r)
+            if isinstance(p, tuple):
+                p = p[0]
+            p._data = new_p.data
+        return CompressedRecoveryMap(multiplier, recovery_map)
 
     @classmethod
-    def decompress_paretos(cls, paretos: list["Pareto"], recovery_map: dict[int, pd.DataFrame], prefix: str | list[str] = None):
+    def decompress_paretos(cls, paretos: list["PartialMappings"], recovery_map: CompressedRecoveryMap, prefix: str | list[str] = None):
         for p in paretos:
             p._decompress_data(recovery_map, prefix=prefix)
