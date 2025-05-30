@@ -2,6 +2,7 @@ import re
 
 from pydantic_core import CoreSchema
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.version import assert_version, __version__
 from typing import Annotated, Any, Callable, TypeAlias, Union
@@ -315,7 +316,12 @@ class Workload(ParsableModel):
                 name = rename_tensor.name
                 source = rename_tensor.source
                 injective = rename_tensor.injective
-                symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", injective=injective)
+                try:
+                    symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", injective=injective)
+                except ParseError as e:
+                    e.add_field(einsum_name)
+                    e.add_field(name)
+                    raise
                 
         for rank_variable in einsum.rank_variables:
             symbol_table[rank_variable] = InvertibleSet(instance=(rank_variable,), space_name="rank_variables", full_space=einsum.rank_variables)
