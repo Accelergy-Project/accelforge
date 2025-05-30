@@ -168,13 +168,30 @@ class Temporal(Iteration):
             rmw_first_update=self.rmw_first_update + other.rmw_first_update,
             reuse=self.reuse,
         )
+        
+class Dataflow(ParsableModel):
+    storage_order: ParsableList[Union[str, InvertibleSet[TensorName], set[TensorName]]] = ParsableList()
+    
+    def _parse(self, symbol_table: dict[str, Any]):
+        result = type(self)(
+            storage_order=[eval_set_expression(x, symbol_table, "tensors") for x in self.storage_order],
+        )
+        # Assert that there are no intersecting sets
+        for i, s0 in enumerate(result.storage_order):
+            for j, s1 in enumerate(result.storage_order):
+                if i == j:
+                    continue
+                if s0 & s1:
+                    raise ValueError(f"Intersecting entries in dataflow constraint: {s0} and {s1}")
+        return result
+
 
 class ConstraintGroup(ParsableModel):
     name: Optional[str] = None
     spatial: ParsableList[Spatial] = ParsableList()
     temporal: Temporal = Temporal()
     storage: Storage = Storage()
-    
+    dataflow: Dataflow = Dataflow()
     # def validate_spatial(self, fanout_X: int, fanout_Y: int):
     #     has_X = self.spatial_X.notempty_recursive()
     #     has_Y = self.spatial_Y.notempty_recursive()

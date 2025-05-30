@@ -1,3 +1,4 @@
+from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.util import fzs
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, TypeVar, Generic, Any, Union
@@ -135,7 +136,7 @@ def eval_set_expression(
                 f"expected \"{expected_space_name}\""
             )
     except Exception as e:
-        raise ValueError(
+        raise ParseError(
             f"{e}. Set expression: \"{expression}\". Symbol table:\n\t" + "\n\t".join(f"{k}: {v}" for k, v in symbol_table.items())
         ) from e
     return result

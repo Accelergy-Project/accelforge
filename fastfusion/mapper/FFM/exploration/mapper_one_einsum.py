@@ -8,6 +8,7 @@ import numpy as np
 from pandas import DataFrame
 from tqdm import tqdm
 
+from fastfusion.frontend import constraints
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup
 from fastfusion.frontend.mapping import Iteration, Mapping, MappingNode, Storage, Temporal, Spatial, Compute, ModelOnlyNode
 import fastfusion.frontend.architecture as architecture
@@ -106,17 +107,25 @@ def label_backing_storages(mapping: List[MappingNode]):
     seen_tensors = set()
     for i, s in enumerate(mapping):
         if isinstance(s, Storage):
-            s._backing = s.tensor not in seen_tensors
-            seen_tensors.add(s.tensor)
+            tensors = set(s.tensors)
+            s._backing = tensors - seen_tensors
+            seen_tensors.update(tensors)
 
-def valid_storage_order(mapping: List[MappingNode], node_names: list[str]):
+def valid_storage_order(mapping: List[MappingNode], node_names: list[str], required_order: list[list[Storage]]):
     for i in range(len(mapping)):
         for j in range(i, len(mapping)):
-            t1, t2 = mapping[i].tensor, mapping[j].tensor
-            if t1 != t2:
-                continue
+
             s1, s2 = mapping[i].memory, mapping[j].memory
             s1_idx, s2_idx = node_names.index(s1), node_names.index(s2)
+            
+            # Ensure order # TODO: FIXME. Moved this above the continue to
+            # shrink the mapspace. This prevents local buffer from being above
+            # global buffer.
+            if i < j and s2_idx < s1_idx:
+                return False
+            
+            if not (set(mapping[i].tensors) & set(mapping[j].tensors)):
+                continue
             
             # If a tensor is stored in two levels back-to-back, then we
             # should have bypassed the outer storage if possible.
@@ -126,15 +135,19 @@ def valid_storage_order(mapping: List[MappingNode], node_names: list[str]):
                 if s2_idx < s1_idx and not (mapping[j]._must_exist or mapping[j]._backing):
                     return False
                 
-            # Ensure order
-            if i < j and s2_idx < s1_idx:
-                return False
+            
+            for r in required_order:
+                if mapping[i] in r and mapping[j] in r:
+                    a, b = r.index(mapping[i]), r.index(mapping[j])
+                    if a > b:
+                        return False
     return True
 
 def recursive_order_storage_choices(
     mapping: List[MappingNode],
     nodes: list[architecture.Memory],
     remaining_choices: list,
+    required_order: list[list[Storage]],
 ):
     if not remaining_choices:
         yield mapping
@@ -144,8 +157,8 @@ def recursive_order_storage_choices(
         mapping.append(choice)
         remaining_choices.remove(choice)
         label_backing_storages(mapping)
-        if valid_storage_order(mapping, [n.name for n in nodes]):
-            yield from recursive_order_storage_choices(mapping, nodes, remaining_choices)
+        if valid_storage_order(mapping, [n.name for n in nodes], required_order):
+            yield from recursive_order_storage_choices(mapping, nodes, remaining_choices, required_order)
         mapping.pop()
         remaining_choices.append(choice)
 
@@ -158,18 +171,46 @@ def get_storage_choices(
         nodes = nodes[1:]
     first_storage = nodes[0]
     
+    def pop_choice(storage_nodes: list[Storage], memory_name: str, tensor_name: TensorName):
+        for i, node in enumerate(storage_nodes):
+            if node.memory == memory_name and tensor_name in node.tensors:
+                return storage_nodes.pop(i)
+        return None
+        
+    
     for choice, symbol_table in make_storage_choices_all_levels(nodes, symbol_table):
         all_storage_nodes = []
         for v in choice.values():
-            all_storage_nodes.extend(v)
+            all_storage_nodes.extend(v)                            
             
         base_mapping = []
         for node in list(all_storage_nodes[::-1]):
             if node.memory == first_storage.name:
                 all_storage_nodes.remove(node)
                 base_mapping.append(node)
-            
-        for mapping in recursive_order_storage_choices(base_mapping, nodes, all_storage_nodes):
+        
+        required_order = []
+        for node in nodes:
+            # dataflow_constraints.append((node, node.constraints.dataflow._parse(symbol_table)))
+            constraint = node.constraints.dataflow._parse(symbol_table)
+            if constraint.storage_order:
+                order = []
+                for s in constraint.storage_order:
+                    parent_storage = None
+                    for tensor in s:
+                        new_storage = pop_choice(all_storage_nodes, node.name, tensor)
+                        if new_storage is None:
+                            continue
+                        if parent_storage is None:
+                            parent_storage = new_storage
+                        else:
+                            parent_storage.tensors += new_storage.tensors
+                    if parent_storage is not None:
+                        all_storage_nodes.append(parent_storage)
+                        order.append(parent_storage)
+                required_order.append(order)
+
+        for mapping in recursive_order_storage_choices(base_mapping, nodes, all_storage_nodes, required_order):
             yield mapping, symbol_table
 
 # =================================================================================================
@@ -202,7 +243,7 @@ def insert_temporal_loops(
         cur = split_mapping[i+1] if i < len(split_mapping) - 1 else []
 
         rank_variables = set(einsum.rank_variables)
-        seen_tensors |= set(t.tensor for t in prev)
+        seen_tensors |= set.union(*(set(t.tensors) for t in prev), set())
         
         # If we haven't seen a tensor yet, must only iterate over relevant rank
         # variables.
@@ -219,11 +260,13 @@ def insert_temporal_loops(
         else:
             rank_variables = set()
             for s in prev:
-                rank_variables |= einsum.tensor2rank_variables[s.tensor]
+                prev_irrelevant = [einsum.tensor2rank_variables[t] for t in s.tensors]
+                rank_variables |= set.union(*prev_irrelevant, set())
                 
         # Loops must also index into the next block of storage nodes.
         for s in cur:
-            rank_variables &= einsum.tensor2rank_variables[s.tensor]
+            cur_relevant = [einsum.tensor2rank_variables[t] for t in s.tensors]
+            rank_variables &= set.union(*cur_relevant, set())
                 
         # If there are any tensors we haven't seen yet, we may only iterate over
         # their relevant rank variables.
@@ -362,12 +405,19 @@ def get_constraints(
         if id(constraint) not in loop_bounds_constraint_id_to_mapping_nodes:
             loop_bounds_constraints.append(constraint)
         loop_bounds_constraint_id_to_mapping_nodes[id(constraint)].append(m)
+        
+    def add_parsed_dataflow_constraint_to_list(constraint: ConstraintGroup, dataflow_list: list[Comparison]):
+        key = id(constraint)
+        if key not in parsed:
+            parsed[key] = constraint._parse(symbol_table)
+        return parsed[key]
     
     for m in mapping:
         if isinstance(m, Storage):
             constraint = get_parsed_storage_constraint(m.memory_object.constraints)
             for c in constraint.tile_shape:
                 add_storage_constraint(m, c)
+            
 
         if isinstance(m, Spatial):
             constraint = get_parsed_spatial_constraint(m.across_object.constraints, m.dimension)
@@ -411,6 +461,9 @@ def iterate_mappings_constraints(
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             mapping = copy.copy(mapping)
             mapping = Mapping(nodes=mapping)
+            number_of_loops = sum(isinstance(m, Iteration) for m in mapping.nodes)
+            # print(f"Number of loops: {number_of_loops}")
+            # print(", ".join(m.compact_string() for m in mapping.nodes))
             yield mapping, constraints
 
 # =================================================================================================
@@ -548,7 +601,6 @@ def get_single_einsum_sims(
             for mapping, constraints in mappings_constraints
         ],
         pbar=f"Generating pmappings for Einsum {einsum_name}",
-        n_jobs=32,
     )
     for compatibility2sim_proc in per_proc_compatibility2sim:
         for sim in compatibility2sim_proc.values():

@@ -53,6 +53,8 @@ architecture:
     constraints:
       storage:
         keep: Intermediates()
+      dataflow:
+        storage_order: [All()] # No uneven. Put all tensors at the same level.
       spatial:
         - dimension: X
           loop_bounds:
@@ -82,13 +84,15 @@ architecture:
         - expression: weight.rank_variables()
           operator: ==
           value: 1
+      dataflow:
+        storage_order: [All()] # No uneven. Put all tensors at the same level.
       spatial:
-        - dimension: X
+        - dimension: X # Parallel rank
           loop_bounds:
           - expression: input.rank_variables()
             operator: ==
             value: 1
-        - dimension: Y
+        - dimension: Y # Reduced rank. No iteration over outputs
           loop_bounds:
           - expression: output.rank_variables()
             operator: ==

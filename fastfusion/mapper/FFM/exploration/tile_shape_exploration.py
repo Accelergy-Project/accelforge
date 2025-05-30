@@ -150,7 +150,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, flattened_arch, specif
         rank_a, index_a, is_symbol_a, choices_a = rank_var_and_choices.pop()
         rank_b, index_b, is_symbol_b, choices_b = rank_var_and_choices.pop()
 
-        print(choices_a.shape[0], choices_b.shape[1])
+        # print(choices_a.shape[0], choices_b.shape[1])
         combined_choices = np.concatenate(
             (
                 np.tile(choices_a, (choices_b.shape[0], 1)),
@@ -209,11 +209,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, flattened_arch, specif
 
 
 def invert_indices(inverted_indices):
-    indices = [0]*len(inverted_indices)
-    for inverted_idx, idx in enumerate(inverted_indices):
-        indices[idx] = inverted_idx
-    return indices
-
+    return np.argsort(inverted_indices)
 
 def collect_tiling_segments(
     pmapping,
