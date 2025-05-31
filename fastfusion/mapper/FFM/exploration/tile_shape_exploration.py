@@ -123,7 +123,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             indices.extend(other_segments.indices)
             is_symbols.extend(other_segments.is_symbol)
             choices = np.concatenate(
-                (choices, np.ones((n_rows, other_n_loops), dtype=np.int32)),
+                (choices, np.ones((n_rows, other_n_loops), dtype=np.int64)),
                 axis=1
             )
 
@@ -141,6 +141,13 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             ])
             mask = mask & (usage <= 1.0)
 
+        utilization = {}
+        for (component, dim), utilization_model in utilization_df.items():
+            utilization[(component, dim)] = utilization_model(*[
+                corrected_choices[:,i] for i in range(corrected_choices.shape[1])
+            ])
+            mask = mask & (utilization[(component, dim)] <= 1.0)
+
         good_choices = choices[mask,:]
 
         if good_choices.shape[0] == 0:
@@ -153,18 +160,11 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             good_choices[:,:n_loops]
         ))
 
-    # rank_var_and_choices = sorted(
-    #     rank_var_and_choices,
-    #     key = lambda x: x[-1].shape[0],
-    #     reverse=True
-    # )
-
     while len(rank_var_and_choices) > 1:
         rank_a, index_a, is_symbol_a, choices_a = rank_var_and_choices.pop()
         rank_b, index_b, is_symbol_b, choices_b = rank_var_and_choices.pop()
 
         print(f"With {len(rank_var_and_choices)} choices left, combining lengths {choices_a.shape[0]} and {choices_b.shape[0]} -> {choices_a.shape[0] * choices_b.shape[0]}")
-
         combined_choices = np.concatenate(
             (
                 np.tile(choices_a, (choices_b.shape[0], 1)),
@@ -188,7 +188,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             combined_choices_with_ones = np.concatenate(
                 (
                     combined_choices_with_ones,
-                    np.ones((n_rows, other_n_loops), dtype=np.int32)
+                    np.ones((n_rows, other_n_loops), dtype=np.int64)
                 ),
                 axis=1
             )
@@ -214,7 +214,6 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
 
-
         # Insert largest value
         combined_choices_with_largest = combined_choices
         for other_ranks, other_indices, other_is_symbol, other_choices in rank_var_and_choices:
@@ -238,12 +237,15 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 ])
             )
             mask = mask & (utilization[(component, dim)] <= 1.0)
+            if len(np.unique(utilization[(component, dim)])) > 1:
+                mask = mask & (utilization[(component, dim)] == 1)
 
         good_choices = combined_choices[mask,:]
 
         # print(choices_a.shape[0], choices_b.shape[0], combined_choices.shape[0], np.sum(mask)/combined_choices.shape[0])
 
         if good_choices.shape[0] == 0:
+            print(f"No good choices found")
             return combined_choices_with_largest[:,corrected_indices], is_symbols
 
         rank_var_and_choices.append((
@@ -258,6 +260,8 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
 
     # Invert indices
     indices = invert_indices(inverted_indices)
+    
+    print(f"Returning choices of shape {choices[:,indices].shape}")
 
     return choices[:,indices], is_symbol[indices]
 
@@ -303,9 +307,9 @@ def make_shapes_for_one_rank(tiling_segments):
         total_loops += n_loops
 
         factors = integer_factorizations_to_n_parts(max_shape, n_loops+1)
-        factors = np.asarray(list(factors), dtype=np.int32)[:,:-1]
+        factors = np.asarray(list(factors), dtype=np.int64)[:,:-1]
         tile_shape = max_shape // np.cumprod(factors, axis=1)
-        tile_shape = tile_shape.astype(np.int32)
+        tile_shape = tile_shape.astype(np.int64)
         tile_shape = tile_shape[np.all(tile_shape >= min_shape, axis=1), :]
 
         if all_tile_shapes is None:
@@ -370,7 +374,7 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf]):
         for n_loop in range(max_n_loops):
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
-            df[nameloop2col(memory, n_loop)] = running_total
+                df[nameloop2col(memory, n_loop)] = running_total
 
     df['metric_Latency'] = overall_latency
 
