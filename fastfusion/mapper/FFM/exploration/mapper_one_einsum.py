@@ -373,7 +373,7 @@ def iterate_mappings_no_constraints(
         mapping = unpack_loops_to_rank_variables(mapping)
         label_fused_loops(mapping)
         for mapping2 in temporal_fused_constraint_thing_fix_me(mapping, spec.workload.einsums[einsum_name].rank_variables): # TODO
-            yield mapping2, symbol_table
+            yield copy.deepcopy(mapping2), symbol_table
 
 # =================================================================================================
 # Attach constraints to mapping
@@ -544,17 +544,30 @@ def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mappin
         compatibility.nodes.append(new_node)
     return compatibility
 
+def drop_cols(mappings: DataFrame):
+    from fastfusion.mapper.FFM.pareto import col2nameloop
+    to_drop = []
+    for col in mappings.columns:
+        if col2nameloop(col) is None:
+            continue
+        name, loop_index = col2nameloop(col)
+        if name == "LocalBuffer" or name == "Register":
+            to_drop.append(col)
+    mappings.drop(columns=to_drop)
+    return mappings
 
 def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_size: dict[RankVariableName, int], compatibility2sim: dict[Compatibility, SIM], intermediate_tensors: set[TensorName]):
     compatibility = make_compatibility(mapping, intermediate_tensors)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
         
+    explored_results = drop_cols(explored_results)
+        
     if fused_loop_columns:
         groups = explored_results.groupby(fused_loop_columns)
-        groups = [(_, mappings.drop(columns=fused_loop_columns)) for _, mappings in groups]
+        # groups = [(_, mappings.drop(columns=fused_loop_columns)) for _, mappings in groups]
     else:
         groups = [((), explored_results)]
-    return [(tile_shape, compatibility, mappings, mapping) for tile_shape, mappings in groups]
+    # return [(tile_shape, compatibility, mappings, mapping) for tile_shape, mappings in groups]
 
     # def _getsim(tile_shape, mappings):
     #     new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
@@ -583,15 +596,15 @@ def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_si
     # else:
     #     groups = [((), explored_results)]
 
-    # compatibility2sim = {}
-    # for tile_shape, mappings in tqdm(groups, desc="Generating SIMs"):
-    #     # Check for null loops
-    #     new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
-    #     mappings.drop(columns=fused_loop_columns, inplace=True)
-    #     mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
-    #     sim = SIM(new_compatibility, PartialMappings(mappings))
-    #     add_to_compatibility2sim(compatibility2sim, sim)
-    # return compatibility2sim
+    compatibility2sim = {}
+    for tile_shape, mappings in groups:
+        # Check for null loops
+        new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
+        mappings.drop(columns=fused_loop_columns, inplace=True)
+        mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
+        sim = SIM(new_compatibility, PartialMappings(mappings))
+        add_to_compatibility2sim(compatibility2sim, sim)
+    return compatibility2sim
 
 # =================================================================================================
 # Top level
@@ -607,7 +620,8 @@ def _per_proc_compatibility2sim(
     compatibility2sim = {}
     print(", ".join(m.compact_string() for m in mapping.nodes))
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
-    return make_sims(mapping, result, rank_variable_to_size, compatibility2sim, intermediate_tensors)
+    make_sims(mapping, result, rank_variable_to_size, compatibility2sim, intermediate_tensors)
+    return compatibility2sim
 
 def get_single_einsum_sims(
     spec: Specification,
@@ -627,7 +641,7 @@ def get_single_einsum_sims(
     mappings_constraints = list(iterate_mappings_constraints(spec,
                                                              einsum_name,
                                                              flattened_arch))
-    per_proc_sims = parallel(
+    per_proc_compatibility2sim = parallel(
         [
             delayed(_per_proc_compatibility2sim)(mapping,
                                                  constraints,
@@ -640,26 +654,26 @@ def get_single_einsum_sims(
         pbar=f"Generating pmappings for Einsum {einsum_name}",
     )
     
-    def makesim(tile_shape, compatibility, mappings, mapping):
-        new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
-        mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
-        return SIM(new_compatibility, PartialMappings(mappings))
+    # def makesim(tile_shape, compatibility, mappings, mapping):
+    #     new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
+    #     mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
+    #     return SIM(new_compatibility, PartialMappings(mappings))
     
-    sims = parallel(
-        [
-            delayed(makesim)(tile_shape, compatibility, mappings, mapping)
-            for tile_shape, compatibility, mappings, mapping in per_proc_sims
-        ],
-        pbar=f"Generating SIMs for Einsum {einsum_name}",
-    )
+    # sims = parallel(
+    #     [
+    #         delayed(makesim)(tile_shape, compatibility, mappings, mapping)
+    #         for tile_shape, compatibility, mappings, mapping in per_proc_sims
+    #     ],
+    #     pbar=f"Generating SIMs for Einsum {einsum_name}",
+    # )
     
-    for sim in sims:
-        add_to_compatibility2sim(compatibility2sim, sim)
+    # for sim in sims:
+    #     add_to_compatibility2sim(compatibility2sim, sim)
     
     
-    # for compatibility2sim_proc in per_proc_compatibility2sim:
-    #     for sim in compatibility2sim_proc.values():
-    #         add_to_compatibility2sim(compatibility2sim, sim)
+    for compatibility2sim_proc in per_proc_compatibility2sim:
+        for sim in compatibility2sim_proc.values():
+            add_to_compatibility2sim(compatibility2sim, sim)
     
     # for i, (mapping, constraints) in enumerate(tqdm(mappings_constraints)):
     #     result = dummy_tile_shape_exploration(mapping, workload, constraints)
