@@ -29,11 +29,14 @@ class Comparison(ParsableModel):
     def _parse(self, symbol_table: dict[str, Any]):
         # if len(self) != 3:
         #     raise ValueError(f"Comparison can only have 3 elements. got {len(self)}")
-        return type(self)(
+        new = type(self)(
             expression=eval_set_expression(self.expression, symbol_table, "rank_variables"),
             operator=self.operator,
             value=self.value,
         )
+        if len(new.expression) == 1 and 'product' in new.operator:
+            new.operator = new.operator.replace('product', '')
+        return new
         
     def constrained_to_one(self) -> bool:
         return self.value == 1 and self.operator in ["==", "<=", "product==", "product<="]
