@@ -237,7 +237,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 ])
             )
             mask = mask & (utilization[(component, dim)] <= 1.0)
-            if len(np.unique(utilization[(component, dim)])) > 1:
+            if np.any(utilization[(component, dim)] == 1):
                 mask = mask & (utilization[(component, dim)] == 1)
 
         good_choices = combined_choices[mask,:]
