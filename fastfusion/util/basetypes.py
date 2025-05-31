@@ -163,7 +163,7 @@ class ParsesTo(Generic[T]):
         def validate_raw_string(value):
             if isinstance(value, str) and is_raw_string(value):
                 return RawString(value)
-            raise ValueError("Not a raw string")  # pragma: no cover
+            raise ValueError("Not a raw string")  # pragma: no cover  # noqa: T100
             
         # Create a union schema that either validates as raw string or normal validation
         return union_schema([
@@ -424,17 +424,17 @@ def get_parsable_field_order(order: tuple[str, ...], field_value_validator_tripl
 
 class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
-    _type: Optional[str] = None
+    type: Optional[str] = None
     
     def __post_init__(self):
-        if self._type is not None:
-            if not isinstance(self, self._type):
+        if self.type is not None:
+            if not isinstance(self, self.type):
                 raise TypeError(
-                    f"_type field {self._type} does not match" 
+                    f"type field {self.type} does not match" 
                     f"{self.__class__.__name__}"
                 )
     
-    def get_validator(self, field: str) -> type:
+    def get_validator(self, field: str) -> Type:
         if field in self.__class__.model_fields:
             return self.__class__.model_fields[field].annotation
         return ParsesTo[Any]
@@ -447,8 +447,6 @@ class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
 
 
     def __init__(self, **data):
-        if "type" in data:
-            data["_type"] = data.pop("type")
         try:
             super().__init__(**data)
         except ValidationError as e:
@@ -474,13 +472,13 @@ class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
 
 class NonParsableModel(BaseModel, FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
-    _type: Optional[str] = None
+    type: Optional[str] = None
 
-    def get_validator(self, field: str) -> type:
+    def get_validator(self, field: str) -> Type:
         return Any
 
 class ParsableList(list[T], Parsable['ParsableList[T]'], Generic[T]):
-    def get_validator(self, field: str) -> type:
+    def get_validator(self, field: str) -> Type:
         return T
 
     def parse_expressions(self, symbol_table: dict[str, Any] = None, order: tuple[str, ...] = (), post_calls: tuple[PostCall[T], ...] = (), **kwargs) -> tuple['ParsableModel', dict[str, Any]]:
