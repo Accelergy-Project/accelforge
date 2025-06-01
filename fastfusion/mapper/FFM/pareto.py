@@ -5,9 +5,11 @@ import re
 
 # Disable numba. We need user_has_package("numba") to be False
 import sys
+import time
 from typing import Iterable, Optional, Tuple, Union, NamedTuple
 
 from joblib import delayed
+import numpy as np
 
 from fastfusion.mapper.FFM.joining.mappinginfo import TensorStorage
 from fastfusion.util import fzs
@@ -170,7 +172,86 @@ def col_used_in_pareto(c):
 # Shared index -1: Sum -1 resources, max everyone below
 # Shared index 0: Sum 0 resources, max everyone below
 
+def dominates(a: pd.Series, b: pd.Series) -> bool:
+    return all(a[i] <= b[i] for i in range(len(a)))
+
+def check_dominance(df: pd.DataFrame, n_optimal: int):
+    # mask = np.zeros(len(df), dtype=bool)
+    # mask[:new_point] = True
+    mask = np.zeros(len(df) - n_optimal, dtype=bool)
+    for col in df.columns:
+        compare = df.iloc[n_optimal - 1][col]
+        mask = mask | (df[col].iloc[n_optimal:] < compare)
+    return np.concatenate([np.ones(n_optimal, dtype=bool), mask])
+
+
+def quickpareto(df: pd.DataFrame) -> pd.DataFrame:
+    # Step 1: Sort by the column with the most unique values
+    # Step 2: Extract the first row. Add it to the pareto set
+    # Step 3: Remove all dominated points
+    # Step 4: Repeat until no more points to add
+    
+    # Step 1: Sort by the column with the most unique values
+    original_len = len(df)
+    col_to_sort = max(df.columns, key=lambda c: df[c].nunique())
+    df = df.sort_values(by=col_to_sort).drop(columns=[col_to_sort])
+    
+    new_point = 0
+    while new_point < len(df):
+        mask = check_dominance(df, new_point + 1)
+        df = df[mask]
+        new_point += 1
+        
+    # Turn the index into a mask
+    mask = np.zeros(original_len, dtype=bool)
+    mask[df.index] = True
+    return mask
+    
+def makepareto_quick(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.DataFrame:
+    columns = [c for c in mappings.columns if col_used_in_pareto(c)]
+    mappings = mappings.reset_index(drop=True)
+    return mappings[quickpareto(mappings[columns])].reset_index(drop=True)
+
+def makepareto_merge(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.DataFrame:
+    chunk_size = 10000
+    if len(mappings) <= 1:
+        return mappings
+    columns = [c for c in mappings.columns if col_used_in_pareto(c)]
+    sense = ["min"] * len(columns)
+    columns += list(extra_columns)
+    sense += ["diff"] * len(extra_columns)
+
+    chunks = [mappings[i:i+chunk_size] for i in range(0, len(mappings), chunk_size)]
+    paretos = []
+    for chunk in chunks:
+        paretos.append(chunk[paretoset(chunk[columns], sense=sense)].reset_index(drop=True))
+    mappings = pd.concat(paretos)
+    return mappings[paretoset(mappings[columns], sense=sense)].reset_index(drop=True)
+
+def makepareto_time_compare(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.DataFrame:
+    t0 = time.time()
+    pareto = makepareto_merge(mappings, extra_columns)
+    t1 = time.time()
+    merge_time = t1 - t0
+    print(f"Time to make pareto with merge: {t1 - t0: .2f}. Number of pareto points: {len(pareto)}")
+    
+    t0 = time.time()
+    pareto2 = makepareto_quick(mappings, extra_columns)
+    t1 = time.time()
+    print(f"Time to make pareto with quick: {t1 - t0: .2f}. Number of pareto points: {len(pareto2)}")
+    quick_time = t1 - t0
+    
+    print(f'Quick is {quick_time / merge_time: .2f}x slower')
+    
+    if len(pareto) != len(pareto2):
+        print(f"mismatch: {len(pareto)} != {len(pareto2)}")
+        makepareto_quick(mappings, extra_columns)
+    
+    return pareto2
+
+
 def makepareto(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.DataFrame:
+    return makepareto_merge(mappings, extra_columns)
     if len(mappings) <= 1:
         return mappings
     columns = [c for c in mappings.columns if col_used_in_pareto(c)]
@@ -191,6 +272,7 @@ class PartialMappings:
             fill_reservation_cols: set | str = fzs(),
             check_above_subset_below: bool = CHECK_CORRECTNESS,
             max_right_to_left: bool = False,
+            free_to_loop_index: int = None,
         ):
         self._data: pd.DataFrame = data
         self.right_reservations: dict[set] = None
@@ -198,6 +280,9 @@ class PartialMappings:
         self.parents = []
         self._prev_free_to_loop_index = None
         self._make_reservations()
+
+        if free_to_loop_index is not None:
+            self.free_to_loop_index(free_to_loop_index)
         
         if fill_reservation_cols: # Affects PartialMappings so must go before
             self.fill_reservation_cols(fill_reservation_cols)
