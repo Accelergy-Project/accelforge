@@ -165,7 +165,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
         rank_a, index_a, is_symbol_a, choices_a = rank_var_and_choices.pop()
         rank_b, index_b, is_symbol_b, choices_b = rank_var_and_choices.pop()
 
-        print(f"With {len(rank_var_and_choices)} choices left, combining lengths {choices_a.shape[0]} and {choices_b.shape[0]} -> {choices_a.shape[0] * choices_b.shape[0]}")
+        # print(f"With {len(rank_var_and_choices)} choices left, combining lengths {choices_a.shape[0]} and {choices_b.shape[0]} -> {choices_a.shape[0] * choices_b.shape[0]}")
         combined_choices = np.concatenate(
             (
                 np.tile(choices_a, (choices_b.shape[0], 1)),
@@ -237,9 +237,14 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     for i in range(corrected_choices.shape[1])
                 ])
             )
+            # TODO: Remove this constraint
             mask = mask & (utilization[(component, dim)] <= 1.0)
             if np.any(mask & (utilization[(component, dim)] == 1)):
                 mask = mask & (utilization[(component, dim)] == 1)
+            else:
+                min_check = utilization[(component, dim)] + ~mask
+                min_utilization = np.min(min_check)
+                mask = mask & (min_check == min_utilization)
 
         good_choices = combined_choices[mask,:]
 
@@ -393,7 +398,6 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf]):
 
 
     return reuse.symbols, df, per_memory_usage_df, utilization_df
-
 
 def compile_dict(symbols, dictionary):
     return {
