@@ -13,22 +13,6 @@ renames:
       source: ~(input | output)
       injective: True
 
-  # - name: Q
-  #   tensor_accesses:
-  #   - name: weight
-  #     source: WQ
-  #     injective: True
-  # - name: K
-  #   tensor_accesses:
-  #   - name: weight
-  #     source: WK
-  #     injective: True
-  # - name: V
-  #   tensor_accesses:
-  #   - name: weight
-  #     source: WV
-  #     injective: True
-
   - name: I
     tensor_accesses:
     - name: weight
