@@ -1,7 +1,7 @@
 from collections import defaultdict
 from itertools import chain, combinations
 import copy
-from typing import List
+from typing import Callable, List
 
 from joblib import delayed
 import numpy as np
@@ -19,7 +19,7 @@ from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, PartialMappings, is_reservation_col
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload.workload import Einsum, RankVariableName, TensorName, Workload
+from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName, Workload
 from fastfusion.util.util import fzs, parallel
 
 def powerset(iterable):
@@ -84,7 +84,8 @@ def make_storage_choices_one_level(
         # Create storage nodes
         for t in keep_choice:
             storage_nodes.append(Storage(tensors=[t], memory=node.name, memory_object=node))
-            storage_nodes[-1]._must_exist = t in must_keep
+            if t in must_keep:
+                storage_nodes[-1]._must_keep_tensors = [t]
         yield storage_nodes, new_symbol_table
 
 def make_storage_choices_all_levels(
@@ -130,9 +131,9 @@ def valid_storage_order(mapping: List[MappingNode], node_names: list[str], requi
             # If a tensor is stored in two levels back-to-back, then we
             # should have bypassed the outer storage if possible.
             if i == j or i == j - 1:
-                if s1_idx < s2_idx and not (mapping[i]._must_exist or mapping[i]._backing):
+                if s1_idx < s2_idx and not ((set(mapping[i]._must_keep_tensors) & set(mapping[j].tensors)) or mapping[i]._backing):
                     return False
-                if s2_idx < s1_idx and not (mapping[j]._must_exist or mapping[j]._backing):
+                if s2_idx < s1_idx and not ((set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors)) or mapping[j]._backing):
                     return False
                 
             
@@ -205,6 +206,7 @@ def get_storage_choices(
                             parent_storage = new_storage
                         else:
                             parent_storage.tensors += new_storage.tensors
+                            parent_storage._must_keep_tensors += new_storage._must_keep_tensors
                     if parent_storage is not None:
                         all_storage_nodes.append(parent_storage)
                         order.append(parent_storage)
@@ -261,10 +263,9 @@ def insert_temporal_loops(
                 rank_variables -= set.intersection(*prev_relevant)
 
         # Only include loops that will index into the next block of storage nodes.
-        else:
-            next_relevant = [einsum.tensor2rank_variables[t] for s in cur for t in s.tensors]
-            rank_variables &= set.union(*next_relevant, set())
-                
+        next_relevant = [einsum.tensor2rank_variables[t] for s in cur for t in s.tensors]
+        rank_variables &= set.union(*next_relevant, set())
+            
         # If there are any tensors we haven't seen yet, we may only iterate over
         # their relevant rank variables.
         for t in einsum.tensors - seen_tensors:
@@ -357,6 +358,27 @@ def temporal_fused_constraint_thing_fix_me(mapping: List[MappingNode], rank_vari
         # print(indent + ", ".join(m.compact_string() for m in mapping_new))
         yield from temporal_fused_constraint_thing_fix_me(mapping_new, rank_variables)
 
+def temporal_constraint_2_fix_me(mapping: List[MappingNode], einsum: Einsum):
+    # Between two storage nodes for the same memory, pop all loops that index
+    # into the tensors for both storage nodes.
+    to_pop = set()
+    for i, node in enumerate(mapping):
+        for j, node2 in enumerate(mapping):
+            if i >= j:
+                continue
+            if not isinstance(node, Storage) or not isinstance(node2, Storage):
+                continue
+            if node.memory != node2.memory:
+                continue
+            rv1 = set.union(*(einsum.tensor2rank_variables[t] for t in node.tensors))
+            rv2 = set.union(*(einsum.tensor2rank_variables[t] for t in node2.tensors))
+            to_drop = rv1 & rv2
+            if not to_drop:
+                continue
+            for k in range(i+1, j):
+                if isinstance(mapping[k], Temporal) and mapping[k].rank_variable in to_drop:
+                    to_pop.add(k)
+    return [node for i, node in enumerate(mapping) if i not in to_pop]
 
 def iterate_mappings_no_constraints(
     spec: Specification,
@@ -383,6 +405,7 @@ def iterate_mappings_no_constraints(
         label_fused_loops(mapping)
         # print(", ".join(m.compact_string() for m in mapping))
         for mapping2 in temporal_fused_constraint_thing_fix_me(mapping, list(spec.workload.einsums[einsum_name].rank_variables)): # TODO
+            mapping2 = temporal_constraint_2_fix_me(mapping2, einsum)
             yield copy.deepcopy(mapping2), symbol_table
 
 # =================================================================================================
@@ -563,10 +586,9 @@ def drop_cols(mappings: DataFrame):
         name, loop_index = col2nameloop(col)
         if name == "LocalBuffer" or name == "Register":
             to_drop.append(col)
-    mappings.drop(columns=to_drop)
-    return mappings
+    return mappings.drop(columns=to_drop)
 
-def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_size: dict[RankVariableName, int], compatibility2sim: dict[Compatibility, SIM], intermediate_tensors: set[TensorName]):
+def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_size: dict[RankVariableName, int], intermediate_tensors: set[TensorName]):
     compatibility = make_compatibility(mapping, intermediate_tensors)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
         
@@ -574,47 +596,18 @@ def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_to_si
         
     if fused_loop_columns:
         groups = explored_results.groupby(fused_loop_columns)
-        # groups = [(_, mappings.drop(columns=fused_loop_columns)) for _, mappings in groups]
     else:
         groups = [((), explored_results)]
-    # return [(tile_shape, compatibility, mappings, mapping) for tile_shape, mappings in groups]
-
-    # def _getsim(tile_shape, mappings):
-    #     new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
-    #     mappings.drop(columns=fused_loop_columns, inplace=True)
-    #     mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
-    #     return SIM(new_compatibility, PartialMappings(mappings))
-    
-    # sims = parallel(
-    #     [
-    #         delayed(_getsim)(tile_shape, mappings)
-    #         for tile_shape, mappings in groups
-    #     ],
-    #     pbar=f"Generating SIMs",
-    # )
-    # for sim in sims:
-    #     add_to_compatibility2sim(compatibility2sim, sim)
-    # return compatibility2sim
-    # import time
-    # print(f'Making Pareto')
-    # start = time.time()
-    # # explored_results = makepareto_merge(explored_results, fused_loop_columns)
-    # print(f'Done making Pareto in {time.time() - start} seconds')
-    
-    # if fused_loop_columns:
-    #     groups = explored_results.groupby(fused_loop_columns)
-    # else:
-    #     groups = [((), explored_results)]
-
     compatibility2sim = {}
-    for tile_shape, mappings in groups:
+    for tile_shape, mappings in groups: #tqdm(groups, desc="Generating SIMs"):
         # Check for null loops
         new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
         mappings.drop(columns=fused_loop_columns, inplace=True)
-        mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
-        sim = SIM(new_compatibility, PartialMappings(mappings))
+        sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1))
+        sim.mappings.data[MAPPING_COLUMN] = [mapping] * len(sim.mappings.data)
         add_to_compatibility2sim(compatibility2sim, sim)
-    return compatibility2sim
+    
+    return list(compatibility2sim.values())
 
 # =================================================================================================
 # Top level
@@ -626,21 +619,21 @@ def _per_proc_compatibility2sim(
     rank_variable_to_size: dict[RankVariableName, int],
     intermediate_tensors: set[TensorName],
     flattend_arch: list[architecture.Leaf],
-) -> dict[Compatibility, SIM]:
-    compatibility2sim = {}
+    einsum_name: EinsumName,
+) -> tuple[str, dict[Compatibility, SIM]]:
     print(", ".join(m.compact_string() for m in mapping.nodes))
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
-    make_sims(mapping, result, rank_variable_to_size, compatibility2sim, intermediate_tensors)
-    return compatibility2sim
+    return einsum_name, make_sims(mapping, result, rank_variable_to_size, intermediate_tensors)
 
 def get_single_einsum_sims(
     spec: Specification,
-    einsum_name: str,
+    einsum_name: EinsumName,
     rank_variable_to_size: dict[RankVariableName, int],
     flattened_arch: list[architecture.Leaf] | None = None,
-) -> list[SIM]:
-    if einsum_name == "I":
-        return []
+    return_jobs: bool = False,
+) -> list[SIM] | list[Callable[[], tuple[str, list[SIM]]]]:
+    einsum_name = EinsumName(einsum_name)
+    
     compatibility2sim = {}
     workload = spec.workload
     intermediate_tensors = workload.intermediate_tensors()
@@ -651,41 +644,35 @@ def get_single_einsum_sims(
     mappings_constraints = list(iterate_mappings_constraints(spec,
                                                              einsum_name,
                                                              flattened_arch))
-    per_proc_compatibility2sim = parallel(
-        [
-            delayed(_per_proc_compatibility2sim)(mapping,
-                                                 constraints,
-                                                 spec,
-                                                 rank_variable_to_size,
-                                                 intermediate_tensors,
-                                                 flattened_arch)
-            for mapping, constraints in mappings_constraints
-        ],
+    
+    jobs = [
+        delayed(_per_proc_compatibility2sim)(
+            mapping,
+            constraints,
+            spec,
+            rank_variable_to_size,
+            intermediate_tensors,
+            flattened_arch,
+            einsum_name
+       )
+        for mapping, constraints in mappings_constraints
+    ][::-1]
+    
+    if return_jobs:
+        return jobs
+
+    jobs = parallel(
+        jobs,
         pbar=f"Generating pmappings for Einsum {einsum_name}",
+        return_as="generator"
     )
-    
-    # def makesim(tile_shape, compatibility, mappings, mapping):
-    #     new_compatibility = compatibility.populate_tile_shape(tile_shape, rank_variable_to_size)
-    #     mappings[MAPPING_COLUMN] = [mapping] * len(mappings)
-    #     return SIM(new_compatibility, PartialMappings(mappings))
-    
-    # sims = parallel(
-    #     [
-    #         delayed(makesim)(tile_shape, compatibility, mappings, mapping)
-    #         for tile_shape, compatibility, mappings, mapping in per_proc_sims
-    #     ],
-    #     pbar=f"Generating SIMs for Einsum {einsum_name}",
-    # )
-    
-    # for sim in sims:
-    #     add_to_compatibility2sim(compatibility2sim, sim)
-    
-    
-    for compatibility2sim_proc in per_proc_compatibility2sim:
-        for sim in compatibility2sim_proc.values():
+    compatibility2sim = {}
+    for _, sims in parallel(
+        jobs,
+        pbar=f"Generating pmappings for Einsum {einsum_name}",
+        return_as="generator"
+    ):
+        for sim in sims:
             add_to_compatibility2sim(compatibility2sim, sim)
-    
-    # for i, (mapping, constraints) in enumerate(tqdm(mappings_constraints)):
-    #     result = dummy_tile_shape_exploration(mapping, workload, constraints)
-    #     make_sims(mapping, result, rank_variable_to_size, compatibility2sim)
+            
     return list(compatibility2sim.values())
