@@ -34,7 +34,7 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: ~MainMemory.tensors()
+        keep: ~MainMemory.tensors() | input | output
     actions:
     - {name: read, arguments: {energy: 7.53}}
     - {name: write, arguments: {energy: 9.44}}
@@ -61,6 +61,9 @@ architecture:
           - expression: All().rank_variables()
             operator: product<=
             value: 16
+          - expression: weight.rank_variables()
+            operator: ==
+            value: 1
     actions:
     - {name: read, arguments: {energy: 3.98}}
     - {name: write, arguments: {energy: 4.69}}
@@ -92,11 +95,17 @@ architecture:
           - expression: input.rank_variables()
             operator: ==
             value: 1
+          - expression: ~(input.rank_variables())
+            operator: product==
+            value: 128
         - dimension: Y # Reduced rank. No iteration over outputs
           loop_bounds:
           - expression: output.rank_variables()
             operator: ==
             value: 1
+          - expression: ~(output.rank_variables())
+            operator: product==
+            value: 128
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
