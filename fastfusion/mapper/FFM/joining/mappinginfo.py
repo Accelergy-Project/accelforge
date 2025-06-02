@@ -237,7 +237,7 @@ class Compatibility(Updatable):
         )
 
     def populate_tile_shape(
-        self, tile_shape: list[int], rank_variable_to_size: dict[RankVariableName, int]
+        self, tile_shape: list[int], rank_variable_bounds: dict[RankVariableName, int]
     ) -> "Compatibility":
         new_loops = []
         storages = []
@@ -246,7 +246,7 @@ class Compatibility(Updatable):
         assert len(tile_shape) == len(self.loops)
 
         for i, (t, l) in enumerate(zip(tile_shape, self.loops)):
-            prev_size = rank_variable_to_size[l.rank_variable]
+            prev_size = rank_variable_bounds[l.rank_variable]
             if i > 0:
                 prev_loop = next(
                     iter(
@@ -275,7 +275,7 @@ class Compatibility(Updatable):
     # null_loops = []
     # for i, t in enumerate(tile_shape):
     #     this_loop = loops[i]
-    #     prev_size = rank_variable_to_size[this_loop.rank_variable]
+    #     prev_size = rank_variable_bounds[this_loop.rank_variable]
     #     if i > 0:
     #         prev_loop = next(iter(l for l in loops[i-1::-1] if l.rank_variable == this_loop.rank_variable), None)
     #         if prev_loop is not None:
