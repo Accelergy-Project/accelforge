@@ -1,13 +1,13 @@
 mapping:
   nodes:
   - {type: Storage, tensors: [I, AV, Z, FFB], memory: Global Buffer}
-  - type: Split2
+  - type: Split
     nodes:
     - type: Nested # Q, K, V, QK, AV
       nodes:
       - {type: Temporal, rank_variable: h, loop_bound: 1}
       - {type: Storage, tensors: [Q, K, V], memory: Global Buffer}
-      - type: Split2
+      - type: Split
         nodes:
         - type: Nested # Q
           nodes:
@@ -31,7 +31,7 @@ mapping:
           nodes:
           - {type: Temporal, rank_variable: p, loop_bound: 1}
           - {type: Storage, tensors: [QK], memory: Global Buffer}
-          - type: Split2
+          - type: Split
             nodes:
             - {type: Compute, einsum: QK}
             - {type: Compute, einsum: AV}
@@ -48,7 +48,7 @@ mapping:
       nodes:
       - {type: Temporal, rank_variable: nFFA, loop_bound: 1}
       - {type: Storage, tensors: [FFA], memory: Global Buffer}
-      - type: Split2
+      - type: Split
         nodes:
         - type: Nested # FFA
           nodes:
