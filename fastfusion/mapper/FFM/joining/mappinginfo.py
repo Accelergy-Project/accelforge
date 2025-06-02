@@ -2,9 +2,10 @@ from collections import defaultdict
 from dataclasses import dataclass, replace
 from numbers import Number
 from typing import Any, NamedTuple, Union
-from fastfusion.frontend.workload.workload import RankVariableName
 
-# from fastfusion.tags import Tags
+from fastfusion.frontend.workload.workload import RankVariableName
+from fastfusion.mapper.FFM.tags import Tags
+
 from fastfusion.util import expfmt, fzs
 
 # Abstractions:
@@ -120,7 +121,7 @@ class TensorStorage(Reservation):
 class Compatibility(Updatable):
     loops: tuple[Loop, ...]
     storage: fzs[TensorStorage]
-    # tags: Tags = Tags(fzs())
+    tags: Tags = Tags(fzs())
 
     def __post_init__(self):
         assert isinstance(self.storage, fzs)
@@ -172,7 +173,7 @@ class Compatibility(Updatable):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Compatibility(loops={self.loops.__repr__()}, storage={self.storage.__repr__()})"  # , tags={self.tags.__repr__()})"
+        return f"Compatibility(loops={repr(self.loops)}, storage={repr(self.storage)}), tags={repr(self.tags)}"
 
     def merge_next(
         self, right: "Compatibility", live_tensors: set[str]

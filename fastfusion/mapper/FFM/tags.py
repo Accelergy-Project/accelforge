@@ -1,3 +1,15 @@
+"""
+These classes may be useful when constraining joining pmappings. For example,
+if pmapping A is compatible with any other with the same dataflow (say,
+dataflow DA), and pmapping B is conly compatible with pmappings with dataflow
+DA and untiled weights in the global buffer, we can tag pmapping A with {DA}
+and pmapping B with {DA, untiled_weights}.
+
+It is often useful to compare tags that are "compatible" and tags that "match".
+Moreover, we may want to use either "compatibility" or "matching" as comparison
+for creating a dictionary. For convenience, one can use TagMatch and
+TagCompatibility as classes for the keys.
+"""
 from fastfusion.util import fzs
 
 

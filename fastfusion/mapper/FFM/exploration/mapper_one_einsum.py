@@ -22,6 +22,7 @@ from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName, Workload
 from fastfusion.util.util import fzs, parallel
+from fastfusion.mapper.FFM.tags import Tags
 
 def powerset(iterable):
     s = list(iterable)
@@ -535,7 +536,11 @@ def iterate_mappings_constraints(
 # =================================================================================================
 # Make sims
 # =================================================================================================
-def make_compatibility(mapping: Mapping, intermediate_tensors: set[TensorName]):
+def make_compatibility(
+    mapping: Mapping,
+    intermediate_tensors: set[TensorName],
+    tagger: Callable[[Mapping, set[TensorName]], Tags] | None = None
+) -> Compatibility:
     compatibility = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
     reservations = {}
@@ -568,9 +573,16 @@ def make_compatibility(mapping: Mapping, intermediate_tensors: set[TensorName]):
                         size=0 # TODO: Get size
                     )
                 )
+
+    if tagger is None:
+        tags = Tags()
+    else:
+        tags = tagger(mapping, intermediate_tensors)
+
     compatibility = Compatibility(
         loops=tuple(compatibility_loops),
-        storage=fzs(compatibility_reservations)
+        storage=fzs(compatibility_reservations),
+        tags=tags,
     )
     return compatibility
 
@@ -579,7 +591,9 @@ def add_to_compatibility2sim(compatibility2sim: dict[Compatibility, SIM], sim: S
     if sim.compatibility not in compatibility2sim:
         compatibility2sim[sim.compatibility] = sim
     prev = compatibility2sim[sim.compatibility]
-    
+
+    # Make columns in previous and current SIM match (by adding empty column)
+    # if not a reservation column.
     for col in prev.mappings.data.columns:
         if col not in sim.mappings.data.columns:
             if not is_reservation_col(col):
@@ -617,8 +631,11 @@ def drop_cols(mappings: DataFrame):
             to_drop.append(col)
     return mappings.drop(columns=to_drop)
 
-def make_sims(mapping: Mapping, explored_results: DataFrame, rank_variable_bounds: dict[RankVariableName, int], intermediate_tensors: set[TensorName]):
-    compatibility = make_compatibility(mapping, intermediate_tensors)
+def make_sims(mapping: Mapping,
+              explored_results: DataFrame,
+              rank_variable_bounds: dict[RankVariableName, int],
+              intermediate_tensors: set[TensorName], tagger=None):
+    compatibility = make_compatibility(mapping, intermediate_tensors, tagger=tagger)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
         
     explored_results = drop_cols(explored_results)
@@ -649,10 +666,11 @@ def _per_proc_compatibility2sim(
     intermediate_tensors: set[TensorName],
     flattend_arch: list[architecture.Leaf],
     einsum_name: EinsumName,
+    tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM]]:
     print(", ".join(m.compact_string() for m in mapping.nodes))
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
-    return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors)
+    return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger)
 
 def get_single_einsum_sims(
     spec: Specification,
@@ -660,6 +678,7 @@ def get_single_einsum_sims(
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     flattened_arch: list[architecture.Leaf] | None = None,
     return_jobs: bool = False,
+    tagger: Callable[[Mapping, set[TensorName]], Tags] | None = None,
 ) -> list[SIM] | list[Callable[[], tuple[str, list[SIM]]]]:
     einsum_name = EinsumName(einsum_name)
     
@@ -672,7 +691,7 @@ def get_single_einsum_sims(
 
     if flattened_arch is None:
         flattened_arch = spec.get_flattened_architecture()
-    
+
     mappings_constraints = list(iterate_mappings_constraints(spec,
                                                              einsum_name,
                                                              flattened_arch))
@@ -685,7 +704,8 @@ def get_single_einsum_sims(
             rank_variable_bounds,
             intermediate_tensors,
             flattened_arch,
-            einsum_name
+            einsum_name,
+            tagger
        )
         for mapping, constraints in mappings_constraints
     ]
