@@ -4,6 +4,7 @@ from .workload import Workload, TensorName, Einsum
 
 
 def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:
+    """Return isl.Set of all operations in an einsum."""
     einsum_shape = workload.get_shape_isl_string(einsum_name)
     rank_variable_names = ','.join(
         map(str, workload.einsums[einsum_name].rank_variables)
@@ -31,6 +32,7 @@ def get_rank_variable_bounds(
     workload: Workload,
     einsum_name: str
 ) -> dict[str, int]:
+    """Return dictionary mapping rank variable name to bound."""
     operation_space = get_einsum_operation_space(workload, einsum_name)
     dim_shapes = get_dim_bounds(operation_space)
     return {
@@ -41,6 +43,7 @@ def get_rank_variable_bounds(
 
 
 def get_projection_multi_aff(einsum: Einsum, tensor: TensorName) -> isl.MultiAff:
+    """Return isl.MultiAff of projection from einsum to tensor."""
     rank_variables = einsum.rank_variables
     projection = einsum.tensor_accesses[tensor].projection
 
@@ -54,6 +57,7 @@ def get_projection_multi_aff(einsum: Einsum, tensor: TensorName) -> isl.MultiAff
 
 
 def get_projection_map(einsum: Einsum, tensor: TensorName) -> isl.Map:
+    """Return isl.Map of projection from einsum to tensor."""
     return get_projection_multi_aff(einsum, tensor).as_map()
 
 
@@ -88,6 +92,7 @@ def get_tensor_data_space(workload: Workload, tensor: TensorName) -> isl.Set:
 
 
 def get_tensor_size(workload: Workload, tensor: TensorName):
+    """Get the size (num. of elements) of a tensor."""
     data_space = get_tensor_data_space(workload, tensor)
     card_pwqp = data_space.card()
     return card_pwqp.eval(card_pwqp.domain().sample_point()).to_python()
