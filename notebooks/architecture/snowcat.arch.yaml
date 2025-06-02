@@ -1,0 +1,61 @@
+variables:
+  global_cycle_seconds: 1e-9
+  technology: "7nm"
+
+architecture:
+  version: "0.5"
+  nodes:
+  - !Memory
+    name: MainMemory
+    component_class: DRAM
+    attributes:
+      size: 9999999999999
+      datawidth: 1
+      area: 1
+    constraints:
+      storage:
+        keep: ~Intermediates()
+    actions:
+    - {name: read, arguments: {energy: 1}}
+    - {name: write, arguments: {energy: 1}}
+    - {name: leak, arguments: {energy: 0}}
+
+  - !Memory
+    name: GlobalBuffer
+    component_class: SRAM
+    attributes:
+      size: 9999999999999
+      datawidth: 1
+      area: 1
+    constraints:
+      storage:
+        keep: ~MainMemory.tensors()
+    actions:
+    - {name: read, arguments: {energy: 0}}
+    - {name: write, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
+
+  - !Memory
+    name: Register
+    component_class: SRAM
+    attributes:
+      size: 3
+      datawidth: 1
+      area: 1
+    constraints:
+      storage:
+        keep: All()
+      dataflow:
+        storage_order: [All()] # No uneven. Put all tensors at the same level.
+    actions:
+    - {name: read, arguments: {energy: 0}}
+    - {name: write, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
+
+  - !Compute
+    name: MAC
+    component_class: intmac
+    attributes: {area: 1}
+    actions:
+    - {name: compute, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
