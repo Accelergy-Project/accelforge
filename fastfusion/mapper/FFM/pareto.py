@@ -206,6 +206,13 @@ def quickpareto(df: pd.DataFrame) -> pd.DataFrame:
     mask = np.zeros(original_len, dtype=bool)
     mask[df.index] = True
     return mask
+
+from fast_pareto import is_pareto_front
+def makepareto_quick2(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.DataFrame:
+    columns = [c for c in mappings.columns if col_used_in_pareto(c)]
+    m2 = mappings[columns]
+    m2 = m2[is_pareto_front(m2.to_numpy())].drop_duplicates()
+    return mappings.loc[m2.index]
     
 def makepareto_quick(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.DataFrame:
     columns = [c for c in mappings.columns if col_used_in_pareto(c)]
@@ -236,7 +243,7 @@ def makepareto_time_compare(mappings: pd.DataFrame, extra_columns: set[str] = fz
     print(f"Time to make pareto with merge: {t1 - t0: .2f}. Number of pareto points: {len(pareto)}")
     
     t0 = time.time()
-    pareto2 = makepareto_quick(mappings, extra_columns)
+    pareto2 = makepareto_quick2(mappings, extra_columns)
     t1 = time.time()
     print(f"Time to make pareto with quick: {t1 - t0: .2f}. Number of pareto points: {len(pareto2)}")
     quick_time = t1 - t0
@@ -245,13 +252,14 @@ def makepareto_time_compare(mappings: pd.DataFrame, extra_columns: set[str] = fz
     
     if len(pareto) != len(pareto2):
         print(f"mismatch: {len(pareto)} != {len(pareto2)}")
-        makepareto_quick(mappings, extra_columns)
-    
+        makepareto_quick2(mappings, extra_columns)
+        
     return pareto2
 
 
 def makepareto(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.DataFrame:
-    return makepareto_merge(mappings, extra_columns)
+    # return makepareto_time_compare(mappings, extra_columns)
+    return makepareto_quick2(mappings, extra_columns)
     if len(mappings) <= 1:
         return mappings
     columns = [c for c in mappings.columns if col_used_in_pareto(c)]
