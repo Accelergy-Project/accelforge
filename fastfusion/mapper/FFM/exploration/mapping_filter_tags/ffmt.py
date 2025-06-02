@@ -1,3 +1,5 @@
+from fastfusion.frontend.mapping import Iteration, Temporal
+
 from .util import get_fused_loops_per_tensor
 
 
@@ -71,6 +73,14 @@ def get_ffmt_mha_tag(pmapping, intermediate_tensors, non_fused_memory):
         "FFB": [C, J]
     }
 
+    rank_var_permutation = []
+    for node in pmapping:
+        if isinstance(node, Iteration):
+            if not isinstance(node, Temporal):
+                raise RuntimeError('get_ffmt_mha_tag should not be used for '
+                                   'anything other than Snowcat')
+            rank_var_permutation.append(node.rank_variable)
+
     tensor_to_n_fused_loops = get_fused_loops_per_tensor(pmapping,
                                                          intermediate_tensors,
                                                          non_fused_memory)
@@ -123,17 +133,16 @@ def get_ffmt_mha_tag(pmapping, intermediate_tensors, non_fused_memory):
     if einsum_name in FFMT_CANNOT_FUSE:
         return (FFMT_INVALID,)
 
+    # Rank variable order and the n_loops for (input, output)
     prefix_choices = [
         ([B, H], (2, 2))
     ]
 
-    unfused = False
+    # Rank variable order and the n_loops for (input, output)
     extra_rank_choices = [
         ([M], (1, 1)),
     ]
-    if first and last:
-        unfused = True
-    elif first:
+    if first:
         if output_rank is not None:
             extra_rank_choices.append((
                 [M, output_rank],
@@ -162,35 +171,30 @@ def get_ffmt_mha_tag(pmapping, intermediate_tensors, non_fused_memory):
                 (2, 1)
             ))
 
-    for prefix_permutation, prefix_storage in prefix_choices:
-        for extra_permutation, extra_storage in extra_rank_choices:
+    for prefix_permutation, prefix_n_loops in prefix_choices:
+        for extra_permutation, extra_n_loops in extra_rank_choices:
             permutation = prefix_permutation + extra_permutation
-            input_storage = prefix_storage[0] + extra_storage[0]
-            output_storage = prefix_storage[1] + extra_storage[1]
+            input_n_loops = prefix_n_loops[0] + extra_n_loops[0]
+            output_n_loops = prefix_n_loops[1] + extra_n_loops[1]
             untiled_weight_idx = len(prefix_permutation)
 
-            check_tensors = [
-                TensorStorage(input_tensor, input_storage, 1, "*"),
-                TensorStorage(output_tensor, output_storage, 1, "*")
-            ]
+            permutation_matches = True
+            for rank_var, ref_rank_var in zip(rank_var_permutation, permutation):
+                if rank_var != ref_rank_var:
+                    permutation_matches = False
+                    break
 
-            if not tiling.matches_permutation(permutation):
-                continue
-            if not tiling.has_tensor(*check_tensors):
-                continue
-
-            # INVARIANCE: at this point, loops[0] must be over batch
-            # and loops[1] must be over heads
-            if tiling.loops[0].bound != 1:   # TODO: `bound` should be `shape`
-                continue
-            if tiling.loops[1].bound != 1:
+            if not permutation_matches:
                 continue
 
-            weight_untiled = (
-                min_weight_idx == untiled_weight_idx
-                and
-                max_weight_idx == untiled_weight_idx
-            )
+            if tensor_to_n_fused_loops[input_tensor] != input_n_loops:
+                continue
+            if tensor_to_n_fused_loops[output_tensor] != output_n_loops:
+                continue
+
+            weight_untiled = (min_weight_idx == untiled_weight_idx
+                              and
+                              max_weight_idx == untiled_weight_idx)
             if weight_untiled:
                 return (FFMT_VALID, FFMT_WEIGHT_UNTILED)
             elif min_weight_idx >= max_non_weight_idx:
