@@ -293,21 +293,27 @@ class Workload(ParsableModel):
                 space_name=f"rank_variables",
             )
                 
-        kwargs = dict(
+        kwargs_tensors = dict(
             full_space=all_,
             space_name=f"tensors",
             child_access_name="rank_variables",
             element_to_child_space=element_to_child_space,
         )
+        kwargs_rank_variables = dict(
+            full_space=all_rank_variables,
+            space_name=f"rank_variables",
+        )
         symbol_table = {
-            "Nothing": InvertibleSet(instance=(), **kwargs),
-            "All": InvertibleSet(instance=all_, **kwargs),
-            "Inputs": InvertibleSet(instance=inputs, **kwargs),
-            "Outputs": InvertibleSet(instance=outputs, **kwargs),
-            "Intermediates": InvertibleSet(instance=intermediates, **kwargs),
-            "Shared": InvertibleSet(instance=shared, **kwargs),
-            **{t: InvertibleSet(instance=(t,), **kwargs) for t in all_},
+            "Nothing": InvertibleSet(instance=(), **kwargs_tensors),
+            "All": InvertibleSet(instance=all_, **kwargs_tensors),
+            "Inputs": InvertibleSet(instance=inputs, **kwargs_tensors),
+            "Outputs": InvertibleSet(instance=outputs, **kwargs_tensors),
+            "Intermediates": InvertibleSet(instance=intermediates, **kwargs_tensors),
+            "Shared": InvertibleSet(instance=shared, **kwargs_tensors),
+            **{t: InvertibleSet(instance=(t,), **kwargs_tensors) for t in all_},
+            **{r: InvertibleSet(instance=(r,), **kwargs_rank_variables) for r in all_rank_variables},
         }
+
         
         if renames is not None:
             rename = renames.get_renames_for_einsum(einsum_name)
@@ -322,6 +328,11 @@ class Workload(ParsableModel):
                     e.add_field(einsum_name)
                     e.add_field(name)
                     raise
+            for rename_rank_variable in rename.rank_variables:
+                name = rename_rank_variable.name
+                source = rename_rank_variable.source
+                injective = rename_rank_variable.injective
+                symbol_table[name] = eval_set_expression(source, symbol_table, "rank_variables", injective=injective)
                 
         for rank_variable in einsum.rank_variables:
             symbol_table[rank_variable] = InvertibleSet(instance=(rank_variable,), space_name="rank_variables", full_space=einsum.rank_variables)
