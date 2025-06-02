@@ -1,26 +1,14 @@
-from fastfusion.frontend.mapping import Storage, Iteration
-
+from .util import get_fused_loops_per_tensor
 
 def get_one_split_tag(pmapping, intermediate_tensors, non_fused_memory):
-    tensor_to_n_fused_loops = {t: None for t in intermediate_tensors}
-    n_loops = 0
-    for node in pmapping:
-        if isinstance(node, Storage):
-            for tensor in node.tensors:
-                if (
-                    tensor not in intermediate_tensors
-                    or tensor in tensor_to_n_fused_loops
-                ):
-                    continue
-                if node.memory == non_fused_memory:
-                    tensor_to_n_fused_loops[tensor] = None
-                else:
-                    tensor_to_n_fused_loops[tensor] = n_loops
-        elif isinstance(node, Iteration):
-            n_loops += 1
+    tensor_to_n_fused_loops = get_fused_loops_per_tensor(pmapping,
+                                                         intermediate_tensors,
+                                                         non_fused_memory)
 
-    # Unfused
-    if all(t is None for t in tensor_to_n_fused_loops.values()):
+    unfused = all(n is None
+                  for t, n in tensor_to_n_fused_loops.items()
+                  if t in intermediate_tensors)
+    if unfused:
         return ("ONE_SPLIT",)
 
     # Fused with one side but not the other. We don't want to interfere with the
