@@ -1,13 +1,16 @@
+import itertools
 from pathlib import Path
 import pickle
 from typing import Optional
+
+from joblib import delayed
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
-from fastfusion.frontend.workload.workload import EinsumName, RankVariableName
-from fastfusion.mapper.FFM.exploration.mapper_one_einsum import get_single_einsum_sims, add_to_compatibility2sim
-from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility
+from fastfusion.frontend.workload.workload import EinsumName
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum import concat_sims, get_single_einsum_sims
 from fastfusion.mapper.FFM.joining.sim import SIM
+from fastfusion.mapper.FFM.pareto import DecompressData
 from fastfusion.util.util import parallel
 
 def get_rank_variable_bounds_for_all_einsums(spec: Specification):
@@ -31,7 +34,7 @@ def get_sims(
     spec: Specification,
     flattened_architecture: Optional[list[architecture.Leaf]] = None,
     parallelize_einsums = True,
-) -> dict[EinsumName, list[SIM]]:
+) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
     if not parallelize_einsums:
         sims = {}
@@ -47,7 +50,6 @@ def get_sims(
         return sims
 
 
-    sims = {einsum_name: {} for einsum_name in spec.workload.einsum_names}
     jobs = []
     for einsum_name in spec.workload.einsum_names:
         jobs.extend(get_single_einsum_sims(
@@ -58,14 +60,27 @@ def get_sims(
             return_jobs=True,
         ))
     
+    sims = {einsum_name: {} for einsum_name in spec.workload.einsum_names}
     for einsum_name, new_sims in parallel(
         jobs,
         pbar="Generating SIMs",
-        return_as="generator"
+        return_as="generator_unordered"
     ):
         target = sims[einsum_name]
-        for sim in new_sims:
-            add_to_compatibility2sim(target, sim)
+        for compatibility, ns in new_sims.items():
+            target.setdefault(compatibility, []).extend(ns)
+            
+    return concat_sims(sims)
+            
+    # allsims = [(s, einsum_name) for einsum_name, c2sim in sims.items() for s in c2sim.values()]
+    # decompress_data = compress(allsims)
+            
+        
+        # for sim in new_sims:
+        #     # target.setdefault(sim.compatibility, []).append(sim)
+        #     add_to_compatibility2sim(target, sim)
+            
+    
         
     return {einsum_name: list(sims.values()) for einsum_name, sims in sims.items()}
         

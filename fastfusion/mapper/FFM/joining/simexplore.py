@@ -6,7 +6,7 @@ import pandas as pd
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
-from fastfusion.mapper.FFM.pareto import VALID, PartialMappings, CompressedRecoveryMap
+from fastfusion.mapper.FFM.pareto import VALID, PartialMappings, DecompressData
 from fastfusion.util import fzs, parallel, debugger_active
 
 
@@ -111,24 +111,6 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
     return full_equivalent_rank_variables
 
 
-def compress(sims: dict[str, list[SIM]]) -> CompressedRecoveryMap:
-    if not isinstance(sims, dict):
-        raise TypeError(f"Expected dict, got {type(sims)}")
-    # sims_flattened = list(itertools.chain.from_iterable(sims.values()))
-    sims_flattened = (
-        (s, einsum_name)
-        for einsum_name, sim_list in sims.items()
-        for s in sim_list
-    )
-    
-    return PartialMappings.compress_paretos([(s.mappings, einsum_name) for s, einsum_name in sims_flattened])
-
-simlist: TypeAlias = list[Union[SIM, PartialMappings]]
-
-def decompress(recovery_map: CompressedRecoveryMap, data: PartialMappings, prefix: list[str] = None):
-    if not isinstance(data, PartialMappings):
-        raise TypeError(f"Expected PartialMappings, got {type(data)}")
-    PartialMappings.decompress_paretos([data], recovery_map, prefix)
 
 def join_sims(
     sims: dict[str, list[SIM]],
@@ -155,7 +137,7 @@ def join_sims(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
-    # recovery_map = compress(sims)
+    # decompress_data = compress(sims)
 
     resource2capacity = {}
     for l in flattened_architecture:
@@ -444,7 +426,7 @@ def join_sims(
     t0 = time.time()
     left = SIM.left_consolidate(left, None, pbar="Final consolidate")
     s_final = SIM.combine_combineable(left, set())  # , drop_tags=True)
-    # decompress(recovery_map, s_final, prefix=spec.workload.einsum_names)
+    # decompress(decompress_data, s_final, prefix=spec.workload.einsum_names)
     assert len(s_final) == 1
     mappings = s_final[0].mappings
     data = mappings.data
@@ -482,3 +464,23 @@ def join_sims_no_either(*args, **kwargs):
     if len(args[0]) > 16:
         args[0] = {k: v for k, v in list(args[0].items())[:2]}
     return join_sims(*args, skip_invalid=False, combine_reservations=False, **kwargs)
+
+def compress_sims(sims: dict[str, list[SIM]] | list[tuple[str, SIM]]) -> DecompressData:
+    if not isinstance(sims, (dict, list)):
+        raise TypeError(f"Expected dict or list, got {type(sims)}")
+    if isinstance(sims, dict):
+        sims_flattened = (
+            (s, einsum_name)
+            for einsum_name, sim_list in sims.items()
+            for s in sim_list
+        )
+    else:
+        sims_flattened = sims
+    return PartialMappings.compress_paretos([(s.mappings, einsum_name) for s, einsum_name in sims_flattened])
+
+simlist: TypeAlias = list[Union[SIM, PartialMappings]]
+
+def decompress_sims(data: PartialMappings, decompress_data: DecompressData, prefix: list[str] = None):
+    if not isinstance(data, PartialMappings):
+        raise TypeError(f"Expected PartialMappings, got {type(data)}")
+    PartialMappings.decompress_paretos([data], decompress_data, prefix)

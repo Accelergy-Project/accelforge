@@ -268,9 +268,9 @@ def makepareto(mappings: pd.DataFrame, extra_columns: set[str] = fzs()) -> pd.Da
     sense += ["diff"] * len(extra_columns)
     return mappings[paretoset(mappings[columns], sense=sense)].reset_index(drop=True)
     
-class CompressedRecoveryMap(NamedTuple):
+class DecompressData(NamedTuple):
     multiplier: int
-    recovery_map: dict[int, pd.DataFrame]
+    decompress_data: dict[int, pd.DataFrame]
 
 class PartialMappings:
     def __init__(
@@ -675,6 +675,7 @@ class PartialMappings:
         required_cols = set.union(*[set(p.data.columns) for p in paretos])
         shared_cols = set.intersection(*[set(p.data.columns) for p in paretos])
         fill_cols = required_cols - shared_cols
+        fill_cols = [c for c in fill_cols if col_used_in_pareto(c)]
         
         p = PartialMappings(
             pd.concat([p.data for p in paretos]).fillna(0),
@@ -851,7 +852,7 @@ class PartialMappings:
             self.data.rename(columns={"data_source_index": f"{prefix}_data_source_index"}, inplace=True)
         return recovery
 
-    def _decompress_data(self, recovery_map: CompressedRecoveryMap, prefix: str | list[str] = None):
+    def _decompress_data(self, decompress_data: DecompressData, prefix: str | list[str] = None):
         if isinstance(prefix, str):
             prefix = [prefix]
         
@@ -863,12 +864,12 @@ class PartialMappings:
             dfs = []
             prev_len = len(self.data)
             
-            self.data["_recovery_key"] = self.data[src_idx_col] % recovery_map.multiplier
+            self.data["_recovery_key"] = self.data[src_idx_col] % decompress_data.multiplier
             
             for recovery_key, recovery_df in self.data.groupby("_recovery_key"):
                 recovery_df = pd.merge(
                     recovery_df,
-                    recovery_map.recovery_map[recovery_key],
+                    decompress_data.decompress_data[recovery_key],
                     on=[src_idx_col],
                     how="left"
                 )
@@ -879,24 +880,23 @@ class PartialMappings:
                 f"Decompressed data has {len(self.data)} rows, expected {prev_len}"
 
     @classmethod
-    def compress_paretos(cls, paretos: list[tuple["PartialMappings", str]]) -> CompressedRecoveryMap:
+    def compress_paretos(cls, paretos: list[tuple["PartialMappings", str]]) -> DecompressData:
         multiplier = len(paretos)
         
         def _compress(pareto, offset):
             pareto, prefix = pareto
             assert isinstance(prefix, str)
-            recovery_map = pareto._compress_data(prefix, offset, multiplier)
-            return recovery_map, pareto
+            decompress_data = pareto._compress_data(prefix, offset, multiplier)
+            return decompress_data, pareto
 
-        result = parallel([delayed(_compress)(p, i) for i, p in enumerate(paretos)], pbar="Compressing PartialMappings", return_as="generator")
-        recovery_map = [None] * len(paretos)
-        for offset, ((p, _), (r, new_p)) in enumerate(zip(paretos, result)):
-            recovery_map[offset] = r
+        decompress_data = [None] * len(paretos)
+        for offset, ((p, _), (r, new_p)) in enumerate(zip(paretos, parallel([delayed(_compress)(p, i) for i, p in enumerate(paretos)], pbar="Compressing Partial Mappings", return_as="generator"))):
+            decompress_data[offset] = r
             p._data = new_p.data
-        return CompressedRecoveryMap(multiplier, recovery_map)
+        return DecompressData(multiplier, decompress_data)
 
     @classmethod
-    def decompress_paretos(cls, paretos: list["PartialMappings"], recovery_map: CompressedRecoveryMap, prefix: str | list[str] = None):
+    def decompress_paretos(cls, paretos: list["PartialMappings"], decompress_data: DecompressData, prefix: str | list[str] = None):
         for p in paretos:
-            p._decompress_data(recovery_map, prefix=prefix)
+            p._decompress_data(decompress_data, prefix=prefix)
             

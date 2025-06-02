@@ -1,6 +1,7 @@
 from collections import defaultdict
 from itertools import chain, combinations
 import copy
+import itertools
 from typing import Callable, List
 
 from joblib import delayed
@@ -17,6 +18,7 @@ from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
+from fastfusion.mapper.FFM.joining.simexplore import compress_sims
 from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, PartialMappings, is_reservation_col
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
@@ -659,13 +661,32 @@ def make_sims(mapping: Mapping,
         sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1))
         sim.mappings.data[MAPPING_COLUMN] = [mapping] * len(sim.mappings.data)
         for equivalent_sim in get_equivalent_sims(sim):
-            add_to_compatibility2sim(compatibility2sim, equivalent_sim)
+            compatibility2sim.setdefault(equivalent_sim.compatibility, []).append(equivalent_sim)
     
-    return list(compatibility2sim.values())
+    return compatibility2sim
 
 # =================================================================================================
 # Top level
 # =================================================================================================
+def _concat_sims(einsum_name: EinsumName, sims: list[SIM]):
+    return einsum_name, SIM.concat(sims)
+
+def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
+    to_compress = {
+        einsum_name: list(itertools.chain.from_iterable(compatibility2sim.values()))
+        for einsum_name, compatibility2sim in sims.items()
+    }
+    decompress_data = compress_sims(to_compress)
+    to_pack = [
+        delayed(_concat_sims)(einsum_name, compatibility2sim)
+        for einsum_name, compatibility2sim in sims.items()
+        for compatibility2sim in compatibility2sim.values()
+    ]
+    sims = {}
+    for einsum_name, sim in parallel(to_pack, pbar="Concatenating SIMs"):
+        sims.setdefault(einsum_name, []).append(sim)
+    return sims, decompress_data
+
 def _per_proc_compatibility2sim(
     mapping: Mapping,
     constraints: list[Comparison],
@@ -720,14 +741,27 @@ def get_single_einsum_sims(
     
     if return_jobs:
         return jobs
-
-    compatibility2sim = {}
-    for _, sims in parallel(
+    
+    sims = {}
+    for einsum_name, new_sims in parallel(
         jobs,
-        pbar=f"Generating pmappings for Einsum {einsum_name}",
-        return_as="generator"
+        pbar="Generating SIMs",
+        return_as="generator_unordered"
     ):
-        for sim in sims:
-            add_to_compatibility2sim(compatibility2sim, sim)
+        for compatibility, ns in new_sims.items():
+            sims.setdefault(compatibility, []).extend(ns)
+                        
+    return concat_sims({einsum_name: sims})
+
+
+    # compatibility2sim = {}
+    # for _, sims in parallel(
+    #     jobs,
+    #     pbar=f"Generating pmappings for Einsum {einsum_name}",
+    #     return_as="generator"
+    # ):
+    #     pass
+    #     # for sim in sims:
+    #     #     compatibility2sim.setdefault(sim.compatibility, []).append(sim)
             
-    return list(compatibility2sim.values())
+    # return list(compatibility2sim.values())
