@@ -16,13 +16,13 @@ def get_one_split_tag(pmapping, intermediate_tensors, non_fused_memory) -> Tags:
                   for t, n in tensor_to_n_fused_loops.items()
                   if t in intermediate_tensors)
     if unfused:
-        return Tags((ONE_SPLIT,))
+        return Tags()  # unfused is compatible with anything
 
-    # Fused with one side but not the other. We don't want to interfere with the
-    # unfused side, so just go ONE_SPLIT. The number of loops will be enforced
-    # by the tiling since it must match for the one fused tensor.
-    if len(tensor_to_n_fused_loops) == 1:
-        return Tags((ONE_SPLIT,))
+    # # Fused with one side but not the other. We don't want to interfere with the
+    # # unfused side, so just go ONE_SPLIT. The number of loops will be enforced
+    # # by the tiling since it must match for the one fused tensor.
+    # if len(tensor_to_n_fused_loops) == 1:
+    #     return Tags((ONE_SPLIT,))
     
     # Fused with both sides. Make sure that the number of loops is the same.
     unique_loops = set(t for t in tensor_to_n_fused_loops.values() if t is not None)

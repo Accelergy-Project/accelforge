@@ -160,7 +160,7 @@ class SIM:
         keep_loops: bool = False,
         every_possible_n_loops: bool = False,
         keep_tensors: set[str] = None,
-        # drop_tags: bool = False,
+        drop_tags: bool = False,
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
@@ -168,7 +168,7 @@ class SIM:
                 live_tensors,
                 keep_loops=keep_loops or every_possible_n_loops,
                 keep_tensors=keep_tensors,
-                # drop_tags=drop_tags,
+                drop_tags=drop_tags,
             )
             if every_possible_n_loops:
                 compatibility = compatibility.all_n_loops()
@@ -184,7 +184,7 @@ class SIM:
         sims: list["SIM"],
         live_tensors: set[str],
         allow_different_compatibilitys: bool = False,
-        # drop_tags: bool = False,
+        drop_tags: bool = False,
         combine_reservations: bool = True,
     ) -> list["SIM"]:
         no_combine = []
@@ -192,7 +192,7 @@ class SIM:
             has_reservations = [s.mappings.has_reservations() for s in sims]
             no_combine = [s for s, h in zip(sims, has_reservations) if h]
             sims = [s for s, h in zip(sims, has_reservations) if not h]
-        groups = list(SIM._group(sims, live_tensors).values())  # , drop_tags=drop_tags
+        groups = list(SIM._group(sims, live_tensors, drop_tags=drop_tags).values())
         groups_with_one = [g[0] for g in groups if len(g) == 1]
         if len(groups_with_one) == len(groups):
             return groups_with_one + no_combine
@@ -226,18 +226,20 @@ class SIM:
 
     @staticmethod
     def group_left(
-        sims: list["SIM"], live_tensors: set[str]  # , drop_tags: bool = False
+        sims: list["SIM"], live_tensors: set[str], drop_tags: bool = False
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors, keep_loops=True)  # , drop_tags=drop_tags
+        return SIM._group(sims, live_tensors, keep_loops=True, drop_tags=drop_tags)
 
     @staticmethod
     def group_right(
-        sims: list["SIM"], live_tensors: set[str]  # , drop_tags: bool = False
+        sims: list["SIM"], live_tensors: set[str],
+        drop_tags: bool = False,
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         return SIM._group(
             sims,
             live_tensors,
-            every_possible_n_loops=True,  # drop_tags=drop_tags
+            every_possible_n_loops=True,
+            drop_tags=drop_tags,
         )
 
     @staticmethod

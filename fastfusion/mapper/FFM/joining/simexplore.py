@@ -212,7 +212,7 @@ def join_sims(
         )
         if i > 0:
             sim_holder.sims = SIM.group_right(
-                sim_holder.sims, left_tensors  # , drop_tags=True
+                sim_holder.sims, left_tensors, drop_tags=True
             )
         einsum, prev_einsum = sim_holder.einsum_name, sims[i - 1].einsum_name
         runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
@@ -264,7 +264,7 @@ def join_sims(
 
         print_time(f"Combining")
         # Group left and right into buckets
-        left = SIM.group_left(left, right_tensors)  # , drop_tags=True)
+        left = SIM.group_left(left, right_tensors, drop_tags=True)
         print_time("Grouping")
 
         # ======================================================================
@@ -295,8 +295,8 @@ def join_sims(
             ):
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
                     if (
-                        True
-                    ):  # a.compatibility.tags.are_compatible_with(b.compatibility.tags):
+                        a.compatibility.tags.are_compatible_with(b.compatibility.tags)
+                    ):
                         found = True
                         combined.append(
                             a.merge_next(
@@ -338,7 +338,7 @@ def join_sims(
             next_right_rank_variables = spec.workload.einsums[
                 sims[0].einsum_name
             ].rank_variables
-            combined = SIM.group_left(combined, next_right_tensors)  # , drop_tags=True)
+            combined = SIM.group_left(combined, next_right_tensors, drop_tags=True)
             for k in list(combined):
                 translations = get_possible_translations(
                     k,
@@ -425,7 +425,7 @@ def join_sims(
     # ======================================================================
     t0 = time.time()
     left = SIM.left_consolidate(left, None, pbar="Final consolidate")
-    s_final = SIM.combine_combineable(left, set())  # , drop_tags=True)
+    s_final = SIM.combine_combineable(left, set(), drop_tags=True)
     # decompress(decompress_data, s_final, prefix=spec.workload.einsum_names)
     assert len(s_final) == 1
     mappings = s_final[0].mappings

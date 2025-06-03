@@ -270,10 +270,7 @@ class Nested(MappingNodeWithChildren):
             raise ValueError(
                 f"Could not find shared backing storage node between {self} and {other}"
             )
-                
-        
-        
-        
+
 
 class Pipeline(Split):
     pass
@@ -321,24 +318,35 @@ class Mapping(Nested):
     def get_fused_slice(self, intermediate_tensors: set[TensorName]) -> "Mapping":
         """
         Return a mapping with:
-        - All backing storage nodes for intermediate tensors
-        - Loop nodes above any backing storage nodes
+        - All backing reservation nodes for intermediate tensors
+        - Loop nodes above any backing reservation nodes
         """
+        # All intermediate tensors that can be found in this mapping
+        # Note: `intermediate_tensors` may be for **whole workload**.
+        relevant_intermediate_tensors = set()
+        for node in self.nodes:
+            if isinstance(node, Storage):
+                for tensor in node.tensors:
+                    if tensor in intermediate_tensors:
+                        relevant_intermediate_tensors.add(tensor)
+
         fused_slice = Mapping(nodes=[])
-        seen_tensors = set()
         to_add = []
         for node in self.nodes:
             new_node = copy.deepcopy(node)
-            if isinstance(new_node, Storage):
-                tensors = set(new_node.tensors) & intermediate_tensors
-                if tensors - seen_tensors:
-                    fused_slice.nodes.extend(to_add + [new_node])
-                    to_add = []
-                    seen_tensors.update(tensors)
+            if isinstance(new_node, Reservation):
+                tensor = new_node.tensor
+                if tensor not in relevant_intermediate_tensors:
+                    continue
+                fused_slice.nodes.extend(to_add + [new_node])
+                to_add = []
+                relevant_intermediate_tensors.remove(tensor)
+                if len(relevant_intermediate_tensors) == 0:
+                    break
             else:
                 to_add.append(new_node)
         return fused_slice
-    
+
     @property
     def loops(self) -> list[Iteration]:
         return [node for node in self.nodes if isinstance(node, Iteration)]

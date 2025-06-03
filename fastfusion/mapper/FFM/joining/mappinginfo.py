@@ -127,7 +127,7 @@ class Compatibility(Updatable):
     def __post_init__(self):
         assert isinstance(self.storage, fzs)
         assert isinstance(self.loops, tuple)
-        # assert isinstance(self.tags, Tags)
+        assert isinstance(self.tags, Tags)
 
     def get_backing_levels(self) -> dict[str, int]:
         backings = {}
@@ -155,8 +155,17 @@ class Compatibility(Updatable):
         live_tensors: set[str],
         keep_loops: bool = False,
         keep_tensors: set[str] = None,
-        # drop_tags: bool = False,
+        drop_tags: bool = False,
     ) -> "Compatibility":
+        """
+        Return a new compatibility with "dead" tensors removed by:
+        1. keeping only loops relevant to `live_tensors` and
+        2. keeping only `live_tensors`.
+
+        Behavior can be further customized:
+        - If `keep_loops` is `True`, then all loops are kept.
+        - If `keep_tensors` is a set, tensors in the set are kept.
+        """
         loops = (
             self.loops
             if keep_loops
@@ -164,8 +173,8 @@ class Compatibility(Updatable):
         )
         keep_tensors = keep_tensors if keep_tensors is not None else live_tensors
         tensors = fzs(t for t in self.storage if t.name in keep_tensors)
-        # tags = self.tags if not drop_tags else Tags(fzs())
-        return Compatibility(loops, tensors)  # , tags)
+        tags = self.tags if not drop_tags else Tags(fzs())
+        return Compatibility(loops, tensors, tags)
 
     def __lt__(self, other):
         return (self.loops, self.storage) < (other.loops, other.storage)
@@ -192,7 +201,7 @@ class Compatibility(Updatable):
         return Compatibility(
             tuple(merged_loops + list(additional_loops))[: shared_loop_index + 1],
             tensors,
-            # right.tags,
+            right.tags,
         )
 
     def rename(
@@ -202,6 +211,7 @@ class Compatibility(Updatable):
             self,
             loops=tuple(l.rename(rank_renaming) for l in self.loops),
             storage=fzs(t.rename(tensor_renaming) for t in self.storage),
+            tags=self.tags,
         )
 
     def matches_permutation(self, permutation: list[str]) -> bool:
@@ -234,7 +244,7 @@ class Compatibility(Updatable):
     def all_n_loops(self) -> list["Compatibility"]:
         min_loops = max(t.above_loop_index for t in self.storage)
         return list(
-            Compatibility(self.loops[:i], self.storage)  # , self.tags)
+            Compatibility(self.loops[:i], self.storage, self.tags)
             for i in range(min_loops, len(self.loops) + 1)
         )
 

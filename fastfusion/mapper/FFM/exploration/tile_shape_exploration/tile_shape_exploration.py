@@ -97,7 +97,7 @@ def explore_tile_shapes(pmapping, constraints, specification: Specification, fla
         df[key] = compiled_df[key](*tile_shapes)
 
     rval = pd.DataFrame(df)
-    print(f'Returning df: {rval.shape}')
+    # print(f'Returning df: {rval.shape}')
     return rval
 
 def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specification):
@@ -267,7 +267,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
     # Invert indices
     indices = invert_indices(inverted_indices)
 
-    print(f"Returning choices of shape {choices[:,indices].shape}")
+    # print(f"Returning choices of shape {choices[:,indices].shape}")
 
     return choices[:,indices], is_symbol[indices]
 

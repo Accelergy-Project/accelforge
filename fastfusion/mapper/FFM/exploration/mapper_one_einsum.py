@@ -12,6 +12,7 @@ from tqdm import tqdm
 from fastfusion.frontend import constraints
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.mapping import Iteration, Mapping, MappingNode, Storage, Temporal, Spatial, Compute, ModelOnlyNode
+from fastfusion.frontend.mapping import Reservation as ReservationNode
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.architecture import Leaf
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
@@ -19,7 +20,7 @@ from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_til
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.joining.simexplore import compress_sims, DecompressData
-from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col
+from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName, Workload
@@ -545,18 +546,21 @@ def make_compatibility(
     intermediate_tensors: set[TensorName],
     tagger: Callable[[Mapping], Tags] | None = None
 ) -> Compatibility:
-    compatibility = mapping.get_fused_slice(intermediate_tensors)
+    fused_slice = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
-    reservations = {}
-    for node in compatibility.nodes:
+    reservations: dict[int, list[ReservationNode]] = {}
+    for node in fused_slice.nodes:
         if isinstance(node, Iteration):
             fused_loops.append(node)
-        elif isinstance(node, Storage):
+        elif isinstance(node, ReservationNode):
             reservations.setdefault(len(fused_loops), []).append(node)
         elif isinstance(node, ModelOnlyNode):
             continue
+        elif isinstance(node, Storage):
+            continue
         else:
             raise ValueError(f"Unexpected node type: {type(node)}")
+
     compatibility_loops = []
     for loop in fused_loops:
         loop = Loop(
@@ -566,17 +570,16 @@ def make_compatibility(
         )
         compatibility_loops.append(loop)
     compatibility_reservations = []
-    for above_loop_index, storages in reservations.items():
-        for storage in storages:
-            for t in storage.tensors:
-                compatibility_reservations.append(
-                    Reservation(
-                        name=t,
-                        above_loop_index=above_loop_index,
-                        resource_name=storage.memory,
-                        size=0 # TODO: Get size
-                    )
+    for above_loop_index, reservation_nodes in reservations.items():
+        for reservation in reservation_nodes:
+            compatibility_reservations.append(
+                Reservation(
+                    name=reservation.tensor,
+                    above_loop_index=above_loop_index,
+                    resource_name=reservation.memory,
+                    size=0 # TODO: Get size
                 )
+            )
 
     if tagger is None:
         tags = Tags()
@@ -688,6 +691,7 @@ def make_sims(mapping: Mapping,
         sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops)-1))
         assert mapping is not None
         sim.mappings.data[MAPPING_COLUMN] = [mapping] * len(sim.mappings.data)
+        sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
         for equivalent_sim in get_equivalent_sims(sim):
             compatibility2sim.setdefault(equivalent_sim.compatibility, []).append(equivalent_sim)
     
@@ -767,7 +771,7 @@ def get_single_einsum_sims(
     
     if return_jobs:
         return jobs
-    
+
     sims = {}
     for einsum_name, new_sims in parallel(
         jobs,
