@@ -395,12 +395,17 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
     # If any rank variables are missing, add them as high as possible.
     rank_variables = set(einsum.rank_variables)
     for m in mapping:
-        if isinstance(m, Temporal):
+        if isinstance(m, Temporal) and not m._fused:
             rank_variables.discard(m.rank_variable)
             
-    insert_point = 0
-    while insert_point < len(mapping) and not isinstance(mapping[insert_point], Temporal):
-        insert_point += 1
+    # insert_point = 0
+    # while insert_point < len(mapping) and not isinstance(mapping[insert_point], Temporal):
+    #     insert_point += 1
+    # Insert point: Right under the last backing storage
+    for i in range(len(mapping)-1, -1, -1):
+        if isinstance(mapping[i], Storage) and mapping[i]._backing:
+            insert_point = i + 1
+            break
 
     temporals = [
         Temporal(rank_variable=r, tile_shape='symbol')
@@ -412,6 +417,19 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
     else:
         for t in temporals:
             mapping.insert(insert_point, t)
+    # mapping.extend(copy.deepcopy(temporals))
+    
+    seen = set()
+    # for i in range(len(mapping) - 1, -1, -1):
+    #     if isinstance(mapping[i], Storage):
+    #         if mapping[i]._backing:
+    #             break
+    #         seen = set()
+    #     if isinstance(mapping[i], Temporal):
+    #         if mapping[i].rank_variable in seen:
+    #             mapping.pop(i)
+    #         else:
+    #             seen.add(mapping[i].rank_variable)
 
 def iterate_mappings_no_constraints(
     spec: Specification,
@@ -643,6 +661,7 @@ def drop_cols(mappings: DataFrame):
     return mappings.drop(columns=to_drop)
 
 def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indices: set[int]):
+    prev = copy.deepcopy(mappings) # TODO: Is this needed?
     target2newabovename = {}
     dropcols = []
     for c in mappings.columns:
@@ -653,8 +672,10 @@ def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indic
         target = nameloop2col(name, new_above)
         if target in target2newabovename:
             if above > target2newabovename[target][1]:
-                dropcols.append(nameloop2col(name, above))
+                dropcols.append(nameloop2col(*target2newabovename[target]))
                 target2newabovename[target] = (name, above)
+            else:
+                dropcols.append(c)
         else:
             target2newabovename[target] = (name, above)
 
@@ -663,14 +684,25 @@ def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indic
     for target, (name, above) in target2newabovename.items():
         renames[nameloop2col(name, above)] = target
     mappings.rename(columns=renames, inplace=True)
+    if len(mappings.columns) != len(mappings.columns.unique()):
+        shift_reservations_by_null_loop_indices(prev, null_loop_indices)
+        raise ValueError(f"Duplicate columns: {mappings.columns}")
+    assert len(mappings.columns) == len(mappings.columns.unique())
     return mappings
 
+# def matches_storage_order(mapping: Mapping, storage_order: list[str]):
+#     found = [s.tensor for s in mapping.nodes if isinstance(s, Storage)]
+#     return len(found) >= len(storage_order) and all(s1 == s2 for s1, s2 in zip(found, storage_order))
+
+# def has_tensors(mapping: Mapping, tensors: list[TensorName]):
+#     found = set(s.tensor for s in mapping.nodes if isinstance(s, Storage))
+#     return found >= set(tensors)
 
 def make_sims(mapping: Mapping,
               explored_results: DataFrame,
               rank_variable_bounds: dict[RankVariableName, int],
               intermediate_tensors: set[TensorName],
-              tagger: Callable[[Mapping], Tags] =  None):
+              tagger: Callable[[Mapping], Tags] =  None):    
     compatibility = make_compatibility(mapping, intermediate_tensors, tagger=tagger)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
         
@@ -681,14 +713,28 @@ def make_sims(mapping: Mapping,
     else:
         groups = [((), explored_results)]
     compatibility2sim = {}
+    
+    # if matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
+    #     print(mapping.nodes)
 
-    for tile_shape, mappings in groups: #tqdm(groups, desc="Generating SIMs"):
+    for tile_shape, mappings in list(groups)[::-1]: #tqdm(groups, desc="Generating SIMs"):
         # Check for null loops
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds)
+        # if has_tensors(mapping, ["T1", "T2", "W1"]) and not matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
+        #     continue
+        # if has_tensors(mapping, ["T1", "T2", "W1"]) and not matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
+        #     continue
+        # if has_tensors(mapping, ["T2", "T3", "W2"]) and not matches_storage_order(mapping, ["T3", "W2", "T2"]) and not matches_storage_order(mapping, ["W2", "T3", "T2"]):
+        #     continue
+        # if has_tensors(mapping, ["T3", "T4", "W3"]) and not matches_storage_order(mapping, ["T4", "W3", "T3"]) and not matches_storage_order(mapping, ["W3", "T4", "T3"]):
+        #     continue
+        # if has_tensors(mapping, ["T2", "T3", "W2"]):
+        #     print("AH")
+        
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
         # mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
         # mappings.drop(columns=fused_loop_columns, inplace=True)
-        sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops)-1))
+        sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops)))#-1))
         assert mapping is not None
         sim.mappings.data[MAPPING_COLUMN] = [mapping] * len(sim.mappings.data)
         sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
@@ -704,11 +750,18 @@ def _concat_sims(einsum_name: EinsumName, sims: list[SIM]):
     return einsum_name, SIM.concat(sims)
 
 def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
-    to_compress = {
-        einsum_name: list(itertools.chain.from_iterable(compatibility2sim.values()))
-        for einsum_name, compatibility2sim in sims.items()
-    }
-    decompress_data = compress_sims(to_compress)
+    to_decompress = {}
+    for einsum_name, sims2 in sims.items():
+        target = to_decompress.setdefault(einsum_name, [])
+        seen = set()
+        for s3 in sims2.values():
+            for s in s3:
+                if id(s.mappings) in seen:
+                    s.mappings = s.mappings.copy()
+                    s.mappings._data = s.mappings.data.copy()
+                seen.add(id(s.mappings))
+                target.append(s)
+    decompress_data = compress_sims(to_decompress)
     to_pack = [
         delayed(_concat_sims)(einsum_name, compatibility2sim)
         for einsum_name, compatibility2sim in sims.items()
@@ -717,6 +770,17 @@ def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
     sims: dict[EinsumName, list[SIM]] = {}
     for einsum_name, sim in parallel(to_pack, pbar="Concatenating SIMs"):
         sims.setdefault(einsum_name, []).append(sim)
+        
+    # to_decompress = {}
+    # for einsum_name, sims2 in sims.items():
+    #     target = to_decompress.setdefault(einsum_name, [])
+    #     seen = set()
+    #     for s in sims2:
+    #         if id(s.mappings) in seen:
+    #             continue
+    #         seen.add(id(s.mappings))
+    #         target.append(s)
+    # decompress_data = compress_sims(to_decompress)
     return sims, decompress_data
 
 def _per_proc_compatibility2sim(
@@ -729,6 +793,11 @@ def _per_proc_compatibility2sim(
     einsum_name: EinsumName,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM]]:
+    # print(f", ".join(m.compact_string() for m in mapping.nodes))
+    # s = ", ".join(m.compact_string() for m in mapping.nodes)
+    # import re
+    # if re.search(r"MainMemory W1.*GlobalBuffer T1.*GlobalBuffer T2.*GlobalBuffer W1", s):
+    #     print(s)
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
     return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger)
 
@@ -754,7 +823,7 @@ def get_single_einsum_sims(
     mappings_constraints = list(iterate_mappings_constraints(spec,
                                                              einsum_name,
                                                              flattened_arch))
-    
+
     jobs = [
         delayed(_per_proc_compatibility2sim)(
             mapping,
