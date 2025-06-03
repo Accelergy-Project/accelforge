@@ -18,7 +18,7 @@ from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.joining.simexplore import compress_sims
+from fastfusion.mapper.FFM.joining.simexplore import compress_sims, DecompressData
 from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
@@ -543,7 +543,7 @@ def iterate_mappings_constraints(
 def make_compatibility(
     mapping: Mapping,
     intermediate_tensors: set[TensorName],
-    tagger: Callable[[Mapping, set[TensorName]], Tags] | None = None
+    tagger: Callable[[Mapping], Tags] | None = None
 ) -> Compatibility:
     compatibility = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
@@ -581,7 +581,7 @@ def make_compatibility(
     if tagger is None:
         tags = Tags()
     else:
-        tags = tagger(mapping, intermediate_tensors)
+        tags = tagger(mapping)
 
     compatibility = Compatibility(
         loops=tuple(compatibility_loops),
@@ -666,7 +666,8 @@ def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indic
 def make_sims(mapping: Mapping,
               explored_results: DataFrame,
               rank_variable_bounds: dict[RankVariableName, int],
-              intermediate_tensors: set[TensorName], tagger=None):
+              intermediate_tensors: set[TensorName],
+              tagger: Callable[[Mapping], Tags] =  None):
     compatibility = make_compatibility(mapping, intermediate_tensors, tagger=tagger)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
         
@@ -712,7 +713,7 @@ def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
         for einsum_name, compatibility2sim in sims.items()
         for compatibility2sim in compatibility2sim.values()
     ]
-    sims = {}
+    sims: dict[EinsumName, list[SIM]] = {}
     for einsum_name, sim in parallel(to_pack, pbar="Concatenating SIMs"):
         sims.setdefault(einsum_name, []).append(sim)
     return sims, decompress_data
@@ -727,7 +728,6 @@ def _per_proc_compatibility2sim(
     einsum_name: EinsumName,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM]]:
-    print(", ".join(m.compact_string() for m in mapping.nodes))
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
     return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger)
 
@@ -737,8 +737,8 @@ def get_single_einsum_sims(
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     flattened_arch: list[architecture.Leaf] | None = None,
     return_jobs: bool = False,
-    tagger: Callable[[Mapping, set[TensorName]], Tags] | None = None,
-) -> list[SIM] | list[Callable[[], tuple[str, list[SIM]]]]:
+    tagger: Callable[[Mapping], Tags] | None = None,
+) -> list[SIM] | tuple[dict[EinsumName, dict[Compatibility, list[SIM]]], DecompressData]:
     einsum_name = EinsumName(einsum_name)
     
     if rank_variable_bounds is None:

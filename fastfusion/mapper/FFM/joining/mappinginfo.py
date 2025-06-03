@@ -271,7 +271,7 @@ class Compatibility(Updatable):
             above -= sum(above > i for i in null_loop_indices)
             storages.append(s.update(above_loop_index=above))
 
-        return Compatibility(tuple(new_loops), fzs(storages))
+        return Compatibility(tuple(new_loops), fzs(storages), self.tags)
 
     def _permute(
         self,

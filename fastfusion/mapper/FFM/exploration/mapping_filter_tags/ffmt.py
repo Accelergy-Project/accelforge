@@ -1,4 +1,5 @@
 from fastfusion.frontend.mapping import Iteration, Temporal
+from fastfusion.mapper.FFM.tags import Tags
 
 from .util import get_fused_loops_per_tensor
 
@@ -39,7 +40,7 @@ def get_ffmt_matmul_tag(pmapping, intermediate_tensors, non_fused_memory):
                         for t, n in tensor_to_n_fused_loops
                         if t in intermediate_tensors)
     if untiled_fused:
-        return (FFMT_VALID, )
+        return Tags((FFMT_VALID, ))
 
     min_weight_idx, max_weight_idx, max_non_weight_idx = float('inf'), 0, 0
     max_weight_idx = 0
@@ -53,10 +54,10 @@ def get_ffmt_matmul_tag(pmapping, intermediate_tensors, non_fused_memory):
 
     weight_untiled = min_weight_idx == 0 and max_weight_idx == 0
     if weight_untiled:
-        return (FFMT_VALID, FFMT_WEIGHT_UNTILED)
+        return Tags((FFMT_VALID, FFMT_WEIGHT_UNTILED))
     elif min_weight_idx >= max_non_weight_idx:
-        return (FFMT_VALID, FFMT_WEIGHT_TILED)
-    return (FFMT_INVALID,)
+        return Tags((FFMT_VALID, FFMT_WEIGHT_TILED))
+    return Tags((FFMT_INVALID,))
 
 
 def get_ffmt_mha_tag(pmapping, intermediate_tensors, non_fused_memory):
@@ -89,8 +90,8 @@ def get_ffmt_mha_tag(pmapping, intermediate_tensors, non_fused_memory):
                   if t in intermediate_tensors)
     if einsum_name not in EINSUM_NAME_TO_REDUCED_RANK_OUTPUT_RANK:
         if unfused:
-            return (FFMT_VALID,)
-        return (FFMT_INVALID,)
+            return Tags((FFMT_VALID,))
+        return Tags((FFMT_INVALID,))
 
     reduced_rank, output_rank = EINSUM_NAME_TO_REDUCED_RANK_OUTPUT_RANK[einsum_name]
 
@@ -127,11 +128,11 @@ def get_ffmt_mha_tag(pmapping, intermediate_tensors, non_fused_memory):
 
     unfused = first and last
     if unfused:
-        return (FFMT_VALID,)
+        return Tags((FFMT_VALID,))
 
     FFMT_CANNOT_FUSE = {"K", "V"}
     if einsum_name in FFMT_CANNOT_FUSE:
-        return (FFMT_INVALID,)
+        return Tags((FFMT_INVALID,))
 
     # Rank variable order and the n_loops for (input, output)
     prefix_choices = [
@@ -196,8 +197,8 @@ def get_ffmt_mha_tag(pmapping, intermediate_tensors, non_fused_memory):
                               and
                               max_weight_idx == untiled_weight_idx)
             if weight_untiled:
-                return (FFMT_VALID, FFMT_WEIGHT_UNTILED)
+                return Tags((FFMT_VALID, FFMT_WEIGHT_UNTILED))
             elif min_weight_idx >= max_non_weight_idx:
-                return (FFMT_VALID, FFMT_WEIGHT_TILED)
+                return Tags((FFMT_VALID, FFMT_WEIGHT_TILED))
 
-    return (FFMT_INVALID,)
+    return Tags((FFMT_INVALID,))
