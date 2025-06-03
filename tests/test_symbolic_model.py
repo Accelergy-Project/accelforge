@@ -9,7 +9,7 @@ from fastfusion.frontend.workload import Workload
 from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions, Accesses
 from fastfusion.model.looptree.energy import gather_actions
 from fastfusion.model.looptree.latency import get_latency
-from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse, Compute
+from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse, Compute, Buffet
 
 
 class TestSymbolicModel(unittest.TestCase):
@@ -30,6 +30,23 @@ class TestSymbolicModel(unittest.TestCase):
 
         self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].total_ops, 120.0)
         self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].max_per_unit_ops, 10.0)
+
+    def test_matmul_mapping(self):
+        mapping = Mapping.from_yaml(Path(__file__).parent / 'matmul.mapping.yaml')
+        workload = Workload.from_yaml(Path(__file__).parent / 'matmul.workload.yaml')
+
+        result = analyze_reuse(mapping, workload)
+
+        REF_OCCUPANCY = {
+            'W0': 1,
+            'T0': 128,
+            'T1': 128*128
+        }
+        for tensor, ref_occupancy in REF_OCCUPANCY.items():
+            self.assertEqual(
+                result.buffet_stats[Buffet(tensor, 'Matmul1', 'LocalBuffer')].occupancy,
+                ref_occupancy
+            )
 
 
 class TestSymbolicAccesses(unittest.TestCase):
