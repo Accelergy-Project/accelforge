@@ -74,7 +74,7 @@ def get_sims(
         target = sims[einsum_name]
         for compatibility, ns in new_sims.items():
             target.setdefault(compatibility, []).extend(ns)
-            
+
     return concat_sims(sims)
             
     # allsims = [(s, einsum_name) for einsum_name, c2sim in sims.items() for s in c2sim.values()]

@@ -12,6 +12,7 @@ from tqdm import tqdm
 from fastfusion.frontend import constraints
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.mapping import Iteration, Mapping, MappingNode, Storage, Temporal, Spatial, Compute, ModelOnlyNode
+from fastfusion.frontend.mapping import Reservation as ReservationNode
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.architecture import Leaf
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
@@ -545,18 +546,21 @@ def make_compatibility(
     intermediate_tensors: set[TensorName],
     tagger: Callable[[Mapping], Tags] | None = None
 ) -> Compatibility:
-    compatibility = mapping.get_fused_slice(intermediate_tensors)
+    fused_slice = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
-    reservations = {}
-    for node in compatibility.nodes:
+    reservations: dict[int, list[ReservationNode]] = {}
+    for node in fused_slice.nodes:
         if isinstance(node, Iteration):
             fused_loops.append(node)
-        elif isinstance(node, Storage):
+        elif isinstance(node, ReservationNode):
             reservations.setdefault(len(fused_loops), []).append(node)
         elif isinstance(node, ModelOnlyNode):
             continue
+        elif isinstance(node, Storage):
+            continue
         else:
             raise ValueError(f"Unexpected node type: {type(node)}")
+
     compatibility_loops = []
     for loop in fused_loops:
         loop = Loop(
@@ -566,17 +570,16 @@ def make_compatibility(
         )
         compatibility_loops.append(loop)
     compatibility_reservations = []
-    for above_loop_index, storages in reservations.items():
-        for storage in storages:
-            for t in storage.tensors:
-                compatibility_reservations.append(
-                    Reservation(
-                        name=t,
-                        above_loop_index=above_loop_index,
-                        resource_name=storage.memory,
-                        size=0 # TODO: Get size
-                    )
+    for above_loop_index, reservation_nodes in reservations.items():
+        for reservation in reservation_nodes:
+            compatibility_reservations.append(
+                Reservation(
+                    name=reservation.tensor,
+                    above_loop_index=above_loop_index,
+                    resource_name=reservation.memory,
+                    size=0 # TODO: Get size
                 )
+            )
 
     if tagger is None:
         tags = Tags()
