@@ -1,16 +1,16 @@
-import itertools
 from pathlib import Path
-import pickle
-from typing import Optional
+from typing import Callable, Optional
 
 from joblib import delayed
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
+from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum import concat_sims, get_single_einsum_sims
 from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import DecompressData
+from fastfusion.mapper.FFM.tags import Tags
 from fastfusion.util.util import parallel
 
 def get_rank_variable_bounds_for_all_einsums(spec: Specification):
@@ -34,18 +34,22 @@ def get_sims(
     spec: Specification,
     flattened_architecture: Optional[list[architecture.Leaf]] = None,
     parallelize_einsums = True,
+    tagger: Callable[[Mapping], Tags] | None = None,
 ) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
+
+    if flattened_architecture is None:
+        flattened_architecture = spec.get_flattened_architecture()
+
     if not parallelize_einsums:
         sims = {}
-        if flattened_architecture is None:
-            flattened_architecture = spec.get_flattened_architecture()
         for einsum_name in spec.workload.einsum_names:
             sims[einsum_name] = get_single_einsum_sims(
                 spec,
                 einsum_name,
                 rank_variable_bounds,
                 flattened_architecture,
+                tagger=tagger,
             )
         return sims
 
@@ -57,6 +61,7 @@ def get_sims(
             einsum_name,
             rank_variable_bounds,
             flattened_architecture,
+            tagger=tagger,
             return_jobs=True,
         ))
     

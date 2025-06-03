@@ -192,7 +192,7 @@ class Compatibility(Updatable):
         return Compatibility(
             tuple(merged_loops + list(additional_loops))[: shared_loop_index + 1],
             tensors,
-            # right.tags,
+            right.tags,
         )
 
     def rename(

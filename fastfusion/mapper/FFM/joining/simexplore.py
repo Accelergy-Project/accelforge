@@ -295,8 +295,8 @@ def join_sims(
             ):
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
                     if (
-                        True
-                    ):  # a.compatibility.tags.are_compatible_with(b.compatibility.tags):
+                        a.compatibility.tags.are_compatible_with(b.compatibility.tags)
+                    ):
                         found = True
                         combined.append(
                             a.merge_next(
