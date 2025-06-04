@@ -3,7 +3,7 @@ import unittest
 
 from fastfusion.frontend import Specification
 
-from fastfusion.mapper.FFM.exploration.mapper_one_einsum import get_single_einsum_sims
+from fastfusion.mapper.FFM.exploration.mapper_multi_einsum import get_sims
 from fastfusion.mapper.FFM.exploration.mapping_filter_tags import get_one_split_tag
 from fastfusion.mapper.FFM.exploration.mapping_filter_tags.onesplit import ONE_SPLIT
 from fastfusion.mapper.FFM.tags import Tags, TagMatch
@@ -27,7 +27,7 @@ class TestExploration(unittest.TestCase):
         einsum = workload.einsums[einsum_name]
         rank_variables = einsum.rank_variables
 
-        sims, decompress_data = get_single_einsum_sims(spec, "Q")
+        sims, decompress_data = get_sims(spec, einsum_names=[einsum_name])
 
     def test_mha_with_tags(self):
         spec = Specification.from_yaml(

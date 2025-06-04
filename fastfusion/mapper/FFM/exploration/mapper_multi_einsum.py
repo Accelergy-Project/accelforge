@@ -35,6 +35,7 @@ def get_sims(
     flattened_architecture: Optional[list[architecture.Leaf]] = None,
     parallelize_einsums = True,
     tagger: Callable[[Mapping], Tags] | None = None,
+    einsum_names: Optional[list[EinsumName]] = None,
 ) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
@@ -55,7 +56,8 @@ def get_sims(
 
 
     jobs = []
-    for einsum_name in spec.workload.einsum_names:
+    einsum_names = einsum_names or spec.workload.einsum_names
+    for einsum_name in einsum_names:
         jobs.extend(get_single_einsum_sims(
             spec,
             einsum_name,
