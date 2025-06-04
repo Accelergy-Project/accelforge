@@ -9,7 +9,10 @@ def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:
     rank_variable_names = ','.join(
         map(str, workload.einsums[einsum_name].rank_variables)
     )
-    return isl.Set(f'{{ [{rank_variable_names}] : {einsum_shape} }}')
+    try:
+        return isl.Set(f'{{ [{rank_variable_names}] : {einsum_shape} }}')
+    except:
+        raise Exception(f"Error creating isl.Set for {einsum_name}: {einsum_shape}")
 
 
 def get_dim_bounds(isl_set: isl.Set) -> list[int]:
