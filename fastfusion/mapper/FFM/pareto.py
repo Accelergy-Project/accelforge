@@ -266,6 +266,7 @@ def makepareto(mappings: pd.DataFrame, columns: list[str] = None) -> pd.DataFram
 class DecompressData(NamedTuple):
     multiplier: int
     decompress_data: dict[int, pd.DataFrame]
+    id2mapping: dict[int, pd.DataFrame] = None
 
 class PartialMappings:
     def __init__(
@@ -880,21 +881,25 @@ class PartialMappings:
                     # validate="many_to_one"
                 )
                 # Check for missing data after merge
-                if f"{p}_MAPPING" not in recovery_df.columns:
-                    print(f"Missing {p}_MAPPING for recovery_key {recovery_key}")
-                    print(recovery_df.columns)
-                if recovery_df[f"{p}__MAPPING"].isna().any():
-                    raise ValueError(f"Missing data found during decompression for recovery_key {recovery_key}")
-                if recovery_df[src_idx_col].isna().any():
-                    raise ValueError(f"Missing data found during decompression for recovery_key {recovery_key}")
+                # if f"{p}_MAPPING" not in recovery_df.columns:
+                #     print(f"Missing {p}_MAPPING for recovery_key {recovery_key}")
+                #     print(recovery_df.columns)
+                # if recovery_df[f"{p}__MAPPING"].isna().any():
+                #     raise ValueError(f"Missing data found during decompression for recovery_key {recovery_key}")
+                # if recovery_df[src_idx_col].isna().any():
+                #     raise ValueError(f"Missing data found during decompression for recovery_key {recovery_key}")
                 recovery_df.drop(columns=["_recovery_key", src_idx_col], inplace=True)
                 dfs.append(recovery_df)
+                
             self._data = pd.concat(dfs)
+            if decompress_data.id2mapping is not None:
+                self._data[f"{p}__MAPPING"] = self._data[f"{p}__MAPPING"].map(decompress_data.id2mapping)
+                
             assert len(self.data) == prev_len, \
                 f"Decompressed data has {len(self.data)} rows, expected {prev_len}"
 
     @classmethod
-    def compress_paretos(cls, paretos: list[tuple["PartialMappings", str]]) -> DecompressData:
+    def compress_paretos(cls, paretos: list[tuple["PartialMappings", str]], id2mapping: dict[int, "Mapping"] | None = None) -> DecompressData:
         multiplier = len(paretos)
         
         def _compress(pareto, offset):
@@ -907,10 +912,10 @@ class PartialMappings:
         for offset, ((p, _), (r, new_p)) in enumerate(zip(paretos, parallel([delayed(_compress)(p, i) for i, p in enumerate(paretos)], pbar="Compressing Partial Mappings", return_as="generator"))):
             decompress_data[offset] = r
             p._data = new_p.data
-        return DecompressData(multiplier, decompress_data)
+            
+        return DecompressData(multiplier, decompress_data, id2mapping)
 
     @classmethod
     def decompress_paretos(cls, paretos: list["PartialMappings"], decompress_data: DecompressData, prefix: str | list[str] = None):
         for p in paretos:
             p._decompress_data(decompress_data, prefix=prefix)
-            

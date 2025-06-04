@@ -27,6 +27,8 @@ from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariab
 from fastfusion.util.util import fzs, parallel
 from fastfusion.mapper.FFM.tags import Tags
 
+MAX_N_LOOPS = 250
+
 def powerset(iterable):
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
@@ -74,7 +76,7 @@ def make_storage_choices_one_level(
     
     may_keep = tensors - must_bypass - must_keep
 
-    for subset in powerset(may_keep):
+    for subset in powerset(sorted(may_keep, key=str)):
         # Make keep choice & update symbol table
         subset = tensors.to_my_space(set(subset))
         keep_choice = tensors.to_my_space(subset | must_keep)
@@ -86,8 +88,7 @@ def make_storage_choices_one_level(
         keep_choice = keep_choice.to_my_space({copy.copy(t) for t in keep_choice})
         storage_nodes = []
         
-        # Create storage nodes
-        for t in keep_choice:
+        for t in sorted(keep_choice, key=str):
             storage_nodes.append(Storage(tensors=[t], memory=node.name, memory_object=node))
             if t in must_keep:
                 storage_nodes[-1]._must_keep_tensors = [t]
@@ -115,6 +116,7 @@ def label_backing_storages(mapping: List[MappingNode]):
         if isinstance(s, Storage):
             tensors = set(s.tensors)
             s._backing = tensors - seen_tensors
+            s._must_keep_tensors.extend(tensors - seen_tensors) # Backed tensors must be kept.
             seen_tensors.update(tensors)
 
 def valid_storage_order(mapping: List[MappingNode], node_names: list[str], required_order: list[list[Storage]]):
@@ -155,17 +157,17 @@ def recursive_order_storage_choices(
     remaining_choices: list,
     required_order: list[list[Storage]],
 ):
+    mapping = list(mapping)
     if not remaining_choices:
         yield mapping
         return
 
-    for choice in list(remaining_choices):
+    for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
         mapping.append(choice)
-        remaining_choices.remove(choice)
+        new_remaining = [c for c in remaining_choices if c != choice]
         if valid_storage_order(mapping, [n.name for n in nodes], required_order):
-            yield from recursive_order_storage_choices(mapping, nodes, remaining_choices, required_order)
+            yield from recursive_order_storage_choices(mapping, nodes, new_remaining, required_order)
         mapping.pop()
-        remaining_choices.append(choice)
 
 
 def get_storage_choices(
@@ -409,7 +411,7 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
 
     temporals = [
         Temporal(rank_variable=r, tile_shape='symbol')
-        for r in rank_variables
+        for r in sorted(rank_variables)
     ]
 
     if insert_point == len(mapping):
@@ -430,6 +432,28 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
     #             mapping.pop(i)
     #         else:
     #             seen.add(mapping[i].rank_variable)
+    
+def iterate_mappings_n_loops_constraint(mapping: Mapping, einsum: Einsum):
+    n_loops = sum(isinstance(m, Iteration) for m in mapping.nodes)
+    n_to_drop = n_loops - MAX_N_LOOPS
+    if n_to_drop <= 0:
+        yield mapping
+        return
+    
+    rank_variables = einsum.rank_variables
+
+    index2iteration = [i for i, node in enumerate(mapping.nodes) if isinstance(node, Iteration)]
+    # print(f"Dropping {n_to_drop} loops from {n_loops} loops. {len(list(itertools.combinations(index2iteration, n_to_drop)))} combinations")
+    for choices in itertools.combinations(index2iteration, n_to_drop):
+        mapping_new = [m for i, m in enumerate(mapping.nodes) if i not in choices]
+        need_rank_variables = set(rank_variables)
+        for i, node in enumerate(mapping_new):
+            if isinstance(node, Iteration):
+                need_rank_variables.discard(node.rank_variable)
+        if need_rank_variables:
+            continue
+        # print(f', '.join(m.compact_string() for m in mapping_new))
+        yield Mapping(nodes=mapping_new)
 
 def iterate_mappings_no_constraints(
     spec: Specification,
@@ -447,6 +471,7 @@ def iterate_mappings_no_constraints(
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
     for mapping, symbol_table in get_storage_choices(arch_flattened, symbol_table):
+        mapping = copy.deepcopy(mapping)
         label_backing_storages(mapping)
         # print(", ".join(m.compact_string() for m in mapping))
         mapping = insert_temporal_loops(mapping, einsum, first_memory)
@@ -551,10 +576,9 @@ def iterate_mappings_constraints(
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             mapping = copy.copy(mapping)
             mapping = Mapping(nodes=mapping)
-            number_of_loops = sum(isinstance(m, Iteration) for m in mapping.nodes)
-            # print(f"Number of loops: {number_of_loops}")
-            # print(", ".join(m.compact_string() for m in mapping.nodes))
             yield mapping, constraints
+            # for mapping2 in iterate_mappings_n_loops_constraint(mapping, spec.workload.einsums[einsum_name]):
+            #     yield mapping2, constraints
 
 # =================================================================================================
 # Make sims
@@ -736,7 +760,7 @@ def make_sims(mapping: Mapping,
         # mappings.drop(columns=fused_loop_columns, inplace=True)
         sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops)))#-1))
         assert mapping is not None
-        sim.mappings.data[MAPPING_COLUMN] = [mapping] * len(sim.mappings.data)
+        sim.mappings.data[MAPPING_COLUMN] = [id(mapping)] * len(sim.mappings.data)
         sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
         for equivalent_sim in get_equivalent_sims(sim):
             compatibility2sim.setdefault(equivalent_sim.compatibility, []).append(equivalent_sim)
@@ -749,7 +773,7 @@ def make_sims(mapping: Mapping,
 def _concat_sims(einsum_name: EinsumName, sims: list[SIM]):
     return einsum_name, SIM.concat(sims)
 
-def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
+def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]], id2mapping: dict[int, Mapping] | None = None, _compress_before: bool = True) -> tuple[dict[EinsumName, dict[Compatibility, list[SIM]]], DecompressData]:
     to_decompress = {}
     for einsum_name, sims2 in sims.items():
         target = to_decompress.setdefault(einsum_name, [])
@@ -761,7 +785,20 @@ def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
                     s.mappings._data = s.mappings.data.copy()
                 seen.add(id(s.mappings))
                 target.append(s)
-    decompress_data = compress_sims(to_decompress)
+    decompress_data = compress_sims(to_decompress, id2mapping)
+
+    # if _compress_before:
+    #     to_decompress = {}
+    #     for einsum_name, sims2 in sims.items():
+    #         target = to_decompress.setdefault(einsum_name, [])
+    #         seen = set()
+    #     for s3 in sims2.values():
+    #         for i, s in enumerate(s3):
+    #             if id(s.mappings) not in seen:
+    #                 seen.add(id(s.mappings))
+    #                 target.append(s)
+    #     decompress_data = compress_sims(to_decompress)
+
     to_pack = [
         delayed(_concat_sims)(einsum_name, compatibility2sim)
         for einsum_name, compatibility2sim in sims.items()
@@ -770,7 +807,21 @@ def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
     sims: dict[EinsumName, list[SIM]] = {}
     for einsum_name, sim in parallel(to_pack, pbar="Concatenating SIMs"):
         sims.setdefault(einsum_name, []).append(sim)
-        
+
+    # if not _compress_before:
+    #     to_decompress = {}
+    #     for einsum_name, sims2 in sims.items():
+    #         target = to_decompress.setdefault(einsum_name, [])
+    #     seen = set()
+    #     for i, s in enumerate(sims2):
+    #         if id(s.mappings) in seen:
+    #             sims2[i] = s.copy()
+    #             s = sims2[i]
+    #         if id(s.mappings) not in seen:
+    #             seen.add(id(s.mappings))
+    #             target.append(s)
+    #     decompress_data = compress_sims(to_decompress)
+
     # to_decompress = {}
     # for einsum_name, sims2 in sims.items():
     #     target = to_decompress.setdefault(einsum_name, [])
@@ -781,6 +832,7 @@ def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]]):
     #         seen.add(id(s.mappings))
     #         target.append(s)
     # decompress_data = compress_sims(to_decompress)
+    
     return sims, decompress_data
 
 def _per_proc_compatibility2sim(
@@ -799,7 +851,7 @@ def _per_proc_compatibility2sim(
     # if re.search(r"MainMemory W1.*GlobalBuffer T1.*GlobalBuffer T2.*GlobalBuffer W1", s):
     #     print(s)
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
-    return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger)
+    return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger), id(mapping), mapping
 
 def get_single_einsum_sims(
     spec: Specification,
@@ -820,9 +872,10 @@ def get_single_einsum_sims(
     if flattened_arch is None:
         flattened_arch = spec.get_flattened_architecture()
 
-    mappings_constraints = list(iterate_mappings_constraints(spec,
-                                                             einsum_name,
-                                                             flattened_arch))
+    mappings_constraints = tqdm(iterate_mappings_constraints(spec,
+                                einsum_name,
+                                flattened_arch),
+                                desc=f"Generating storage and loop choices for Einsum {einsum_name}")
 
     jobs = [
         delayed(_per_proc_compatibility2sim)(
