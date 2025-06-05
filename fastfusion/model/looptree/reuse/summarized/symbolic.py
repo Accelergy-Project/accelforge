@@ -454,6 +454,8 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                      result_accumulator.temporal_steps,
                      Max)
 
+        my_key = (node.across, einsum_name)
+
         for key in child_result.fanout:
             child_fanout = child_result.fanout[key]
 
@@ -462,7 +464,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 continue
             fanout = result_accumulator.fanout[key]
 
-            if key == (node.across, einsum_name):
+            if key == my_key:
                 for dim in child_fanout:
                     if dim in fanout and dim == node_dim:
                         fanout[dim] += child_fanout[dim]*shape_repeats
@@ -476,6 +478,8 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                         fanout[dim] = Max(fanout[dim], child_fanout[dim])
                     else:
                         fanout[dim] = child_fanout[dim]
+                        
+        result_accumulator.fanout.setdefault(my_key, {}).setdefault(node.dimension, shape_repeats)
 
         for key in child_result.compute_stats:
             if key not in result_accumulator.compute_stats:
