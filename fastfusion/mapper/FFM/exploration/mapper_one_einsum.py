@@ -236,7 +236,7 @@ def insert_temporal_loops(
     # - Between any two storage nodes
     # - After the last storage node
     
-    split_mapping = []
+    split_mapping = [[]]
     for m in mapping:
         split_mapping.append([])
         split_mapping[-1].append(m)
@@ -455,13 +455,8 @@ def iterate_mappings_n_loops_constraint(mapping: Mapping, einsum: Einsum):
         
     assert not need_rank_variables
     
-    # print(', '.join(m.compact_string() for m in mapping.nodes))
-
-    # print(f"Dropping {n_to_drop} loops from {n_loops} loops. {len(list(itertools.combinations(index2iteration, n_to_drop)))} combinations")
     for choices in itertools.combinations(index2iteration, n_to_drop):
         mapping_new = [m for i, m in enumerate(mapping.nodes) if i not in choices]
-        # print(f', '.join(m.compact_string() for m in mapping_new))
-        # print('\t\t' + ', '.join(m.compact_string() for m in mapping_new))
         yield Mapping(nodes=mapping_new)
 
 def iterate_mappings_no_constraints(
@@ -735,6 +730,8 @@ def make_sims(mapping: Mapping,
               intermediate_tensors: set[TensorName],
               tagger: Callable[[Mapping], Tags] =  None):    
     compatibility = make_compatibility(mapping, intermediate_tensors)
+    if explored_results.empty:
+        return {}
     # print(compatibility)
     if len(compatibility.loops) == 0:
         print(compatibility)
@@ -751,7 +748,7 @@ def make_sims(mapping: Mapping,
         groups = [((), explored_results)]
     compatibility2sim = {}
 
-    for tile_shape, mappings in list(groups)[::-1]: #tqdm(groups, desc="Generating SIMs"):
+    for tile_shape, mappings in groups:
         tensor2size = {}
     
         for tensor in intermediate_tensors: # Sizes are all the same
@@ -763,20 +760,7 @@ def make_sims(mapping: Mapping,
         else:
             tags = tagger(new_compatibility)
         new_compatibility = new_compatibility.update(tags=tags)
-        # if has_tensors(mapping, ["T1", "T2", "W1"]) and not matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
-        #     continue
-        # if has_tensors(mapping, ["T1", "T2", "W1"]) and not matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
-        #     continue
-        # if has_tensors(mapping, ["T2", "T3", "W2"]) and not matches_storage_order(mapping, ["T3", "W2", "T2"]) and not matches_storage_order(mapping, ["W2", "T3", "T2"]):
-        #     continue
-        # if has_tensors(mapping, ["T3", "T4", "W3"]) and not matches_storage_order(mapping, ["T4", "W3", "T3"]) and not matches_storage_order(mapping, ["W3", "T4", "T3"]):
-        #     continue
-        # if has_tensors(mapping, ["T2", "T3", "W2"]):
-        #     print("AH")
-        
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
-        # mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
-        # mappings.drop(columns=fused_loop_columns, inplace=True)
         sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops)))#-1))
         assert mapping is not None
         sim.mappings.data[MAPPING_COLUMN] = [id(mapping)] * len(sim.mappings.data)
@@ -786,9 +770,6 @@ def make_sims(mapping: Mapping,
     
     return compatibility2sim
 
-    # if matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
-    #     print(mapping.nodes)
-    
     def get_sim(tile_shape, mappings, parallelize_pareto: bool = False):
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds)
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
@@ -848,14 +829,24 @@ def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]], id2mappi
     #                 target.append(s)
     #     decompress_data = compress_sims(to_decompress)
 
-    to_pack = [
-        delayed(_concat_sims)(einsum_name, compatibility2sim)
+    sims_new: dict[EinsumName, list[SIM]] = {
+        einsum_name: [
+            not_to_concat[0]
+            for not_to_concat in compatibility2sim.values()
+            if len(not_to_concat) == 1
+        ]
         for einsum_name, compatibility2sim in sims.items()
-        for compatibility2sim in compatibility2sim.values()
+    }
+    to_pack = [
+        delayed(_concat_sims)(einsum_name, to_concat)
+        for einsum_name, compatibility2sim in sims.items()
+        for to_concat in compatibility2sim.values()
+        if len(to_concat) > 1
     ]
-    sims: dict[EinsumName, list[SIM]] = {}
     for einsum_name, sim in parallel(to_pack, pbar="Grouping Partial Mappings"):
-        sims.setdefault(einsum_name, []).append(sim)
+        sims_new.setdefault(einsum_name, []).append(sim)
+
+    sims = sims_new
 
     # if not _compress_before:
     #     to_decompress = {}
@@ -875,10 +866,12 @@ def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]], id2mappi
     # for einsum_name, sims2 in sims.items():
     #     target = to_decompress.setdefault(einsum_name, [])
     #     seen = set()
-    #     for s in sims2:
-    #         if id(s.mappings) in seen:
-    #             continue
+    #     for i, s in enumerate(sims2):
+    #         if id(s.mappings) in seen or id(s.mappings.data) in seen:
+    #             sims2[i] = s.copy()
+    #             s = sims2[i]
     #         seen.add(id(s.mappings))
+    #         seen.add(id(s.mappings.data))
     #         target.append(s)
     # decompress_data = compress_sims(to_decompress)
     
@@ -894,11 +887,7 @@ def _per_proc_compatibility2sim(
     einsum_name: EinsumName,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM]]:
-    print(f", ".join(m.compact_string() for m in mapping.nodes))
-    # s = ", ".join(m.compact_string() for m in mapping.nodes)
-    # import re
-    # if re.search(r"MainMemory W1.*GlobalBuffer T1.*GlobalBuffer T2.*GlobalBuffer W1", s):
-    #     print(s)
+    # print(f", ".join(m.compact_string() for m in mapping.nodes))
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
     return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger), id(mapping), mapping
 
