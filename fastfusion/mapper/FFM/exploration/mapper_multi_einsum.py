@@ -66,13 +66,13 @@ def get_sims(
             tagger=tagger,
             return_jobs=True,
         ))
-    
+
     sims = {einsum_name: {} for einsum_name in spec.workload.einsum_names}
     id2mapping = {}
     for einsum_name, new_sims, id, mapping in parallel(
         jobs,
-        pbar="Generating SIMs",
-        return_as="generator_unordered"
+        pbar="Generating Partial Mappings",
+        return_as="generator_unordered",
     ):
         id2mapping[id] = mapping
         target = sims[einsum_name]
@@ -80,16 +80,4 @@ def get_sims(
             target.setdefault(compatibility, []).extend(ns)
 
     return concat_sims(sims, id2mapping)
-            
-    # allsims = [(s, einsum_name) for einsum_name, c2sim in sims.items() for s in c2sim.values()]
-    # decompress_data = compress(allsims)
-            
-        
-        # for sim in new_sims:
-        #     # target.setdefault(sim.compatibility, []).append(sim)
-        #     add_to_compatibility2sim(target, sim)
-            
-    
-        
-    return {einsum_name: list(sims.values()) for einsum_name, sims in sims.items()}
         
