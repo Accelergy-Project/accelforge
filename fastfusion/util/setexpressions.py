@@ -24,6 +24,14 @@ class InvertibleSet(BaseModel, Generic[T]):
         extra = {k: v for k, v in extra.items() if k != self.child_access_name}
         if extra:
             raise ValueError(f"Extra fields are not allowed: {extra}")
+        
+    def __repr__(self):
+        return f"InvertibleSet({self.instance})"
+
+    def __str__(self):
+        return self.__repr__()
+    
+    
 
 
     # def __new__(
