@@ -282,7 +282,7 @@ def insert_temporal_loops(
             full_mapping.append(Temporal(rank_variable=rank_variables, tile_shape='symbol'))
 
     full_mapping = list(full_mapping)
-    
+
     return full_mapping
 
 def insert_spatial_loops(
@@ -332,7 +332,7 @@ def label_fused_loops(mapping: List[MappingNode]):
             last_backing_storage = i
     if last_backing_storage is None:
         raise ValueError(f"No backing storage found in mapping {", ".join(m.compact_string() for m in mapping)}")
-            
+
     for i, node in enumerate(mapping):
         if isinstance(node, Iteration):
             node._fused = i < last_backing_storage
@@ -590,7 +590,6 @@ def iterate_mappings_constraints(
 def make_compatibility(
     mapping: Mapping,
     intermediate_tensors: set[TensorName],
-    tagger: Callable[[Mapping], Tags] | None = None
 ) -> Compatibility:
     fused_slice = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
@@ -627,15 +626,9 @@ def make_compatibility(
                 )
             )
 
-    if tagger is None:
-        tags = Tags()
-    else:
-        tags = tagger(mapping)
-
     compatibility = Compatibility(
         loops=tuple(compatibility_loops),
         storage=fzs(compatibility_reservations),
-        tags=tags,
     )
     return compatibility
 
@@ -731,7 +724,13 @@ def make_sims(mapping: Mapping,
               rank_variable_bounds: dict[RankVariableName, int],
               intermediate_tensors: set[TensorName],
               tagger: Callable[[Mapping], Tags] =  None):    
-    compatibility = make_compatibility(mapping, intermediate_tensors, tagger=tagger)
+    compatibility = make_compatibility(mapping, intermediate_tensors)
+    # print(compatibility)
+    if len(compatibility.loops) == 0:
+        print(compatibility)
+    # if compatibility.tags.matches(Tags(("INVALID",))):
+    #     return {}
+
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
         
     explored_results = drop_cols(explored_results)
@@ -745,6 +744,11 @@ def make_sims(mapping: Mapping,
     for tile_shape, mappings in list(groups)[::-1]: #tqdm(groups, desc="Generating SIMs"):
         # Check for null loops
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds)
+        if tagger is None:
+            tags = Tags()
+        else:
+            tags = tagger(new_compatibility)
+        new_compatibility = new_compatibility.update(tags=tags)
         # if has_tensors(mapping, ["T1", "T2", "W1"]) and not matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
         #     continue
         # if has_tensors(mapping, ["T1", "T2", "W1"]) and not matches_storage_order(mapping, ["W1", "T1", "T2", "W1"]):
@@ -894,7 +898,7 @@ def get_single_einsum_sims(
     tagger: Callable[[Mapping], Tags] | None = None,
 ) -> list[SIM] | tuple[dict[EinsumName, dict[Compatibility, list[SIM]]], DecompressData]:
     einsum_name = EinsumName(einsum_name)
-    
+
     if rank_variable_bounds is None:
         rank_variable_bounds = get_rank_variable_bounds(spec.workload, einsum_name)
     
@@ -922,7 +926,7 @@ def get_single_einsum_sims(
        )
         for mapping, constraints in mappings_constraints
     ]
-    
+
     if return_jobs:
         return jobs
 
