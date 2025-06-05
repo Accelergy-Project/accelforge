@@ -29,7 +29,7 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: ~MainMemory.tensors()
+        keep: All()
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}

@@ -34,10 +34,11 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: ~MainMemory.tensors() | input | output
+        keep: ~MainMemory.tensors()
+        bypass: weight & MainMemory.tensors()
     actions:
-    - {name: read, arguments: {energy: 7.53}}
-    - {name: write, arguments: {energy: 9.44}}
+    - {name: read, arguments: {energy: 0.941}}
+    - {name: write, arguments: {energy: 1.18}}
     - {name: leak, arguments: {energy: 0}}
 
   - !Memory
