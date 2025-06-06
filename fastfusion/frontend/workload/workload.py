@@ -31,6 +31,9 @@ RankVariableName: TypeAlias = str
 RankName: TypeAlias = str
 EinsumName: TypeAlias = str
 
+SymbolTable: TypeAlias = dict[str, InvertibleSet]
+
+
 class TensorAccess(ParsableModel):
     name: TensorName
     projection: dict[str, str]
@@ -265,10 +268,14 @@ class Workload(ParsableModel):
         return md.Mermaid(graph)
 
     def get_constraint_symbol_table(
-            self, 
-            einsum_name: EinsumName,
-            renames: Union["Renames", None] = None,
-        ) -> dict[str, InvertibleSet]:
+        self, 
+        einsum_name: EinsumName,
+        renames: Union["Renames", None] = None,
+    ) -> SymbolTable:
+        """
+        Return a table that maps symbols (e.g., Nothing, All, Inputs) to
+        tensors or rank variables.
+        """
         einsum = self.einsums[einsum_name]
         inputs = einsum.input_tensors()
         outputs = einsum.output_tensors()

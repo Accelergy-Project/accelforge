@@ -1,214 +1,33 @@
-from collections import defaultdict
-from collections.abc import Generator
-import hashlib
-from itertools import chain, combinations
 import copy
 import itertools
+from collections import defaultdict
+from collections.abc import Sequence
 from typing import Any, Callable, List
 
 from joblib import delayed
-import numpy as np
 from pandas import DataFrame
 from tqdm import tqdm
 
+import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.mapping import Iteration, Mapping, MappingNode, Storage, Temporal, Spatial, Compute, ModelOnlyNode
 from fastfusion.frontend.mapping import Reservation as ReservationNode
-import fastfusion.frontend.architecture as architecture
-from fastfusion.frontend.architecture import Leaf
+from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
+from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName
+
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col, tensor2col, DecompressData
 from fastfusion.util.setexpressions import InvertibleSet
-from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName
 from fastfusion.util.util import fzs, parallel
 from fastfusion.mapper.FFM.tags import Tags
 
+from .dataflow_generator import get_storage_choices
+
+
 MAX_N_LOOPS = 250
-
-def powerset(iterable):
-    s = list(iterable)
-    return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
-
-# =================================================================================================
-# Choose what data to store in each memory
-# =================================================================================================
-
-def make_storage_choices_one_level(
-        node: Leaf,
-        symbol_table: dict[str, InvertibleSet],
-    ):
-    assert "All" in symbol_table
-    tensors = symbol_table["All"]
-
-    if not isinstance(node, architecture.Memory):
-        yield [], symbol_table
-        return
-
-    new_symbol_table = copy.copy(symbol_table)
-    storage_constraints = node.constraints.storage._parse_keep_bypass(symbol_table)
-    must_keep = tensors.to_my_space(storage_constraints.keep)
-    must_bypass = tensors.to_my_space(storage_constraints.bypass)
-
-    if must_keep - tensors:
-        raise KeyError(f"Keep constraint for {node.name} includes tensors that are "
-                       f"not in the einsum: {must_keep - new_symbol_table['All']}")
-    if must_bypass - tensors:
-        raise KeyError(f"Bypass constraint for {node.name} includes tensors that are "
-                       f"not in the einsum: {must_bypass - tensors.full_space}")
-    if must_keep & must_bypass:
-        raise KeyError(f"Keep and bypass constraints for {node.name} intersect: "
-                       f"{must_keep & must_bypass}")
-    
-    may_keep = tensors - must_bypass - must_keep
-
-    for subset in powerset(sorted(may_keep, key=str)):
-        # Make keep choice & update symbol table
-        subset = tensors.to_my_space(set(subset))
-        keep_choice = tensors.to_my_space(subset | must_keep)
-        keep_choice.tensors = lambda: keep_choice # So users can do MainMemory().tensors(). Optional.
-        new_symbol_table[node.name] = keep_choice
-        
-        # Make sure they're all tensors
-        assert all(isinstance(k, TensorName) for k in keep_choice)
-        keep_choice = keep_choice.to_my_space({copy.copy(t) for t in keep_choice})
-        storage_nodes = []
-        
-        for t in sorted(keep_choice, key=str):
-            storage_nodes.append(Storage(tensors=[t], memory=node.name, memory_object=node))
-            if t in must_keep:
-                storage_nodes[-1]._must_keep_tensors = [t]
-        yield storage_nodes, new_symbol_table
-
-def make_storage_choices_all_levels(
-    nodes: list[Storage], 
-    symbol_table: dict[str, InvertibleSet],
-):
-    if len(nodes) == 0:
-        yield dict(), symbol_table
-        return
-    for choice, symbol_table in make_storage_choices_one_level(nodes[0], symbol_table):
-        for subchoices, symbol_table in make_storage_choices_all_levels(nodes[1:], symbol_table):
-            yield {**subchoices, nodes[0].name: choice}, symbol_table
-            
-
-# =================================================================================================
-# Order storage nodes (dataflow).
-# =================================================================================================
-
-def label_backing_storages(mapping: List[MappingNode]):
-    seen_tensors = set()
-    for i, s in enumerate(mapping):
-        if isinstance(s, Storage):
-            tensors = set(s.tensors)
-            s._backing = tensors - seen_tensors
-            s._must_keep_tensors.extend(tensors - seen_tensors) # Backed tensors must be kept.
-            seen_tensors.update(tensors)
-
-def valid_storage_order(mapping: List[MappingNode], node_names: list[str], required_order: list[list[Storage]]):
-    for i in range(len(mapping)):
-        for j in range(i, len(mapping)):
-
-            s1, s2 = mapping[i].memory, mapping[j].memory
-            s1_idx, s2_idx = node_names.index(s1), node_names.index(s2)
-            
-            # Ensure order # TODO: FIXME. Moved this above the continue to
-            # shrink the mapspace. This prevents local buffer from being above
-            # global buffer.
-            if i < j and s2_idx < s1_idx:
-                return False
-            
-            if not (set(mapping[i].tensors) & set(mapping[j].tensors)):
-                continue
-            
-            # If a tensor is stored in two levels back-to-back, then we
-            # should have bypassed the outer storage if possible.
-            if i == j or i == j - 1:
-                if s1_idx < s2_idx and not ((set(mapping[i]._must_keep_tensors) & set(mapping[j].tensors)) or mapping[i]._backing):
-                    return False
-                if s2_idx < s1_idx and not ((set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors)) or mapping[j]._backing):
-                    return False
-                
-            
-            for r in required_order:
-                if mapping[i] in r and mapping[j] in r:
-                    a, b = r.index(mapping[i]), r.index(mapping[j])
-                    if a > b:
-                        return False
-    return True
-
-def recursive_order_storage_choices(
-    mapping: List[MappingNode],
-    nodes: list[architecture.Memory],
-    remaining_choices: list,
-    required_order: list[list[Storage]],
-) -> Generator[list[MappingNode], None, None]:
-    mapping = list(mapping)
-    if not remaining_choices:
-        yield mapping
-        return
-
-    for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
-        mapping.append(choice)
-        new_remaining = [c for c in remaining_choices if c != choice]
-        if valid_storage_order(mapping, [n.name for n in nodes], required_order):
-            yield from recursive_order_storage_choices(mapping, nodes, new_remaining, required_order)
-        mapping.pop()
-
-
-def get_storage_choices(
-    nodes: list[architecture.Memory],
-    symbol_table: dict[str, InvertibleSet],
-) -> Generator[tuple[list[Storage], Any], None, None]:
-    while not isinstance(nodes[0], architecture.Memory):
-        nodes = nodes[1:]
-    first_storage = nodes[0]
-    
-    def pop_choice(storage_nodes: list[Storage], memory_name: str, tensor_name: TensorName):
-        for i, node in enumerate(storage_nodes):
-            if node.memory == memory_name and tensor_name in node.tensors:
-                return storage_nodes.pop(i)
-        return None
-        
-    
-    for choice, symbol_table in make_storage_choices_all_levels(nodes, symbol_table):
-        all_storage_nodes = []
-        for v in choice.values():
-            all_storage_nodes.extend(v)                            
-            
-        base_mapping = []
-        for node in list(all_storage_nodes[::-1]):
-            if node.memory == first_storage.name:
-                all_storage_nodes.remove(node)
-                base_mapping.append(node)
-        
-        required_order = []
-        for node in nodes:
-            # dataflow_constraints.append((node, node.constraints.dataflow._parse(symbol_table)))
-            constraint = node.constraints.dataflow._parse(symbol_table)
-            if constraint.storage_order:
-                order = []
-                for s in constraint.storage_order:
-                    parent_storage = None
-                    for tensor in s:
-                        new_storage = pop_choice(all_storage_nodes, node.name, tensor)
-                        if new_storage is None:
-                            continue
-                        if parent_storage is None:
-                            parent_storage = new_storage
-                        else:
-                            parent_storage.tensors += new_storage.tensors
-                            parent_storage._must_keep_tensors += new_storage._must_keep_tensors
-                    if parent_storage is not None:
-                        all_storage_nodes.append(parent_storage)
-                        order.append(parent_storage)
-                required_order.append(order)
-
-        for mapping in recursive_order_storage_choices(base_mapping, nodes, all_storage_nodes, required_order):
-            yield mapping, symbol_table
 
 # =================================================================================================
 # Insert loops
@@ -272,6 +91,7 @@ def insert_temporal_loops(
 
     return full_mapping
 
+
 def insert_spatial_loops(
     mapping: List[MappingNode],
     einsum: Einsum,
@@ -298,6 +118,7 @@ def insert_spatial_loops(
                 insertion_point, 
                 Spatial(rank_variable=rv, dimension=fanout_dim, across_object=fanout, across=fanout.name, tile_shape='symbol'))
 
+
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
     mapping_new = []
     for node in mapping:
@@ -313,6 +134,7 @@ def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
                 )
             )
     return mapping_new
+
 
 def label_fused_loops(mapping: List[MappingNode]):
     last_backing_storage = None
@@ -356,6 +178,7 @@ def temporal_fused_constraint_thing_fix_me(mapping: List[MappingNode], rank_vari
         # print(indent + ", ".join(m.compact_string() for m in mapping_new))
         yield from temporal_fused_constraint_thing_fix_me(mapping_new, rank_variables)
 
+
 def temporal_constraint_2_fix_me(mapping: List[MappingNode], einsum: Einsum):
     return mapping
     # Between two storage nodes for the same memory, pop all loops that index
@@ -379,6 +202,7 @@ def temporal_constraint_2_fix_me(mapping: List[MappingNode], einsum: Einsum):
                 if isinstance(mapping[k], Temporal) and mapping[k].rank_variable in to_drop:
                     to_pop.add(k)
     return [node for i, node in enumerate(mapping) if i not in to_pop]
+
 
 def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum, rank_variable_bounds: dict[RankVariableName, int]):
     # If any rank variables are missing, add them as high as possible.
@@ -421,6 +245,7 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum, ran
     #         else:
     #             seen.add(mapping[i].rank_variable)
     
+
 def iterate_mappings_n_loops_constraint(mapping: Mapping, einsum: Einsum):
     n_loops = sum(isinstance(m, Iteration) for m in mapping.nodes)
     n_to_drop = n_loops - MAX_N_LOOPS
@@ -444,6 +269,7 @@ def iterate_mappings_n_loops_constraint(mapping: Mapping, einsum: Einsum):
     for choices in itertools.combinations(index2iteration, n_to_drop):
         mapping_new = [m for i, m in enumerate(mapping.nodes) if i not in choices]
         yield Mapping(nodes=mapping_new)
+
 
 def iterate_mappings_no_constraints(
     spec: Specification,
@@ -546,6 +372,7 @@ def get_constraints(
         constraint_lambdas.append(LoopBoundsConstraintLambda(constraint, mapping_nodes))
     
     return constraint_lambdas
+
 
 def iterate_mappings_constraints(
     spec: Specification,
@@ -665,6 +492,7 @@ def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mappin
         compatibility.nodes.append(new_node)
     return compatibility
 
+
 def drop_cols(mappings: DataFrame):
     from fastfusion.mapper.FFM.pareto import col2nameloop
     to_drop = []
@@ -675,6 +503,7 @@ def drop_cols(mappings: DataFrame):
         if name == "LocalBuffer" or name == "Register" or name == "MainMemory":
             to_drop.append(col)
     return mappings.drop(columns=to_drop)
+
 
 def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indices: set[int]):
     prev = copy.deepcopy(mappings) # TODO: Is this needed?
@@ -797,6 +626,7 @@ def _per_proc_compatibility2sim(
     )
     return einsum_name, sims, decompress_data, job_id
 
+
 def get_single_einsum_jobs(
     spec: Specification,
     einsum_name: EinsumName,
@@ -837,3 +667,13 @@ def get_single_einsum_jobs(
        )
         for i, (mapping, constraints) in enumerate(mappings_constraints)
     ]
+
+
+def label_backing_storages(mapping: Sequence[MappingNode]):
+    seen_tensors = set()
+    for i, s in enumerate(mapping):
+        if isinstance(s, Storage):
+            tensors = set(s.tensors)
+            s._backing = tensors - seen_tensors
+            s._must_keep_tensors.extend(tensors - seen_tensors) # Backed tensors must be kept.
+            seen_tensors.update(tensors)

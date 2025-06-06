@@ -2,11 +2,13 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from joblib import delayed
+
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName
+
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum import get_single_einsum_jobs
 from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import DecompressData, GroupedDecompressData
