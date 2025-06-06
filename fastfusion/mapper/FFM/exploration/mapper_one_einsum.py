@@ -1,4 +1,5 @@
 from collections import defaultdict
+import hashlib
 from itertools import chain, combinations
 import copy
 import itertools
@@ -9,7 +10,6 @@ import numpy as np
 from pandas import DataFrame
 from tqdm import tqdm
 
-from fastfusion.frontend import constraints
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.mapping import Iteration, Mapping, MappingNode, Storage, Temporal, Spatial, Compute, ModelOnlyNode
 from fastfusion.frontend.mapping import Reservation as ReservationNode
@@ -19,11 +19,10 @@ from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.joining.simexplore import compress_sims, DecompressData
-from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col, tensor2col
+from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col, tensor2col, DecompressData
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName, Workload
+from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName
 from fastfusion.util.util import fzs, parallel
 from fastfusion.mapper.FFM.tags import Tags
 
@@ -729,12 +728,12 @@ def make_sims(mapping: Mapping,
               rank_variable_bounds: dict[RankVariableName, int],
               intermediate_tensors: set[TensorName],
               tagger: Callable[[Mapping], Tags] =  None):    
-    compatibility = make_compatibility(mapping, intermediate_tensors)
     if explored_results.empty:
         return {}
+    compatibility = make_compatibility(mapping, intermediate_tensors)
     # print(compatibility)
-    if len(compatibility.loops) == 0:
-        print(compatibility)
+    # if len(compatibility.loops) == 0:
+    #     print(compatibility)
     # if compatibility.tags.matches(Tags(("INVALID",))):
     #     return {}
 
@@ -746,7 +745,8 @@ def make_sims(mapping: Mapping,
         groups = explored_results.groupby(fused_loop_columns)
     else:
         groups = [((), explored_results)]
-    compatibility2sim = {}
+
+    sims = []
 
     for tile_shape, mappings in groups:
         tensor2size = {}
@@ -755,20 +755,14 @@ def make_sims(mapping: Mapping,
             tensor2size[tensor] = mappings[tensor2col(tensor)].iloc[0]
         
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds, tensor2size)
-        if tagger is None:
-            tags = Tags()
-        else:
-            tags = tagger(new_compatibility)
+        tags = Tags() if tagger is None else tagger(new_compatibility)
         new_compatibility = new_compatibility.update(tags=tags)
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
         sim = SIM(new_compatibility, PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops)))#-1))
-        assert mapping is not None
-        sim.mappings.data[MAPPING_COLUMN] = [id(mapping)] * len(sim.mappings.data)
         sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
-        for equivalent_sim in get_equivalent_sims(sim):
-            compatibility2sim.setdefault(equivalent_sim.compatibility, []).append(equivalent_sim)
-    
-    return compatibility2sim
+        sims.append(sim)
+
+    return sims
 
     def get_sim(tile_shape, mappings, parallelize_pareto: bool = False):
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds)
@@ -789,94 +783,16 @@ def make_sims(mapping: Mapping,
         print(f'Parallelizing Pareto')
         sims = [get_sim(tile_shape, mappings, parallelize_pareto=True) for tile_shape, mappings in groups]
     
-        
     compatibility2sim = {}
     for sim in sims:
         for equivalent_sim in get_equivalent_sims(sim):
             compatibility2sim.setdefault(equivalent_sim.compatibility, []).append(equivalent_sim)
     
     return compatibility2sim
-    
 
 # =================================================================================================
 # Top level
 # =================================================================================================
-def _concat_sims(einsum_name: EinsumName, sims: list[SIM]):
-    return einsum_name, SIM.concat(sims)
-
-def concat_sims(sims: dict[EinsumName, dict[Compatibility, list[SIM]]], id2mapping: dict[int, Mapping] | None = None, _compress_before: bool = True) -> tuple[dict[EinsumName, dict[Compatibility, list[SIM]]], DecompressData]:
-    to_decompress = {}
-    for einsum_name, sims2 in sims.items():
-        target = to_decompress.setdefault(einsum_name, [])
-        seen = set()
-        for s3 in sims2.values():
-            for s in s3:
-                if id(s.mappings) in seen:
-                    s.mappings = s.mappings.copy()
-                seen.add(id(s.mappings))
-                target.append(s)
-    decompress_data = compress_sims(to_decompress, id2mapping)
-
-    # if _compress_before:
-    #     to_decompress = {}
-    #     for einsum_name, sims2 in sims.items():
-    #         target = to_decompress.setdefault(einsum_name, [])
-    #         seen = set()
-    #     for s3 in sims2.values():
-    #         for i, s in enumerate(s3):
-    #             if id(s.mappings) not in seen:
-    #                 seen.add(id(s.mappings))
-    #                 target.append(s)
-    #     decompress_data = compress_sims(to_decompress)
-
-    sims_new: dict[EinsumName, list[SIM]] = {
-        einsum_name: [
-            not_to_concat[0]
-            for not_to_concat in compatibility2sim.values()
-            if len(not_to_concat) == 1
-        ]
-        for einsum_name, compatibility2sim in sims.items()
-    }
-    to_pack = [
-        delayed(_concat_sims)(einsum_name, to_concat)
-        for einsum_name, compatibility2sim in sims.items()
-        for to_concat in compatibility2sim.values()
-        if len(to_concat) > 1
-    ]
-    for einsum_name, sim in parallel(to_pack, pbar="Grouping Partial Mappings"):
-        sims_new.setdefault(einsum_name, []).append(sim)
-
-    sims = sims_new
-
-    # if not _compress_before:
-    #     to_decompress = {}
-    #     for einsum_name, sims2 in sims.items():
-    #         target = to_decompress.setdefault(einsum_name, [])
-    #     seen = set()
-    #     for i, s in enumerate(sims2):
-    #         if id(s.mappings) in seen:
-    #             sims2[i] = s.copy()
-    #             s = sims2[i]
-    #         if id(s.mappings) not in seen:
-    #             seen.add(id(s.mappings))
-    #             target.append(s)
-    #     decompress_data = compress_sims(to_decompress)
-
-    # to_decompress = {}
-    # for einsum_name, sims2 in sims.items():
-    #     target = to_decompress.setdefault(einsum_name, [])
-    #     seen = set()
-    #     for i, s in enumerate(sims2):
-    #         if id(s.mappings) in seen or id(s.mappings.data) in seen:
-    #             sims2[i] = s.copy()
-    #             s = sims2[i]
-    #         seen.add(id(s.mappings))
-    #         seen.add(id(s.mappings.data))
-    #         target.append(s)
-    # decompress_data = compress_sims(to_decompress)
-    
-    return sims, decompress_data
-
 def _per_proc_compatibility2sim(
     mapping: Mapping,
     constraints: list[Comparison],
@@ -886,17 +802,22 @@ def _per_proc_compatibility2sim(
     flattend_arch: list[architecture.Leaf],
     einsum_name: EinsumName,
     tagger=None,
-) -> tuple[str, dict[Compatibility, SIM]]:
+) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
     # print(f", ".join(m.compact_string() for m in mapping.nodes))
     result = explore_tile_shapes(mapping, constraints, specification, flattend_arch)
-    return einsum_name, make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger), id(mapping), mapping
+    sims = make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger)
+    decompress_data = PartialMappings.compress_paretos(
+        einsum_name, 
+        [s.mappings for s in sims], 
+        extra_data={MAPPING_COLUMN: mapping}
+    )
+    return einsum_name, sims, decompress_data
 
-def get_single_einsum_sims(
+def get_single_einsum_jobs(
     spec: Specification,
     einsum_name: EinsumName,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     flattened_arch: list[architecture.Leaf] | None = None,
-    return_jobs: bool = False,
     tagger: Callable[[Mapping], Tags] | None = None,
 ) -> list[SIM] | tuple[dict[EinsumName, dict[Compatibility, list[SIM]]], DecompressData]:
     einsum_name = EinsumName(einsum_name)
@@ -916,7 +837,7 @@ def get_single_einsum_sims(
                                 rank_variable_bounds),
                                 desc=f"Generating storage and loop choices for Einsum {einsum_name}")
 
-    jobs = [
+    return  [
         delayed(_per_proc_compatibility2sim)(
             mapping,
             constraints,
@@ -929,30 +850,3 @@ def get_single_einsum_sims(
        )
         for mapping, constraints in mappings_constraints
     ]
-
-    if return_jobs:
-        return jobs
-
-    sims = {}
-    for einsum_name, new_sims in parallel(
-        jobs,
-        pbar="Generating SIMs",
-        return_as="generator_unordered"
-    ):
-        for compatibility, ns in new_sims.items():
-            sims.setdefault(compatibility, []).extend(ns)
-                        
-    return concat_sims({einsum_name: sims})
-
-
-    # compatibility2sim = {}
-    # for _, sims in parallel(
-    #     jobs,
-    #     pbar=f"Generating pmappings for Einsum {einsum_name}",
-    #     return_as="generator"
-    # ):
-    #     pass
-    #     # for sim in sims:
-    #     #     compatibility2sim.setdefault(sim.compatibility, []).append(sim)
-            
-    # return list(compatibility2sim.values())

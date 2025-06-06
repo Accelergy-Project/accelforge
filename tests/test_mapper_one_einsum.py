@@ -48,7 +48,7 @@ class TestExploration(unittest.TestCase):
                                      workload.intermediate_tensors(),
                                      "MainMemory")
 
-        sims, decompress_data = get_single_einsum_sims(spec, "Q", tagger=tagger)
+        sims, decompress_data = get_sims(spec, einsum_names=["Q"], tagger=tagger)
         for sim in sims['Q']:
             self.assertEqual(
                 TagMatch(sim.compatibility.tags),

@@ -6,11 +6,12 @@ import re
 # Disable numba. We need user_has_package("numba") to be False
 import sys
 import time
-from typing import Iterable, Optional, Tuple, Union, NamedTuple
+from typing import Any, Iterable, Optional, Tuple, Union, NamedTuple
 
 from joblib import delayed
 import numpy as np
 
+from fastfusion.frontend.workload.workload import EinsumName
 from fastfusion.mapper.FFM.joining.mappinginfo import TensorStorage
 from fastfusion.util import fzs
 from fastfusion.util.util import parallel
@@ -33,6 +34,7 @@ MAPPING_HASH = "__MAPPING_HASH"
 TAGS_COLUMN = "__TAGS"
 VALID = "__VALID"
 PER_COMPONENT_ACCESSES_ENERGY = "Per-Component Energy"
+COMPRESSED_INDEX = "__COMPRESSED_INDEX"
 
 DICT_COLUMNS = set(
     [
@@ -224,8 +226,7 @@ def makepareto_quick2(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFram
     return mappings.loc[m2.index]
     
 def makepareto_quick(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    mappings = mappings.reset_index(drop=True)
-    return mappings[quickpareto(mappings[columns])].reset_index(drop=True)
+    return mappings[quickpareto(mappings[columns])]
 
 def paretofy_chunk(chunk):
     return paretoset(chunk)
@@ -242,7 +243,7 @@ def makepareto_merge(mappings: pd.DataFrame, columns: list[str], parallelize: bo
         n_jobs = 1 if parallelize else None
     )
     mappings = mappings[np.concatenate(chunks)]
-    return mappings[paretoset(mappings[columns])].reset_index(drop=True)
+    return mappings[paretoset(mappings[columns])]
 
 def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     t0 = time.time()
@@ -277,12 +278,26 @@ def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: b
     sense = ["min"] * len(columns)
     columns += list(extra_columns)
     sense += ["diff"] * len(extra_columns)
-    return mappings[paretoset(mappings[columns], sense=sense)].reset_index(drop=True)
+    return mappings[paretoset(mappings[columns], sense=sense)]
     
 class DecompressData(NamedTuple):
-    multiplier: int
-    decompress_data: dict[int, pd.DataFrame]
-    id2mapping: dict[int, pd.DataFrame] = None
+    prefix: EinsumName
+    decompress_data: pd.DataFrame
+    extra_data: dict[str, Any]
+    
+    def compressed_index_column(self):
+        return f"{self.prefix}{COMPRESSED_INDEX}"
+    
+    
+class GroupedDecompressData(NamedTuple):
+    prefix2datalist: dict[EinsumName, list[DecompressData]]
+    
+    def register_decompress_data(self, einsum_name: EinsumName, decompress_data: DecompressData, mappings: list["PartialMappings"]):
+        target = self.prefix2datalist.setdefault(einsum_name, [])
+        decompress_data_index = len(target)
+        target.append(decompress_data)
+        for m in mappings:
+            m._tuplefy_compress_data(decompress_data_index, decompress_data)
 
 class PartialMappings:
     def __init__(
@@ -686,6 +701,8 @@ class PartialMappings:
 
     @staticmethod
     def concat(paretos: list["PartialMappings"], skip_pareto: bool = False) -> "PartialMappings":
+        if len(paretos) == 0:
+            raise ValueError("No paretos to concatenate")
         if len(paretos) == 1:
             return paretos[0]
         
@@ -694,11 +711,14 @@ class PartialMappings:
         fill_cols = required_cols - shared_cols
         fill_cols = [c for c in fill_cols if col_used_in_pareto(c)]
         
+        concatenated = pd.concat([p.data for p in paretos]).reset_index(drop=True)
+        
         p = PartialMappings(
-            pd.concat([p.data for p in paretos]).fillna(0),
+            concatenated.fillna(0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
             fill_reservation_cols=fill_cols,
         )
+
         p.parents = paretos[0].parents
         return p
 
@@ -857,82 +877,70 @@ class PartialMappings:
     def prefix_data(self, prefix: str):
         rename = lambda col: f"{prefix}_{col}" if not col_used_in_pareto(col) else col
         self.data.rename(columns=rename, inplace=True)
-
-    def _compress_data(self, prefix: str = None, offset: int = 0, multiplier: int = 1) -> pd.DataFrame:
-        self.data.reset_index(drop=True, inplace=True)
-        self.data["data_source_index"] = self.data.index * multiplier + offset
-        keep_cols = ["data_source_index"] + [c for c in self.data.columns if col_used_in_pareto(c)]
-        recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + ["data_source_index"]]
+        
+    def _compress_data(self, prefix: EinsumName = None) -> pd.DataFrame:
+        self.data[COMPRESSED_INDEX] = self.data.index
+        keep_cols = [COMPRESSED_INDEX] + [c for c in self.data.columns if col_used_in_pareto(c)]
+        recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + [COMPRESSED_INDEX]]
         self._data = self.data[keep_cols]
         if prefix is not None:
-            recovery.rename(columns={c: f"{prefix}_{c}" for c in recovery.columns}, inplace=True)
-            self.data.rename(columns={"data_source_index": f"{prefix}_data_source_index"}, inplace=True)
-        # for c in recovery.columns:
-        #     # If there's two instances of the prefix in the name, raise an error
-        #     if prefix is not None and prefix in c and c.count(prefix) > 1:
-        #         raise ValueError(f"Prefix {prefix} appears twice in column name {c}")
-        if f"{prefix}___MAPPING" not in recovery.columns:
-            raise ValueError(f"Missing {prefix}___MAPPING in recovery")
+            recovery.rename(columns={c: f"{prefix}{c}" for c in recovery.columns}, inplace=True)
+            self.data.rename(columns={COMPRESSED_INDEX: f"{prefix}{COMPRESSED_INDEX}"}, inplace=True)
         return recovery
 
-    def _decompress_data(self, decompress_data: DecompressData, prefix: str | list[str] = None):
-        if isinstance(prefix, str):
-            prefix = [prefix]
-        
-        prefix = [""] if prefix is None else [f"{p}_" for p in prefix]
+    def _decompress_data(self, prefix: EinsumName, decompress_data: list[DecompressData]):
+        src_idx_col = f"{prefix}{COMPRESSED_INDEX}"
+        rows = []
+        extra_data = []
+        for r in self.data[src_idx_col]:
+            assert isinstance(r, tuple), \
+                f"Expected tuple, got {type(r)}. Was register_decompress_data called with this Pareto?"
+            assert len(r) == 2, f"Expected tuple of length 2, got {r}"
+            data_index, row_index = r
+            data = decompress_data[data_index]
+            # Find the row in the data with src_idx_col == row_index
+            row = data.decompress_data[data.decompress_data[src_idx_col] == row_index]
+            assert len(row) == 1, f"Expected 1 row, got {len(row)}"
+            rows.append(row)
+            extra_data.append(data.extra_data)
             
-        for p in prefix:
-            src_idx_col = f"{p}data_source_index"
-        
-            dfs = []
-            prev_len = len(self.data)
-            
-            self.data["_recovery_key"] = self.data[src_idx_col] % decompress_data.multiplier
-            
-            for recovery_key, recovery_df in self.data.groupby("_recovery_key"):
-                recovery_df = pd.merge(
-                    recovery_df,
-                    decompress_data.decompress_data[recovery_key],
-                    on=[src_idx_col],
-                    how="left",
-                    # validate="many_to_one"
-                )
-                # Check for missing data after merge
-                # if f"{p}_MAPPING" not in recovery_df.columns:
-                #     print(f"Missing {p}_MAPPING for recovery_key {recovery_key}")
-                #     print(recovery_df.columns)
-                # if recovery_df[f"{p}__MAPPING"].isna().any():
-                #     raise ValueError(f"Missing data found during decompression for recovery_key {recovery_key}")
-                # if recovery_df[src_idx_col].isna().any():
-                #     raise ValueError(f"Missing data found during decompression for recovery_key {recovery_key}")
-                recovery_df.drop(columns=["_recovery_key", src_idx_col], inplace=True)
-                dfs.append(recovery_df)
+        new_df = pd.concat(rows)
+        extra_data_df = pd.DataFrame(extra_data)
+
+        # Drop the src_idx_col
+        self.data.drop(columns=[src_idx_col], inplace=True)
+        # Reset index to avoid duplicate index values that cause InvalidIndexError
+        a = new_df.reset_index(drop=True)
+        b = extra_data_df.reset_index(drop=True)
+        c = self.data.reset_index(drop=True)
+        self._data = pd.concat([a, b, c], axis=1)
+        self._data.drop(columns=[src_idx_col], inplace=True)
                 
-            self._data = pd.concat(dfs)
-            if decompress_data.id2mapping is not None:
-                self._data[f"{p}__MAPPING"] = self._data[f"{p}__MAPPING"].map(decompress_data.id2mapping)
-                
-            assert len(self.data) == prev_len, \
-                f"Decompressed data has {len(self.data)} rows, expected {prev_len}"
+    def decompress(self, decompress_data: GroupedDecompressData):
+        for einsum_name, decompress_data_list in decompress_data.prefix2datalist.items():
+            assert decompress_data_list, f"No decompress data found for {einsum_name}"
+            self._decompress_data(einsum_name, decompress_data_list)
+            print(f'After decompressing {einsum_name}, we have columns: {list(self.data.columns)}')
+        
 
     @classmethod
-    def compress_paretos(cls, paretos: list[tuple["PartialMappings", str]], id2mapping: dict[int, "Mapping"] | None = None) -> DecompressData:
-        multiplier = len(paretos)
-        
-        def _compress(pareto, offset):
-            pareto, prefix = pareto
-            assert isinstance(prefix, str)
-            decompress_data = pareto._compress_data(prefix, offset, multiplier)
-            return decompress_data, pareto
-
-        decompress_data = [None] * len(paretos)
-        for offset, ((p, _), (r, new_p)) in enumerate(zip(paretos, parallel([delayed(_compress)(p, i) for i, p in enumerate(paretos)], pbar="Compressing Partial Mappings", return_as="generator"))):
-            decompress_data[offset] = r
-            p._data = new_p.data
-            
-        return DecompressData(multiplier, decompress_data, id2mapping)
-
-    @classmethod
-    def decompress_paretos(cls, paretos: list["PartialMappings"], decompress_data: DecompressData, prefix: str | list[str] = None):
+    def compress_paretos(cls, prefix: EinsumName, paretos: list["PartialMappings"], extra_data: dict[str, Any]) -> DecompressData:
+        index = 0
+        decompress_data = []
         for p in paretos:
-            p._decompress_data(decompress_data, prefix=prefix)
+            p.data.reset_index(drop=True, inplace=True)
+            p.data.index += index
+            index += len(p.data)
+            decompress_data.append(p._compress_data(prefix))
+            
+        decompress_data = pd.concat(decompress_data) if decompress_data else pd.DataFrame()
+        decompress_data.reset_index(drop=True, inplace=True)
+        return DecompressData(
+            prefix=prefix,
+            decompress_data=decompress_data,
+            extra_data={f"{prefix}{k}": v for k, v in extra_data.items()},
+        )
+        
+    def _tuplefy_compress_data(self, index: int, decompress_data: DecompressData):
+        col = decompress_data.compressed_index_column()
+        self.data[col] = self.data[col].apply(lambda x: (index, x))

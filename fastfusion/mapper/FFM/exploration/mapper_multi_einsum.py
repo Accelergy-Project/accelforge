@@ -7,9 +7,9 @@ from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName
-from fastfusion.mapper.FFM.exploration.mapper_one_einsum import concat_sims, get_single_einsum_sims
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum import get_single_einsum_jobs
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.pareto import DecompressData
+from fastfusion.mapper.FFM.pareto import DecompressData, GroupedDecompressData
 from fastfusion.mapper.FFM.tags import Tags
 from fastfusion.util.util import parallel
 
@@ -45,7 +45,7 @@ def get_sims(
     if not parallelize_einsums:
         sims = {}
         for einsum_name in spec.workload.einsum_names:
-            sims[einsum_name] = get_single_einsum_sims(
+            sims[einsum_name] = get_single_einsum_jobs(
                 spec,
                 einsum_name,
                 rank_variable_bounds,
@@ -54,30 +54,34 @@ def get_sims(
             )
         return sims
 
-
     jobs = []
     einsum_names = einsum_names or spec.workload.einsum_names
     for einsum_name in einsum_names:
-        jobs.extend(get_single_einsum_sims(
+        jobs.extend(get_single_einsum_jobs(
             spec,
             einsum_name,
             rank_variable_bounds,
             flattened_architecture,
             tagger=tagger,
-            return_jobs=True,
         ))
 
-    sims = {einsum_name: {} for einsum_name in spec.workload.einsum_names}
-    id2mapping = {}
-    for einsum_name, new_sims, id, mapping in parallel(
+    sims = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
+    grouped_decompress_data: GroupedDecompressData = GroupedDecompressData(prefix2datalist={})
+    for einsum_name, new_sims, decompress_data in parallel(
         jobs,
         pbar="Generating Partial Mappings",
         return_as="generator_unordered",
     ):
-        id2mapping[id] = mapping
-        target = sims[einsum_name]
-        for compatibility, ns in new_sims.items():
-            target.setdefault(compatibility, []).extend(ns)
+        grouped_decompress_data.register_decompress_data(
+            einsum_name,
+            decompress_data,
+            [s.mappings for s in new_sims],
+        )
+        sims[einsum_name].extend(new_sims)
+            
+    intermediate_tensors = spec.workload.intermediate_tensors()
+    for einsum_name, sims2 in sims.items():
+        sims2 = SIM.combine_combineable(sims2, live_tensors=intermediate_tensors, pbar_postfix = f" for {einsum_name}")
 
-    return concat_sims(sims, id2mapping)
+    return sims, grouped_decompress_data
         

@@ -186,6 +186,7 @@ class SIM:
         allow_different_compatibilitys: bool = False,
         drop_tags: bool = False,
         combine_reservations: bool = True,
+        pbar_postfix: str = None,
     ) -> list["SIM"]:
         no_combine = []
         if not combine_reservations:
@@ -202,7 +203,7 @@ class SIM:
                 for g in groups
                 if len(g) > 1
             ],
-            pbar="Combining SIMs",
+            pbar=f"Grouping Partial Mappings{pbar_postfix}",
         )
         return groups_with_one + others + no_combine
 
