@@ -331,6 +331,7 @@ def label_fused_loops(mapping: List[MappingNode]):
 # Iterate over mappings
 # =================================================================================================
 def temporal_fused_constraint_thing_fix_me(mapping: List[MappingNode], rank_variables: list[RankVariableName]):
+    # Only one fused loop is allowed per rank variable
     rank_variables = list(rank_variables)
     if not rank_variables:
         yield mapping
@@ -760,7 +761,7 @@ def make_sims(
         new_compatibility = new_compatibility.update(tags=tags)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
-        partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops), n_pmappings=pmappings_per_group)
+        partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops), n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
         sim = SIM(new_compatibility, partial_mappings)
         sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
         sims.append(sim)
