@@ -186,7 +186,7 @@ class SIM:
         allow_different_compatibilitys: bool = False,
         drop_tags: bool = False,
         combine_reservations: bool = True,
-        pbar_postfix: str = None,
+        pbar_postfix: str = "",
     ) -> list["SIM"]:
         no_combine = []
         if not combine_reservations:
