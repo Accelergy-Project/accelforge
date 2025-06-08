@@ -53,7 +53,7 @@ def insert_temporal_loops(
                 split_mapping[0].extend(split_mapping.pop(1))
 
 
-    accumulative_prev_relevant = []
+    accumulative_prev_relevant = set()
     full_mapping = []
     seen_tensors = set()
     for i, prev_storages in enumerate(split_mapping):
@@ -71,16 +71,35 @@ def insert_temporal_loops(
             rank_variables &= einsum.tensor2rank_variables[t]
 
         # If there is no backing storage in the next block, only include loops
-        # that reuse tensors in the previous block.
+        # that reuse at least one tensor in the previous block.
         # If must be even, then it has to reuse accumulatively all the storages
         # above that must be even.
         if not any(s._backing for s in next_storages):
-            prev_relevant = [einsum.tensor2rank_variables[t] for s in prev_storages for t in s.tensors]
+            prev_relevant_uneven = [
+                einsum.tensor2rank_variables[t]
+                for s in prev_storages for t in s.tensors
+                if not s._even_with_below
+            ]
+            prev_relevant_even = [
+                einsum.tensor2rank_variables[t]
+                for s in prev_storages for t in s.tensors
+                if s._even_with_below
+            ]
             if not any(s._even_with_below for s in prev_storages):
-                accumulative_prev_relevant = []
-            accumulative_prev_relevant += prev_relevant
-            if accumulative_prev_relevant:
-                rank_variables -= set.intersection(*accumulative_prev_relevant)
+                accumulative_prev_relevant = set()
+                assert len(prev_relevant_even) == 0
+            if prev_relevant_uneven:
+                prev_relevant_uneven = set.intersection(*prev_relevant_uneven)
+            else:
+                prev_relevant_uneven = set()
+            
+            if prev_relevant_even:
+                prev_relevant_even = set.union(*prev_relevant_even)
+            else:
+                prev_relevant_even = set()
+            accumulative_prev_relevant |= prev_relevant_even
+
+            rank_variables -= prev_relevant_uneven | accumulative_prev_relevant
 
         # Only include loops that will index into the next block of storage nodes.
         if next_storages:

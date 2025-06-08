@@ -32,14 +32,26 @@ def get_storage_choices(
                 base_mapping.append(node)
 
         tensors_in_mapping = collect_tensors(all_storage_nodes)
+        required_order = get_dataflow_constraint(nodes,
+                                                 symbol_table,
+                                                 tensors_in_mapping)
 
-        required_order: dict[str, Order] = {}
-        for node in nodes:
-            # dataflow_constraints.append((node, node.constraints.dataflow._parse(symbol_table)))
-            constraint = node.constraints.dataflow._parse(symbol_table)
-            if constraint.storage_order:
+        for mapping in recursive_order_storage_choices(base_mapping,
+                                                       nodes,
+                                                       all_storage_nodes,
+                                                       required_order):
+            yield mapping, symbol_table
+
+
+def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
+    required_order: dict[str, list[Order]] = {}
+    for node in nodes:
+        # dataflow_constraints.append((node, node.constraints.dataflow._parse(symbol_table)))
+        constraint = node.constraints.dataflow._parse(symbol_table)
+        if constraint.storage_orders:
+            for order_constraint in constraint.storage_orders:
                 order = Order()
-                for together_tensors in constraint.storage_order:
+                for together_tensors in order_constraint:
                     in_mapping_together_tensors = [
                         tensor for tensor in together_tensors
                         if tensor in tensors_in_mapping
@@ -49,13 +61,8 @@ def get_storage_choices(
                         order.add_tensor(only_tensor)
                     else:
                         order.add_together_tensors(in_mapping_together_tensors)
-                required_order[node.name] = order
-
-        for mapping in recursive_order_storage_choices(base_mapping,
-                                                       nodes,
-                                                       all_storage_nodes,
-                                                       required_order):
-            yield mapping, symbol_table
+            required_order.setdefault(node.name, []).append(order)
+    return required_order
 
 
 def recursive_order_storage_choices(
@@ -101,19 +108,29 @@ def valid_storage_order(
                 return False
 
             if s1 == s2 and s1 in required_orders:
-                for t1 in mapping[i].tensors:
-                    for t2 in mapping[j].tensors:
-                        idx_of_i_in_order = required_orders[s1].index(t1)
-                        idx_of_j_in_order = required_orders[s1].index(t2)
+                for order_choice in required_orders[s1]:
+                    good = True
+                    for t1 in mapping[i].tensors:
+                        for t2 in mapping[j].tensors:
+                            idx_of_i_in_order = order_choice.index(t1)
+                            idx_of_j_in_order = order_choice.index(t2)
 
-                        if idx_of_i_in_order is None or idx_of_j_in_order is None:
-                            continue
+                            if idx_of_i_in_order is None or idx_of_j_in_order is None:
+                                continue
 
-                        if idx_of_i_in_order > idx_of_j_in_order:
-                            return False
-
-                        if idx_of_i_in_order == idx_of_j_in_order:
-                            mapping[i]._even_with_below = True
+                            if idx_of_i_in_order > idx_of_j_in_order:
+                                good = False
+                                break
+                    if good:
+                        for t1 in mapping[i].tensors:
+                            for t2 in mapping[j].tensors:
+                                idx_of_i_in_order = order_choice.index(t1)
+                                idx_of_j_in_order = order_choice.index(t2)
+                                if idx_of_i_in_order == idx_of_j_in_order:
+                                    mapping[i]._even_with_below = True
+                        break
+                if len(required_orders[s1]) > 1 and not good:
+                    return False
 
             if not (set(mapping[i].tensors) & set(mapping[j].tensors)):
                 continue
@@ -143,11 +160,14 @@ class Order:
     def __init__(self):
         self.order = []
 
+    def __repr__(self):
+        return f'Order({self.order})'
+
     def add_tensor(self, tensor):
-        self.order.append(tensor)
+        self.order.append(Alone(tensor))
 
     def add_together_tensors(self, together_tensors):
-        self.order.append(together_tensors)
+        self.order.append(Together(together_tensors))
 
     def index(self, tensor):
         for i, order_term in enumerate(self.order):

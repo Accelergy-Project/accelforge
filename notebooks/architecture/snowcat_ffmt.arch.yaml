@@ -31,7 +31,9 @@ architecture:
       storage:
         keep: All()
       dataflow:
-        storage_order: [~weight, weight] # No uneven. Put all tensors at the same level.
+        storage_orders:
+        - [Intermediates(), All()-Intermediates()]
+        - [All()-Intermediates(), Intermediates()]
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}

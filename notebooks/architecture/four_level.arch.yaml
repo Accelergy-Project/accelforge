@@ -55,7 +55,8 @@ architecture:
       storage:
         keep: Intermediates()
       dataflow:
-        storage_order: [All()] # No uneven. Put all tensors at the same level.
+        storage_orders:
+        - [All()] # No uneven. Put all tensors at the same level.
       spatial:
         - dimension: X
           loop_bounds:
@@ -89,7 +90,8 @@ architecture:
           operator: ==
           value: 1
       dataflow:
-        storage_order: [All()] # No uneven. Put all tensors at the same level.
+        storage_orders:
+        - [All()] # No uneven. Put all tensors at the same level.
       spatial:
         - dimension: X # Parallel rank
           loop_bounds:

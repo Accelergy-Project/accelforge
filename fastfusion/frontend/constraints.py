@@ -173,19 +173,23 @@ class Temporal(Iteration):
         )
         
 class Dataflow(ParsableModel):
-    storage_order: ParsableList[Union[str, InvertibleSet[TensorName], set[TensorName]]] = ParsableList()
-    
+    storage_orders: ParsableList[ParsableList[Union[str, InvertibleSet[TensorName], set[TensorName]]]] = ParsableList()
+
     def _parse(self, symbol_table: dict[str, Any]):
         result = type(self)(
-            storage_order=[eval_set_expression(x, symbol_table, "tensors") for x in self.storage_order],
+            storage_orders=[
+                [eval_set_expression(x, symbol_table, "tensors") for x in order_choice]
+                for order_choice in self.storage_orders
+            ],
         )
         # Assert that there are no intersecting sets
-        for i, s0 in enumerate(result.storage_order):
-            for j, s1 in enumerate(result.storage_order):
-                if i == j:
-                    continue
-                if s0 & s1:
-                    raise ValueError(f"Intersecting entries in dataflow constraint: {s0} and {s1}")
+        for order in result.storage_orders:
+            for i, s0 in enumerate(order):
+                for j, s1 in enumerate(order):
+                    if i == j:
+                        continue
+                    if s0 & s1:
+                        raise ValueError(f"Intersecting entries in dataflow constraint: {s0} and {s1}")
         return result
 
 
