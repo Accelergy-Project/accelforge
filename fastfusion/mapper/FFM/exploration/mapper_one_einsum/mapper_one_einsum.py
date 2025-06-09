@@ -480,7 +480,10 @@ def get_equivalent_sims(sim: SIM, tagger: Callable[[Mapping], Tags]) -> list[SIM
     equivalent_permutations = sim.compatibility.make_equivalent_permutations()
     result = []
     for c in equivalent_permutations:
-        tags = Tags() if tagger is None else tagger(c)
+        try:
+            tags = Tags() if tagger is None else tagger(c)
+        except ValueError:
+            continue
         result.append(SIM(c.update(tags=tags), sim.mappings))
     return result
 
