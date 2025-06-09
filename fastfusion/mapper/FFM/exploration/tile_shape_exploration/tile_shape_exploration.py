@@ -12,6 +12,7 @@ from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.mapping import Temporal, Spatial, Storage
 from fastfusion.frontend.specification import Specification
 
+from fastfusion.mapper.FFM.exploration import metrics
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
 from fastfusion.model.looptree.latency import get_latency
@@ -71,10 +72,10 @@ class TilingSegment:
             yield (n_loops, max_shape, min_shape)
 
 
-def explore_tile_shapes(pmapping, constraints, specification: Specification, flattened_arch):
+def explore_tile_shapes(pmapping, constraints, specification: Specification, flattened_arch, metrics: metrics.Metrics):
     set_last_tile_shape_to_one(pmapping)
 
-    symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(pmapping, specification, flattened_arch)
+    symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(pmapping, specification, flattened_arch, metrics)
     compiled_df = compile_dict(symbols, symbolic_df)
     compiled_per_memory_occupancy_df = compile_dict(symbols, per_memory_occupancy_df)
     compiled_utilization_df = compile_dict(symbols, utilization_df)
@@ -406,7 +407,7 @@ def set_last_tile_shape_to_one(pmapping):
         last_node.tile_shape = 1
 
 
-def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf]):
+def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: metrics.Metrics):
     workload = spec.workload
     ert = spec.component_energy
 
@@ -470,10 +471,11 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf]):
                 running_total += occupancies[n_loop]
                 df[nameloop2col(memory, n_loop)] = running_total
 
-    df['metric_Latency'] = overall_latency
+    if metrics.LATENCY:
+        df['metric_Latency'] = overall_latency
 
-    total_energy = sum(energy.values())
-    df['metric_Energy'] = total_energy
+    if metrics.ENERGY:
+        df['metric_Energy'] = sum(energy.values())
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():

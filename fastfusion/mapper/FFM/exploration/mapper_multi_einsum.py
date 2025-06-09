@@ -9,6 +9,7 @@ from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName
 
+from fastfusion.mapper.FFM.exploration.metrics import Metrics
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum import get_single_einsum_jobs
 from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import DecompressData, GroupedDecompressData
@@ -35,26 +36,21 @@ def get_rank_variable_bounds_for_all_einsums(spec: Specification):
 def get_sims(
     spec: Specification,
     flattened_architecture: Optional[list[architecture.Leaf]] = None,
-    parallelize_einsums = True,
     tagger: Callable[[Mapping], Tags] | None = None,
     einsum_names: Optional[list[EinsumName]] = None,
+    metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
 ) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
+    
+    print(
+        f'By default metrics optimizes for energy and latency.'
+        f'We should change to just energy or just latency at '
+        f'some point.'
+    )
+    
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     if flattened_architecture is None:
         flattened_architecture = spec.get_flattened_architecture()
-
-    if not parallelize_einsums:
-        sims = {}
-        for einsum_name in spec.workload.einsum_names:
-            sims[einsum_name] = get_single_einsum_jobs(
-                spec,
-                einsum_name,
-                rank_variable_bounds,
-                flattened_architecture,
-                tagger=tagger,
-            )
-        return sims
 
     single_einsum_jobs = []
     einsum_names = einsum_names or spec.workload.einsum_names
@@ -62,6 +58,7 @@ def get_sims(
         single_einsum_jobs.extend(get_single_einsum_jobs(
             spec,
             einsum_name,
+            metrics,
             rank_variable_bounds,
             flattened_architecture,
             start_index=len(single_einsum_jobs),
@@ -84,7 +81,7 @@ def get_sims(
 
     intermediate_tensors = spec.workload.intermediate_tensors
     for einsum_name, sims2 in sims.items():
-        sims2 = SIM.combine_combineable(sims2, live_tensors=intermediate_tensors, pbar_postfix = f" for {einsum_name}")
+        SIM.combine_combineable(sims2, live_tensors=intermediate_tensors, pbar_postfix = f" for {einsum_name}")
 
     return sims, grouped_decompress_data
         

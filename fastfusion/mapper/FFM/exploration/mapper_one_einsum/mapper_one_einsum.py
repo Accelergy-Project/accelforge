@@ -16,6 +16,7 @@ from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName
 
+from fastfusion.mapper.FFM.exploration import metrics
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation
 from fastfusion.mapper.FFM.joining.sim import SIM
@@ -597,7 +598,7 @@ def make_sims(
         new_compatibility = new_compatibility.update(tags=tags)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
-        partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops), n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
+        partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
         sim = SIM(new_compatibility, partial_mappings)
         sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
         sims.append(sim)
@@ -619,11 +620,12 @@ def _per_proc_compatibility2sim(
     intermediate_tensors: set[TensorName],
     flattened_arch: list[architecture.Leaf],
     einsum_name: EinsumName,
+    metrics: metrics.Metrics,
     job_id: int,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
     # print(f", ".join(m.compact_string() for m in mapping.nodes))
-    result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch)
+    result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics)
     sims = make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger, total_pmappings=total_pmappings)
     decompress_data = PartialMappings.compress_paretos(
         einsum_name, 
@@ -637,6 +639,7 @@ def _per_proc_compatibility2sim(
 def get_single_einsum_jobs(
     spec: Specification,
     einsum_name: EinsumName,
+    metrics: metrics.Metrics,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     flattened_arch: list[architecture.Leaf] | None = None,
     tagger: Callable[[Mapping], Tags] | None = None,
@@ -670,6 +673,7 @@ def get_single_einsum_jobs(
             flattened_arch=flattened_arch,
             einsum_name=einsum_name,
             tagger=tagger,
+            metrics=metrics,
             job_id=start_index + i,
        )
         for i, (mapping, constraints) in enumerate(mappings_constraints)
