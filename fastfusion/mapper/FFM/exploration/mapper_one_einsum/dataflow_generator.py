@@ -78,9 +78,6 @@ def recursive_order_storage_choices(
         return
 
     for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
-        print('choice', choice)
-        for node in remaining_choices:
-            print(node)
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
         if valid_storage_order(mapping, [n.name for n in nodes], required_order):
@@ -164,11 +161,6 @@ def valid_storage_order(
 
             for order_idx in satisfied_orders:
                 order = required_orders[s1][order_idx]
-                print(order)
-                for node in mapping:
-                    print(node)
-                    for t in node.tensors:
-                        print(t, order.index(t))
                 for tensor_i in mapping[i].tensors:
                     for tensor_j in mapping[j].tensors:
                         if order.index(tensor_i) != order.index(tensor_j):
