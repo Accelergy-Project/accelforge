@@ -81,8 +81,8 @@ class Mapping:
                     if tiling.loops[i] not in possible_loops:
                         new_loop = random.choice(list(possible_loops))
                         self.history.append(f"Fixing loop {i} for {einsum} to {new_loop}")
-                        tiling = tiling.set_loop(i, new_loop)
-                self.set_einsum2tiling(einsum, tiling)
+                        new_loops = tiling.loops[:i] + (new_loop,) + tiling.loops[i+1:]
+                        self.set_einsum2tiling(einsum, tiling.update(loops=new_loops))
 
         except FailedMutation:
             self.history.append(f"Failed to fix loops")
@@ -113,7 +113,8 @@ class Mapping:
                         f"Failed to translate loop {loop} from {einsum_name} to {einsum_name2}"
                     )
                 rank_variable_name = random.choice(translations)
-                tiling2 = tiling2.set_loop(i, loop.update(rank_variable_names=fzs((rank_variable_name,))))
+                new_loops = tiling2.loops[:i] + (loop.update(rank_variable_names=fzs((rank_variable_name,))),) + tiling2.loops[i+1:]
+                tiling2 = tiling2.update(loops=new_loops)
             self.set_einsum2tiling(einsum_name2, tiling2)
 
 
@@ -212,7 +213,8 @@ class Mapping:
                         f"Failed to translate loop {loop} from {einsum_name} to {einsum_name2}"
                     )
                 rank_variable_name = random.choice(translations)
-                tiling2 = tiling2.set_loop(i, loop.update(rank_variable_names=fzs((rank_variable_name,))))
+                new_loops = tiling2.loops[:i] + (loop.update(rank_variable_names=fzs((rank_variable_name,))),) + tiling2.loops[i+1:]
+                tiling2 = tiling2.update(loops=new_loops)
             self.set_einsum2tiling(einsum_name2, tiling2)
 
     def mutate_backing_storage(self, mapspace_globals: MapspaceGlobals):
@@ -226,8 +228,8 @@ class Mapping:
                 )
         self.history.append(f"Moving tensor {tensor} to storage {storage}")
         for einsum, tiling in self.einsum2tiling.items():
-            new_reservations = [storage] + [r for r in tiling.reservations if r.name != tensor]
-            self.set_einsum2tiling(einsum, tiling.update(reservations=fzs(new_reservations)))
+            new_storages = [storage] + [r for r in tiling.storage if r.name != tensor]
+            self.set_einsum2tiling(einsum, tiling.update(storage=fzs(new_storages)))
         self.fix_loops(mapspace_globals)
 
     def mutate_order(self, mapspace_globals: MapspaceGlobals):

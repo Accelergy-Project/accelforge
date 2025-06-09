@@ -145,7 +145,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             ])
             mask = mask & (utilization[(component, dim)] <= 1.0)
             # TODO: Remove this constraint
-            if np.any(mask & (utilization[(component, dim)] == 1)):
+            if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
                 mask = mask & (utilization[(component, dim)] == 1)
             # else:
             #     min_check = utilization[(component, dim)] + ~mask
@@ -259,7 +259,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     )
                     mask = mask & (utilization[(component, dim)] <= 1.0)
                     # TODO: Remove this constraint
-                    if np.any(mask & (utilization[(component, dim)] == 1)):
+                    if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
                         mask = mask & (utilization[(component, dim)] == 1)
                     # else:
                     #     min_check = utilization[(component, dim)] + ~mask

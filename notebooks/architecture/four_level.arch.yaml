@@ -88,7 +88,8 @@ architecture:
           operator: ==
           value: 1
       dataflow:
-        storage_orders: [All()] # Outputs more stationary than inputs
+        storage_orders: 
+        - [All()] # Outputs more stationary than inputs
       spatial:
         - dimension: X # Parallel rank
           loop_bounds:

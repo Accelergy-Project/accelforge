@@ -21,7 +21,7 @@ class MapspaceGlobals:
         self.einsum2ranks = {einsum_name: spec.workload.einsums[einsum_name].rank_variables for einsum_name in self.einsum_names}
         self.einsum2tensors = {einsum_name: spec.workload.einsums[einsum_name].tensor_names for einsum_name in self.einsum_names}
         self.tensor_names = set().union(*(self.einsum2tensors[e] for e in self.einsum_names))
-        self.intermediate_tensor_names = set().union(*(self.workload.get_
+        self.intermediate_tensor_names = spec.workload.intermediate_tensors
         self.pairwise_equivalent_ranks = spec.workload.get_pairwise_equivalent_rank_variables()
         self.full_equivalent_ranks = make_full_equivalent_rank_variables(self.pairwise_equivalent_ranks)
         
