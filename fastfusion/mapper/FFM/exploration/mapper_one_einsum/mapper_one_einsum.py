@@ -476,31 +476,14 @@ def make_compatibility(
     return compatibility
 
 
-def add_to_compatibility2sim(compatibility2sim: dict[Compatibility, SIM], sim: SIM):
-    if sim.compatibility not in compatibility2sim:
-        compatibility2sim[sim.compatibility] = sim
-    prev = compatibility2sim[sim.compatibility]
-
-    # Make columns in previous and current SIM match (by adding empty column)
-    # if not a reservation column.
-    for col in prev.mappings.data.columns:
-        if col not in sim.mappings.data.columns:
-            if not is_reservation_col(col):
-                sim.mappings.data[col] = 0
-    for col in sim.mappings.data.columns:
-        if col not in prev.mappings.data.columns:
-            if not is_reservation_col(col):
-                prev.mappings.data[col] = 0
-    prev.mappings = PartialMappings.concat([prev.mappings, sim.mappings])
-    
 def get_equivalent_sims(sim: SIM, tagger: Callable[[Mapping], Tags]) -> list[SIM]:
     equivalent_permutations = sim.compatibility.make_equivalent_permutations()
     result = []
     for c in equivalent_permutations:
         tags = Tags() if tagger is None else tagger(c)
-        if not tags.matches(Tags(("INVALID",))):
-            result.append(SIM(c.update(tags=tags), sim.mappings))
+        result.append(SIM(c.update(tags=tags), sim.mappings))
     return result
+
 
 def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mapping":
     compatibility = Mapping(nodes=[])
@@ -579,11 +562,6 @@ def make_sims(
     if explored_results.empty:
         return {}
     compatibility = make_compatibility(mapping, intermediate_tensors)
-    # print(compatibility)
-    # if len(compatibility.loops) == 0:
-    #     print(compatibility)
-    # if compatibility.tags.matches(Tags(("INVALID",))):
-    #     return {}
 
     fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
         
@@ -608,10 +586,11 @@ def make_sims(
         mappings.drop(columns=dropcols, inplace=True)
         
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds, tensor2size)
-
-        tags = Tags() if tagger is None else tagger(new_compatibility)
-        if tags.matches(Tags(("INVALID",))):
+        try:
+            tags = Tags() if tagger is None else tagger(new_compatibility)
+        except ValueError as e:
             continue
+            
         new_compatibility = new_compatibility.update(tags=tags)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
