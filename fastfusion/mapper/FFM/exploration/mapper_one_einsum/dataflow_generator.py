@@ -1,5 +1,6 @@
 from collections.abc import Collection, Generator, Sequence
 from dataclasses import dataclass
+from itertools import product
 from typing import Any
 
 import fastfusion.frontend.architecture as architecture
@@ -77,6 +78,9 @@ def recursive_order_storage_choices(
         return
 
     for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
+        print('choice', choice)
+        for node in remaining_choices:
+            print(node)
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
         if valid_storage_order(mapping, [n.name for n in nodes], required_order):
@@ -95,6 +99,7 @@ def valid_storage_order(
     for node in mapping:
         node._even_with_below = False
 
+    memory_to_satisfied_constraints: dict[str, set] = {}
     for i in range(len(mapping)):
         for j in range(i, len(mapping)):
 
@@ -110,30 +115,31 @@ def valid_storage_order(
             if i < j and s2_idx < s1_idx:
                 return False
 
-            if s1 == s2 and s1 in required_orders:
+            if s1 == s2 and s1 in required_orders and i != j:
+                if s1 not in memory_to_satisfied_constraints:
+                    memory_to_satisfied_constraints[s1] = \
+                        {i for i in range(len(required_orders[s1]))}
+
                 good = True
                 for order_idx, order_choice in enumerate(required_orders[s1]):
+                    if order_idx not in memory_to_satisfied_constraints[s1]:
+                        continue
+
                     good = True
-                    for t1 in mapping[i].tensors:
-                        for t2 in mapping[j].tensors:
-                            idx_of_i_in_order = order_choice.index(t1)
-                            idx_of_j_in_order = order_choice.index(t2)
+                    for t1, t2 in product(mapping[i].tensors, mapping[j].tensors):
+                        idx_of_i_in_order = order_choice.index(t1)
+                        idx_of_j_in_order = order_choice.index(t2)
 
-                            if idx_of_i_in_order is None or idx_of_j_in_order is None:
-                                continue
+                        if idx_of_i_in_order is None or idx_of_j_in_order is None:
+                            continue
 
-                            if idx_of_i_in_order > idx_of_j_in_order:
-                                good = False
-                                break
-                    if good:
-                        for t1 in mapping[i].tensors:
-                            for t2 in mapping[j].tensors:
-                                idx_of_i_in_order = order_choice.index(t1)
-                                idx_of_j_in_order = order_choice.index(t2)
-                                if idx_of_i_in_order == idx_of_j_in_order:
-                                    mapping[i]._even_with_below = True
-                        break
-                if len(required_orders[s1]) > 1 and not good:
+                        if idx_of_i_in_order > idx_of_j_in_order:
+                            good = False
+                            break
+                    if not good:
+                        memory_to_satisfied_constraints[s1].remove(order_idx)
+
+                if len(memory_to_satisfied_constraints[s1]) == 0:
                     return False
 
             if not (set(mapping[i].tensors) & set(mapping[j].tensors)):
@@ -146,6 +152,30 @@ def valid_storage_order(
                     return False
                 if s2_idx < s1_idx and not ((set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors)) or mapping[j]._backing):
                     return False
+
+    for i in range(len(mapping)):
+        for j in range(i, len(mapping)):
+            s1, s2 = mapping[i].memory, mapping[j].memory
+            if s1 != s2 or s1 not in memory_to_satisfied_constraints or i == j:
+                continue
+
+            satisfied_orders = memory_to_satisfied_constraints[s1]
+            assert len(satisfied_orders) > 0
+
+            for order_idx in satisfied_orders:
+                order = required_orders[s1][order_idx]
+                print(order)
+                for node in mapping:
+                    print(node)
+                    for t in node.tensors:
+                        print(t, order.index(t))
+                for tensor_i in mapping[i].tensors:
+                    for tensor_j in mapping[j].tensors:
+                        if order.index(tensor_i) != order.index(tensor_j):
+                            continue
+                        mapping[i]._even_with_below = True
+                break
+
     return True
 
 
