@@ -61,7 +61,7 @@ def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
                         order.add_tensor(only_tensor)
                     else:
                         order.add_together_tensors(in_mapping_together_tensors)
-            required_order.setdefault(node.name, []).append(order)
+                required_order.setdefault(node.name, []).append(order)
     return required_order
 
 
@@ -88,10 +88,13 @@ def recursive_order_storage_choices(
 
 
 def valid_storage_order(
-    mapping: Sequence[MappingNode],
+    mapping: Sequence[Storage],
     node_names: list[str],
-    required_orders: dict[str, "Order"]
+    required_orders: dict[str, list["Order"]]
 ):
+    for node in mapping:
+        node._even_with_below = False
+
     for i in range(len(mapping)):
         for j in range(i, len(mapping)):
 
@@ -108,7 +111,8 @@ def valid_storage_order(
                 return False
 
             if s1 == s2 and s1 in required_orders:
-                for order_choice in required_orders[s1]:
+                good = True
+                for order_idx, order_choice in enumerate(required_orders[s1]):
                     good = True
                     for t1 in mapping[i].tensors:
                         for t2 in mapping[j].tensors:
