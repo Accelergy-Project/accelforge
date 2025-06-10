@@ -313,7 +313,7 @@ def iterate_mappings_no_constraints(
 
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
-    for mapping, symbol_table in get_storage_choices(arch_flattened, symbol_table):
+    for mapping, symbol_table in get_storage_choices(arch_flattened, symbol_table, spec):
         mapping = copy.deepcopy(mapping)
         label_backing_storages(mapping)
         # print(", ".join(m.compact_string() for m in mapping))

@@ -1,3 +1,4 @@
+from fastfusion.frontend.mapper import MapperFFM
 from fastfusion.frontend.renames import Renames
 from fastfusion.util.parse_expressions import ParseExpressionsContext
 from fastfusion.frontend.architecture import Leaf
@@ -28,6 +29,7 @@ class Specification(ParsableModel):
     component_energy: ComponentEnergy = ComponentEnergy()
     component_area: ComponentArea = ComponentArea()
     renames: Renames = Renames()
+    mapper_ffm: MapperFFM = MapperFFM()
 
     def __init__(self, **data):
         if data.get("config") is None:

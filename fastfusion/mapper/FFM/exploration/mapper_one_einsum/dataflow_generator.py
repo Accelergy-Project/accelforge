@@ -5,6 +5,7 @@ from typing import Any
 
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.mapping import MappingNode, Storage
+from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
 from .bypass_keep_generator import make_storage_choices_all_levels
@@ -13,6 +14,7 @@ from .bypass_keep_generator import make_storage_choices_all_levels
 def get_storage_choices(
     nodes: list[architecture.Memory],
     symbol_table: SymbolTable,
+    spec: Specification,
 ) -> Generator[tuple[list[Storage], Any], None, None]:
     while not isinstance(nodes[0], architecture.Memory):
         nodes = nodes[1:]
@@ -40,7 +42,8 @@ def get_storage_choices(
         for mapping in recursive_order_storage_choices(base_mapping,
                                                        nodes,
                                                        all_storage_nodes,
-                                                       required_order):
+                                                       required_order,
+                                                       spec):
             yield mapping, symbol_table
 
 
@@ -71,6 +74,7 @@ def recursive_order_storage_choices(
     nodes: list[architecture.Memory],
     remaining_choices: list,
     required_order: list[list[Storage]],
+    spec: Specification,
 ) -> Generator[list[MappingNode], None, None]:
     mapping = list(mapping)
     if not remaining_choices:
@@ -80,18 +84,20 @@ def recursive_order_storage_choices(
     for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
-        if valid_storage_order(mapping, [n.name for n in nodes], required_order):
+        if valid_storage_order(mapping, [n.name for n in nodes], required_order, spec):
             yield from recursive_order_storage_choices(mapping,
                                                        nodes,
                                                        new_remaining,
-                                                       required_order)
+                                                       required_order,
+                                                       spec)
         mapping.pop()
 
 
 def valid_storage_order(
     mapping: Sequence[Storage],
     node_names: list[str],
-    required_orders: dict[str, list["Order"]]
+    required_orders: dict[str, list["Order"]],
+    spec: Specification,
 ):
     for node in mapping:
         node._even_with_below = False
@@ -106,11 +112,9 @@ def valid_storage_order(
             assert len(mapping[i].tensors) == 1
             assert len(mapping[j].tensors) == 1
 
-            # Ensure order # TODO: FIXME. Moved this above the continue to
-            # shrink the mapspace. This prevents local buffer from being above
-            # global buffer.
-            if i < j and s2_idx < s1_idx:
-                return False
+            if spec.mapper_ffm.force_memory_hierarchy_order:
+                if i < j and s2_idx < s1_idx:
+                    return False
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:
@@ -141,6 +145,9 @@ def valid_storage_order(
 
             if not (set(mapping[i].tensors) & set(mapping[j].tensors)):
                 continue
+
+            if i < j and s2_idx < s1_idx:
+                return False
 
             # If a tensor is stored in two levels back-to-back, then we
             # should have bypassed the outer storage if possible.
