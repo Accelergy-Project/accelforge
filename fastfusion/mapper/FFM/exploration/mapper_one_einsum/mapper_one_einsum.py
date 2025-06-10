@@ -387,7 +387,32 @@ def get_constraints(
     constraint_lambdas = []
     for constraint in tile_shape_constraints:
         mapping_nodes = tile_shape_constraint_id_to_mapping_nodes[id(constraint)]
-        constraint_lambdas.append(TileShapeConstraintLambda(constraint, mapping_nodes, constraint.expression))
+        targets = []
+        for expression in constraint.split_expression():
+            for m in mapping_nodes:
+                target_loops = []
+                remaining_rank_vars = set(expression)
+                idx = mapping.index(m)
+                for i in range(idx, -1, -1):
+                    if isinstance(mapping[i], Iteration):
+                        if mapping[i].rank_variable in remaining_rank_vars:
+                            target_loops.append(mapping[i])
+                            remaining_rank_vars.discard(mapping[i].rank_variable)
+                for r in remaining_rank_vars:
+                    mapping.insert(
+                        idx,
+                        Temporal(rank_variable=r, tile_shape='symbol')
+                    )
+                    target_loops.append(mapping[idx])
+                targets.append(target_loops)
+                
+        seen = set()
+        for t in targets:
+            seen_key = fzs(id(x) for x in t)
+            if seen_key in seen:
+                continue
+            seen.add(seen_key)
+            constraint_lambdas.append(TileShapeConstraintLambda(constraint, t, expression))
 
     for constraint in loop_bounds_constraints:
         mapping_nodes = loop_bounds_constraint_id_to_mapping_nodes[id(constraint)]
@@ -395,7 +420,12 @@ def get_constraints(
             for m in mapping_nodes:
                 mapping.remove(m)
             continue
+        raise NotImplementedError("Loop bounds constraints not implemented")
         constraint_lambdas.append(LoopBoundsConstraintLambda(constraint, mapping_nodes))
+
+    loops = [n for n in mapping if isinstance(n, Iteration)]
+    for c in constraint_lambdas:
+        c._target_indices = [loops.index(t) for t in c.target_mapping_nodes]
     
     return constraint_lambdas
 
@@ -420,13 +450,15 @@ def iterate_mappings_constraints(
 
     for einsum_name in einsum_names:
         for mapping, symbol_table in iterate_mappings_no_constraints(spec, einsum_name, arch_flattened, rank_variable_bounds):
-            constraints = get_constraints(mapping, symbol_table)
+            # MAPPING MUST NOT BE MODIFIED AFTER THIS POINT
+            constraints = get_constraints(mapping, symbol_table) 
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             # mapping = copy.copy(mapping)
-            mapping = Mapping(nodes=mapping)
+            mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
+            yield mapping, constraints
             # yield mapping, constraints
-            for mapping2 in iterate_mappings_n_loops_constraint(mapping, spec.workload.einsums[einsum_name]):
-                yield Mapping(nodes=[copy.copy(n) for n in mapping2.nodes]), symbol_table
+            # for mapping2 in iterate_mappings_n_loops_constraint(mapping, spec.workload.einsums[einsum_name]):
+            #     yield Mapping(nodes=[copy.copy(n) for n in mapping2.nodes]), constraints
 
 # =================================================================================================
 # Make sims

@@ -40,6 +40,11 @@ class Comparison(ParsableModel):
         
     def constrained_to_one(self) -> bool:
         return self.value == 1 and self.operator in ["==", "<=", "product==", "product<="]
+    
+    def split_expression(self) -> List[set[RankVariableName]]:
+        if "product" in self.operator:
+            return [self.expression]
+        return sorted(set((x, )) for x in self.expression)
 
     def to_constraint_lambda(
             self, 
@@ -59,8 +64,8 @@ class Comparison(ParsableModel):
 
         # fmt: off
         operator_to_wrapper = {
-            "==":        lambda final, sizes: _all(eq_op(final)(sizes), self.value),
-            "product==": lambda final, sizes: eq_op(final)(_prod((sizes), self.value)),
+            "==":        lambda final, sizes: _all(eq_op(final)(sizes, self.value)),
+            "product==": lambda final, sizes: eq_op(final)(_prod(sizes), self.value),
             "<=":        le_wrapper(lambda sizes: _all(sizes)  <= self.value),
             ">=":        ge_wrapper(lambda sizes: _all(sizes)  >= self.value),
             "<":         le_wrapper(lambda sizes: _all(sizes)  <  self.value),

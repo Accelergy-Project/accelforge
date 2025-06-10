@@ -8,10 +8,12 @@ import pandas as pd
 
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.architecture import Memory
+from fastfusion.frontend.constraints import Comparison, TileShapeConstraintLambda
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
-from fastfusion.frontend.mapping import Temporal, Spatial, Storage
+from fastfusion.frontend.mapping import Iteration, Temporal, Spatial, Storage
 from fastfusion.frontend.specification import Specification
 
+from fastfusion.frontend.workload.workload import RankVariableName
 from fastfusion.mapper.FFM.exploration import metrics
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
@@ -97,6 +99,14 @@ def explore_tile_shapes(pmapping, constraints, specification: Specification, fla
 
     return pd.DataFrame(df), total_pmappings
 
+def check_constraints(constraints: list[TileShapeConstraintLambda], tile_shapes: np.ndarray, rank_vars: set[RankVariableName]):
+    mask = np.ones(tile_shapes.shape[0], dtype=np.bool)
+    for c in constraints:
+        if rank_vars & c.rank_variables:
+            complete = c.rank_variables.issubset(rank_vars)
+            mask = mask & c(complete, tile_shapes[:, c._target_indices])
+    return mask
+
 def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specification):
     pmapping = pmapping.nodes
     workload = specification.workload
@@ -128,30 +138,30 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
         # TODO: there may be a more efficient order
         corrected_indices = np.asarray(invert_indices(indices))
         corrected_choices = choices[:,corrected_indices]
+        mask = check_constraints(
+            constraints,
+            corrected_choices,
+            set((rank_var,)),
+        )
         is_symbols = np.asarray(is_symbols)[corrected_indices]
         corrected_choices = corrected_choices[:,is_symbols]
 
         # Check if capacity is overused
-        mask = np.ones(corrected_choices.shape[0], dtype=np.bool)
         for memory, usage_model in usage_df.items():
             usage = usage_model(*[
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
-            mask = mask & (usage <= 1.0)
+            mask &= (usage <= 1.0)
 
         utilization = {}
         for (component, dim), utilization_model in utilization_df.items():
             utilization[(component, dim)] = utilization_model(*[
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
-            mask = mask & (utilization[(component, dim)] <= 1.0)
+            mask &= (utilization[(component, dim)] <= 1.0)
             # TODO: Remove this constraint
             if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
-                mask = mask & (utilization[(component, dim)] == 1)
-            # else:
-            #     min_check = utilization[(component, dim)] + ~mask
-            #     min_utilization = np.min(min_check)
-            #     mask = mask & (min_check == min_utilization)
+                mask &= (utilization[(component, dim)] == 1)
 
         good_choices = choices[mask,:]
 
@@ -218,16 +228,20 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 # TODO: there may be a more efficient order
                 corrected_indices = np.asarray(invert_indices(indices))
                 corrected_choices = combined_choices_with_ones[:,corrected_indices]
+                mask = check_constraints(
+                    constraints,
+                    corrected_choices,
+                    rank_a | rank_b,
+                )
                 is_symbols = np.asarray(is_symbols)[corrected_indices]
                 corrected_choices = corrected_choices[:,is_symbols]
 
                 # Check if capacity is overused
-                mask = np.ones(corrected_choices.shape[0], dtype=np.bool)
                 for memory, usage_model in usage_df.items():
                     usage = usage_model(*[
                         corrected_choices[:,i] for i in range(corrected_choices.shape[1])
                     ])
-                    mask = mask & (usage <= 1.0)
+                    mask &= (usage <= 1.0)
 
                 # Compute utilization
                 utilization = {}
@@ -258,14 +272,10 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                             for i in range(corrected_choices.shape[1])
                         ])
                     )
-                    mask = mask & (utilization[(component, dim)] <= 1.0)
+                    mask &= (utilization[(component, dim)] <= 1.0)
                     # TODO: Remove this constraint
                     if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
-                        mask = mask & (utilization[(component, dim)] == 1)
-                    # else:
-                    #     min_check = utilization[(component, dim)] + ~mask
-                    #     min_utilization = np.min(min_check)
-                    #     mask = mask & (min_check == min_utilization)
+                        mask &= (utilization[(component, dim)] == 1)
 
                 good_choices = combined_choices[mask,:]
                 all_good_choices.append(good_choices)
