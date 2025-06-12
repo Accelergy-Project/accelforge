@@ -3,31 +3,27 @@ import itertools
 from collections import defaultdict
 from collections.abc import Sequence
 from numbers import Number
-from typing import Callable, List
+from typing import Callable, Iterator, List
 
 from joblib import delayed
 from pandas import DataFrame
 from tqdm import tqdm
 
 import fastfusion.frontend.architecture as architecture
-from fastfusion.frontend.constraints import Comparison, ConstraintGroup, TileShapeConstraintLambda, LoopBoundsConstraintLambda
-from fastfusion.frontend.mapping import Iteration, Mapping, MappingNode, Storage, Temporal, Spatial, Compute, ModelOnlyNode
-from fastfusion.frontend.mapping import Reservation as ReservationNode
+from fastfusion.frontend.mapping import Compute, Iteration, Mapping, MappingNode, ModelOnlyNode, Storage, Temporal, Spatial
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName, Workload
-from fastfusion.frontend.workload.symbolic import get_projection_expr
 
 from fastfusion.mapper.FFM.exploration import metrics
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.dataflow_generator import get_storage_choices
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation, TilePattern
 from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col, tensor2col, DecompressData
-from fastfusion.util.setexpressions import InvertibleSet
-from fastfusion.util.util import fzs, parallel
+from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingConstraints, get_constraints
 from fastfusion.mapper.FFM.tags import Tags
-
-from .dataflow_generator import get_storage_choices
+from fastfusion.util.util import fzs
 
 
 MAX_N_LOOPS = 250
@@ -343,19 +339,6 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum, ran
     else:
         for t in temporals:
             mapping.insert(insert_point, t)
-    # mapping.extend(copy.deepcopy(temporals))
-    
-    seen = set()
-    # for i in range(len(mapping) - 1, -1, -1):
-    #     if isinstance(mapping[i], Storage):
-    #         if mapping[i]._backing:
-    #             break
-    #         seen = set()
-    #     if isinstance(mapping[i], Temporal):
-    #         if mapping[i].rank_variable in seen:
-    #             mapping.pop(i)
-    #         else:
-    #             seen.add(mapping[i].rank_variable)
     
 
 def iterate_mappings_n_loops_constraint(mapping: Mapping, einsum: Einsum):
@@ -436,118 +419,12 @@ def iterate_mappings_no_constraints(
                 place_missing_temporal_loops(mapping2, einsum, rank_variable_bounds)
                 yield mapping2, symbol_table
 
-# =================================================================================================
-# Attach constraints to mapping
-# =================================================================================================
-def get_constraints(
-    mapping: List[MappingNode],
-    symbol_table: dict[str, InvertibleSet],
-):
-    parsed = {}
-    def get_parsed_storage_constraint(constraint: ConstraintGroup) -> ConstraintGroup:
-        key = id(constraint.storage)
-        if key not in parsed:
-            parsed[key] = constraint.storage._parse_non_keep_bypass(symbol_table)
-        return parsed[key]
-    
-    def get_parsed_spatial_constraint(constraint: ConstraintGroup, dimension: str) -> ConstraintGroup:
-        key = (id(constraint), dimension)
-        if key not in parsed and dimension in constraint.spatial:
-            parsed[key] = constraint.spatial[dimension]._parse(symbol_table)
-        return parsed[key]
-            
-    tile_shape_constraint_id_to_mapping_nodes = defaultdict(list)
-    loop_bounds_constraint_id_to_mapping_nodes = defaultdict(list)
-    tile_shape_constraints: list[Comparison] = []
-    loop_bounds_constraints: list[Comparison] = []
-    
-    def add_storage_constraint(m: Storage, constraint: Comparison):
-        if id(constraint) not in tile_shape_constraint_id_to_mapping_nodes:
-            tile_shape_constraints.append(constraint)
-        tile_shape_constraint_id_to_mapping_nodes[id(constraint)].append(m)
-        
-    def add_loop_bounds_constraint(m: Iteration, constraint: Comparison):
-        if id(constraint) not in loop_bounds_constraint_id_to_mapping_nodes:
-            loop_bounds_constraints.append(constraint)
-        loop_bounds_constraint_id_to_mapping_nodes[id(constraint)].append(m)
-        
-    def add_parsed_dataflow_constraint_to_list(constraint: ConstraintGroup, dataflow_list: list[Comparison]):
-        key = id(constraint)
-        if key not in parsed:
-            parsed[key] = constraint._parse(symbol_table)
-        return parsed[key]
-    
-    for m in mapping:
-        if isinstance(m, Storage):
-            constraint = get_parsed_storage_constraint(m.memory_object.constraints)
-            for c in constraint.tile_shape:
-                add_storage_constraint(m, c)
-            
-
-        if isinstance(m, Spatial):
-            constraint = get_parsed_spatial_constraint(m.across_object.constraints, m.dimension)
-            if constraint is not None:
-                for c in constraint.loop_bounds:
-                    if m.rank_variable in c.expression:
-                        add_loop_bounds_constraint(m, c)
-
-    constraint_lambdas = []
-    do_not_remove = set()
-    for constraint in tile_shape_constraints:
-        mapping_nodes = tile_shape_constraint_id_to_mapping_nodes[id(constraint)]
-        targets = []
-        for expression in constraint.split_expression():
-            for m in mapping_nodes:
-                target_loops = []
-                remaining_rank_vars = set(expression)
-                idx = mapping.index(m)
-                for i in range(idx, -1, -1):
-                    if isinstance(mapping[i], Iteration):
-                        if mapping[i].rank_variable in remaining_rank_vars:
-                            target_loops.append(mapping[i])
-                            remaining_rank_vars.discard(mapping[i].rank_variable)
-                for r in remaining_rank_vars:
-                    mapping.insert(
-                        idx,
-                        Temporal(rank_variable=r, tile_shape='symbol')
-                    )
-                    target_loops.append(mapping[idx])
-                targets.append(target_loops)
-                for t in target_loops:
-                    do_not_remove.add(id(t))
-                
-        seen = set()
-        for t in targets:
-            seen_key = fzs(id(x) for x in t)
-            if seen_key in seen:
-                continue
-            seen.add(seen_key)
-            constraint_lambdas.append(TileShapeConstraintLambda(constraint, t, expression))
-
-    for constraint in loop_bounds_constraints:
-        mapping_nodes = loop_bounds_constraint_id_to_mapping_nodes[id(constraint)]
-        if constraint.constrained_to_one():
-            for m in mapping_nodes:
-                if id(m) not in do_not_remove:
-                    mapping.remove(m)
-            continue
-        raise NotImplementedError("Loop bounds constraints not implemented")
-        constraint_lambdas.append(LoopBoundsConstraintLambda(constraint, mapping_nodes))
-
-    loops = [n for n in mapping if isinstance(n, Iteration)]
-    for c in constraint_lambdas:
-        c._target_indices = [loops.index(t) for t in c.target_mapping_nodes]
-        assert c._target_indices
-    
-    return constraint_lambdas
-
-
 def iterate_mappings_constraints(
     spec: Specification,
     einsum_names: list[str] | str | None = None,
     arch_flattened: list[architecture.Leaf] | None = None,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
-):
+) -> Iterator[tuple[Mapping, MappingConstraints]]:
     if arch_flattened is None:
         arch_flattened = spec.get_flattened_architecture()
     compute_name = arch_flattened[-1].name
@@ -563,7 +440,7 @@ def iterate_mappings_constraints(
     for einsum_name in einsum_names:
         for mapping, symbol_table in iterate_mappings_no_constraints(spec, einsum_name, arch_flattened, rank_variable_bounds):
             # MAPPING MUST NOT BE MODIFIED AFTER THIS POINT
-            constraints = get_constraints(mapping, symbol_table) 
+            constraints = get_constraints(arch_flattened, mapping, symbol_table) 
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             # mapping = copy.copy(mapping)
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
@@ -581,11 +458,11 @@ def make_compatibility(
 ) -> Compatibility:
     fused_slice = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
-    reservations: dict[int, list[ReservationNode]] = {}
+    reservations: dict[int, list[Reservation]] = {}
     for node in fused_slice.nodes:
         if isinstance(node, Iteration):
             fused_loops.append(node)
-        elif isinstance(node, ReservationNode):
+        elif isinstance(node, Reservation):
             reservations.setdefault(len(fused_loops), []).append(node)
         elif isinstance(node, ModelOnlyNode):
             continue
@@ -731,7 +608,7 @@ def make_sims(
     pmappings_per_group = None if total_pmappings is None else total_pmappings / len(groups)
 
     sims = []
-
+    
     for tile_shape, mappings in groups:
         tensor2size = {}
 
@@ -752,7 +629,8 @@ def make_sims(
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
         partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
         sim = SIM(new_compatibility, partial_mappings)
-        sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
+        if tagger is not None:
+            sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
         sims.append(sim)
 
     new_sims = []
@@ -767,7 +645,7 @@ def make_sims(
 # =================================================================================================
 def _per_proc_compatibility2sim(
     mapping: Mapping,
-    constraints: list[Comparison],
+    constraints: MappingConstraints,
     spec: Specification,
     rank_variable_bounds: dict[RankVariableName, int],
     intermediate_tensors: set[TensorName],
@@ -843,7 +721,7 @@ def label_backing_storages(mapping: Sequence[MappingNode]):
             seen_tensors.update(tensors)
 
 
-def get_ranks_with_tile_pattern(producer_name, workload):
+def get_ranks_with_tile_pattern(producer_name: EinsumName, workload: Workload):
     producer = workload.einsums[producer_name]
     output_tensors = producer.output_tensors()
     if len(output_tensors) > 1:

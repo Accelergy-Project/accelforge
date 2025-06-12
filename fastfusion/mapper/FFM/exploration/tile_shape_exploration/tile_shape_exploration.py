@@ -9,14 +9,12 @@ import pandas as pd
 
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.architecture import Memory
-from fastfusion.frontend.constraints import TileShapeConstraintLambda
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.symbolic import get_projection_expr, compute_rank_occupancy
 from fastfusion.frontend.mapping import Temporal, Spatial, Storage, Pattern
 from fastfusion.frontend.specification import Specification
 
-from fastfusion.frontend.workload.workload import RankVariableName
 from fastfusion.mapper.FFM.exploration import metrics
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
@@ -87,7 +85,7 @@ class TilingSegment:
             yield (n_loops, initial_delta_choices, max_shape, min_shape)
 
 
-def explore_tile_shapes(pmapping, constraints, specification: Specification, flattened_arch, metrics: metrics.Metrics):
+def explore_tile_shapes(pmapping, constraints: "MappingConstraints", specification: Specification, flattened_arch, metrics: metrics.Metrics):
     set_last_tile_shape_to_one(pmapping)
 
     symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(pmapping, specification, flattened_arch, metrics)
@@ -119,14 +117,6 @@ def explore_tile_shapes(pmapping, constraints, specification: Specification, fla
         df[key] = compiled_df[key](*tile_shapes)
 
     return pd.DataFrame(df), total_pmappings
-
-def check_constraints(constraints: list[TileShapeConstraintLambda], tile_shapes: np.ndarray, rank_vars: set[RankVariableName]):
-    mask = np.ones(tile_shapes.shape[0], dtype=np.bool)
-    for c in constraints:
-        if rank_vars & c.rank_variables:
-            complete = c.rank_variables.issubset(rank_vars)
-            mask = mask & c(complete, tile_shapes[:, c._target_indices])
-    return mask
 
 def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specification):
     pmapping = pmapping.nodes
@@ -165,11 +155,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
         # TODO: there may be a more efficient order
         corrected_indices = np.asarray(invert_indices(indices))
         corrected_choices = choices[:,corrected_indices]
-        mask = check_constraints(
-            constraints,
-            corrected_choices,
-            set((rank_var,)),
-        )
+        mask = constraints.check_tile_shape_constraints(corrected_choices, set((rank_var,)))
         is_symbols = np.asarray(is_symbols)[corrected_indices]
         corrected_choices = corrected_choices[:,is_symbols]
 
@@ -186,9 +172,10 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
             mask &= (utilization[(component, dim)] <= 1.0)
+            mask &= constraints.check_maximize_utilization_constraints(component, dim, utilization[(component, dim)], set((rank_var,)))
             # TODO: Remove this constraint
-            if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
-                mask &= (utilization[(component, dim)] == 1)
+            # if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
+            #     mask &= (utilization[(component, dim)] == 1)
 
         good_choices = choices[mask,:]
 
@@ -266,11 +253,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 # TODO: there may be a more efficient order
                 corrected_indices = np.asarray(invert_indices(indices))
                 corrected_choices = combined_choices_with_ones[:,corrected_indices]
-                mask = check_constraints(
-                    constraints,
-                    corrected_choices,
-                    rank_a | rank_b,
-                )
+                mask = constraints.check_tile_shape_constraints(corrected_choices, rank_a | rank_b)
                 is_symbols = np.asarray(is_symbols)[corrected_indices]
                 corrected_choices = corrected_choices[:,is_symbols]
 
@@ -287,6 +270,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     utilization[(component, dim)] = utilization_model(*[
                         corrected_choices[:,i] for i in range(corrected_choices.shape[1])
                     ])
+                    mask &= constraints.check_maximize_utilization_constraints(component, dim, utilization[(component, dim)], rank_a | rank_b)
 
                 # Insert largest value
                 combined_choices_with_largest = combined_choices
@@ -312,8 +296,8 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     )
                     mask &= (utilization[(component, dim)] <= 1.0)
                     # TODO: Remove this constraint
-                    if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
-                        mask &= (utilization[(component, dim)] == 1)
+                    # if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
+                    #     mask &= (utilization[(component, dim)] == 1)
 
                 good_choices = combined_choices[mask,:]
                 all_good_choices.append(good_choices)
@@ -325,60 +309,67 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             np.concatenate(all_good_choices, axis=0)
         )
 
-    while len(rank_var_and_choices) > 1:
-        best_reduction = 2
-        best_indices = None
-        best_combined = None
-        for i, rank_var_and_choices_a in enumerate(rank_var_and_choices):
-            for j, rank_var_and_choices_b in enumerate(rank_var_and_choices):
-                if i >= j:
-                    continue
+    # while len(rank_var_and_choices) > 1:
+    #     best_reduction = 2
+    #     best_indices = None
+    #     best_combined = None
+    #     for i, rank_var_and_choices_a in enumerate(rank_var_and_choices):
+    #         for j, rank_var_and_choices_b in enumerate(rank_var_and_choices):
+    #             if i >= j:
+    #                 continue
 
-                choices_a = rank_var_and_choices_a[-1]
-                choices_b = rank_var_and_choices_b[-1]
+    #             choices_a = rank_var_and_choices_a[-1]
+    #             choices_b = rank_var_and_choices_b[-1]
 
-                # If we're going to have too many choices, skip
-                if choices_a.shape[0] * choices_b.shape[0] > 10000:
-                    continue
+    #             # If we're going to have too many choices, skip
+    #             if choices_a.shape[0] * choices_b.shape[0] > 10000:
+    #                 continue
 
-                other_rank_var_and_choices = [x for k, x in enumerate(rank_var_and_choices) if k not in (i, j)]
-                combined = get_combined_choices(rank_var_and_choices_a, rank_var_and_choices_b, other_rank_var_and_choices)
-                choices_combined = combined[-1]
-                if choices_a.shape[0] == 0 or choices_b.shape[0] == 0:
-                    reduction = 0
-                else:
-                    reduction = choices_combined.shape[0] / choices_a.shape[0] / choices_b.shape[0]
+    #             other_rank_var_and_choices = [x for k, x in enumerate(rank_var_and_choices) if k not in (i, j)]
+    #             combined = get_combined_choices(rank_var_and_choices_a, rank_var_and_choices_b, other_rank_var_and_choices)
+    #             choices_combined = combined[-1]
+    #             if choices_a.shape[0] == 0 or choices_b.shape[0] == 0:
+    #                 reduction = 0
+    #             else:
+    #                 reduction = choices_combined.shape[0] / choices_a.shape[0] / choices_b.shape[0]
 
-                # Encourage combining choices with 1
-                reduction -= choices_a.shape[0] == 1
-                reduction -= choices_b.shape[0] == 1
+    #             # Encourage combining choices with 1
+    #             reduction -= choices_a.shape[0] == 1
+    #             reduction -= choices_b.shape[0] == 1
 
-                # Combine the two choices that lead to the most reduction in the number of choices
-                if reduction < best_reduction:
-                    best_reduction = reduction
-                    best_indices = (i, j)
-                    best_combined = combined
+    #             # Combine the two choices that lead to the most reduction in the number of choices
+    #             if reduction < best_reduction:
+    #                 best_reduction = reduction
+    #                 best_indices = (i, j)
+    #                 best_combined = combined
 
-        if best_indices is None:
-            break
+    #     if best_indices is None:
+    #         break
     
-        rank_var_and_choices.pop(best_indices[1])
-        rank_var_and_choices.pop(best_indices[0])
-        rank_var_and_choices.append(best_combined)
+    #     rank_var_and_choices.pop(best_indices[1])
+    #     rank_var_and_choices.pop(best_indices[0])
+    #     rank_var_and_choices.append(best_combined)
 
-    # Now pick the smallest choices
-    rank_var_and_choices.sort(key=lambda x: x[-1].shape[0], reverse=True)
+    # # Now pick the smallest choices
+    # rank_var_and_choices.sort(key=lambda x: x[-1].shape[0], reverse=True)
+    # while len(rank_var_and_choices) > 1:
+    #     def get_smallest():
+    #         smallest, smallest_idx = None, None
+    #         for i, rv in enumerate(rank_var_and_choices):
+    #             if smallest is None or rv[-1].shape[0] < smallest[-1].shape[0]:
+    #                 smallest_idx, smallest = i, rv
+    #         rank_var_and_choices.pop(smallest_idx)
+    #         return smallest
+    #     smallest = get_smallest()
+    #     smallest2 = get_smallest()
+    #     rank_var_and_choices.append(get_combined_choices(smallest, smallest2, rank_var_and_choices))
+
+    # Sort rank var and choices by the rank variable name
+    rank_var_and_choices.sort(key=lambda x: x[0])
     while len(rank_var_and_choices) > 1:
-        def get_smallest():
-            smallest, smallest_idx = None, None
-            for i, rv in enumerate(rank_var_and_choices):
-                if smallest is None or rv[-1].shape[0] < smallest[-1].shape[0]:
-                    smallest_idx, smallest = i, rv
-            rank_var_and_choices.pop(smallest_idx)
-            return smallest
-        smallest = get_smallest()
-        smallest2 = get_smallest()
-        rank_var_and_choices.append(get_combined_choices(smallest, smallest2, rank_var_and_choices))
+        a = rank_var_and_choices.pop(0)
+        b = rank_var_and_choices.pop(0)
+        rank_var_and_choices.insert(0, get_combined_choices(a, b, rank_var_and_choices))
 
     _, inverted_indices, is_symbol, choices = rank_var_and_choices[0]
     is_symbol = np.asarray(is_symbol)

@@ -141,6 +141,7 @@ class Iteration(ParsableModel):
         
 class Spatial(Iteration):
     dimension: str
+    maximize_utilization: bool = False
     def combine(self, other: "Spatial"):
         if self.reuse != other.reuse:
             raise ValueError(f"Cannot combine iterations with different reuse constraints. Got {self.reuse} and {other.reuse}.")
@@ -158,6 +159,7 @@ class Spatial(Iteration):
             dimension=self.dimension,
             loop_bounds=[x._parse(symbol_table) for x in self.loop_bounds],
             reuse=eval_set_expression(self.reuse, symbol_table, "tensors"),
+            maximize_utilization=self.maximize_utilization,
         )
 
 class Temporal(Iteration):
@@ -204,34 +206,39 @@ class ConstraintGroup(ParsableModel):
     temporal: Temporal = Temporal()
     storage: Storage = Storage()
     dataflow: Dataflow = Dataflow()
-
-class TileShapeConstraintLambda:
-    def __init__(
-        self,
-        constraint: Comparison,
-        target_mapping_nodes: list[Storage],
-        rank_variables: set[str],
-    ):
+    
+class ConstraintLambda:
+    def __init__(self, constraint: Comparison, target_mapping_nodes: list[Spatial], rank_variables: set[str]):
         self.constraint = constraint
-        self.constraint_lambda = constraint.to_constraint_lambda(True)
+        self.constraint_lambda = None if constraint is None else constraint.to_constraint_lambda(True)
         self.target_mapping_nodes = target_mapping_nodes
         self.rank_variables = rank_variables
 
-    def __call__(self, final: bool, sizes: np.ndarray) -> bool:
+    def __call__(self, rank_variables: set[RankVariableName], sizes: np.ndarray) -> bool:
+        final = self.rank_variables.issubset(rank_variables)
         return self.constraint_lambda(final, sizes)
-    
-class LoopBoundsConstraintLambda:
-    def __init__(
-        self,
-        constraint: Comparison,
-        target_mapping_nodes: list[Iteration],
-    ):
-        self.constraint = constraint
-        self.constraint_lambda = constraint.to_constraint_lambda(True)
-        self.target_mapping_nodes = target_mapping_nodes
 
-    def __call__(self, final: bool, sizes: np.ndarray) -> bool:
-        return self.constraint_lambda(final, sizes)
+
+class TileShapeConstraintLambda(ConstraintLambda):
+    pass
+
+class LoopBoundsConstraintLambda(ConstraintLambda):
+    pass
+
+class MaximizeUtilizationConstraintLambda(ConstraintLambda):
+    def __init__(self, target_mapping_nodes: list[Spatial], rank_variables: set[str]):
+        super().__init__(None, target_mapping_nodes, rank_variables)
+        
+    def __call__(self, rank_variables: set[RankVariableName], utilizations: np.ndarray) -> bool:
+        final = self.rank_variables.issubset(rank_variables)
+        if not final:
+            return np.ones(utilizations.shape[0], dtype=np.bool)
+        utilizations = utilizations * (utilizations <= 1.0)
+        max_utilization = np.max(utilizations, axis=0)
+        mask = utilizations == max_utilization
+        if np.sum(mask) == 0:
+            assert False
+        return utilizations == max_utilization
 
 
 
