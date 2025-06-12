@@ -25,8 +25,8 @@ import pandas as pd
 from fastfusion.mapper.FFM.visualization import make_mapping
 from fastfusion.frontend.mapping import Mapping
 
-def mapping2svg(mapping: pd.Series, einsum_names: list[str]):
-    mapping: Mapping = make_mapping(mapping, einsum_names)
+def mapping2svg(mapping: pd.Series, einsum_names: list[str], rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None):
+    mapping: Mapping = make_mapping(mapping, einsum_names, rank_variable_bounds)
     render = mapping.render()
     return SVG(render)
 
@@ -36,6 +36,7 @@ def diplay_mappings_on_fig(
     data: dict[str, pd.DataFrame],
     mapping_svg: bool,
     einsum_names: list[str],
+    rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None,
 ):
     # fig = go.FigureWidget(fig)
     out = Output()
@@ -53,7 +54,7 @@ def diplay_mappings_on_fig(
         out.clear_output()
         d = data[trace.name]
         index = points.point_inds[0]
-        display(mapping2svg(d.iloc[index], einsum_names))
+        display(mapping2svg(d.iloc[index], einsum_names, rank_variable_bounds))
         # backing_tensors = set(
         #     t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.storage
         # )
@@ -107,6 +108,7 @@ def plotly_show(
     logscales: bool = False,
     mapping_svg: bool = False,
     einsum_names: Optional[list[str]] = None,
+    rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None,
 ):
     fig = go.FigureWidget()
     markers = [
@@ -155,5 +157,5 @@ def plotly_show(
         assert einsum_names is not None, (
             f"einsum_names must be provided if show_mapping is True"
         )
-        return diplay_mappings_on_fig(fig, data, mapping_svg, einsum_names)
+        return diplay_mappings_on_fig(fig, data, mapping_svg, einsum_names, rank_variable_bounds)
     return fig

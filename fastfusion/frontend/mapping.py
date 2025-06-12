@@ -90,12 +90,14 @@ class Iteration(MappingNode):
     #     return self
     
     def __str__(self) -> str:
+        x = []
         if self.tile_shape is not None:
-            return f"for {self.rank_variable} shape {self.tile_shape}"
-        elif self.tile_pattern is not None:
-            return f"for {self.rank_variable} pattern {self.tile_pattern}"
-        else:
-            return f"for {self.rank_variable} in [0..{self.loop_bound})"
+            x.append(f"shape {self.tile_shape}")
+        if self.tile_pattern is not None:
+            x.append(f"pattern {self.tile_pattern}")
+        if self.loop_bound is not None:
+            x.append(f"in [0..{self.loop_bound})")
+        return f"for {self.rank_variable} {' '.join(x)}"
 
 class Temporal(Iteration):
     def compact_string(self) -> str:
@@ -273,25 +275,33 @@ class Nested(MappingNodeWithChildren):
                 f"Could not find shared backing storage node between {self} and {other}"
             )
 
-    def clear_null_loops(self):
+    def beautify_loops(self, rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None):
         to_remove = []
+        rank_variable_bounds = rank_variable_bounds or {}
+        
         for i, node in enumerate(self.nodes):
             if not isinstance(node, Iteration):
                 continue
-            if node.loop_bound is not None and node.loop_bound == 1:
-                to_remove.append(i)
-        
-        for i, node in enumerate(self.nodes):
-            for j, node2 in enumerate(self.nodes):
-                if i >= j:
+            prev_tile_shape = None
+            for j in range(i - 1, -1, -1):
+                node2 = self.nodes[j]
+                if not isinstance(node2, Iteration):
                     continue
-                if not isinstance(node, Iteration) or not isinstance(node2, Iteration):
+                if node2.tile_shape is None:
                     continue
-                if node.rank_variable != node2.rank_variable:
+                if node2.rank_variable != node.rank_variable:
                     continue
-                if node.tile_shape is not None and node.tile_shape == node2.tile_shape:
-                    to_remove.append(j)
-                    
+                prev_tile_shape = node2.tile_shape
+                break
+            if prev_tile_shape is None:
+                prev_tile_shape = rank_variable_bounds.get(node.rank_variable, None)
+            if prev_tile_shape is not None:
+                if node.tile_shape == prev_tile_shape:
+                    to_remove.append(i)
+                    continue
+                elif node.tile_shape is not None and prev_tile_shape is not None:
+                    node.loop_bound = prev_tile_shape / node.tile_shape
+
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
                         
 
