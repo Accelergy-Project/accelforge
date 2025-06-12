@@ -56,6 +56,7 @@ def get_possible_translations(
             if len(all_ranks) > 1:
                 return False
         return True
+    print('SRC', t.loops)
 
     def translate_loop(l: Loop):
         compatible_rank_variables = (
@@ -68,7 +69,13 @@ def get_possible_translations(
 
         for n in compatible_rank_variables:
             left_bound = l.bound
-            if isinstance(left_bound, TilePattern):
+
+            if (l.rank_variable_name, n) in right_rank_var2initial_delta:
+                delta = right_rank_var2initial_delta[(l.rank_variable_name, n)]
+            else:
+                delta = None
+
+            if delta is not None and isinstance(left_bound, TilePattern):
                 delta = right_rank_var2initial_delta[(l.rank_variable_name, n)]
                 if left_bound.stride == left_bound.initial:
                     yield Loop(fzs((n,)), left_bound.stride, l.is_spatial)
@@ -83,11 +90,13 @@ def get_possible_translations(
                     #                        left_bound.initial-delta),
                     #            l.is_spatial)
                     pass
-            elif isinstance(left_bound, Number):
+            elif delta is None and isinstance(left_bound, Number):
                 yield Loop(fzs((n,)), left_bound, l.is_spatial)
 
     for loops in itertools.product(*map(translate_loop, t.loops)):
-        yield t.update(loops=loops)
+        new_compatibility = t.update(loops=loops)
+        print('DST', new_compatibility.loops)
+        yield new_compatibility
 
 
 prev_time = 0
@@ -326,6 +335,8 @@ def join_sims(
                 spec.workload.einsums[right_einsum],
                 right_rank2initial_delta[right_einsum],
             ):
+                print(right)
+                print(right.get(k_translated, []))
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
                     if (
                         a.compatibility.tags.are_compatible_with(b.compatibility.tags)

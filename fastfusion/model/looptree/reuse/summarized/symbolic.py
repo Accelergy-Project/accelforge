@@ -221,6 +221,8 @@ class ReservationAnalysisTracker:
 
 def insert_reservation_nodes(mapping, info: AnalysisInfo):
     trackers: list[ReservationAnalysisTracker] = []
+    einsum = info.workload.einsums[mapping[-1].einsum]
+    non_intermediate_tensors = einsum.tensors - info.workload.intermediate_tensors
     seen_tensors = set()  # reservation for top-level buffets cannot be lowered
     for i, node in enumerate(mapping):
         insert_offset = 0 # for inserting under storage
@@ -253,7 +255,11 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
                 tensor = TensorName(tensor)
                 buffet = Buffet(tensor, mapping[-1].einsum, node.memory)
                 trackers.append(ReservationAnalysisTracker(buffet))
-                if tensor not in seen_tensors:
+                if (
+                    not node._lower
+                    or
+                    (tensor not in seen_tensors and tensor in non_intermediate_tensors)
+                ):
                     insert_offset = 1
                     seen_tensors.add(tensor)
                     fills.append(buffet)

@@ -55,7 +55,11 @@ class Reservation(Updatable):
         return True
 
 
-TilePattern = namedtuple('TilePattern', ['stride', 'initial'])
+class TilePattern(NamedTuple):
+    stride: int
+    initial: int
+    def __str__(self) -> str:
+        return f'<{self.stride}, {self.initial}>'
 
 
 @dataclass(frozen=True, order=True, eq=True)
@@ -266,7 +270,7 @@ class Compatibility(Updatable):
         storages = []
         null_loop_indices = set()
 
-        assert len(tile_shape) == sum(1 if isinstance(l, Number) else 2
+        assert len(tile_shape) == sum(1 if isinstance(l.bound, Number) else 2
                                       for l in self.loops)
 
         # TODO: pick up here: self.loops may be namedtuple so tile_shape is longer

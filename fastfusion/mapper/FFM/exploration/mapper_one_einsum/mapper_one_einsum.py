@@ -118,16 +118,9 @@ def insert_temporal_loops(
             next_relevant = [tensor2rank_vars[t] for s in next_storages for t in s.tensors]
             rank_variables &= set.union(*next_relevant, set())
 
-        has_partially_relevant_rank_vars = any(
-            rank_var in tensor2partially_relevant_rank_vars[tensor]
-            for rank_var in rank_variables
-            for storage in prev_storages for tensor in storage.tensors
-        )
-        prev_has_backing = any(s._backing for s in prev_storages)
-
         if not rank_variables:
             choices.append([[]])
-        elif prev_has_backing and has_partially_relevant_rank_vars:
+        elif is_fused_loops:
             choices.append(list(itertools.permutations(rank_variables)))
         else:
             choices.append([set(rank_variables)])
@@ -135,12 +128,16 @@ def insert_temporal_loops(
     for loop_orders in itertools.product(*choices):
         full_mapping = []
         lowering_choices = []
+        seen_tensors = set()
         for prev_storages, loop_order in zip(split_mapping, loop_orders):
             full_mapping.extend(prev_storages)
-            if einsum.output_tensors() & seen_tensors != einsum.output_tensors:
+            seen_tensors |= set.union(*(set(t.tensors) for t in prev_storages), set())
+
+            if (einsum.output_tensors() & seen_tensors) != einsum.output_tensors():
                 maybe_tile_pattern_rank_vars = ranks_with_tile_pattern & set(loop_order)
             else:
                 maybe_tile_pattern_rank_vars = set()
+
             if isinstance(loop_order, Sequence):
                 prev_has_backing = any(s._backing for s in prev_storages)
                 first_loop_partially_relevant = None
@@ -170,7 +167,7 @@ def insert_temporal_loops(
                 assert all(storage.memory == first_memory.name for storage in prev_storages)
                 full_mapping.append(Temporal(rank_variable=loop_order, tile_shape='symbol'))
                 lowering_choices.extend([[True]]*len(prev_storages))
-            elif isinstance(loop_order, set):
+            elif isinstance(loop_order, set):  # if set, cannot be fused
                 assert len(prev_storages) == 1 and len(prev_storages[0].tensors) == 1
                 tensor = next(iter(prev_storages[0].tensors))
                 fully_relevant_rank_vars = \
@@ -180,15 +177,17 @@ def insert_temporal_loops(
                 partially_relevant_rank_vars = \
                     loop_order - irrelevant_rank_vars - fully_relevant_rank_vars
 
-                if maybe_tile_pattern_rank_vars:
-                    full_mapping.append(Temporal(rank_variable=fully_relevant_rank_vars-maybe_tile_pattern_rank_vars,
+                # Place loops in order of best lowering
+                if fully_relevant_rank_vars:
+                    full_mapping.append(Temporal(rank_variable=fully_relevant_rank_vars,
                                                 tile_shape='symbol'))
-                    full_mapping.append(Temporal(rank_variable=maybe_tile_pattern_rank_vars,
-                                                tile_pattern='symbol'))
-                else:
-                    full_mapping.append(Temporal(rank_variable=fully_relevant_rank_vars, tile_shape='symbol'))
-                full_mapping.append(Temporal(rank_variable=partially_relevant_rank_vars, tile_shape='symbol'))
-                full_mapping.append(Temporal(rank_variable=irrelevant_rank_vars, tile_shape='symbol'))
+
+                if partially_relevant_rank_vars:
+                    full_mapping.append(Temporal(rank_variable=partially_relevant_rank_vars, tile_shape='symbol'))
+
+                if irrelevant_rank_vars:
+                    full_mapping.append(Temporal(rank_variable=irrelevant_rank_vars, tile_shape='symbol'))
+
                 lowering_choices.extend([[True]]*len(prev_storages))
             else:
                 raise RuntimeError('BUG')
@@ -278,7 +277,7 @@ def temporal_fused_constraint_thing_fix_me(mapping: List[MappingNode], rank_vari
         # print(indent + ", ".join(m.compact_string() for m in mapping))
         yield from temporal_fused_constraint_thing_fix_me(mapping, rank_variables)
         return
-    
+
     for choice in fused_loops:
         mapping_new = list(mapping)
         for f in fused_loops[::-1]:
@@ -399,6 +398,7 @@ def iterate_mappings_no_constraints(
         raise ValueError("No memory found in architecture")
 
     ranks_with_tile_pattern = get_ranks_with_tile_pattern(einsum_name, spec.workload)
+    # print('RANKS WITH TILE PATTERN', ranks_with_tile_pattern)
 
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
@@ -415,7 +415,7 @@ def iterate_mappings_no_constraints(
             # print(", ".join(m.compact_string() for m in mapping))
             mapping = unpack_loops_to_rank_variables(mapping)
             label_fused_loops(mapping)
-            # print(", ".join(m.compact_string() for m in mapping))
+            print(", ".join(m.compact_string() for m in mapping))
             for mapping2 in temporal_fused_constraint_thing_fix_me(mapping, list(spec.workload.einsums[einsum_name].rank_variables)): # TODO
                 mapping2 = temporal_constraint_2_fix_me(mapping2, einsum)
                 place_missing_temporal_loops(mapping2, einsum, rank_variable_bounds)
@@ -442,7 +442,7 @@ def iterate_mappings_constraints(
     for einsum_name in einsum_names:
         for mapping, symbol_table in iterate_mappings_no_constraints(spec, einsum_name, arch_flattened, rank_variable_bounds):
             # MAPPING MUST NOT BE MODIFIED AFTER THIS POINT
-            mapping, constraints = get_constraints(arch_flattened, mapping, symbol_table) 
+            constraints = get_constraints(arch_flattened, mapping, symbol_table) 
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             # mapping = copy.copy(mapping)
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
@@ -597,11 +597,11 @@ def make_sims(
         return {}
     compatibility = make_compatibility(mapping, intermediate_tensors)
 
-    n_tile_shapes = sum(1 if isinstance(l, Number) else 2 for l in compatibility.loops)
+    n_tile_shapes = sum(1 if isinstance(l.bound, Number) else 2 for l in compatibility.loops)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(n_tile_shapes)]
-        
+
     explored_results = drop_cols(explored_results)
-        
+
     if fused_loop_columns:
         groups = list(explored_results.groupby(fused_loop_columns))
     else:
@@ -627,6 +627,7 @@ def make_sims(
             continue
 
         new_compatibility = new_compatibility.update(tags=tags)
+        print(new_compatibility)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
         partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)

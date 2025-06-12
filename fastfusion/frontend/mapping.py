@@ -101,7 +101,14 @@ class Iteration(MappingNode):
 
 class Temporal(Iteration):
     def compact_string(self) -> str:
-        return f"{self.rank_variable}-{self.loop_bound}"
+        if self.loop_bound is not None:
+            return f"{self.rank_variable} shape {self.tile_shape}"
+        elif self.tile_pattern is not None:
+            return f"{self.rank_variable} patrn {self.tile_pattern}"
+        elif self.loop_bound is not None:
+            return f"{self.rank_variable} bound {self.loop_bound}"
+        else:
+            return f"{self.rank_variable} None"
 
 class Spatial(Iteration):
     dimension: Union[int, str]

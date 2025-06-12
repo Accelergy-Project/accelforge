@@ -12,7 +12,7 @@ from fastfusion.frontend.architecture import Memory
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.symbolic import get_projection_expr, compute_rank_occupancy
-from fastfusion.frontend.mapping import Temporal, Spatial, Storage, Pattern
+from fastfusion.frontend.mapping import Temporal, Spatial, Storage, Pattern, Iteration
 from fastfusion.frontend.specification import Specification
 
 from fastfusion.mapper.FFM.exploration import metrics
@@ -378,6 +378,10 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
     indices = invert_indices(inverted_indices)
 
     # print(f"Returning choices of shape {choices[:,indices].shape}")
+    # for node in pmapping:
+    #     if isinstance(node, Iteration):
+    #         print(node)
+    # print(choices[:,indices])
 
     return choices[:,indices], is_symbol[indices], total_pmappings
 
@@ -471,6 +475,7 @@ def make_shapes_for_one_rank(tiling_segments: TilingSegment):
             all_tile_shapes = np.tile(all_tile_shapes, (tile_shape.shape[0], 1))
             tile_shape = np.repeat(tile_shape, repeats=all_tile_shapes_n_rows, axis=0)
             all_tile_shapes = np.concatenate((all_tile_shapes, tile_shape), axis=1)
+
     return all_tile_shapes
 
 
