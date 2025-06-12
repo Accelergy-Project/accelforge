@@ -66,7 +66,7 @@ class Loop(Updatable):
 
     def __post_init__(self):
         assert isinstance(self.rank_variable_names, fzs)
-        assert isinstance(self.bound, (Number, NamedTuple))
+        assert isinstance(self.bound, Number | TilePattern)
         assert isinstance(self.is_spatial, bool)
 
     @property
@@ -266,26 +266,41 @@ class Compatibility(Updatable):
         storages = []
         null_loop_indices = set()
 
-        assert len(tile_shape) == len(self.loops)
+        assert len(tile_shape) == sum(1 if isinstance(l, Number) else 2
+                                      for l in self.loops)
 
         # TODO: pick up here: self.loops may be namedtuple so tile_shape is longer
-        for i, (t, l) in enumerate(zip(tile_shape, self.loops)):
-            prev_size = rank_variable_bounds[l.rank_variable]
+        tile_shape_idx = 0
+        for i, loop in enumerate(self.loops):
+            cur_tile_shape = tile_shape[tile_shape_idx]
+            prev_size = rank_variable_bounds[loop.rank_variable]
             if i > 0:
                 prev_loop = next(
-                    iter(
-                        l2
-                        for l2 in new_loops[i - 1 :: -1]
-                        if l2.rank_variable == l.rank_variable
-                    ),
+                    iter(new_loop for new_loop in new_loops[i-1::-1]
+                         if new_loop.rank_variable == loop.rank_variable),
                     None,
                 )
                 if prev_loop is not None:
-                    prev_size = tile_shape[new_loops.index(prev_loop)]
-            if prev_size == t:
+                    prev_bound = prev_loop.bound
+                    if isinstance(prev_bound, TilePattern):
+                        prev_size = prev_bound.stride
+                    elif isinstance(prev_bound, Number):
+                        prev_size = prev_bound
+                    else:
+                        raise RuntimeError('BUG')
+
+            if isinstance(loop.bound, TilePattern):
+                new_bound = TilePattern(cur_tile_shape,
+                                        tile_shape[tile_shape_idx+1])
+                tile_shape_idx += 2
+            elif isinstance(loop.bound, Number):
+                new_bound = cur_tile_shape
+                tile_shape_idx += 1
+
+            if prev_size == cur_tile_shape:
                 null_loop_indices.add(i)
             else:
-                new_loops[i] = l.update(bound=t)
+                new_loops[i] = loop.update(bound=new_bound)
 
         new_loops = [l for i, l in enumerate(new_loops) if i not in null_loop_indices]
 

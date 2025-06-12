@@ -2,6 +2,7 @@ import copy
 import itertools
 from collections import defaultdict
 from collections.abc import Sequence
+from numbers import Number
 from typing import Callable, List
 
 from joblib import delayed
@@ -40,7 +41,8 @@ def insert_temporal_loops(
     einsum: Einsum,
     first_memory: architecture.Memory,
     rank_variable_bounds: dict[RankVariableName, int],
-    ranks_with_tile_pattern: set = set()
+    ranks_with_tile_pattern: set,
+    workload: Workload,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -56,18 +58,23 @@ def insert_temporal_loops(
                 split_mapping[0].extend(split_mapping.pop(1))
 
 
+    intermediate_tensors = einsum.tensors & workload.intermediate_tensors
+    is_fused_loops = True
     accumulative_prev_relevant = set()
-    full_mapping = []
     seen_tensors = set()
+    choices = []
+    auto_lower_choices = []
     for i, prev_storages in enumerate(split_mapping):
-        full_mapping.extend(prev_storages)
+        # full_mapping.extend(prev_storages)
         next_storages = split_mapping[i+1] if i < len(split_mapping) - 1 else []
         assert len(next_storages) <= 1
 
         rank_variables = einsum.rank_variables
         rank_variables = {r for r in rank_variables if rank_variable_bounds[r] > 1}
         seen_tensors |= set.union(*(set(t.tensors) for t in prev_storages), set())
+        is_fused_loops = is_fused_loops and (intermediate_tensors - seen_tensors)
 
+        # No recomputation:
         # If we haven't seen a tensor yet, must only iterate over fully-relevant
         # rank variables.
         for t in einsum.tensors - seen_tensors:
@@ -109,42 +116,59 @@ def insert_temporal_loops(
             next_relevant = [einsum.tensor2rank_variables[t] for s in next_storages for t in s.tensors]
             rank_variables &= set.union(*next_relevant, set())
 
+        # if rank_variables has partially relevant and prev storages has backing:
+        #     auto_lower_choices.append([True, False])
+        # elif prev storages has backing:
+        #     auto_lower_choices.append([False])
+        # else:
+        #     auto_lower_choices.append([True])
+
         # if i == len(split_mapping) - 1:
         #     rank_variables = set(einsum.rank_variables)
 
         if not rank_variables:
-            continue
-
-        if len(prev_storages) != 1 or len(prev_storages[0].tensors) > 1:
-            full_mapping.append(Temporal(rank_variable=rank_variables, tile_shape='symbol'))
+            choices.append([[]])
+        elif not is_fused_loops:
+            choices.append([set(rank_variables)])
         else:
-            assert len(prev_storages[0].tensors) == 1
-            tensor = next(iter(prev_storages[0].tensors))
-            fully_relevant_rank_vars = \
-                rank_variables & einsum.tensor2fully_relevant_rank_variables[tensor]
-            irrelevant_rank_vars = \
-                rank_variables - einsum.tensor2fully_relevant_rank_variables[tensor]
-            partially_relevant_rank_vars = \
-                rank_variables - irrelevant_rank_vars - fully_relevant_rank_vars
+            choices.append(list(itertools.permutations(rank_variables)))
 
-            if einsum.output_tensors() & seen_tensors != einsum.output_tensors:
-                maybe_tile_pattern_rank_vars = ranks_with_tile_pattern & rank_variables
+    for loop_orders in itertools.product(*choices):
+        full_mapping = []
+        storage_nodes_with_partial_rank = []
+        for prev_storages, loop_order in zip(split_mapping, loop_orders):
+            full_mapping.extend(prev_storages)
+            if isinstance(loop_order, Sequence):
+                for loop in loop_order:
+                    full_mapping.append(Temporal(rank_variable=loop,
+                                                 tile_shape='symbol'))
+            elif isinstance(loop_order, set):
+                assert len(prev_storages[0].tensors) == 1
+                tensor = next(iter(prev_storages[0].tensors))
+                fully_relevant_rank_vars = \
+                    loop_order & einsum.tensor2fully_relevant_rank_variables[tensor]
+                irrelevant_rank_vars = \
+                    loop_order - einsum.tensor2fully_relevant_rank_variables[tensor]
+                partially_relevant_rank_vars = \
+                    loop_order - irrelevant_rank_vars - fully_relevant_rank_vars
+
+                if einsum.output_tensors() & seen_tensors != einsum.output_tensors:
+                    maybe_tile_pattern_rank_vars = ranks_with_tile_pattern & loop_order
+                else:
+                    maybe_tile_pattern_rank_vars = set()
+
+                if maybe_tile_pattern_rank_vars:
+                    full_mapping.append(Temporal(rank_variable=fully_relevant_rank_vars-maybe_tile_pattern_rank_vars,
+                                                tile_shape='symbol'))
+                    full_mapping.append(Temporal(rank_variable=maybe_tile_pattern_rank_vars,
+                                                tile_pattern='symbol'))
+                else:
+                    full_mapping.append(Temporal(rank_variable=fully_relevant_rank_vars, tile_shape='symbol'))
+                full_mapping.append(Temporal(rank_variable=partially_relevant_rank_vars, tile_shape='symbol'))
+                full_mapping.append(Temporal(rank_variable=irrelevant_rank_vars, tile_shape='symbol'))
             else:
-                maybe_tile_pattern_rank_vars = set()
-
-            if maybe_tile_pattern_rank_vars:
-                full_mapping.append(Temporal(rank_variable=fully_relevant_rank_vars-maybe_tile_pattern_rank_vars,
-                                             tile_shape='symbol'))
-                full_mapping.append(Temporal(rank_variable=maybe_tile_pattern_rank_vars,
-                                             tile_pattern='symbol'))
-            else:
-                full_mapping.append(Temporal(rank_variable=fully_relevant_rank_vars, tile_shape='symbol'))
-            full_mapping.append(Temporal(rank_variable=partially_relevant_rank_vars, tile_shape='symbol'))
-            full_mapping.append(Temporal(rank_variable=irrelevant_rank_vars, tile_shape='symbol'))
-
-    full_mapping = list(full_mapping)
-
-    return full_mapping
+                raise RuntimeError('BUG')
+        yield list(full_mapping)
 
 
 def insert_spatial_loops(
@@ -366,17 +390,18 @@ def iterate_mappings_no_constraints(
             mapping = timeloop_style_even(mapping)
         label_backing_storages(mapping)
         # print(", ".join(m.compact_string() for m in mapping))
-        mapping = insert_temporal_loops(mapping, einsum, first_memory, rank_variable_bounds, ranks_with_tile_pattern)
-        # print(", ".join(m.compact_string() for m in mapping))
-        insert_spatial_loops(mapping, einsum, arch_flattened, rank_variable_bounds)
-        # print(", ".join(m.compact_string() for m in mapping))
-        mapping = unpack_loops_to_rank_variables(mapping)
-        label_fused_loops(mapping)
-        # print(", ".join(m.compact_string() for m in mapping))
-        for mapping2 in temporal_fused_constraint_thing_fix_me(mapping, list(spec.workload.einsums[einsum_name].rank_variables)): # TODO
-            mapping2 = temporal_constraint_2_fix_me(mapping2, einsum)
-            place_missing_temporal_loops(mapping2, einsum, rank_variable_bounds)
-            yield mapping2, symbol_table
+        for mapping in insert_temporal_loops(mapping, einsum, first_memory, rank_variable_bounds, ranks_with_tile_pattern, spec.workload):
+            mapping = copy.deepcopy(mapping)
+            # print(", ".join(m.compact_string() for m in mapping))
+            insert_spatial_loops(mapping, einsum, arch_flattened, rank_variable_bounds)
+            # print(", ".join(m.compact_string() for m in mapping))
+            mapping = unpack_loops_to_rank_variables(mapping)
+            label_fused_loops(mapping)
+            # print(", ".join(m.compact_string() for m in mapping))
+            for mapping2 in temporal_fused_constraint_thing_fix_me(mapping, list(spec.workload.einsums[einsum_name].rank_variables)): # TODO
+                mapping2 = temporal_constraint_2_fix_me(mapping2, einsum)
+                place_missing_temporal_loops(mapping2, einsum, rank_variable_bounds)
+                yield mapping2, symbol_table
 
 # =================================================================================================
 # Attach constraints to mapping
@@ -660,7 +685,8 @@ def make_sims(
         return {}
     compatibility = make_compatibility(mapping, intermediate_tensors)
 
-    fused_loop_columns = [f"__tile_shape{i}" for i in range(len(compatibility.loops))]
+    n_tile_shapes = sum(1 if isinstance(l, Number) else 2 for l in compatibility.loops)
+    fused_loop_columns = [f"__tile_shape{i}" for i in range(n_tile_shapes)]
         
     explored_results = drop_cols(explored_results)
         
@@ -681,13 +707,13 @@ def make_sims(
             tensor2size[tensor] = mappings[tensor2col(tensor)].iloc[0]
             dropcols.append(tensor2col(tensor))
         mappings.drop(columns=dropcols, inplace=True)
-        
+
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds, tensor2size)
         try:
             tags = Tags() if tagger is None else tagger(new_compatibility)
         except ValueError as e:
             continue
-            
+
         new_compatibility = new_compatibility.update(tags=tags)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
@@ -698,8 +724,9 @@ def make_sims(
 
     new_sims = []
     for sim in sims:
-        for equivalent_sim in get_equivalent_sims(sim, tagger):
-            new_sims.append(equivalent_sim)
+        # for equivalent_sim in get_equivalent_sims(sim, tagger):
+        #     new_sims.append(equivalent_sim)
+        new_sims.append(sim)
     return new_sims
 
 # =================================================================================================
