@@ -49,25 +49,11 @@ def memory_latency(
         shared_bw += 1e-8
 
         # All shared bw for writing
-        write_latency = writes / (write_bw + shared_bw)
-        read_latency = reads / read_bw
-        all_shared_for_write_latency = Max(write_latency, read_latency)
-
-        # All shared bw for reading
         write_latency = writes / write_bw
-        read_latency = reads / (read_bw + shared_bw)
-        all_shared_for_read_latency = Max(write_latency, read_latency)
+        read_latency = reads / read_bw
+        shared_latency = (reads + writes) / shared_bw
+        component_latency[component] = Max(write_latency, read_latency, shared_latency)
 
-        # Shared bw shared for reading and writing
-        shared_for_read_and_write_latency = (
-            (reads + writes)
-            / 
-            (read_bw + write_bw + shared_bw)
-        )
-
-        component_latency[component] = Min(all_shared_for_write_latency,
-                                           all_shared_for_read_latency,
-                                           shared_for_read_and_write_latency)
     return component_latency
 
 
