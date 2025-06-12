@@ -24,6 +24,8 @@ from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMap
 from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingConstraints, get_constraints
 from fastfusion.mapper.FFM.tags import Tags
 from fastfusion.util.util import fzs
+from fastfusion.frontend.mapping import Reservation as ReservationNode
+
 
 
 MAX_N_LOOPS = 250
@@ -440,7 +442,7 @@ def iterate_mappings_constraints(
     for einsum_name in einsum_names:
         for mapping, symbol_table in iterate_mappings_no_constraints(spec, einsum_name, arch_flattened, rank_variable_bounds):
             # MAPPING MUST NOT BE MODIFIED AFTER THIS POINT
-            constraints = get_constraints(arch_flattened, mapping, symbol_table) 
+            mapping, constraints = get_constraints(arch_flattened, mapping, symbol_table) 
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             # mapping = copy.copy(mapping)
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
@@ -458,11 +460,11 @@ def make_compatibility(
 ) -> Compatibility:
     fused_slice = mapping.get_fused_slice(intermediate_tensors)
     fused_loops = []
-    reservations: dict[int, list[Reservation]] = {}
+    reservations: dict[int, list[ReservationNode]] = {}
     for node in fused_slice.nodes:
         if isinstance(node, Iteration):
             fused_loops.append(node)
-        elif isinstance(node, Reservation):
+        elif isinstance(node, ReservationNode):
             reservations.setdefault(len(fused_loops), []).append(node)
         elif isinstance(node, ModelOnlyNode):
             continue
