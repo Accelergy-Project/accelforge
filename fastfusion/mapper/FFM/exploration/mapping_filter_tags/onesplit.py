@@ -6,10 +6,10 @@ ONE_SPLIT = 'ONE_SPLIT'
 NOT_ONE_SPLIT = 'NOT_ONE_SPLIT'
 
 
-def get_one_split_tag(compatibility: Compatibility, non_fused_memory) -> Tags:
+def get_one_split_tag(compatibility: Compatibility) -> Tags:
     unique_loops = set()
     for storage in compatibility.storage:
-        if storage.resource_name == non_fused_memory:
+        if storage.resource_name == "MainMemory":
             continue
         unique_loops.add(storage.above_loop_index)
 
