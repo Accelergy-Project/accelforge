@@ -172,11 +172,10 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             utilization[(component, dim)] = utilization_model(*[
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
-            mask &= (utilization[(component, dim)] <= 1.0)
-            mask &= constraints.check_maximize_utilization_constraints(component, dim, utilization[(component, dim)], set((rank_var,)))
-            # TODO: Remove this constraint
-            # if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
-            #     mask &= (utilization[(component, dim)] == 1)
+            util = utilization[(component, dim)]
+            mask &= util <= 1.0
+            util = util * mask
+            mask &= constraints.check_min_utilization_constraints(component, dim, util, set((rank_var,)))
 
         good_choices = choices[mask,:]
 
@@ -271,7 +270,10 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     utilization[(component, dim)] = utilization_model(*[
                         corrected_choices[:,i] for i in range(corrected_choices.shape[1])
                     ])
-                    mask &= constraints.check_maximize_utilization_constraints(component, dim, utilization[(component, dim)], rank_a | rank_b)
+                    util = utilization[(component, dim)]
+                    mask &= util <= 1.0
+                    util = util * mask
+                    mask &= constraints.check_min_utilization_constraints(component, dim, util * mask, rank_a | rank_b)
 
                 # Insert largest value
                 combined_choices_with_largest = combined_choices
@@ -296,9 +298,6 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                         ])
                     )
                     mask &= (utilization[(component, dim)] <= 1.0)
-                    # TODO: Remove this constraint
-                    # if component == "Register" and np.any(mask & (utilization[(component, dim)] == 1)):
-                    #     mask &= (utilization[(component, dim)] == 1)
 
                 good_choices = combined_choices[mask,:]
                 all_good_choices.append(good_choices)

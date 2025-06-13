@@ -141,7 +141,7 @@ class Iteration(ParsableModel):
         
 class Spatial(Iteration):
     dimension: str
-    maximize_utilization: bool = False
+    min_utilization: float = 0.0
     def combine(self, other: "Spatial"):
         if self.reuse != other.reuse:
             raise ValueError(f"Cannot combine iterations with different reuse constraints. Got {self.reuse} and {other.reuse}.")
@@ -159,7 +159,7 @@ class Spatial(Iteration):
             dimension=self.dimension,
             loop_bounds=[x._parse(symbol_table) for x in self.loop_bounds],
             reuse=eval_set_expression(self.reuse, symbol_table, "tensors"),
-            maximize_utilization=self.maximize_utilization,
+            min_utilization=self.min_utilization,
         )
 
 class Temporal(Iteration):
@@ -225,19 +225,23 @@ class TileShapeConstraintLambda(ConstraintLambda):
 class LoopBoundsConstraintLambda(ConstraintLambda):
     pass
 
-class MaximizeUtilizationConstraintLambda(ConstraintLambda):
-    def __init__(self, target_mapping_nodes: list[Spatial], rank_variables: set[str]):
+class MinUtilizationConstraintLambda(ConstraintLambda):
+    def __init__(self, target_mapping_nodes: list[Spatial], rank_variables: set[str], min_utilization: float):
         super().__init__(None, target_mapping_nodes, rank_variables)
+        self.min_utilization = min_utilization
         
     def __call__(self, rank_variables: set[RankVariableName], utilizations: np.ndarray) -> bool:
         final = self.rank_variables.issubset(rank_variables)
         if not final:
             return np.ones(utilizations.shape[0], dtype=np.bool)
-        utilizations = utilizations * (utilizations <= 1.0)
+
+        # Some utilizations are already above the minimum. Return those.
+        result = utilizations >= self.min_utilization
+        if np.sum(result) > 0:
+            return result
+        
+        # Nobody is amove the minimum. Return the best we can do.
         max_utilization = np.max(utilizations, axis=0)
-        mask = utilizations == max_utilization
-        if np.sum(mask) == 0:
-            assert False
         return utilizations == max_utilization
 
 

@@ -121,13 +121,13 @@ architecture:
         - [All()] # Outputs more stationary than inputs
       spatial:
         - dimension: X # Parallel rank
-          maximize_utilization: True
+          min_utilization: 0.9
           loop_bounds:
           - expression: ~parallel_rank
             operator: ==
             value: 1
         - dimension: Y # Reduced rank. No iteration over outputs
-          maximize_utilization: True
+          min_utilization: 0.9
           loop_bounds:
           - expression: ~reduced_rank
             operator: ==

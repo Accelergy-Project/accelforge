@@ -415,7 +415,7 @@ def iterate_mappings_no_constraints(
             # print(", ".join(m.compact_string() for m in mapping))
             mapping = unpack_loops_to_rank_variables(mapping)
             label_fused_loops(mapping)
-            print(", ".join(m.compact_string() for m in mapping))
+            # print(", ".join(m.compact_string() for m in mapping))
             for mapping2 in temporal_fused_constraint_thing_fix_me(mapping, list(spec.workload.einsums[einsum_name].rank_variables)): # TODO
                 mapping2 = temporal_constraint_2_fix_me(mapping2, einsum)
                 place_missing_temporal_loops(mapping2, einsum, rank_variable_bounds)
@@ -535,18 +535,6 @@ def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mappin
     return compatibility
 
 
-def drop_cols(mappings: DataFrame):
-    from fastfusion.mapper.FFM.pareto import col2nameloop
-    to_drop = []
-    for col in mappings.columns:
-        if col2nameloop(col) is None:
-            continue
-        name, loop_index = col2nameloop(col)
-        if name == "LocalBuffer" or name == "Register" or name == "MainMemory":
-            to_drop.append(col)
-    return mappings.drop(columns=to_drop)
-
-
 def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indices: set[int]):
     prev = copy.deepcopy(mappings) # TODO: Is this needed?
     target2newabovename = {}
@@ -577,13 +565,6 @@ def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indic
     assert len(mappings.columns) == len(mappings.columns.unique())
     return mappings
 
-# def matches_storage_order(mapping: Mapping, storage_order: list[str]):
-#     found = [s.tensor for s in mapping.nodes if isinstance(s, Storage)]
-#     return len(found) >= len(storage_order) and all(s1 == s2 for s1, s2 in zip(found, storage_order))
-
-# def has_tensors(mapping: Mapping, tensors: list[TensorName]):
-#     found = set(s.tensor for s in mapping.nodes if isinstance(s, Storage))
-#     return found >= set(tensors)
 
 def make_sims(
         mapping: Mapping,
@@ -595,12 +576,11 @@ def make_sims(
     ):    
     if explored_results.empty:
         return {}
+
     compatibility = make_compatibility(mapping, intermediate_tensors)
 
     n_tile_shapes = sum(1 if isinstance(l.bound, Number) else 2 for l in compatibility.loops)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(n_tile_shapes)]
-
-    explored_results = drop_cols(explored_results)
 
     if fused_loop_columns:
         groups = list(explored_results.groupby(fused_loop_columns))
@@ -627,7 +607,7 @@ def make_sims(
             continue
 
         new_compatibility = new_compatibility.update(tags=tags)
-        print(new_compatibility)
+        # print(new_compatibility)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
         partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
@@ -639,7 +619,7 @@ def make_sims(
     new_sims = []
     for sim in sims:
         # for equivalent_sim in get_equivalent_sims(sim, tagger):
-        #     new_sims.append(equivalent_sim)
+        #     new_sims.append(copy.deepcopy(equivalent_sim))
         new_sims.append(sim)
     return new_sims
 
@@ -658,7 +638,7 @@ def _per_proc_compatibility2sim(
     job_id: int,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
-    # print(f", ".join(m.compact_string() for m in mapping.nodes))
+    print(f", ".join(m.compact_string() for m in mapping.nodes))
     result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics)
     sims = make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger, total_pmappings=total_pmappings)
     decompress_data = PartialMappings.compress_paretos(

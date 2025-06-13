@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import List
 import numpy as np
 import fastfusion.frontend.architecture as architecture
-from fastfusion.frontend.constraints import Comparison, ConstraintGroup, MaximizeUtilizationConstraintLambda, TileShapeConstraintLambda, LoopBoundsConstraintLambda
+from fastfusion.frontend.constraints import Comparison, ConstraintGroup, MinUtilizationConstraintLambda, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.constraints import Spatial as SpatialConstraint
 from fastfusion.frontend.mapping import Iteration, MappingNode, Storage, Temporal, Spatial
 from fastfusion.frontend.workload.workload import RankVariableName
@@ -14,15 +14,10 @@ from fastfusion.util.util import fzs
 # Attach constraints to mapping
 # =================================================================================================
 class MappingConstraints:
-    def __init__(
-        self,
-        tile_shape_constraints: list[TileShapeConstraintLambda] = (),
-        loop_bounds_constraints: list[LoopBoundsConstraintLambda] = (),
-        maximize_utilization_constraints: dict[tuple[str, str], MaximizeUtilizationConstraintLambda] = (),
-    ):
-        self.tile_shape_constraints = list(tile_shape_constraints)
-        self.loop_bounds_constraints = list(loop_bounds_constraints)
-        self.maximize_utilization_constraints = dict(maximize_utilization_constraints)
+    def __init__(self):
+        self.tile_shape_constraints: list[TileShapeConstraintLambda] = []
+        self.loop_bounds_constraints: list[LoopBoundsConstraintLambda] = []
+        self.min_utilization_constraints: dict[tuple[str, str], MinUtilizationConstraintLambda] = {}
 
     def check_tile_shape_constraints(
             self,
@@ -34,155 +29,131 @@ class MappingConstraints:
             mask = mask & c(rank_vars, tile_shapes[:, c._target_indices])
         return mask
     
-    
-    def check_maximize_utilization_constraints(
+    def check_min_utilization_constraints(
             self,
             component_name: str,
             dimension: str,
             utilization: np.ndarray,
             rank_vars: set[RankVariableName]
         ):
-        if (component_name, dimension) not in self.maximize_utilization_constraints:
+        if (component_name, dimension) not in self.min_utilization_constraints:
             return np.ones(utilization.shape[0], dtype=np.bool)
-        return self.maximize_utilization_constraints[(component_name, dimension)](rank_vars, utilization)
+        return self.min_utilization_constraints[(component_name, dimension)](rank_vars, utilization)
     
     def set_loop_indices(self, loops: list[Iteration]):
         for c in self.tile_shape_constraints:
             c._target_indices = [loops.index(t) for t in c.target_mapping_nodes]
-            
+
         for c in self.loop_bounds_constraints:
             c._target_indices = [loops.index(t) for t in c.target_mapping_nodes]
             
-        for c in self.maximize_utilization_constraints.values():
-            c._target_indices = [loops.index(t) for t in c.target_mapping_nodes]
+    def clear_constrained_to_one(self, mapping: list[MappingNode]) -> list[MappingNode]:
+        # Not constrained to one --> Can't remove
+        do_not_remove = set()
+        for c in self.tile_shape_constraints:
+            for t in c.target_mapping_nodes:
+                do_not_remove.add(id(t))
+        for c in self.loop_bounds_constraints:
+            if not c.constraint.constrained_to_one():
+                for t in c.target_mapping_nodes:
+                    do_not_remove.add(id(t))
+        
+        # Constrained to one --> remove iff not in do_not_remove
+        to_remove = set()
+        for c in self.loop_bounds_constraints:
+            if c.constraint.constrained_to_one():
+                my_remove = set(id(t) for t in c.target_mapping_nodes) - do_not_remove
+                c.target_mapping_nodes = [t for t in c.target_mapping_nodes if id(t) not in my_remove]
+                to_remove.update(my_remove)
+        self.loop_bounds_constraints = [c for c in self.loop_bounds_constraints if not c.constraint.constrained_to_one()]
 
+        return [m for m in mapping if id(m) not in to_remove]
 
+def first_storage_node_index(mapping: list[MappingNode], memory_name: str) -> int:
+    for i, m in enumerate(mapping):
+        if isinstance(m, Storage) and m.memory == memory_name:
+            return i
+    return None
+
+def constrained_loops(mapping: list[MappingNode], rank_variables: set[RankVariableName], start_index: int=0) -> list[Iteration]:
+    nodes = []
+    remaining_rank_variables = set(rank_variables)
+    for i, m in enumerate(mapping):
+        if i < start_index or not isinstance(m, Iteration):
+            continue
+        if m.rank_variable in remaining_rank_variables:
+            nodes.append(m)
+            remaining_rank_variables.discard(m.rank_variable)
+    for r in remaining_rank_variables:
+        node = Temporal(rank_variable=r, tile_shape='symbol')
+        mapping.insert(start_index, node)
+        nodes.append(node)
+    return nodes
 
 def get_constraints(
     arch_flattened: list[architecture.Leaf],
     mapping: List[MappingNode],
     symbol_table: dict[str, InvertibleSet],
 ) -> tuple[List[MappingNode], MappingConstraints]:
-    parsed = {}
-    mapping = list(mapping)
-    def get_parsed_storage_constraint(constraint: ConstraintGroup) -> ConstraintGroup:
-        key = id(constraint.storage)
-        if key not in parsed:
-            parsed[key] = constraint.storage._parse_non_keep_bypass(symbol_table)
-        return parsed[key]
     
-    def get_parsed_spatial_constraint(constraint: ConstraintGroup, dimension: str) -> SpatialConstraint:
-        key = (id(constraint), dimension)
-        if dimension not in constraint.spatial:
-            return None
-        if key not in parsed and dimension in constraint.spatial:
-            parsed[key] = constraint.spatial[dimension]._parse(symbol_table)
-        return parsed[key]
-            
-    tile_shape_constraint_id_to_mapping_nodes = defaultdict(list)
-    loop_bounds_constraint_id_to_mapping_nodes = defaultdict(list)
-    tile_shape_constraints: list[Comparison] = []
-    loop_bounds_constraints: list[Comparison] = []
-
-    def add_storage_constraint(m: Storage, constraint: Comparison):
-        if id(constraint) not in tile_shape_constraint_id_to_mapping_nodes:
-            tile_shape_constraints.append(constraint)
-        tile_shape_constraint_id_to_mapping_nodes[id(constraint)].append(m)
-        
-    def add_loop_bounds_constraint(m: Iteration, constraint: Comparison):
-        if id(constraint) not in loop_bounds_constraint_id_to_mapping_nodes:
-            loop_bounds_constraints.append(constraint)
-        loop_bounds_constraint_id_to_mapping_nodes[id(constraint)].append(m)
-        
-    def add_parsed_dataflow_constraint_to_list(constraint: ConstraintGroup, dataflow_list: list[Comparison]):
-        key = id(constraint)
-        if key not in parsed:
-            parsed[key] = constraint._parse(symbol_table)
-        return parsed[key]
-    
-    for m in mapping:
-        if isinstance(m, Storage):
-            constraint = get_parsed_storage_constraint(m.memory_object.constraints)
-            for c in constraint.tile_shape:
-                add_storage_constraint(m, c)
-
-        if isinstance(m, Spatial):
-            constraint = get_parsed_spatial_constraint(m.across_object.constraints, m.dimension)
-            if constraint is not None:
-                for c in constraint.loop_bounds:
-                    if m.rank_variable in c.expression:
-                        add_loop_bounds_constraint(m, c)
-
     constraints = MappingConstraints()
+    
+    # Storage constraints
+    for m in arch_flattened:
+        if not isinstance(m, architecture.Memory):
+            continue
+        
+        if (index := first_storage_node_index(mapping, m.name)) is None:
+            continue
 
-    constraint_lambdas = []
-    do_not_remove = set()
-    for constraint in tile_shape_constraints:
-        mapping_nodes = tile_shape_constraint_id_to_mapping_nodes[id(constraint)]
-        targets = []
-        for expression in constraint.split_expression():
-            for m in mapping_nodes:
-                target_loops = []
-                remaining_rank_vars = set(expression)
-                idx = mapping.index(m)
-                for i in range(idx, -1, -1):
-                    if isinstance(mapping[i], Iteration):
-                        if mapping[i].rank_variable in remaining_rank_vars:
-                            target_loops.append(mapping[i])
-                            remaining_rank_vars.discard(mapping[i].rank_variable)
-                for r in remaining_rank_vars:
-                    mapping.insert(
-                        idx,
-                        Temporal(rank_variable=r, tile_shape='symbol')
-                    )
-                    target_loops.append(mapping[idx])
-                targets.append(target_loops)
-                for t in target_loops:
-                    do_not_remove.add(id(t))
+        storage_constraints = m.constraints.storage._parse_non_keep_bypass(symbol_table)
+
+        # Tile shape constraints
+        for c in storage_constraints.tile_shape:
+            nodes = constrained_loops(mapping, c.expression, index + 1)
+            for exp in c.split_expression():
+                new_nodes = [n for n in nodes if n.rank_variable in exp]
+                storage_constraint = TileShapeConstraintLambda(c, new_nodes, exp)
+                constraints.tile_shape_constraints.append(storage_constraint)
                 
-        seen = set()
-        for t in targets:
-            seen_key = fzs(id(x) for x in t)
-            if seen_key in seen:
+    # Temporal loop bounds constraints
+    # TODO: Implement
+            
+    # Spatial constraints
+    for m in arch_flattened:
+        if not isinstance(m, architecture.Memory):
+            continue
+
+        for dim in m.spatial.fanout:
+            if dim not in m.constraints.spatial:
                 continue
-            seen.add(seen_key)
-            constraints.tile_shape_constraints.append(TileShapeConstraintLambda(constraint, t, expression))
+            loops = [n for n in mapping if isinstance(n, Spatial) and (n.across, n.dimension) == (m.name, dim)]
+            spatial_constraint = m.constraints.spatial[dim]._parse(symbol_table)
 
-    for constraint in loop_bounds_constraints:
-        mapping_nodes = loop_bounds_constraint_id_to_mapping_nodes[id(constraint)]
-        if constraint.constrained_to_one():
-            for m in mapping_nodes:
-                if id(m) not in do_not_remove:
-                    mapping.remove(m)
-            continue
-        raise NotImplementedError("Loop bounds constraints not implemented")
-        constraint_lambdas.append(LoopBoundsConstraintLambda(constraint, mapping_nodes))
+            # Loop bounds constraints
+            if spatial_constraint.loop_bounds:
+                for c in spatial_constraint.loop_bounds:
+                    if (index := first_storage_node_index(mapping, m.name)) is None:
+                        continue
+                    nodes = constrained_loops(mapping, c.expression, index + 1)
+                    for exp in c.split_expression():
+                        new_nodes = [l for l in loops if l.rank_variable in exp]
+                        storage_constraint = LoopBoundsConstraintLambda(c, new_nodes, exp)
+                        constraints.loop_bounds_constraints.append(storage_constraint)
 
-    loops = [n for n in mapping if isinstance(n, Iteration)]
-                        
-    for node in arch_flattened:
-        if not isinstance(node, architecture.Memory):
-            continue
-        for dim in node.spatial.fanout:
-            spatial_constraint = get_parsed_spatial_constraint(node.constraints, dim)
-            if spatial_constraint is None:
+            # Min utilization constraints
+            if spatial_constraint.min_utilization > 0:
+                target_mapping_nodes = [
+                    n for n in mapping if isinstance(n, Spatial) and n.across == m.name and n.dimension == dim
+                ]
+                if not target_mapping_nodes:
                     continue
-            if not spatial_constraint.maximize_utilization:
-                continue
-            
-            
-            target_loops = []
-            for loop in mapping:
-                if isinstance(loop, Spatial) and loop.across == node.name and loop.dimension == dim:
-                    target_loops.append(loop)
-            if not target_loops:
-                continue        
-            
-            rank_variables = {t.rank_variable for t in target_loops}
-            constraint = MaximizeUtilizationConstraintLambda(target_loops, rank_variables)
-            key = (node.name, dim)
-            constraints.maximize_utilization_constraints[key] = constraint
+                rank_variables = {t.rank_variable for t in target_mapping_nodes}
+                constraint = MinUtilizationConstraintLambda(target_mapping_nodes, rank_variables, spatial_constraint.min_utilization)
+                key = (m.name, dim)
+                constraints.min_utilization_constraints[key] = constraint
 
-    constraints.set_loop_indices(loops)
+    mapping = constraints.clear_constrained_to_one(mapping)
+    constraints.set_loop_indices([m for m in mapping if isinstance(m, Iteration)])
     
     return mapping, constraints
