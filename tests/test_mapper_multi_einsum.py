@@ -33,3 +33,5 @@ class TestMultiEinsumMapper(unittest.TestCase):
         flattened_architecture = spec.get_flattened_architecture()
 
         sims, decompress_data = get_sims(spec, flattened_architecture)
+        for sim in sims['PwiseA0']:
+            print(sim.compatibility)

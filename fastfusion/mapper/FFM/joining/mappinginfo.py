@@ -101,11 +101,13 @@ class Loop(Updatable):
         return {"type": "loop", **self.__dict__}
 
     def merge_next(self, right: "Loop") -> "Loop":
-        assert self.bound == right.bound
+        self_bound = self.bound if isinstance(self.bound, Number) else self.bound.stride
+        right_bound = right.bound if isinstance(right.bound, Number) else right.bound.stride
+        assert self_bound == right_bound
         assert self.is_spatial == right.is_spatial
         return Loop(
             self.rank_variable_names | right.rank_variable_names,
-            self.bound,
+            right.bound,
             self.is_spatial,
         )
         
@@ -273,7 +275,6 @@ class Compatibility(Updatable):
         assert len(tile_shape) == sum(1 if isinstance(l.bound, Number) else 2
                                       for l in self.loops)
 
-        # TODO: pick up here: self.loops may be namedtuple so tile_shape is longer
         tile_shape_idx = 0
         for i, loop in enumerate(self.loops):
             cur_tile_shape = tile_shape[tile_shape_idx]
@@ -301,6 +302,7 @@ class Compatibility(Updatable):
                 new_bound = cur_tile_shape
                 tile_shape_idx += 1
 
+            # print(prev_size, cur_tile_shape)
             if prev_size == cur_tile_shape:
                 null_loop_indices.add(i)
             else:

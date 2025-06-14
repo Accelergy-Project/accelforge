@@ -10,7 +10,7 @@ import sys
 from tqdm import tqdm
 
 PARALLELIZE = True
-N_PARALLEL_THREADS = 16
+N_PARALLEL_THREADS = 24
 
 
 class fzs(frozenset):

@@ -5,11 +5,9 @@ from numbers import Number
 
 import pandas as pd
 
-from fastfusion.frontend import architecture, Workload
+from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload import Einsum
-from fastfusion.frontend.workload.isl import get_rank_variable_bounds
-from fastfusion.frontend.workload.symbolic import get_projection_expr, compute_rank_occupancy
+from fastfusion.frontend.workload import Einsum, get_stride_and_halo
 from fastfusion.mapper.FFM.joining.mappinginfo import TilePattern
 from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
 from fastfusion.mapper.FFM.pareto import PartialMappings
@@ -31,7 +29,7 @@ def get_possible_translations(
     t: Compatibility,
     full_equivalent_rank_variables: dict[str, set[str]],
     right_einsum: Einsum,
-    right_rank_var2initial_delta: dict[tuple[str, str], int]
+    stride_and_halo: dict[tuple[str, str], int]
 ):
     # Fused ranks should be transitive, but if a fused loop indexes into two
     # different ranks in the next Einsum, we can't fuse becuase it will tile in
@@ -56,7 +54,6 @@ def get_possible_translations(
             if len(all_ranks) > 1:
                 return False
         return True
-    print('SRC', t.loops)
 
     def translate_loop(l: Loop):
         compatible_rank_variables = (
@@ -67,35 +64,42 @@ def get_possible_translations(
         if not rank_vars_index_only_one_rank_per_tensor(l.rank_variable_names):
             return
 
-        for n in compatible_rank_variables:
+        for right_rvar in compatible_rank_variables:
             left_bound = l.bound
-            for rvn in l.rank_variable_names:
-                if (rvn, n) in right_rank_var2initial_delta:
-                    delta = right_rank_var2initial_delta[(rvn, n)]
-                else:
-                    delta = None
 
-                if delta is not None and isinstance(left_bound, TilePattern):
-                    delta = right_rank_var2initial_delta[(rvn, n)]
-                    if left_bound.stride == left_bound.initial:
-                        yield Loop(fzs((n,)), left_bound.stride, l.is_spatial)
-                    elif left_bound.stride + delta == left_bound.initial:
-                        yield Loop(fzs((n,)), left_bound.stride, l.is_spatial)
-                        # yield Loop(fzs((n,)),
-                        #            TilePattern(left_bound.stride, left_bound.stride),
-                        #            l.is_spatial)
-                    else:
-                        # yield Loop(fzs((n,)),
-                        #            TilePattern(left_bound.stride,
-                        #                        left_bound.initial-delta),
-                        #            l.is_spatial)
-                        pass
-                elif delta is None and isinstance(left_bound, Number):
-                    yield Loop(fzs((n,)), left_bound, l.is_spatial)
+            stride, halo = None, None
+            for left_rvar in l.rank_variable_names:
+                if (left_rvar, right_rvar) in stride_and_halo:
+                    stride, halo = stride_and_halo[(left_rvar, right_rvar)]
+                    break
+
+            # TODO: the following does not support residuals + conv well
+            # Update such that tile shape/pattern is per-loop.
+            # E.g., if p0 is <1, 3> and p1 is <1>, both should be kept if
+            # we want to match p0 later on as well.
+            # Currently, only p1 can be matched further.
+            assert stride is not None and halo is not None
+            if isinstance(left_bound, TilePattern):
+                if left_bound.stride == left_bound.initial:
+                    # A degenerate tile pattern: a tile shape
+                    if halo == 0:
+                        right_stride = left_bound.stride / stride
+                        yield Loop(fzs((right_rvar,)), right_stride, l.is_spatial)
+                        yield Loop(fzs((right_rvar,)), TilePattern(right_stride, right_stride), l.is_spatial)
+                else:
+                    right_stride = left_bound.stride / stride
+                    right_initial = (left_bound.initial - halo) / stride
+                    if right_stride == right_initial:
+                        yield Loop(fzs((right_rvar,)), right_stride, l.is_spatial)
+                    yield Loop(fzs((right_rvar,)), TilePattern(right_stride, right_initial), l.is_spatial)
+            elif isinstance(left_bound, Number):
+                if halo == 0:
+                    right_stride = left_bound/stride
+                    yield Loop(fzs((right_rvar,)), right_stride, l.is_spatial)
+                    yield Loop(fzs((right_rvar,)), TilePattern(right_stride, right_stride), l.is_spatial)
 
     for loops in itertools.product(*map(translate_loop, t.loops)):
         new_compatibility = t.update(loops=loops)
-        print('DST', new_compatibility.loops)
         yield new_compatibility
 
 
@@ -154,7 +158,6 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
                     changed = True
                     full_equivalent_rank_variables[r].add(r3)
     return full_equivalent_rank_variables
-
 
 
 def join_sims(
@@ -217,7 +220,7 @@ def join_sims(
     if not sims:
         raise ValueError("No SIMs to join")
 
-    right_rank2initial_delta = get_initial_deltas(workload=spec.workload)
+    stride_and_halo = get_stride_and_halo(spec.workload)
 
     # ======================================================================
     # Initial consolidate and group all SIMs
@@ -333,10 +336,8 @@ def join_sims(
                 k,
                 full_equivalent_rank_variables,
                 spec.workload.einsums[right_einsum],
-                right_rank2initial_delta[right_einsum],
+                stride_and_halo[(left_einsum, right_einsum)],
             ):
-                print(right)
-                print(right.get(k_translated, []))
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
                     if (
                         a.compatibility.tags.are_compatible_with(b.compatibility.tags)
@@ -386,7 +387,7 @@ def join_sims(
                     k,
                     full_equivalent_rank_variables,
                     spec.workload.einsums[sims[0].einsum_name],
-                    right_rank2initial_delta[right_einsum],
+                    stride_and_halo[(right_einsum, sims[0].einsum_name)],
                 )
                 if not any(kt in sims[0].sims for kt in translations):
                     if DO_PRINT:
@@ -495,42 +496,3 @@ def join_sims_no_either(*args, **kwargs):
         args[0] = {k: v for k, v in list(args[0].items())[:2]}
     return join_sims(*args, skip_invalid=False, combine_reservations=False, **kwargs)
 
-
-def get_initial_deltas(workload: Workload) -> dict[str,
-                                                   dict[tuple[str, str], int]]:
-    deltas = {}
-    for producer in workload.einsums:
-        output_tensors = producer.output_tensors()
-        if len(output_tensors) > 1:
-            raise ValueError('Does not support more output tensors than one.')
-
-        tensor = next(iter(output_tensors))
-
-        prod_rank2rank_vars = producer.tensor_accesses[tensor].rank2rank_variables
-
-        for consumer in workload.einsums_that_read_tensor(tensor):
-            delta_for_pair = deltas.setdefault(consumer.name, {})
-            projection = get_projection_expr(consumer, tensor)
-            cons_shape = get_rank_variable_bounds(workload, consumer.name)
-
-            cons_rank2rank_vars = consumer.tensor_accesses[tensor].rank2rank_variables
-            for cons_rank, cons_rank_vars in cons_rank2rank_vars.items():
-                if cons_rank not in prod_rank2rank_vars:
-                    continue
-                if len(cons_rank_vars) == 1:
-                    continue  # Not an affine expr at the consumer
-                prod_rank_vars = prod_rank2rank_vars[cons_rank]
-                if len(prod_rank_vars) != 1:
-                    continue  # Unclear what to do in this case
-
-                prod_rank_var = next(iter(prod_rank_vars))
-
-                for cons_rank_var in cons_rank_vars:
-                    original_shape = cons_shape[cons_rank_var]
-                    cons_shape[cons_rank_var] = 1
-                    delta_for_pair[(prod_rank_var, cons_rank_var)] = (
-                        compute_rank_occupancy(projection[cons_rank], cons_shape)
-                        - 1
-                    )
-                    cons_shape[cons_rank_var] = original_shape
-    return deltas

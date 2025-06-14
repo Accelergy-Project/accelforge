@@ -49,6 +49,7 @@ def get_sims(
     tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
+    except_from_imperfect: set = set()
 ) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
     
     print(
@@ -73,6 +74,7 @@ def get_sims(
             flattened_architecture,
             start_index=len(single_einsum_jobs),
             tagger=tagger,
+            except_from_imperfect=except_from_imperfect,
         ))
 
     sims = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
@@ -94,4 +96,4 @@ def get_sims(
         sims[einsum_name] = SIM.combine_combineable(sims2, live_tensors=intermediate_tensors, pbar_postfix = f" for {einsum_name}")
 
     return sims, grouped_decompress_data
-        
+

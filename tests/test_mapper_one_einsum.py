@@ -58,18 +58,19 @@ class TestExploration(unittest.TestCase):
     def test_conv_with_snowcat(self):
         spec = Specification.from_yaml(
             PARENT_DIR / "snowcat.arch.yaml",
-            PARENT_DIR / "mobilenet.workload.yaml",
+            PARENT_DIR / "mobilenet_long.workload.yaml",
         )
         spec.estimate_energy_area()
 
         sims, decompress_data = get_sims(spec,
-                                         einsum_names=['PwiseA0'],
+                                         einsum_names=['Dwise0'],
                                          metrics=metrics.Metrics.ENERGY)
-        for sim in sims['PwiseA0']:
-            print(sim.compatibility)
+        # for sim in sims['Dwise0']:
+        #     print(sim.compatibility)
 
 
 class TestInitialDeltaGeneration(unittest.TestCase):
     def test_mobilenet_long(self):
         workload = Workload.from_yaml(Path(__file__).parent / 'mobilenet_long.workload.yaml')
-        choices = get_initial_delta_choices(workload.einsums['PwiseA0'], workload)
+        choices = get_initial_delta_choices('Dwise0', workload)
+        # print(choices)

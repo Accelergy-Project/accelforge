@@ -132,7 +132,7 @@ class Storage(MappingNode):
 
     def compact_string(self) -> str:
         tname = ",".join(self.tensors)
-        return f"[{self.memory} {tname}]"
+        return f"[{self.memory} {tname} {self._lower}]"
     
     def __str__(self) -> str:
         tname = ", ".join(self.tensors)
@@ -331,7 +331,7 @@ class Reservation(MappingNode, ModelOnlyNode):
     memory: str
 
     def compact_string(self) -> str:
-        return f'Reservation {self.tensor} in {self.memory}'
+        return f'R {self.tensor} in {self.memory}'
 
 
 class Fill(MappingNode, ModelOnlyNode):
@@ -339,7 +339,7 @@ class Fill(MappingNode, ModelOnlyNode):
     memory: str
 
     def compact_string(self) -> str:
-        return f'Fill {self.tensor} in {self.memory}'
+        return f'F {self.tensor} in {self.memory}'
 
 # =============================================================================
 # Top-level Mapping

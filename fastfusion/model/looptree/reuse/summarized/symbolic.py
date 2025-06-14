@@ -165,24 +165,22 @@ def get_tensor_to_backing_storage_id(mapping: Mapping):
 class ReservationAnalysisTracker:
     def __init__(self, buffet):
         self.buffet: Buffet = buffet
-        self.last = False
 
         # These are interface (TODO: should be property)
         self.is_fill_level = False
         self.is_should_stop = False
+        self.insert_reservation_under = False
+        self.insert_fill_under = False
 
         # Temporary values
         self.has_filled = False
 
     def track_temporal_loop(self, relevancy, node):
         self.is_fill_level = False
-        if self.last:
-            if not self.has_filled:
-                self.is_fill_level = True
-                self.has_filled = True
+        self.insert_reservation_under = False
+        self.insert_fill_under = False
 
-            self.is_should_stop = True
-        elif isinstance(relevancy, Irrelevant):
+        if isinstance(relevancy, Irrelevant):
             if not self.has_filled:
                 self.is_fill_level = True
                 self.has_filled = True
@@ -197,7 +195,8 @@ class ReservationAnalysisTracker:
                 self.is_fill_level = True
                 self.has_filled = True
 
-            self.is_should_stop = False
+            self.is_should_stop = True
+            self.insert_reservation_under = True
         else:
             raise ValueError(f'Unknown relevancy {relevancy}')
 
@@ -224,18 +223,17 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
     einsum = info.workload.einsums[mapping[-1].einsum]
     non_intermediate_tensors = einsum.tensors - info.workload.intermediate_tensors
     seen_tensors = set()  # reservation for top-level buffets cannot be lowered
-    for i, node in enumerate(mapping):
-        insert_offset = 0 # for inserting under storage
-        fills = []
+
+    n_nodes = len(mapping)
+    i = 0
+    while i < n_nodes:
+        node = mapping[i]
         to_remove = []
         if isinstance(node, Temporal):
             rank = node.rank_variable
             for tracker_idx, tracker in enumerate(trackers):
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_temporal_loop(relevancy[rank], node)
-
-                if tracker.is_fill_level:
-                    fills.append(tracker.buffet)
 
                 if tracker.is_should_stop:
                     to_remove.append(tracker_idx)
@@ -244,9 +242,6 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
             for tracker_idx, tracker in enumerate(trackers):
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_spatial_loop(relevancy[rank], node)
-
-                if tracker.is_fill_level:
-                    fills.append(tracker.buffet)
 
                 if tracker.is_should_stop:
                     to_remove.append(tracker_idx)
@@ -260,17 +255,15 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
                     or
                     (tensor not in seen_tensors and tensor in non_intermediate_tensors)
                 ):
-                    insert_offset = 1
                     seen_tensors.add(tensor)
-                    fills.append(buffet)
                     to_remove.append(len(trackers)-1)
+                    trackers[-1].is_fill_level = True
+                    trackers[-1].insert_reservation_under = True
+                    trackers[-1].insert_fill_under = True
         elif isinstance(node, mapping_spec.Compute):
             for tracker_idx, tracker in enumerate(trackers):
                 tracker.track_compute()
 
-                if tracker.is_fill_level:
-                    fills.append(tracker.buffet)
-                
                 if tracker.is_should_stop:
                     to_remove.append(tracker_idx)
         elif isinstance(node, Reservation):
@@ -280,20 +273,41 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         else:
             raise NotImplementedError(f"Unknown node type {type(node)}")
 
+        fill_insert_below = []
+        fill_insert_above = []
+        for tracker in trackers:
+            if not tracker.is_fill_level:
+                continue
+            buffet = tracker.buffet
+            node = Fill(tensor=buffet.tensor, memory=buffet.level)
+            if tracker.insert_fill_under:
+                fill_insert_below.append(node)
+            else:
+                fill_insert_above.append(node)
+
+        reservation_insert_below = []
+        reservation_insert_above = []
         for tracker_idx in reversed(to_remove):
             tracker = trackers.pop(tracker_idx)
-            mapping.insert(
-                i+insert_offset,
-                Reservation(tensor=tracker.buffet.tensor,
-                            memory=tracker.buffet.level)
-            )
+            buffet = tracker.buffet
+            node = Reservation(tensor=buffet.tensor, memory=buffet.level)
+            if tracker.insert_reservation_under:
+                reservation_insert_below.append(node)
+            else:
+                reservation_insert_above.append(node)
 
-        for fill in fills:
-            mapping.insert(
-                i+insert_offset,
-                Fill(tensor=fill.tensor,
-                     memory=fill.level)
-            )
+        # The order of these for loops is important. Reservation must be below fill.
+        for node in reservation_insert_below:
+            mapping.insert(i+1, node)
+        for node in fill_insert_below:
+            mapping.insert(i+1, node)
+        for node in reservation_insert_above:
+            mapping.insert(i, node)
+        for node in fill_insert_above:
+            mapping.insert(i, node)
+
+        i += 1
+        n_nodes = len(mapping)
 
 
 def analyze_node(node_idx, current_shape, info: AnalysisInfo):
