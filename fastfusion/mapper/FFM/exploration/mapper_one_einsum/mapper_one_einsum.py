@@ -164,11 +164,11 @@ def insert_temporal_loops(
                 else:
                     lowering_choices.extend([[True]]*len(prev_storages))
             elif isinstance(loop_order, set) and len(prev_storages) > 1:
-                assert all(storage.memory == first_memory.name for storage in prev_storages)
+                assert all(storage.memory == first_memory.name for storage in prev_storages) # TODO: This assertion fails if timeloop_style_even=True
                 full_mapping.append(Temporal(rank_variable=loop_order, tile_shape='symbol'))
                 lowering_choices.extend([[True]]*len(prev_storages))
             elif isinstance(loop_order, set):  # if set, cannot be fused
-                assert len(prev_storages) == 1 and len(prev_storages[0].tensors) == 1
+                assert len(prev_storages) == 1 and len(prev_storages[0].tensors) == 1 # TODO: This assertion fails if timeloop_style_even=True
                 tensor = next(iter(prev_storages[0].tensors))
                 fully_relevant_rank_vars = \
                     loop_order & einsum.tensor2fully_relevant_rank_variables[tensor]
@@ -611,15 +611,13 @@ def make_sims(
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
         partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
-        sim = SIM(new_compatibility, partial_mappings)
+        sim = SIM(new_compatibility, partial_mappings.copy())
         if tagger is not None:
             sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
         sims.append(sim)
 
     new_sims = []
     for sim in sims:
-        # for equivalent_sim in get_equivalent_sims(sim, tagger):
-        #     new_sims.append(copy.deepcopy(equivalent_sim))
         new_sims.append(sim)
     return new_sims
 
