@@ -335,6 +335,13 @@ class PartialMappings:
         if check_above_subset_below:
             self.check_above_subset_below()
 
+    def all_reservation_levels(self):
+        return set().union(
+            set(),
+            *self.left_reservations.values(),
+            *self.right_reservations.values(),
+        )
+
     @error_check_wrapper
     def fill_reservation_cols(self, columns: set | str):
         targets = []

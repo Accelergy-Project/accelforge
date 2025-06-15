@@ -326,12 +326,13 @@ class Compatibility(Updatable):
         new_loops = [self.loops[loop_changes[i]] for i in range(len(self.loops))]
         return self.update(loops=tuple(new_loops))
 
-    def make_equivalent_permutations(self) -> list["Compatibility"]:
+    def make_equivalent_permutations(self, reservation_levels: set[int]) -> list["Compatibility"]:
         # Get contiguous blocks of loops with no storage node between them
         blocks = []
         current_block = []
         for i in range(len(self.loops)):
-            if any(s.above_loop_index == i for s in self.storage):
+            # Can't permute loops if there's a reservation between them
+            if any(s.above_loop_index == i for s in self.storage) or i in reservation_levels:
                 blocks.append(current_block)
                 current_block = []
             current_block.append(i)

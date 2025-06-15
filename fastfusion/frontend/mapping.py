@@ -370,26 +370,24 @@ class Mapping(Nested):
         # Note: `intermediate_tensors` may be for **whole workload**.
         relevant_intermediate_tensors = set()
         for node in self.nodes:
-            if isinstance(node, Storage):
-                for tensor in node.tensors:
-                    if tensor in intermediate_tensors:
-                        relevant_intermediate_tensors.add(tensor)
+            if isinstance(node, Reservation):
+                if node.tensor in intermediate_tensors:
+                    relevant_intermediate_tensors.add(node.tensor)
 
         fused_slice = Mapping(nodes=[])
         to_add = []
         for node in self.nodes:
-            new_node = copy.deepcopy(node)
-            if isinstance(new_node, Storage):
-                tensor = new_node.tensor
-                if tensor not in relevant_intermediate_tensors:
+            node = copy.deepcopy(node)
+            if isinstance(node, Reservation):
+                if node.tensor not in relevant_intermediate_tensors:
                     continue
-                fused_slice.nodes.extend(to_add + [new_node])
+                fused_slice.nodes.extend(to_add + [node])
                 to_add = []
-                relevant_intermediate_tensors.remove(tensor)
+                relevant_intermediate_tensors.remove(node.tensor)
                 if len(relevant_intermediate_tensors) == 0:
                     break
-            elif isinstance(new_node, Iteration):
-                to_add.append(new_node)
+            elif isinstance(node, Iteration):
+                to_add.append(node)
         return fused_slice
 
     @property
