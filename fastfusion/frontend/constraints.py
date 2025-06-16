@@ -234,7 +234,7 @@ class MinUtilizationConstraintLambda(ConstraintLambda):
         final = self.rank_variables.issubset(rank_variables)
         if not final:
             return np.ones(utilizations.shape[0], dtype=np.bool)
-
+        
         # Some utilizations are already above the minimum. Return those.
         result = utilizations >= self.min_utilization
         if np.sum(result) > 0:

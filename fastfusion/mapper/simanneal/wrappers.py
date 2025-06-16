@@ -156,7 +156,7 @@ def join_sims(
     algorithm: str,
     spec: Specification = None,
     flattened_architecture: list[architecture.Leaf] = None,
-):
+) -> PartialMappings:
     objective_function_cols = None
     cols = next(iter(sims.values()))[0].mappings.data.columns
     if objective_function_cols is None:

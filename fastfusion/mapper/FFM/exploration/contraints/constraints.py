@@ -75,16 +75,30 @@ def first_storage_node_index(mapping: list[MappingNode], memory_name: str) -> in
             return i
     return None
 
-def constrained_loops(mapping: list[MappingNode], rank_variables: set[RankVariableName], start_index: int=0) -> list[Iteration]:
+def constrained_loops(mapping: list[MappingNode], rank_variables: set[RankVariableName], start_index: int=None, look_behind: bool=False, spatial: bool=False) -> list[Iteration]:
     nodes = []
     remaining_rank_variables = set(rank_variables)
-    for i, m in enumerate(mapping):
-        if i < start_index or not isinstance(m, Iteration):
+    
+    
+    if look_behind:
+        to_check = list(enumerate(mapping))
+        to_check.reverse()
+        if start_index is not None:
+            to_check = [m for i, m in to_check if start_index is None or i <= start_index]
+    else:
+        to_check = list(enumerate(mapping))
+        to_check = [m for i, m in to_check if start_index is None or i >= start_index]
+    
+    for m in to_check:
+        if not isinstance(m, Iteration):
+            continue
+        if spatial and not isinstance(m, Spatial):
             continue
         if m.rank_variable in remaining_rank_variables:
             nodes.append(m)
             remaining_rank_variables.discard(m.rank_variable)
     for r in remaining_rank_variables:
+        assert not spatial, "There should be a spatial loop for every rank variable"
         node = Temporal(rank_variable=r, tile_shape='symbol')
         mapping.insert(start_index, node)
         nodes.append(node)
@@ -110,7 +124,7 @@ def get_constraints(
 
         # Tile shape constraints
         for c in storage_constraints.tile_shape:
-            nodes = constrained_loops(mapping, c.expression, index + 1)
+            nodes = constrained_loops(mapping, c.expression, index - 1, look_behind=True)
             for exp in c.split_expression():
                 new_nodes = [n for n in nodes if n.rank_variable in exp]
                 storage_constraint = TileShapeConstraintLambda(c, new_nodes, exp)
@@ -135,7 +149,7 @@ def get_constraints(
                 for c in spatial_constraint.loop_bounds:
                     if (index := first_storage_node_index(mapping, m.name)) is None:
                         continue
-                    nodes = constrained_loops(mapping, c.expression, index + 1)
+                    nodes = constrained_loops(loops, c.expression, spatial=True)
                     for exp in c.split_expression():
                         new_nodes = [l for l in loops if l.rank_variable in exp]
                         storage_constraint = LoopBoundsConstraintLambda(c, new_nodes, exp)

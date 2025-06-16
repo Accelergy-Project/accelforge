@@ -44,6 +44,15 @@ class fzs(frozenset):
     def __ge__(self, other):
         return sorted(self) >= sorted(other)
 
+def defaultintersection(*args) -> set:
+    allargs = []
+    for arg in args:
+        if isinstance(arg, set):
+            allargs.append(arg)
+        else:
+            allargs.extend(arg)
+    return set.intersection(*allargs) if allargs else set()
+
 
 def debugger_active():
     return not PARALLELIZE
