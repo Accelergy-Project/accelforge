@@ -152,6 +152,8 @@ class Compatibility(Updatable):
 
     @property
     def max_above_loop_index(self) -> int:
+        if len(self.storage) == 0:
+            return 0
         return max(s.above_loop_index for s in self.storage)
 
     def shared_loop_index(self, live_tensors: set[str]) -> int:

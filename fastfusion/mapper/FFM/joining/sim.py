@@ -48,13 +48,6 @@ class SIM:
         next_shared_loop_index = compatibility.shared_loop_index(live_tensors)
         shared_storage = self.compatibility.storage & right.compatibility.storage
 
-        print(self.compatibility)
-        print(live_tensors)
-        print(compatibility)
-        print(shared_loop_index)
-        print(next_shared_loop_index)
-        print()
-
         still_live_reservations = [
             r
             for r in self.compatibility.storage
