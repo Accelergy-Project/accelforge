@@ -58,8 +58,6 @@ def get_sims(
         f'some point.'
     )
     
-    rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-
     if flattened_architecture is None:
         flattened_architecture = spec.get_flattened_architecture()
 
@@ -67,10 +65,9 @@ def get_sims(
     einsum_names = einsum_names or spec.workload.einsum_names
     for einsum_name in einsum_names:
         single_einsum_jobs.extend(get_single_einsum_jobs(
-            spec,
             einsum_name,
             metrics,
-            rank_variable_bounds,
+            spec,
             flattened_architecture,
             start_index=len(single_einsum_jobs),
             tagger=tagger,

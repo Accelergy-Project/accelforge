@@ -13,13 +13,14 @@ from tqdm import tqdm
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.mapping import Compute, Iteration, Mapping, MappingNode, ModelOnlyNode, Storage, Temporal, Spatial, Fill
 from fastfusion.frontend.specification import Specification
+from fastfusion.frontend.workload import Einsum, EinsumName, RankVariableName, TensorName, Workload
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
-from fastfusion.frontend.workload.workload import Einsum, EinsumName, RankVariableName, TensorName, Workload
+from fastfusion.frontend.workload.symbolic import get_stride_and_halo
 
 from fastfusion.mapper.FFM.exploration import metrics
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.dataflow_generator import get_storage_choices
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes, get_initial_delta_choices
-from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation, TilePattern
+from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, TensorStorage, TilePattern
 from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col, tensor2col, DecompressData
 from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingConstraints, get_constraints
@@ -450,59 +451,6 @@ def iterate_mappings_constraints(
 # =================================================================================================
 # Make sims
 # =================================================================================================
-def make_compatibility(
-    mapping: Mapping,
-    intermediate_tensors: set[TensorName],
-) -> Compatibility:
-    fused_slice = mapping.get_fused_slice(intermediate_tensors)
-    fused_loops = []
-    reservations: dict[int, list[ReservationNode]] = {}
-    for node in fused_slice.nodes:
-        if isinstance(node, Iteration):
-            fused_loops.append(node)
-        elif isinstance(node, ReservationNode):
-            reservations.setdefault(len(fused_loops), []).append(node)
-        elif isinstance(node, ModelOnlyNode):
-            continue
-        elif isinstance(node, Storage):
-            continue
-        else:
-            raise ValueError(f"Unexpected node type: {type(node)}")
-
-    compatibility_loops = []
-    for loop in fused_loops:
-        if loop.tile_shape is not None:
-            bound = 0  # populated later, but type is important
-        elif loop.tile_pattern is not None:
-            bound = TilePattern(0, 0)
-        else:
-            raise RuntimeError('BUG')
-
-        loop = Loop(
-            rank_variable_names=fzs((loop.rank_variable,)),
-            bound=bound,
-            is_spatial=isinstance(loop, Spatial)
-        )
-        compatibility_loops.append(loop)
-    compatibility_reservations = []
-    for above_loop_index, reservation_nodes in reservations.items():
-        for reservation in reservation_nodes:
-            compatibility_reservations.append(
-                Reservation(
-                    name=reservation.tensor,
-                    above_loop_index=above_loop_index,
-                    resource_name=reservation.memory,
-                    size=0 # TODO: Get size
-                )
-            )
-
-    compatibility = Compatibility(
-        loops=tuple(compatibility_loops),
-        storage=fzs(compatibility_reservations),
-    )
-    return compatibility
-
-
 def get_equivalent_sims(sim: SIM, tagger: Callable[[Mapping], Tags], reservation_levels: set[int]) -> list[SIM]:
     equivalent_permutations = sim.compatibility.make_equivalent_permutations(reservation_levels)
     result = []
@@ -513,22 +461,6 @@ def get_equivalent_sims(sim: SIM, tagger: Callable[[Mapping], Tags], reservation
             continue
         result.append(SIM(c.update(tags=tags), sim.mappings.copy()))
     return result
-
-
-def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mapping":
-    compatibility = Mapping(nodes=[])
-    i = 0
-    for node in mapping.nodes:
-        while i < len(tile_shapes) and tile_shapes[i] is None:
-            i += 1
-        if i >= len(tile_shapes):
-            break
-        new_node = copy.deepcopy(node)
-        if isinstance(node, Iteration):
-            new_node.tile_shape = tile_shapes[i]
-            i += 1
-        compatibility.nodes.append(new_node)
-    return compatibility
 
 
 def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indices: set[int]):
@@ -566,16 +498,125 @@ def make_sims(
         mapping: Mapping,
         explored_results: DataFrame,
         rank_variable_bounds: dict[RankVariableName, int],
-        intermediate_tensors: set[TensorName],
+        einsum_name: EinsumName,
+        workload: Workload,
         tagger: Callable[[Mapping], Tags] =  None,
         total_pmappings: int = None
     ):
     if explored_results.empty:
         return {}
 
-    compatibility = make_compatibility(mapping, intermediate_tensors)
+    einsum = workload.einsums[einsum_name]
+    intermediate_tensors = workload.intermediate_tensors & einsum.tensor_names
 
-    n_tile_shapes = sum(1 if isinstance(l.bound, Number) else 2 for l in compatibility.loops)
+    fused_slice = mapping.get_fused_slice(intermediate_tensors)
+    fused_loops = []
+    loop_idx2reservations: dict[int, list[ReservationNode]] = {}
+    for node in fused_slice.nodes:
+        if isinstance(node, Iteration):
+            fused_loops.append(node)
+        elif isinstance(node, ReservationNode):
+            loop_idx2reservations.setdefault(len(fused_loops), []).append(node)
+        elif isinstance(node, ModelOnlyNode):
+            continue
+        elif isinstance(node, Storage):
+            continue
+        else:
+            raise ValueError(f"Unexpected node type: {type(node)}")
+
+    stride_and_halo = get_stride_and_halo(workload)
+
+    def make_compatibility(tile_shape, tensor2size):
+        tile_shape_idx = 0
+        null_loop_indices: set[int] = set()
+        loops: list[tuple[str, int | TilePattern]] = []
+        for loop_idx, loop in enumerate(fused_loops):
+            rank_variable = loop.rank_variable
+
+            cur_tile_shape = tile_shape[tile_shape_idx]
+
+            prev_size = rank_variable_bounds[rank_variable]
+            if loop_idx > 0:
+                prev_loop = next(
+                    iter(l for l in loops[loop_idx-1::-1]
+                         if l[0] == loop.rank_variable),
+                    None,
+                )
+                if prev_loop is not None:
+                    prev_rank_var, prev_bound = prev_loop
+                    if isinstance(prev_bound, TilePattern):
+                        prev_size = prev_bound.stride
+                    elif isinstance(prev_bound, Number):
+                        prev_size = prev_bound
+                    else:
+                        raise RuntimeError('BUG')
+
+            if prev_size == cur_tile_shape:
+                null_loop_indices.add(loop_idx)
+
+            if loop.tile_shape is not None:
+                loops.append((rank_variable, cur_tile_shape))
+            elif loop.tile_pattern is not None:
+                loops.append((
+                    rank_variable,
+                    TilePattern(cur_tile_shape, tile_shape[tile_shape_idx+1])
+                ))
+
+        storages = []
+        for n_loops, reservations_at_level in loop_idx2reservations.items():
+            for reservation in reservations_at_level:
+                tensor = reservation.tensor
+                tensor_stride_and_halo = stride_and_halo[(einsum_name, tensor)]
+                rank_var2ranks = einsum.tensor_accesses[tensor].rank_variable2ranks
+
+                tensor_loops = []
+                for loop_idx, (rank_variable, rank_var_bound) in enumerate(loops[:n_loops]):
+                    if loop_idx in null_loop_indices:
+                        continue
+
+                    ranks = rank_var2ranks[rank_variable]
+                    if len(ranks) > 1:
+                        raise NotImplementedError('co-iteration of ranks with one rank var.')
+                    if len(ranks) == 0:
+                        raise NotImplementedError('recomputation')
+                    
+                    rank = next(iter(ranks))
+
+                    stride, halo = tensor_stride_and_halo[(rank, rank_variable)]
+
+                    if isinstance(rank_var_bound, Number):
+                        if halo == 0:
+                            rank_bound = rank_var_bound*stride
+                        else:
+                            rank_bound = TilePattern(
+                                rank_var_bound*stride,
+                                (rank_var_bound-1)*stride + halo
+                            )
+                    elif isinstance(rank_var_bound, TilePattern):
+                        rank_var_stride = rank_var_bound.stride
+                        rank_var_initial = rank_var_bound.initial
+                        rank_stride = rank_var_stride*stride
+                        rank_initial = (rank_var_initial-1)*stride + halo
+                        if rank_stride == rank_initial:
+                            rank_bound = rank_stride  # regular tile
+                        else:
+                            rank_bound = TilePattern(rank_stride, rank_initial)
+
+                    tensor_loops.append(Loop(rank, rank_bound, isinstance(loop, Spatial)))
+
+                storages.append(TensorStorage(
+                    reservation.tensor,
+                    tuple(tensor_loops),
+                    reservation.memory,
+                    size=tensor2size[reservation.tensor]
+                ))
+        compat = Compatibility(fzs(storages))
+        if tagger is not None:
+            return compat.update(tags=tagger(compat)), null_loop_indices
+        else:
+            return compat, null_loop_indices
+
+    n_tile_shapes = sum(1 if l.tile_shape is not None else 2 for l in fused_loops)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(n_tile_shapes)]
 
     if fused_loop_columns:
@@ -596,25 +637,25 @@ def make_sims(
             dropcols.append(tensor2col(tensor))
         mappings.drop(columns=dropcols, inplace=True)
 
-        # print(tile_shape)
-        # print(', '.join(m.compact_string() for m in mapping.nodes if not isinstance(m, Fill)))
-        new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds, tensor2size)
-        try:
-            tags = Tags() if tagger is None else tagger(new_compatibility)
-        except ValueError as e:
+        compatibility, null_loop_indices = make_compatibility(tile_shape, tensor2size)
+        if compatibility.tags == Tags(("INVALID",)):
             continue
 
-        new_compatibility = new_compatibility.update(tags=tags)
+        partial_mappings = PartialMappings(mappings,
+                                           free_to_loop_index=compatibility.max_above_loop_index - 1,
+                                           n_pmappings=pmappings_per_group,
+                                           skip_pareto=len(mappings) < 1000)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
-        partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
         reservation_levels = partial_mappings.all_reservation_levels()
-        sim = SIM(new_compatibility, partial_mappings)
+
+        sim = SIM(compatibility, partial_mappings)
         if tagger is not None:
             sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
             
-        for equivalent_sim in get_equivalent_sims(sim, tagger, reservation_levels):
-            sims.append(equivalent_sim)
+        # for equivalent_sim in get_equivalent_sims(sim, tagger, reservation_levels):
+        #     sims.append(equivalent_sim)
+        sims.append(sim)
 
     return sims
 
@@ -626,16 +667,14 @@ def _per_proc_compatibility2sim(
     constraints: MappingConstraints,
     spec: Specification,
     rank_variable_bounds: dict[RankVariableName, int],
-    intermediate_tensors: set[TensorName],
     flattened_arch: list[architecture.Leaf],
     einsum_name: EinsumName,
     metrics: metrics.Metrics,
     job_id: int,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
-    print(f', '.join(m.compact_string() for m in mapping.nodes))
     result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics)
-    sims = make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger, total_pmappings=total_pmappings)
+    sims = make_sims(mapping, result, rank_variable_bounds, einsum_name, spec.workload, tagger=tagger, total_pmappings=total_pmappings)
     decompress_data = PartialMappings.compress_paretos(
         einsum_name, 
         [s.mappings for s in sims],
@@ -647,33 +686,27 @@ def _per_proc_compatibility2sim(
 
 
 def get_single_einsum_jobs(
-    spec: Specification,
     einsum_name: EinsumName,
     metrics: metrics.Metrics,
-    rank_variable_bounds: dict[RankVariableName, int] | None = None,
+    spec: Specification,
     flattened_arch: list[architecture.Leaf] | None = None,
     tagger: Callable[[Mapping], Tags] | None = None,
     start_index: int = 0,
     except_from_imperfect: set = set(),
 ) -> list[SIM] | tuple[dict[EinsumName, dict[Compatibility, list[SIM]]], DecompressData]:
-    einsum_name = EinsumName(einsum_name)
-
-    if rank_variable_bounds is None:
-        rank_variable_bounds = get_rank_variable_bounds(spec.workload, einsum_name)
+    rank_variable_bounds = get_rank_variable_bounds(spec.workload, einsum_name)
     
-    workload = spec.workload
-    intermediate_tensors = workload.intermediate_tensors & workload.einsums[einsum_name].tensor_names
-
     if flattened_arch is None:
         flattened_arch = spec.get_flattened_architecture()
 
-    mappings_constraints = tqdm(iterate_mappings_constraints(spec,
-                                einsum_name,
-                                flattened_arch,
-                                rank_variable_bounds,
-                                except_from_imperfect,
-                                ),
-                                desc=f"Generating storage and loop choices for Einsum {einsum_name}")
+    mappings_constraints = tqdm(
+        iterate_mappings_constraints(spec,
+                                     einsum_name,
+                                     flattened_arch,
+                                     rank_variable_bounds,
+                                     except_from_imperfect),
+        desc=f"Generating storage and loop choices for Einsum {einsum_name}"
+    )
 
     return  [
         delayed(_per_proc_compatibility2sim)(
@@ -681,12 +714,11 @@ def get_single_einsum_jobs(
             constraints=constraints,
             spec=spec,
             rank_variable_bounds=rank_variable_bounds,
-            intermediate_tensors=intermediate_tensors,
             flattened_arch=flattened_arch,
             einsum_name=einsum_name,
-            tagger=tagger,
             metrics=metrics,
             job_id=start_index + i,
+            tagger=tagger,
        )
         for i, (mapping, constraints) in enumerate(mappings_constraints)
     ]

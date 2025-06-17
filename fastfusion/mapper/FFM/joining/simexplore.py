@@ -29,7 +29,6 @@ def get_possible_translations(
     t: Compatibility,
     full_equivalent_rank_variables: dict[str, set[str]],
     right_einsum: Einsum,
-    stride_and_halo: dict[tuple[str, str], int]
 ):
     # Fused ranks should be transitive, but if a fused loop indexes into two
     # different ranks in the next Einsum, we can't fuse becuase it will tile in
@@ -40,6 +39,8 @@ def get_possible_translations(
     #
     # Einsum. If we alias into multiple ranks, we can't fuse. Otherwise, try out
     # each possible rank.
+    yield t
+    return
     right_rank_variables = right_einsum.rank_variables
     tensor2rank_var2ranks = {}
     for tensor_access in right_einsum.tensor_accesses:
@@ -336,7 +337,6 @@ def join_sims(
                 k,
                 full_equivalent_rank_variables,
                 spec.workload.einsums[right_einsum],
-                stride_and_halo[(left_einsum, right_einsum)],
             ):
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
                     if (
@@ -387,7 +387,6 @@ def join_sims(
                     k,
                     full_equivalent_rank_variables,
                     spec.workload.einsums[sims[0].einsum_name],
-                    stride_and_halo[(right_einsum, sims[0].einsum_name)],
                 )
                 if not any(kt in sims[0].sims for kt in translations):
                     if DO_PRINT:

@@ -20,7 +20,7 @@ class SIM:
         self.n_pre_prune_mappings = 0
 
     def compatibility_str(self):
-        compatibility = ",".join(str(l) for l in self.compatibility.loops)
+        compatibility = ",".join(str(l) for l in self.compatibility.storage)
         compatibility += " || " + ", ".join(str(t) for t in self.storage.values())
         return compatibility
 
@@ -47,6 +47,13 @@ class SIM:
         compatibility = self.compatibility.merge_next(right.compatibility, live_tensors)
         next_shared_loop_index = compatibility.shared_loop_index(live_tensors)
         shared_storage = self.compatibility.storage & right.compatibility.storage
+
+        print(self.compatibility)
+        print(live_tensors)
+        print(compatibility)
+        print(shared_loop_index)
+        print(next_shared_loop_index)
+        print()
 
         still_live_reservations = [
             r
@@ -79,7 +86,7 @@ class SIM:
 
         s = SIM(compatibility, mapping)
         assert (
-            len(compatibility.loops) == next_shared_loop_index + 1
+            compatibility.max_above_loop_index == next_shared_loop_index + 1
         ), f"{self.compatibility} {right.compatibility} {next_shared_loop_index + 1} -> {compatibility} {len(compatibility.loops)}"
         s.storage.update(right.storage)
         s.storage.update(self.storage)
@@ -159,7 +166,6 @@ class SIM:
         live_tensors: set[str],
         keep_loops: bool = False,
         every_possible_n_loops: bool = False,
-        keep_tensors: set[str] = None,
         drop_tags: bool = False,
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         grouped = defaultdict(list)
@@ -167,7 +173,6 @@ class SIM:
             compatibility = s.compatibility.clear_dead_tensors(
                 live_tensors,
                 keep_loops=keep_loops or every_possible_n_loops,
-                keep_tensors=keep_tensors,
                 drop_tags=drop_tags,
             )
             if every_possible_n_loops:
@@ -233,7 +238,8 @@ class SIM:
 
     @staticmethod
     def group_right(
-        sims: list["SIM"], live_tensors: set[str],
+        sims: list["SIM"],
+        live_tensors: set[str],
         drop_tags: bool = False,
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         return SIM._group(
