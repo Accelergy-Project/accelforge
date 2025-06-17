@@ -39,10 +39,8 @@ def insert_temporal_loops(
     mapping: List[MappingNode],
     einsum: Einsum,
     first_memory: architecture.Memory,
-    rank_variable_bounds: dict[RankVariableName, int],
     ranks_with_tile_pattern: set,
     workload: Workload,
-    except_from_imperfect: set,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -368,7 +366,6 @@ def iterate_mappings_no_constraints(
     einsum_name: str,
     arch_flattened: list[architecture.Leaf],
     rank_variable_bounds: dict[RankVariableName, int],
-    except_from_imperfect: set,
 ):
     first_memory = None
     for node in arch_flattened:
@@ -379,7 +376,6 @@ def iterate_mappings_no_constraints(
         raise ValueError("No memory found in architecture")
 
     ranks_with_tile_pattern = get_ranks_with_tile_pattern(einsum_name, spec.workload)
-    # print('RANKS WITH TILE PATTERN', ranks_with_tile_pattern)
 
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
@@ -388,7 +384,11 @@ def iterate_mappings_no_constraints(
         if spec.mapper_ffm.timeloop_style_even:
             mapping = timeloop_style_even(mapping)
         # print(", ".join(m.compact_string() for m in mapping))
-        for mapping in insert_temporal_loops(mapping, einsum, first_memory, rank_variable_bounds, ranks_with_tile_pattern, spec.workload, except_from_imperfect):
+        for mapping in insert_temporal_loops(mapping,
+                                             einsum,
+                                             first_memory,
+                                             ranks_with_tile_pattern,
+                                             spec.workload):
             mapping = copy.deepcopy(mapping)
             # print(", ".join(m.compact_string() for m in mapping))
             insert_spatial_loops(mapping, einsum, arch_flattened)
@@ -667,7 +667,6 @@ def _per_proc_compatibility2sim(
     job_id: int,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
-    # print(f', '.join(m.compact_string() for m in mapping.nodes))
     result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics)
     sims = make_sims(mapping, result, rank_variable_bounds, einsum_name, spec.workload, tagger=tagger, total_pmappings=total_pmappings)
     decompress_data = PartialMappings.compress_paretos(

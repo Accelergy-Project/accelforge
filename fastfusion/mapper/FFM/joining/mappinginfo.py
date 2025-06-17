@@ -4,7 +4,7 @@ import itertools
 from numbers import Number
 from typing import Any, Generator, NamedTuple, Union, TypeVar
 
-from fastfusion.frontend.workload.workload import RankVariableName, RankName
+from fastfusion.frontend.workload.workload import RankName
 from fastfusion.mapper.FFM.tags import Tags
 
 from fastfusion.util import expfmt, fzs
@@ -242,7 +242,7 @@ class Compatibility(Updatable):
             current_block.append(i)
         if current_block:
             blocks.append(current_block)
-        
+
         per_block_permutations = [
             list(itertools.permutations(block))
             for block in blocks
@@ -256,7 +256,7 @@ class Compatibility(Updatable):
             if s.name == tensor:
                 return s
         raise ValueError(f"No reservation found for {name}")
-    
+
     def per_tensor_compatibility(self) -> dict[str, "Compatibility"]:
         result = {}
         for s in self.storage:
@@ -265,13 +265,13 @@ class Compatibility(Updatable):
 
     def clear_tags(self) -> "Compatibility":
         return self.update(tags=Tags(fzs()))
-    
+
     def clear_loop_bounds(self) -> "Compatibility":
         return self.update(loops=tuple(l.update(bound=0) for l in self.loops))
-    
+
     def subsets_of_loops(self, clear_bounds: bool = False) -> Generator["Compatibility", None, None]:
         assert len(self.tensor_names) == 1, "Only works for single tensor"
-        
+
         indices = list(range(len(self.loops)))
         for i in range(1, len(indices)):
             for subset in itertools.combinations(indices, i):
