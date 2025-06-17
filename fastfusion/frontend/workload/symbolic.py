@@ -82,52 +82,35 @@ def compute_rank_occupancy(
 
 def get_stride_and_halo(
     workload: Workload
-) -> dict[str, dict[tuple[str, str], int]]:
+) -> dict[tuple[str, str], dict[tuple[str, str], tuple[int, int]]]:
     """
     Get stride and halo (initial delta) for Einsums in workload.
 
-    Assumes each (producer, consumer) pair shares only one tensor.
-
-    Returns dictionary mapping (producer, consumer) to another dictionary mapping
-    (producer rank var, consumer rank var) to the stride and halo.
+    Returns dictionary mapping (Einsum, tensor) to another dictionary mapping
+    (rank, rank_var) to the stride and halo.
     """
-    deltas = {}
-    for producer in workload.einsums:
-        output_tensors = producer.output_tensors()
-        if len(output_tensors) > 1:
-            raise ValueError('Does not support more output tensors than one.')
+    stride_and_halo = {}
+    for einsum in workload.einsums:
+        shape = get_rank_variable_bounds(workload, einsum.name)
+        for tensor in einsum.tensors:
+            stride_and_halo[(einsum.name, tensor)] = {}
+            tensor_stride_and_halo = stride_and_halo[(einsum.name, tensor)]
 
-        tensor = next(iter(output_tensors))
-
-        prod_rank2rank_vars = producer.tensor_accesses[tensor].rank2rank_variables
-
-        for consumer in workload.einsums_that_read_tensor(tensor):
-            delta_for_pair = deltas.setdefault((producer.name, consumer.name), {})
-            projection = get_projection_expr(consumer, tensor)
-            cons_shape = get_rank_variable_bounds(workload, consumer.name)
-
-            cons_rank2rank_vars = consumer.tensor_accesses[tensor].rank2rank_variables
-            for cons_rank, cons_rank_vars in cons_rank2rank_vars.items():
-                if cons_rank not in prod_rank2rank_vars:
-                    continue
-                prod_rank_vars = prod_rank2rank_vars[cons_rank]
-                rank_projection = projection[cons_rank]
-                if len(prod_rank_vars) != 1:
-                    continue  # Unclear what to do in this case
-
-                prod_rank_var = next(iter(prod_rank_vars))
-
-                for cons_rank_var in cons_rank_vars:
-                    stride = rank_projection.coeff(cons_rank_var)
+            projection = get_projection_expr(einsum, tensor)
+            tensor_accesses = einsum.tensor_accesses[tensor]
+            for rank, rank_vars in tensor_accesses.rank2rank_variables.items():
+                rank_projection = projection[rank]
+                for rank_var in rank_vars:
+                    stride = rank_projection.coeff(rank_var)
 
                     # Careful: in-place mutation of cons_shape
-                    original_shape = cons_shape[cons_rank_var]
-                    cons_shape[cons_rank_var] = 1
+                    original_shape = shape[rank_var]
+                    shape[rank_var] = 1
                     halo = (
-                        compute_rank_occupancy(rank_projection, cons_shape)
+                        compute_rank_occupancy(rank_projection, shape)
                         - 1
                     )
-                    cons_shape[cons_rank_var] = original_shape
+                    shape[rank_var] = original_shape
 
-                    delta_for_pair[(prod_rank_var, cons_rank_var)] = (stride, halo)
-    return deltas
+                    tensor_stride_and_halo[(rank, rank_var)] = (stride, halo)
+    return stride_and_halo

@@ -619,7 +619,7 @@ def get_initial_delta_choices(einsum_name: str, workload: Workload):
     for chain in consumer_chains:
         for (_, producer), (tensor, consumer) in zip(list(reversed(chain))[1:],
                                                      reversed(chain)):
-            rank_stride_and_halo = stride_and_halo[(producer.name, consumer.name)]
+            rank_stride_and_halo = stride_and_halo[(consumer.name, tensor)]
             if tensor is None:
                 break  # done
 
