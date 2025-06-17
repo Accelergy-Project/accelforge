@@ -10,6 +10,19 @@ PARENT_DIR = Path(__file__).parent
 
 
 class TestJoin(unittest.TestCase):
+    def test_mha(self):
+        spec = Specification.from_yaml(
+            PARENT_DIR / "four_level.arch.yaml",
+            PARENT_DIR / "mha.workload.yaml",
+            PARENT_DIR / "mha.renames.yaml"
+        )
+        spec.estimate_energy_area()
+
+        flattened_arch = spec.get_flattened_architecture()
+        sims, decompress_data = get_sims(spec, flattened_arch)
+        mappings = join_sims(sims, spec, flattened_arch, drop_valid_reservations=False)
+        mappings.decompress(decompress_data)
+
     def test_mobilenet(self):
         spec = Specification.from_yaml(
             PARENT_DIR / "snowcat.arch.yaml",

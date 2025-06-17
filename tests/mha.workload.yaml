@@ -12,6 +12,12 @@ workload:
     g: 0 <= g < 1
 
   einsums:
+  - name: I
+    is_copy_operation: True
+    tensor_accesses:
+    - {name: I_in, projection: [b, m, d]}
+    - {name: I, projection: [b, m, d], output: True}
+
   - name: V
     tensor_accesses:
     - {name: I, projection: [ b, m, d ]}

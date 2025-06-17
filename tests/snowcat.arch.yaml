@@ -15,6 +15,7 @@ architecture:
     constraints:
       storage:
         keep: ~Intermediates()
+        bypass: Intermediates()
     actions:
     - {name: read, arguments: {energy: 1}}
     - {name: write, arguments: {energy: 1}}
