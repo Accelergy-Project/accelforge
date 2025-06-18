@@ -47,7 +47,7 @@ def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
     sizes = {}
     for t in spec.workload.tensor_names:
-        einsum = next(iter(spec.workload.einsums_that_read_tensor(t)))
+        einsum = next(iter(spec.workload.einsums_with_tensor(t)))
         size = 1
         access = einsum.tensor_accesses[t]
         for r in access.fully_relevant_rank_variables:
