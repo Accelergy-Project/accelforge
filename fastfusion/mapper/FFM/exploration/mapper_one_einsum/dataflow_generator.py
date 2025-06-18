@@ -26,14 +26,14 @@ def get_storage_choices(
     for choice, symbol_table in make_storage_choices_all_levels(nodes, symbol_table):
         all_storage_nodes = []
         for v in choice.values():
-            all_storage_nodes.extend(v)                            
+            all_storage_nodes.extend(v)
 
         base_mapping = []
         for node in list(all_storage_nodes[::-1]):
             if node.memory == first_storage.name:
                 all_storage_nodes.remove(node)
                 base_mapping.append(node)
-
+                
         tensors_in_mapping = collect_tensors(all_storage_nodes)
         required_order = get_dataflow_constraint(nodes,
                                                  symbol_table,
@@ -50,8 +50,7 @@ def get_storage_choices(
 def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
     required_order: dict[str, list[Order]] = {}
     for node in nodes:
-        # dataflow_constraints.append((node, node.constraints.dataflow._parse(symbol_table)))
-        constraint = node.constraints.dataflow._parse(symbol_table)
+        constraint = node.constraints.dataflow._parse(symbol_table, f"{node.name}.constraints.dataflow")
         if constraint.storage_orders:
             for order_constraint in constraint.storage_orders:
                 order = Order()
@@ -149,12 +148,13 @@ def valid_storage_order(
             if i < j and s2_idx < s1_idx:
                 return False
 
-            # If a tensor is stored in two levels back-to-back, then we
-            # should have bypassed the outer storage if possible.
+            # If a tensor is stored in two levels back-to-back, then we should have
+            # bypassed the outer storage if possible.
+            either_backing = mapping[i]._backing & mapping[j]._backing
             if i == j or i == j - 1:
-                if s1_idx < s2_idx and not ((set(mapping[i]._must_keep_tensors) & set(mapping[j].tensors)) or mapping[i]._backing):
+                if s1_idx < s2_idx and not ((set(mapping[i]._must_keep_tensors) & set(mapping[j].tensors)) or either_backing):
                     return False
-                if s2_idx < s1_idx and not ((set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors)) or mapping[j]._backing):
+                if s2_idx < s1_idx and not ((set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors)) or either_backing):
                     return False
 
     for i in range(len(mapping)):

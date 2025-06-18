@@ -394,7 +394,6 @@ def iterate_mappings_no_constraints(
         mapping = copy.deepcopy(mapping)
         if spec.mapper_ffm.timeloop_style_even:
             mapping = timeloop_style_even(mapping)
-        label_backing_storages(mapping)
         # print(", ".join(m.compact_string() for m in mapping))
         for mapping in insert_temporal_loops(mapping, einsum, first_memory, rank_variable_bounds, ranks_with_tile_pattern, spec.workload, except_from_imperfect):
             mapping = copy.deepcopy(mapping)
@@ -405,6 +404,7 @@ def iterate_mappings_no_constraints(
             label_fused_loops(mapping)
             # print('POST-LABEL')
             # print(", ".join(m.compact_string() for m in mapping))
+            # print(f'{einsum_name}: {", ".join(m.compact_string() for m in mapping)}')
             for mapping2 in temporal_fused_constraint_thing_fix_me(mapping, list(spec.workload.einsums[einsum_name].rank_variables), rank_variable_bounds): # TODO
                 # mapping2 = temporal_constraint_2_fix_me(mapping2, einsum)
                 # print('PRE-PADDING')
@@ -635,6 +635,7 @@ def _per_proc_compatibility2sim(
     job_id: int,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
+    # print(f', '.join(m.compact_string() for m in mapping.nodes))
     result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics)
     sims = make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger, total_pmappings=total_pmappings)
     decompress_data = PartialMappings.compress_paretos(
@@ -691,16 +692,6 @@ def get_single_einsum_jobs(
        )
         for i, (mapping, constraints) in enumerate(mappings_constraints)
     ]
-
-
-def label_backing_storages(mapping: Sequence[MappingNode]):
-    seen_tensors = set()
-    for i, s in enumerate(mapping):
-        if isinstance(s, Storage):
-            tensors = set(s.tensors)
-            s._backing = tensors - seen_tensors
-            s._must_keep_tensors.extend(tensors - seen_tensors) # Backed tensors must be kept.
-            seen_tensors.update(tensors)
 
 
 def get_ranks_with_tile_pattern(producer_name: EinsumName, workload: Workload):
