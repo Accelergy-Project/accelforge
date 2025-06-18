@@ -115,10 +115,12 @@ def insert_temporal_loops(
 
         # If not fused, then all loops must be both:
         # - Partially-relevant or irrelevant to previous
-        # - Partially-relevant or relevant to following
+        # - Partially-relevant or relevant to following. Exclude the case where there is
+        #   no following storage.
         else:
             rank_variables &= partially_relevant_to_previous | irrelevant_to_previous
-            rank_variables &= relevant_to_following | partially_relevant_to_following
+            if next_storages:
+                rank_variables &= relevant_to_following | partially_relevant_to_following
 
             # Put all permutations of the partially-relevant rank variables on top.
             # For the fully-relevant rank variables, order doesn't matter.
@@ -633,7 +635,6 @@ def _per_proc_compatibility2sim(
     job_id: int,
     tagger=None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
-    # print(f', '.join(m.compact_string() for m in mapping.nodes))
     result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics)
     sims = make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger, total_pmappings=total_pmappings)
     decompress_data = PartialMappings.compress_paretos(
