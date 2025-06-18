@@ -360,7 +360,7 @@ class Workload(ParsableModel):
                 source = rename_tensor.source
                 injective = rename_tensor.injective
                 try:
-                    symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", injective=injective)
+                    symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", f"{einsum_name} tensor renames", injective=injective)
                 except ParseError as e:
                     e.add_field(einsum_name)
                     e.add_field(name)
@@ -369,10 +369,14 @@ class Workload(ParsableModel):
                 name = rename_rank_variable.name
                 source = rename_rank_variable.source
                 injective = rename_rank_variable.injective
-                symbol_table[name] = eval_set_expression(source, symbol_table, "rank_variables", injective=injective)
+                symbol_table[name] = eval_set_expression(source, symbol_table, "rank_variables", f"{einsum_name} rank variable renames", injective=injective)
                 
         for rank_variable in einsum.rank_variables:
             symbol_table[rank_variable] = InvertibleSet(instance=(rank_variable,), space_name="rank_variables", full_space=einsum.rank_variables)
+            
+        for t in self.tensor_names:
+            if t not in symbol_table:
+                symbol_table[t] = InvertibleSet(instance=(), space_name="tensors", full_space=self.tensor_names)
                 
         return symbol_table
 
