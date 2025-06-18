@@ -116,10 +116,12 @@ def insert_temporal_loops(
 
         # If not fused, then all loops must be both:
         # - Partially-relevant or irrelevant to previous
-        # - Partially-relevant or relevant to following
+        # - Partially-relevant or relevant to following. Exclude the case where there is
+        #   no following storage.
         else:
             rank_variables &= partially_relevant_to_previous | irrelevant_to_previous
-            rank_variables &= relevant_to_following | partially_relevant_to_following
+            if next_storages:
+                rank_variables &= relevant_to_following | partially_relevant_to_following
 
             # Put all permutations of the partially-relevant rank variables on top.
             # For the fully-relevant rank variables, order doesn't matter.
