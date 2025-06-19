@@ -62,9 +62,10 @@ def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
                     if len(in_mapping_together_tensors) == 1:
                         only_tensor = in_mapping_together_tensors[0]
                         order.add_tensor(only_tensor)
-                    else:
+                    elif len(in_mapping_together_tensors) > 1:
                         order.add_together_tensors(in_mapping_together_tensors)
-                required_order.setdefault(node.name, []).append(order)
+                if order.order:
+                    required_order.setdefault(node.name, []).append(order)
     return required_order
 
 
