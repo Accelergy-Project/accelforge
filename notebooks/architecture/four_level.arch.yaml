@@ -34,11 +34,12 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: ~MainMemory.tensors() | input | output
-        bypass: weight - ( ~MainMemory.tensors() | input | output)
-      # dataflow:
-      #   storage_orders:
-      #   - [MainMemory.tensors(), ~MainMemory.tensors()]
+        keep: All() # ~MainMemory.tensors() | input | output
+        # bypass: weight - ( ~MainMemory.tensors() | input | output)
+      dataflow:
+        storage_orders:
+        - [weight, ~weight]
+        # - [MainMemory.tensors(), ~MainMemory.tensors()]
       {% if FFMT | default(false) %}
       dataflow:
         storage_orders:
@@ -61,11 +62,12 @@ architecture:
       area: 1
     constraints:
       storage:
-        keep: Intermediates() - weight
+        keep: input | output
         bypass: weight
       dataflow:
         storage_orders:
-        - [All()] # No uneven. Put all tensors at the same level.
+        # - [All()] # No uneven. Put all tensors at the same level.
+        - [input, output]
       spatial:
         - dimension: X
           min_utilization: 1
@@ -73,6 +75,9 @@ architecture:
           - expression: weight.rank_variables()
             operator: ==
             value: 1
+          # - expression: b
+          #   operator: ==
+          #   value: 4
     actions:
     - {name: read, arguments: {energy: 0.249e-12}}
     - {name: write, arguments: {energy: 0.293e-12}}
@@ -128,13 +133,13 @@ architecture:
       - dimension: X # Parallel rank
         min_utilization: 1
         loop_bounds:
-        - expression: ~input.rank_variables()
+        - expression: ~input.rank_variables() | ~weight.rank_variables()
           operator: ==
           value: 1
       - dimension: Y # Reduced rank. No iteration over outputs
         min_utilization: 1
         loop_bounds:
-        - expression: ~output.rank_variables()
+        - expression: ~output.rank_variables() | ~weight.rank_variables()
           operator: ==
           value: 1
     actions:
