@@ -2,7 +2,7 @@ from collections import defaultdict, namedtuple
 from dataclasses import dataclass, replace
 import itertools
 from numbers import Number
-from typing import NamedTuple, Union
+from typing import Any, Generator, NamedTuple, Union, TypeVar
 
 from fastfusion.frontend.workload.workload import RankVariableName, RankName
 from fastfusion.mapper.FFM.tags import Tags
@@ -14,9 +14,10 @@ from fastfusion.util import expfmt, fzs
 #    next-innermost...
 # 2. All loops above any shared tensor are co-tiled and must match between SIMs.
 
+T = TypeVar('T', bound='Updatable')
 
 class Updatable:
-    def update(self, **kwargs) -> "Updatable":
+    def update(self: T, **kwargs) -> T:
         return replace(self, **kwargs)
 
 
@@ -254,4 +255,28 @@ class Compatibility(Updatable):
         for s in self.storage:
             if s.name == tensor:
                 return s
-        raise ValueError(f"No reservation found for tensor {tensor}")
+        raise ValueError(f"No reservation found for {name}")
+    
+    def per_tensor_compatibility(self) -> dict[str, "Compatibility"]:
+        result = {}
+        for s in self.storage:
+            result[s.name] = self.clear_dead_tensors(set([s.name]))
+        return result
+
+    def clear_tags(self) -> "Compatibility":
+        return self.update(tags=Tags(fzs()))
+    
+    def clear_loop_bounds(self) -> "Compatibility":
+        return self.update(loops=tuple(l.update(bound=0) for l in self.loops))
+    
+    def subsets_of_loops(self, clear_bounds: bool = False) -> Generator["Compatibility", None, None]:
+        assert len(self.tensor_names) == 1, "Only works for single tensor"
+        
+        indices = list(range(len(self.loops)))
+        for i in range(1, len(indices)):
+            for subset in itertools.combinations(indices, i):
+                loops = tuple(self.loops[i] for i in subset)
+                if clear_bounds:
+                    loops = tuple(l.update(bound=0) for l in loops)
+                storage = next(iter(self.storage)).update(above_loop_index=len(subset))
+                yield self.update(loops=loops, storage=fzs([storage]))
