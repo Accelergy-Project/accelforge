@@ -2,7 +2,7 @@ from collections import defaultdict, namedtuple
 from dataclasses import dataclass, replace
 import itertools
 from numbers import Number
-from typing import Any, NamedTuple, Union
+from typing import Any, Generator, NamedTuple, Union, TypeVar
 
 from fastfusion.frontend.workload.workload import RankVariableName
 from fastfusion.mapper.FFM.tags import Tags
@@ -14,9 +14,10 @@ from fastfusion.util import expfmt, fzs
 #    next-innermost...
 # 2. All loops above any shared tensor are co-tiled and must match between SIMs.
 
+T = TypeVar('T', bound='Updatable')
 
 class Updatable:
-    def update(self, **kwargs) -> "Updatable":
+    def update(self: T, **kwargs) -> T:
         return replace(self, **kwargs)
 
 
@@ -353,15 +354,27 @@ class Compatibility(Updatable):
             if s.name == name:
                 return s
         raise ValueError(f"No reservation found for {name}")
-    # loops = mapping.loops
-    # null_loops = []
-    # for i, t in enumerate(tile_shape):
-    #     this_loop = loops[i]
-    #     prev_size = rank_variable_bounds[this_loop.rank_variable]
-    #     if i > 0:
-    #         prev_loop = next(iter(l for l in loops[i-1::-1] if l.rank_variable == this_loop.rank_variable), None)
-    #         if prev_loop is not None:
-    #             prev_size = tile_shape[loops.index(prev_loop)]
-    #     if prev_size == t:
-    #         null_loops.append(this_loop)
-    # tile_shape = [t if i not in null_loops else None for i, t in enumerate(tile_shape)]
+    
+    def per_tensor_compatibility(self) -> dict[str, "Compatibility"]:
+        result = {}
+        for s in self.storage:
+            result[s.name] = self.clear_dead_tensors(set([s.name]))
+        return result
+
+    def clear_tags(self) -> "Compatibility":
+        return self.update(tags=Tags(fzs()))
+    
+    def clear_loop_bounds(self) -> "Compatibility":
+        return self.update(loops=tuple(l.update(bound=0) for l in self.loops))
+    
+    def subsets_of_loops(self, clear_bounds: bool = False) -> Generator["Compatibility", None, None]:
+        assert len(self.tensor_names) == 1, "Only works for single tensor"
+        
+        indices = list(range(len(self.loops)))
+        for i in range(1, len(indices)):
+            for subset in itertools.combinations(indices, i):
+                loops = tuple(self.loops[i] for i in subset)
+                if clear_bounds:
+                    loops = tuple(l.update(bound=0) for l in loops)
+                storage = next(iter(self.storage)).update(above_loop_index=len(subset))
+                yield self.update(loops=loops, storage=fzs([storage]))
