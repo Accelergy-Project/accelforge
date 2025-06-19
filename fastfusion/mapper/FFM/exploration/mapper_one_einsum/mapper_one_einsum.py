@@ -61,6 +61,7 @@ def insert_temporal_loops(
     # We're pre-computing and reusing for efficiency
     tensor2fully_relevant_rank_vars = einsum.tensor2fully_relevant_rank_variables
     tensor2partially_relevant_rank_vars = einsum.tensor2partially_relevant_rank_variables
+    tensor2irrelevant_rank_vars = einsum.tensor2irrelevant_rank_variables
     tensor2rank_vars = einsum.tensor2rank_variables
 
     intermediate_tensors = einsum.tensor_names & workload.intermediate_tensor_names
@@ -76,58 +77,48 @@ def insert_temporal_loops(
         # =============================================================================
 
         next_storages = split_mapping[i+1] if i < len(split_mapping) - 1 else []
-        assert len(next_storages) <= 1
+        assert sum(len(set(s.tensors) - s._backing) for s in prev_storages) <= 1
+        assert sum(len(s.tensors) for s in next_storages) <= 1
 
         rank_variables = einsum.rank_variables
         # rank_variables = {r for r in rank_variables if rank_variable_bounds[r] > 1}
         seen_tensors |= set.union(*(set(t.tensors) for t in prev_storages), set())
         is_fused_loops = is_fused_loops and len(intermediate_tensors - seen_tensors) > 0
         prev_tensors = set.union(set(), *(set(t.tensors) for t in prev_storages))
+        prev_non_backing_tensors = set.union(set(), *(set(t.tensors) - t._backing for t in prev_storages))
         next_tensors = set.union(set(), *(set(t.tensors) for t in next_storages))
-
-        relevant_to_all_previous = defaultintersection(*(tensor2fully_relevant_rank_vars[t] for t in prev_tensors))
-        partially_relevant_to_all_previous = defaultintersection(*(tensor2partially_relevant_rank_vars[t] for t in prev_tensors))
-        irrelevant_to_previous = rank_variables - partially_relevant_to_all_previous - relevant_to_all_previous
-        partially_relevant_to_previous = set.union(set(), *(tensor2partially_relevant_rank_vars[t] for t in prev_tensors))
         
-        relevant_to_following = set.union(set(), *(tensor2fully_relevant_rank_vars[t] for t in next_tensors))
-        partially_relevant_to_following = set.union(set(), *(tensor2partially_relevant_rank_vars[t] for t in next_tensors))
 
-        # No recomputation:
-        # If we haven't seen a tensor yet, must only iterate over fully-relevant
-        # rank variables.
+        # Generally we want to only use rank variables that are irrelevant to the
+        # previous tensors, else we'd just lower those tensors. However, we can't lower
+        # backing storage nodes because this will add loops to compatibility.
+        partially_relevant_to_previous = set.union(set(), *(tensor2partially_relevant_rank_vars[t] for t in prev_non_backing_tensors))
+
+        # No recomputation: If we haven't seen a tensor yet, must only iterate over
+        # fully-relevant rank variables.
         for t in intermediate_tensors - seen_tensors:
             rank_variables &= tensor2fully_relevant_rank_vars[t]
 
-        # If fused:
-        # - Don't add any loops that are relevant to previous storages if the storage is
-        #   optional & non-backing. If we do, then it'd be trivial to move the storage
-        #   node down.
-        # - Try every permutation of the rank variables that are partially-relevant to
-        #   previous storages. We may lower through these.
-        if is_fused_loops:
-            for s in prev_storages:
-                 for t in s.tensors:
-                    if t not in s._backing:
-                        rank_variables -= tensor2fully_relevant_rank_vars[t]
-            partially_relevant_choices = list(itertools.permutations(rank_variables & partially_relevant_to_previous))
-            other_choices = tuple(sorted(rank_variables - partially_relevant_to_previous))
-            choices.append([x + other_choices for x in partially_relevant_choices])
+        # We can trivially lower non-backing storage nodes through fully-relevant
+        # loops. Can't do this if the loops are fused because that'd add loops to
+        # the compatibility.
+        for s in prev_storages:
+            for t in s.tensors:
+                if t not in s._backing and not s._must_be_here:
+                    rank_variables -= tensor2fully_relevant_rank_vars[t]
+                    
+        # We can trivially raise storage nodes through irrelevant unfused loops. Can't
+        # do this if the loops are fused because that'd increase the lifetime of the
+        # storage node.
+        if not is_fused_loops:
+            for s in next_storages:
+                if not s._must_be_here:
+                    for t in s.tensors:
+                        rank_variables -= tensor2irrelevant_rank_vars[t]
 
-        # If not fused, then all loops must be both:
-        # - Partially-relevant or irrelevant to previous
-        # - Partially-relevant or relevant to following. Exclude the case where there is
-        #   no following storage.
-        else:
-            rank_variables &= partially_relevant_to_previous | irrelevant_to_previous
-            if next_storages:
-                rank_variables &= relevant_to_following | partially_relevant_to_following
-
-            # Put all permutations of the partially-relevant rank variables on top.
-            # For the fully-relevant rank variables, order doesn't matter.
-            partially_relevant_choices = list(itertools.permutations(rank_variables & partially_relevant_to_previous))
-            fully_relevant_choices = tuple(sorted(rank_variables - partially_relevant_to_previous))
-            choices.append([x + fully_relevant_choices for x in partially_relevant_choices])
+        partially_relevant_choices = list(itertools.permutations(rank_variables & partially_relevant_to_previous))
+        fully_relevant_choices = tuple(sorted(rank_variables - partially_relevant_to_previous))
+        choices.append([x + fully_relevant_choices for x in partially_relevant_choices])
 
         # =============================================================================
         # Choose whether to lower storage nodes through partially-relevant loops.
