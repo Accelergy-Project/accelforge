@@ -86,7 +86,11 @@ class TilingSegment:
             yield (n_loops, initial_delta_choices, max_shape, min_shape)
 
 
-def explore_tile_shapes(pmapping, constraints: "MappingConstraints", specification: Specification, flattened_arch, metrics: metrics.Metrics):
+def explore_tile_shapes(pmapping,
+                        constraints: "MappingConstraints",
+                        specification: Specification,
+                        flattened_arch,
+                        metrics: metrics.Metrics):
     set_last_tile_shape_to_one(pmapping)
 
     symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(pmapping, specification, flattened_arch, metrics)
