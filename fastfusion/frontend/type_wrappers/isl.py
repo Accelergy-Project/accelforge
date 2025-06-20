@@ -24,18 +24,3 @@ class ISLAdapter:
 ISLMap = ISLAdapter(isl.Map)
 ISLSpace = ISLAdapter(isl.Space)
 ISLSet = ISLAdapter(isl.Set)
-
-class MyModel(BaseModel):
-    region: ISLSet
-    mapping: ISLMap
-
-# Example
-try:
-    m = MyModel(
-        region="[n] -> { S[i] : 0 <= i < n }",
-        mapping="{ S[i] -> T[j] :d i = j }"
-    )
-    print("region:", m.region, type(m.region))
-    print("mapping:", m.mapping, type(m.mapping))
-except ValidationError as e:
-    print(e)
