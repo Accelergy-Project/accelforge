@@ -17,7 +17,7 @@ if __name__ == '__main__':
             'tqdm',
             'jinja2',
             'islpy',
-            'combinatorics',
+            # 'combinatorics',
             'sympy',
             # 'paretoset',
             'fast-pareto',
