@@ -6,7 +6,7 @@ import re
 # Disable numba. We need user_has_package("numba") to be False
 import sys
 import time
-from typing import Any, Iterable, Optional, Tuple, Union, NamedTuple
+from typing import Any, Callable, Iterable, Optional, Tuple, Union, NamedTuple
 
 from joblib import delayed
 import numpy as np
@@ -304,7 +304,7 @@ class PartialMappings:
             fill_reservation_cols: set | str = fzs(),
             check_above_subset_below: bool = CHECK_CORRECTNESS,
             max_right_to_left: bool = False,
-            free_to_loop_index: int = None,
+            next_shared_loop_index: int = None,
             parallelize_pareto: bool = False,
             n_pmappings: int = None,
         ):
@@ -317,8 +317,9 @@ class PartialMappings:
         self._make_reservations()
         self.n_pmappings = n_pmappings if n_pmappings is not None else len(self.data)
 
-        if free_to_loop_index is not None:
-            self.free_to_loop_index(free_to_loop_index)
+        if next_shared_loop_index is not None:
+            self.free_to_loop_index(loop_index=next_shared_loop_index)
+            self.limit_capacity(resource2capacity={}, next_shared_loop_index=next_shared_loop_index)
 
         if fill_reservation_cols: # Affects PartialMappings so must go before
             self.fill_reservation_cols(fill_reservation_cols)
@@ -542,6 +543,7 @@ class PartialMappings:
         duplicated_aliased_tensors: set[TensorStorage],
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
+        df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df,
     ) -> "PartialMappings":
         """
             A  B            A2
@@ -628,6 +630,8 @@ class PartialMappings:
                 raise ValueError(f"{target} is not used in pareto")
             if col2nameloop(target) is None:
                 df.loc[:, target] += df[source]
+        df = df_lambda(df)
+                
         df = df.drop(columns=dropcols)
         n_pmappings = self.n_pmappings * right.n_pmappings
         result = PartialMappings(df, skip_pareto=True, check_above_subset_below=False, n_pmappings=n_pmappings)
@@ -734,7 +738,7 @@ class PartialMappings:
         p = PartialMappings(self.data.copy(), skip_pareto=True, check_above_subset_below=False)
         p.parents = copy.deepcopy(self.parents)
         return p
-
+    
     def limit_capacity(
         self, 
         resource2capacity: dict[str, Optional[int]],
@@ -743,10 +747,8 @@ class PartialMappings:
     ) -> bool:
         resource2capacity = resource2capacity or {}
         dropcols = []
-        for resource, capacity in resource2capacity.items():
-            if capacity is None:
-                continue
-
+        for resource in sorted(set(self.right_reservations) | set(self.left_reservations)):
+            capacity = resource2capacity.get(resource, None)
             # Right reservations: Only check the greatest-index level. If a loop
             # is 0 and the next shared loop index is -1, then we can drop the
             # column.
@@ -754,7 +756,7 @@ class PartialMappings:
             if right_loops:
                 n = max(right_loops)
                 col = nameloop2col(resource, n)
-                self._data = self.data[self.data[col] <= capacity]
+                self._data = self.data[self.data[col] <= capacity] if capacity is not None else self.data
             for l in list(right_loops):
                 if l == 0 and next_shared_loop_index == -1 and drop_valid_reservations:
                     right_loops.discard(l)
@@ -765,7 +767,7 @@ class PartialMappings:
             left_loops = self.left_reservations.get(resource, set())
             for l in list(left_loops):
                 col = nameloop2col(resource, l, left=True)
-                self._data = self.data[self.data[col] <= capacity]
+                self._data = self.data[self.data[col] <= capacity] if capacity is not None else self.data
                 if l == 0 and drop_valid_reservations:
                     left_loops.discard(l)
                     dropcols.append(col)

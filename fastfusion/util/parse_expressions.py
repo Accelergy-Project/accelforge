@@ -178,7 +178,7 @@ def get_callable_lambda(func, expression):
 def infostr_log_cache(infostr: str):
     logging.info(infostr)
 
-def parse_expression(expression, symbol_table):
+def parse_expression(expression, symbol_table, attr_name: str=None, location: str=None):
     try:
         return cast_to_numeric(expression)
     except:
@@ -195,7 +195,8 @@ def parse_expression(expression, symbol_table):
 
     FUNCTION_BINDINGS = {}
     FUNCTION_BINDINGS["__builtins__"] = None  # Safety
-    FUNCTION_BINDINGS.update(parse_expressions_local.script_funcs)
+    if hasattr(parse_expressions_local, "script_funcs"):
+        FUNCTION_BINDINGS.update(parse_expressions_local.script_funcs)
     FUNCTION_BINDINGS.update(MATH_FUNCS)
 
     try:
@@ -215,7 +216,14 @@ def parse_expression(expression, symbol_table):
             and expression not in FUNCTION_BINDINGS
         ):
             e = NameError(f"Name '{expression}' is not defined.")
-        errstr += f"Problem encountered: {e.__class__.__name__}: {e}\n"
+        extra = ""
+        if attr_name and location:
+            extra = f" while parsing {location}.{attr_name}"
+        elif attr_name:
+            extra = f" while parsing {attr_name}"
+        elif location:
+            extra = f" while parsing {location}"
+        errstr += f"Problem encountered{extra}: {e.__class__.__name__}: {e}\n"
         err = errstr
         errstr += f"Available bindings: "
         bindings = {}

@@ -133,23 +133,23 @@ architecture:
         - [All()] # Outputs more stationary than inputs
       spatial:
       - dimension: X # Parallel rank
-        min_utilization: 1
+        min_utilization: (1 if (weight and input and output) else 0)
         loop_bounds:
-        - expression: input.rank_variables() # | ~weight.rank_variables()
+        - expression: (input if (weight and input and output) else Nothing()).rank_variables() # | ~weight.rank_variables()
           operator: ==
           value: 1
       - dimension: Y # Reduced rank. No iteration over outputs
-        min_utilization: 1
+        min_utilization: (1 if (weight and input and output) else 0)
         loop_bounds:
-        - expression: output.rank_variables() # | ~weight.rank_variables()
+        - expression: (output if (weight and input and output) else All()).rank_variables() # output.rank_variables() # | ~weight.rank_variables()
           operator: ==
           value: 1
-      - dimension: Z
-        min_utilization: 1
-        loop_bounds:
-        - expression: weight.rank_variables()
-          operator: ==
-          value: 1
+      # - dimension: Z
+        # min_utilization: (1 if (weight and input and output) else 0)
+        # loop_bounds:
+        # - expression: weight.rank_variables()
+        #   operator: ==
+        #   value: 1
         # - expression: b
         #   operator: ==
         #   value: 1

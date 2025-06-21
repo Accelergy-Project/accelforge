@@ -1,6 +1,7 @@
 from collections import defaultdict
 import itertools
 import time
+from typing import Callable
 import pandas as pd
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
@@ -120,6 +121,7 @@ def join_sims(
     combine_reservations: bool = True,
     lookahead_filter: bool = True,
     drop_valid_reservations: bool = True,
+    df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -183,6 +185,8 @@ def join_sims(
                 right_tensors,
                 pbar=f"Inital consolidate {sim_holder.einsum_name}",
             )
+            for s in sim_holder.sims:
+                s.mappings._data = df_lambda(s.mappings.data)
             continue
         t0 = time.time()
         left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
@@ -197,6 +201,8 @@ def join_sims(
             shared_tensors,
             pbar=f"Inital consolidate {sim_holder.einsum_name}",
         )
+        for s in sim_holder.sims:
+            s.mappings._data = df_lambda(s.mappings.data)
         sim_holder.sims = SIM.combine_combineable(
             sim_holder.sims,
             left_tensors | right_tensors,
@@ -301,6 +307,7 @@ def join_sims(
                                 aliased_tensors,
                                 resource2capacity,
                                 drop_valid_reservations=drop_valid_reservations,
+                                df_lambda=df_lambda,
                                 delay=DELAY,
                             )
                         )
@@ -377,7 +384,7 @@ def join_sims(
             for c, mapping in zip(combined, mappings):
                 c.mappings = mapping
                 cur_nmappings += c.n_pre_prune_mappings
-        # print_time("Mapping merging")
+        print_time("Mapping merging")
 
         prev_nmappings = cur_nmappings
         if not skip_invalid:
@@ -398,15 +405,17 @@ def join_sims(
         # ======================================================================
         # Print statements
         # ======================================================================
-        # print(
-        #     f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}"
-        # )
+        print(
+            f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}"
+        )
 
         nmappings = sum(len(s.mappings.data) for s in combined)
         for_einsum_text = f"for Einsum {right_einsum}"
-        # print(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
-        # print(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
-        # print(f"\tMappings per group {for_einsum_text}: {nmappings / len(combined)}")
+        print(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
+        print(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
+        print(f"\tMappings per group {for_einsum_text}: {nmappings / len(combined)}")
+        print(f'\tLargest left: {max(len(s2.mappings.data) for s in left.values() for s2 in s)}')
+        print(f'\tLargest right: {max(len(s2.mappings.data) for s in right.values() for s2 in s)}')
 
         # ======================================================================
         # Update left for the next iteration.

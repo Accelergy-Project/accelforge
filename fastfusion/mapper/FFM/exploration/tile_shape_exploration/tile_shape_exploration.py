@@ -119,7 +119,8 @@ def explore_tile_shapes(pmapping, constraints: "MappingConstraints", specificati
     for key in compiled_df:
         df[key] = compiled_df[key](*tile_shapes)
 
-    return pd.DataFrame(df), total_pmappings
+    df = pd.DataFrame(df)
+    return df, total_pmappings
 
 def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specification):
     pmapping = pmapping.nodes
@@ -131,15 +132,110 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
 
     rank_var_to_tiling_segments = collect_tiling_segments(pmapping, shape, initial_delta_choices)
 
+    def check_valid_tile_shape(combined_choices, is_symbols, other_rank_var_and_choices, indices, ranks):
+        # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
+        if combined_choices.shape[0] == 0:
+            return combined_choices
+        
+        n_rows = combined_choices.shape[0]
+        n_loops = combined_choices.shape[1]
+
+        # Insert ones
+        combined_choices_with_ones = combined_choices
+        combined_choices_with_largest = combined_choices
+        for other_ranks, other_indices, other_is_symbol, other_choices in other_rank_var_and_choices:
+            indices.extend(other_indices)
+            is_symbols.extend(other_is_symbol)
+
+            other_n_loops = len(other_indices)
+            combined_choices_with_ones = np.concatenate(
+                (
+                    combined_choices_with_ones,
+                    np.ones((n_rows, other_n_loops), dtype=np.int64)
+                ),
+                axis=1
+            )
+            
+            largest_other_choices = np.max(other_choices) # np.max(other_choices, axis=0, keepdims=True)
+            combined_choices_with_largest = np.concatenate(
+                (
+                    combined_choices_with_largest,
+                    np.ones((n_rows, other_n_loops), dtype=np.int64) * largest_other_choices
+                ),
+                axis=1
+            )
+            
+        corrected_indices = np.asarray(invert_indices(indices))
+        is_symbols = np.asarray(is_symbols)[corrected_indices]
+        corrected_choices = combined_choices_with_ones[:,corrected_indices]
+        corrected_choices = corrected_choices[:,is_symbols]
+        corrected_choices_2 = combined_choices_with_largest[:,corrected_indices]
+        corrected_choices_2 = corrected_choices_2[:,is_symbols]
+
+        # TODO: there may be a more efficient order
+        mask = constraints.check_tile_shape_constraints(corrected_choices, ranks)
+
+        # Check if capacity is overused
+        for memory, usage_model in usage_df.items():
+            usage = usage_model(*[
+                corrected_choices[:,i] for i in range(corrected_choices.shape[1])
+            ])
+            mask &= (usage <= 1.0)
+            # if mask.sum() == 0:
+            #     print(f'No valid memory usage for {rank_var}')
+
+        # Compute utilization
+        utilization = {}
+        utilization2 = {}
+        for (component, dim), utilization_model in utilization_df.items():
+            utilization[(component, dim)] = utilization_model(*[
+                corrected_choices[:,i] for i in range(corrected_choices.shape[1])
+            ])
+            utilization2[(component, dim)] = utilization_model(*[
+                corrected_choices_2[:,i] for i in range(corrected_choices_2.shape[1])
+            ])
+            util = np.minimum(utilization[(component, dim)], utilization2[(component, dim)])
+            mask &= util <= 1.0
+            util = util * mask
+            mask &= constraints.check_min_utilization_constraints(component, dim, util * mask, ranks)
+            # if mask.sum() == 0:
+            #     print(f'No valid utilization for {rank_var}')
+
+        good_choices = combined_choices[mask,:]
+
+        return good_choices
+
     rank_var_and_choices: list[tuple[frozenset[str], list[int], list[bool], np.array]] = []
     for rank_var, tiling_segments in rank_var_to_tiling_segments.items():
         choices = make_shapes_for_one_rank(tiling_segments)
         n_rows = choices.shape[0]
         n_loops = choices.shape[1]
+        
+        # other_rank_var_and_choices = []
+        # for other_rank, other_segments in rank_var_to_tiling_segments.items():
+        #     if rank_var == other_rank:
+        #         continue
+        #     other_rank_var_and_choices.append((
+        #         frozenset((other_rank,)),
+        #         other_segments.indices.copy(),
+        #         other_segments.is_symbol.copy(),
+        #         make_ones_for_one_rank(other_segments)
+        #     ))
+        
+        # good_choices = check_valid_tile_shape(
+        #     choices, 
+        #     tiling_segments.is_symbol.copy(), 
+        #     other_rank_var_and_choices, 
+        #     tiling_segments.indices.copy(), 
+        #     set((rank_var,))
+        # )
+        good_choices = choices
+        is_symbols = tiling_segments.is_symbol.copy()
 
         # Insert ones
         indices = tiling_segments.indices.copy()
         is_symbols = tiling_segments.is_symbol.copy()
+        choices2 = choices.copy()
         for other_rank, other_segments in rank_var_to_tiling_segments.items():
             if rank_var == other_rank:
                 continue
@@ -154,30 +250,51 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 ),
                 axis=1
             )
+            choices2 = np.concatenate(
+                (
+                    choices2,
+                    np.repeat(make_biggest_for_one_rank(other_segments),
+                              repeats=choices2.shape[0],
+                              axis=0)
+                ),
+                axis=1
+            )
 
         # TODO: there may be a more efficient order
         corrected_indices = np.asarray(invert_indices(indices))
         corrected_choices = choices[:,corrected_indices]
+        corrected_choices2 = choices2[:,corrected_indices]
+        
         mask = constraints.check_tile_shape_constraints(corrected_choices, set((rank_var,)))
+        # if mask.sum() == 0:
+        #     print(f'No valid tile shapes for {rank_var}')
         is_symbols = np.asarray(is_symbols)[corrected_indices]
         corrected_choices = corrected_choices[:,is_symbols]
-
+        corrected_choices2 = corrected_choices2[:,is_symbols]
         # Check if capacity is overused
         for memory, usage_model in usage_df.items():
             usage = usage_model(*[
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
             mask &= (usage <= 1.0)
+        # if mask.sum() == 0:
+        #     print(f'No valid memory usage for {rank_var}')
 
         utilization = {}
+        utilization2 = {}
         for (component, dim), utilization_model in utilization_df.items():
             utilization[(component, dim)] = utilization_model(*[
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
-            util = utilization[(component, dim)]
+            utilization2[(component, dim)] = utilization_model(*[
+                corrected_choices2[:,i] for i in range(corrected_choices2.shape[1])
+            ])
+            util = np.minimum(utilization[(component, dim)], utilization2[(component, dim)])
             mask &= util <= 1.0
             util = util * mask
             mask &= constraints.check_min_utilization_constraints(component, dim, util, set((rank_var,)))
+            # if mask.sum() == 0:
+            #     print(f'No valid utilization for {rank_var}')
 
         good_choices = choices[mask,:]
 
@@ -191,6 +308,16 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             good_choices[:,:n_loops]
         ))
 
+    # for (i, (rank, index, is_symbol, choices)) in enumerate(rank_var_and_choices):
+    #     other_rank_var_and_choices = [x for k, x in enumerate(rank_var_and_choices) if k != i]
+    #     good_choices = check_valid_tile_shape(
+    #         choices, 
+    #         is_symbol, 
+    #         other_rank_var_and_choices, 
+    #         index, 
+    #         rank
+    #     )
+    #     rank_var_and_choices[i] = (rank, index, is_symbol, good_choices)
 
     total_pmappings = 1
     for rv in rank_var_and_choices:
@@ -230,79 +357,82 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     axis=1
                 )
 
-                # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
-                n_rows = combined_choices.shape[0]
-                n_loops = combined_choices.shape[1]
-
-                is_symbols = is_symbol_a + is_symbol_b
-                indices = index_a + index_b
-
-                # Insert ones
-                combined_choices_with_ones = combined_choices
-                for other_ranks, other_indices, other_is_symbol, other_choices in other_rank_var_and_choices:
-                    indices.extend(other_indices)
-                    is_symbols.extend(other_is_symbol)
-
-                    other_n_loops = len(other_indices)
-                    combined_choices_with_ones = np.concatenate(
-                        (
-                            combined_choices_with_ones,
-                            np.ones((n_rows, other_n_loops), dtype=np.int64)
-                        ),
-                        axis=1
-                    )
-
-                # TODO: there may be a more efficient order
-                corrected_indices = np.asarray(invert_indices(indices))
-                corrected_choices = combined_choices_with_ones[:,corrected_indices]
-                mask = constraints.check_tile_shape_constraints(corrected_choices, rank_a | rank_b)
-                is_symbols = np.asarray(is_symbols)[corrected_indices]
-                corrected_choices = corrected_choices[:,is_symbols]
-
-                # Check if capacity is overused
-                for memory, usage_model in usage_df.items():
-                    usage = usage_model(*[
-                        corrected_choices[:,i] for i in range(corrected_choices.shape[1])
-                    ])
-                    mask &= (usage <= 1.0)
-
-                # Compute utilization
-                utilization = {}
-                for (component, dim), utilization_model in utilization_df.items():
-                    utilization[(component, dim)] = utilization_model(*[
-                        corrected_choices[:,i] for i in range(corrected_choices.shape[1])
-                    ])
-                    util = utilization[(component, dim)]
-                    mask &= util <= 1.0
-                    util = util * mask
-                    mask &= constraints.check_min_utilization_constraints(component, dim, util * mask, rank_a | rank_b)
-
-                # Insert largest value
-                combined_choices_with_largest = combined_choices
-                for other_ranks, other_indices, other_is_symbol, other_choices in other_rank_var_and_choices:
-                    largest_other_choices = np.max(other_choices, axis=0, keepdims=True)
-                    combined_choices_with_largest = np.concatenate(
-                        (
-                            combined_choices_with_largest,
-                            np.repeat(largest_other_choices, n_rows, axis=0)
-                        ),
-                        axis=1
-                    )
-                corrected_choices = combined_choices_with_largest[:,corrected_indices]
-                corrected_choices = corrected_choices[:,is_symbols]
-
-                # for (component, dim), utilization_model in utilization_df.items():
-                #     utilization[(component, dim)] = np.minimum(
-                #         utilization[(component, dim)],
-                #         utilization_model(*[
-                #             corrected_choices[:,i]
-                #             for i in range(corrected_choices.shape[1])
-                #         ])
-                #     )
-                #     mask &= (utilization[(component, dim)] <= 1.0)
-
-                good_choices = combined_choices[mask,:]
+                good_choices = check_valid_tile_shape(combined_choices, is_symbol_a + is_symbol_b, other_rank_var_and_choices, index_a + index_b, rank_a | rank_b)
                 all_good_choices.append(good_choices)
+
+                # # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
+                # n_rows = combined_choices.shape[0]
+                # n_loops = combined_choices.shape[1]
+
+                # is_symbols = is_symbol_a + is_symbol_b
+                # indices = index_a + index_b
+
+                # # Insert ones
+                # combined_choices_with_ones = combined_choices
+                # for other_ranks, other_indices, other_is_symbol, other_choices in other_rank_var_and_choices:
+                #     indices.extend(other_indices)
+                #     is_symbols.extend(other_is_symbol)
+
+                #     other_n_loops = len(other_indices)
+                #     combined_choices_with_ones = np.concatenate(
+                #         (
+                #             combined_choices_with_ones,
+                #             np.ones((n_rows, other_n_loops), dtype=np.int64)
+                #         ),
+                #         axis=1
+                #     )
+
+                # # TODO: there may be a more efficient order
+                # corrected_indices = np.asarray(invert_indices(indices))
+                # corrected_choices = combined_choices_with_ones[:,corrected_indices]
+                # mask = constraints.check_tile_shape_constraints(corrected_choices, rank_a | rank_b)
+                # is_symbols = np.asarray(is_symbols)[corrected_indices]
+                # corrected_choices = corrected_choices[:,is_symbols]
+
+                # # Check if capacity is overused
+                # for memory, usage_model in usage_df.items():
+                #     usage = usage_model(*[
+                #         corrected_choices[:,i] for i in range(corrected_choices.shape[1])
+                #     ])
+                #     mask &= (usage <= 1.0)
+
+                # # Compute utilization
+                # utilization = {}
+                # for (component, dim), utilization_model in utilization_df.items():
+                #     utilization[(component, dim)] = utilization_model(*[
+                #         corrected_choices[:,i] for i in range(corrected_choices.shape[1])
+                #     ])
+                #     util = utilization[(component, dim)]
+                #     mask &= util <= 1.0
+                #     util = util * mask
+                #     mask &= constraints.check_min_utilization_constraints(component, dim, util * mask, rank_a | rank_b)
+
+                # # Insert largest value
+                # combined_choices_with_largest = combined_choices
+                # for other_ranks, other_indices, other_is_symbol, other_choices in other_rank_var_and_choices:
+                #     largest_other_choices = np.max(other_choices, axis=0, keepdims=True)
+                #     combined_choices_with_largest = np.concatenate(
+                #         (
+                #             combined_choices_with_largest,
+                #             np.repeat(largest_other_choices, n_rows, axis=0)
+                #         ),
+                #         axis=1
+                #     )
+                # corrected_choices = combined_choices_with_largest[:,corrected_indices]
+                # corrected_choices = corrected_choices[:,is_symbols]
+
+                # # for (component, dim), utilization_model in utilization_df.items():
+                # #     utilization[(component, dim)] = np.minimum(
+                # #         utilization[(component, dim)],
+                # #         utilization_model(*[
+                # #             corrected_choices[:,i]
+                # #             for i in range(corrected_choices.shape[1])
+                # #         ])
+                # #     )
+                # #     mask &= (utilization[(component, dim)] <= 1.0)
+
+                # good_choices = combined_choices[mask,:]
+                # all_good_choices.append(good_choices)
 
         return (
             new_rank,
@@ -373,6 +503,14 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
     #     b = rank_var_and_choices.pop(0)
     #     rank_var_and_choices.insert(0, get_combined_choices(a, b, rank_var_and_choices))
 
+    combined_choices = rank_var_and_choices[0][-1]
+    is_symbol = rank_var_and_choices[0][2]
+    indices = rank_var_and_choices[0][1]
+    ranks = rank_var_and_choices[0][0]
+    other_rank_var_and_choices = []  # All rank variables have been combined, so no others remain
+    good_choices = check_valid_tile_shape(combined_choices, is_symbol, other_rank_var_and_choices, indices, ranks)
+
+
     _, inverted_indices, is_symbol, choices = rank_var_and_choices[0]
     is_symbol = np.asarray(is_symbol)
 
@@ -436,7 +574,6 @@ def collect_tiling_segments(
 
     return rank_var_to_tiling_segments
 
-
 def make_shapes_for_one_rank(tiling_segments: TilingSegment):
     all_tile_shapes = None
     total_loops = 0
@@ -480,14 +617,19 @@ def make_shapes_for_one_rank(tiling_segments: TilingSegment):
 
     return all_tile_shapes
 
-
 def make_ones_for_one_rank(tiling_segments: TilingSegment):
     total_cols = 0
     for n_loops, initial_delta_choices, max_shape, min_shape in tiling_segments.iterate_segments():
         total_cols += n_loops + len(initial_delta_choices.keys())
     return np.ones((1, total_cols))
 
-
+def make_biggest_for_one_rank(tiling_segments: TilingSegment):
+    total_cols = 0
+    max_max_shape = 0
+    for n_loops, initial_delta_choices, max_shape, min_shape in tiling_segments.iterate_segments():
+        total_cols += n_loops + len(initial_delta_choices.keys())
+        max_max_shape = max(max_max_shape, max_shape)
+    return np.ones((1, total_cols)) * max_max_shape
 
 def set_last_tile_shape_to_one(pmapping):
     pmapping = pmapping.nodes

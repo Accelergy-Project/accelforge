@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import cached_property
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from joblib import delayed
 
@@ -8,6 +8,7 @@ from fastfusion.mapper.FFM.pareto import PartialMappings
 
 from fastfusion.mapper.FFM.joining.mappinginfo import *
 from fastfusion.util import parallel
+import pandas as pd
 
 
 class SIM:
@@ -40,6 +41,7 @@ class SIM:
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
         delay: bool = False,
+        df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df
     ) -> "SIM":
         shared_loop_index = self.compatibility.shared_loop_index(
             right.compatibility.tensor_names | live_tensors
@@ -71,7 +73,8 @@ class SIM:
             still_live_reservations,
             duplicated_aliased_tensors,
             resource2capacity,
-            drop_valid_reservations=drop_valid_reservations
+            drop_valid_reservations=drop_valid_reservations,
+            df_lambda=df_lambda,
         )
 
         if not delay:

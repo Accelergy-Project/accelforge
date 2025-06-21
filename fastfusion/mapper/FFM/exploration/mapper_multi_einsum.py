@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from joblib import delayed
+import pandas as pd
 
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
@@ -66,7 +67,8 @@ def get_sims(
     tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
-    except_from_imperfect: set = set()
+    except_from_imperfect: set = set(),
+    df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df
 ) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
     
     print(
@@ -106,6 +108,7 @@ def get_sims(
             flattened_arch=flattened_arch,
             tensor2compatibilties=relevant_tensor2compatibilties,
             tensor2boundless_compatibilities=relevant_tensor2boundless_compatibilities,
+            df_lambda=df_lambda,
         )
         for einsum_name, new_sims, decompress_data, job_id in parallel(
             jobs,
