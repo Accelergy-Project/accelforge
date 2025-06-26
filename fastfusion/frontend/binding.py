@@ -3,7 +3,6 @@ from typing import Tuple
 from pydantic import StrictFloat
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
-from fastfusion.frontend.type_wrappers.isl import ISLMap, ISLSpace
 
 class Domain(ParsableModel):
     """
