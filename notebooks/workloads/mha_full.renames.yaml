@@ -13,17 +13,6 @@ renames:
       source: ~(input | output)
       injective: True
 
-    rank_variables:
-    - name: head
-      source: h
-      injective: True
-    - name: parallel_rank
-      source: output.rank_variables() & weight.rank_variables() - head
-      injective: True
-    - name: reduced_rank
-      source: input.rank_variables() & weight.rank_variables() - head - output.rank_variables() - parallel_rank
-      injective: True
-
   - name: I
     tensor_accesses:
     - name: weight
@@ -34,33 +23,26 @@ renames:
     - name: Intermediates
       source: Nothing
     {% endif %}
-    rank_variables:
-    - {name: head, source: Nothing().rank_variables()}
-    - {name: reduced_rank, source: b, injective: True}
-    - {name: parallel_rank, source: m, injective: True}
 
   - name: QK
     tensor_accesses:
+    - name: weight
+      source: K
+      injective: True
     - name: input
       source: Q
       injective: True
-    rank_variables:
-    - {name: parallel_rank, source: m, injective: True}
 
   - name: AV
     tensor_accesses:
     - name: input
-      source: QK
+      source: QK_softmax
       injective: True
-    rank_variables:
-    - {name: parallel_rank, source: f, injective: True}
-    # - {name: reduced_rank, source: p, injective: True}
-
-  - name: FFA
-    rank_variables:
-    - {name: head, source: Nothing().rank_variables()}
-
-  - name: FFB
-    rank_variables:
-    - {name: head, source: Nothing().rank_variables()}
+    - name: weight
+      source: V
+      injective: True
   
+  - name: QK_softmax
+    tensor_accesses:
+    - name: weight
+      source: Nothing

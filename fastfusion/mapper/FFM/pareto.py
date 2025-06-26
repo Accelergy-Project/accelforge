@@ -6,7 +6,7 @@ import re
 # Disable numba. We need user_has_package("numba") to be False
 import sys
 import time
-from typing import Any, Iterable, Optional, Tuple, Union, NamedTuple
+from typing import Any, Callable, Iterable, Optional, Tuple, Union, NamedTuple
 
 from joblib import delayed
 import numpy as np
@@ -227,22 +227,24 @@ def makepareto_quick2(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFram
 def makepareto_quick(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return mappings[quickpareto(mappings[columns])]
 
-def paretofy_chunk(chunk):
-    return paretoset(chunk)
+def paretofy_chunk(chunk, sense: list[str]):
+    return paretoset(chunk, sense=sense)
 
-def makepareto_merge(mappings: pd.DataFrame, columns: list[str], parallelize: bool = False) -> pd.DataFrame:
+def makepareto_merge(mappings: pd.DataFrame, columns: list[str], parallelize: bool = False, split_by_cols: list[str]=()) -> pd.DataFrame:
     chunk_size = 10000
     if len(mappings) <= 1:
         return mappings
     
-    to_chunk = mappings[columns]
+    sense = ["min"] * len(columns) + ["diff"] * len(split_by_cols)
+    
+    to_chunk = mappings[columns + list(split_by_cols)]
     chunks = parallel(
-        [delayed(paretofy_chunk)(chunk)
+        [delayed(paretofy_chunk)(chunk, sense)
         for chunk in [to_chunk[i:i+chunk_size] for i in range(0, len(to_chunk), chunk_size)]],
         n_jobs = 1 if parallelize else None
     )
     mappings = mappings[np.concatenate(chunks)]
-    return mappings[paretoset(mappings[columns])]
+    return mappings[paretoset(mappings[columns + list(split_by_cols)], sense=sense)]
 
 def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     t0 = time.time()
@@ -266,11 +268,11 @@ def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.Da
     return pareto2
 
 
-def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False) -> pd.DataFrame:
+def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False, split_by_cols: list[str] = ()) -> pd.DataFrame:
     # return makepareto_time_compare(mappings)
     if columns is None:
         columns = [c for c in mappings.columns if col_used_in_pareto(c)]
-    return makepareto_merge(mappings, columns, parallelize=parallelize)
+    return makepareto_merge(mappings, columns, parallelize=parallelize, split_by_cols=split_by_cols)
     if len(mappings) <= 1:
         return mappings
     columns = [c for c in mappings.columns if col_used_in_pareto(c)]
@@ -304,7 +306,7 @@ class PartialMappings:
             fill_reservation_cols: set | str = fzs(),
             check_above_subset_below: bool = CHECK_CORRECTNESS,
             max_right_to_left: bool = False,
-            free_to_loop_index: int = None,
+            next_shared_loop_index: int = None,
             parallelize_pareto: bool = False,
             n_pmappings: int = None,
         ):
@@ -317,8 +319,9 @@ class PartialMappings:
         self._make_reservations()
         self.n_pmappings = n_pmappings if n_pmappings is not None else len(self.data)
 
-        if free_to_loop_index is not None:
-            self.free_to_loop_index(free_to_loop_index)
+        if next_shared_loop_index is not None:
+            self.free_to_loop_index(loop_index=next_shared_loop_index)
+            self.limit_capacity(resource2capacity={}, next_shared_loop_index=next_shared_loop_index)
 
         if fill_reservation_cols: # Affects PartialMappings so must go before
             self.fill_reservation_cols(fill_reservation_cols)
@@ -628,6 +631,7 @@ class PartialMappings:
                 raise ValueError(f"{target} is not used in pareto")
             if col2nameloop(target) is None:
                 df.loc[:, target] += df[source]
+                
         df = df.drop(columns=dropcols)
         n_pmappings = self.n_pmappings * right.n_pmappings
         result = PartialMappings(df, skip_pareto=True, check_above_subset_below=False, n_pmappings=n_pmappings)
@@ -734,7 +738,7 @@ class PartialMappings:
         p = PartialMappings(self.data.copy(), skip_pareto=True, check_above_subset_below=False)
         p.parents = copy.deepcopy(self.parents)
         return p
-
+    
     def limit_capacity(
         self, 
         resource2capacity: dict[str, Optional[int]],
@@ -743,10 +747,8 @@ class PartialMappings:
     ) -> bool:
         resource2capacity = resource2capacity or {}
         dropcols = []
-        for resource, capacity in resource2capacity.items():
-            if capacity is None:
-                continue
-
+        for resource in sorted(set(self.right_reservations) | set(self.left_reservations)):
+            capacity = resource2capacity.get(resource, None)
             # Right reservations: Only check the greatest-index level. If a loop
             # is 0 and the next shared loop index is -1, then we can drop the
             # column.
@@ -754,7 +756,7 @@ class PartialMappings:
             if right_loops:
                 n = max(right_loops)
                 col = nameloop2col(resource, n)
-                self._data = self.data[self.data[col] <= capacity]
+                self._data = self.data[self.data[col] <= capacity] if capacity is not None else self.data
             for l in list(right_loops):
                 if l == 0 and next_shared_loop_index == -1 and drop_valid_reservations:
                     right_loops.discard(l)
@@ -765,7 +767,7 @@ class PartialMappings:
             left_loops = self.left_reservations.get(resource, set())
             for l in list(left_loops):
                 col = nameloop2col(resource, l, left=True)
-                self._data = self.data[self.data[col] <= capacity]
+                self._data = self.data[self.data[col] <= capacity] if capacity is not None else self.data
                 if l == 0 and drop_valid_reservations:
                     left_loops.discard(l)
                     dropcols.append(col)
@@ -898,12 +900,12 @@ class PartialMappings:
     #         self.data.rename(columns={COMPRESSED_INDEX: f"{prefix}{COMPRESSED_INDEX}"}, inplace=True)
     #     assert len(recovery.columns) == len(set(recovery.columns)), f"Duplicate columns in {recovery.columns}"
     #     return recovery
-    def _compress_data(self, prefix: EinsumName = None, job_id: int = None) -> pd.DataFrame:
+    def _compress_data(self, prefix: EinsumName = None, job_id: int = None, skip_columns: list[str] = None) -> pd.DataFrame:
         self.data[COMPRESSED_INDEX] = self.data.index
-        keep_cols = [COMPRESSED_INDEX] + [c for c in self.data.columns if col_used_in_pareto(c)]
+        keep_cols = [COMPRESSED_INDEX] + [c for c in self.data.columns if col_used_in_pareto(c) or c in skip_columns]
         # recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + [COMPRESSED_INDEX]]
         # self._data = self.data[keep_cols]
-        recovery = self.data # TODO: We may want to use the above if compressing uses too much memory
+        recovery = self.data[[c for c in self.data.columns if c not in skip_columns]] # TODO: We may want to use the above if compressing uses too much memory
         self._data = self.data[keep_cols].copy()
         self._data[COMPRESSED_INDEX] = self._data[COMPRESSED_INDEX].apply(lambda x: (job_id, x))
         if prefix is not None:
@@ -946,14 +948,14 @@ class PartialMappings:
         
 
     @classmethod
-    def compress_paretos(cls, prefix: EinsumName, paretos: list["PartialMappings"], job_id: int, extra_data: dict[str, Any]) -> DecompressData:
+    def compress_paretos(cls, prefix: EinsumName, paretos: list["PartialMappings"], job_id: int, extra_data: dict[str, Any], skip_columns: list[str] = None) -> DecompressData:
         index = 0
         decompress_data = []
         for p in paretos:
             p.data.reset_index(drop=True, inplace=True)
             p.data.index += index
             index += len(p.data)
-            decompress_data.append(p._compress_data(prefix, job_id))
+            decompress_data.append(p._compress_data(prefix, job_id, skip_columns))
             
         decompress_data = pd.concat(decompress_data) if decompress_data else pd.DataFrame()
         decompress_data.reset_index(drop=True, inplace=True)

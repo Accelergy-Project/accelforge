@@ -5,7 +5,7 @@ import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, MinUtilizationConstraintLambda, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.constraints import Spatial as SpatialConstraint
 from fastfusion.frontend.mapping import Iteration, MappingNode, Storage, Temporal, Spatial
-from fastfusion.frontend.workload.workload import RankVariableName
+from fastfusion.frontend.workload.workload import EinsumName, RankVariableName
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.util.util import fzs
 
@@ -26,7 +26,10 @@ class MappingConstraints:
         ):
         mask = np.ones(tile_shapes.shape[0], dtype=np.bool)
         for c in self.tile_shape_constraints:
-            mask = mask & c(rank_vars, tile_shapes[:, c._target_indices])
+            try:
+                mask = mask & c(rank_vars, tile_shapes[:, c._target_indices])
+            except:
+                pass
         return mask
     
     def check_min_utilization_constraints(
@@ -75,7 +78,7 @@ def first_storage_node_index(mapping: list[MappingNode], memory_name: str) -> in
             return i
     return None
 
-def constrained_loops(mapping: list[MappingNode], rank_variables: set[RankVariableName], start_index: int=None, look_behind: bool=False, spatial: bool=False) -> list[Iteration]:
+def constrained_loops(mapping: list[MappingNode], rank_variables: set[RankVariableName], start_index: int=None, look_behind: bool=False, across: str=None) -> list[Iteration]:
     nodes = []
     remaining_rank_variables = set(rank_variables)
     
@@ -92,13 +95,13 @@ def constrained_loops(mapping: list[MappingNode], rank_variables: set[RankVariab
     for m in to_check:
         if not isinstance(m, Iteration):
             continue
-        if spatial and not isinstance(m, Spatial):
+        if across is not None and (not isinstance(m, Spatial) or m.across != across):
             continue
         if m.rank_variable in remaining_rank_variables:
             nodes.append(m)
             remaining_rank_variables.discard(m.rank_variable)
     for r in remaining_rank_variables:
-        assert not spatial, "There should be a spatial loop for every rank variable"
+        assert across is None, "There should be a spatial loop for every rank variable"
         node = Temporal(rank_variable=r, tile_shape='symbol')
         mapping.insert(start_index, node)
         nodes.append(node)
@@ -108,6 +111,7 @@ def get_constraints(
     arch_flattened: list[architecture.Leaf],
     mapping: List[MappingNode],
     symbol_table: dict[str, InvertibleSet],
+    einsum_name: EinsumName,
 ) -> tuple[List[MappingNode], MappingConstraints]:
     
     constraints = MappingConstraints()
@@ -147,9 +151,7 @@ def get_constraints(
             # Loop bounds constraints
             if spatial_constraint.loop_bounds:
                 for c in spatial_constraint.loop_bounds:
-                    if (index := first_storage_node_index(mapping, m.name)) is None:
-                        continue
-                    nodes = constrained_loops(loops, c.expression, spatial=True)
+                    nodes = constrained_loops(loops, c.expression, across=m.name)
                     for exp in c.split_expression():
                         new_nodes = [l for l in loops if l.rank_variable in exp]
                         storage_constraint = LoopBoundsConstraintLambda(c, new_nodes, exp)

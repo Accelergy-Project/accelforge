@@ -306,8 +306,7 @@ class Compatibility(Updatable):
             # print(prev_size, cur_tile_shape)
             if prev_size == cur_tile_shape:
                 null_loop_indices.add(i)
-            else:
-                new_loops[i] = loop.update(bound=new_bound)
+            new_loops[i] = loop.update(bound=new_bound)
 
         new_loops = [l for i, l in enumerate(new_loops) if i not in null_loop_indices]
 
@@ -369,9 +368,11 @@ class Compatibility(Updatable):
     
     def subsets_of_loops(self, clear_bounds: bool = False) -> Generator["Compatibility", None, None]:
         assert len(self.tensor_names) == 1, "Only works for single tensor"
+        storage = next(iter(self.storage))
+        assert storage.above_loop_index == len(self.loops), "Only works for last loop"
         
         indices = list(range(len(self.loops)))
-        for i in range(1, len(indices)):
+        for i in range(len(indices) + 1):
             for subset in itertools.combinations(indices, i):
                 loops = tuple(self.loops[i] for i in subset)
                 if clear_bounds:

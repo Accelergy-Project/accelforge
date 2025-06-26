@@ -1,11 +1,13 @@
 from typing import overload
-from sympy import Max, Piecewise
+from sympy import Piecewise
 
 # from fastfusion.model.looptree.isl.singular import get_value_from_singular_qpolynomial
 from fastfusion.model.looptree.latency.processors import LATENCY_PROCESSORS
 from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
 from fastfusion.model.looptree.latency.memory import memory_latency
+
+from fastfusion.util.sympy.broadcast_max import Max
 
 # from bindings.looptree import SpatialTag
 

@@ -21,7 +21,7 @@ from fastfusion.mapper.FFM.exploration.mapper_one_einsum.dataflow_generator impo
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import explore_tile_shapes, get_initial_delta_choices
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility, Loop, Reservation, TilePattern
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, is_reservation_col, nameloop2col, tensor2col, DecompressData
+from fastfusion.mapper.FFM.pareto import TAGS_COLUMN, MAPPING_COLUMN, PartialMappings, col2nameloop, col_used_in_pareto, is_reservation_col, makepareto, nameloop2col, tensor2col, DecompressData
 from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingConstraints, get_constraints
 from fastfusion.mapper.FFM.tags import Tags
 from fastfusion.util.util import defaultintersection, fzs
@@ -432,7 +432,7 @@ def iterate_mappings_constraints(
     for einsum_name in einsum_names:
         for mapping, symbol_table in iterate_mappings_no_constraints(spec, einsum_name, arch_flattened, rank_variable_bounds, except_from_imperfect):
             # MAPPING MUST NOT BE MODIFIED AFTER THIS POINT
-            mapping, constraints = get_constraints(arch_flattened, mapping, symbol_table) 
+            mapping, constraints = get_constraints(arch_flattened, mapping, symbol_table, einsum_name) 
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             # mapping = copy.copy(mapping)
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
@@ -503,9 +503,9 @@ def get_equivalent_sims(sim: SIM, tagger: Callable[[Mapping], Tags], reservation
     for c in equivalent_permutations:
         try:
             tags = Tags() if tagger is None else tagger(c)
+            result.append(SIM(c.update(tags=tags), None))
         except ValueError:
-            continue
-        result.append(SIM(c.update(tags=tags), sim.mappings.copy()))
+            pass
     return result
 
 
@@ -555,22 +555,48 @@ def shift_reservations_by_null_loop_indices(mappings: DataFrame, null_loop_indic
     assert len(mappings.columns) == len(mappings.columns.unique())
     return mappings
 
-
 def make_sims(
-        mapping: Mapping,
+        einsum_name: EinsumName,
+        job_id: int,
+        compatibility: Compatibility,
         explored_results: DataFrame,
         rank_variable_bounds: dict[RankVariableName, int],
         intermediate_tensors: set[TensorName],
+        mapping: Mapping,
         tagger: Callable[[Mapping], Tags] =  None,
-        total_pmappings: int = None
+        total_pmappings: int = None,
+        tensor2compatibilties: dict[TensorName, set[Compatibility]] | None = None,
     ):
-    if explored_results.empty:
-        return {}
+    
+    keep_cols = [
+        c for c in explored_results.columns
+        if not is_reservation_col(c)
+        or not any(x in col2nameloop(c)[0] for x in ["MainMemory", "LocalBuffer", "Register"])
+    ]
+    explored_results = explored_results[keep_cols]
 
-    compatibility = make_compatibility(mapping, intermediate_tensors)
+    if explored_results.empty:
+        # print(f"INVALID: {compatibility}")
+        return [], None
+    # else:
+    #     print(f"VALID: {compatibility}")
 
     n_tile_shapes = sum(1 if isinstance(l.bound, Number) else 2 for l in compatibility.loops)
     fused_loop_columns = [f"__tile_shape{i}" for i in range(n_tile_shapes)]
+
+    explored_results = makepareto(explored_results, split_by_cols=fused_loop_columns)
+    # print(f"Reduced from {len(prev_explored_results)} to {len(explored_results)} ({len(explored_results) / len(prev_explored_results) * 100:.2f}%)")
+    explored_results = PartialMappings(explored_results, skip_pareto=True)
+    tensor2size_cols = [tensor2col(t) for t in intermediate_tensors]
+    
+    decompress_data = PartialMappings.compress_paretos(
+        einsum_name, 
+        [explored_results],
+        job_id=job_id,
+        extra_data={MAPPING_COLUMN: mapping},
+        skip_columns=fused_loop_columns + tensor2size_cols,
+    )
+    explored_results = explored_results.data
 
     if fused_loop_columns:
         groups = list(explored_results.groupby(fused_loop_columns))
@@ -580,6 +606,9 @@ def make_sims(
     pmappings_per_group = None if total_pmappings is None else total_pmappings / len(groups)
 
     sims = []
+    
+    n_skipped = 0
+    total = 0
     
     for tile_shape, mappings in groups:
         tensor2size = {}
@@ -593,24 +622,37 @@ def make_sims(
         # print(tile_shape)
         # print(', '.join(m.compact_string() for m in mapping.nodes if not isinstance(m, Fill)))
         new_compatibility, null_loop_indices = compatibility.populate_tile_shape(tile_shape, rank_variable_bounds, tensor2size)
-        try:
-            tags = Tags() if tagger is None else tagger(new_compatibility)
-        except ValueError as e:
+
+        # new_compatibility = new_compatibility.update(tags=tags)
+
+        total += len(mappings)
+        fail = False
+        for t, c in new_compatibility.per_tensor_compatibility().items():
+            if t in tensor2compatibilties and c not in tensor2compatibilties[t]:
+                fail = True
+                break
+        if fail:
+            n_skipped += len(mappings)
             continue
 
-        new_compatibility = new_compatibility.update(tags=tags)
-
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
-        partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
+
+        # TODO: Redundant capacity checks because limit_capacity is called. We want it
+        # so we can drop dead reservations though.
+        partial_mappings = PartialMappings(mappings, next_shared_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=False)#len(mappings) < 1000)
+        # partial_mappings = PartialMappings(mappings, next_shared_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=len(mappings) < 1000)
+        # partial_mappings = PartialMappings(mappings, free_to_loop_index=len(new_compatibility.loops) - 1, n_pmappings=pmappings_per_group, skip_pareto=False)
         reservation_levels = partial_mappings.all_reservation_levels()
         sim = SIM(new_compatibility, partial_mappings)
-        if tagger is not None:
-            sim.mappings.data[TAGS_COLUMN] = [compatibility.tags] * len(sim.mappings.data)
-            
-        for equivalent_sim in get_equivalent_sims(sim, tagger, reservation_levels):
-            sims.append(equivalent_sim)
 
-    return sims
+        # for equivalent_sim in get_equivalent_sims(sim, tagger, reservation_levels):
+        #     sims.append(equivalent_sim)
+            
+        sim._equivalent_sims = [sim]#get_equivalent_sims(sim, tagger, reservation_levels)
+            
+    # print(f'{n_skipped} / {total} skipped ({n_skipped / total * 100:.2f}%)')
+
+    return sims, decompress_data
 
 # =================================================================================================
 # Top level
@@ -626,17 +668,39 @@ def _per_proc_compatibility2sim(
     metrics: metrics.Metrics,
     job_id: int,
     tagger=None,
+    tensor2compatibilties: dict[TensorName, set[Compatibility]] | None = None,
+    tensor2boundless_compatibilities: dict[TensorName, set[Compatibility]] | None = None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
+       
     # print(f', '.join(m.compact_string() for m in mapping.nodes))
-    result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics)
-    sims = make_sims(mapping, result, rank_variable_bounds, intermediate_tensors, tagger=tagger, total_pmappings=total_pmappings)
-    decompress_data = PartialMappings.compress_paretos(
-        einsum_name, 
-        [s.mappings for s in sims],
-        job_id=job_id,
-        extra_data={MAPPING_COLUMN: mapping}
-    )
+    mapping_copy = copy.deepcopy(mapping)
+    explore_tile_shapes(mapping_copy, constraints, spec, flattened_arch, metrics, _fix_me=True)
+    compatibility = make_compatibility(mapping_copy, intermediate_tensors)
+
+    if tensor2boundless_compatibilities is not None:
+        for t, c in compatibility.per_tensor_compatibility().items():
+            if t not in tensor2boundless_compatibilities:
+                continue
+            for c2 in c.subsets_of_loops(clear_bounds=True):
+                if c2 in tensor2boundless_compatibilities[t]:
+                    break
+            else:
+                # print(f'Skipping {c} due to incompatibility.')
+                return einsum_name, [], None, job_id
+    
+    mstr = ', '.join(m.compact_string() for m in mapping.nodes)
+    result, total_pmappings = explore_tile_shapes(mapping, constraints, spec, flattened_arch, metrics, _fix_me=False)
+    compatibility = make_compatibility(mapping, intermediate_tensors)
+    # print(f'{mstr}')
+    sims, decompress_data = make_sims(einsum_name, job_id, compatibility, result, rank_variable_bounds, intermediate_tensors, tagger=tagger, total_pmappings=total_pmappings, tensor2compatibilties=tensor2compatibilties, mapping=mapping)
+    # decompress_data = PartialMappings.compress_paretos(
+    #     einsum_name, 
+    #     [s.mappings for s in sims],
+    #     job_id=job_id,
+    #     extra_data={MAPPING_COLUMN: mapping}
+    # )
     gc.collect()
+    # print(f"FINISHED: " + ', '.join(m.compact_string() for m in mapping.nodes))
     return einsum_name, sims, decompress_data, job_id
 
 
@@ -646,6 +710,8 @@ def get_single_einsum_jobs(
     metrics: metrics.Metrics,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     flattened_arch: list[architecture.Leaf] | None = None,
+    tensor2compatibilties: dict[TensorName, set[Compatibility]] | None = None,
+    tensor2boundless_compatibilities: dict[TensorName, set[Compatibility]] | None = None,
     tagger: Callable[[Mapping], Tags] | None = None,
     start_index: int = 0,
     except_from_imperfect: set = set(),
@@ -681,7 +747,9 @@ def get_single_einsum_jobs(
             tagger=tagger,
             metrics=metrics,
             job_id=start_index + i,
-       )
+            tensor2compatibilties=tensor2compatibilties,
+            tensor2boundless_compatibilities=tensor2boundless_compatibilities,
+        )
         for i, (mapping, constraints) in enumerate(mappings_constraints)
     ]
 

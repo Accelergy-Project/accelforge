@@ -1,11 +1,12 @@
 from collections import defaultdict
-from sympy import Max, Min
 
 from fastfusion.frontend.architecture import Memory
 
 from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions
 from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
+
+from fastfusion.util.sympy.broadcast_max import Max
 
 
 def memory_latency(

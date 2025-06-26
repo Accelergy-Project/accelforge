@@ -4,6 +4,7 @@ from typing import Annotated, Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 from fastfusion.util.basetypes import ParsableList, ParsableModel, ParsesTo
+from fastfusion.util.parse_expressions import parse_expression
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.frontend.workload.workload import RankVariableName, TensorName
 from fastfusion.version import assert_version, __version__
@@ -141,7 +142,7 @@ class Iteration(ParsableModel):
         
 class Spatial(Iteration):
     dimension: str
-    min_utilization: float = 0.0
+    min_utilization: Union[float, str] = 0.0
     def combine(self, other: "Spatial"):
         if self.reuse != other.reuse:
             raise ValueError(f"Cannot combine iterations with different reuse constraints. Got {self.reuse} and {other.reuse}.")
@@ -159,7 +160,7 @@ class Spatial(Iteration):
             dimension=self.dimension,
             loop_bounds=[x._parse(symbol_table, location) for x in self.loop_bounds],
             reuse=eval_set_expression(self.reuse, symbol_table, "tensors", location),
-            min_utilization=self.min_utilization,
+            min_utilization=parse_expression(self.min_utilization, symbol_table, "min_utilization", location),
         )
 
 class Temporal(Iteration):

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import cached_property
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from joblib import delayed
 
@@ -8,6 +8,7 @@ from fastfusion.mapper.FFM.pareto import PartialMappings
 
 from fastfusion.mapper.FFM.joining.mappinginfo import *
 from fastfusion.util import parallel
+import pandas as pd
 
 
 class SIM:
@@ -71,7 +72,7 @@ class SIM:
             still_live_reservations,
             duplicated_aliased_tensors,
             resource2capacity,
-            drop_valid_reservations=drop_valid_reservations
+            drop_valid_reservations=drop_valid_reservations,
         )
 
         if not delay:
