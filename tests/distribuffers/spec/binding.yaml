@@ -1,15 +1,9 @@
 binding:
   version: 0.4
   nodes:
-  - # name: DRAM # Redundant as for error-handling we can just state that logical
-    # failed to bind to physical.
-    logical: DRAM
-    physical: DRAM
-    relation:
-      tensor A: LogicalDRAM[i] -> PhysicalDRAM[i] : i = 0 # We will call this the bijection relation.
   - logical:
       name: PE
-      dims: [i]
+      p_dims: [i]
     physical: 
       name: PE
       dims: [x, y]

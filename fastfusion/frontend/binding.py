@@ -1,30 +1,76 @@
-import pyisl as isl
-from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from typing import Tuple
 
-class BindingRelation(ParsableDict):
+from pydantic import StrictFloat
+
+from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from fastfusion.frontend.type_wrappers.isl import ISLMap, ISLSpace
+
+class Domain(ParsableModel):
     """
-    Represents a bijective relation between points in logical to physical space.
+    Represents an architecture dangling reference of the binding.
+    """
+    name: str
+
+class LogicalDomain(Domain):
+    """
+    Represents the logical architecture domain space of logical dims × ranks.
+    """
+    ranks: Tuple[str] = (
+        'C', 'H', 'W', 'P', 'Q', 'R', 'S'
+    )
+    dims: Tuple[str]
+
+class PhysicalDomain(Domain):
+    """
+    Represents the logical architecture domain space of physical dims.
+    """
+    p_dims: Tuple[str]
+
+class BindingRelation(ParsableModel):
+    """
+    Represents a injection relation between points in logical to physical space.
     The logical space is defined as logical architecture dims × tensor dims.
     The physical space is defined as physical architecture dims × tensor dims.
     """
-    logical_space: isl.Space
-    physical_space: isl.Space
+    relation: ParsableDict[str, str]
 
-some_dictionary = some_yaml_library.parse(your_yaml_file)
-# Some dictionary is going to have str for logical_space and physical_space
-BindingRelation.build_model(some_dictionary)
-# This build_model will validate the types of values in some_dictionary
-
-# This is using a library called Pydantic.
-# There may be "type adapter" that tells the library to call a function when
-# validating. In this case, we want to call isl.Space ctor.
+class BindingNode(ParsableModel):
+    """
+    How a logical architecture is implemented on a particular physical architecture
+    for a particular hardware level.
+    """
+    logical: LogicalDomain
+    physical: PhysicalDomain
+    nodes: ParsableList[BindingRelation]
 
 class Binding(ParsableModel):
     """
-    How a logical architecture is implemented on a particular physical architecture.
+    A collection of binding nodes that fully specifies a relation between the
+    logical and physical space.
     """
-    name: str
-    logical_model = None
-    physical_model = None
-    nodes: ParsableList[BindingRelation] = ParsableList()
+    version: StrictFloat
+    nodes: ParsableList[BindingNode]
 
+# now loads YAML
+import yaml
+yaml_str: str = """
+binding:
+  version: 0.4
+  nodes:
+  - logical:
+      name: PE
+      p_dims: [i]
+    physical: 
+      name: PE
+      dims: [x, y]
+    relation:
+      tensorA: i = x + y * 2 # This is a dimension-major compression into the logical. It is bijective.
+      tensorB: i = x + y * 2 # This is a dimension-major compression into the logical. It is bijective.
+  # Bindings for a hypothetical scratchpad.
+  - logical: scratchpad
+    physical: scratchpad
+    relation:
+        tensorA: LogicalScratchpad[i] -> PhysicalScratchpad[x, y] : i = x # This is a dimension-based compression into the logical. It is not surjective.
+"""
+
+binding = Binding.model_validate(yaml.safe_load(yaml_str))
