@@ -68,7 +68,6 @@ def get_sims(
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     except_from_imperfect: set = set(),
-    df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df
 ) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
     
     print(
@@ -108,14 +107,20 @@ def get_sims(
             flattened_arch=flattened_arch,
             tensor2compatibilties=relevant_tensor2compatibilties,
             tensor2boundless_compatibilities=relevant_tensor2boundless_compatibilities,
-            df_lambda=df_lambda,
         )
         for einsum_name, new_sims, decompress_data, job_id in parallel(
             jobs,
             pbar=f"Generating Pmappings for {einsum_name}",
             return_as="generator_unordered",
         ):
-            cur_sims.extend(new_sims)
+            if len(new_sims) == 0:
+                continue
+            for sim in new_sims:
+                for equivalent_sim in sim._equivalent_sims:
+                    equivalent_sim.mappings = sim.mappings
+                    cur_sims.append(equivalent_sim)
+                    break
+            # cur_sims.extend(new_sims)
             grouped_decompress_data.register_decompress_data(
                 einsum_name,
                 job_id,

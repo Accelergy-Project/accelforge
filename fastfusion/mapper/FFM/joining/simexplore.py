@@ -121,7 +121,6 @@ def join_sims(
     combine_reservations: bool = True,
     lookahead_filter: bool = True,
     drop_valid_reservations: bool = True,
-    df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -185,8 +184,6 @@ def join_sims(
                 right_tensors,
                 pbar=f"Inital consolidate {sim_holder.einsum_name}",
             )
-            for s in sim_holder.sims:
-                s.mappings._data = df_lambda(s.mappings.data)
             continue
         t0 = time.time()
         left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
@@ -201,8 +198,6 @@ def join_sims(
             shared_tensors,
             pbar=f"Inital consolidate {sim_holder.einsum_name}",
         )
-        for s in sim_holder.sims:
-            s.mappings._data = df_lambda(s.mappings.data)
         sim_holder.sims = SIM.combine_combineable(
             sim_holder.sims,
             left_tensors | right_tensors,
@@ -307,7 +302,6 @@ def join_sims(
                                 aliased_tensors,
                                 resource2capacity,
                                 drop_valid_reservations=drop_valid_reservations,
-                                df_lambda=df_lambda,
                                 delay=DELAY,
                             )
                         )

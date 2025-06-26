@@ -41,7 +41,6 @@ class SIM:
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
         delay: bool = False,
-        df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df
     ) -> "SIM":
         shared_loop_index = self.compatibility.shared_loop_index(
             right.compatibility.tensor_names | live_tensors
@@ -74,7 +73,6 @@ class SIM:
             duplicated_aliased_tensors,
             resource2capacity,
             drop_valid_reservations=drop_valid_reservations,
-            df_lambda=df_lambda,
         )
 
         if not delay:

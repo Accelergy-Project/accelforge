@@ -227,22 +227,24 @@ def makepareto_quick2(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFram
 def makepareto_quick(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return mappings[quickpareto(mappings[columns])]
 
-def paretofy_chunk(chunk):
-    return paretoset(chunk)
+def paretofy_chunk(chunk, sense: list[str]):
+    return paretoset(chunk, sense=sense)
 
-def makepareto_merge(mappings: pd.DataFrame, columns: list[str], parallelize: bool = False) -> pd.DataFrame:
+def makepareto_merge(mappings: pd.DataFrame, columns: list[str], parallelize: bool = False, split_by_cols: list[str]=()) -> pd.DataFrame:
     chunk_size = 10000
     if len(mappings) <= 1:
         return mappings
     
-    to_chunk = mappings[columns]
+    sense = ["min"] * len(columns) + ["diff"] * len(split_by_cols)
+    
+    to_chunk = mappings[columns + list(split_by_cols)]
     chunks = parallel(
-        [delayed(paretofy_chunk)(chunk)
+        [delayed(paretofy_chunk)(chunk, sense)
         for chunk in [to_chunk[i:i+chunk_size] for i in range(0, len(to_chunk), chunk_size)]],
         n_jobs = 1 if parallelize else None
     )
     mappings = mappings[np.concatenate(chunks)]
-    return mappings[paretoset(mappings[columns])]
+    return mappings[paretoset(mappings[columns + list(split_by_cols)], sense=sense)]
 
 def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     t0 = time.time()
@@ -266,11 +268,11 @@ def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.Da
     return pareto2
 
 
-def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False) -> pd.DataFrame:
+def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False, split_by_cols: list[str] = ()) -> pd.DataFrame:
     # return makepareto_time_compare(mappings)
     if columns is None:
         columns = [c for c in mappings.columns if col_used_in_pareto(c)]
-    return makepareto_merge(mappings, columns, parallelize=parallelize)
+    return makepareto_merge(mappings, columns, parallelize=parallelize, split_by_cols=split_by_cols)
     if len(mappings) <= 1:
         return mappings
     columns = [c for c in mappings.columns if col_used_in_pareto(c)]
@@ -543,7 +545,6 @@ class PartialMappings:
         duplicated_aliased_tensors: set[TensorStorage],
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
-        df_lambda: Callable[[pd.DataFrame], pd.DataFrame] = lambda df: df,
     ) -> "PartialMappings":
         """
             A  B            A2
@@ -630,7 +631,6 @@ class PartialMappings:
                 raise ValueError(f"{target} is not used in pareto")
             if col2nameloop(target) is None:
                 df.loc[:, target] += df[source]
-        df = df_lambda(df)
                 
         df = df.drop(columns=dropcols)
         n_pmappings = self.n_pmappings * right.n_pmappings
@@ -900,12 +900,12 @@ class PartialMappings:
     #         self.data.rename(columns={COMPRESSED_INDEX: f"{prefix}{COMPRESSED_INDEX}"}, inplace=True)
     #     assert len(recovery.columns) == len(set(recovery.columns)), f"Duplicate columns in {recovery.columns}"
     #     return recovery
-    def _compress_data(self, prefix: EinsumName = None, job_id: int = None) -> pd.DataFrame:
+    def _compress_data(self, prefix: EinsumName = None, job_id: int = None, skip_columns: list[str] = None) -> pd.DataFrame:
         self.data[COMPRESSED_INDEX] = self.data.index
-        keep_cols = [COMPRESSED_INDEX] + [c for c in self.data.columns if col_used_in_pareto(c)]
+        keep_cols = [COMPRESSED_INDEX] + [c for c in self.data.columns if col_used_in_pareto(c) or c in skip_columns]
         # recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + [COMPRESSED_INDEX]]
         # self._data = self.data[keep_cols]
-        recovery = self.data # TODO: We may want to use the above if compressing uses too much memory
+        recovery = self.data[[c for c in self.data.columns if c not in skip_columns]] # TODO: We may want to use the above if compressing uses too much memory
         self._data = self.data[keep_cols].copy()
         self._data[COMPRESSED_INDEX] = self._data[COMPRESSED_INDEX].apply(lambda x: (job_id, x))
         if prefix is not None:
@@ -948,14 +948,14 @@ class PartialMappings:
         
 
     @classmethod
-    def compress_paretos(cls, prefix: EinsumName, paretos: list["PartialMappings"], job_id: int, extra_data: dict[str, Any]) -> DecompressData:
+    def compress_paretos(cls, prefix: EinsumName, paretos: list["PartialMappings"], job_id: int, extra_data: dict[str, Any], skip_columns: list[str] = None) -> DecompressData:
         index = 0
         decompress_data = []
         for p in paretos:
             p.data.reset_index(drop=True, inplace=True)
             p.data.index += index
             index += len(p.data)
-            decompress_data.append(p._compress_data(prefix, job_id))
+            decompress_data.append(p._compress_data(prefix, job_id, skip_columns))
             
         decompress_data = pd.concat(decompress_data) if decompress_data else pd.DataFrame()
         decompress_data.reset_index(drop=True, inplace=True)
