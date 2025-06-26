@@ -613,7 +613,7 @@ def make_sims(
     for tile_shape, mappings in groups:
         tensor2size = {}
 
-        dropcols = []
+        dropcols = list(fused_loop_columns)
         for tensor in intermediate_tensors: # Sizes are all the same
             tensor2size[tensor] = mappings[tensor2col(tensor)].iloc[0]
             dropcols.append(tensor2col(tensor))
@@ -648,7 +648,8 @@ def make_sims(
         # for equivalent_sim in get_equivalent_sims(sim, tagger, reservation_levels):
         #     sims.append(equivalent_sim)
             
-        sim._equivalent_sims = [sim]#get_equivalent_sims(sim, tagger, reservation_levels)
+        sim._equivalent_sims = get_equivalent_sims(sim, tagger, reservation_levels)
+        sims.append(sim)
             
     # print(f'{n_skipped} / {total} skipped ({n_skipped / total * 100:.2f}%)')
 
@@ -672,7 +673,7 @@ def _per_proc_compatibility2sim(
     tensor2boundless_compatibilities: dict[TensorName, set[Compatibility]] | None = None,
 ) -> tuple[str, dict[Compatibility, SIM], str, Mapping]:
        
-    # print(f', '.join(m.compact_string() for m in mapping.nodes))
+    print(f', '.join(m.compact_string() for m in mapping.nodes))
     mapping_copy = copy.deepcopy(mapping)
     explore_tile_shapes(mapping_copy, constraints, spec, flattened_arch, metrics, _fix_me=True)
     compatibility = make_compatibility(mapping_copy, intermediate_tensors)
