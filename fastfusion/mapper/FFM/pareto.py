@@ -728,7 +728,7 @@ class PartialMappings:
         next_shared_loop_index: int=None,
         drop_valid_reservations: bool = True,
     ) -> bool:
-        drop_valid_reservations = False # TODO: Remove this. It's only for Orojenesis ski slopes.
+        # drop_valid_reservations = False # TODO: This is for for Orojenesis ski slopes.
         resource2capacity = resource2capacity or {}
         dropcols = []
         for resource in sorted(set(self.right_reservations) | set(self.left_reservations)):
