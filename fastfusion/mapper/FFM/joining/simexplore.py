@@ -182,6 +182,7 @@ def join_sims(
             sim_holder.sims = SIM.left_consolidate(
                 sim_holder.sims,
                 right_tensors,
+                parallelize=False, # We're not pareto pruning, so parallelization doesn't help.
                 pbar=f"Inital consolidate {sim_holder.einsum_name}",
             )
             continue
@@ -196,6 +197,7 @@ def join_sims(
             sim_holder.sims,
             live_tensors,
             shared_tensors,
+            parallelize=False, # We're not pareto pruning, so parallelization doesn't help.
             pbar=f"Inital consolidate {sim_holder.einsum_name}",
         )
         sim_holder.sims = SIM.combine_combineable(
