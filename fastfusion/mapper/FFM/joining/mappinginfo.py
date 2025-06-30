@@ -31,12 +31,12 @@ class TilePattern(NamedTuple):
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
     rank_name: RankName
-    bound: Union[Number, TilePattern]
+    bound: Union[Number, TilePattern] | None
     is_spatial: bool
 
     def __post_init__(self):
         assert isinstance(self.rank_name, RankName)
-        assert isinstance(self.bound, Number | TilePattern)
+        assert isinstance(self.bound, Number | TilePattern | None)
         assert isinstance(self.is_spatial, bool)
 
     def __repr__(self):
@@ -110,6 +110,10 @@ class Reservation(Updatable):
             if k != "size" and a != "*" and b != "*" and a != b:
                 return False
         return True
+
+    def permute(self, permutation) -> "Reservation":
+        new_loops = [self.loops[permutation[i]] for i in range(len(self.loops))]
+        return self.update(loops=tuple(new_loops))
 
 
 @dataclass(frozen=True, order=True)
@@ -230,17 +234,16 @@ class Compatibility(Updatable):
         self,
         loop_changes: list[int]
     ) -> "Compatibility":
-        raise NotImplementedError()
-        assert len(loop_changes) == len(self.loops)
-        new_loops = [self.loops[loop_changes[i]] for i in range(len(self.loops))]
-        return self.update(loops=tuple(new_loops))
+        assert len(loop_changes) == self.n_loops
+        new_storage = fzs(s.permute(loop_changes) for s in self.storage)
+        return self.update(storage=new_storage)
 
     def make_equivalent_permutations(self, reservation_levels: set[int]) -> list["Compatibility"]:
         # TODO
         # Get contiguous blocks of loops with no storage node between them
         blocks = []
         current_block = []
-        for i in range(len(self.loops)):
+        for i in range(self.n_loops):
             # Can't permute loops if there's a reservation between them
             if any(s.above_loop_index == i for s in self.storage) or i in reservation_levels:
                 blocks.append(current_block)
@@ -254,7 +257,7 @@ class Compatibility(Updatable):
             for block in blocks
         ]
         all_permutations = list(itertools.product(*per_block_permutations))
-        result =  [self._permute(list(itertools.chain(*loop_changes))) for loop_changes in all_permutations]
+        result = [self._permute(list(itertools.chain(*loop_changes))) for loop_changes in all_permutations]
         return result
 
     def get_storage_by_name(self, tensor: str) -> TensorStorage:

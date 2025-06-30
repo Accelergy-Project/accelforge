@@ -21,56 +21,6 @@ def paretofy(k, v):
     return SIM(k, PartialMappings(pd.DataFrame(v).fillna(0)))
 
 
-def get_possible_translations(
-    t: Compatibility,
-    pairwise_equivalent_rank_variables: dict[str, set[str]],
-    full_equivalent_rank_variables: dict[str, set[str]],
-    right_einsum: Einsum,
-):
-    yield t
-    return
-    # # Fused ranks should be transitive, but if a fused loop indexes into two
-    # # different ranks in the next Einsum, we can't fuse becuase it will tile in
-    # # multiple directions.
-    
-    # # The first union checks what loops we CAN fuse with in the next Einsum. The
-    # # second union checks what loops MUST index into in the next
-    
-    # # Einsum. If we alias into multiple ranks, we can't fuse. Otherwise, try out
-    # # each possible rank.
-    # right_rank_variables = right_einsum.rank_variables
-    # tensor2rank_var2ranks = {}
-    # for tensor_access in right_einsum.tensor_accesses:
-    #     tensor2rank_var2ranks[tensor_access.name] = tensor_access.rank_variable2ranks
-
-    # def rank_vars_index_only_one_rank_per_tensor(rank_vars):
-    #     for tensor, rank_var2ranks in tensor2rank_var2ranks.items():
-    #         all_ranks = set()
-    #         for rank_var in rank_vars:
-    #             if rank_var in rank_var2ranks:
-    #                 all_ranks.update(rank_var2ranks[rank_var])
-    #         if len(all_ranks) > 1:
-    #             return False
-    #     return True
-
-    # def translate_loop(l: Loop):
-    #     compatible_rank_variables = (
-    #         set.union(*(full_equivalent_rank_variables[n] for n in l.rank_variable_names))
-    #         & right_rank_variables
-    #     )
-    #     pairwise_compatible_rank_variables = (
-    #         set.union(*(pairwise_equivalent_rank_variables[n] for n in l.rank_variable_names))
-    #         & right_rank_variables
-    #     )
-    #     if len(pairwise_compatible_rank_variables) > 1:
-    #         return
-    #     for n in compatible_rank_variables:
-    #         yield Loop(fzs((n,)), l.bound, l.is_spatial)
-
-    # for loops in itertools.product(*map(translate_loop, t.loops)):
-    #     yield t.update(loops=loops)
-
-
 prev_time = 0
 total_time = defaultdict(int)
 
@@ -304,36 +254,30 @@ def join_sims(
             found = False
             if DO_PRINT:
                 print(f'Left key {k}')
-            for k_translated in get_possible_translations(
-                k,
-                pairwise_equivalent_rank_variables,
-                full_equivalent_rank_variables,
-                spec.workload.einsums[right_einsum],
-            ):
-                for a, b in itertools.product(left[k], right.get(k_translated, [])):
-                    if (
-                        a.compatibility.tags.are_compatible_with(b.compatibility.tags)
-                    ):
-                        found = True
-                        if DO_PRINT:
-                            print(f"\t{a.compatibility}\n\t<-->\n\t{b.compatibility}")
-                        combined.append(
-                            a.merge_next(
-                                b,
-                                live_tensors,
-                                live_tensors_with_right,
-                                aliased_tensors,
-                                resource2capacity,
-                                drop_valid_reservations=drop_valid_reservations,
-                                delay=DELAY,
-                            )
+            for a, b in itertools.product(left[k], right.get(k, [])):
+                if (
+                    a.compatibility.tags.are_compatible_with(b.compatibility.tags)
+                ):
+                    found = True
+                    if DO_PRINT:
+                        print(f"\t{a.compatibility}\n\t<-->\n\t{b.compatibility}")
+                    combined.append(
+                        a.merge_next(
+                            b,
+                            live_tensors,
+                            live_tensors_with_right,
+                            aliased_tensors,
+                            resource2capacity,
+                            drop_valid_reservations=drop_valid_reservations,
+                            delay=DELAY,
                         )
-                        if not DELAY:
-                            cur_nmappings += len(a.mappings.data) * len(b.mappings.data)
-                        if DO_PRINT:
-                            s = f"\t-->\n\t{combined[-1].compatibility}"
-                            s += f"({len(a.mappings.data)})x({len(b.mappings.data)})"
-                            print(s)
+                    )
+                    if not DELAY:
+                        cur_nmappings += len(a.mappings.data) * len(b.mappings.data)
+                    if DO_PRINT:
+                        s = f"\t-->\n\t{combined[-1].compatibility}"
+                        s += f"({len(a.mappings.data)})x({len(b.mappings.data)})"
+                        print(s)
             if DO_PRINT and not found:
                 for a in left[k]:
                     print(f"\tNo match for {a.compatibility}")
@@ -358,21 +302,8 @@ def join_sims(
             ].rank_variables
             combined = SIM.group_left(combined, next_right_tensors, drop_tags=True)
             for k in list(combined):
-                translations = get_possible_translations(
-                    k,
-                    pairwise_equivalent_rank_variables,
-                    full_equivalent_rank_variables,
-                    spec.workload.einsums[sims[0].einsum_name],
-                )
-                if not any(kt in sims[0].sims for kt in translations):
-                    list(
-                        get_possible_translations(
-                            k,
-                            pairwise_equivalent_rank_variables,
-                            full_equivalent_rank_variables,
-                            next_right_rank_variables,
-                        )
-                    )
+                if not k in sims[0].sims:
+                    list(k)
                     if DO_PRINT:
                         for b in combined[k]:
                             print(f"\tLOOKAHEAD: No match for {b.compatibility}")

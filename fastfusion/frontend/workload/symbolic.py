@@ -5,7 +5,14 @@ from operator import mul
 
 import sympy
 
-from .workload import TensorName, Einsum, Workload
+from .workload import (
+    TensorName,
+    Einsum,
+    EinsumName,
+    Workload,
+    RankName,
+    RankVariableName,
+)
 from .isl import get_rank_variable_bounds
 
 
@@ -80,9 +87,46 @@ def compute_rank_occupancy(
     return projection_expr.subs(substitutions) + 1
 
 
+def get_stride_and_halo_of_einsum(
+    einsum_name: str,
+    workload: Workload,
+) -> dict[TensorName, dict[tuple[RankName, RankVariableName]], tuple[int, int]]:
+    """
+    Get stride and halo (initial delta) for an Einsum in workload.
+
+    Returns dictionary mapping tensor to another dictionary mapping
+    (rank, rank_var) to the stride and halo.
+    """
+    stride_and_halo = {}
+    einsum = workload.einsums[einsum_name]
+    shape = get_rank_variable_bounds(workload, einsum_name)
+    for tensor in einsum.tensor_names:
+        stride_and_halo[tensor] = {}
+        tensor_stride_and_halo = stride_and_halo[tensor]
+
+        projection = get_projection_expr(einsum, tensor)
+        tensor_accesses = einsum.tensor_accesses[tensor]
+        for rank, rank_vars in tensor_accesses.rank2rank_variables.items():
+            rank_projection = projection[rank]
+            for rank_var in rank_vars:
+                stride = rank_projection.coeff(rank_var)
+
+                # Careful: in-place mutation of cons_shape
+                original_shape = shape[rank_var]
+                shape[rank_var] = 1
+                halo = (
+                    compute_rank_occupancy(rank_projection, shape)
+                    - 1
+                )
+                shape[rank_var] = original_shape
+
+                tensor_stride_and_halo[(rank, rank_var)] = (stride, halo)
+    return stride_and_halo
+
+
 def get_stride_and_halo(
     workload: Workload
-) -> dict[tuple[str, str], dict[tuple[str, str], tuple[int, int]]]:
+) -> dict[tuple[EinsumName, TensorName], dict[tuple[RankName, RankVariableName], tuple[int, int]]]:
     """
     Get stride and halo (initial delta) for Einsums in workload.
 
@@ -91,26 +135,8 @@ def get_stride_and_halo(
     """
     stride_and_halo = {}
     for einsum in workload.einsums:
-        shape = get_rank_variable_bounds(workload, einsum.name)
-        for tensor in einsum.tensor_names:
-            stride_and_halo[(einsum.name, tensor)] = {}
-            tensor_stride_and_halo = stride_and_halo[(einsum.name, tensor)]
-
-            projection = get_projection_expr(einsum, tensor)
-            tensor_accesses = einsum.tensor_accesses[tensor]
-            for rank, rank_vars in tensor_accesses.rank2rank_variables.items():
-                rank_projection = projection[rank]
-                for rank_var in rank_vars:
-                    stride = rank_projection.coeff(rank_var)
-
-                    # Careful: in-place mutation of cons_shape
-                    original_shape = shape[rank_var]
-                    shape[rank_var] = 1
-                    halo = (
-                        compute_rank_occupancy(rank_projection, shape)
-                        - 1
-                    )
-                    shape[rank_var] = original_shape
-
-                    tensor_stride_and_halo[(rank, rank_var)] = (stride, halo)
+        stride_and_halo_of_einsum = get_stride_and_halo_of_einsum(einsum.name,
+                                                                  workload)
+        for tensor, ranks2stride_and_halo in stride_and_halo_of_einsum.items():
+            stride_and_halo[(einsum.name, tensor)] = ranks2stride_and_halo
     return stride_and_halo
