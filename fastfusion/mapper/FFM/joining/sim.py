@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import cached_property
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Iterable
 
 from joblib import delayed
 
@@ -8,7 +8,6 @@ from fastfusion.mapper.FFM.pareto import PartialMappings
 
 from fastfusion.mapper.FFM.joining.mappinginfo import *
 from fastfusion.util import parallel
-import pandas as pd
 
 
 class SIM:
@@ -21,7 +20,7 @@ class SIM:
         self.n_pre_prune_mappings = 0
 
     def compatibility_str(self):
-        compatibility = ",".join(str(l) for l in self.compatibility.loops)
+        compatibility = ",".join(str(l) for l in self.compatibility.storage)
         compatibility += " || " + ", ".join(str(t) for t in self.storage.values())
         return compatibility
 
@@ -80,7 +79,7 @@ class SIM:
 
         s = SIM(compatibility, mapping)
         assert (
-            len(compatibility.loops) == next_shared_loop_index + 1
+            compatibility.max_above_loop_index == next_shared_loop_index + 1
         ), f"{self.compatibility} {right.compatibility} {next_shared_loop_index + 1} -> {compatibility} {len(compatibility.loops)}"
         s.storage.update(right.storage)
         s.storage.update(self.storage)
@@ -168,15 +167,21 @@ class SIM:
         live_tensors: set[str],
         keep_loops: bool = False,
         every_possible_n_loops: bool = False,
-        keep_tensors: set[str] = None,
         drop_tags: bool = False,
-    ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
+    ) -> dict[Compatibility, list["SIM"]]:
+        """
+        Clears dead tensors (may keep loops), then group SIMs based on
+        compatibility.
+
+        If `every_possible_n_loops`, every possible loops of a compatibility
+        is generated and the SIM is included. Thus, a SIM may be in several
+        groups at once (by reference).
+        """
         grouped = defaultdict(list)
         for s in sims:
             compatibility = s.compatibility.clear_dead_tensors(
                 live_tensors,
                 keep_loops=keep_loops or every_possible_n_loops,
-                keep_tensors=keep_tensors,
                 drop_tags=drop_tags,
             )
             if every_possible_n_loops:
@@ -242,7 +247,8 @@ class SIM:
 
     @staticmethod
     def group_right(
-        sims: list["SIM"], live_tensors: set[str],
+        sims: list["SIM"],
+        live_tensors: set[str],
         drop_tags: bool = False,
     ) -> dict[tuple[Compatibility, ...], list["SIM"]]:
         return SIM._group(

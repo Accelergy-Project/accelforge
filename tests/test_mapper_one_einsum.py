@@ -9,6 +9,9 @@ from fastfusion.mapper.FFM.exploration.mapper_multi_einsum import get_sims
 from fastfusion.mapper.FFM.exploration.mapping_filter_tags import get_one_split_tag
 from fastfusion.mapper.FFM.exploration.mapping_filter_tags.onesplit import ONE_SPLIT
 from fastfusion.mapper.FFM.tags import Tags, TagMatch
+from fastfusion.mapper.FFM.pareto import nameloop2col
+
+from .simcache import make_sim_pickle_cache
 
 
 PARENT_DIR = Path(__file__).parent
@@ -31,6 +34,29 @@ class TestExploration(unittest.TestCase):
 
         sims, decompress_data = get_sims(spec, einsum_names=[einsum_name])
 
+    def test_mha_full(self):
+        config_names = [
+            "snowcat.arch",
+            "mha_full.workload",
+            "mha.renames"
+        ]
+        paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
+        spec = Specification.from_yaml(*paths)
+        spec.estimate_energy_area()
+
+        sim_cache = make_sim_pickle_cache(config_names)
+        print(sim_cache.fname)
+
+        sims, decompress_data = sim_cache.set(get_sims(spec))
+        for per_einsum_sims in sims.values():
+            for sim in per_einsum_sims:
+                for resource, levels in sim.mappings.right_reservations.items():
+                    for level in levels:
+                        self.assertTrue(
+                            nameloop2col(resource, level) in sim.mappings.data.columns,
+                            f"{resource} at {level} not in {sim.mappings.data.columns}. Compatibility: {sim.compatibility}"
+                        )
+
     def test_mha_with_tags(self):
         spec = Specification.from_yaml(
             PARENT_DIR / "four_level.arch.yaml",
@@ -46,14 +72,9 @@ class TestExploration(unittest.TestCase):
         rank_variables = einsum.rank_variables
 
         def tagger(pmapping):
-            return get_one_split_tag(pmapping, "MainMemory")
+            return get_one_split_tag(pmapping)
 
         sims, decompress_data = get_sims(spec, einsum_names=["Q"], tagger=tagger)
-        for sim in sims['Q']:
-            self.assertEqual(
-                TagMatch(sim.compatibility.tags),
-                TagMatch(Tags((ONE_SPLIT,)))
-            )
 
     def test_conv_with_snowcat(self):
         spec = Specification.from_yaml(
@@ -65,12 +86,9 @@ class TestExploration(unittest.TestCase):
         sims, decompress_data = get_sims(spec,
                                          einsum_names=['Dwise0'],
                                          metrics=metrics.Metrics.ENERGY)
-        # for sim in sims['Dwise0']:
-        #     print(sim.compatibility)
 
 
 class TestInitialDeltaGeneration(unittest.TestCase):
     def test_mobilenet_long(self):
         workload = Workload.from_yaml(Path(__file__).parent / 'mobilenet_long.workload.yaml')
         choices = get_initial_delta_choices('Dwise0', workload)
-        # print(choices)

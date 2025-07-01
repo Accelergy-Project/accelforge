@@ -33,7 +33,7 @@ def get_storage_choices(
             if node.memory == first_storage.name:
                 all_storage_nodes.remove(node)
                 base_mapping.append(node)
-
+                
         tensors_in_mapping = collect_tensors(all_storage_nodes)
         required_order = get_dataflow_constraint(
             nodes, symbol_table, tensors_in_mapping

@@ -3,3 +3,9 @@ pydantic-yaml>=0.11.0
 pyyaml>=6.0.0
 pandas
 numpy
+jinja2
+tqdm
+islpy
+sympy
+platformdirs
+pydot

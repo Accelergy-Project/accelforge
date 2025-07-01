@@ -1,10 +1,5 @@
 import copy
-from dataclasses import dataclass
-import gc
-import itertools
 from collections import defaultdict
-from collections.abc import Sequence
-import math
 from numbers import Number
 from typing import Callable, Iterator, List
 
@@ -22,6 +17,7 @@ from fastfusion.frontend.mapping import (
 )
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
+from fastfusion.frontend.workload.symbolic import get_stride_and_halo_of_einsum
 from fastfusion.frontend.workload.workload import (
     Einsum,
     EinsumName,
@@ -44,6 +40,7 @@ from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.pareto import (
     MAPPING_COLUMN,
     PartialMappings,
+    TILE_SHAPE_PREFIX,
     col2nameloop,
     col_used_in_pareto,
     is_reservation_col,
@@ -60,7 +57,11 @@ from fastfusion.mapper.FFM.exploration.mapper_one_einsum.loop_generator import (
     insert_temporal_loops,
     insert_spatial_loops,
 )
-from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import (
+    Job,
+    SameCompatibilityJobs,
+    SameEinsumJobs
+)
 
 
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
@@ -408,8 +409,7 @@ def shift_reservations_by_null_loop_indices(
 # =================================================================================================
 # Top level
 # =================================================================================================
-def get_single_einsum_jobs(job: Job) -> list[Job]:
-    workload = job.spec.workload
+def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
     mappings_constraints = tqdm(
         iterate_mappings_constraints(
             job.spec,
@@ -421,7 +421,7 @@ def get_single_einsum_jobs(job: Job) -> list[Job]:
         desc=f"Generating storage and loop choices for Einsum {job.einsum_name}",
     )
 
-    jobs = []
+    jobs = SameEinsumJobs()
     for i, (mapping, constraints) in enumerate(mappings_constraints):
         new_job = copy.deepcopy(job)
         new_job.mapping = mapping
@@ -431,17 +431,21 @@ def get_single_einsum_jobs(job: Job) -> list[Job]:
         new_job.rank_variable_bounds = get_rank_variable_bounds(
             job.spec.workload, job.einsum_name
         )
+        new_job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name,
+                                                                job.spec.workload)
         jobs.append(new_job)
 
     return jobs
 
 
-def generate_pmappings(job_list: list[Job]):
+def generate_pmappings(
+    jobs_with_similar_compatibilities: SameCompatibilityJobs
+):
     total_pmappings = 0
     results = []
 
-    job_ids = [job.job_id for job in job_list]
-    for job in job_list:
+    job_ids = [job.job_id for job in jobs_with_similar_compatibilities]
+    for job in jobs_with_similar_compatibilities:
         result, n_pmappings = explore_tile_shapes(
             job.mapping,
             job.constraints,
@@ -476,9 +480,15 @@ def generate_pmappings(job_list: list[Job]):
         total_pmappings += n_pmappings
         results.append(result)
 
+    compatibility = jobs_with_similar_compatibilities.compatibility
+    intermediate_tensors = jobs_with_similar_compatibilities.intermediate_tensors
+    einsum_name = jobs_with_similar_compatibilities.einsum_name
+    tagger = jobs_with_similar_compatibilities.tagger
+    compatibility_updater = jobs_with_similar_compatibilities.update_compatibility_with_tile_shapes
+
     # Creating a PartialMappings fills in reservation columns since different partial
     # mappings have different ones.
-    next_shared_loop_index = len(job.compatibility.loops) - 1
+    next_shared_loop_index = compatibility.n_loops - 1
     results = PartialMappings.concat(
         [
             PartialMappings(
@@ -491,13 +501,10 @@ def generate_pmappings(job_list: list[Job]):
     ).data
 
     if results.empty:
-        return job.einsum_name, [], None, job_ids
+        return einsum_name, [], None, job_ids
 
-    n_tile_shapes = sum(
-        1 if isinstance(l.bound, Number) else 2 for l in job.compatibility.loops
-    )
-    fused_loop_cols = [f"__tile_shape{i}" for i in range(n_tile_shapes)]
-    tensor2size_cols = [tensor2col(t) for t in job.intermediate_tensors]
+    fused_loop_cols = [col for col in results if col.startswith(TILE_SHAPE_PREFIX)]
+    tensor2size_cols = [tensor2col(t) for t in intermediate_tensors]
     pareto_cols = [c for c in results.columns if col_used_in_pareto(c)]
     compress_cols = [
         c for c in results.columns if c not in tensor2size_cols and c not in pareto_cols
@@ -507,13 +514,13 @@ def generate_pmappings(job_list: list[Job]):
 
     extra_data = {
         job.job_id: {f"{job.einsum_name}{MAPPING_COLUMN}": job.mapping}
-        for job in job_list
+        for job in jobs_with_similar_compatibilities
         if job.job_id in jobs_passed_pareto
     }
 
     results, decompress_data = compress_df(
         df=results,
-        einsum_name=job.einsum_name,
+        einsum_name=einsum_name,
         keep_columns=pareto_cols + tensor2size_cols + fused_loop_cols,
         compress_columns=compress_cols,
         extra_data=extra_data,
@@ -536,14 +543,13 @@ def generate_pmappings(job_list: list[Job]):
         tensor2size = {}
 
         dropcols = list(fused_loop_cols)
-        for tensor in job.intermediate_tensors:  # Sizes are all the same
+        for tensor in intermediate_tensors:  # Sizes are all the same
             tensor2size[tensor] = mappings[tensor2col(tensor)].iloc[0]
             dropcols.append(tensor2col(tensor))
         mappings.drop(columns=dropcols, inplace=True)
 
-        new_compatibility, null_loop_indices = job.compatibility.populate_tile_shape(
-            tile_shape, job.rank_variable_bounds, tensor2size
-        )
+        new_compatibility, null_loop_indices = compatibility_updater(tile_shape,
+                                                                     tensor2size)
 
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
 
@@ -551,7 +557,7 @@ def generate_pmappings(job_list: list[Job]):
         # so we can drop dead reservations though.fcompress_dfz
         # Skip pareto because we already did it above
         # prev_len = len(mappings)
-        next_shared_loop_index_this_group = len(new_compatibility.loops) - 1
+        next_shared_loop_index_this_group = new_compatibility.n_loops - 1
         partial_mappings = PartialMappings(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
@@ -561,7 +567,7 @@ def generate_pmappings(job_list: list[Job]):
         reservation_levels = partial_mappings.all_reservation_levels()
         sim = SIM(new_compatibility, partial_mappings)
 
-        sim._equivalent_sims = get_equivalent_sims(sim, job.tagger, reservation_levels)
+        sim._equivalent_sims = get_equivalent_sims(sim, tagger, reservation_levels)
         sim._equivalent_sims = [
             e
             for e in sim._equivalent_sims
@@ -570,4 +576,4 @@ def generate_pmappings(job_list: list[Job]):
         seen_compatibilities.update(e.compatibility for e in sim._equivalent_sims)
         sims.append(sim)
 
-    return job.einsum_name, sims, decompress_data, jobs_passed_pareto
+    return einsum_name, sims, decompress_data, jobs_passed_pareto

@@ -34,6 +34,8 @@ TAGS_COLUMN = "__TAGS"
 PER_COMPONENT_ACCESSES_ENERGY = "Per-Component Energy"
 COMPRESSED_INDEX = "__COMPRESSED_INDEX"
 
+TILE_SHAPE_PREFIX = "__tile_shape"
+
 DICT_COLUMNS = set(
     [
         LOGSTRING,
@@ -675,9 +677,7 @@ class PartialMappings:
 
             # We're creating a new column, so copy allocations from any parents
             source = self.get_reservation_or_parent(resource, level-1)
-            # source is None -> We're at the top level, no one to inherit from
-            self.data[target] = size + (self.data[source] if source else 0)
-
+            # source is None -> We're at the top        print(f"\t\tLEFT COLS: {self.mappings.data.columns}")
     @error_check_wrapper
     def adjust_reservations(
             self,

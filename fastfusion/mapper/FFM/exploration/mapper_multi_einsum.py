@@ -19,7 +19,7 @@ from fastfusion.mapper.FFM.joining.sim import SIM
 from fastfusion.mapper.FFM.compress_pmappings import DecompressData, GroupedDecompressData
 from fastfusion.mapper.FFM.tags import Tags
 from fastfusion.util.util import parallel
-from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job, SameCompatibilityJobs
 
 def get_rank_variable_bounds_for_all_einsums(spec: Specification):
     rank_variable_bounds = {
@@ -72,12 +72,12 @@ def get_jobs(
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     except_from_imperfect: set = set(),
-) -> dict[EinsumName, dict[Compatibility, list[Job]]]:
+) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
     einsum2jobs = {}
     intermediate_tensors = spec.workload.intermediate_tensor_names
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    
+
     def make_jobs_for_einsum(einsum_name: EinsumName):
         workload_einsum = spec.workload.einsums[einsum_name]
         # Create jobs for each Einsum
@@ -96,11 +96,10 @@ def get_jobs(
             intermediate_tensors=intermediate_tensors & workload_einsum.tensor_names
         )
         for j in get_single_einsum_jobs(job):
-            jobs.setdefault(j.compatibility, []).append(j)
-            
+            jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
+
         return einsum_name, jobs
-    
-    
+
     einsum2jobs = {}
     for einsum_name, jobs in parallel(
         [delayed(make_jobs_for_einsum)(einsum_name) for einsum_name in einsum_names],
@@ -125,10 +124,9 @@ def get_sims(
         f'We should change to just energy or just latency at '
         f'some point.'
     )
-    
 
     if flattened_arch is None:
-        flattened_arch = spec.get_flattened_arch()
+        flattened_arch = spec.get_flattened_architecture()
         
     einsum2jobs = {}
     tensor2compatibilties = {}
@@ -187,7 +185,6 @@ def get_sims(
     for einsum_name, jobs in einsum2jobs.items():
         calls.extend(delayed(generate_pmappings)(job_list) for job_list in jobs.values())
 
-        
     seen_compatibilities = {einsum_name: {} for einsum_name in spec.workload.einsum_names}
     sims = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
     for einsum_name, new_sims, decompress_data, job_ids in parallel(
@@ -290,18 +287,6 @@ def get_sims(
 
     # return sims, grouped_decompress_data
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
 
     single_einsum_jobs = []
     einsum_names = einsum_names or spec.workload.einsum_names
@@ -311,7 +296,6 @@ def get_sims(
             spec=spec,
             einsum_name=einsum_name,
             metrics=metrics,
-            rank_variable_bounds=rank_variable_bounds,
             flattened_arch=flattened_arch,
             except_from_imperfect=except_from_imperfect,
             intermediate_tensors=intermediate_tensors & spec.workload.einsums[einsum_name].tensor_names,

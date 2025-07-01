@@ -86,10 +86,21 @@ class TilingSegment:
             yield (n_loops, initial_delta_choices, max_shape, min_shape)
 
 
-def explore_tile_shapes(pmapping, constraints: "MappingConstraints", specification: Specification, flattened_arch, metrics: metrics.Metrics, _fix_me=False):
+def explore_tile_shapes(pmapping,
+                        constraints: "MappingConstraints",
+                        specification: Specification,
+                        flattened_arch,
+                        metrics: metrics.Metrics,
+                        _fix_me=False):
     set_last_tile_shape_to_one(pmapping)
 
-    symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(pmapping, specification, flattened_arch, metrics)
+    symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(
+        pmapping,
+        specification,
+        flattened_arch,
+        metrics
+    )
+
     if _fix_me:
         return
     try:
@@ -104,7 +115,13 @@ def explore_tile_shapes(pmapping, constraints: "MappingConstraints", specificati
         print(symbolic_df)
         raise RuntimeError('Compilation failed')
 
-    tile_shapes, is_symbol, total_pmappings = generate_tile_shapes(pmapping, constraints, compiled_per_memory_occupancy_df, compiled_utilization_df, specification)
+    tile_shapes, is_symbol, total_pmappings = generate_tile_shapes(
+        pmapping,
+        constraints,
+        compiled_per_memory_occupancy_df,
+        compiled_utilization_df,
+        specification
+    )
 
     df = {}
     for i in range(tile_shapes.shape[1]):
@@ -121,6 +138,7 @@ def explore_tile_shapes(pmapping, constraints: "MappingConstraints", specificati
 
     df = pd.DataFrame(df)
     return df, total_pmappings
+
 
 def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specification):
     pmapping = pmapping.nodes

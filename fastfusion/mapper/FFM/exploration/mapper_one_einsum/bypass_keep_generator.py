@@ -33,7 +33,7 @@ def make_storage_choices_one_level(
     )
     must_keep = tensors.to_my_space(storage_constraints.keep)
     must_bypass = tensors.to_my_space(storage_constraints.bypass)
-
+    
     if must_keep - tensors:
         raise KeyError(
             f"Keep constraint for {node.name} includes tensors that are "
