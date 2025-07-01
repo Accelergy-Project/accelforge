@@ -28,6 +28,7 @@ node_list: TypeAlias = ParsableList[Annotated[
             Annotated["Nested", Tag("Nested")],
             Annotated["Reservation", Tag("Reservation")],
             Annotated["Fill", Tag("Fill")],
+            Annotated["Mapping", Tag("Mapping")],
         ], 
     Discriminator(get_tag)
 ]]
@@ -101,6 +102,13 @@ class Iteration(MappingNode):
             x.append(f"in [0..{self.loop_bound})")
         return f"for {self.rank_variable} {' '.join(x)}"
 
+    def __eq__(self, other: "Iteration") -> bool:
+        return isinstance(other, Iteration) and \
+               self.rank_variable == other.rank_variable and \
+               self.loop_bound == other.loop_bound and \
+               self.tile_shape == other.tile_shape and \
+               self.tile_pattern == other.tile_pattern
+
 class Temporal(Iteration):
     def compact_string(self) -> str:
         if self.loop_bound is not None:
@@ -111,6 +119,10 @@ class Temporal(Iteration):
             return f"{self.rank_variable} bound {self.loop_bound}"
         else:
             return f"{self.rank_variable} None"
+        
+    def __eq__(self, other: "Temporal") -> bool:
+        return isinstance(other, Temporal) and \
+               super().__eq__(other)
 
 class Spatial(Iteration):
     dimension: Union[int, str]
@@ -122,6 +134,13 @@ class Spatial(Iteration):
 
     def __str__(self) -> str:
         return f"S{self.dimension}" + super().__str__()
+    
+    def __eq__(self, other: "Spatial") -> bool:
+        return isinstance(other, Spatial) and \
+               super().__eq__(other) and \
+               self.dimension == other.dimension and \
+               self.across == other.across and \
+               self.across_object == other.across_object
 
 class Storage(MappingNode):
     tensors: ParsableList[TensorName]
@@ -198,6 +217,38 @@ class MappingNodeWithChildren(MappingNode):
         return backing
 
 
+    def clear_nodes_of_type(self, *types: type) -> "MappingNodeWithChildren":
+        new_nodes = []
+        for node in self.nodes:
+            if isinstance(node, types):
+                continue
+            if isinstance(node, MappingNodeWithChildren):
+                node = node.clear_nodes_of_type(*types)
+            new_nodes.append(node)
+        return type(self)(nodes=new_nodes)
+    
+    def consolidate_storage(self) -> "MappingNodeWithChildren":
+        new_nodes = []
+        for node in self.nodes:
+            if isinstance(node, Storage):
+                found = False
+                for n in new_nodes[::-1]:
+                    if isinstance(n, Storage) and n.memory == node.memory:
+                        n.tensors.extend(n2 for n2 in node.tensors if n2 not in n.tensors)
+                        found = True
+                        break
+                    if isinstance(n, Iteration):
+                        break
+                if not found:
+                    new_nodes.append(copy.deepcopy(node))
+            elif isinstance(node, MappingNodeWithChildren):
+                new_nodes.append(node.consolidate_storage())
+            else:
+                new_nodes.append(node)
+        assert new_nodes, "BUG"
+        return type(self)(nodes=new_nodes)
+
+
 class Split(MappingNodeWithChildren):
     pass
 
@@ -207,26 +258,17 @@ class Split(MappingNodeWithChildren):
     def _render_node_shape(self) -> str:
         return "hexagon"
 
-    def merge_branches(self) -> "Split":
-        branch2backing_storage = [node.get_backing_storage_nodes() for node in self.nodes]
-        i = 0
-        nodes = self.nodes
-        while i < len(nodes) - 1:
-            this_backing_storage = branch2backing_storage[i]
-            next_backing_storage = branch2backing_storage[i + 1]
-            if not set(str(b) for b in this_backing_storage) & set(str(b) for b in next_backing_storage):
-                i += 1
-                continue
-            if not isinstance(nodes[i], Nested) or not isinstance(nodes[i + 1], Nested):
-                raise ValueError(
-                    f"Can only merge branches if each is a Nested node. Is this mapping a sequential "
-                    f"of partial mappings?"
-                )
-            nodes[i] = nodes[i].merge(nodes.pop(i + 1))
-            branch2backing_storage.pop(i + 1)
-        return type(self)(nodes=nodes)
+LoopGroup: TypeAlias = list[Iteration]
+NonLoopGroup: TypeAlias = list[MappingNode]
 
 class Nested(MappingNodeWithChildren):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for node in list(self.nodes)[:-1]:
+            assert not isinstance(node, MappingNodeWithChildren), (
+                f"Nested node has a child with children. Only the last child can have children."
+            )
+    
     def _parent2child(self, parent: MappingNode) -> list[tuple[MappingNode, MappingNode]]:
         parent2child = []
         for node in self.nodes:
@@ -253,36 +295,147 @@ class Nested(MappingNodeWithChildren):
             raise ValueError("Nested node has no children")
         return self.nodes[0]._render_node_name()
     
-    def merge_branches(self) -> "Nested":
-        return type(self)(nodes=[
-            n.merge_branches()
-            for n in self.nodes
-        ])
+    def get_n_shared_loops(self, other: "Nested") -> int:
+        my_backing_storage = set(
+            (t, s.memory)
+            for s in self.get_backing_storage_nodes() for t in s._backing
+        )
+        other_backing_storage = set(
+            (t, s.memory)
+            for s in other.get_backing_storage_nodes() for t in s._backing
+        )
+        shared_storage = my_backing_storage & other_backing_storage
         
-    def merge(self, other: "Nested") -> "Nested":
-        # 1. Get the split location. This will be right below the last shared backing storage node.
-        my_backing_storage = [n.get_backing_storage_nodes() for n in self.nodes]
-        other_backing_storage = [n.get_backing_storage_nodes() for n in other.nodes]
-        my_backing_set = set(str(b) for b in my_backing_storage)
-        other_backing_set = set(str(b) for b in other_backing_storage)
-        shared_backing = my_backing_set & other_backing_set
-        if not shared_backing:
-            raise ValueError(
-                f"No shared backing storage nodes between {self} and {other}"
-            )
+        if not shared_storage:
+            return 0
+        
+        n_shared_loops = 0
+        for i, node in enumerate(self.nodes):
+            if isinstance(node, Iteration):
+                n_shared_loops += 1
+            if isinstance(node, Reservation) and (node.tensor, node.memory) in shared_storage:
+                return n_shared_loops
+            if isinstance(node, Split):
+                raise ValueError("Can't check for n_shared_loops beneath a split")
+            
+        raise ValueError("BUG")
+    
+    def _break_into_reorderable_groups(self, stop_at_n_loops: int) -> list[list[MappingNode]]:
+        # We can reorder loops relative to each other
+        groups = []
+        cur_group = None
+        
+        seen_loops = 0
+        
+        if stop_at_n_loops == 0 and not any(isinstance(node, Iteration) for node in self.nodes):
+            return []
+        
+        for node in self.nodes:
+            if seen_loops >= stop_at_n_loops and isinstance(node, Iteration):
+                break
+            is_iteration = isinstance(node, Iteration)
+            if cur_group is None:
+                cur_group = []
+            elif (is_iteration and not all(isinstance(x, Iteration) for x in cur_group)) or \
+                 (not is_iteration and any(isinstance(x, Iteration) for x in cur_group)):
+                groups.append(cur_group)
+                cur_group = []
+            cur_group.append(node)
+            assert not isinstance(node, Sequential), "BUG"
+            if isinstance(node, Iteration):
+                seen_loops += 1
+            
+        if cur_group:
+            groups.append(cur_group)
+            
+        if seen_loops < stop_at_n_loops:
+            raise ValueError(f"Expected {stop_at_n_loops} loops, but only found {seen_loops}")
+            
+        return groups
+    
+    def merge(self,
+              other: "Nested",
+              n_shared_loops: int
+              ) -> "Nested":
+        
 
-        insert_above_my = None
-        for i, b in enumerate(my_backing_storage):
-            if b in shared_backing:
-                insert_above_my = i
-        insert_above_other = None
-        for i, b in enumerate(other_backing_storage):
-            if b in shared_backing:
-                insert_above_other = i
-        if insert_above_my is None or insert_above_other is None:
-            raise ValueError(
-                f"Could not find shared backing storage node between {self} and {other}"
-            )
+        # Break up the nodes above the indices. We need to have them in the format of
+        # [(loop, other stuff...), (loop, other stuff...), ...]
+        my_groups = self._break_into_reorderable_groups(stop_at_n_loops=n_shared_loops)
+        other_groups = other._break_into_reorderable_groups(stop_at_n_loops=n_shared_loops)
+        
+        # Reorder so that the loops are in the same order. We can't reorder groups that
+        # have other stuff in them because that'll change the behavior of the mapping.
+        zipped_groups = []
+        def _pop_loop_group(groups: list[list[MappingNode]]) -> list[MappingNode]:
+            while groups and not any(isinstance(x, Iteration) for x in groups[0]):
+                zipped_groups.append(groups.pop(0))
+            return groups.pop(0) if groups else []
+        
+        my_loop_group = _pop_loop_group(my_groups)
+        other_loop_group = _pop_loop_group(other_groups)
+        while my_groups and other_groups:
+            if not my_loop_group:
+                my_loop_group = _pop_loop_group(my_groups)
+                continue
+            if not other_loop_group:
+                other_loop_group = _pop_loop_group(other_groups)
+                continue
+                
+            # Add matching loops from the two groups. If we can't find a match, raise an
+            # error.
+            to_add = None
+            for i, a in enumerate(my_loop_group):
+                for j, b in enumerate(other_loop_group):
+                    if a == b:
+                        to_add = [a]
+                        my_loop_group.pop(i)
+                        other_loop_group.pop(j)
+                        break
+
+            if to_add is None:
+                raise ValueError(f"No matching loop found for {my_loop_group} and {other_loop_group}")
+
+            zipped_groups.append(to_add)
+
+        zipped_groups.extend(my_groups)
+        zipped_groups.extend(other_groups)
+
+        flattened = list(x for group in zipped_groups for x in group)
+        new_nodes = [x for x in flattened if not isinstance(x, Sequential)]
+        new_nodes.extend([x for x in flattened if isinstance(x, Sequential)])
+        
+        loops_left = n_shared_loops
+        my_remaining = list(self.nodes)
+        for i, node in enumerate(my_remaining):
+            if isinstance(node, Iteration):
+                loops_left -= 1
+            if loops_left <= -1:
+                break
+        my_remaining = my_remaining[i:] if my_remaining[i:] else my_remaining
+        
+        loops_left = n_shared_loops
+        other_remaining = list(other.nodes)
+        for i, node in enumerate(other_remaining):
+            if isinstance(node, Iteration):
+                loops_left -= 1
+            if loops_left <= -1:
+                break
+        other_remaining = other_remaining[i:] if other_remaining[i:] else other_remaining
+
+        other_sequential = [n for n in other_remaining if isinstance(n, Sequential)]
+        my_sequential = [n for n in my_remaining if isinstance(n, Sequential)]
+        if my_sequential:
+            my_sequential[0].nodes.append(Nested(nodes=other_remaining))
+            new_nodes.extend(my_remaining)
+        elif other_sequential:
+            other_sequential[0].nodes.append(Nested(nodes=my_remaining))
+            new_nodes.extend(other_remaining)
+        else:
+            new_nodes.append(Sequential(nodes=[Nested(nodes=my_remaining), Nested(nodes=other_remaining)]))
+
+        return Nested(nodes=new_nodes)
+
 
     def beautify_loops(self, rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None):
         to_remove = []
@@ -399,10 +552,7 @@ class Mapping(Nested):
     def _render_node_label(self) -> str:
         return f"Root"
 
-    def render(self, merge_branches: bool = False) -> str:
-        if merge_branches:
-            self = self.merge_branches()
-
+    def render(self) -> str:
         graph = pydot.Dot(graph_type='digraph', rankdir='TD')
         graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
         graph.set_edge_defaults(fontname="Arial", fontsize="10")
@@ -431,7 +581,36 @@ class Mapping(Nested):
                     graph.add_edge(pydot.Edge(parent_name, child_name))
                     added_edges.add((parent_name, child_name))
         return graph.create_svg(prog='dot')
-        
+    
+    
+    
+    @classmethod
+    def from_pmappings(cls, pmappings: list[Nested], rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None) -> "Mapping":
+        pmappings = list(copy.deepcopy(pmappings))
+        for pmapping in pmappings:
+            pmapping.beautify_loops(rank_variable_bounds)
+
+        while len(pmappings) > 1:
+            highest_n_shared_loops = 0
+            highest_shared_pmapping_index = 0
+            for i, pmapping in enumerate(pmappings):
+                shared_index = 0
+                for j in range(i + 1, len(pmappings)):
+                    shared_index = max(
+                        pmapping.get_n_shared_loops(pmappings[j]),
+                        shared_index
+                    )
+                if shared_index > highest_n_shared_loops:
+                    highest_n_shared_loops = shared_index
+                    highest_shared_pmapping_index = i
+
+            print(f'Merging {pmappings[highest_shared_pmapping_index]} and {pmappings[highest_shared_pmapping_index + 1]}. Shared loops: {highest_n_shared_loops}')
+            pmappings[highest_shared_pmapping_index] = pmappings[highest_shared_pmapping_index].merge(
+                pmappings.pop(highest_shared_pmapping_index + 1),
+                highest_n_shared_loops,
+            )
+
+        return cls(nodes=pmappings)
         
         
         # import mermaid as md
@@ -474,6 +653,7 @@ class Mapping(Nested):
         # graph.config = config
 
         # return md.Mermaid(graph)
+
 
 class MappingTree(MappingNode): # TODO: Make this a full mapping
     version: Annotated[str, assert_version] = __version__
