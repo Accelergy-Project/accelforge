@@ -32,6 +32,7 @@ from fastfusion.mapper.FFM.compress_pmappings import (
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.dataflow_generator import (
     get_storage_choices,
 )
+from fastfusion.mapper.FFM.exploration.metrics import Metrics
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import (
     explore_tile_shapes,
     get_initial_delta_choices,
@@ -485,6 +486,8 @@ def generate_pmappings(
     einsum_name = jobs_with_similar_compatibilities.einsum_name
     tagger = jobs_with_similar_compatibilities.tagger
     compatibility_updater = jobs_with_similar_compatibilities.update_compatibility_with_tile_shapes
+    metrics = jobs_with_similar_compatibilities.metrics
+    limit_capacity_drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
 
     # Creating a PartialMappings fills in reservation columns since different partial
     # mappings have different ones.
@@ -495,6 +498,7 @@ def generate_pmappings(
                 r,
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
+                limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
             )
             for r in results
         ]
@@ -563,6 +567,7 @@ def generate_pmappings(
             next_shared_loop_index=next_shared_loop_index_this_group,
             n_pmappings=pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
+            limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
         )
         reservation_levels = partial_mappings.all_reservation_levels()
         sim = SIM(new_compatibility, partial_mappings)

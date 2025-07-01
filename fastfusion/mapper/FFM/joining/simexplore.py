@@ -5,6 +5,7 @@ import pandas as pd
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload import Einsum
+from fastfusion.mapper.FFM.exploration.metrics import Metrics
 from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
 from fastfusion.mapper.FFM.pareto import PartialMappings
 from fastfusion.util import fzs, parallel, debugger_active
@@ -87,7 +88,7 @@ def join_sims(
     skip_invalid: bool = True,
     combine_reservations: bool = True,
     lookahead_filter: bool = True,
-    drop_valid_reservations: bool = True,
+    metrics: Metrics = None,
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -100,6 +101,8 @@ def join_sims(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
+
+    drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
 
     resource2capacity = {}
     flattened_architecture = flattened_architecture or spec.get_flattened_architecture()
@@ -303,7 +306,6 @@ def join_sims(
             combined = SIM.group_left(combined, next_right_tensors, drop_tags=True)
             for k in list(combined):
                 if not k in sims[0].sims:
-                    list(k)
                     if DO_PRINT:
                         for b in combined[k]:
                             print(f"\tLOOKAHEAD: No match for {b.compatibility}")
