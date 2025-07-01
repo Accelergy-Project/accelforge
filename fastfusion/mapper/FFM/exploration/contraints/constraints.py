@@ -1,6 +1,6 @@
 from collections import defaultdict
 from typing import List
-import numpy as np
+from fastfusion.accelerated_imports import np
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, MinUtilizationConstraintLambda, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.constraints import Spatial as SpatialConstraint

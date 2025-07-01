@@ -1,7 +1,7 @@
 import matplotlib.axes as mpax
 import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
+from fastfusion.accelerated_imports import np
+from fastfusion.accelerated_imports import pd
 
 from fastfusion.mapper.FFM.pareto import PartialMappings
 

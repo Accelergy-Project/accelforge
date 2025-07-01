@@ -2,11 +2,11 @@ from collections import defaultdict
 from combinatorics.integer import *
 from dataclasses import dataclass, field
 
-import numpy as np
+from fastfusion.accelerated_imports import np
 
 import sympy
 
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.architecture import Memory
@@ -17,6 +17,7 @@ from fastfusion.frontend.mapping import Temporal, Spatial, Storage, Pattern
 from fastfusion.frontend.specification import Specification
 
 from fastfusion.mapper.FFM.exploration import metrics
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
 from fastfusion.model.looptree.latency import get_latency
@@ -86,23 +87,23 @@ class TilingSegment:
             yield (n_loops, initial_delta_choices, max_shape, min_shape)
 
 
-def explore_tile_shapes(pmapping,
-                        constraints: "MappingConstraints",
-                        specification: Specification,
-                        flattened_arch,
-                        metrics: metrics.Metrics,
-                        _fix_me=False):
+def explore_tile_shapes(job: Job):
+    pmapping = job.mapping
+    constraints = job.constraints
+    specification = job.spec
+    flattened_arch = job.flattened_arch
+    metrics = job.metrics
+    
     set_last_tile_shape_to_one(pmapping)
 
     symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(
         pmapping,
         specification,
         flattened_arch,
-        metrics
+        metrics,
+        job.memories_track_all + job.memories_track_pmappings_only
     )
 
-    if _fix_me:
-        return
     try:
         compiled_df = compile_dict(symbols, symbolic_df)
         compiled_per_memory_occupancy_df = compile_dict(symbols, per_memory_occupancy_df)
@@ -661,7 +662,7 @@ def set_last_tile_shape_to_one(pmapping):
         last_node.tile_shape = 1
 
 
-def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: metrics.Metrics):
+def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: metrics.Metrics, track_memories: list[str]):
     workload = spec.workload
     ert = spec.component_energy
 
@@ -723,7 +724,8 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
         for n_loop in range(max_n_loops):
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
-                df[nameloop2col(memory, n_loop)] = running_total
+                if memory in track_memories:
+                    df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
         df['metric_Latency'] = overall_latency

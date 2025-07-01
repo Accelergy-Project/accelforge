@@ -3,11 +3,11 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from joblib import delayed
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.mapping import Iteration, Mapping, Reservation, Storage
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
@@ -110,6 +110,50 @@ def get_jobs(
         einsum2jobs[einsum_name] = jobs
     return einsum2jobs
 
+def get_memories_to_track(
+    spec: Specification,
+    flattened_arch: Optional[list[architecture.Leaf]],
+    jobs: list[Job],
+    metrics: Metrics,
+) -> tuple[list[str], list[str]]:
+    memories_track_all = [m.name for m in flattened_arch if isinstance(m, architecture.Memory)]
+    memories_track_pmappings_only = []
+    
+    if metrics.RESOURCE_USAGE in metrics:
+        return memories_track_all, memories_track_pmappings_only
+    
+    total_tensor_sizes = sum(get_per_tensor_size(spec).values())
+    
+    # If the memory is big enough to hold all the tensors then we don't need to consider
+    # it
+    for m in list(memories_track_all):
+        memory = [n for n in flattened_arch if n.name == m]
+        assert len(memory) == 1
+        memory = memory[0]
+        if memory.attributes.size >= total_tensor_sizes * memory.attributes.datawidth: # max(m.attributes.datawidth.values()):
+            memories_track_all.remove(m)
+
+    # If the memory is below every backing storage node, then we need it for the
+    # pmapping exploration but can drop it immediately
+    for m in list(memories_track_all):
+        seen = False
+        must_track = False
+        for job in jobs:
+            for node in job.mapping.nodes:
+                if isinstance(node, Storage) and node.memory == m:
+                    seen = True
+                if isinstance(node, Iteration) and node._fused and seen:
+                    must_track = True                    
+
+        if not must_track:
+            memories_track_all.remove(m)
+            memories_track_pmappings_only.append(m)
+            
+    print(f'Memories to track: \n\t' + '\n\t'.join(memories_track_all))
+    print(f'Memories to track pmappings only: \n\t' + '\n\t'.join(memories_track_pmappings_only))
+
+    return memories_track_all, memories_track_pmappings_only
+
 def get_sims(
     spec: Specification,
     flattened_arch: Optional[list[architecture.Leaf]] = None,
@@ -184,6 +228,22 @@ def get_sims(
     grouped_decompress_data = GroupedDecompressData(prefix2datalist={})
     for einsum_name, jobs in einsum2jobs.items():
         calls.extend(delayed(generate_pmappings)(job_list) for job_list in jobs.values())
+        
+    jobs_flattened = [
+        j for compatibility2joblist in einsum2jobs.values() 
+        for job_list in compatibility2joblist.values()
+        for j in job_list
+    ]
+        
+    memories_track_all, memories_track_pmappings_only = get_memories_to_track(
+        spec,
+        flattened_arch,
+        jobs_flattened, 
+        metrics
+    )
+    for j in jobs_flattened:
+        j.memories_track_all = memories_track_all
+        j.memories_track_pmappings_only = memories_track_pmappings_only
 
     seen_compatibilities = {einsum_name: {} for einsum_name in spec.workload.einsum_names}
     sims = {einsum_name: [] for einsum_name in spec.workload.einsum_names}

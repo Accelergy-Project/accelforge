@@ -1,5 +1,5 @@
 from typing import Any, NamedTuple
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 from fastfusion.frontend.workload.workload import EinsumName
 
 

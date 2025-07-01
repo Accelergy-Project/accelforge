@@ -9,9 +9,9 @@ import time
 from typing import Any, Callable, Iterable, Optional, Tuple, Union, NamedTuple
 
 from joblib import delayed
-import numpy as np
+from fastfusion.accelerated_imports import np
 
-from fastfusion.frontend.workload.workload import EinsumName
+from fastfusion.frontend.mapping import Iteration, Nested
 from fastfusion.mapper.FFM.compress_pmappings import decompress_joined_df
 from fastfusion.mapper.FFM.joining.mappinginfo import TensorStorage
 from fastfusion.util import fzs
@@ -20,7 +20,7 @@ from fastfusion.mapper.FFM.compress_pmappings import GroupedDecompressData
 
 from paretoset import paretoset
 
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 import functools
 
 LOGSTRING = "__Mappings"
@@ -268,7 +268,60 @@ def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.Da
         
     return pareto2
 
+# 2d. Blockwise vectorized CuPy Pareto front with sorting by one objective (full check)
+# 2c. Fully vectorized CuPy brute-force Pareto front
+# (returns numpy mask for compatibility)
+def pareto_front_cupy_vectorized(X):
+    # if len(X) > 1000:
+    #     return X[paretoset(X.get(), sense=["min"] * X.shape[1])]
+    
+    # Broadcast X_gpu to (n, n, m) for all-pairs comparison
+    A = X[:, None, :]  # shape (n, 1, m)
+    B = X[None, :, :]  # shape (1, n, m)
+    less_equal = (B <= A).all(axis=2)  # shape (n, n)
+    strictly_less = (B < A).any(axis=2)  # shape (n, n)
+    dominated = less_equal & strictly_less  # shape (n, n)
+    is_pareto = ~dominated.any(axis=1)
+    return is_pareto
 
+# 2d. Recursive blockwise merge CuPy Pareto front with sorting by one objective
+def pareto_front_cupy_blockwise_sorted_recursive(X, block_size=2000):
+    N = X.shape[0]
+    if N <= block_size:
+        # Base case: just compute Pareto front directly
+        mask = pareto_front_cupy_vectorized(X)
+        return mask
+    # Split into two halves
+    mid = N // 2
+    a, b = X[:mid], X[mid:]
+    mask_a = pareto_front_cupy_blockwise_sorted_recursive(a, block_size)
+    mask_b = pareto_front_cupy_blockwise_sorted_recursive(b, block_size)
+    # Get Pareto-optimal points from both halves
+    pareto_points_a = a[mask_a]
+    pareto_points_b = b[mask_b]
+    merged_points = np.vstack([pareto_points_a, pareto_points_b])
+    # Compute Pareto front of the merged set
+    merged_mask = pareto_front_cupy_vectorized(merged_points)
+    merged_indices = np.where(merged_mask)[0]
+    # Map merged_indices back to the original indices in X
+    # First, get the indices in X for the merged points
+    indices_a = np.where(mask_a)[0]
+    indices_b = np.where(mask_b)[0] + mid
+    all_indices = np.concatenate([indices_a, indices_b])
+    merged_indices_in_X = all_indices[merged_indices]
+    # Build the final mask for X
+    mask = np.zeros(N, dtype=bool)
+    mask[merged_indices_in_X] = True
+    return mask
+
+def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False, split_by_cols: list[str] = ()) -> pd.DataFrame:
+    # return makepareto_time_compare(mappings)
+    if columns is None:
+        columns = [c for c in mappings.columns if col_used_in_pareto(c)]
+    if accelerated_imports.ACCELERATED:
+        mask = pareto_front_cupy_blockwise_sorted_recursive(mappings[columns].to_cupy())
+        return mappings[mask]
+        
 def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False, split_by_cols: list[str] = ()) -> pd.DataFrame:
     # return makepareto_time_compare(mappings)
     if columns is None:
@@ -294,6 +347,7 @@ class PartialMappings:
             next_shared_loop_index: int = None,
             parallelize_pareto: bool = False,
             n_pmappings: int = None,
+            limit_capacity_drop_valid_reservations: bool = True,
         ):
         self._data: pd.DataFrame = data
         self.right_reservations: dict[set] = None
@@ -306,7 +360,7 @@ class PartialMappings:
 
         if next_shared_loop_index is not None:
             self.free_to_loop_index(loop_index=next_shared_loop_index)
-            self.limit_capacity(resource2capacity={}, next_shared_loop_index=next_shared_loop_index)
+            self.limit_capacity(resource2capacity={}, next_shared_loop_index=next_shared_loop_index, drop_valid_reservations=limit_capacity_drop_valid_reservations)
 
         if fill_reservation_cols: # Affects PartialMappings so must go before
             self.fill_reservation_cols(fill_reservation_cols)
@@ -678,6 +732,7 @@ class PartialMappings:
             # We're creating a new column, so copy allocations from any parents
             source = self.get_reservation_or_parent(resource, level-1)
             # source is None -> We're at the top        print(f"\t\tLEFT COLS: {self.mappings.data.columns}")
+
     @error_check_wrapper
     def adjust_reservations(
             self,
@@ -723,12 +778,11 @@ class PartialMappings:
         return p
     
     def limit_capacity(
-        self, 
+        self,
         resource2capacity: dict[str, Optional[int]],
         next_shared_loop_index: int=None,
         drop_valid_reservations: bool = True,
     ) -> bool:
-        # drop_valid_reservations = False # TODO: This is for for Orojenesis ski slopes.
         resource2capacity = resource2capacity or {}
         dropcols = []
         for resource in sorted(set(self.right_reservations) | set(self.left_reservations)):
@@ -870,3 +924,19 @@ class PartialMappings:
             
     def decompress(self, decompress_data: GroupedDecompressData):
         self._data = decompress_joined_df(self.data, decompress_data)
+
+
+def row2pmappings(row: pd.Series, einsum_names: list[str], rank_variable_bounds: dict[str, dict[str, int]]) -> list[Nested]:
+    from fastfusion.frontend.mapping import Fill, Reservation
+    pmappings: list[Nested] = []
+    for einsum_name in einsum_names:
+        pmapping: Nested = copy.deepcopy(row[f"{einsum_name}{MAPPING_COLUMN}"])
+        tile_shape_reg = einsum_name + r"__tile_shape\d+"
+        tile_shapes = row[[c for c in row.index if re.match(tile_shape_reg, c)]]
+        tile_shapes = list(tile_shapes)
+        for node in pmapping.nodes:
+            if isinstance(node, Iteration):
+                node.tile_shape = tile_shapes.pop(0)
+        pmappings.append(pmapping.clear_nodes_of_type(Fill))
+        pmapping.beautify_loops(rank_variable_bounds)
+    return pmappings

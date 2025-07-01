@@ -204,6 +204,8 @@ class Job:
     except_from_imperfect: set = frozenset()
     _compatibility: Compatibility | None = None
     _update_compatibility_with_tile_shapes: Callable[[Sequence[Number], dict], Compatibility] | None = None
+    memories_track_all: list[str] | None = None
+    memories_track_pmappings_only: list[str] | None = None
 
     @property
     def compatibility(self) -> Compatibility:
@@ -229,7 +231,7 @@ class Job:
                                 self.stride_and_halo)
 
 
-class SameSpecJobs(list):
+class SameSpecJobs(list[Job]):
     @property
     def spec(self) -> Specification:
         return first(self).spec
@@ -241,6 +243,10 @@ class SameSpecJobs(list):
     @property
     def tagger(self) -> Callable[[Mapping], Tags]:
         return first(self).tagger
+    
+    @property
+    def metrics(self) -> metrics.Metrics:
+        return first(self).metrics
 
 
 class SameEinsumJobs(SameSpecJobs):

@@ -1,7 +1,7 @@
 from collections import defaultdict
 import itertools
 import time
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload import Einsum
@@ -246,7 +246,7 @@ def join_sims(
         )
 
         DO_PRINT = False
-        DELAY = not debugger_active()
+        DELAY = True#not debugger_active()
 
         # ======================================================================
         # Merge the left and right buckets.

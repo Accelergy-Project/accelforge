@@ -2,7 +2,7 @@ import copy
 import logging
 from typing import Annotated, Any, Callable, List, Optional, Tuple, Union
 
-import numpy as np
+from fastfusion.accelerated_imports import np
 from fastfusion.util.basetypes import ParsableList, ParsableModel, ParsesTo
 from fastfusion.util.parse_expressions import parse_expression
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression

@@ -1,9 +1,10 @@
 import copy
 from collections import defaultdict
+import math
 from numbers import Number
 from typing import Callable, Iterator, List
 
-from pandas import DataFrame
+from fastfusion.accelerated_imports import pd
 from tqdm import tqdm
 
 import fastfusion.frontend.architecture as architecture
@@ -45,6 +46,7 @@ from fastfusion.mapper.FFM.pareto import (
     col2nameloop,
     col_used_in_pareto,
     is_reservation_col,
+    makepareto,
     nameloop2col,
     tensor2col,
 )
@@ -375,7 +377,7 @@ def get_compatibility_loops(mapping: Mapping, tile_shapes: list[int]) -> "Mappin
 
 
 def shift_reservations_by_null_loop_indices(
-    mappings: DataFrame, null_loop_indices: set[int]
+    mappings: pd.DataFrame, null_loop_indices: set[int]
 ):
     prev = copy.deepcopy(mappings)  # TODO: Is this needed?
     target2newabovename = {}
@@ -447,37 +449,36 @@ def generate_pmappings(
 
     job_ids = [job.job_id for job in jobs_with_similar_compatibilities]
     for job in jobs_with_similar_compatibilities:
-        result, n_pmappings = explore_tile_shapes(
-            job.mapping,
-            job.constraints,
-            job.spec,
-            job.flattened_arch,
-            job.metrics,
-            _fix_me=False,
-        )
+        result, n_pmappings = explore_tile_shapes(job)
         # This changes the pmapping count to include permutations
-        # n_loops = []
-        # cur_n_loops = 0
-        # for node in job.mapping.nodes:
-        #     if isinstance(node, Iteration):
-        #         cur_n_loops += 1
-        #     elif isinstance(node, ReservationNode):
-        #         if cur_n_loops >= 1:
-        #             n_loops.append(cur_n_loops)
-        #         cur_n_loops = 0
-        # if cur_n_loops >= 1:
-        #     n_loops.append(cur_n_loops)
+        n_loops = []
+        cur_n_loops = 0
+        for node in job.mapping.nodes:
+            if isinstance(node, Iteration):
+                cur_n_loops += 1
+            elif isinstance(node, ReservationNode):
+                if cur_n_loops >= 1:
+                    n_loops.append(cur_n_loops)
+                cur_n_loops = 0
+        if cur_n_loops >= 1:
+            n_loops.append(cur_n_loops)
         # Uncomment below to include permutations
         # n_pmappings *= math.prod(math.factorial(len(job.rank_variable_bounds)) for n in n_loops)
 
         # Uncomment below to not include permutations AND assume that the permutation
         # engine has no knowledge of relevant/irrelevant rank variables. Note that the
-        # space will still be much bigger than reported since the extra loops would also
-        # increase the index factorization space size.
+        # space will still be much bigger than reported here since the extra loops would
+        # also increase the index factorization space size.
 
-        # n_pmappings *= math.prod(math.factorial(n) for n in n_loops)
-        # result[MAPPING_COLUMN] = [job.mapping] * len(result)
+        n_pmappings *= math.prod(math.factorial(n) for n in n_loops)
         result[COMPRESSED_INDEX_COLUMN] = job.job_id
+        
+        cols_to_drop = []
+        for col in result.columns:
+            if is_reservation_col(col) and col2nameloop(col)[0] in job.memories_track_pmappings_only:
+                cols_to_drop.append(col)
+        result.drop(columns=cols_to_drop, inplace=True)
+        
         total_pmappings += n_pmappings
         results.append(result)
 
@@ -501,13 +502,15 @@ def generate_pmappings(
                 limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
             )
             for r in results
-        ]
+        ],
+        skip_pareto=True,
     ).data
 
     if results.empty:
         return einsum_name, [], None, job_ids
 
-    fused_loop_cols = [col for col in results if col.startswith(TILE_SHAPE_PREFIX)]
+    # fused_loop_cols = [col for col in results if col.startswith(TILE_SHAPE_PREFIX)]
+    fused_loop_cols = [f"__tile_shape{i}" for i in range(compatibility.n_loops)] # TODO: Make this work for extended Einsums
     tensor2size_cols = [tensor2col(t) for t in intermediate_tensors]
     pareto_cols = [c for c in results.columns if col_used_in_pareto(c)]
     compress_cols = [
@@ -521,6 +524,12 @@ def generate_pmappings(
         for job in jobs_with_similar_compatibilities
         if job.job_id in jobs_passed_pareto
     }
+    
+    # Pareto prune
+    prev_size = len(results)
+    results = makepareto(results, split_by_cols=fused_loop_cols)
+    new_size = len(results)
+    # print(f'Pareto pruned from {prev_size} to {new_size} pmappings ({new_size / prev_size * 100:.2f}%)')
 
     results, decompress_data = compress_df(
         df=results,

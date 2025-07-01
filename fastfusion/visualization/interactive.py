@@ -6,7 +6,7 @@ import pydot
 from IPython.display import SVG, display
 import plotly.graph_objs as go
 from ipywidgets import Output, VBox, HBox
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 import plotly.express as px
 
 from fastfusion.mapper.FFM.joining.sim import Loop, TensorStorage, Compatibility
@@ -21,7 +21,7 @@ from fastfusion.mapper.FFM.pareto import (
     PER_COMPONENT_ACCESSES_ENERGY,
 )
 
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.FFM.visualization import make_mapping
 from fastfusion.frontend.mapping import Mapping
 
