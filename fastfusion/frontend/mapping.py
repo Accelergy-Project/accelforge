@@ -463,6 +463,14 @@ class Nested(MappingNodeWithChildren):
                     continue
                 elif node.tile_shape is not None and prev_tile_shape is not None:
                     node.loop_bound = prev_tile_shape / node.tile_shape
+                    
+        for i, node in enumerate(self.nodes):
+            if not isinstance(node, Iteration):
+                continue
+            if node.loop_bound is not None and int(node.loop_bound) == node.loop_bound:
+                node.loop_bound = int(node.loop_bound)
+            if node.tile_shape is not None and int(node.tile_shape) == node.tile_shape:
+                node.tile_shape = int(node.tile_shape)
 
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
                         
