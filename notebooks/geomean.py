@@ -1,4 +1,4 @@
-import numpy as np
+from fastfusion.accelerated_imports import np
 
 def combined_sort_idx(data_x, baseline_x):
     combined_x = np.concatenate((data_x, baseline_x))
