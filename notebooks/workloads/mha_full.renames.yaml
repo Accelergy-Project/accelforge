@@ -5,13 +5,13 @@ renames:
     tensor_accesses:
     - name: input
       source: Inputs() & Intermediates()
-      injective: True
+      expected_count: 1
     - name: output
       source: Outputs()
-      injective: True
+      expected_count: 1
     - name: weight
       source: ~(input | output)
-      injective: True
+      expected_count: 1
 
   - name: I
     tensor_accesses:
@@ -28,19 +28,19 @@ renames:
     tensor_accesses:
     - name: weight
       source: K
-      injective: True
+      expected_count: 1
     - name: input
       source: Q
-      injective: True
+      expected_count: 1
 
   - name: AV
     tensor_accesses:
     - name: input
       source: QK_softmax
-      injective: True
+      expected_count: 1
     - name: weight
       source: V
-      injective: True
+      expected_count: 1
   
   - name: QK_softmax
     tensor_accesses:

@@ -7,12 +7,12 @@ from fastfusion.version import assert_version, __version__
 class TensorRename(ParsableModel):
     name: TensorName
     source: str
-    injective: bool = False
+    expected_count: int | None = None
     
 class RankVariableRename(ParsableModel):
     name: RankVariableName
     source: str
-    injective: bool = False
+    expected_count: int | None = None
 
 class EinsumRename(ParsableModel):
     name: EinsumName

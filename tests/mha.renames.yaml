@@ -5,24 +5,24 @@ renames:
     tensor_accesses:
     - name: input
       source: Inputs() & Intermediates()
-      injective: True
+      expected_count: 1
     - name: output
       source: Outputs()
-      injective: True
+      expected_count: 1
     - name: weight
       source: ~(input | output)
-      injective: True
+      expected_count: 1
 
     rank_variables:
     - name: head
       source: h
-      injective: True
+      expected_count: 1
     - name: parallel_rank
       source: (output.rank_variables() & weight.rank_variables()) - head
-      injective: True
+      expected_count: 1
     - name: reduced_rank
       source: input.rank_variables() & weight.rank_variables() - head - output.rank_variables() - parallel_rank
-      injective: True
+      expected_count: 1
 
   - name: I
     tensor_accesses:
@@ -36,25 +36,25 @@ renames:
     {% endif %}
     rank_variables:
     - {name: head, source: Nothing().rank_variables()}
-    - {name: reduced_rank, source: b, injective: True}
-    - {name: parallel_rank, source: m, injective: True}
+    - {name: reduced_rank, source: b, expected_count: 1}
+    - {name: parallel_rank, source: m, expected_count: 1}
 
   - name: QK
     tensor_accesses:
     - name: input
       source: Q
-      injective: True
+      expected_count: 1
     rank_variables:
-    - {name: parallel_rank, source: m, injective: True}
+    - {name: parallel_rank, source: m, expected_count: 1}
 
   - name: AV
     tensor_accesses:
     - name: input
       source: QK
-      injective: True
+      expected_count: 1
     rank_variables:
-    - {name: parallel_rank, source: f, injective: True}
-    # - {name: reduced_rank, source: p, injective: True}
+    - {name: parallel_rank, source: f, expected_count: 1}
+    # - {name: reduced_rank, source: p, expected_count: 1}
 
   - name: FFA
     rank_variables:
