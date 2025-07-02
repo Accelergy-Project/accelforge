@@ -287,3 +287,6 @@ class SameCompatibilityJobs(SameEinsumJobs):
     @property
     def update_compatibility_with_tile_shapes(self) -> Callable[[Sequence[Number], dict], Compatibility]:
         return first(self).update_compatibility_with_tile_shapes
+    
+    def split(self) -> list["SameCompatibilityJobs"]:
+        return [SameCompatibilityJobs([j]) for j in self]
