@@ -103,19 +103,18 @@ def label_fused_loops(mapping: List[MappingNode]):
 # =================================================================================================
 # Iterate over mappings
 # =================================================================================================
-def temporal_fused_constraint_thing_fix_me(
+def max_fused_loops_per_rank(
+    spec: Specification,
     mapping: List[MappingNode],
     rank_variables: list[RankVariableName],
     rank_variable_bounds: dict[RankVariableName, int],
 ):
-    # Only one fused loop is allowed per rank variable
     rank_variables = list(rank_variables)
     if not rank_variables:
         yield mapping
         return
 
     my_rank_variable = RankVariableName(rank_variables.pop())
-    # indent = " " * (10 - len(rank_variables))
     fused_loops = [
         i
         for i, node in enumerate(mapping)
@@ -126,10 +125,9 @@ def temporal_fused_constraint_thing_fix_me(
         > 1  # Don't worry about loops with size 1
     ]
 
-    if not fused_loops or len(fused_loops) == 1:
-        # print(indent + f"Yielding for rank variable {my_rank_variable}. Length: {len(mapping)}")
-        # print(indent + ", ".join(m.compact_string() for m in mapping))
-        yield from temporal_fused_constraint_thing_fix_me(
+    if len(fused_loops) <= spec.mapper_ffm.max_fused_loops_per_rank:
+        yield from max_fused_loops_per_rank(
+            spec,
             mapping, rank_variables, rank_variable_bounds
         )
         return
@@ -139,39 +137,10 @@ def temporal_fused_constraint_thing_fix_me(
         for f in fused_loops[::-1]:
             if f != choice:
                 mapping_new.pop(f)
-        # print(indent + f"Yielding for rank variable {my_rank_variable}. Length: {len(mapping_new)}")
-        # print(indent + ", ".join(m.compact_string() for m in mapping_new))
-        yield from temporal_fused_constraint_thing_fix_me(
+        yield from max_fused_loops_per_rank(
+            spec,
             mapping_new, rank_variables, rank_variable_bounds
         )
-
-
-def temporal_constraint_2_fix_me(mapping: List[MappingNode], einsum: Einsum):
-    return mapping
-    # Between two storage nodes for the same memory, pop all loops that index
-    # into the tensors for both storage nodes.
-    # return mapping
-    to_pop = set()
-    for i, node in enumerate(mapping):
-        for j, node2 in enumerate(mapping):
-            if i >= j:
-                continue
-            if not isinstance(node, Storage) or not isinstance(node2, Storage):
-                continue
-            if node.memory != node2.memory:
-                continue
-            rv1 = set.union(*(einsum.tensor2rank_variables[t] for t in node.tensors))
-            rv2 = set.union(*(einsum.tensor2rank_variables[t] for t in node2.tensors))
-            to_drop = rv1 & rv2
-            if not to_drop:
-                continue
-            for k in range(i + 1, j):
-                if (
-                    isinstance(mapping[k], Temporal)
-                    and mapping[k].rank_variable in to_drop
-                ):
-                    to_pop.add(k)
-    return [node for i, node in enumerate(mapping) if i not in to_pop]
 
 
 def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
@@ -285,12 +254,12 @@ def iterate_mappings_no_constraints(
             # print('POST-LABEL')
             # print(", ".join(m.compact_string() for m in mapping))
             # print(f'{einsum_name}: {", ".join(m.compact_string() for m in mapping)}')
-            for mapping2 in temporal_fused_constraint_thing_fix_me(
+            for mapping2 in max_fused_loops_per_rank(
+                spec,
                 mapping,
                 list(spec.workload.einsums[einsum_name].rank_variables),
                 rank_variable_bounds,
             ):  # TODO
-                # mapping2 = temporal_constraint_2_fix_me(mapping2, einsum)
                 # print('PRE-PADDING')
                 # print(", ".join(m.compact_string() for m in mapping2))
                 place_missing_temporal_loops(mapping, einsum)
@@ -451,17 +420,17 @@ def generate_pmappings(
     for job in jobs_with_similar_compatibilities:
         result, n_pmappings = explore_tile_shapes(job)
         # This changes the pmapping count to include permutations
-        n_loops = []
-        cur_n_loops = 0
-        for node in job.mapping.nodes:
-            if isinstance(node, Iteration):
-                cur_n_loops += 1
-            elif isinstance(node, ReservationNode):
-                if cur_n_loops >= 1:
-                    n_loops.append(cur_n_loops)
-                cur_n_loops = 0
-        if cur_n_loops >= 1:
-            n_loops.append(cur_n_loops)
+        # n_loops = []
+        # cur_n_loops = 0
+        # for node in job.mapping.nodes:
+        #     if isinstance(node, Iteration):
+        #         cur_n_loops += 1
+        #     elif isinstance(node, ReservationNode):
+        #         if cur_n_loops >= 1:
+        #             n_loops.append(cur_n_loops)
+        #         cur_n_loops = 0
+        # if cur_n_loops >= 1:
+        #     n_loops.append(cur_n_loops)
         # Uncomment below to include permutations
         # n_pmappings *= math.prod(math.factorial(len(job.rank_variable_bounds)) for n in n_loops)
 
@@ -469,10 +438,9 @@ def generate_pmappings(
         # engine has no knowledge of relevant/irrelevant rank variables. Note that the
         # space will still be much bigger than reported here since the extra loops would
         # also increase the index factorization space size.
-
-        n_pmappings *= math.prod(math.factorial(n) for n in n_loops)
-        result[COMPRESSED_INDEX_COLUMN] = job.job_id
+        # n_pmappings *= math.prod(math.factorial(n) for n in n_loops)
         
+        result[COMPRESSED_INDEX_COLUMN] = job.job_id
         cols_to_drop = []
         for col in result.columns:
             if is_reservation_col(col) and col2nameloop(col)[0] in job.memories_track_pmappings_only:
