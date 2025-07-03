@@ -66,7 +66,6 @@ def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
         sizes[t] = size
     return sizes
 
-
 def get_jobs(
     spec: Specification,
     flattened_arch: Optional[list[architecture.Leaf]] = None,
@@ -74,6 +73,7 @@ def get_jobs(
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     except_from_imperfect: set = set(),
+    fail_if_no_pmappings_for_einsum: bool = True,
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
     einsum2jobs = {}
@@ -110,6 +110,14 @@ def get_jobs(
     ):
         print(f"Generated {sum(len(j) for j in jobs.values())} jobs for {einsum_name}")
         einsum2jobs[einsum_name] = jobs
+        
+    if fail_if_no_pmappings_for_einsum:
+        for einsum_name, jobs in einsum2jobs.items():
+            if len(jobs) == 0:
+                raise ValueError(
+                    f"No pmappings for {einsum_name}. Was the mapspace overconstrained?"
+                )
+                
     return einsum2jobs
 
 def get_memories_to_track(
@@ -208,7 +216,8 @@ class PmappingExplorer:
                                     self.tagger,
                                     self.metrics,
                                     self.einsum_names,
-                                    self.except_from_imperfect)
+                                    self.except_from_imperfect,
+                                    self.fail_if_no_pmappings_for_einsum)
         if self.fail_if_no_pmappings_for_einsum:
             for einsum_name, jobs in self._einsum2jobs.items():
                 if len(jobs) == 0:
@@ -263,12 +272,6 @@ class PmappingExplorer:
             #         #     raise ValueError(f"Duplicate compatibility {sim.compatibility} for {einsum_name}")
             #         seen_compatibilities[einsum_name][sim.compatibility] = job
         
-        if self.fail_if_no_pmappings_for_einsum:
-            for einsum_name, sims2 in sims.items():
-                if len(sims2) == 0:
-                    raise ValueError(f"No pmappings for {einsum_name}. "
-                                     f"Was the mapspace overconstrained?")
-
         self.sims = sims
         self.grouped_decompress_data = grouped_decompress_data
 
@@ -281,7 +284,7 @@ class PmappingExplorer:
                         for job_list in jobs.values())
             
         if util.PARALLELIZE and len(calls) < util.N_PARALLEL_THREADS * 4:
-            logging.WARNING(
+            logging.warning(
                 f"Insufficient jobs available to utilize available threads. "
                 f"Splitting jobs into smaller chunks."
             )
