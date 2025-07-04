@@ -65,7 +65,7 @@ class PhysicalDomain(Domain):
         ).set_tuple_name(isl.dim_type.set, f"p_{self.name}_dims")
 
     @property
-    def isl_universe(self):
+    def isl_universe(self) -> isl.Set:
         return isl.Set.universe(self.isl_space)
 
 
