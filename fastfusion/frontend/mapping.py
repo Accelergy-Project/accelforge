@@ -248,6 +248,14 @@ class MappingNodeWithChildren(MappingNode):
         assert new_nodes, "BUG"
         return type(self)(nodes=new_nodes)
 
+    def get_nodes_of_type(self, *types: type) -> list[MappingNode]:
+        mine = []
+        for node in self.nodes:
+            if isinstance(node, types):
+                mine.append(node)
+            if isinstance(node, MappingNodeWithChildren):
+                mine.extend(node.get_nodes_of_type(*types))
+        return mine
 
 class Split(MappingNodeWithChildren):
     pass
@@ -330,7 +338,7 @@ class Nested(MappingNodeWithChildren):
         if stop_at_n_loops == 0 and not any(isinstance(node, Iteration) for node in self.nodes):
             return []
         
-        for node in self.nodes:
+        for i, node in enumerate(self.nodes):
             if seen_loops >= stop_at_n_loops and isinstance(node, Iteration):
                 break
             is_iteration = isinstance(node, Iteration)
@@ -341,7 +349,7 @@ class Nested(MappingNodeWithChildren):
                 groups.append(cur_group)
                 cur_group = []
             cur_group.append(node)
-            assert not isinstance(node, Sequential), "BUG"
+            assert not isinstance(node, Sequential) or i == len(self.nodes) - 1, "BUG"
             if isinstance(node, Iteration):
                 seen_loops += 1
             
@@ -422,15 +430,13 @@ class Nested(MappingNodeWithChildren):
             if loops_left <= -1:
                 break
         other_remaining = other_remaining[i:] if other_remaining[i:] else other_remaining
-
-        other_sequential = [n for n in other_remaining if isinstance(n, Sequential)]
-        my_sequential = [n for n in my_remaining if isinstance(n, Sequential)]
-        if my_sequential:
-            my_sequential[0].nodes.append(Nested(nodes=other_remaining))
-            new_nodes.extend(my_remaining)
-        elif other_sequential:
-            other_sequential[0].nodes.append(Nested(nodes=my_remaining))
-            new_nodes.extend(other_remaining)
+        
+        if isinstance(my_remaining[0], Sequential) and isinstance(other_remaining[0], Sequential):
+            my_remaining[0].nodes.extend(other_remaining[0].nodes)
+        elif isinstance(my_remaining[0], Sequential):
+            my_remaining[0].nodes.append(Nested(nodes=other_remaining))
+        elif isinstance(other_remaining[0], Sequential):
+            other_remaining[0].nodes.append(Nested(nodes=my_remaining))
         else:
             new_nodes.append(Sequential(nodes=[Nested(nodes=my_remaining), Nested(nodes=other_remaining)]))
 
@@ -464,13 +470,18 @@ class Nested(MappingNodeWithChildren):
                 elif node.tile_shape is not None and prev_tile_shape is not None:
                     node.loop_bound = prev_tile_shape / node.tile_shape
                     
+        def safe_int_cast(x: int | float | None) -> int | float | None:
+            try:
+                int_x = int(x)
+            except:
+                return x
+            return int_x if int_x == x else x
+                    
         for i, node in enumerate(self.nodes):
             if not isinstance(node, Iteration):
                 continue
-            if node.loop_bound is not None and int(node.loop_bound) == node.loop_bound:
-                node.loop_bound = int(node.loop_bound)
-            if node.tile_shape is not None and int(node.tile_shape) == node.tile_shape:
-                node.tile_shape = int(node.tile_shape)
+            node.loop_bound = safe_int_cast(node.loop_bound)
+            node.tile_shape = safe_int_cast(node.tile_shape)
 
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
                         
@@ -612,7 +623,11 @@ class Mapping(Nested):
                     highest_n_shared_loops = shared_index
                     highest_shared_pmapping_index = i
 
-            print(f'Merging {pmappings[highest_shared_pmapping_index]} and {pmappings[highest_shared_pmapping_index + 1]}. Shared loops: {highest_n_shared_loops}')
+            # def einsum_names(pmapping: Nested) -> str:
+            #     return ",".join(n.einsum for n in pmapping.get_nodes_of_type(Compute))
+            # names_a = einsum_names(pmappings[highest_shared_pmapping_index])
+            # names_b = einsum_names(pmappings[highest_shared_pmapping_index + 1])
+            # print(f'Merging with shared loops {highest_n_shared_loops}: {names_a} <--> {names_b}.')
             pmappings[highest_shared_pmapping_index] = pmappings[highest_shared_pmapping_index].merge(
                 pmappings.pop(highest_shared_pmapping_index + 1),
                 highest_n_shared_loops,
