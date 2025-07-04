@@ -82,6 +82,10 @@ class BindingNode(ParsableModel):
 
     @model_validator(mode='after')
     def validate_isl(self):
+        """
+        Converts the logical, physical, and binding relation strings into an
+        isl.Map representing the bindings at this binding node.
+        """
         key: str
         relation: str
         for key, relation in self.relations.items():
