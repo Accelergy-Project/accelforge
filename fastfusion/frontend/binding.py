@@ -13,9 +13,16 @@ class Domain(ParsableModel):
     """
     name: str
 
+    @property
     @abstractmethod
-    def get_isl_space(self):
-        raise NotImplementedError(f"{type(self)} has not implemented get_isl_space")
+    def isl_space(self):
+        raise NotImplementedError(f"{type(self)} has not implemented isl_space")
+
+    @property
+    @abstractmethod
+    def isl_universe(self):
+        raise NotImplementedError(f"{type(self)} has not implemented isl_universe")
+
 
 class LogicalDomain(Domain):
     """
@@ -26,12 +33,19 @@ class LogicalDomain(Domain):
     )
     dims: ParsableList[str]
 
-    def get_isl_space(self):
+    @property
+    def isl_space(self) -> isl.Space:
         return isl.Space.create_from_names(
             isl.DEFAULT_CONTEXT,
             in_=self.ranks,
             out=self.dims
+        ).set_tuple_name(
+            isl.dim_type.out, "l_dims"
         )
+    
+    @property
+    def isl_universe(self) -> isl.Map:
+        return isl.Map.universe(self.isl_space)
 
 class PhysicalDomain(Domain):
     """
@@ -39,11 +53,18 @@ class PhysicalDomain(Domain):
     """
     p_dims: ParsableList[str]
 
-    def get_isl_space(self):
+    @property
+    def isl_space(self) -> isl.Space:
         return isl.Space.create_from_names(
             isl.DEFAULT_CONTEXT,
             set=self.p_dims
+        ).set_tuple_name(
+            isl.dim_type.set, "p_dims"
         )
+    
+    @property
+    def isl_universe(self):
+        return isl.Set.universe(self.isl_space)
 
 class BindingNode(ParsableModel):
     """
@@ -57,7 +78,27 @@ class BindingNode(ParsableModel):
     logical: LogicalDomain
     physical: PhysicalDomain
     relations: ParsableDict[str, str]
-    # nodes: Dict[str, isl.Map] = {}
+    _nodes: ParsableDict[str, isl.Map]
+
+    @model_validator(mode='after')
+    def validate_isl(self):
+        key: str
+        relation: str
+        for key, relation in self.relations.items():
+            logical_space: isl.Space = self.logical.isl_space.set_tuple_name(
+                isl.dim_type.in_, f"{key}_ranks"
+            )
+
+            binding_space: isl.Space = (
+                logical_space.wrap()
+                    .map_from_domain_and_range(
+                        range=self.physical.isl_space,
+                    )
+            )
+
+            print(binding_space)
+
+        return self
 
 class Binding(ParsableModel):
     """
@@ -86,5 +127,3 @@ binding:
 
 binding = Binding.model_validate(yaml.safe_load(yaml_str)['binding'])
 print(binding)
-print(binding.nodes[0].logical.get_isl_space())
-print(binding.nodes[0].physical.get_isl_space())

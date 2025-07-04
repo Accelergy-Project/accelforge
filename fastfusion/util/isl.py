@@ -14,12 +14,14 @@ class ISLStr:
             if not isinstance(value, str):
                 raise TypeError('Value must be a string')
             try:
+                print(value)
                 return self.isl_type(value)
             except Exception as e:
                 raise ValueError(f'Invalid input for {self.isl_type.__name__}: {e}')
         
         return core_schema.no_info_plain_validator_function(validate)
 
+ISLAff = ISLStr(isl.PwAff)
 ISLMap = ISLStr(isl.Map)
 ISLSet = ISLStr(isl.Set)
 ISLSpace = ISLStr(isl.Space)
