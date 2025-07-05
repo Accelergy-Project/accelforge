@@ -181,7 +181,7 @@ def make_compatibility(
                     reservation.resource,
                     size=tensor2size[reservation.purpose]
                 ))
-        compat = Compatibility(n_loops=max([len(s.loops) for s in storages], 0),
+        compat = Compatibility(n_loops=max([0] + [len(s.loops) for s in storages]),
                                storage=fzs(storages))
         return compat, null_loop_indices
     return compatibility, update_compatibility_with_tile_shapes
