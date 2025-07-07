@@ -181,9 +181,8 @@ class Compatibility(Updatable):
         1. keeping only loops relevant to `live_tensors` and
         2. keeping only `live_tensors`.
 
-        Behavior can be further customized:
-        - If `keep_loops` is `True`, then all loops are kept.
-        - If `keep_tensors` is a set, tensors in the set are kept.
+        If `keep_loops` is `True`, then all loops are kept.
+        If `keep_tensors` is a set, tensors in the set are kept.
         """
         remaining_storages = fzs(s for s in self.storage if s.name in live_tensors)
         if keep_loops:
@@ -239,7 +238,6 @@ class Compatibility(Updatable):
         return self.update(storage=new_storage)
 
     def make_equivalent_permutations(self, reservation_levels: set[int]) -> list["Compatibility"]:
-        # TODO
         # Get contiguous blocks of loops with no storage node between them
         blocks = []
         current_block = []
