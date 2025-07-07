@@ -33,6 +33,133 @@ node_list: TypeAlias = ParsableList[Annotated[
     Discriminator(get_tag)
 ]]
 
+def comma_separated_list(items: list[str]) -> list[str]:
+    return items
+    result = []
+    for item in items[:-1]:
+        result.append(item)
+        result.append(",")
+    result.extend(items[-1:])
+    return result
+
+# =============================================================================
+# Color Map for Visualization
+# =============================================================================
+
+# digraph G {
+
+# "A" -> "B" [label=<This is my label <br/> It has line breaks. I <FONT COLOR="Red">love</FONT>  background<br/>Colors.>]
+
+# C [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+#   <TR><TD COLSPAN="3">This is my label </TD></TR>
+#   <TR><TD>It has line breaks. I </TD><TD BGCOLOR="red">love</TD><TD>background</TD></TR>
+#   <TR><TD COLSPAN="3">Colors</TD></TR>  
+#   </TABLE>>]
+# }
+
+
+class ColorMap():
+    def __init__(self, keys: list[str]):
+        self.keys = keys
+        self.color_list = self._make_color_map(len(keys))
+        self.color_map = {key: self.color_list[i] for i, key in enumerate(keys)}
+        
+# b'Error: Syntax error: non-space string used after </TABLE> in line 1 \n...  reused via MainMemory</HTML> ...\nin label of node Storage_139993997346128
+# Label: <<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR><TD BGCOLOR="#90EE90">W1</TD></TR></TABLE> reused via MainMemory>
+    
+    def format_list(self, items: list[str]) -> str:
+        result = ['<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR>']
+        for i, item in enumerate(items):
+            start = '<TD ALIGN="CENTER">'# if i < len(items) - 1 else f'</TR><TR><TD ALIGN="CENTER" COLSPAN="100">'
+            if item in self.color_map:
+                start = f'<TD ALIGN="CENTER" BORDER="5" COLOR="{self.color_map[item]}">'
+            end = '</TD>'
+            result.append(f'{start}{item}{end}')
+        result.append('</TR></TABLE>>')
+        return ''.join(result)
+
+
+        # This makes a colored bar under the text
+        # result = ['<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">']
+        # # First row: text
+        # result.append('<TR>')
+        # for item in items:
+        #     result.append(f'<TD ALIGN="CENTER" STYLE="margin:0;padding:0;">{item}</TD>')
+        # result.append('</TR>')
+        # # Second row: color bar (height 20, width 40, minimal spacing)
+        # result.append('<TR>')
+        # for item in items:
+        #     if item in self.color_map:
+        #         result.append(f'<TD BGCOLOR="{self.color_map[item]}" HEIGHT="10" WIDTH="15" FIXEDSIZE="TRUE" STYLE="margin:0;padding:0;"></TD>')
+        #     else:
+        #         result.append('<TD HEIGHT="20" WIDTH="40" FIXEDSIZE="TRUE" STYLE="margin:0;padding:0;"></TD>')
+        # result.append('</TR>')
+        # result.append('</TABLE>>')
+        # return ''.join(result)
+
+
+    def _make_color_map(self, n_colors: int) -> list[str]:
+        if n_colors <= 0:
+            return []
+        
+        # High contrast, distinguishable colors for borders
+        base_colors = [
+            "#FF0000",  # Red
+            "#00FF00",  # Green  
+            "#0000FF",  # Blue
+            "#FFFF00",  # Yellow
+            "#FF00FF",  # Magenta
+            "#00FFFF",  # Cyan
+            "#FF8000",  # Orange
+            "#8000FF",  # Purple
+            "#008000",  # Dark Green
+            "#800000",  # Dark Red
+            "#000080",  # Dark Blue
+            "#808000",  # Olive
+        ]
+
+        if n_colors <= len(base_colors):
+            return base_colors[:n_colors]
+        
+        # For more colors, generate additional colors with maximum distinction
+        colors = base_colors.copy()
+        
+        # Use evenly spaced hues for maximum distinction
+        for i in range(len(base_colors), n_colors):
+            # Evenly space hues around the color wheel
+            hue = i / n_colors
+            
+            # Use high saturation and value for maximum contrast
+            saturation = 1.0  # Full saturation
+            value = 1.0       # Full value
+            
+            # Convert HSV to RGB
+            h = hue * 6
+            c = value * saturation
+            x = c * (1 - abs(h % 2 - 1))
+            m = value - c
+            
+            if h < 1:
+                r, g, b = c, x, 0
+            elif h < 2:
+                r, g, b = x, c, 0
+            elif h < 3:
+                r, g, b = 0, c, x
+            elif h < 4:
+                r, g, b = 0, x, c
+            elif h < 5:
+                r, g, b = x, 0, c
+            else:
+                r, g, b = c, 0, x
+                
+            r = int((r + m) * 255)
+            g = int((g + m) * 255)
+            b = int((b + m) * 255)
+            
+            colors.append(f"#{r:02x}{g:02x}{b:02x}")
+        
+        return colors
+
 # =============================================================================
 # LoopTree Mapping Nodes
 # =============================================================================
@@ -56,8 +183,13 @@ class MappingNode(ParsableModel, ABC):
         return "box"
 
     def _render_node(self) -> str:
-        return pydot.Node(self._render_node_name(), label=self._render_node_label(), shape=self._render_node_shape())
-        return f"{self._render_node_name()}{self._render_node_label()}"
+        return pydot.Node(
+            self._render_node_name(),
+            label=self._render_node_label(),
+            shape=self._render_node_shape(),
+            style="filled",
+            fillcolor=self._render_node_color()
+        )
     
     def _parent2next(self) -> "MappingNode":
         return self
@@ -87,6 +219,9 @@ class MappingNode(ParsableModel, ABC):
                 result.extend(node.flatten())
             return result
         return [self]
+    
+    def _render_node_color(self) -> str:
+        return "white"
 
 
 class Pattern(ParsableModel):
@@ -129,6 +264,12 @@ class Iteration(MappingNode):
                self.loop_bound == other.loop_bound and \
                self.tile_shape == other.tile_shape and \
                self.tile_pattern == other.tile_pattern
+               
+    def _render_node_shape(self) -> str:
+        return "box"
+    
+    def _render_node_color(self) -> str:
+        return "#FCC2FC"
 
 class Temporal(Iteration):
     def compact_string(self) -> str:
@@ -154,7 +295,7 @@ class Spatial(Iteration):
         return f"S{self.dimension}-{self.rank_variable}-{self.loop_bound}"
 
     def __str__(self) -> str:
-        return f"S{self.dimension}" + super().__str__()
+        return f"S{self.dimension} " + super().__str__()
     
     def __eq__(self, other: "Spatial") -> bool:
         return isinstance(other, Spatial) and \
@@ -176,11 +317,13 @@ class Storage(MappingNode):
         tname = ",".join(self.tensors)
         return f"[{self.memory} {tname} {self._lower}]"
     
-    def __str__(self) -> str:
-        tname = ", ".join(self.tensors)
-        return f"{tname} reused via {self.memory}"
-    
-        # return f"[(\"{tensors} in {self.memory}\")]"
+    def __str__(self, color_map: ColorMap = None) -> str:
+        tensors = self.tensors
+        if color_map is not None:
+            # format_list = comma_separated_list(tensors) + [f" reused via {self.memory}"]
+            format_list = [f"{self.memory} reuses"] + comma_separated_list(tensors)
+            return color_map.format_list(format_list)
+        return f"{self.memory} reuses {', '.join(tensors)}"
     
     @property
     def tensor(self) -> TensorName:
@@ -194,10 +337,8 @@ class Storage(MappingNode):
     def _render_node_shape(self) -> str:
         return "cylinder"
     
-    def _color_key(self) -> str:
-        return tuple(sorted(self.tensors))
-
-
+    def _render_node_color(self) -> str:
+        return "#D7FCD7"
 
 class Compute(MappingNode):
     einsum: str
@@ -211,6 +352,9 @@ class Compute(MappingNode):
     
     def _render_node_shape(self) -> str:
         return "ellipse"
+    
+    def _render_node_color(self) -> str:
+        return "#E0EEFF"
 
 class MappingNodeWithChildren(MappingNode):
     nodes: node_list = ParsableList()
@@ -241,27 +385,27 @@ class MappingNodeWithChildren(MappingNode):
         return backing
 
 
-    def clear_nodes_of_type(self, *types: type) -> "MappingNodeWithChildren":
+    def clear_nodes_of_type(self, *types: type) -> None:
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, types):
                 continue
             if isinstance(node, MappingNodeWithChildren):
-                node = node.clear_nodes_of_type(*types)
+                node.clear_nodes_of_type(*types)
             new_nodes.append(node)
-        return type(self)(nodes=new_nodes)
+        self.nodes = ParsableList(new_nodes)
     
-    def clear_nodes(self, *nodes: MappingNode) -> "MappingNodeWithChildren":
+    def clear_nodes(self, *nodes: MappingNode) -> None:
         new_nodes: list[MappingNode] = []
         for node in self.nodes:
             if node in nodes:
                 continue
             if isinstance(node, MappingNodeWithChildren):
-                node = node.clear_nodes(*nodes)
+                node.clear_nodes(*nodes)
             new_nodes.append(node)
-        return type(self)(nodes=new_nodes)
+        self.nodes = ParsableList(new_nodes)
     
-    def _consolidate_storage(self) -> "MappingNodeWithChildren":
+    def _consolidate_storage(self) -> None:
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Storage):
@@ -274,47 +418,99 @@ class MappingNodeWithChildren(MappingNode):
                     if isinstance(n, Iteration):
                         break
                 if not found:
-                    new_nodes.append(copy.deepcopy(node))
-            elif isinstance(node, MappingNodeWithChildren):
-                new_nodes.append(node._consolidate_storage())
+                    new_nodes.append(node)
             else:
-                new_nodes.append(copy.deepcopy(node))
+                new_nodes.append(node)
+            if isinstance(node, MappingNodeWithChildren):
+                node._consolidate_storage()
         assert new_nodes, "BUG"
-        return type(self)(nodes=new_nodes)
+        self.nodes = ParsableList(new_nodes)
     
-    def _consolidate_reservations(self) -> "MappingNodeWithChildren":
+    def _consolidate_reservations(self) -> None:
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Reservation):
                 found = False
                 for n in new_nodes[::-1]:
                     if isinstance(n, Reservation) and n.resource == node.resource:
-                        n.purpose = n.purpose + "," + node.purpose
+                        n.purposes.extend(node.purposes)
                         found = True
                         break
                     if isinstance(n, Iteration):
                         break
                 if not found:
-                    new_nodes.append(copy.deepcopy(node))
-            elif isinstance(node, MappingNodeWithChildren):
-                new_nodes.append(node._consolidate_reservations())
+                    new_nodes.append(node)
             else:
-                new_nodes.append(copy.deepcopy(node))
+                new_nodes.append(node)
+            if isinstance(node, MappingNodeWithChildren):
+                node._consolidate_reservations()
         assert new_nodes, "BUG"
-        return type(self)(nodes=new_nodes)
+        self.nodes = ParsableList(new_nodes)
 
-    def _elevate_storage_above_splits(self) -> "MappingNodeWithChildren":
+    def _elevate_storage_above_splits(self) -> None:
         new_nodes: list[MappingNode] = []
         for node in self.nodes:
             if isinstance(node, Split):
                 shared_storages = node._get_shared_storage_nodes()
                 new_nodes.extend(shared_storages)
-                node = node.clear_nodes(*shared_storages)
+                node.clear_nodes(*shared_storages)
             if isinstance(node, MappingNodeWithChildren):
-                node = node._elevate_storage_above_splits()
+                node._elevate_storage_above_splits()
             new_nodes.append(node)
-        return type(self)(nodes=new_nodes)
-
+        self.nodes = ParsableList(new_nodes)
+        
+    def _propagate_reservations_between_splits(self) -> None:
+        for node in self.nodes:
+            if isinstance(node, MappingNodeWithChildren):
+                node._propagate_reservations_between_splits()
+        
+        if not isinstance(self, Split):
+            return
+        
+        
+        for i, node1 in enumerate(self.nodes):
+            for j in range(i + 2, len(self.nodes)):
+                node2 = self.nodes[j]
+                reservations1 = node1.get_nodes_of_type(Reservation)
+                reservations2 = node2.get_nodes_of_type(Reservation)
+                
+                shared_reservations = []
+                for reservation1 in reservations1:
+                    for reservation2 in reservations2:
+                        if reservation1 == reservation2:
+                            shared_reservations.append(reservation1)
+                            break
+                    
+                for s in shared_reservations:
+                    for k in range(i + 1, j):
+                        node3 = self.nodes[k]
+                        if not isinstance(node3, Nested):
+                            raise ValueError(f"Expected Nested node, got {type(node3)}")
+                        reservations3 = node3.get_nodes_of_type(Reservation)
+                        if s not in reservations3:
+                            node3.nodes.insert(0, copy.deepcopy(s))
+                
+    def _move_storage_above_reservations(self) -> None:
+        groups = []
+        cur_group = []
+        for node in self.nodes:
+            if isinstance(node, MappingNodeWithChildren):
+                node._move_storage_above_reservations()
+            if not isinstance(node, (Storage, Reservation)):
+                groups.append(cur_group)
+                cur_group = []
+            cur_group.append(node)
+        groups.append(cur_group)
+        groups = [g for g in groups if g]
+        
+        groups = [
+            [x for x in g if not isinstance(x, (Storage, Reservation))] +
+            [x for x in g if isinstance(x, (Storage))] +
+            [x for x in g if isinstance(x, (Reservation))]
+            for g in groups
+        ]
+        self.nodes = ParsableList([x for g in groups for x in g])
+        
 class Split(MappingNodeWithChildren):
     pass
 
@@ -331,11 +527,15 @@ class Split(MappingNodeWithChildren):
             for j in range(i + 1, len(storages)):
                 for a in storages[i]:
                     for b in storages[j]:
-                        if a._backing and b._backing and a not in shared_storages:
+                        if a._backing & b._backing and a not in shared_storages:
                             assert len(a.tensors) == 1 and len(b.tensors) == 1, "BUG"
                             shared_storages.append(a)
                             break
         return shared_storages
+
+    def _render_node_color(self) -> str:
+        return "#FFFFE0"
+
 
 LoopGroup: TypeAlias = list[Iteration]
 NonLoopGroup: TypeAlias = list[MappingNode]
@@ -581,22 +781,36 @@ class Sequential(Split):
 
 class ModelOnlyNode:
     pass
-
+    
 class Reservation(MappingNode, ModelOnlyNode):
-    purpose: str
+    purposes: ParsableList[str]
     resource: str
 
     def compact_string(self) -> str:
-        return f'R {self.purpose} reserves {self.resource}'
+        return f'R {",".join(self.purposes)} reserves {self.resource}'
     
-    def __str__(self) -> str:
-        return f"{self.purpose} reserves {self.resource}"
+    def __str__(self, color_map: ColorMap = None) -> str:
+        purposes = self.purposes
+        if color_map is not None:
+            # format_list = comma_separated_list(purposes) + [f" reserves {self.resource}"]
+            format_list = [f"{self.resource} reserved for"] + comma_separated_list(purposes)
+            return color_map.format_list(format_list)
+        return f"{self.resource} reserved for {",".join(purposes)}"
     
     def _render_node_shape(self) -> str:
         return "signature"
     
-    def _color_key(self) -> tuple[str]:
-        return (self.purpose,)
+    @property
+    def purpose(self) -> str:
+        if len(self.purposes) == 1:
+            return self.purposes[0]
+        raise ValueError(f"Reservation has multiple purposes: {self.purposes}")
+    
+    def __eq__(self, other: "Reservation") -> bool:
+        return self.purposes == other.purposes and self.resource == other.resource
+
+    def _render_node_color(self) -> str:
+        return "#E8E8E8" # Light gray
 
 class Fill(MappingNode, ModelOnlyNode):
     tensor: str
@@ -618,71 +832,7 @@ MappingNodeTypes: TypeAlias = Union[
     Compute,
     Reservation,
     Fill
-]
-
-
-def _make_color_map(n_colors: int) -> list[str]:
-    """Generate a colorblind-friendly color map with colors that are far apart but get closer as n_colors increases."""
-    if n_colors <= 0:
-        return []
-    
-    # Colorblind-friendly base colors (light enough for black text)
-    base_colors = [
-        "#FFD700",  # Light orange
-        "#87CEEB",  # Light sky blue  
-        "#90EE90",  # Light green
-        "#FFFFE0",  # Light yellow
-        "#ADD8E6",  # Light blue
-        "#FFB6C1",  # Light red
-        "#DDA0DD",  # Light purple
-        "#F5F5DC",  # Light beige
-    ]
-    
-    if n_colors <= len(base_colors):
-        return base_colors[:n_colors]
-    
-    # For more colors, generate additional colors using HSV space
-    colors = base_colors.copy()
-    
-    # Generate additional colors using golden ratio in HSV space
-    golden_ratio = 0.618033988749895
-    
-    for i in range(len(base_colors), n_colors):
-        # Use golden ratio to space hues evenly
-        hue = (i * golden_ratio) % 1.0
-        
-        # Vary saturation and value to create more distinction
-        # Ensure value is high enough for black text readability
-        saturation = 0.4 + 0.3 * (i % 3) / 2.0  # 0.4 to 0.7 (lower saturation for lighter colors)
-        value = 0.8 + 0.15 * (i % 2)  # 0.8 to 0.95 (high value for light backgrounds)
-        
-        # Convert HSV to RGB
-        h = hue * 6
-        c = value * saturation
-        x = c * (1 - abs(h % 2 - 1))
-        m = value - c
-        
-        if h < 1:
-            r, g, b = c, x, 0
-        elif h < 2:
-            r, g, b = x, c, 0
-        elif h < 3:
-            r, g, b = 0, c, x
-        elif h < 4:
-            r, g, b = 0, x, c
-        elif h < 5:
-            r, g, b = x, 0, c
-        else:
-            r, g, b = c, 0, x
-            
-        r = int((r + m) * 255)
-        g = int((g + m) * 255)
-        b = int((b + m) * 255)
-        
-        colors.append(f"#{r:02x}{g:02x}{b:02x}")
-    
-    return colors
-    
+]    
 
 class Mapping(Nested):
     version: Annotated[str, assert_version] = __version__
@@ -728,6 +878,8 @@ class Mapping(Nested):
         graph = pydot.Dot(graph_type='digraph', rankdir='TD')
         graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
         graph.set_edge_defaults(fontname="Arial", fontsize="10")
+        # Enable HTML-like labels for color support
+        graph.set_node_defaults(label="")
         for node in self._render_make_children():
             graph.add_node(node)
             
@@ -735,19 +887,22 @@ class Mapping(Nested):
         color_keys = set()
         all_nodes = self.flatten()
         for node in all_nodes:
-            if isinstance(node, (Storage, Reservation)):
-                color_keys.add(node._color_key())
+            if isinstance(node, Storage):
+                color_keys.update(node.tensors)
+            if isinstance(node, Reservation):
+                color_keys.update(node.purposes)
                 
-        # Generate colorblind-friendly color map
-        color_list = _make_color_map(len(color_keys))
-        color_map = {key: color_list[i] for i, key in enumerate(color_keys)}
+        color_map = ColorMap(sorted(color_keys))
         
         for node in all_nodes:
             if isinstance(node, (Storage, Reservation)):
                 graph_nodes = graph.get_node(node._render_node_name())
                 for graph_node in graph_nodes:
-                    graph_node.set_fillcolor(color_map[node._color_key()])
-                    graph_node.set_style('filled')
+                    # Set HTML-like label for color support
+                    new_label = node.__str__(color_map)
+                    graph_node.set_label(new_label)
+                    # graph_node.set_fillcolor(color_map[node._color_key()])
+                    # graph_node.set_style('filled')
                 
             
         added_edges = set()
@@ -793,9 +948,11 @@ class Mapping(Nested):
             )
             
         mapping: Mapping = cls(nodes=pmappings)
-        mapping = mapping._elevate_storage_above_splits()
-        mapping = mapping._consolidate_storage()
-        mapping = mapping._consolidate_reservations()
+        mapping._elevate_storage_above_splits()
+        mapping._propagate_reservations_between_splits()
+        mapping._consolidate_storage()
+        mapping._consolidate_reservations()
+        mapping._move_storage_above_reservations()
         return mapping
         
         

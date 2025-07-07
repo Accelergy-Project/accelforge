@@ -644,7 +644,8 @@ def row2pmappings(row: pd.Series, einsum_names: list[str], rank_variable_bounds:
         for node in pmapping.nodes:
             if isinstance(node, Iteration):
                 node.tile_shape = tile_shapes.pop(0)
-        pmappings.append(pmapping.clear_nodes_of_type(Fill))
+        pmapping.clear_nodes_of_type(Fill)
+        pmappings.append(pmapping)
         pmapping.beautify_loops(rank_variable_bounds)
     return pmappings
 
