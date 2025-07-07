@@ -116,12 +116,8 @@ def quick_insert_reservation_nodes(    mapping: Mapping,
     mapping = list(mapping.nodes)
     einsum_name = mapping[-1].einsum
 
-    einsum_tensor_to_projection = {}
     einsum = workload.einsums[einsum_name]
     all_tensors = einsum.input_tensors() | einsum.output_tensors()
-    for tensor in all_tensors:
-        einsum_tensor_to_projection[(einsum_name, tensor)] = \
-            get_projection_expr(einsum, tensor)
 
     tensor_to_relevancy = {
         tensor: get_rank_variable_relevancy(einsum, tensor)
@@ -319,7 +315,7 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         for tracker_idx in reversed(to_remove):
             tracker = trackers.pop(tracker_idx)
             buffet = tracker.buffet
-            node = Reservation(purpose=buffet.tensor, resource=buffet.level)
+            node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
             if tracker.insert_reservation_under:
                 reservation_insert_below.append(node)
             else:
