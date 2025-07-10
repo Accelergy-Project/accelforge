@@ -72,6 +72,27 @@ class TestJoin(unittest.TestCase):
         mappings = join_sims(sims, spec, flattened_arch)
         mappings.decompress(decompress_data)
 
+    def test_mha_full_with_prejoin_pruning(self):
+        config_names = [
+            "snowcat.arch",
+            "mha_full.workload",
+            "mha.renames"
+        ]
+        paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
+        spec = Specification.from_yaml(*paths)
+        spec.estimate_energy_area()
+        flattened_arch = spec.get_flattened_architecture()
+
+        sim_cache = make_sim_pickle_cache(config_names)
+        sims, decompress_data = sim_cache.get(lambda: get_sims(spec, flattened_arch))
+
+        untiled_compats = sims2untiled_compats(sims)
+        einsum2important_compats = join_compatibilities(untiled_compats, spec)
+        einsum2pruned_sims = remove_unimportant_sims(sims, einsum2important_compats)
+
+        mappings = join_sims(einsum2pruned_sims, spec, flattened_arch)
+        mappings.decompress(decompress_data)
+
     def test_mobilenet(self):
         spec = Specification.from_yaml(
             PARENT_DIR / "snowcat.arch.yaml",

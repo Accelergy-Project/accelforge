@@ -1,4 +1,5 @@
-from collections import defaultdict, namedtuple
+from collections import defaultdict
+from enum import Enum
 from dataclasses import dataclass, replace
 import itertools
 from numbers import Number
@@ -143,15 +144,28 @@ class TensorStorage(Reservation):
         return sorted(sorted(v)[0] for v in id2tensor.values())
 
 
+class SplitKind(Enum):
+    SEQUENTIAL = 0
+    PIPELINE = 1
+
+
+@dataclass(frozen=True, order=True)
+class Split:
+    kind: SplitKind
+    n_loops: int
+
+
 @dataclass(frozen=True)
 class Compatibility(Updatable):
     n_loops: int
     storage: fzs[TensorStorage]
+    splits: fzs[Split] = fzs()
     tags: Tags = Tags(fzs())
 
     def __post_init__(self):
         assert isinstance(self.n_loops, int)
         assert isinstance(self.storage, fzs)
+        assert isinstance(self.splits, fzs)
         assert isinstance(self.tags, Tags)
 
     def get_backing_levels(self) -> dict[str, int]:
@@ -197,8 +211,9 @@ class Compatibility(Updatable):
             new_n_loops = self.n_loops
         else:
             new_n_loops = max((len(s.loops) for s in remaining_storages), default=0)
+        new_splits = fzs(split for split in self.splits if split.n_loops <= new_n_loops)
         tags = self.tags if not drop_tags else Tags(fzs())
-        return Compatibility(new_n_loops, remaining_storages, tags)
+        return Compatibility(new_n_loops, remaining_storages, new_splits, tags)
 
     def __lt__(self, other):
         return (self.loops, self.storage) < (other.loops, other.storage)
@@ -207,7 +222,7 @@ class Compatibility(Updatable):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Compatibility(n_loops={self.n_loops}, storage={repr(self.storage)}), tags={repr(self.tags)}"
+        return f"Compatibility(n_loops={self.n_loops}, storage={repr(self.storage)}), splits={repr(self.splits)}, tags={repr(self.tags)}"
 
     def merge_next(
         self, right: "Compatibility", live_tensors: set[str]
