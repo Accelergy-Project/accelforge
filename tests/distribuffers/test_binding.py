@@ -32,11 +32,11 @@ class TestBindingMapper(unittest.TestCase):
             for soln_node, binding_node in zip(soln['nodes'], binding.nodes):
                 isl_relations: Dict[str, Map] = binding_node.isl_relations
                 assert soln_node.keys() == isl_relations.keys(), (
-                    "Not all isl_relations read in properly. Missing "
+                    "Not all isl_relations read in properly. Missing \n"
                     f"{set(soln_node.keys()).difference(isl_relations.keys())} "
-                    "from solutions and "
+                    "\nfrom solutions and \n"
                     f"{set(isl_relations.keys()).difference(soln_node.keys())} "
-                    "from isl_relations."
+                    "\nfrom isl_relations.\n"
                 )
 
                 tensor: str
