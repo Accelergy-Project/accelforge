@@ -4,7 +4,7 @@ import itertools
 import time
 from typing import TypeAlias, Union
 from joblib import delayed
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility

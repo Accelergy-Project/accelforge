@@ -5,20 +5,20 @@ renames:
     tensor_accesses:
     - name: input
       source: Inputs() & Intermediates()
-      injective: True
+      expected_count: 1
     - name: output
       source: Outputs()
-      injective: True
+      expected_count: 1
     - name: weight
       source: ~(input | output)
-      injective: True
+      expected_count: 1
     rank_variables:
     - name: parallel_rank
       source: output.rank_variables() & weight.rank_variables()
-      injective: True
+      expected_count: 1
     - name: reduced_rank
       source: input.rank_variables() & weight.rank_variables() - output.rank_variables()
-      injective: True
+      expected_count: 1
 
 
   - name: Matmul1

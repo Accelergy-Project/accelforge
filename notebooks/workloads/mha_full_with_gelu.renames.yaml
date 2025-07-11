@@ -17,11 +17,11 @@ renames:
     tensor_accesses:
     - name: elementwise
       source: FFApre
-      injective: True
+      expected_count: 1
 
   - name: GeLU
     tensor_accesses:
     - name: elementwise
       source: FFApre
-      injective: True
+      expected_count: 1
   

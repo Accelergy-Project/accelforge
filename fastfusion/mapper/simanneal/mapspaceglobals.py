@@ -182,7 +182,7 @@ class MapspaceGlobals:
                 if t not in sim_list[0].tensor_names:
                     continue
                 for sim in sim_list:
-                    storage = sim.compatibility.get_reservation_by_name(t)
+                    storage = sim.compatibility.get_storage_by_name(t)
                     cur_memories.add(storage)
                 possible_memories.append(cur_memories)
             if possible_memories:

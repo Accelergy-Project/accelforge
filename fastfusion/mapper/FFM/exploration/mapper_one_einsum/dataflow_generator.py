@@ -19,7 +19,7 @@ def get_storage_choices(
     while not isinstance(nodes[0], architecture.Memory):
         nodes = nodes[1:]
     first_storage = nodes[0]
-    
+
     def collect_tensors(storage_nodes: list[Storage]):
         return {tensor for storage in storage_nodes for tensor in storage.tensors}
 
@@ -35,28 +35,29 @@ def get_storage_choices(
                 base_mapping.append(node)
                 
         tensors_in_mapping = collect_tensors(all_storage_nodes)
-        required_order = get_dataflow_constraint(nodes,
-                                                 symbol_table,
-                                                 tensors_in_mapping)
+        required_order = get_dataflow_constraint(
+            nodes, symbol_table, tensors_in_mapping
+        )
 
-        for mapping in recursive_order_storage_choices(base_mapping,
-                                                       nodes,
-                                                       all_storage_nodes,
-                                                       required_order,
-                                                       spec):
+        for mapping in recursive_order_storage_choices(
+            base_mapping, nodes, all_storage_nodes, required_order, spec
+        ):
             yield mapping, symbol_table
 
 
 def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
     required_order: dict[str, list[Order]] = {}
     for node in nodes:
-        constraint = node.constraints.dataflow._parse(symbol_table, f"{node.name}.constraints.dataflow")
+        constraint = node.constraints.dataflow._parse(
+            symbol_table, f"{node.name}.constraints.dataflow"
+        )
         if constraint.storage_orders:
             for order_constraint in constraint.storage_orders:
                 order = Order()
                 for together_tensors in order_constraint:
                     in_mapping_together_tensors = [
-                        tensor for tensor in together_tensors
+                        tensor
+                        for tensor in together_tensors
                         if tensor in tensors_in_mapping
                     ]
                     if len(in_mapping_together_tensors) == 1:
@@ -85,11 +86,9 @@ def recursive_order_storage_choices(
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
         if valid_storage_order(mapping, [n.name for n in nodes], required_order, spec):
-            yield from recursive_order_storage_choices(mapping,
-                                                       nodes,
-                                                       new_remaining,
-                                                       required_order,
-                                                       spec)
+            yield from recursive_order_storage_choices(
+                mapping, nodes, new_remaining, required_order, spec
+            )
         mapping.pop()
 
 
@@ -118,8 +117,9 @@ def valid_storage_order(
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:
-                    memory_to_satisfied_constraints[s1] = \
-                        {i for i in range(len(required_orders[s1]))}
+                    memory_to_satisfied_constraints[s1] = {
+                        i for i in range(len(required_orders[s1]))
+                    }
 
                 good = True
                 for order_idx, order_choice in enumerate(required_orders[s1]):
@@ -153,9 +153,15 @@ def valid_storage_order(
             # bypassed the outer storage if possible.
             either_backing = mapping[i]._backing & mapping[j]._backing
             if i == j or i == j - 1:
-                if s1_idx < s2_idx and not ((set(mapping[i]._must_keep_tensors) & set(mapping[j].tensors)) or either_backing):
+                if s1_idx < s2_idx and not (
+                    (set(mapping[i]._must_keep_tensors) & set(mapping[j].tensors))
+                    or either_backing
+                ):
                     return False
-                if s2_idx < s1_idx and not ((set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors)) or either_backing):
+                if s2_idx < s1_idx and not (
+                    (set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors))
+                    or either_backing
+                ):
                     return False
 
     for i in range(len(mapping)):
@@ -191,11 +197,12 @@ class Together:
 
 class Order:
     """An ordering of tensors."""
+
     def __init__(self):
         self.order = []
 
     def __repr__(self):
-        return f'Order({self.order})'
+        return f"Order({self.order})"
 
     def add_tensor(self, tensor):
         self.order.append(Alone(tensor))
@@ -205,10 +212,8 @@ class Order:
 
     def index(self, tensor):
         for i, order_term in enumerate(self.order):
-            if (
-                (isinstance(order_term, Alone) and order_term.tensor == tensor)
-                or
-                (isinstance(order_term, Together) and tensor in order_term.tensors)
+            if (isinstance(order_term, Alone) and order_term.tensor == tensor) or (
+                isinstance(order_term, Together) and tensor in order_term.tensors
             ):
                 return i
         return None

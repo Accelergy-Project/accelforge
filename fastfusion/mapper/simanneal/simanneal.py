@@ -4,7 +4,7 @@ from math import ceil, exp, prod
 import random
 import threading
 import time
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.simanneal.evalmapping import quick_join
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
 from fastfusion.mapper.FFM.joining.simexplore import SIM

@@ -148,15 +148,17 @@ class EnergyEntry(ParsableModel):
 
 class ComponentEnergy(ParsableModel):
     version: Annotated[str, assert_version] = __version__
-    tables: ParsableList[EnergyEntry] = ParsableList()
+    entries: ParsableList[EnergyEntry] = ParsableList()
 
     def isempty(self) -> bool:
-        return len(self.tables) == 0
+        return len(self.entries) == 0
 
     def to_dict(self):
         r = {}
-        for t in self.tables:
+        for t in self.entries:
             r[t.name] = {}
             for a in t.actions:
                 r[(t.name, a.name)] = a.energy
         return r
+
+    

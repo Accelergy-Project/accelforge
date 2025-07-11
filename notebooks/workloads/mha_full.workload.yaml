@@ -1,9 +1,9 @@
 workload:
   version: "0.5"
   shape:
-    b: 0 <= b < 1
-    m: 0 <= m < 2048
-    p: 0 <= p < 2048 # = m
+    b: 0 <= b < 64
+    m: 0 <= m < 512
+    p: 0 <= p < 512 # = m
     h: 0 <= h < 32
     e: 0 <= e < 128
     f: 0 <= f < 128
@@ -27,7 +27,7 @@ workload:
 
   - name: K
     tensor_accesses:
-    - {name: I, projection: [b, m, d]} 
+    - {name: I, projection: [b, m, d]}
     - {name: WK, projection: [h, e, d]}
     - {name: K, projection: [b, m, h, e], output: True}
 
@@ -43,9 +43,14 @@ workload:
     - {name: K, projection: { B: b, M: p, H: h, E: e }}
     - {name: QK, projection: [b, m, p, h], output: True}
 
-  - name: AV
+  - name: QK_softmax
     tensor_accesses:
     - {name: QK, projection: [b, m, p, h]}
+    - {name: QK_softmax, projection: [b, m, p, h], output: True}
+
+  - name: AV
+    tensor_accesses:
+    - {name: QK_softmax, projection: [b, m, p, h]}
     - {name: V, projection: { B: b, M: p, H: h, E: f}}
     - {name: AV, projection: [b, m, h, f], output: True}
 

@@ -94,8 +94,6 @@ def parallel(
     one_job_if_debugging: bool = True,
     pbar: str = None,
     return_as: str = None,
-    chunk: bool = False,
-    delete_job_after: bool = False,
 ):
     jobs = list(jobs)
     
@@ -124,60 +122,20 @@ def parallel(
             jobs = tqdm(jobs, total=len(jobs), desc=pbar, leave=True)
         return [j[0](*j[1], **j[2]) for j in jobs]
 
-    # We were getting a lot of the runtime in parallelizing overhead. What this
-    # does is chunks jobs into larger groups. The last n_jobs groups are 1 job,
-    # the previous n_jobs groups are 2 jobs, the previous n_jobs groups are 4
-    # jobs, and so on. Jobs get smaller near the end to reduce the impact of
-    # long pole jobs.
-
-    if chunk and not delete_job_after:
-
-        def job_chunk(chunk_of_jobs):
-            # print(list(j[0](*j[1], **j[2]) for j in chunk_of_jobs[::-1])[0][0])
-            return list(j[0](*j[1], **j[2]) for j in chunk_of_jobs[::-1])
-
-        jobs = list(reversed(jobs))
-        new_jobs = []
-        i = 0
-        chunksize = 1
-        while i < len(jobs):
-            stop = min(i + n_jobs * chunksize, len(jobs))
-            new_jobs += [
-                delayed(job_chunk)(jobs[j : j + chunksize])
-                for j in range(i, stop, chunksize)
-            ]
-            i = stop
-            chunksize *= 2
-        jobs = list(reversed(new_jobs))
-        # jobs = [delayed(job_chunk)([j]) for j in jobs]
-        if pbar:
-            jobs = tqdm(jobs, total=len(jobs), desc=pbar, leave=True)
-        if return_as == "generator" or return_as == "generator_unordered":
-
-            def yield_jobs():
-                for job in Parallel(n_jobs=n_jobs, **args)(jobs):
-                    yield from job
-
-            return yield_jobs()
-        return list(itertools.chain(*Parallel(n_jobs=n_jobs, **args)(jobs)))
-
     total_jobs = len(jobs)
-
-    if delete_job_after:
-
-        def job_delete_iterator(jobs):
-            jobs = list(reversed(jobs))
-            while jobs:
-                yield jobs.pop()
-
-        jobs = job_delete_iterator(jobs)
-
-    if pbar:
-        return Parallel(n_jobs=n_jobs, **args)(
-            tqdm(jobs, total=total_jobs, desc=pbar, leave=True)
-        )
-    return Parallel(n_jobs=n_jobs, **args)(jobs)
-
+    
+    pbar = tqdm(total=total_jobs, desc=pbar, leave=True) if pbar else None
+    def yield_results():
+        for result in Parallel(n_jobs=n_jobs, **args)(jobs):
+            if pbar:
+                pbar.update(1)
+            yield result
+        if pbar:
+            pbar.close()
+    if return_as in ["generator", "generator_unordered"]:
+        return yield_results()
+    
+    return list(yield_results())
 
 if __name__ == "__main__":
 

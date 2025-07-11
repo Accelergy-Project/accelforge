@@ -1,21 +1,27 @@
+import logging
 from math import prod
 from pathlib import Path
 from typing import Callable, Optional
+import uuid
 
 from joblib import delayed
+from fastfusion.accelerated_imports import pd
 
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.mapping import Iteration, Mapping, Reservation, Storage
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
-from fastfusion.mapper.FFM.exploration.metrics import Metrics
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_one_einsum import generate_pmappings
+from fastfusion.mapper.metrics import Metrics
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum import get_single_einsum_jobs
+from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.pareto import DecompressData, GroupedDecompressData
 from fastfusion.mapper.FFM.tags import Tags
 from fastfusion.util.util import parallel
+from fastfusion.util import util
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job, SameCompatibilityJobs
 
 def get_rank_variable_bounds_for_all_einsums(spec: Specification):
     rank_variable_bounds = {
@@ -60,57 +66,199 @@ def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
         sizes[t] = size
     return sizes
 
-def get_sims(
+def get_jobs(
     spec: Specification,
-    flattened_architecture: Optional[list[architecture.Leaf]] = None,
+    flattened_arch: Optional[list[architecture.Leaf]] = None,
     tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
-    except_from_imperfect: set = set()
-) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
-    
-    print(
-        f'By default metrics optimizes for energy and latency.'
-        f'We should change to just energy or just latency at '
-        f'some point.'
-    )
-    
+    except_from_imperfect: set = set(),
+    fail_if_no_pmappings_for_einsum: bool = True,
+) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
+
+    einsum2jobs = {}
+    intermediate_tensors = spec.workload.intermediate_tensor_names
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
-    if flattened_architecture is None:
-        flattened_architecture = spec.get_flattened_architecture()
-
-    single_einsum_jobs = []
-    einsum_names = einsum_names or spec.workload.einsum_names
-    for einsum_name in einsum_names:
-        single_einsum_jobs.extend(get_single_einsum_jobs(
-            spec,
-            einsum_name,
-            metrics,
-            rank_variable_bounds,
-            flattened_architecture,
-            start_index=len(single_einsum_jobs),
+    def make_jobs_for_einsum(einsum_name: EinsumName):
+        workload_einsum = spec.workload.einsums[einsum_name]
+        # Create jobs for each Einsum
+        jobs = {}
+        job = Job(
+            spec=spec,
+            einsum_name=einsum_name,
+            metrics=metrics,
+            rank_variable_bounds=rank_variable_bounds,
+            flattened_arch=flattened_arch,
+            tensor2compatibilties={},#tensor2compatibilties
+            tensor2boundless_compatibilities={},#tensor2boundless_compatibilities
             tagger=tagger,
+            job_id=uuid.uuid4(),
             except_from_imperfect=except_from_imperfect,
-        ))
+            intermediate_tensors=intermediate_tensors & workload_einsum.tensor_names
+        )
+        for j in get_single_einsum_jobs(job):
+            jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
 
+        return einsum_name, jobs
+
+    einsum2jobs = {}
+    for einsum_name, jobs in parallel(
+        [delayed(make_jobs_for_einsum)(einsum_name) for einsum_name in einsum_names],
+        pbar="Generating Jobs",
+        return_as="generator",
+    ):
+        print(f"Generated {sum(len(j) for j in jobs.values())} jobs for {einsum_name}")
+        einsum2jobs[einsum_name] = jobs
+
+    if fail_if_no_pmappings_for_einsum:
+        for einsum_name, jobs in einsum2jobs.items():
+            if len(jobs) == 0:
+                raise ValueError(
+                    f"No pmappings for {einsum_name}. Was the mapspace overconstrained?"
+                )
+
+    return einsum2jobs
+
+def get_memories_to_track(
+    spec: Specification,
+    flattened_arch: Optional[list[architecture.Leaf]],
+    jobs: list[Job],
+    metrics: Metrics,
+) -> tuple[list[str], list[str]]:
+    memories_track_all = [m.name for m in flattened_arch if isinstance(m, architecture.Memory)]
+    memories_track_pmappings_only = []
+    
+    if metrics.RESOURCE_USAGE in metrics:
+        return memories_track_all, memories_track_pmappings_only
+    
+    total_tensor_sizes = sum(get_per_tensor_size(spec).values())
+    
+    # If the memory is big enough to hold all the tensors then we don't need to consider
+    # it
+    for m in list(memories_track_all):
+        memory = [n for n in flattened_arch if n.name == m]
+        assert len(memory) == 1
+        memory = memory[0]
+        if memory.attributes.size >= total_tensor_sizes * memory.attributes.datawidth: # max(m.attributes.datawidth.values()):
+            memories_track_all.remove(m)
+            logging.info(
+                f"Not tracking memory {m}. It is big enough to hold "
+                f"every tensor in the workload."
+            )
+
+    # If the memory is below every backing storage node, then we need it for the
+    # pmapping exploration but can drop it immediately
+    for m in list(memories_track_all):
+        must_track = False
+        for job in jobs:
+            seen = False
+            for node in job.mapping.nodes:
+                if isinstance(node, Storage) and node.memory == m:
+                    seen = True
+                if isinstance(node, Iteration) and node._fused and seen:
+                    must_track = True
+
+        if not must_track:
+            memories_track_all.remove(m)
+            memories_track_pmappings_only.append(m)
+            logging.info(
+                f"Not tracking memory {m} across joining stages. It is never "
+                f"reserved across fused loop iterations."
+            )
+            
+    return memories_track_all, memories_track_pmappings_only
+
+
+def get_sims(
+    spec: Specification,
+    flattened_arch: Optional[list[architecture.Leaf]] = None,
+    tagger: Callable[[Mapping], Tags] | None = None,
+    metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
+    einsum_names: Optional[list[EinsumName]] = None,
+    fail_if_no_pmappings_for_einsum: bool = True
+) -> tuple[dict[EinsumName, list[SIM]], dict[EinsumName, dict[uuid.UUID, Mapping]]]:
+    """
+    Explores pmapspace of `einsum_names` (default: all Einsums in workload).
+    """
+    if flattened_arch is None:
+        flattened_arch = spec.get_flattened_architecture()
+
+    if einsum_names is None:
+        einsum_names = spec.workload.einsum_names
+
+    einsum2jobs = get_jobs(spec,
+                           flattened_arch,
+                           tagger,
+                           metrics,
+                           einsum_names,
+                           fail_if_no_pmappings_for_einsum)
+
+    _fill_jobs_with_memories_to_track(einsum2jobs, spec, flattened_arch, metrics)
+
+    calls = _allocate_jobs(einsum2jobs)
+
+    pmapping_objects = {}
     sims = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
-    grouped_decompress_data: GroupedDecompressData = GroupedDecompressData(prefix2datalist={})
-    for einsum_name, new_sims, decompress_data, job_id in parallel(
-        single_einsum_jobs,
-        pbar="Generating Partial Mappings",
+    for einsum_name, new_sims, pmappings in parallel(
+        calls,
+        pbar=f"Generating pmappings",
         return_as="generator_unordered",
     ):
-        grouped_decompress_data.register_decompress_data(
-            einsum_name,
-            job_id,
-            decompress_data,
-        )
+        # grouped_decompress_data.register_decompress_data(
+        #     einsum_name,
+        #     job_ids,
+        #     decompress_data,
+        # )
         sims[einsum_name].extend(new_sims)
+        pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
+    return sims, pmapping_objects
 
-    intermediate_tensors = spec.workload.intermediate_tensor_names
-    for einsum_name, sims2 in sims.items():
-        sims[einsum_name] = SIM.combine_combineable(sims2, live_tensors=intermediate_tensors, pbar_postfix = f" for {einsum_name}")
 
-    return sims, grouped_decompress_data
+def _raise_error_if_no_pmappings(einsum2jobs):
+    for einsum_name, jobs in einsum2jobs.items():
+        if len(jobs) == 0:
+            raise ValueError(
+                f"No pmappings for {einsum_name}. "
+                f"Was the mapspace overconstrained?"
+            )
 
+
+def _allocate_jobs(einsum2jobs):
+    calls = []
+    for einsum_name, jobs in einsum2jobs.items():
+        calls.extend(delayed(generate_pmappings)(job_list)
+                    for job_list in jobs.values())
+        
+    if util.PARALLELIZE and len(calls) < util.N_PARALLEL_THREADS * 4:
+        logging.warning(
+            f"Insufficient jobs available to utilize available threads. "
+            f"Splitting jobs into smaller chunks."
+        )
+        calls = []
+        for einsum_name, jobs in einsum2jobs.items():
+            for job_list in jobs.values():
+                calls.extend(delayed(generate_pmappings)(job)
+                            for job in job_list.split())
+    return calls
+
+def _fill_jobs_with_memories_to_track(
+    einsum2jobs,
+    spec,
+    flattened_arch,
+    metrics,
+):
+    jobs_flattened = [
+        j for compatibility2joblist in einsum2jobs.values() 
+        for job_list in compatibility2joblist.values()
+        for j in job_list
+    ]
+    memories_track_all, memories_track_pmappings_only = get_memories_to_track(
+        spec,
+        flattened_arch,
+        jobs_flattened, 
+        metrics
+    )
+    for j in jobs_flattened:
+        j.memories_track_all = memories_track_all
+        j.memories_track_pmappings_only = memories_track_pmappings_only

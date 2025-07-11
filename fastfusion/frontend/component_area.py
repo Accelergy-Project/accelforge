@@ -77,4 +77,4 @@ class AreaEntry(ParsableModel):
 
 class ComponentArea(ParsableModel):
     version:  Annotated[str, assert_version] = __version__
-    tables: ParsableList[AreaEntry] = ParsableList()
+    entries: ParsableList[AreaEntry] = ParsableList()

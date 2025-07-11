@@ -40,7 +40,7 @@ class Specification(ParsableModel):
         self,
         symbol_table: Optional[Dict[str, Any]] = None,
         **kwargs,
-    ) -> "Specification":
+    ) -> tuple["Specification", dict[str, Any]]:
         symbol_table = {} if symbol_table is None else symbol_table.copy()
         symbol_table["spec"] = self
         with ParseExpressionsContext(self):
@@ -57,7 +57,7 @@ class Specification(ParsableModel):
             area = ComponentArea()
             energy = ComponentEnergy()
             for component in components:
-                area.tables.append(
+                area.entries.append(
                     AreaEntry.from_plug_ins(
                         component.component_class,
                         component.attributes,
@@ -69,7 +69,7 @@ class Specification(ParsableModel):
 
                 action_names = [action.name for action in component.actions]
                 action_args = [action.arguments for action in component.actions]
-                energy.tables.append(
+                energy.entries.append(
                     EnergyEntry.from_plug_ins(
                         component.component_class,
                         component.attributes,
@@ -82,7 +82,7 @@ class Specification(ParsableModel):
                 )
             self.component_area = area
             self.component_energy = energy
-
+            
     def get_flattened_architecture(self) -> list[Leaf]:
         with ParseExpressionsContext(self):
             processed, _ = self.parse_expressions()

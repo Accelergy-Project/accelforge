@@ -22,56 +22,56 @@ workload:
     - 0 <= n1 < 2048
     - 0 <= n2 < 2048
 
-  # - name: Matmul3
-  #   tensor_accesses:
-  #   - {name: T2, projection: [m, n2]}
-  #   - {name: W2, projection: [n2, n3]}
-  #   - {name: T3, projection: [m, n3], output: True}
-  #   shape:
-  #   - 0 <= n2 < 2048
-  #   - 0 <= n3 < 2048
+  - name: Matmul3
+    tensor_accesses:
+    - {name: T2, projection: [m, n2]}
+    - {name: W2, projection: [n2, n3]}
+    - {name: T3, projection: [m, n3], output: True}
+    shape:
+    - 0 <= n2 < 2048
+    - 0 <= n3 < 2048
 
-  # - name: Matmul4
-  #   tensor_accesses:
-  #   - {name: T3, projection: [m, n3]}
-  #   - {name: W3, projection: [n3, n4]}
-  #   - {name: T4, projection: [m, n4], output: True}
-  #   shape:
-  #   - 0 <= n3 < 2048
-  #   - 0 <= n4 < 2048
+  - name: Matmul4
+    tensor_accesses:
+    - {name: T3, projection: [m, n3]}
+    - {name: W3, projection: [n3, n4]}
+    - {name: T4, projection: [m, n4], output: True}
+    shape:
+    - 0 <= n3 < 2048
+    - 0 <= n4 < 2048
 
-  # - name: Matmul5
-  #   tensor_accesses:
-  #   - {name: T4, projection: [m, n4]}
-  #   - {name: W4, projection: [n4, n5]}
-  #   - {name: T5, projection: [m, n5], output: True}
-  #   shape:
-  #   - 0 <= n4 < 2048
-  #   - 0 <= n5 < 2048
+  - name: Matmul5
+    tensor_accesses:
+    - {name: T4, projection: [m, n4]}
+    - {name: W4, projection: [n4, n5]}
+    - {name: T5, projection: [m, n5], output: True}
+    shape:
+    - 0 <= n4 < 2048
+    - 0 <= n5 < 2048
 
-  # - name: Matmul6
-  #   tensor_accesses:
-  #   - {name: T5, projection: [m, n5]}
-  #   - {name: W5, projection: [n5, n6]}
-  #   - {name: T6, projection: [m, n6], output: True}
-  #   shape:
-  #   - 0 <= n5 < 2048
-  #   - 0 <= n6 < 2048
+  - name: Matmul6
+    tensor_accesses:
+    - {name: T5, projection: [m, n5]}
+    - {name: W5, projection: [n5, n6]}
+    - {name: T6, projection: [m, n6], output: True}
+    shape:
+    - 0 <= n5 < 2048
+    - 0 <= n6 < 2048
 
-  # - name: Matmul7
-  #   tensor_accesses:
-  #   - {name: T6, projection: [m, n6]}
-  #   - {name: W6, projection: [n6, n7]}
-  #   - {name: T7, projection: [m, n7], output: True}
-  #   shape:
-  #   - 0 <= n6 < 2048
-  #   - 0 <= n7 < 2048
+  - name: Matmul7
+    tensor_accesses:
+    - {name: T6, projection: [m, n6]}
+    - {name: W6, projection: [n6, n7]}
+    - {name: T7, projection: [m, n7], output: True}
+    shape:
+    - 0 <= n6 < 2048
+    - 0 <= n7 < 2048
 
-  # - name: Matmul8
-  #   tensor_accesses:
-  #   - {name: T7, projection: [m, n7]}
-  #   - {name: W7, projection: [n7, n8]}
-  #   - {name: T8, projection: [m, n8], output: True}
-  #   shape:
-  #   - 0 <= n7 < 2048
-  #   - 0 <= n8 < 2048
+  - name: Matmul8
+    tensor_accesses:
+    - {name: T7, projection: [m, n7]}
+    - {name: W7, projection: [n7, n8]}
+    - {name: T8, projection: [m, n8], output: True}
+    shape:
+    - 0 <= n7 < 2048
+    - 0 <= n8 < 2048

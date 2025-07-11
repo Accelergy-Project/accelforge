@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import fastfusion.frontend.mapping as mapping_spec
-from fastfusion.frontend.mapping import Mapping, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern
+from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern
 from fastfusion.frontend.workload import (
     Workload,
     TensorName,
@@ -110,7 +110,32 @@ class AnalysisInfo:
 
     tensor_to_backing_storage_id: dict[TensorName, int]
 
+def quick_insert_reservation_nodes(    mapping: Mapping,
+    workload: Workload
+) -> list[MappingNode]:
+    mapping = list(mapping.nodes)
+    einsum_name = mapping[-1].einsum
 
+    einsum = workload.einsums[einsum_name]
+    all_tensors = einsum.input_tensors() | einsum.output_tensors()
+
+    tensor_to_relevancy = {
+        tensor: get_rank_variable_relevancy(einsum, tensor)
+        for tensor in all_tensors
+    }
+
+    info = AnalysisInfo(
+        mapping=None,
+        workload=workload,
+        full_rank_variable_shapes=None,
+        all_tensors=None,
+        einsum_tensor_to_projection=None,
+        tensor_to_relevancy=tensor_to_relevancy,
+        tensor_to_backing_storage_id=None,
+    )
+    insert_reservation_nodes(mapping, info)
+    return Mapping(nodes=mapping)
+    
 def analyze_reuse(
     mapping: Mapping,
     workload: Workload
@@ -290,7 +315,7 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         for tracker_idx in reversed(to_remove):
             tracker = trackers.pop(tracker_idx)
             buffet = tracker.buffet
-            node = Reservation(tensor=buffet.tensor, memory=buffet.level)
+            node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
             if tracker.insert_reservation_under:
                 reservation_insert_below.append(node)
             else:
@@ -584,8 +609,8 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
 
     child_result = analyze_node(node_idx+1, current_shape, info)
 
-    tensor = TensorName(node.tensor)
-    buffet = Buffet(tensor, einsum_name, node.memory)
+    tensor = TensorName(node.purpose)
+    buffet = Buffet(tensor, einsum_name, node.resource)
 
     # Reservation nodes are the first to produce stats for a buffet
     assert buffet not in child_result.buffet_stats
@@ -596,7 +621,7 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
         compute_dense_tile_occupancy(projection, current_shape)
     child_result.buffet_stats[buffet] = buffet_stats
 
-    fanout_key = (node.memory, einsum_name)
+    fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
         child_result.fanout[fanout_key] = {}
 

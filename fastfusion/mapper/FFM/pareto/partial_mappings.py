@@ -1,73 +1,23 @@
 from collections import defaultdict
 import copy
+import functools
 import itertools
 import re
 
 # Disable numba. We need user_has_package("numba") to be False
-import sys
-import time
-from typing import Any, Iterable, Optional, Tuple, Union, NamedTuple
+from typing import Iterable, Optional, Tuple, Union
 
-from joblib import delayed
-import numpy as np
-
-from fastfusion.frontend.workload.workload import EinsumName
+from fastfusion.frontend.mapping import Iteration, Nested
 from fastfusion.mapper.FFM.joining.mappinginfo import TensorStorage
 from fastfusion.util import fzs
-from fastfusion.util.util import parallel
 
-sys.modules["numba"] = None
+from fastfusion.accelerated_imports import pd
 
+from .df_convention import *
+from .pareto_impl import makepareto
 
-from paretoset import paretoset
-
-import pandas as pd
-import functools
-
-LOGSTRING = "__Mappings"
-MAPPING_COLUMN = "__MAPPING"
-STATS = "__STATS"
-OCCUPANCY = "__Occupancy"
-TENSORS = "__TENSORS"
-IN_PROGRESS_STATS = "__IN_PROGRESS_STATS"
-MAPPING_HASH = "__MAPPING_HASH"
-TAGS_COLUMN = "__TAGS"
-PER_COMPONENT_ACCESSES_ENERGY = "Per-Component Energy"
-COMPRESSED_INDEX = "__COMPRESSED_INDEX"
-
-DICT_COLUMNS = set(
-    [
-        LOGSTRING,
-        MAPPING_COLUMN,
-        STATS,
-        TENSORS,
-        IN_PROGRESS_STATS,
-        MAPPING_HASH,
-        TAGS_COLUMN,
-        PER_COMPONENT_ACCESSES_ENERGY,
-    ]
-)
-RESERVED_COLUMNS = DICT_COLUMNS
-
-TUPLABE_COLUMNS = set([MAPPING_COLUMN, TENSORS])
 
 CHECK_CORRECTNESS = False
-
-_resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
-
-_resource_name_tensor_reg = re.compile(r"RESOURCE_(.+?)_LEVEL_(.+?)")
-
-def dict_cached(func):
-    cache = {}
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        key = (args, fzs(kwargs.items()))
-        if key not in cache:
-            cache[key] = func(*args, **kwargs)
-        return cache[key]
-
-    return wrapper
 
 def error_check_wrapper(func):
     if not CHECK_CORRECTNESS:
@@ -96,205 +46,6 @@ def error_check_wrapper(func):
             func(*args, **kwargs) # For debugging
     return wrapper
 
-@dict_cached
-def col2nameloop(x):
-    m = _resource_name_nloops_reg.match(x)
-    return (m.group(1), int(m.group(2))) if m is not None else None
-
-
-@dict_cached
-def nameloop2col(name, nloops, left: bool = False):
-    if left:
-        return f"RESOURCE_{name}_LEFT_LEVEL_{nloops}"
-    return f"RESOURCE_{name}_LEVEL_{nloops}"
-
-@dict_cached
-def tensor2col(tensor):
-    return f"TENSOR_{tensor}"
-
-@dict_cached
-def col2nametensor(col):
-    m = _resource_name_tensor_reg.match(col)
-    return (m.group(1), m.group(2)) if m is not None else None
-
-@dict_cached
-def col2nameloopleft(x):
-    m = _resource_name_nloops_reg.match(x)
-    return (m.group(1), int(m.group(2)), is_left_col(x)) if m is not None else None
-
-def is_reservation_col(x):
-    return col2nameloop(x) is not None
-
-@dict_cached
-def is_left_col(x):
-    return "_LEFT_LEVEL_" in x
-
-def add_to_col(df, target, source):
-    df.loc[:, target] = df[target] + df[source] if target in df else df[source]
-
-
-def max_to_col(df, target, source):
-    df.loc[:, target] = df[[target, source]].max(axis=1) if target in df else df[source]
-
-
-def is_special_col(c):
-    return c in RESERVED_COLUMNS or col2nameloop(c) is not None
-
-def col_used_in_pareto(c):
-    return col2nameloop(c) is not None or c.startswith("metric_")
-# Pipeline:
-# - Need to share temporal loops up to the spatial loop index
-#   Resources:
-#   - Energy
-#   - PE utilization
-#   - Buf utilization
-#   - Buf accesses (for BW calculation later)
-
-# - Options:
-#   - Non-pipelined: Sum resources above shared loops, max below.
-#   - Pipelined: Sum resources above shared loops, max below. Sum
-#     PE utilization. Latency is pipeline latency summed.
-#
-#  *  Can't bake into compatiblity unless we have a notion of left vs.
-#     right pipelined.
-
-# PIPELINE CHANGES REQUIRED:
-# - Latency above above loop index (first tile), below (all subsequent tiles)
-# - Compatibility includes information for how may be fused:
-#   - Pipelined: Max below latencies,
-#   - Non-pipelined:
-# Shared resources:
-# -
-# SEQUENTIAL:
-# - In parallel: Fetch all above-shared-loop resources for all operations
-# - Sequentially: Fetch any below-shared-loop resources for all operations
-# PIPELINE:
-# - In parallel: Fetch all above-shared-loop resources for all operations
-# - Sequentially: Fetch any below-shared-loop resources for the first iteration of all operations
-# - In parallel: Fetch all below-shared-loop resources for all operations in all subsequent iterations
-
-
-# Above index 0: Freed when Einsum fully terminates
-# Above index 1: Freed after each iteration of the outermost loop
-
-# -1 -> global resource
-# 0 -> einsum only
-
-# Shared index -1: Sum -1 resources, max everyone below
-# Shared index 0: Sum 0 resources, max everyone below
-
-def dominates(a: pd.Series, b: pd.Series) -> bool:
-    return all(a[i] <= b[i] for i in range(len(a)))
-
-def check_dominance(df: pd.DataFrame, n_optimal: int):
-    # mask = np.zeros(len(df), dtype=bool)
-    # mask[:new_point] = True
-    mask = np.zeros(len(df) - n_optimal, dtype=bool)
-    for col in df.columns:
-        compare = df.iloc[n_optimal - 1][col]
-        mask = mask | (df[col].iloc[n_optimal:] < compare)
-    return np.concatenate([np.ones(n_optimal, dtype=bool), mask])
-
-
-def quickpareto(df: pd.DataFrame) -> pd.DataFrame:
-    # Step 1: Sort by the column with the most unique values
-    # Step 2: Extract the first row. Add it to the pareto set
-    # Step 3: Remove all dominated points
-    # Step 4: Repeat until no more points to add
-    
-    # Step 1: Sort by the column with the most unique values
-    original_len = len(df)
-    col_to_sort = max(df.columns, key=lambda c: df[c].nunique())
-    df = df.sort_values(by=col_to_sort).drop(columns=[col_to_sort])
-    
-    new_point = 0
-    while new_point < len(df):
-        mask = check_dominance(df, new_point + 1)
-        df = df[mask]
-        new_point += 1
-        
-    # Turn the index into a mask
-    mask = np.zeros(original_len, dtype=bool)
-    mask[df.index] = True
-    return mask
-
-from fast_pareto import is_pareto_front
-def makepareto_quick2(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    m2 = mappings[columns]
-    m2 = m2[is_pareto_front(m2.to_numpy())].drop_duplicates()
-    return mappings.loc[m2.index]
-    
-def makepareto_quick(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    return mappings[quickpareto(mappings[columns])]
-
-def paretofy_chunk(chunk):
-    return paretoset(chunk)
-
-def makepareto_merge(mappings: pd.DataFrame, columns: list[str], parallelize: bool = False) -> pd.DataFrame:
-    chunk_size = 10000
-    if len(mappings) <= 1:
-        return mappings
-    
-    to_chunk = mappings[columns]
-    chunks = parallel(
-        [delayed(paretofy_chunk)(chunk)
-        for chunk in [to_chunk[i:i+chunk_size] for i in range(0, len(to_chunk), chunk_size)]],
-        n_jobs = 1 if parallelize else None
-    )
-    mappings = mappings[np.concatenate(chunks)]
-    return mappings[paretoset(mappings[columns])]
-
-def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    t0 = time.time()
-    pareto = makepareto_merge(mappings, columns)
-    t1 = time.time()
-    merge_time = t1 - t0
-    print(f"Time to make pareto with merge: {t1 - t0: .2f}. Number of pareto points: {len(pareto)}")
-    
-    t0 = time.time()
-    pareto2 = makepareto_quick2(mappings, columns)
-    t1 = time.time()
-    print(f"Time to make pareto with quick: {t1 - t0: .2f}. Number of pareto points: {len(pareto2)}")
-    quick_time = t1 - t0
-    
-    print(f'Quick is {quick_time / merge_time: .2f}x slower')
-    
-    if len(pareto) != len(pareto2):
-        print(f"mismatch: {len(pareto)} != {len(pareto2)}")
-        makepareto_quick2(mappings)
-        
-    return pareto2
-
-
-def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False) -> pd.DataFrame:
-    # return makepareto_time_compare(mappings)
-    if columns is None:
-        columns = [c for c in mappings.columns if col_used_in_pareto(c)]
-    return makepareto_merge(mappings, columns, parallelize=parallelize)
-    if len(mappings) <= 1:
-        return mappings
-    columns = [c for c in mappings.columns if col_used_in_pareto(c)]
-    sense = ["min"] * len(columns)
-    columns += list(extra_columns)
-    sense += ["diff"] * len(extra_columns)
-    return mappings[paretoset(mappings[columns], sense=sense)]
-    
-class DecompressData(NamedTuple):
-    prefix: EinsumName
-    decompress_data: pd.DataFrame
-    extra_data: dict[str, Any]
-    
-    def compressed_index_column(self):
-        return f"{self.prefix}{COMPRESSED_INDEX}"
-    
-    
-class GroupedDecompressData(NamedTuple):
-    prefix2datalist: dict[EinsumName, dict[int, DecompressData]]
-    
-    def register_decompress_data(self, einsum_name: EinsumName, job_id: int, decompress_data: DecompressData, ):
-        target = self.prefix2datalist.setdefault(einsum_name, {})
-        assert job_id not in target
-        target[job_id] = decompress_data
 
 class PartialMappings:
     def __init__(
@@ -304,9 +55,10 @@ class PartialMappings:
             fill_reservation_cols: set | str = fzs(),
             check_above_subset_below: bool = CHECK_CORRECTNESS,
             max_right_to_left: bool = False,
-            free_to_loop_index: int = None,
+            next_shared_loop_index: int = None,
             parallelize_pareto: bool = False,
             n_pmappings: int = None,
+            limit_capacity_drop_valid_reservations: bool = True,
         ):
         self._data: pd.DataFrame = data
         self.right_reservations: dict[set] = None
@@ -317,8 +69,9 @@ class PartialMappings:
         self._make_reservations()
         self.n_pmappings = n_pmappings if n_pmappings is not None else len(self.data)
 
-        if free_to_loop_index is not None:
-            self.free_to_loop_index(free_to_loop_index)
+        if next_shared_loop_index is not None:
+            self.free_to_loop_index(loop_index=next_shared_loop_index)
+            self.limit_capacity(resource2capacity={}, next_shared_loop_index=next_shared_loop_index, drop_valid_reservations=limit_capacity_drop_valid_reservations)
 
         if fill_reservation_cols: # Affects PartialMappings so must go before
             self.fill_reservation_cols(fill_reservation_cols)
@@ -628,6 +381,7 @@ class PartialMappings:
                 raise ValueError(f"{target} is not used in pareto")
             if col2nameloop(target) is None:
                 df.loc[:, target] += df[source]
+                
         df = df.drop(columns=dropcols)
         n_pmappings = self.n_pmappings * right.n_pmappings
         result = PartialMappings(df, skip_pareto=True, check_above_subset_below=False, n_pmappings=n_pmappings)
@@ -688,8 +442,7 @@ class PartialMappings:
 
             # We're creating a new column, so copy allocations from any parents
             source = self.get_reservation_or_parent(resource, level-1)
-            # source is None -> We're at the top level, no one to inherit from
-            self.data[target] = size + (self.data[source] if source else 0)
+            # source is None -> We're at the top        print(f"\t\tLEFT COLS: {self.mappings.data.columns}")
 
     @error_check_wrapper
     def adjust_reservations(
@@ -734,19 +487,17 @@ class PartialMappings:
         p = PartialMappings(self.data.copy(), skip_pareto=True, check_above_subset_below=False)
         p.parents = copy.deepcopy(self.parents)
         return p
-
+    
     def limit_capacity(
-        self, 
+        self,
         resource2capacity: dict[str, Optional[int]],
         next_shared_loop_index: int=None,
         drop_valid_reservations: bool = True,
     ) -> bool:
         resource2capacity = resource2capacity or {}
         dropcols = []
-        for resource, capacity in resource2capacity.items():
-            if capacity is None:
-                continue
-
+        for resource in sorted(set(self.right_reservations) | set(self.left_reservations)):
+            capacity = resource2capacity.get(resource, None)
             # Right reservations: Only check the greatest-index level. If a loop
             # is 0 and the next shared loop index is -1, then we can drop the
             # column.
@@ -754,7 +505,7 @@ class PartialMappings:
             if right_loops:
                 n = max(right_loops)
                 col = nameloop2col(resource, n)
-                self._data = self.data[self.data[col] <= capacity]
+                self._data = self.data[self.data[col] <= capacity] if capacity is not None else self.data
             for l in list(right_loops):
                 if l == 0 and next_shared_loop_index == -1 and drop_valid_reservations:
                     right_loops.discard(l)
@@ -765,7 +516,7 @@ class PartialMappings:
             left_loops = self.left_reservations.get(resource, set())
             for l in list(left_loops):
                 col = nameloop2col(resource, l, left=True)
-                self._data = self.data[self.data[col] <= capacity]
+                self._data = self.data[self.data[col] <= capacity] if capacity is not None else self.data
                 if l == 0 and drop_valid_reservations:
                     left_loops.discard(l)
                     dropcols.append(col)
@@ -881,88 +632,20 @@ class PartialMappings:
         graph.add_node(pydot.Node("data", label=data_str, shape="plaintext"))
         with open(to_file, "wb") as f:
             f.write(graph.create_png())
-            
-    def prefix_data(self, prefix: str):
-        rename = lambda col: f"{prefix}_{col}" if not col_used_in_pareto(col) else col
-        self.data.rename(columns=rename, inplace=True)
-        
-    # def _compress_data(self, prefix: EinsumName = None, job_id: int = None) -> pd.DataFrame:
-    #     compressed_index_col = pd.Series(self.data.index)
-    #     keep_cols = [c for c in self.data.columns if col_used_in_pareto(c)]
-    #     recovery = self.data[[c for c in self.data.columns if c not in keep_cols]].copy()
-    #     self._data = self.data[keep_cols].copy()
-    #     self.data[COMPRESSED_INDEX] = compressed_index_col.apply(lambda x: (job_id, x))
-    #     recovery[COMPRESSED_INDEX] = compressed_index_col
-    #     if prefix is not None:
-    #         recovery.rename(columns={c: f"{prefix}{c}" for c in recovery.columns}, inplace=True)
-    #         self.data.rename(columns={COMPRESSED_INDEX: f"{prefix}{COMPRESSED_INDEX}"}, inplace=True)
-    #     assert len(recovery.columns) == len(set(recovery.columns)), f"Duplicate columns in {recovery.columns}"
-    #     return recovery
-    def _compress_data(self, prefix: EinsumName = None, job_id: int = None) -> pd.DataFrame:
-        self.data[COMPRESSED_INDEX] = self.data.index
-        keep_cols = [COMPRESSED_INDEX] + [c for c in self.data.columns if col_used_in_pareto(c)]
-        # recovery = self.data[[c for c in self.data.columns if c not in keep_cols] + [COMPRESSED_INDEX]]
-        # self._data = self.data[keep_cols]
-        recovery = self.data # TODO: We may want to use the above if compressing uses too much memory
-        self._data = self.data[keep_cols].copy()
-        self._data[COMPRESSED_INDEX] = self._data[COMPRESSED_INDEX].apply(lambda x: (job_id, x))
-        if prefix is not None:
-            recovery.rename(columns={c: f"{prefix}{c}" for c in recovery.columns}, inplace=True)
-            self.data.rename(columns={COMPRESSED_INDEX: f"{prefix}{COMPRESSED_INDEX}"}, inplace=True)
-        return recovery
 
-    def _decompress_data(self, prefix: EinsumName, decompress_data: list[DecompressData]):
-        src_idx_col = f"{prefix}{COMPRESSED_INDEX}"
-        rows = []
-        extra_data = []
-        for r in self.data[src_idx_col]:
-            assert isinstance(r, tuple), \
-                f"Expected tuple, got {type(r)}. Was register_decompress_data called with this Pareto?"
-            assert len(r) == 2, f"Expected tuple of length 2, got {r}"
-            data_index, row_index = r
-            data = decompress_data[data_index]
-            # Find the row in the data with src_idx_col == row_index
-            row = data.decompress_data[data.decompress_data[src_idx_col] == row_index]
-            assert len(row) == 1, f"Expected 1 row, got {len(row)}"
-            rows.append(row)
-            extra_data.append(data.extra_data)
-            
-        new_df = pd.concat(rows)
-        extra_data_df = pd.DataFrame(extra_data)
 
-        # Drop the src_idx_col
-        self.data.drop(columns=[src_idx_col], inplace=True)
-        # Reset index to avoid duplicate index values that cause InvalidIndexError
-        a = new_df.reset_index(drop=True)
-        b = extra_data_df.reset_index(drop=True)
-        c = self.data.reset_index(drop=True)
-        self._data = pd.concat([a, b, c], axis=1)
-        self._data.drop(columns=[src_idx_col], inplace=True)
-                
-    def decompress(self, decompress_data: GroupedDecompressData):
-        for einsum_name, decompress_data_list in decompress_data.prefix2datalist.items():
-            assert decompress_data_list, f"No decompress data found for {einsum_name}"
-            self._decompress_data(einsum_name, decompress_data_list)
-        
+def row2pmappings(row: pd.Series, einsum_names: list[str], rank_variable_bounds: dict[str, dict[str, int]]) -> list[Nested]:
+    from fastfusion.frontend.mapping import Fill, Reservation
+    pmappings: list[Nested] = []
+    for einsum_name in einsum_names:
+        pmapping: Nested = copy.deepcopy(row[f"{einsum_name}_{MAPPING_COLUMN}"])
+        tile_shape_reg = einsum_name + r"___tile_shape\d+"
+        tile_shapes = list(row[[c for c in row.index if re.match(tile_shape_reg, c)]])
+        for node in pmapping.nodes:
+            if isinstance(node, Iteration):
+                node.tile_shape = tile_shapes.pop(0)
+        pmapping.clear_nodes_of_type(Fill)
+        pmappings.append(pmapping)
+        pmapping.beautify_loops(rank_variable_bounds)
+    return pmappings
 
-    @classmethod
-    def compress_paretos(cls, prefix: EinsumName, paretos: list["PartialMappings"], job_id: int, extra_data: dict[str, Any]) -> DecompressData:
-        index = 0
-        decompress_data = []
-        for p in paretos:
-            p.data.reset_index(drop=True, inplace=True)
-            p.data.index += index
-            index += len(p.data)
-            decompress_data.append(p._compress_data(prefix, job_id))
-            
-        decompress_data = pd.concat(decompress_data) if decompress_data else pd.DataFrame()
-        decompress_data.reset_index(drop=True, inplace=True)
-        return DecompressData(
-            prefix=prefix,
-            decompress_data=decompress_data,
-            extra_data={f"{prefix}{k}": v for k, v in extra_data.items()},
-        )
-        
-    def _tuplefy_compress_data(self, index: int, decompress_data: DecompressData):
-        col = decompress_data.compressed_index_column()
-        self.data[col] = self.data[col].apply(lambda x: (index, x))

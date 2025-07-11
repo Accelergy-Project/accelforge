@@ -15,6 +15,7 @@ class Metrics(Flag):
     DEBUG = auto()
     PER_COMPONENT_ACCESSES_ENERGY = auto()
     MAPPING = auto()
+    RESOURCE_USAGE = auto()
 
     @classmethod
     def all_metrics(cls):

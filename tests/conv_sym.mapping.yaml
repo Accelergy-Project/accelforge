@@ -10,12 +10,12 @@ mapping:
   - !Spatial
     rank_variable: r
     tile_shape: symbol
-    dimension: 0
+    dimension: X
     across: LocalBuffer
   - !Spatial
     rank_variable: m
     tile_shape: symbol
-    dimension: 0
+    dimension: X
     across: LocalBuffer
   - !Storage
     tensors: [I]

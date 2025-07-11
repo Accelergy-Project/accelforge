@@ -127,7 +127,7 @@ def eval_set_expression(
     symbol_table: dict[str, InvertibleSet],
     expected_space_name: str,
     location: str,
-    injective: bool = False
+    expected_count: int | None = None
 ) -> InvertibleSet:
     try:
         result = eval(expression, {"__builtins__": {}}, symbol_table)
@@ -135,9 +135,9 @@ def eval_set_expression(
             raise TypeError(
                 f"Returned a non-InvertibleSet with type {type(result)}: {result}"
             )
-        if injective and len(result) != 1:
+        if expected_count is not None and len(result) != expected_count:
             raise ValueError(
-                f"injective=True, returned a set with {len(result)} elements: {result.instance}"
+                f"Expected {expected_count=} elements, got {len(result)}: {result.instance}"
             )
         if result.space_name != expected_space_name:
             raise ValueError(
