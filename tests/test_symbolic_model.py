@@ -159,10 +159,10 @@ class TestSymbolicActions(unittest.TestCase):
         result = analyze_reuse(mapping, workload)
         actions = gather_actions(result, None, use_name=True)
 
-        self.assertAlmostEqual(actions[('LocalBuffer', 'read')].total, 192.0)
-        self.assertAlmostEqual(actions[('LocalBuffer', 'read')].max_per_unit, 48.0)
-        self.assertAlmostEqual(actions[('LocalBuffer', 'write')].total, 192.0)
-        self.assertAlmostEqual(actions[('LocalBuffer', 'write')].max_per_unit, 48.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'read')].total, 128.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'read')].max_per_unit, 32.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'write')].total, 128.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'write')].max_per_unit, 32.0)
 
         self.assertAlmostEqual(actions[('MAC', 'compute')].total, 64.0)
         self.assertAlmostEqual(actions[('MAC', 'compute')].max_per_unit, 16.0)
