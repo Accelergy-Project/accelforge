@@ -230,13 +230,17 @@ class Job:
                                 self.spec.workload,
                                 self.rank_variable_bounds,
                                 self.stride_and_halo)
+            
+    @property
+    def is_copy_operation(self) -> bool:
+        return self.spec.workload.einsums[self.einsum_name].is_copy_operation
 
 
 class SameSpecJobs(list[Job]):
     @property
     def spec(self) -> Specification:
         return first(self).spec
-    
+
     @property
     def rank_variable_bounds(self) -> dict[RankVariableName, int]:
         return first(self).rank_variable_bounds
@@ -244,7 +248,7 @@ class SameSpecJobs(list[Job]):
     @property
     def tagger(self) -> Callable[[Mapping], Tags]:
         return first(self).tagger
-    
+
     @property
     def metrics(self) -> metrics.Metrics:
         return first(self).metrics
@@ -271,6 +275,10 @@ class SameEinsumJobs(SameSpecJobs):
     @property
     def stride_and_halo(self) -> dict[tuple[str, str], dict[tuple[str, str], tuple[int, int]]]:
         return first(self).stride_and_halo
+
+    @property
+    def is_copy_op(self) -> bool:
+        return first(self).is_copy_operation
 
 
 class SameCompatibilityJobs(SameEinsumJobs):

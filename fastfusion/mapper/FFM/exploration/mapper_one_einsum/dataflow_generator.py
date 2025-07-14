@@ -9,9 +9,10 @@ from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
 from .bypass_keep_generator import make_storage_choices_all_levels
-
+from fastfusion.frontend.workload.workload import EinsumName
 
 def get_storage_choices(
+    einsum_name: EinsumName,
     nodes: list[architecture.Memory],
     symbol_table: SymbolTable,
     spec: Specification,
@@ -20,10 +21,10 @@ def get_storage_choices(
         nodes = nodes[1:]
     first_storage = nodes[0]
 
-    def collect_tensors(storage_nodes: list[Storage]):
-        return {tensor for storage in storage_nodes for tensor in storage.tensors}
+    tensors = spec.workload.einsums[einsum_name].tensor_names
+    copy_source_tensor = spec.workload.einsums[einsum_name].copy_source_tensor()
 
-    for choice, symbol_table in make_storage_choices_all_levels(nodes, symbol_table):
+    for choice, symbol_table in make_storage_choices_all_levels(nodes, symbol_table, is_copy_op=is_copy_op):
         all_storage_nodes = []
         for v in choice.values():
             all_storage_nodes.extend(v)
@@ -34,18 +35,17 @@ def get_storage_choices(
                 all_storage_nodes.remove(node)
                 base_mapping.append(node)
                 
-        tensors_in_mapping = collect_tensors(all_storage_nodes)
         required_order = get_dataflow_constraint(
-            nodes, symbol_table, tensors_in_mapping
+            nodes, symbol_table, tensors
         )
 
         for mapping in recursive_order_storage_choices(
-            base_mapping, nodes, all_storage_nodes, required_order, spec
+            einsum_name, tensors, base_mapping, nodes, all_storage_nodes, required_order, spec, is_copy_op
         ):
             yield mapping, symbol_table
 
 
-def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
+def get_dataflow_constraint(nodes, symbol_table, tensors):
     required_order: dict[str, list[Order]] = {}
     for node in nodes:
         constraint = node.constraints.dataflow._parse(
@@ -58,7 +58,7 @@ def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
                     in_mapping_together_tensors = [
                         tensor
                         for tensor in together_tensors
-                        if tensor in tensors_in_mapping
+                        if tensor in tensors
                     ]
                     if len(in_mapping_together_tensors) == 1:
                         only_tensor = in_mapping_together_tensors[0]
@@ -71,23 +71,49 @@ def get_dataflow_constraint(nodes, symbol_table, tensors_in_mapping):
 
 
 def recursive_order_storage_choices(
+    einsum_name: EinsumName,
+    tensors: set[TensorName],
     mapping: Sequence[MappingNode],
     nodes: list[architecture.Memory],
     remaining_choices: list,
     required_order: list[list[Storage]],
     spec: Specification,
+    is_copy_op: bool = False,
 ) -> Generator[list[MappingNode], None, None]:
+    
+    def check_has_tensors(mapping: list[MappingNode]):
+        storage_nodes = [node for node in mapping if isinstance(node, Storage)]
+        tensors_in_mapping = {tensor for storage in storage_nodes for tensor in storage.tensors}
+        if tensors_in_mapping != tensors:
+            raise ValueError(
+                f"Einsum {einsum_name} has a mapping that is missing tensors. Ensure that "
+                f"there is a storage node for each tensor in the Einsum. Missing tensors: "
+                f"{tensors - tensors_in_mapping}. Mapping:\n\t" + "\n\t".join(
+                    m.compact_string() for m in mapping
+                )
+            )
+    
     mapping = list(mapping)
     if not remaining_choices:
+        check_has_tensors(mapping)
         yield mapping
         return
+    
+    # If it's a copy op and there's a storage node for each tensor, then return immediately
+    if is_copy_op:
+        storage_nodes = [node for node in mapping if isinstance(node, Storage)]
+        seen_tensors = {tensor for storage in storage_nodes for tensor in storage.tensors}
+        if seen_tensors == tensors:
+            check_has_tensors(mapping)
+            yield mapping
+            return
 
     for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
         if valid_storage_order(mapping, [n.name for n in nodes], required_order, spec):
             yield from recursive_order_storage_choices(
-                mapping, nodes, new_remaining, required_order, spec
+                einsum_name, tensors, mapping, nodes, new_remaining, required_order, spec, is_copy_op,
             )
         mapping.pop()
 

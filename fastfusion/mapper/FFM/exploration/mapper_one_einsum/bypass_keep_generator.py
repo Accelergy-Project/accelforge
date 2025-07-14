@@ -13,6 +13,7 @@ def make_storage_choices_one_level(
     node: architecture.Leaf,
     symbol_table: dict[str, InvertibleSet],
     seen_tensors: set[TensorName] = (),
+    is_copy_op: bool = False,
 ) -> Generator[tuple[list[Storage], SymbolTable, set[TensorName]], None, None]:
     """
     Generate combinations of storage nodes based on keep and bypass
@@ -52,6 +53,11 @@ def make_storage_choices_one_level(
 
     may_keep = tensors - must_bypass - must_keep
 
+    # No reuse in copy operations, so no need to keep tensors in more places
+    if is_copy_op:
+        may_keep -= tensors.to_my_space(seen_tensors)
+
+
     for subset in powerset(sorted(may_keep, key=str)):
         # Make keep choice & update symbol table
         subset = tensors.to_my_space(set(subset))
@@ -84,6 +90,7 @@ def make_storage_choices_all_levels(
     nodes: list[Storage],
     symbol_table: dict[str, InvertibleSet],
     seen_tensors: set[TensorName] = None,
+    is_copy_op: bool = False,
 ) -> Generator[tuple[dict[str, list[Storage]], SymbolTable], None, None]:
     """
     Generate combinations of storage nodes based on keep and bypass
@@ -97,10 +104,10 @@ def make_storage_choices_all_levels(
         yield dict(), symbol_table
         return
     for choice, symbol_table, new_seen_tensors in make_storage_choices_one_level(
-        nodes[0], symbol_table, seen_tensors
+        nodes[0], symbol_table, seen_tensors, is_copy_op
     ):
         for subchoices, symbol_table in make_storage_choices_all_levels(
-            nodes[1:], symbol_table, new_seen_tensors
+            nodes[1:], symbol_table, new_seen_tensors, is_copy_op
         ):
             yield {**subchoices, nodes[0].name: choice}, symbol_table
 

@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -17,7 +18,7 @@ from fastfusion.frontend.workload.symbolic import (
     PartiallyRelevant
 )
 
-from fastfusion.util.sympy.broadcast_max import Max
+from fastfusion.util.sympy.broadcast_max import Min, Max
 
 import sympy
 
@@ -59,23 +60,126 @@ class Uninitialized:
 
     def __add__(self, other):
         return self
+    
+def min_nonzero(a: Any, b: Any) -> Any:
+    if a == 0:
+        return b
+    if b == 0:
+        return a
+    return Min(a, b)
 
 
 @dataclass
 class BuffetStats:
-    total_fills: Any = field(default=0)
-    max_per_unit_fills: Any = field(default=0)
-    reads_to_peer: Any = field(default=0)
     total_reads_to_parent: Any = field(default=0)
+    total_writes_to_parent: Any = field(default=0)
     max_per_parent_reads_to_parent: Any = field(default=0)
-    occupancy: Any = field(default=0)
+    max_per_parent_writes_to_parent: Any = field(default=0)
+    
+    total_reads_to_peer: Any = field(default=0)
+    total_writes_to_peer: Any = field(default=0)
+    max_per_unit_reads_to_peer: Any = field(default=0)
+    max_per_unit_writes_to_peer: Any = field(default=0)
+
+    # Skip the first iteration of temporal loops for data that is written
+    total_skipped_first_reads_to_parent: Any = field(default=0)
+    total_skipped_first_reads_to_peer: Any = field(default=0)
+    min_per_parent_skipped_first_reads_to_parent: Any = field(default=0)
+    min_per_unit_skipped_first_writes_to_peer: Any = field(default=0)
+
+    max_occupancy: Any = field(default=0)
     n_loops_above: int = field(default=0)
 
+    # These are used to calculate energy and latency
+    total_write_actions: Any = field(default=0)
+    max_per_unit_write_actions: Any = field(default=0)
+    total_read_actions: Any = field(default=0)
+    max_per_unit_read_actions: Any = field(default=0)
+
+    total_skipped_first_write_actions: Any = field(default=0)
+    min_per_unit_skipped_first_write_actions: Any = field(default=0)
+    total_skipped_first_read_actions: Any = field(default=0)
+    min_per_unit_skipped_first_read_actions: Any = field(default=0)
+    
+    def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
+        new = copy.copy(self)
+        for attr in self.__dict__:
+            if not attr.startswith(("total_", "max_", "min_")):
+                continue
+            if "skipped_first" in attr and not is_fully_relevant:
+                continue  # First actions occur once per relevant iteration.
+            if attr == "max_occupancy":
+                continue  # Max occupancy is not affected by temporal loops above
+            setattr(new, attr, getattr(new, attr) * factor)
+        return new
+    
+    def repeat_spatial(self, factor: int, reuse_parent_accesses: bool) -> "BuffetStats":
+        new = copy.copy(self)
+        for attr in self.__dict__:
+            if not attr.startswith(("total_", "max_", "min_")):
+                continue
+            if "parent" in attr and reuse_parent_accesses:
+                continue  # If parent accesses are reused, no need to multiply
+            if "per_unit" in attr:
+                continue  # Spatial fanout doesn't affect per-unit stats
+            if attr == "max_occupancy":
+                continue  # Max occupancy is not affected by temporal loops above
+            setattr(new, attr, getattr(new, attr) * factor)
+        return new
+    
+    def max(self, **kwargs: Any):
+        for key, value in kwargs.items():
+            setattr(self, key, Max(getattr(self, key), value))
+            
+    def min(self, **kwargs: Any):
+        for key, value in kwargs.items():
+            setattr(self, key, Min(getattr(self, key), value))
+    
+    def __add__(self, other: "BuffetStats") -> "BuffetStats":
+        new = copy.copy(self)
+        for attr in self.__dict__:
+            if attr.startswith("min_"):
+                setattr(new, attr, min_nonzero(getattr(self, attr), getattr(other, attr)))
+            elif attr.startswith("max_"):
+                setattr(new, attr, Max(getattr(self, attr), getattr(other, attr)))
+            elif attr.startswith("total_"):
+                setattr(new, attr, getattr(self, attr) + getattr(other, attr))
+        return new
+    
+    def __iadd__(self, other: "BuffetStats") -> "BuffetStats":
+        new = self + other
+        for key, value in new.__dict__.items():
+            setattr(self, key, value)
+        return self
+    
+    def net_total_read_actions(self) -> Any:
+        return self.total_read_actions - self.total_skipped_first_read_actions
+    
+    def net_total_write_actions(self) -> Any:
+        return self.total_write_actions - self.total_skipped_first_write_actions
+    
+    def net_max_per_unit_read_actions(self) -> Any:
+        return self.max_per_unit_read_actions - self.min_per_unit_skipped_first_read_actions
+    
+    def net_max_per_unit_write_actions(self) -> Any:
+        return self.max_per_unit_write_actions - self.min_per_unit_skipped_first_write_actions
 
 @dataclass
 class ComputeStats:
     total_ops: Any = field(default=0)
     max_per_unit_ops: Any = field(default=0)
+    
+    def repeat_temporal(self, factor: int) -> "ComputeStats":
+        new = copy.copy(self)
+        new.total_ops *= factor
+        new.max_per_unit_ops *= factor
+        return new
+    
+    def __add__(self, other: "ComputeStats") -> "ComputeStats":
+        new = copy.copy(self)
+        new.total_ops += other.total_ops
+        new.max_per_unit_ops += other.max_per_unit_ops
+        return new
 
 
 @dataclass
@@ -89,11 +193,47 @@ class SummarizedAnalysisOutput:
 
     temporal_steps: dict = field(default_factory=dict)
 
-    # Elidable reads of output tensor
-    elidable_reads: dict = field(default_factory=dict)
-
     symbols: list = field(default_factory=list)
 
+    def get_buffet_for_tensor(self, tensor: TensorName) -> Buffet:
+        for buffet in self.buffet_stats:
+            if buffet.tensor == tensor:
+                return buffet
+        raise ValueError(f"Buffet for tensor {tensor} not found")
+
+    def max(self, **kwargs: Any):
+        for key, value in kwargs.items():
+            assert key in [
+                'compute_stats',
+                'stats',
+                'fanout',
+                'temporal_steps',
+            ]
+            previous = getattr(self, key)
+            for k, v in value.items():
+                previous.setdefault(k, {})
+                for k2, v2 in v.items():
+                    if k2 in previous[k]:
+                        previous[k][k2] = Max(previous[k][k2], v2)
+                    else:
+                        previous[k][k2] = v2
+
+    def get_child_buffet_stats(self, buffet: Buffet) -> BuffetStats:
+        seen = False
+        for child_buffet, child_stats in reversed(self.buffet_stats.items()):
+            if not seen:
+                seen = child_buffet == buffet
+                continue
+            if child_buffet.tensor == buffet.tensor:
+                return child_stats
+        return None
+
+    def sum_buffet_stats_per_level(self) -> dict[str, BuffetStats]:
+        result: dict[str, BuffetStats] = {}
+        for buffet, stats in self.buffet_stats.items():
+            result.setdefault(buffet.level, BuffetStats())
+            result[buffet.level] += stats
+        return result
 
 @dataclass
 class AnalysisInfo:
@@ -107,10 +247,12 @@ class AnalysisInfo:
 
     einsum_tensor_to_projection: dict
     tensor_to_relevancy: dict
-
     tensor_to_backing_storage_id: dict[TensorName, int]
 
-def quick_insert_reservation_nodes(    mapping: Mapping,
+    is_copy_operation: TensorName | None
+
+def quick_insert_reservation_nodes(
+    mapping: Mapping,
     workload: Workload
 ) -> list[MappingNode]:
     mapping = list(mapping.nodes)
@@ -132,17 +274,59 @@ def quick_insert_reservation_nodes(    mapping: Mapping,
         einsum_tensor_to_projection=None,
         tensor_to_relevancy=tensor_to_relevancy,
         tensor_to_backing_storage_id=None,
+        is_copy_operation=None,
     )
     insert_reservation_nodes(mapping, info)
     return Mapping(nodes=mapping)
+
+
+def convert_to_copy(mapping: list[MappingNode], workload: Workload) -> tuple[list[MappingNode], dict[TensorName, int]]:
+    mapping = copy.deepcopy(mapping)
+
+    # Calculate this BEFORE we modify the mapping. We're going to have the copy
+    # source tensor moving upward sometimes, and we don't want the backing storage
+    tensor_to_backing_storage_id = get_tensor_to_backing_storage_id(mapping)
+    
+    first_input_tensor = workload.einsums[mapping[-1].einsum].copy_source_tensor()
+    
+    for node in mapping:
+        if isinstance(node, Storage):
+            if node.tensors:
+                node.tensors = [first_input_tensor]
+                node._lower = False
+
+    to_remove = []
+    i = 0
+    while i < len(mapping):
+        node = mapping[i]
+        if isinstance(node, Storage):
+            j = i+1
+            while j < len(mapping):
+                node2 = mapping[j]
+                if isinstance(node2, Storage) and node.memory == node2.memory:
+                    mapping.pop(j)
+                else:
+                    j += 1
+        i += 1
+    mapping = [node for node in mapping if node not in to_remove]
+    
+    return mapping, tensor_to_backing_storage_id
+
+    
     
 def analyze_reuse(
     mapping: Mapping,
-    workload: Workload
+    workload: Workload,
 ) -> SummarizedAnalysisOutput:
     mapping = mapping.nodes
     einsum_name = mapping[-1].einsum
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
+    
+    is_copy_operation = workload.einsums[einsum_name].is_copy_operation
+    if is_copy_operation:
+        mapping, tensor_to_backing_storage_id = convert_to_copy(mapping, workload)
+    else:
+        tensor_to_backing_storage_id = get_tensor_to_backing_storage_id(mapping)
 
     einsum_tensor_to_projection = {}
     einsum = workload.einsums[einsum_name]
@@ -155,7 +339,7 @@ def analyze_reuse(
         tensor: get_rank_variable_relevancy(einsum, tensor)
         for tensor in all_tensors
     }
-
+    
     info = AnalysisInfo(
         mapping=mapping,
         workload=workload,
@@ -164,13 +348,15 @@ def analyze_reuse(
         all_tensors=all_tensors,
         einsum_tensor_to_projection=einsum_tensor_to_projection,
         tensor_to_relevancy=tensor_to_relevancy,
-        tensor_to_backing_storage_id=get_tensor_to_backing_storage_id(mapping),
+        tensor_to_backing_storage_id=tensor_to_backing_storage_id,
+        is_copy_operation=is_copy_operation,
     )
     symbols = insert_sympy_symbols(mapping)
 
     insert_reservation_nodes(mapping, info)
-
+    
     result = analyze_node(0, einsum_shape, info)
+
     result.symbols = symbols
 
     return result
@@ -188,12 +374,13 @@ def get_tensor_to_backing_storage_id(mapping: Mapping):
 
 
 class ReservationAnalysisTracker:
-    def __init__(self, buffet):
+    def __init__(self, buffet, node):
         self.buffet: Buffet = buffet
+        self.node: Storage = node
 
         # These are interface (TODO: should be property)
         self.is_fill_level = False
-        self.is_should_stop = False
+        self.should_stop = False
         self.insert_reservation_under = False
         self.insert_fill_under = False
 
@@ -210,9 +397,9 @@ class ReservationAnalysisTracker:
                 self.is_fill_level = True
                 self.has_filled = True
 
-            self.is_should_stop = True
+            self.should_stop = True
         elif isinstance(relevancy, Relevant):
-            self.is_should_stop = False
+            self.should_stop = False
         elif isinstance(relevancy, PartiallyRelevant):
             self.last = True
 
@@ -220,28 +407,27 @@ class ReservationAnalysisTracker:
                 self.is_fill_level = True
                 self.has_filled = True
 
-            self.is_should_stop = True
+            self.should_stop = True
             self.insert_reservation_under = True
         else:
             raise ValueError(f'Unknown relevancy {relevancy}')
 
     def track_compute(self):
-        self.is_should_stop = True
+        self.should_stop = True
         if not self.has_filled:
             self.is_fill_level = True
             self.has_filled = True
 
     def track_spatial_loop(self, relevancy, node):
         if node.across != self.buffet.level:
-            self.is_should_stop = True
+            self.should_stop = True
             if not self.has_filled:
                 self.is_fill_level = True
                 self.has_filled = True
             return
 
         self.is_fill_level = False
-        self.is_should_stop = False
-
+        self.should_stop = False
 
 def insert_reservation_nodes(mapping, info: AnalysisInfo):
     trackers: list[ReservationAnalysisTracker] = []
@@ -260,7 +446,7 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_temporal_loop(relevancy[rank], node)
 
-                if tracker.is_should_stop:
+                if tracker.should_stop:
                     to_remove.append(tracker_idx)
         elif isinstance(node, Spatial):
             rank = node.rank_variable
@@ -268,13 +454,13 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_spatial_loop(relevancy[rank], node)
 
-                if tracker.is_should_stop:
+                if tracker.should_stop:
                     to_remove.append(tracker_idx)
         elif isinstance(node, Storage):
             for tensor in node.tensors:
                 tensor = TensorName(tensor)
                 buffet = Buffet(tensor, mapping[-1].einsum, node.memory)
-                trackers.append(ReservationAnalysisTracker(buffet))
+                trackers.append(ReservationAnalysisTracker(buffet, node))
                 if (
                     not node._lower
                     or
@@ -289,7 +475,7 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
             for tracker_idx, tracker in enumerate(trackers):
                 tracker.track_compute()
 
-                if tracker.is_should_stop:
+                if tracker.should_stop:
                     to_remove.append(tracker_idx)
         elif isinstance(node, Reservation):
             pass
@@ -335,21 +521,19 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         n_nodes = len(mapping)
 
 
-def analyze_node(node_idx, current_shape, info: AnalysisInfo):
+def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnalysisOutput:
     node = info.mapping[node_idx]
-    if isinstance(node, Temporal):
-        return analyze_temporal(node_idx, current_shape, info)
-    elif isinstance(node, Spatial):
-        return analyze_spatial(node_idx, current_shape, info)
-    elif isinstance(node, Storage):
-        return analyze_storage(node_idx, current_shape, info)
-    elif isinstance(node, Reservation):
-        return analyze_reservation(node_idx, current_shape, info)
-    elif isinstance(node, mapping_spec.Compute):
-        return analyze_compute(node_idx, current_shape, info)
-    elif isinstance(node, Fill):
-        return analyze_fill(node_idx, current_shape, info)
-
+    class2analysis_function = {
+        Temporal: analyze_temporal,
+        Spatial: analyze_spatial,
+        Storage: analyze_storage,
+        Reservation: analyze_reservation,
+        mapping_spec.Compute: analyze_compute,
+        Fill: analyze_fill,
+    }
+    if type(node) not in class2analysis_function:
+        raise TypeError(f"Unknown node type {type(node)}")
+    return class2analysis_function[type(node)](node_idx, current_shape, info)
 
 def analyze_temporal(node_idx,
                      current_shape,
@@ -366,64 +550,31 @@ def analyze_temporal(node_idx,
 
         child_shape = current_shape.copy()
         child_shape[node.rank_variable] = shape_value
-
+        
         child_result = analyze_node(node_idx+1, child_shape, info)
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
-        for buffet, buffet_stats in child_result.buffet_stats.items():
-            if buffet not in accumulated_buffet_stats:
-                accumulated_stats = BuffetStats()
-            else:
-                accumulated_stats = accumulated_buffet_stats[buffet]
-
-            accumulated_stats.total_reads_to_parent += \
-                buffet_stats.total_reads_to_parent * shape_repeats
-            accumulated_stats.max_per_parent_reads_to_parent += \
-                buffet_stats.max_per_parent_reads_to_parent * shape_repeats
-            accumulated_stats.reads_to_peer += \
-                buffet_stats.reads_to_peer * shape_repeats
-            accumulated_stats.total_fills += \
-                buffet_stats.total_fills * shape_repeats
-            accumulated_stats.max_per_unit_fills += \
-                buffet_stats.max_per_unit_fills * shape_repeats
-            accumulated_stats.occupancy = Max(
-                accumulated_stats.occupancy, buffet_stats.occupancy
-            )
-
-            accumulated_stats.n_loops_above = buffet_stats.n_loops_above + 1
-
-            accumulated_buffet_stats[buffet] = accumulated_stats
-
+        for buffet, stats in child_result.buffet_stats.items():
+            relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
+            
+            accumulated_stats = accumulated_buffet_stats.setdefault(buffet, BuffetStats())
+            accumulated_stats += stats.repeat_temporal(shape_repeats, is_fully_relevant=isinstance(relevancy, Relevant))
+            accumulated_stats.n_loops_above = stats.n_loops_above + 1
+            
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
                 result_accumulator.temporal_steps[einsum] = 0
             result_accumulator.temporal_steps[einsum] += child_steps*shape_repeats
 
-        for key, child_fanout in child_result.fanout.items():
-            if key not in result_accumulator.fanout:
-                result_accumulator.fanout[key] = child_fanout
-                continue
-            acc_fanout = result_accumulator.fanout[key]
-
-            for dim in child_fanout:
-                if dim in acc_fanout:
-                    acc_fanout[dim] = Max(acc_fanout[dim], child_fanout[dim])
-                else:
-                    acc_fanout[dim] = child_fanout[dim]
+        result_accumulator.max(fanout=child_result.fanout)
 
         for key in child_result.compute_stats:
-            if key not in result_accumulator.compute_stats:
-                result_accumulator.compute_stats[key] = ComputeStats()
-            compute_stats = result_accumulator.compute_stats[key]
-            compute_stats.total_ops += \
-                child_result.compute_stats[key].total_ops * shape_repeats
-            compute_stats.max_per_unit_ops += \
-                child_result.compute_stats[key].max_per_unit_ops * shape_repeats
+            compute_stats = result_accumulator.compute_stats.setdefault(key, ComputeStats())
+            compute_stats += child_result.compute_stats[key].repeat_temporal(shape_repeats)
+            result_accumulator.compute_stats[key] = compute_stats
 
-        for tensor, child_elidable in child_result.elidable_reads.items():
-            if tensor not in result_accumulator.elidable_reads:
-                result_accumulator.elidable_reads[tensor] = 0
-            result_accumulator.elidable_reads[tensor] += child_elidable*shape_repeats
+
+
 
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
@@ -457,43 +608,14 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
         for buffet, buffet_stats in child_result.buffet_stats.items():
-            if buffet not in accumulated_buffet_stats:
-                accumulated_stats = BuffetStats()
-            else:
-                accumulated_stats = accumulated_buffet_stats[buffet]
-
+            stats = buffet_stats
+            accumulated_stats = accumulated_buffet_stats.setdefault(buffet, BuffetStats())
             relevancy = info.tensor_to_relevancy[buffet.tensor][rank_var]
-            if buffet.level == node.across and isinstance(relevancy, Irrelevant):
-                accumulated_stats.total_reads_to_parent = buffet_stats.total_reads_to_parent
-                accumulated_stats.max_per_parent_reads_to_parent = buffet_stats.max_per_parent_reads_to_parent
-            elif buffet.level == node.across:
-                accumulated_stats.total_reads_to_parent += \
-                    buffet_stats.total_reads_to_parent * shape_repeats
-                accumulated_stats.max_per_parent_reads_to_parent += \
-                    buffet_stats.max_per_parent_reads_to_parent * shape_repeats
-            else:
-                accumulated_stats.total_reads_to_parent += \
-                    buffet_stats.total_reads_to_parent * shape_repeats
-                accumulated_stats.max_per_parent_reads_to_parent = Max(
-                    accumulated_stats.max_per_parent_reads_to_parent,
-                    buffet_stats.max_per_parent_reads_to_parent
-                )
-
-            accumulated_stats.reads_to_peer = 0  # TODO: peer-to-peer support
-
-            accumulated_stats.total_fills += \
-                buffet_stats.total_fills * shape_repeats
-            accumulated_stats.max_per_unit_fills = Max(
-                accumulated_stats.max_per_unit_fills,
-                buffet_stats.max_per_unit_fills
+            accumulated_stats += stats.repeat_spatial(
+                shape_repeats,
+                reuse_parent_accesses=isinstance(relevancy, Irrelevant) and buffet.level == node.across
             )
-            accumulated_stats.occupancy = Max(
-                accumulated_stats.occupancy, buffet_stats.occupancy
-            )
-
-            accumulated_stats.n_loops_above = buffet_stats.n_loops_above + 1
-
-            accumulated_buffet_stats[buffet] = accumulated_stats
+            accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
@@ -505,59 +627,29 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 )
 
         my_key = (node.across, einsum_name)
+        child_result.fanout.setdefault(my_key, {})
 
-        for key in child_result.fanout:
-            child_fanout = child_result.fanout[key]
+        # Propagate up everything except the current level and dimension
+        child_fanout = copy.deepcopy(child_result.fanout)
+        target_fanout = child_fanout[my_key].pop(node_dim, 1)
+        result_accumulator.max(fanout=child_fanout)
 
-            if key not in result_accumulator.fanout:
-                if key == my_key:
-                    fanout = {}
-                    for dim in child_fanout:
-                        if dim == node_dim:
-                            fanout[dim] = child_fanout[dim]*shape_repeats
-                        else:
-                            fanout[dim] = child_fanout[dim]
-                    result_accumulator.fanout[key] = fanout
-                else:
-                    result_accumulator.fanout[key] = child_fanout
-                continue
-            fanout = result_accumulator.fanout[key]
-
-            if key == my_key:
-                for dim in child_fanout:
-                    if dim in fanout and dim == node_dim:
-                        fanout[dim] += child_fanout[dim]*shape_repeats
-                    elif dim in fanout:
-                        fanout[dim] = Max(fanout[dim], child_fanout[dim])
-                    else:
-                        fanout[dim] = child_fanout[dim]
-            else:
-                for dim in child_fanout:
-                    if dim in fanout:
-                        fanout[dim] = Max(fanout[dim], child_fanout[dim])
-                    else:
-                        fanout[dim] = child_fanout[dim]
-                        
-        result_accumulator.fanout.setdefault(my_key, {}).setdefault(node.dimension, shape_repeats)
+        # Prpoagate current level and dimension * shape_repeats
+        child_fanout = child_result.fanout[my_key]
+        fanout = result_accumulator.fanout.setdefault(my_key, {})
+        fanout.setdefault(node_dim, 0)  # TODO: Assume sympy can just take in 0
+        # TODO: If node_dim was missing, the original code would have omitted
+        # shape_repeats. Is this correct?
+        fanout[node_dim] += target_fanout * shape_repeats
 
         for key in child_result.compute_stats:
-            if key not in result_accumulator.compute_stats:
-                result_accumulator.compute_stats[key] = ComputeStats()
-            compute_stats = result_accumulator.compute_stats[key]
-            compute_stats.total_ops += \
-                child_result.compute_stats[key].total_ops * shape_repeats
-            if compute_stats.max_per_unit_ops == 0:
-                compute_stats.max_per_unit_ops = child_result.compute_stats[key].max_per_unit_ops
-            else:
-                compute_stats.max_per_unit_ops = Max(
-                    compute_stats.max_per_unit_ops,
-                    child_result.compute_stats[key].max_per_unit_ops
-                )
-
-        for tensor, child_elidable in child_result.elidable_reads.items():
-            if tensor not in result_accumulator.elidable_reads:
-                result_accumulator.elidable_reads[tensor] = 0
-            result_accumulator.elidable_reads[tensor] += child_elidable*shape_repeats
+            compute_stats = result_accumulator.compute_stats.setdefault(key, ComputeStats())
+            compute_stats.total_ops += child_result.compute_stats[key].total_ops * shape_repeats
+            # TODO: If check omitted
+            compute_stats.max_per_unit_ops = Max( # TODO: Assume sympy can just take in 0
+                compute_stats.max_per_unit_ops,
+                child_result.compute_stats[key].max_per_unit_ops
+            )
 
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
@@ -570,6 +662,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     return result_accumulator
 
 
+
 def reduce_dicts(dict1: dict, dict2: dict, reduce_op):
     for key in dict1:
         if key not in dict2:
@@ -577,6 +670,18 @@ def reduce_dicts(dict1: dict, dict2: dict, reduce_op):
         else:
             dict2[key] = reduce_op(dict1[key], dict2[key])
 
+def get_total_to_per_unit(total, max_per_unit):
+    if total == 0 and max_per_unit != 0:
+        raise ValueError(f"total is 0 but max_per_unit is {max_per_unit}")
+    if total == 0:
+        return 1
+    return max_per_unit / total
+
+def has_parent_storage(tensor: TensorName, node_idx: int, info: AnalysisInfo) -> bool:
+    for node in info.mapping[:node_idx]:
+        if isinstance(node, Storage) and tensor in node.tensors:
+            return True
+    return False
 
 def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
@@ -588,17 +693,78 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
     for tensor in node.tensors:
         tensor = TensorName(tensor)
         buffet = Buffet(tensor, einsum_name, node.memory)
-        buffet_stats = child_result.buffet_stats[buffet]
-        buffet_stats.reads_to_peer = 0  # TODO: peer-to-peer support
+        stats = child_result.buffet_stats.setdefault(buffet, BuffetStats())
+        backer_id = info.tensor_to_backing_storage_id[tensor]
+        is_backing = backer_id == id(node)
+        below_backing = backer_id in [id(m) for m in mapping[:node_idx]]
 
-        if (
-            id(node) == info.tensor_to_backing_storage_id[tensor]
-            and tensor in info.workload.einsums[einsum_name].output_tensors()
-        ):
-            projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-            child_result.elidable_reads[tensor] = \
-                compute_dense_tile_occupancy(projection, current_shape)
+        projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
+        
+        fills = compute_dense_tile_occupancy(projection, current_shape)
+        
+        # ==============================================================================
+        # Calculate the total fills and reads to parent. These propagate upward.
+        # ==============================================================================
+        if has_parent_storage(tensor, node_idx, info):
+            # Initial fetch: If we're below the backing storage, fetch data from above
+            # at the beginning.
+            if not is_backing and below_backing:
+                stats.total_reads_to_parent += fills
+                stats.max_per_parent_reads_to_parent += fills
 
+            # Data writeback. Do not writeback if it's a copy operation and we're below
+            # the backing storage; data only flows upward.
+            
+            # Writeback occurs in two cases: 
+            # - We're at or above the backing storage, so we need to propagate our
+            #   results upward to any storage nodes that will need this data.
+            # - This is a written tensor, so we need to write back the written data.
+            if tensor in info.workload.tensors_written_by_einsum(einsum_name) or not below_backing:
+                stats.total_writes_to_parent += fills
+                stats.max_per_parent_writes_to_parent += fills
+
+            # For read+write tensors, we skip the first fill because the data will be
+            # initialized with a zero value.
+            if tensor in info.workload.tensors_written_by_einsum(einsum_name):
+                stats.total_skipped_first_reads_to_parent += fills
+                stats.min_per_parent_skipped_first_reads_to_parent += fills
+
+        # ==============================================================================
+        # Convert to actions. These are not used used upward; they are used to get
+        # energy and latency.
+        # ==============================================================================
+        
+        # ==========================
+        # Data exchanges with parent
+        stats.total_write_actions += stats.total_reads_to_parent
+        stats.max_per_unit_write_actions += stats.total_reads_to_parent
+
+        # Comment this to have the final writeback to a buffer hit both that buffer and
+        # go directly to the parent without incurring another read from the buffer.
+        stats.total_read_actions += stats.total_writes_to_parent
+        stats.max_per_unit_read_actions += stats.total_writes_to_parent
+
+        stats.total_skipped_first_write_actions += stats.total_skipped_first_reads_to_parent
+        stats.min_per_unit_skipped_first_write_actions += stats.min_per_parent_skipped_first_reads_to_parent
+
+        # ========================
+        # Data exchanges with peer
+        stats.total_read_actions += stats.total_reads_to_peer
+        stats.total_write_actions += stats.total_reads_to_peer
+
+        # =========================
+        # Data exchanges with child
+        if (child := child_result.get_child_buffet_stats(buffet)) is not None:
+            stats.total_read_actions += child.total_reads_to_parent
+            stats.max_per_unit_read_actions += child.max_per_parent_reads_to_parent
+
+            stats.total_write_actions += child.total_writes_to_parent
+            stats.max_per_unit_write_actions += child.max_per_parent_writes_to_parent
+
+            # Skip first read
+            stats.total_skipped_first_read_actions += child.total_skipped_first_reads_to_parent
+            stats.min_per_unit_skipped_first_read_actions += child.min_per_parent_skipped_first_reads_to_parent
+        
     return child_result
 
 
@@ -610,16 +776,17 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     child_result = analyze_node(node_idx+1, current_shape, info)
 
     tensor = TensorName(node.purpose)
+    
     buffet = Buffet(tensor, einsum_name, node.resource)
 
     # Reservation nodes are the first to produce stats for a buffet
     assert buffet not in child_result.buffet_stats
 
-    buffet_stats = BuffetStats()
+    stats = BuffetStats()
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-    buffet_stats.occupancy = \
+    stats.max_occupancy = \
         compute_dense_tile_occupancy(projection, current_shape)
-    child_result.buffet_stats[buffet] = buffet_stats
+    child_result.buffet_stats[buffet] = stats
 
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
@@ -634,18 +801,20 @@ def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnaly
     node = mapping[node_idx]
 
     child_result = analyze_node(node_idx+1, current_shape, info)
-    
+    return child_result
+
     tensor = node.tensor
     buffet = Buffet(tensor, mapping[-1].einsum, node.memory)
 
-    buffet_stats = child_result.buffet_stats[buffet]
+    stats = child_result.buffet_stats[buffet]
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-    buffet_stats.total_fills = \
+    stats.total_fills = \
         compute_dense_tile_occupancy(projection, current_shape)
-    buffet_stats.max_per_unit_fills = buffet_stats.total_fills
-    buffet_stats.total_reads_to_parent = buffet_stats.total_fills
-    buffet_stats.max_per_parent_reads_to_parent = \
-        buffet_stats.total_reads_to_parent
+
+    stats.max_per_unit_fills = stats.total_fills
+    stats.total_reads_to_parent = stats.total_fills
+    stats.max_per_parent_reads_to_parent = \
+        stats.total_reads_to_parent
 
     return child_result
 
@@ -655,21 +824,31 @@ def analyze_compute(node_idx,
                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
     einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
+    
+    computes = 0 if info.is_copy_operation else 1
 
     result_accumulator = SummarizedAnalysisOutput()
-    result_accumulator.temporal_steps[einsum] = 1
-    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(1, 1)
+    
+    result_accumulator.temporal_steps[einsum] = computes
+    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(computes, computes)
+    
+    if info.is_copy_operation:
+        return result_accumulator
 
     for tensor in info.all_tensors:
         buffet = Buffet(tensor, einsum, node.compute)
-        buffet_stats = BuffetStats()
-        buffet_stats.total_fills = 1
-        buffet_stats.max_per_unit_fills = 1
-        buffet_stats.reads_to_peer = 0
-        buffet_stats.total_reads_to_parent = 1
-        buffet_stats.max_per_parent_reads_to_parent = 1
-        buffet_stats.occupancy = 1
-        result_accumulator.buffet_stats[buffet] = buffet_stats
+        stats = BuffetStats()
+        stats.total_reads_to_parent = 1
+        stats.max_per_parent_reads_to_parent = 1
+        if tensor in info.workload.tensors_written_by_einsum(einsum):
+            stats.total_writes_to_parent = 1
+            stats.max_per_parent_writes_to_parent = 1
+            stats.total_skipped_first_reads_to_parent = 1
+            stats.total_skipped_first_reads_to_peer = 1
+            stats.min_per_parent_skipped_first_reads_to_parent = 1
+            stats.min_per_unit_skipped_first_writes_to_peer = 1
+        stats.max_occupancy = 1
+        result_accumulator.buffet_stats[buffet] = stats
 
     return result_accumulator
 

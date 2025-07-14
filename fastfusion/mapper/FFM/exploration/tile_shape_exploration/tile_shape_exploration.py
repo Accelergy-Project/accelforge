@@ -698,7 +698,7 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
         if buffet.level == compute_unit:
             continue
 
-        occupancy = stats.occupancy*memory_to_datawidth[buffet.level]
+        occupancy = stats.max_occupancy*memory_to_datawidth[buffet.level]
 
         if (
             buffet.tensor in tensor_to_backing

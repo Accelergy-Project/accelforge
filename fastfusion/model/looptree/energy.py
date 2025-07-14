@@ -1,14 +1,12 @@
-from collections.abc import Mapping
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
 from typing import Any
 from numbers import Real
 
 from fastfusion.frontend.component_energy import ComponentEnergy
-from fastfusion.model.looptree.mapping_utilities import get_einsums_with_complete_mappings
-from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions
-
-# from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
-
+from fastfusion.model.looptree.reuse.summarized.symbolic import SummarizedAnalysisOutput
+from fastfusion.frontend.workload import Workload
+from fastfusion.frontend.mapping import Mapping
 
 @dataclass
 class ActionCount:
@@ -20,16 +18,11 @@ class ActionCount:
         return ActionCount(0, 0)
 
 
-def gather_actions(looptree_results, mapping, workload, bindings, is_path=False, use_name=False):
-    einsums_with_complete_mapping = \
-        get_einsums_with_complete_mappings(mapping.nodes, workload, is_path)
-
-    accesses_stats = buffer_accesses_from_buffet_actions(looptree_results,
-                                                         mapping,
-                                                         workload,
-                                                         is_path)
+def gather_actions(looptree_results: SummarizedAnalysisOutput, mapping: Mapping, workload: Workload, bindings: dict[str, str], is_path=False, use_name=False):
     actions: dict[tuple, ActionCount] = {}
-    for (buf, tensor, einsum), accesses in accesses_stats.items():
+    for buffet, accesses in looptree_results.buffet_stats.items():
+        buf = buffet.level
+        
         if use_name:
             buf = buf
         else:
@@ -38,17 +31,17 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False,
         key = (buf, 'read')
         if key not in actions:
             actions[key] = ActionCount.default()
-        actions[key].total += accesses.total_reads
-        actions[key].max_per_unit += accesses.max_per_unit_reads
+        actions[key].total += accesses.net_total_read_actions()
+        actions[key].max_per_unit += accesses.net_max_per_unit_read_actions()
 
         key = (buf, 'write')
         if key not in actions:
             actions[key] = ActionCount.default()
-        actions[key].total += accesses.total_writes
-        actions[key].max_per_unit += accesses.max_per_unit_writes
+        actions[key].total += accesses.net_total_write_actions()
+        actions[key].max_per_unit += accesses.net_max_per_unit_write_actions()
 
-    # ops = gather_ops(looptree_results.per_einsum_ops, einsums_with_complete_mapping)
     for compute, ops in looptree_results.compute_stats.items():
+        
         key = (compute.level, 'compute')
         if key not in actions:
             actions[key] = ActionCount.default()
@@ -58,7 +51,7 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False,
     return actions
 
 
-def compute_energy_from_actions(action_counts: Mapping[(str, str), Real],
+def compute_energy_from_actions(action_counts: MappingABC[(str, str), Real],
                                 ert: ComponentEnergy):
     energy_result = {}
     for (component, action), counts in action_counts.items():
@@ -73,17 +66,3 @@ def compute_energy_from_actions(action_counts: Mapping[(str, str), Real],
         energy_result[(component, action)] = counts.total*energy_per_ac
 
     return energy_result
-
-
-def gather_ops(ops, einsums_with_complete_mapping):
-    total = 0
-    for einsum_id, (tags, v) in ops.items():
-        if einsum_id not in einsums_with_complete_mapping:
-            continue
-        if isinstance(v, isl.PwQPolynomial):
-            total += get_sum_of_pw_qpolynomial(v)
-        elif isinstance(v, Real):
-            total += v
-        else:
-            total += v
-    return total

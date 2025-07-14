@@ -6,10 +6,10 @@ from fastfusion.frontend import Specification
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import Workload
 
-from fastfusion.model.looptree.accesses import buffer_accesses_from_buffet_actions, Accesses
+from fastfusion.model.looptree.accesses import isl_buffer_accesses_from_buffet_actions, Accesses
 from fastfusion.model.looptree.energy import gather_actions
 from fastfusion.model.looptree.latency import get_latency
-from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse, Compute, Buffet
+from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, analyze_reuse, Compute, Buffet
 
 
 PARENT_DIR = Path(__file__).parent
@@ -22,9 +22,8 @@ class TestSymbolicModel(unittest.TestCase):
 
         result = analyze_reuse(mapping, workload)
 
-        self.assertEqual(result.compute_stats[Compute('Q', 'MAC')].total_ops, 64.0)
-        self.assertEqual(result.compute_stats[Compute('Q', 'MAC')].max_per_unit_ops, 16.0)
-        self.assertEqual(result.elidable_reads['Q'], 16)
+        self.assertAlmostEqual(result.compute_stats[Compute('Q', 'MAC')].total_ops, 64.0)
+        self.assertAlmostEqual(result.compute_stats[Compute('Q', 'MAC')].max_per_unit_ops, 16.0)
 
     def test_conv_mapping(self):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'conv.mapping.yaml')
@@ -32,9 +31,8 @@ class TestSymbolicModel(unittest.TestCase):
 
         result = analyze_reuse(mapping, workload)
 
-        self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].total_ops, 120.0)
-        self.assertEqual(result.compute_stats[Compute('conv', 'MAC')].max_per_unit_ops, 10.0)
-        self.assertEqual(result.elidable_reads['O'], 20)
+        self.assertAlmostEqual(result.compute_stats[Compute('conv', 'MAC')].total_ops, 120.0)
+        self.assertAlmostEqual(result.compute_stats[Compute('conv', 'MAC')].max_per_unit_ops, 10.0)
 
     def test_matmul_mapping(self):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'matmul.mapping.yaml')
@@ -48,8 +46,8 @@ class TestSymbolicModel(unittest.TestCase):
             'T1': 128*128
         }
         for tensor, ref_occupancy in REF_OCCUPANCY.items():
-            self.assertEqual(
-                result.buffet_stats[Buffet(tensor, 'Matmul1', 'LocalBuffer')].occupancy,
+            self.assertAlmostEqual(
+                result.buffet_stats[Buffet(tensor, 'Matmul1', 'LocalBuffer')].max_occupancy,
                 ref_occupancy
             )
 
@@ -58,11 +56,67 @@ class TestSymbolicModel(unittest.TestCase):
         workload = Workload.from_yaml(PARENT_DIR / 'matmul.workload.yaml')
 
         result = analyze_reuse(mapping, workload)
-        self.assertEqual(
+        self.assertAlmostEqual(
             result.fanout,
             {('LocalBuffer', 'Matmul1'): {0: 128.0, 1: 4.0}, ('MainMemory', 'Matmul1'): {}}
         )
+        
+    def test_copy_mapping(self):
+        mapping = Mapping.from_yaml(PARENT_DIR / 'copy.mapping.yaml')
+        workload = Workload.from_yaml(PARENT_DIR / 'copy.workload.yaml')
 
+        result = analyze_reuse(mapping, workload)
+
+        self.assertAlmostEqual(result.compute_stats[Compute('copy', 'MAC')].total_ops, 0)
+        self.assertAlmostEqual(result.compute_stats[Compute('copy', 'MAC')].max_per_unit_ops, 0)
+        
+        for tensor in ["O1", "O2", "O3", "O4"]:
+            for memory in ["MainMemory", "GlobalBuffer", "LocalBuffer", "Register", "MAC"]:
+                buffet = Buffet(level=memory, tensor=tensor, einsum='copy')
+                if buffet not in result.buffet_stats:
+                    continue
+                stats = result.buffet_stats[buffet]
+                self.assertAlmostEqual(stats.net_total_read_actions(), 0)
+                self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 0)
+                self.assertAlmostEqual(stats.net_total_write_actions(), 0)
+                self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 0)
+                self.assertAlmostEqual(stats.max_occupancy, 0)
+                
+        buffet = Buffet(level='GlobalBuffer', tensor='I', einsum='copy')
+        stats = result.buffet_stats.get(buffet, BuffetStats())
+        self.assertAlmostEqual(stats.net_total_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 0)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 0)
+        self.assertAlmostEqual(stats.max_occupancy, 0)
+
+        stats = result.buffet_stats[Buffet(level='LocalBuffer', tensor='I', einsum='copy')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 16)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 16)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 0)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 0)
+        self.assertAlmostEqual(stats.max_occupancy, 2)
+
+        stats = result.buffet_stats[Buffet(level='Register', tensor='I', einsum='copy')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 8)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 8)
+        self.assertAlmostEqual(stats.max_occupancy, 1)
+
+        stats = result.buffet_stats[Buffet(level='MainMemory', tensor='I', einsum='copy')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 8)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 8)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 8)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 8)
+        self.assertAlmostEqual(stats.max_occupancy, 8)
+
+        stats = result.buffet_stats[Buffet(level='Disk', tensor='I', einsum='copy')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 8)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 8)
+        self.assertAlmostEqual(stats.max_occupancy, 8)
 
 class TestSymbolicAccesses(unittest.TestCase):
     def test_q_mapping(self):
@@ -71,35 +125,30 @@ class TestSymbolicAccesses(unittest.TestCase):
 
         result = analyze_reuse(mapping, workload)
 
-        accesses = buffer_accesses_from_buffet_actions(result, mapping, workload, is_path=True)
+        # main_memory_I_accesses = accesses.get_accesses('MainMemory', 'I', 'Q')
+        stats = result.buffet_stats[Buffet(level='MainMemory', tensor='I', einsum='Q')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 64.0)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 64.0)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 0.0)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 0.0)
 
-        main_memory_I_accesses = accesses.get_accesses('MainMemory', 'I', 'Q')
-        self.assertEqual(main_memory_I_accesses,
-                         Accesses(total_reads=64.0,
-                                  total_writes=0.0,
-                                  max_per_unit_reads=64.0,
-                                  max_per_unit_writes=0.0))
+        stats = result.buffet_stats[Buffet(level='LocalBuffer', tensor='I', einsum='Q')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 64.0)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 16.0)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 64.0)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 16.0)
 
-        main_memory_Q_accesses = accesses.get_accesses('MainMemory', 'Q', 'Q')
-        self.assertEqual(main_memory_Q_accesses,
-                         Accesses(total_reads=0,
-                                  total_writes=16.0,
-                                  max_per_unit_reads=0,
-                                  max_per_unit_writes=16.0))
+        stats = result.buffet_stats[Buffet(level='MainMemory', tensor='Q', einsum='Q')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 0)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 16.0)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 16.0)
 
-        local_buffer_I_accesses = accesses.get_accesses('LocalBuffer', 'I', 'Q')
-        self.assertEqual(local_buffer_I_accesses,
-                         Accesses(total_reads=64.0,
-                                  total_writes=64.0,
-                                  max_per_unit_reads=16.0,
-                                  max_per_unit_writes=16.0))
-
-        local_buffer_Q_accesses = accesses.get_accesses('LocalBuffer', 'Q', 'Q')
-        self.assertEqual(local_buffer_Q_accesses,
-                         Accesses(total_reads=64.0,
-                                  total_writes=128.0,
-                                  max_per_unit_reads=16.0,
-                                  max_per_unit_writes=32.0))
+        stats = result.buffet_stats[Buffet(level='LocalBuffer', tensor='Q', einsum='Q')]
+        self.assertAlmostEqual(stats.net_total_read_actions(), 64.0)
+        self.assertAlmostEqual(stats.net_max_per_unit_read_actions(), 16.0)
+        self.assertAlmostEqual(stats.net_total_write_actions(), 64.0)
+        self.assertAlmostEqual(stats.net_max_per_unit_write_actions(), 16.0)
 
 
 class TestSymbolicActions(unittest.TestCase):
@@ -110,13 +159,13 @@ class TestSymbolicActions(unittest.TestCase):
         result = analyze_reuse(mapping, workload)
         actions = gather_actions(result, mapping, workload, None, is_path=True, use_name=True)
 
-        self.assertEqual(actions[('LocalBuffer', 'read')].total, 128.0)
-        self.assertEqual(actions[('LocalBuffer', 'read')].max_per_unit, 32.0)
-        self.assertEqual(actions[('LocalBuffer', 'write')].total, 192.0)
-        self.assertEqual(actions[('LocalBuffer', 'write')].max_per_unit, 48.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'read')].total, 192.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'read')].max_per_unit, 48.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'write')].total, 192.0)
+        self.assertAlmostEqual(actions[('LocalBuffer', 'write')].max_per_unit, 48.0)
 
-        self.assertEqual(actions[('MAC', 'compute')].total, 64.0)
-        self.assertEqual(actions[('MAC', 'compute')].max_per_unit, 16.0)
+        self.assertAlmostEqual(actions[('MAC', 'compute')].total, 64.0)
+        self.assertAlmostEqual(actions[('MAC', 'compute')].max_per_unit, 16.0)
 
 
 class TestSymbolicLatency(unittest.TestCase):
@@ -133,4 +182,7 @@ class TestSymbolicLatency(unittest.TestCase):
         result = analyze_reuse(mapping, workload)
         overall_latency, _, _ = get_latency(result, mapping, workload, architecture)
 
-        self.assertEqual(overall_latency, 16.0)
+        self.assertAlmostEqual(overall_latency, 16.0)
+
+if __name__ == '__main__':
+    unittest.main()

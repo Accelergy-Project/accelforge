@@ -26,17 +26,6 @@ def get_leaves(mapping: Mapping, is_path):
             yield node
 
 
-def get_einsums_with_complete_mappings(mapping: Mapping, workload: Workload, is_path):
-    einsums_with_complete_mappings = set()
-    for compute_node in get_leaves(mapping, is_path):
-        einsum = compute_node.compute
-        if 'incomplete' not in compute_node:
-            einsums_with_complete_mappings.add(einsum)
-        if 'incomplete' in compute_node and not compute_node['incomplete']:
-            einsums_with_complete_mappings.add(einsum)
-    return einsums_with_complete_mappings
-
-
 def get_intermediate_tensors(workload: Workload):
     result = set()
     for einsum in workload.einsum_id_to_name():

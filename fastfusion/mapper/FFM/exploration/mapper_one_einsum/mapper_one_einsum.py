@@ -227,7 +227,7 @@ def iterate_mappings_no_constraints(
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
     for mapping, symbol_table in get_storage_choices(
-        arch_flattened, symbol_table, spec
+        einsum_name, arch_flattened, symbol_table, spec
     ):
         mapping = copy.deepcopy(mapping)
         if spec.mapper_ffm.timeloop_style_even:
@@ -389,19 +389,21 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
         ),
         desc=f"Generating storage and loop choices for Einsum {job.einsum_name}",
     )
+    rank_variable_bounds = get_rank_variable_bounds(
+                job.spec.workload, job.einsum_name
+            )
 
     jobs = SameEinsumJobs()
     for i, (mapping, constraints) in enumerate(mappings_constraints):
-        new_job = copy.deepcopy(job)
+        new_job = copy.copy(job)
         new_job.mapping = mapping
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
         new_job.flattened_arch = job.flattened_arch
-        new_job.rank_variable_bounds = get_rank_variable_bounds(
-            job.spec.workload, job.einsum_name
-        )
+        new_job.rank_variable_bounds = rank_variable_bounds
         new_job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name,
-                                                                job.spec.workload)
+                                                                job.spec.workload,
+                                                                rank_variable_bounds)
         jobs.append(new_job)
 
     return jobs
@@ -414,6 +416,9 @@ def generate_pmappings(
     results = []
     
     job_ids = [job.job_id for job in jobs_with_similar_compatibilities]
+    
+    einsum_name = jobs_with_similar_compatibilities.einsum_name
+    spec = jobs_with_similar_compatibilities.spec
     
     for job in jobs_with_similar_compatibilities:
         result, n_pmappings = explore_tile_shapes(job)
@@ -515,7 +520,8 @@ def generate_pmappings(
         for tensor in intermediate_tensors:  # Sizes are all the same
             tensor2size[tensor] = mappings[tensor2col(tensor)].iloc[0]
             dropcols.append(tensor2col(tensor))
-        mappings.drop(columns=dropcols, inplace=True)
+        
+        mappings = mappings.drop(columns=dropcols)
 
         new_compatibility, null_loop_indices = compatibility_updater(tile_shape,
                                                                      tensor2size)
