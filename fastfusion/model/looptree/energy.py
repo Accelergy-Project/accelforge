@@ -20,8 +20,10 @@ class ActionCount:
 
 def gather_actions(looptree_results: SummarizedAnalysisOutput, bindings: dict[str, str], use_name=False):
     actions: dict[tuple[str, str], ActionCount] = {}
+    compute_levels = set(c.level for c in looptree_results.compute_stats)
+    
     for buffet, accesses in looptree_results.buffet_stats.items():
-        if buffet in looptree_results.compute_stats:
+        if buffet.level in compute_levels:
             continue
 
         buf = buffet.level
