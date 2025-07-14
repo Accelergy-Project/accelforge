@@ -124,7 +124,7 @@ class Reservation(Updatable):
                                        for loop in self.loops))
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True)
 class TensorStorage(Reservation):
     def rename(self,
                rank_renaming: dict[str, str],
@@ -142,7 +142,12 @@ class TensorStorage(Reservation):
         for t in all_tensors:
             id2tensor[t.name].append(t)
         return sorted(sorted(v)[0] for v in id2tensor.values())
-
+    
+    def __eq__(self, other):
+        return super().__eq__(other)
+    
+    def __hash__(self):
+        return super().__hash__()
 
 class SplitKind(Enum):
     SEQUENTIAL = 0
@@ -161,6 +166,20 @@ class Compatibility(Updatable):
     storage: fzs[TensorStorage]
     splits: fzs[Split] = fzs()
     tags: Tags = Tags(fzs())
+    
+    def __hash__(self):
+        if self.storage:
+            loop_bounds = tuple(l.bound for l in next(iter(self.storage)).loops)
+        else:
+            loop_bounds = tuple()
+        return hash((self.n_loops, loop_bounds, self.storage, self.tags))
+    
+    def __eq__(self, other):
+        if self.storage:
+            loop_bounds = tuple(l.bound for l in next(iter(self.storage)).loops)
+        else:
+            loop_bounds = tuple()
+        return (self.n_loops, loop_bounds, self.storage, self.tags) == (other.n_loops, loop_bounds, other.storage, other.tags)
 
     def __post_init__(self):
         assert isinstance(self.n_loops, int)
