@@ -105,10 +105,11 @@ def get_jobs(
     einsum2jobs = {}
     for einsum_name, jobs in parallel(
         [delayed(make_jobs_for_einsum)(einsum_name) for einsum_name in einsum_names],
-        pbar="Generating Jobs",
+        pbar="Generating jobs",
         return_as="generator",
     ):
-        print(f"Generated {sum(len(j) for j in jobs.values())} jobs for {einsum_name}")
+        n_jobs = sum(len(j) for j in jobs.values())
+        print(f"Generated {n_jobs} job{'s'[:n_jobs != 1]} for {einsum_name}")
         einsum2jobs[einsum_name] = jobs
 
     if fail_if_no_pmappings_for_einsum:
@@ -205,11 +206,6 @@ def get_sims(
         pbar=f"Generating pmappings",
         return_as="generator_unordered",
     ):
-        # grouped_decompress_data.register_decompress_data(
-        #     einsum_name,
-        #     job_ids,
-        #     decompress_data,
-        # )
         sims[einsum_name].extend(new_sims)
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
     return sims, pmapping_objects
