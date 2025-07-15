@@ -76,10 +76,10 @@ class TestPmappingExploration(unittest.TestCase):
 
         sim_cache = make_sim_pickle_cache(config_names)
 
-        sims, decompress_data = sim_cache.get(get_sims(spec))
+        sims, decompress_data = sim_cache.set(get_sims(spec))
         for per_einsum_sims in sims.values():
             for sim in per_einsum_sims:
-                print(sim)
+                print(sim.compatibility)
 
 
 class TestInitialDeltaGeneration(unittest.TestCase):
