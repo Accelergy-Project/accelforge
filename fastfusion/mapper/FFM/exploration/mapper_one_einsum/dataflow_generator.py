@@ -22,7 +22,7 @@ def get_storage_choices(
     first_storage = nodes[0]
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
-    copy_source_tensor = spec.workload.einsums[einsum_name].copy_source_tensor()
+    is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
 
     for choice, symbol_table in make_storage_choices_all_levels(nodes, symbol_table, is_copy_op=is_copy_op):
         all_storage_nodes = []
@@ -124,9 +124,6 @@ def valid_storage_order(
     required_orders: dict[str, list["Order"]],
     spec: Specification,
 ):
-    for node in mapping:
-        node._even_with_below = False
-
     memory_to_satisfied_constraints: dict[str, set] = {}
     for i in range(len(mapping)):
         for j in range(i, len(mapping)):
@@ -205,7 +202,6 @@ def valid_storage_order(
                     for tensor_j in mapping[j].tensors:
                         if order.index(tensor_i) != order.index(tensor_j):
                             continue
-                        mapping[i]._even_with_below = True
                 break
 
     return True
