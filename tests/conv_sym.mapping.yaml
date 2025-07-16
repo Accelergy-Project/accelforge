@@ -3,7 +3,7 @@ mapping:
   nodes:
   - !Storage
     tensors: [I, W, O]
-    memory: MainMemory
+    component: MainMemory
   - !Temporal
     rank_variable: c
     tile_shape: symbol
@@ -19,7 +19,7 @@ mapping:
     across: LocalBuffer
   - !Storage
     tensors: [I]
-    memory: LocalBuffer
+    component: LocalBuffer
   - !Temporal
     rank_variable: m
     tile_shape: symbol

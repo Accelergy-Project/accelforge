@@ -80,7 +80,7 @@ class Loop(Updatable):
 @dataclass(frozen=True)
 class Reservation(Updatable):
     # This order is important. Above loop index should be before resource name
-    # so when we sort reservations for tensors then the backing storage comes
+    # so when we sort reservations for tensors then the backing tensor holder comes
     # first.
     # Size is not included in hash or equality functions. This is because there
     # may be floating point rounding errors in reservation sizes. The other
@@ -125,19 +125,16 @@ class Reservation(Updatable):
 
 
 @dataclass(frozen=True)
-class TensorStorage(Reservation):
+class TensorReservation(Reservation):
     def rename(self,
                rank_renaming: dict[str, str],
-               tensor_renaming: dict[str, str]) -> "TensorStorage":
+               tensor_renaming: dict[str, str]) -> "TensorReservation":
         return replace(self,
                        name=tensor_renaming[self.name],
                        loops=tuple(l.rename(rank_renaming) for l in self.loops))
 
-    def to_yaml(self):
-        return {"type": "storage", **self.__dict__}
-
     @staticmethod
-    def get_backing_stores(all_tensors: set["TensorStorage"]) -> list["TensorStorage"]:
+    def get_backing_tensors(all_tensors: set["TensorReservation"]) -> list["TensorReservation"]:
         id2tensor = defaultdict(lambda: [])
         for t in all_tensors:
             id2tensor[t.name].append(t)
@@ -163,46 +160,46 @@ class Split:
 @dataclass(frozen=True)
 class Compatibility(Updatable):
     n_loops: int
-    storage: fzs[TensorStorage]
+    tensors: fzs[TensorReservation]
     splits: fzs[Split] = fzs()
     tags: Tags = Tags(fzs())
     
     def __hash__(self):
-        if self.storage:
-            loop_bounds = tuple(l.bound for l in next(iter(self.storage)).loops)
+        if self.tensors:
+            loop_bounds = tuple(l.bound for l in next(iter(self.tensors)).loops)
         else:
             loop_bounds = tuple()
-        return hash((self.n_loops, loop_bounds, self.storage, self.tags))
+        return hash((self.n_loops, loop_bounds, self.tensors, self.tags))
     
     def __eq__(self, other):
-        if self.storage:
-            loop_bounds = tuple(l.bound for l in next(iter(self.storage)).loops)
+        if self.tensors:
+            loop_bounds = tuple(l.bound for l in next(iter(self.tensors)).loops)
         else:
             loop_bounds = tuple()
-        return (self.n_loops, loop_bounds, self.storage, self.tags) == (other.n_loops, loop_bounds, other.storage, other.tags)
+        return (self.n_loops, loop_bounds, self.tensors, self.tags) == (other.n_loops, loop_bounds, other.tensors, other.tags)
 
     def __post_init__(self):
         assert isinstance(self.n_loops, int)
-        assert isinstance(self.storage, fzs)
+        assert isinstance(self.tensors, fzs)
         assert isinstance(self.splits, fzs)
         assert isinstance(self.tags, Tags)
 
     def get_backing_levels(self) -> dict[str, int]:
         backings = {}
-        for t in self.storage:
+        for t in self.tensors:
             prev = backings.get(t.name, t.above_loop_index)
             backings[t.name] = min(prev, t.above_loop_index)
         return backings
 
     @property
     def tensor_names(self) -> set[str]:
-        return {t.name for t in self.storage}
+        return {t.name for t in self.tensors}
 
     @property
     def max_above_loop_index(self) -> int:
-        if len(self.storage) == 0:
+        if len(self.tensors) == 0:
             return 0
-        return max(s.above_loop_index for s in self.storage)
+        return max(s.above_loop_index for s in self.tensors)
 
     def shared_loop_index(self, live_tensors: set[str]) -> int:
         n = [l for t, l in self.get_backing_levels().items() if t in live_tensors]
@@ -225,30 +222,30 @@ class Compatibility(Updatable):
         If `keep_loops` is `True`, then all loops are kept.
         If `keep_tensors` is a set, tensors in the set are kept.
         """
-        remaining_storages = fzs(s for s in self.storage if s.name in live_tensors)
+        remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
         if keep_loops:
             new_n_loops = self.n_loops
         else:
-            new_n_loops = max((len(s.loops) for s in remaining_storages), default=0)
+            new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
         new_splits = fzs(split for split in self.splits if split.n_loops <= new_n_loops)
         tags = self.tags if not drop_tags else Tags(fzs())
-        return Compatibility(new_n_loops, remaining_storages, new_splits, tags)
+        return Compatibility(new_n_loops, remaining_tensors, new_splits, tags)
 
     def __lt__(self, other):
-        return (self.loops, self.storage) < (other.loops, other.storage)
+        return (self.loops, self.tensors) < (other.loops, other.tensors)
 
     def __str__(self):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Compatibility(n_loops={self.n_loops}, storage={repr(self.storage)}), splits={repr(self.splits)}, tags={repr(self.tags)}"
+        return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}), splits={repr(self.splits)}, tags={repr(self.tags)}"
 
     def merge_next(
         self, right: "Compatibility", live_tensors: set[str]
     ) -> "Compatibility":
         return Compatibility(
             right.n_loops,
-            fzs(s for s in (self.storage | right.storage) if s.name in live_tensors),
+            fzs(s for s in (self.tensors | right.tensors) if s.name in live_tensors),
             right.tags,
         )
 
@@ -258,17 +255,17 @@ class Compatibility(Updatable):
         raise NotImplementedError()
         return replace(
             self,
-            storage=fzs(t.rename(rank_renaming, tensor_renaming)
-                        for t in self.storage),
+            tensors=fzs(t.rename(rank_renaming, tensor_renaming)
+                        for t in self.tensors),
             tags=self.tags,
         )
 
-    def has_tensor(self, *tensors: TensorStorage) -> bool:
-        return all(any(s == t for s in self.storage) for t in tensors)
+    def has_tensor(self, *tensors: TensorReservation) -> bool:
+        return all(any(s == t for s in self.tensors) for t in tensors)
 
     def all_n_loops(self) -> list["Compatibility"]:
-        min_n_loops = max(len(s.loops) for s in self.storage)
-        return [Compatibility(n_loops, self.storage, self.tags)
+        min_n_loops = max(len(s.loops) for s in self.tensors)
+        return [Compatibility(n_loops, self.tensors, self.tags)
                 for n_loops in range(min_n_loops, self.n_loops+1)]
 
     def _permute(
@@ -276,16 +273,16 @@ class Compatibility(Updatable):
         loop_changes: list[int]
     ) -> "Compatibility":
         assert len(loop_changes) == self.n_loops
-        new_storage = fzs(s.permute(loop_changes) for s in self.storage)
-        return self.update(storage=new_storage)
+        new_tensors = fzs(s.permute(loop_changes) for s in self.tensors)
+        return self.update(tensors=new_tensors)
 
     def make_equivalent_permutations(self, reservation_levels: set[int]) -> list["Compatibility"]:
-        # Get contiguous blocks of loops with no storage node between them
+        # Get contiguous blocks of loops with no tensor reservation between them
         blocks = []
         current_block = []
         for i in range(self.n_loops):
             # Can't permute loops if there's a reservation between them
-            if any(s.above_loop_index == i for s in self.storage) or i in reservation_levels:
+            if any(s.above_loop_index == i for s in self.tensors) or i in reservation_levels:
                 blocks.append(current_block)
                 current_block = []
             current_block.append(i)
@@ -300,15 +297,15 @@ class Compatibility(Updatable):
         result = [self._permute(list(itertools.chain(*loop_changes))) for loop_changes in all_permutations]
         return result
 
-    def get_storage_by_name(self, tensor: str) -> TensorStorage:
-        for s in self.storage:
+    def get_tensors_by_name(self, tensor: str) -> TensorReservation:
+        for s in self.tensors:
             if s.name == tensor:
                 return s
         raise ValueError(f"No reservation found for {tensor}")
 
     def per_tensor_compatibility(self) -> dict[str, "Compatibility"]:
         result = {}
-        for s in self.storage:
+        for s in self.tensors:
             result[s.name] = self.clear_dead_tensors(set([s.name]))
         return result
 
@@ -316,13 +313,13 @@ class Compatibility(Updatable):
         return self.update(tags=Tags(fzs()))
     
     def clear_loop_bounds(self) -> "Compatibility":
-        return self.update(storage=fzs(storage.clear_loop_bounds()
-                                       for storage in self.storage))
+        return self.update(tensors=fzs(tensor.clear_loop_bounds()
+                                       for tensor in self.tensors))
     
     def subsets_of_loops(self, clear_bounds: bool = False) -> Generator["Compatibility", None, None]:
         assert len(self.tensor_names) == 1, "Only works for single tensor"
-        storage = next(iter(self.storage))
-        assert storage.above_loop_index == len(self.loops), "Only works for last loop"
+        tensor = next(iter(self.tensors))
+        assert tensor.above_loop_index == len(self.loops), "Only works for last loop"
 
         indices = list(range(len(self.loops)))
         for i in range(len(indices) + 1):
@@ -330,5 +327,5 @@ class Compatibility(Updatable):
                 loops = tuple(self.loops[i] for i in subset)
                 if clear_bounds:
                     loops = tuple(l.update(bound=0) for l in loops)
-                storage = next(iter(self.storage)).update(above_loop_index=len(subset))
-                yield self.update(loops=loops, storage=fzs([storage]))
+                tensor = next(iter(self.tensors)).update(above_loop_index=len(subset))
+                yield self.update(loops=loops, tensors=fzs([tensor]))

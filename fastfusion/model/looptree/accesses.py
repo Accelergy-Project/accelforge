@@ -9,7 +9,7 @@ from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, SummarizedAnalysisOutput
 from fastfusion.model.looptree.mapping_utilities import get_paths, get_leaves
 
-from fastfusion.frontend.mapping import Mapping, Storage, Compute
+from fastfusion.frontend.mapping import Mapping, TensorHolder, Compute
 from fastfusion.frontend.workload import Workload
 
 # from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
@@ -223,14 +223,14 @@ def get_parent_buffers(mapping: Mapping, workload: Workload, is_path):
 
         tensor_to_top_buffer = {}
         for node in path:
-            if isinstance(node, Storage):
+            if isinstance(node, TensorHolder):
                 for tensor in node.tensors:
-                    key = (node.memory, tensor, einsum)
+                    key = (node.component, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
                     else:
                         parent_buffers[key] = None
-                    tensor_to_top_buffer[tensor] = node.memory
+                    tensor_to_top_buffer[tensor] = node.component
             elif isinstance(node, Compute):
                 for tensor in workload.tensors_read_by_einsum(einsum):
                     key = (node.compute, tensor, einsum)

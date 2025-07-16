@@ -63,13 +63,13 @@ def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings):
         pmappings.resource2capacity
     )
     joined = decompress_pmappings(joined, decompress_data)
-    
+
     for einsum_name in pmappings.einsum2pmappings:
         col = f"{einsum_name}_{MAPPING_COLUMN}"
         joined.data[col] = joined.data[col].apply(
             lambda x: pmappings.pmapping_objects[einsum_name][x]
         )
-        
+
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    joined.data[MAPPING_COLUMN] = joined.data.apply(lambda row: row2mapping(row, spec, rank_variable_bounds), axis=1)
+    joined.data[MAPPING_COLUMN] = joined.data.apply(lambda row: lambda: row2mapping(row, spec, rank_variable_bounds), axis=1)
     return joined

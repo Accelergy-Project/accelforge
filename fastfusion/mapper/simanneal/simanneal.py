@@ -8,7 +8,7 @@ from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.simanneal.evalmapping import quick_join
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
 from fastfusion.mapper.FFM.joining.simexplore import SIM
-from fastfusion.mapper.FFM.joining.mappinginfo import TensorStorage, Compatibility
+from fastfusion.mapper.FFM.joining.mappinginfo import TensorReservation, Compatibility
 from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, PartialMappings
 from fastfusion.util import fzs
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
@@ -24,7 +24,7 @@ class Mapping:
         self.einsum2tiling = {}
         for einsum_name, sim_list in sims.items():
             tensor_names = sim_list[0].tensor_names
-            tensors = fzs(TensorStorage(t, 0, 0, 0) for t in tensor_names)
+            tensors = fzs(TensorReservation(t, 0, 0, 0) for t in tensor_names)
             self.set_einsum2tiling(einsum_name, Compatibility(tuple(), tensors))
         # self.history = []
         class dummy_appender:
@@ -53,7 +53,7 @@ class Mapping:
         try: 
             for einsum in self.einsum_names:
                 tiling = self.einsum2tiling[einsum]
-                n_loops = max(t.above_loop_index for t in tiling.storage)
+                n_loops = max(t.above_loop_index for t in tiling.tensors)
 
                 # If there's too many loops then drop the extra ones
                 if n_loops < len(tiling.loops):
@@ -61,20 +61,20 @@ class Mapping:
 
                 # If there's not enough loops then add some
                 if n_loops > len(tiling.loops):
-                    for tensor in tiling.storage:
+                    for tensor in tiling.tensors:
                         for loop in range(len(tiling.loops), tensor.above_loop_index):
                             self.mutate_loop(mapspace_globals, tensor, loop, einsum)
                             self.force_loop_match(mapspace_globals, loop, einsum)
                 assert n_loops == len(self.einsum2tiling[einsum].loops)
                 
                 tiling = self.einsum2tiling[einsum]
-                tensors = tiling.storage
+                tensors = tiling.tensors
                 for i in range(len(tiling.loops)):
                     tensors = list(t for t in tensors if t.above_loop_index > i)
                     if not tensors:
                         continue
                     possible_loops = set.intersection(
-                        *(mapspace_globals.storage2possible_loops_above_set[einsum][t] for t in tensors)
+                        *(mapspace_globals.tensor2possible_loops_above_set[einsum][t] for t in tensors)
                     )
                     if not possible_loops:
                         raise FailedMutation(f"No possible loops above {i} for {einsum}")
@@ -121,21 +121,21 @@ class Mapping:
     def mutate_loop(
         self,
         mapspace_globals: MapspaceGlobals,
-        storage: TensorStorage=None,
+        tensor: TensorReservation=None,
         index: int=None,
         einsum_name: str=None,
     ):
         self.n_changes += 1
-        if storage is None:
-            memories = set().union(*(t.storage for t in self.einsum2tiling.values()))
+        if tensor is None:
+            memories = set().union(*(t.tensors for t in self.einsum2tiling.values()))
             memories = [m for m in memories if m.above_loop_index > 0]
             if not memories:
                 raise FailedMutation("No memories to mutate")
-            storage = random.choice(list(memories))
+            tensor = random.choice(list(memories))
         if index is None:
-            index = random.randint(0, storage.above_loop_index - 1)
+            index = random.randint(0, tensor.above_loop_index - 1)
         if einsum_name is None:
-            possible_einsums = [e for e, t in self.einsum2tiling.items() if storage in t.storage]
+            possible_einsums = [e for e, t in self.einsum2tiling.items() if tensor in t.tensors]
             assert possible_einsums
             einsum_name = random.choice(possible_einsums)
 
@@ -146,7 +146,7 @@ class Mapping:
         if len(tiling.loops) <= index:
             choice = "Randomizing"
 
-        candidates = mapspace_globals.storage2possible_loops_above[einsum_name][storage]
+        candidates = mapspace_globals.tensor2possible_loops_above[einsum_name][tensor]
         if choice == "Randomizing":
             new_loop = random.choice(candidates)
         else:
@@ -217,21 +217,21 @@ class Mapping:
                 tiling2 = tiling2.update(loops=new_loops)
             self.set_einsum2tiling(einsum_name2, tiling2)
 
-    def mutate_backing_storage(self, mapspace_globals: MapspaceGlobals):
+    def mutate_backing_tensor(self, mapspace_globals: MapspaceGlobals):
         self.n_changes += 1
         tensor = random.choice(list(mapspace_globals.intermediate_tensor_names))
-        storage = random.choice(mapspace_globals.tensor2memories[tensor])
+        memories = random.choice(mapspace_globals.tensor2memories[tensor])
         for t in self.einsum2tiling.values():
-            if storage in t.storage:
+            if memories in t.tensors:
                 raise FailedMutation(
-                    f"Moving tensor {tensor} to storage {storage} failed"
+                    f"Moving tensor {tensor} to tensor {memories} failed"
                 )
-        self.history.append(f"Moving tensor {tensor} to storage {storage}")
+        self.history.append(f"Moving tensor {tensor} to tensor {memories}")
         for einsum, tiling in self.einsum2tiling.items():
-            if not any(r.name == tensor for r in tiling.storage):
+            if not any(r.name == tensor for r in tiling.tensors):
                 continue
-            new_storages = [storage] + [r for r in tiling.storage if r.name != tensor]
-            self.set_einsum2tiling(einsum, tiling.update(storage=fzs(new_storages)))
+            new_tensors = [memories] + [r for r in tiling.tensors if r.name != tensor]
+            self.set_einsum2tiling(einsum, tiling.update(tensors=fzs(new_tensors)))
         self.fix_loops(mapspace_globals)
 
     def mutate_order(self, mapspace_globals: MapspaceGlobals):
@@ -324,7 +324,7 @@ class Mapping:
         self.einsum2intra_choice[einsum_name] = None
     
     def get_mutation_functions(self):
-        return [self.mutate_loop, self.mutate_backing_storage, self.mutate_order, self.mutate_intra_mapping]
+        return [self.mutate_loop, self.mutate_backing_tensor, self.mutate_order, self.mutate_intra_mapping]
 
     def crossover(self, other: Mapping, mapspace_globals: MapspaceGlobals):
         child = copy.deepcopy(other)

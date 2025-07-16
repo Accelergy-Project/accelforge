@@ -9,7 +9,7 @@ from fastfusion.accelerated_imports import pd
 
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.mapping import Iteration, Mapping, Reservation, Storage
+from fastfusion.frontend.mapping import Iteration, Mapping, TensorHolder
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
@@ -148,14 +148,14 @@ def get_memories_to_track(
                 f"every tensor in the workload."
             )
 
-    # If the memory is below every backing storage node, then we need it for the
+    # If the memory is below every backing tensor holder node, then we need it for the
     # pmapping exploration but can drop it immediately
     for m in list(memories_track_all):
         must_track = False
         for job in jobs:
             seen = False
             for node in job.mapping.nodes:
-                if isinstance(node, Storage) and node.memory == m:
+                if isinstance(node, TensorHolder) and node.component == m:
                     seen = True
                 if isinstance(node, Iteration) and node._fused and seen:
                     must_track = True

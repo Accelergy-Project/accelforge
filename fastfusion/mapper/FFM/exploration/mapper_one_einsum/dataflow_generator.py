@@ -4,43 +4,43 @@ from itertools import product
 from typing import Any
 
 import fastfusion.frontend.architecture as architecture
-from fastfusion.frontend.mapping import MappingNode, Storage
+from fastfusion.frontend.mapping import MappingNode, TensorHolder
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
-from .bypass_keep_generator import make_storage_choices_all_levels
+from .bypass_keep_generator import make_tensor_choices_all_levels
 from fastfusion.frontend.workload.workload import EinsumName
 
-def get_storage_choices(
+def get_tensor_choices(
     einsum_name: EinsumName,
     nodes: list[architecture.Memory],
     symbol_table: SymbolTable,
     spec: Specification,
-) -> Generator[tuple[list[Storage], Any], None, None]:
+) -> Generator[tuple[list[TensorHolder], Any], None, None]:
     while not isinstance(nodes[0], architecture.Memory):
         nodes = nodes[1:]
-    first_storage = nodes[0]
+    first_tensor_holder = nodes[0]
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
 
-    for choice, symbol_table in make_storage_choices_all_levels(nodes, symbol_table, is_copy_op=is_copy_op):
-        all_storage_nodes = []
+    for choice, symbol_table in make_tensor_choices_all_levels(nodes, symbol_table, is_copy_op=is_copy_op):
+        all_tensor_holders = []
         for v in choice.values():
-            all_storage_nodes.extend(v)
+            all_tensor_holders.extend(v)
 
         base_mapping = []
-        for node in list(all_storage_nodes[::-1]):
-            if node.memory == first_storage.name:
-                all_storage_nodes.remove(node)
+        for node in list(all_tensor_holders[::-1]):
+            if node.component == first_tensor_holder.name:
+                all_tensor_holders.remove(node)
                 base_mapping.append(node)
                 
         required_order = get_dataflow_constraint(
             nodes, symbol_table, tensors
         )
 
-        for mapping in recursive_order_storage_choices(
-            einsum_name, tensors, base_mapping, nodes, all_storage_nodes, required_order, spec, is_copy_op
+        for mapping in recursive_order_tensor_choices(
+            einsum_name, tensors, base_mapping, nodes, all_tensor_holders, required_order, spec, is_copy_op
         ):
             yield mapping, symbol_table
 
@@ -51,8 +51,8 @@ def get_dataflow_constraint(nodes, symbol_table, tensors):
         constraint = node.constraints.dataflow._parse(
             symbol_table, f"{node.name}.constraints.dataflow"
         )
-        if constraint.storage_orders:
-            for order_constraint in constraint.storage_orders:
+        if constraint.tensor_orders:
+            for order_constraint in constraint.tensor_orders:
                 order = Order()
                 for together_tensors in order_constraint:
                     in_mapping_together_tensors = [
@@ -70,24 +70,24 @@ def get_dataflow_constraint(nodes, symbol_table, tensors):
     return required_order
 
 
-def recursive_order_storage_choices(
+def recursive_order_tensor_choices(
     einsum_name: EinsumName,
     tensors: set[TensorName],
     mapping: Sequence[MappingNode],
     nodes: list[architecture.Memory],
     remaining_choices: list,
-    required_order: list[list[Storage]],
+    required_order: list[list[TensorHolder]],
     spec: Specification,
     is_copy_op: bool = False,
 ) -> Generator[list[MappingNode], None, None]:
     
     def check_has_tensors(mapping: list[MappingNode]):
-        storage_nodes = [node for node in mapping if isinstance(node, Storage)]
-        tensors_in_mapping = {tensor for storage in storage_nodes for tensor in storage.tensors}
+        tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
+        tensors_in_mapping = {tensor for tensor_holder in tensor_holders for tensor in tensor_holder.tensors}
         if tensors_in_mapping != tensors:
             raise ValueError(
                 f"Einsum {einsum_name} has a mapping that is missing tensors. Ensure that "
-                f"there is a storage node for each tensor in the Einsum. Missing tensors: "
+                f"there is a node storing each tensor in the Einsum. Missing tensors: "
                 f"{tensors - tensors_in_mapping}. Mapping:\n\t" + "\n\t".join(
                     m.compact_string() for m in mapping
                 )
@@ -99,10 +99,10 @@ def recursive_order_storage_choices(
         yield mapping
         return
     
-    # If it's a copy op and there's a storage node for each tensor, then return immediately
+    # If it's a copy op and there's a node storing each tensor, then return immediately
     if is_copy_op:
-        storage_nodes = [node for node in mapping if isinstance(node, Storage)]
-        seen_tensors = {tensor for storage in storage_nodes for tensor in storage.tensors}
+        tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
+        seen_tensors = {tensor for tensor_holder in tensor_holders for tensor in tensor_holder.tensors}
         if seen_tensors == tensors:
             check_has_tensors(mapping)
             yield mapping
@@ -111,15 +111,15 @@ def recursive_order_storage_choices(
     for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
-        if valid_storage_order(mapping, [n.name for n in nodes], required_order, spec):
-            yield from recursive_order_storage_choices(
+        if valid_tensor_holder_order(mapping, [n.name for n in nodes], required_order, spec):
+            yield from recursive_order_tensor_choices(
                 einsum_name, tensors, mapping, nodes, new_remaining, required_order, spec, is_copy_op,
             )
         mapping.pop()
 
 
-def valid_storage_order(
-    mapping: Sequence[Storage],
+def valid_tensor_holder_order(
+    mapping: Sequence[TensorHolder],
     node_names: list[str],
     required_orders: dict[str, list["Order"]],
     spec: Specification,
@@ -128,7 +128,7 @@ def valid_storage_order(
     for i in range(len(mapping)):
         for j in range(i, len(mapping)):
 
-            s1, s2 = mapping[i].memory, mapping[j].memory
+            s1, s2 = mapping[i].component, mapping[j].component
             s1_idx, s2_idx = node_names.index(s1), node_names.index(s2)
 
             assert len(mapping[i].tensors) == 1
@@ -173,7 +173,7 @@ def valid_storage_order(
                 return False
 
             # If a tensor is stored in two levels back-to-back, then we should have
-            # bypassed the outer storage if possible.
+            # bypassed the outer TensorHolder if possible.
             either_backing = mapping[i]._backing & mapping[j]._backing
             if i == j or i == j - 1:
                 if s1_idx < s2_idx and not (
@@ -189,7 +189,7 @@ def valid_storage_order(
 
     for i in range(len(mapping)):
         for j in range(i, len(mapping)):
-            s1, s2 = mapping[i].memory, mapping[j].memory
+            s1, s2 = mapping[i].component, mapping[j].component
             if s1 != s2 or s1 not in memory_to_satisfied_constraints or i == j:
                 continue
 

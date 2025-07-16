@@ -14,19 +14,19 @@ class SIM:
     def __init__(self, compatibility: Compatibility, mappings: PartialMappings):
         self.compatibility: Compatibility = compatibility
         self.mappings: PartialMappings = mappings
-        self.storage: dict[str, TensorStorage] = {
-            t.name: t for t in self.compatibility.storage
+        self.tensors: dict[str, TensorReservation] = {
+            t.name: t for t in self.compatibility.tensors
         }
         self.n_pre_prune_mappings = 0
 
     def compatibility_str(self):
-        compatibility = ",".join(str(l) for l in self.compatibility.storage)
-        compatibility += " || " + ", ".join(str(t) for t in self.storage.values())
+        compatibility = ",".join(str(l) for l in self.compatibility.tensors)
+        compatibility += " || " + ", ".join(str(t) for t in self.tensors.values())
         return compatibility
 
     @cached_property
     def tensor_names(self) -> set[str]:
-        return set(self.storage)
+        return set(self.tensors)
 
     def copy(self) -> "SIM":
         return SIM(self.compatibility, self.mappings.copy())
@@ -46,17 +46,17 @@ class SIM:
         )
         compatibility = self.compatibility.merge_next(right.compatibility, live_tensors)
         next_shared_loop_index = compatibility.shared_loop_index(live_tensors)
-        shared_storage = self.compatibility.storage & right.compatibility.storage
+        shared_tensors = self.compatibility.tensors & right.compatibility.tensors
 
         still_live_reservations = [
             r
-            for r in self.compatibility.storage
+            for r in self.compatibility.tensors
             if r.name in live_tensors and r.name not in right.compatibility.tensor_names
         ]
 
         duplicated_aliased_tensors = set()
-        for name, my_tensor in self.storage.items():
-            aliased_tensor = right.storage.get(aliased_tensors.get(name, None), None)
+        for name, my_tensor in self.tensors.items():
+            aliased_tensor = right.tensors.get(aliased_tensors.get(name, None), None)
             if aliased_tensor is None:
                 continue
             if my_tensor.resource_name == aliased_tensor.resource_name:
@@ -67,7 +67,7 @@ class SIM:
             shared_loop_index,
             next_shared_loop_index,
             live_tensors_with_right,
-            shared_storage,
+            shared_tensors,
             still_live_reservations,
             duplicated_aliased_tensors,
             resource2capacity,
@@ -81,8 +81,8 @@ class SIM:
         assert (
             compatibility.max_above_loop_index == next_shared_loop_index + 1
         ), f"{self.compatibility} {right.compatibility} {next_shared_loop_index + 1} -> {compatibility} {len(compatibility.loops)}"
-        s.storage.update(right.storage)
-        s.storage.update(self.storage)
+        s.tensors.update(right.tensors)
+        s.tensors.update(self.tensors)
         s.n_pre_prune_mappings = len(self.mappings.data) * len(right.mappings.data)
         return s
 
@@ -95,11 +95,11 @@ class SIM:
         live_tensors: set[str] = None,
         shared_tensors: set[str] = None,
     ):
-        dead_tensors = set(self.storage) - (live_tensors or set())
+        dead_tensors = set(self.tensors) - (live_tensors or set())
         check_tensors = (shared_tensors or set()) | (live_tensors or set())
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         for t in dead_tensors:
-            t = self.storage.pop(t)
+            t = self.tensors.pop(t)
         if self.mappings.free_to_loop_index(
             shared_loop_index, live_tensors=live_tensors
         ):
@@ -144,7 +144,7 @@ class SIM:
         return parallel([delayed(job)(s) for s in sims], pbar=pbar)
 
     def _hashable_attrs(self):
-        return self.mappings, fzs(self.storage.items())
+        return self.mappings, fzs(self.tensors.items())
 
     @staticmethod
     def concat(
@@ -153,7 +153,7 @@ class SIM:
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
         if not allow_different_compatibilitys:
-            s = set(fzs([(k, v) for k, v in s.storage.items()]) for s in sims)
+            s = set(fzs([(k, v) for k, v in s.tensors.items()]) for s in sims)
             assert (
                 len(s) == 1
             ), f"Cannot concat SIMs with different tensors:\n\t" + "\n\t".join(
@@ -222,7 +222,7 @@ class SIM:
         return groups_with_one + others + no_combine
 
     @staticmethod
-    def filter_by_tensor_storage(
+    def filter_by_tensors(
         sims: list["SIM"] | dict[Compatibility, Any], tensors: set[str]
     ) -> list["SIM"]:
         def check(tensors_to_check):
@@ -234,9 +234,9 @@ class SIM:
 
         tensors = set(tensors)
         if isinstance(sims, list):
-            return [s for s in sims if check(s.compatibility.storage)]
+            return [s for s in sims if check(s.compatibility.tensors)]
         if isinstance(sims, dict):
-            return {k: v for k, v in sims.items() if check(k.storage)}
+            return {k: v for k, v in sims.items() if check(k.tensors)}
         raise ValueError(f"Invalid type {type(sims)}")
 
     @staticmethod
@@ -261,9 +261,9 @@ class SIM:
     @staticmethod
     def remove_dead_tensors(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
         for s in sims:
-            for t in list(s.storage):
+            for t in list(s.tensors):
                 if t not in live_tensors:
-                    del s.storage[t]
+                    del s.tensors[t]
 
     def set_tags(self, *tags: Any) -> "SIM":
         self.compatibility = self.compatibility.set_tags(*tags)

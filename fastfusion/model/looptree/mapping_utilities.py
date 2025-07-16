@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential, Storage
+from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential, TensorHolder
 from fastfusion.frontend.workload import Workload
 
 
@@ -38,20 +38,3 @@ def get_intermediate_tensors(workload: Workload):
                     break
 
     return result
-
-
-def get_last_storage_node(mapping, tensor):
-    for i, node in enumerate(mapping):
-        if isinstance(node, Storage) and tensor in node.tensor:
-            return i
-    return None
-
-
-def get_last_fused_loop_idx(mapping, intermediate_tensors):
-    intermediates_remaining = set(intermediate_tensors)
-    for i, node in enumerate(mapping):
-        if node['type'] == 'storage':
-            intermediates_remaining -= set(node['dspace'])
-        if not intermediates_remaining:
-            return i
-    return float('inf')

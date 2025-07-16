@@ -79,9 +79,9 @@ class MapspaceGlobals:
                         right_sims.remove(s)
                 assert right_sims, f"Removed all of right {right_id} while checking left {left_id}"
         
-        self.storage2possible_loops_above = self._create_storage2possible_loops_above()
-        self.storage2possible_loops_above_set = {
-            k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.storage2possible_loops_above.items()
+        self.tensor2possible_loops_above = self._create_tensor2possible_loops_above()
+        self.tensor2possible_loops_above_set = {
+            k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.tensor2possible_loops_above.items()
         }
         self.tensor2memories = self._create_tensor2memories()
         self.einsum_tiling_2_sim = self._create_einsum_tiling_2_sim()
@@ -159,18 +159,18 @@ class MapspaceGlobals:
                 einsum_tiling_2_sim[e][t] = s
         return einsum_tiling_2_sim
         
-    def _create_storage2possible_loops_above(self):
-        storage2possible_loops_above = {}
+    def _create_tensor2possible_loops_above(self):
+        tensor2possible_loops_above = {}
         for einsum_name, sim_list in self.sims.items():
-            storage2possible_loops_above[einsum_name] = defaultdict(set)
+            tensor2possible_loops_above[einsum_name] = defaultdict(set)
             for sim in sim_list:
-                for storage in sim.compatibility.storage:
-                    storage2possible_loops_above[einsum_name][storage] |= set(
-                        sim.compatibility.loops[: storage.above_loop_index]
+                for tensor in sim.compatibility.tensors:
+                    tensor2possible_loops_above[einsum_name][tensor] |= set(
+                        sim.compatibility.loops[: tensor.above_loop_index]
                     )
         return {
             e: {s: list(l) for s, l in d.items()}
-            for e, d in storage2possible_loops_above.items()
+            for e, d in tensor2possible_loops_above.items()
         }
 
     def _create_tensor2memories(self):
@@ -182,8 +182,8 @@ class MapspaceGlobals:
                 if t not in sim_list[0].tensor_names:
                     continue
                 for sim in sim_list:
-                    storage = sim.compatibility.get_storage_by_name(t)
-                    cur_memories.add(storage)
+                    tensor = sim.compatibility.get_tensors_by_name(t)
+                    cur_memories.add(tensor)
                 possible_memories.append(cur_memories)
             if possible_memories:
                 tensor2memories[t] = list(set.intersection(*possible_memories))
@@ -253,5 +253,5 @@ class MapspaceGlobals:
             for n in compatible_ranks:
                 yield Loop(fzs((n,)), l.bound, l.is_spatial)
         for loops in itertools.product(*map(translate_loop, t.loops)):
-            yield Compatibility(loops, t.storage, t.tags)
+            yield Compatibility(loops, t.tensors, t.tags)
 

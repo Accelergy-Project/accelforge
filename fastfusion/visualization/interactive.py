@@ -9,7 +9,7 @@ from ipywidgets import Output, VBox, HBox
 from fastfusion.accelerated_imports import pd
 import plotly.express as px
 
-from fastfusion.mapper.FFM.joining.sim import Loop, TensorStorage, Compatibility
+from fastfusion.mapper.FFM.joining.sim import Loop, TensorReservation, Compatibility
 from fastfusion.util import expfmt
 from fastfusion.visualization.reservationtree import mappings2svg
 from fastfusion.mapper.FFM.pareto import (
@@ -56,9 +56,9 @@ def diplay_mappings_on_fig(
         index = points.point_inds[0]
         display(mapping2svg(d.iloc[index], einsum_names, rank_variable_bounds))
         # backing_tensors = set(
-        #     t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.storage
+        #     t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.tensors
         # )
-        # backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
+        # backing_tensors = TensorReservation.get_backing_tensors(backing_tensors)
         # for t in sorted(backing_tensors):
         #     print(f"{t.__repr__()},")
         # for v in d.iloc[index][MAPPING_COLUMN].values():
@@ -80,9 +80,9 @@ def diplay_mappings_on_fig(
             with open(f"plots/{trace.name}.svg", "w") as f:
                 f.write(svg.data)
         # backing_tensors = set(
-        #     t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.storage
+        #     t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.tensors
         # )
-        # backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
+        # backing_tensors = TensorReservation.get_backing_tensors(backing_tensors)
         # for t in sorted(backing_tensors):
         #     print(f"{t.__repr__()},")
         # for v in d.iloc[index][MAPPING_COLUMN].values():

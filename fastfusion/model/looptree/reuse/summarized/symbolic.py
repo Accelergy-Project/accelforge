@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import fastfusion.frontend.mapping as mapping_spec
-from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern
+from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern, TensorHolder
 from fastfusion.frontend.workload import (
     Workload,
     TensorName,
@@ -249,7 +249,7 @@ class AnalysisInfo:
 
     einsum_tensor_to_projection: dict
     tensor_to_relevancy: dict
-    tensor_to_backing_storage_id: dict[TensorName, int]
+    tensor_to_backer_id: dict[TensorName, int]
 
     is_copy_operation: TensorName | None
 
@@ -275,7 +275,7 @@ def quick_insert_reservation_nodes(
         all_tensors=None,
         einsum_tensor_to_projection=None,
         tensor_to_relevancy=tensor_to_relevancy,
-        tensor_to_backing_storage_id=None,
+        tensor_to_backer_id=None,
         is_copy_operation=None,
     )
     insert_reservation_nodes(mapping, info)
@@ -285,14 +285,14 @@ def quick_insert_reservation_nodes(
 def convert_to_copy(mapping: list[MappingNode], workload: Workload) -> tuple[list[MappingNode], dict[TensorName, int]]:
     mapping = copy.deepcopy(mapping)
 
-    # Calculate this BEFORE we modify the mapping. We're going to have the copy
-    # source tensor moving upward sometimes, and we don't want the backing storage
-    tensor_to_backing_storage_id = get_tensor_to_backing_storage_id(mapping)
+    # Calculate this BEFORE we modify the mapping. We're going to have the copy source
+    # tensor moving upward sometimes, and we don't want the backing tensor holder
+    tensor_to_backer_id = get_tensor_to_backer_id(mapping)
     
     first_input_tensor = workload.einsums[mapping[-1].einsum].copy_source_tensor()
     
     for node in mapping:
-        if isinstance(node, Storage):
+        if isinstance(node, TensorHolder):
             if node.tensors:
                 node.tensors = [first_input_tensor]
                 node._lower = False
@@ -301,18 +301,18 @@ def convert_to_copy(mapping: list[MappingNode], workload: Workload) -> tuple[lis
     i = 0
     while i < len(mapping):
         node = mapping[i]
-        if isinstance(node, Storage):
+        if isinstance(node, TensorHolder):
             j = i+1
             while j < len(mapping):
                 node2 = mapping[j]
-                if isinstance(node2, Storage) and node.memory == node2.memory:
+                if isinstance(node2, TensorHolder) and node.component == node2.component:
                     mapping.pop(j)
                 else:
                     j += 1
         i += 1
     mapping = [node for node in mapping if node not in to_remove]
     
-    return mapping, tensor_to_backing_storage_id
+    return mapping, tensor_to_backer_id
 
     
     
@@ -326,9 +326,9 @@ def analyze_reuse(
     
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
     if is_copy_operation:
-        mapping, tensor_to_backing_storage_id = convert_to_copy(mapping, workload)
+        mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
     else:
-        tensor_to_backing_storage_id = get_tensor_to_backing_storage_id(mapping)
+        tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
     einsum_tensor_to_projection = {}
     einsum = workload.einsums[einsum_name]
@@ -350,7 +350,7 @@ def analyze_reuse(
         all_tensors=all_tensors,
         einsum_tensor_to_projection=einsum_tensor_to_projection,
         tensor_to_relevancy=tensor_to_relevancy,
-        tensor_to_backing_storage_id=tensor_to_backing_storage_id,
+        tensor_to_backer_id=tensor_to_backer_id,
         is_copy_operation=is_copy_operation,
     )
     symbols = insert_sympy_symbols(mapping)
@@ -364,10 +364,10 @@ def analyze_reuse(
     return result
 
 
-def get_tensor_to_backing_storage_id(mapping: Mapping):
+def get_tensor_to_backer_id(mapping: Mapping):
     tensor_to_ids: dict[TensorName, set[int]] = {}
     for node in mapping:
-        if isinstance(node, Storage):
+        if isinstance(node, TensorHolder):
             for tensor in node.tensors:
                 if tensor in tensor_to_ids:
                     continue
@@ -378,7 +378,7 @@ def get_tensor_to_backing_storage_id(mapping: Mapping):
 class ReservationAnalysisTracker:
     def __init__(self, buffet, node):
         self.buffet: Buffet = buffet
-        self.node: Storage = node
+        self.node: TensorHolder = node
 
         # These are interface (TODO: should be property)
         self.is_fill_level = False
@@ -458,10 +458,10 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
 
                 if tracker.should_stop:
                     to_remove.append(tracker_idx)
-        elif isinstance(node, Storage):
+        elif isinstance(node, TensorHolder):
             for tensor in node.tensors:
                 tensor = TensorName(tensor)
-                buffet = Buffet(tensor, mapping[-1].einsum, node.memory)
+                buffet = Buffet(tensor, mapping[-1].einsum, node.component)
                 trackers.append(ReservationAnalysisTracker(buffet, node))
                 if (
                     not node._lower
@@ -679,9 +679,9 @@ def get_total_to_per_unit(total, max_per_unit):
         return 1
     return max_per_unit / total
 
-def has_parent_storage(tensor: TensorName, node_idx: int, info: AnalysisInfo) -> bool:
+def has_parent_tensor_holder(tensor: TensorName, node_idx: int, info: AnalysisInfo) -> bool:
     for node in info.mapping[:node_idx]:
-        if isinstance(node, Storage) and tensor in node.tensors:
+        if isinstance(node, TensorHolder) and tensor in node.tensors:
             return True
     return False
 
@@ -694,9 +694,9 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
 
     for tensor in node.tensors:
         tensor = TensorName(tensor)
-        buffet = Buffet(tensor, einsum_name, node.memory)
+        buffet = Buffet(tensor, einsum_name, node.component)
         stats = child_result.buffet_stats.setdefault(buffet, BuffetStats())
-        backer_id = info.tensor_to_backing_storage_id[tensor]
+        backer_id = info.tensor_to_backer_id[tensor]
         is_backing = backer_id == id(node)
         below_backing = backer_id in [id(m) for m in mapping[:node_idx]]
 
@@ -707,7 +707,7 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
         # ==============================================================================
         # Calculate the total fills and reads to parent. These propagate upward.
         # ==============================================================================
-        if has_parent_storage(tensor, node_idx, info):
+        if has_parent_tensor_holder(tensor, node_idx, info):
             # Initial fetch: If we're below the backing storage, fetch data from above
             # at the beginning.
             if not is_backing and below_backing:
@@ -806,7 +806,7 @@ def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnaly
     return child_result
 
     tensor = node.tensor
-    buffet = Buffet(tensor, mapping[-1].einsum, node.memory)
+    buffet = Buffet(tensor, mapping[-1].einsum, node.component)
 
     stats = child_result.buffet_stats[buffet]
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]

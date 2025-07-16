@@ -4,7 +4,7 @@ from fastfusion.accelerated_imports import np
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, MinUtilizationConstraintLambda, TileShapeConstraintLambda, LoopBoundsConstraintLambda
 from fastfusion.frontend.constraints import Spatial as SpatialConstraint
-from fastfusion.frontend.mapping import Iteration, MappingNode, Storage, Temporal, Spatial
+from fastfusion.frontend.mapping import Iteration, MappingNode, TensorHolder, Temporal, Spatial
 from fastfusion.frontend.workload.workload import EinsumName, RankVariableName
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.util.util import fzs
@@ -69,9 +69,9 @@ class MappingConstraints:
 
         return [m for m in mapping if id(m) not in to_remove]
 
-def first_storage_node_index(mapping: list[MappingNode], memory_name: str) -> int:
+def first_tensor_holder_index(mapping: list[MappingNode], memory_name: str) -> int:
     for i, m in enumerate(mapping):
-        if isinstance(m, Storage) and m.memory == memory_name:
+        if isinstance(m, TensorHolder) and m.component == memory_name:
             return i
     return None
 
@@ -113,23 +113,23 @@ def get_constraints(
     
     constraints = MappingConstraints()
     
-    # Storage constraints
+    # Tensor constraints
     for m in arch_flattened:
         if not isinstance(m, architecture.Memory):
             continue
         
-        if (index := first_storage_node_index(mapping, m.name)) is None:
+        if (index := first_tensor_holder_index(mapping, m.name)) is None:
             continue
 
-        storage_constraints = m.constraints.storage._parse_non_keep_bypass(symbol_table, f"{m.name}.constraints.storage")
+        tensor_constraints = m.constraints.tensors._parse_non_keep_bypass(symbol_table, f"{m.name}.constraints.tensors")
 
         # Tile shape constraints
-        for c in storage_constraints.tile_shape:
+        for c in tensor_constraints.tile_shape:
             nodes = constrained_loops(mapping, c.expression, index - 1, look_behind=True)
             for exp in c.split_expression():
                 new_nodes = [n for n in nodes if n.rank_variable in exp]
-                storage_constraint = TileShapeConstraintLambda(c, new_nodes, exp)
-                constraints.tile_shape_constraints.append(storage_constraint)
+                constraint = TileShapeConstraintLambda(c, new_nodes, exp)
+                constraints.tile_shape_constraints.append(constraint)
                 
     # Temporal loop bounds constraints
     # TODO: Implement
@@ -151,8 +151,8 @@ def get_constraints(
                     nodes = constrained_loops(loops, c.expression, across=m.name)
                     for exp in c.split_expression():
                         new_nodes = [l for l in loops if l.rank_variable in exp]
-                        storage_constraint = LoopBoundsConstraintLambda(c, new_nodes, exp)
-                        constraints.loop_bounds_constraints.append(storage_constraint)
+                        constraint = LoopBoundsConstraintLambda(c, new_nodes, exp)
+                        constraints.loop_bounds_constraints.append(constraint)
 
             # Min utilization constraints
             if spatial_constraint.min_utilization > 0:

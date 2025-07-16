@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Iteration, Temporal, Storage
+from fastfusion.frontend.mapping import Iteration, Temporal
 from fastfusion.mapper.FFM.tags import Tags
 
 from .util import get_fused_loops_per_tensor
@@ -21,8 +21,8 @@ def get_ffmt_matmul_tag(compatibility):
     # FFMT is:
     # - [input | output, weight]
     # If there's >1 fused loop, they must be above the same number of loops
-    storages = [s for s in compatibility.storage if s.resource_name != "MainMemory"]
-    if len(storages) <= 1 :
+    tensors = [s for s in compatibility.tensors if s.resource_name != "MainMemory"]
+    if len(tensors) <= 1 :
         return Tags((FFMT_VALID,))
 
     allowed_n_loops = [
@@ -39,7 +39,7 @@ def get_ffmt_matmul_tag(compatibility):
                 for x, y in allowed_n_loops
             ]
     
-    if tuple(sorted(s.above_loop_index for s in storages)) in [
+    if tuple(sorted(s.above_loop_index for s in tensors)) in [
         (0, 0),
         (1, 1),
         (1, 2),
@@ -48,7 +48,7 @@ def get_ffmt_matmul_tag(compatibility):
     raise ValueError()
     
 def get_ffmt_mha_tag(compatibility):
-    storages = [s for s in compatibility.storage if s.resource_name != "MainMemory"]
+    tensors = [s for s in compatibility.tensors if s.resource_name != "MainMemory"]
     if len(compatibility.loops) == 0:
         return Tags((FFMT_VALID,))
     
@@ -57,14 +57,14 @@ def get_ffmt_mha_tag(compatibility):
     if len(compatibility.loops) == 1:
         return Tags((FFMT_INVALID,))
     
-    if len(set(s.above_loop_index for s in storages)) > 1:
+    if len(set(s.above_loop_index for s in tensors)) > 1:
         raise ValueError()
     return Tags((FFMT_VALID,))
 
-    for storages in compatibility.storage:
-        if storage.resource_name == "MainMemory":
+    for tensors in compatibility.tensors:
+        if tensor.resource_name == "MainMemory":
             continue
-        unique_loops.add(storage.above_loop_index)
+        unique_loops.add(tensor.above_loop_index)
 
     if len(unique_loops) == 0:
         return Tags()  # unfused is compatible with anything

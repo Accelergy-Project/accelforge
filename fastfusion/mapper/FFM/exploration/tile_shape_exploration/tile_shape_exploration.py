@@ -13,7 +13,7 @@ from fastfusion.frontend.architecture import Memory
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.symbolic import get_stride_and_halo
-from fastfusion.frontend.mapping import Temporal, Spatial, Storage, Pattern
+from fastfusion.frontend.mapping import Temporal, Spatial, TensorHolder, Pattern
 
 from fastfusion.mapper import metrics
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
@@ -683,13 +683,13 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
     intermediate_tensors = workload.intermediate_tensor_names
     tensor_to_backing = {}
     for node in pmapping.nodes:
-        if isinstance(node, Storage):
+        if isinstance(node, TensorHolder):
             for tensor in node.tensors:
                 if (
                     tensor not in tensor_to_backing
                     and tensor in intermediate_tensors
                 ):
-                    tensor_to_backing[tensor] = node.memory
+                    tensor_to_backing[tensor] = node.component
 
     total_occupancy = {}
     compute_unit = pmapping.nodes[-1].compute
