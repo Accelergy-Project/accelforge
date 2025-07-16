@@ -5,8 +5,8 @@ import time
 
 logging.basicConfig(level=logging.WARN)
 
-import numpy as np
-from fastfusion.mapper.FFM.joining.sim import SIM, TensorStorage
+from fastfusion.accelerated_imports import np
+from fastfusion.mapper.FFM.joining.sim import SIM, TensorReservation
 from tests.util import TEST_TMP_DIR
 
 import logging
@@ -25,7 +25,7 @@ from pytimeloop.fastfusion.filter_mappings import get_tileflow_tag_mha, get_ffmt
 
 from tests.util import CONFIG_DIR, TEST_TMP_DIR
 
-import pandas as pd
+from fastfusion.accelerated_imports import pd
 
 RESULTS_DIR = f"workloads/results"
 
@@ -311,16 +311,16 @@ def filter_first_mapping(e):
         e.intra_result[k] = [
             s
             for s in sims
-            if not s.compatibility.has_tensor(TensorStorage("I_I_to_Q_K_V", "*", 1, "*"))
+            if not s.compatibility.has_tensor(TensorReservation("I_I_to_Q_K_V", "*", 1, "*"))
         ]
 
 
-def filter_storage(e, storage_filter):
+def filter_tensors(e, tensors_filter):
     new_intra = {}
     for k, sims in e.intra_result.items():
-        new_intra[k] = SIM.filter_by_tensor_storage(sims, storage_filter)
+        new_intra[k] = SIM.filter_by_tensors(sims, tensors_filter)
         if not new_intra[k]:
-            raise ValueError(f"No mappings for {k} with memory filter {storage_filter}")
+            raise ValueError(f"No mappings for {k} with memory filter {tensors_filter}")
     e.intra_result = new_intra
     
 def filter_layernorm(e):
@@ -370,7 +370,7 @@ def fastfusion_full(e):
 def unfused(e):
     filter_layernorm(e)
     e.intra_result = {
-        k: SIM.filter_by_tensor_storage(sims, {TensorStorage("*", "*", 0, "*")})
+        k: SIM.filter_by_tensors(sims, {TensorReservation("*", "*", 0, "*")})
         for k, sims in e.intra_result.items()
     }
     clear_tags(e)
@@ -423,7 +423,7 @@ def run_experiment(
     shape: dict = None,
     load_intra: bool = True,
     load_inter: bool = True,
-    storage_filter: set[TensorStorage] = None,
+    tensors_filter: set[TensorReservation] = None,
     callfunction: callable = None,
     lookahead_filter: bool = True,
     save_results: bool = True,
@@ -477,14 +477,14 @@ def run_experiment(
     if not run_inter:
         return exp
 
-    if storage_filter is not None:
-        filter_storage(exp, storage_filter)
+    if tensors_filter is not None:
+        filter_tensors(exp, tensors_filter)
 
     if callfunction is not None:
         callfunction(exp)
 
     for k, sims in exp.intra_result.items():
-        live_tensors = list(sims[0].storage)
+        live_tensors = list(sims[0].tensors)
         exp.intra_result[k] = SIM.combine_combineable(sims, live_tensors)
 
     t0 = time.time()
