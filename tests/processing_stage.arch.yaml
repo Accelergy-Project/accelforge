@@ -7,29 +7,37 @@ architecture:
   nodes:
   - !Memory
     name: MainMemory
-    component_class: DRAM
     attributes:
-      size: 9999999999999
-      datawidth: 1
+      size: 1e9
+      area: 1
+      datawidth: 8
+    constraints:
+      tensors: {keep: All()}
+    actions:
+    - {name: read, arguments: {energy: 0}}
+    - {name: write, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
+
+  - !ProcessingStage
+    name: ProcessingStage
+    attributes:
+      datawidth: 8
       area: 1
     constraints:
-      tensors:
-        keep: ~(flat_fusable | elementwise)
+      tensors: {keep: All()}
     actions:
-    - {name: read, arguments: {energy: 1}}
-    - {name: write, arguments: {energy: 1}}
+    - {name: read, arguments: {energy: 100}}
+    - {name: write, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}
 
   - !Memory
-    name: GlobalBuffer
-    component_class: SRAM
+    name: LocalBuffer
     attributes:
-      size: 9999999999999
-      datawidth: 1
+      size: 1e9
+      datawidth: 8
       area: 1
     constraints:
-      tensors:
-        keep: All()
+      tensors: {keep: All()}
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
@@ -40,5 +48,5 @@ architecture:
     component_class: intmac
     attributes: {area: 1}
     actions:
-    - {name: compute, arguments: {energy: 0}}
+    - {name: compute, arguments: {energy: 0.0}}
     - {name: leak, arguments: {energy: 0}}

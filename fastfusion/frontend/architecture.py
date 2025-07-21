@@ -15,8 +15,6 @@ from pydantic import Discriminator
 
 from fastfusion.frontend.constraints import ConstraintGroup
 
-ARCHNODE_TYPE: TypeAlias = Union["Memory", "Compute", "Hierarchical"]
-
 class ArchNode(ParsableModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -88,7 +86,7 @@ class Leaf(ArchNode, ABC):
 
 
 class Component(Leaf, ABC):
-    component_class: str
+    component_class: Optional[str] = None
     enabled: ParsesTo[bool] = True
     power_gated_at: ParsesTo[Optional[str]] = None
     actions: ParsableList[SubcomponentAction]
@@ -120,14 +118,36 @@ COMPUTE_ACTIONS = ParsableList(
     ]
 )
 
-class Memory(Component):
-    attributes: 'MemoryAttributes'
+
+class Attributes(ComponentAttributes):
+    pass
+
+
+class TensorHolderAttributes(Attributes):
+    datawidth: ParsesTo[Union[int, float]]
+    shared_read_write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
+    read_bandwidth: ParsesTo[Union[int, float]] = float('inf')
+    write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
+
+
+class MemoryAttributes(TensorHolderAttributes):
+    size: ParsesTo[Union[int, float]]
+    multiple_buffering: ParsesTo[Union[int, float]] = 1
+
+
+class TensorHolder(Component):
     actions: ParsableList[SubcomponentAction] = MEMORY_ACTIONS
+    attributes: 'TensorHolderAttributes'
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._update_actions(MEMORY_ACTIONS)
 
+class Memory(TensorHolder):
+    attributes: 'MemoryAttributes'
+    
+class ProcessingStage(TensorHolder):
+    pass
 
 class Compute(Component):
     actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
@@ -137,26 +157,13 @@ class Compute(Component):
         self._update_actions(COMPUTE_ACTIONS)
 
 
-class Attributes(ComponentAttributes):
-    pass
-
-
-class MemoryAttributes(Attributes):
-    datawidth: ParsesTo[Union[int, float]]
-    size: ParsesTo[Union[int, float]]
-    multiple_buffering: ParsesTo[Union[int, float]] = 1
-    shared_read_write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
-    read_bandwidth: ParsesTo[Union[int, float]] = float('inf')
-    write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
-
-
 class Branch(ArchNode, ABC):
     # nodes: ArchNodes[InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
     nodes: ArchNodes[Annotated[
         Union[
             Annotated[Compute, Tag("Compute")],
             Annotated[Memory, Tag("Memory")],
-            Annotated["Hierarchical", Tag("Hierarchical")],
+            Annotated[ProcessingStage, Tag("ProcessingStage")],
         ], 
         Discriminator(get_tag)
     ]] = ArchNodes()

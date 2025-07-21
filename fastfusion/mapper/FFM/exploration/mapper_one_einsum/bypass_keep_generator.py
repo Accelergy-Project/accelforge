@@ -3,36 +3,42 @@ from collections.abc import Generator
 from itertools import chain, combinations
 
 import fastfusion.frontend.architecture as architecture
-from fastfusion.frontend.mapping import Storage
+from fastfusion.frontend.mapping import Storage, TensorHolder
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
 from fastfusion.util.setexpressions import InvertibleSet
 
 
-def make_storage_choices_one_level(
+def make_tensor_choices_one_level(
     node: architecture.Leaf,
     symbol_table: dict[str, InvertibleSet],
     seen_tensors: set[TensorName] = (),
-) -> Generator[tuple[list[Storage], SymbolTable, set[TensorName]], None, None]:
+    is_copy_op: bool = False,
+) -> Generator[tuple[list[TensorHolder], SymbolTable, set[TensorName]], None, None]:
     """
-    Generate combinations of storage nodes based on keep and bypass
+    Generate combinations of TensorHolder nodes based on keep and bypass
     constraints.
 
-    Each generated list contains storage nodes for single tensors.
+    Each generated list contains TensorHolder nodes for single tensors.
     """
     assert "All" in symbol_table
     tensors = symbol_table["All"]
 
-    if not isinstance(node, architecture.Memory):
+    if not isinstance(node, architecture.TensorHolder):
         yield [], symbol_table, set(seen_tensors)
         return
 
+    if isinstance(node, architecture.Memory):
+        target_type = Storage
+    else:
+        raise ValueError(f"Unexpected tensor holder type: {type(node)}")
+
     new_symbol_table = copy.copy(symbol_table)
-    storage_constraints = node.constraints.storage._parse_keep_bypass(
-        symbol_table, f"{node.name}.constraints.storage"
+    tensor_constraints = node.constraints.tensors._parse_keep_bypass(
+        symbol_table, f"{node.name}.constraints.tensors"
     )
-    must_keep = tensors.to_my_space(storage_constraints.keep)
-    must_bypass = tensors.to_my_space(storage_constraints.bypass)
+    must_keep = tensors.to_my_space(tensor_constraints.keep)
+    must_bypass = tensors.to_my_space(tensor_constraints.bypass)
     
     if must_keep - tensors:
         raise KeyError(
@@ -52,6 +58,11 @@ def make_storage_choices_one_level(
 
     may_keep = tensors - must_bypass - must_keep
 
+    # No reuse in copy operations, so no need to keep tensors in more places
+    if is_copy_op:
+        may_keep -= tensors.to_my_space(seen_tensors)
+
+
     for subset in powerset(sorted(may_keep, key=str)):
         # Make keep choice & update symbol table
         subset = tensors.to_my_space(set(subset))
@@ -65,42 +76,43 @@ def make_storage_choices_one_level(
         # Make sure they're all tensors
         assert all(isinstance(k, TensorName) for k in keep_choice)
         keep_choice = keep_choice.to_my_space({copy.copy(t) for t in keep_choice})
-        storage_nodes = []
+        nodes = []
 
         for t in sorted(keep_choice, key=str):
-            storage_nodes.append(
-                Storage(tensors=[t], memory=node.name, memory_object=node)
+            nodes.append(
+                target_type(tensors=[t], component=node.name, component_object=node)
             )
             if t not in seen_tensors:
-                storage_nodes[-1]._backing.add(t)
-                storage_nodes[-1]._must_keep_tensors = [t]
+                nodes[-1]._backing.add(t)
+                nodes[-1]._must_keep_tensors = [t]
             elif t in must_keep:
-                storage_nodes[-1]._must_keep_tensors = [t]
+                nodes[-1]._must_keep_tensors = [t]
 
-        yield storage_nodes, new_symbol_table, new_seen_tensors
+        yield nodes, new_symbol_table, new_seen_tensors
 
 
-def make_storage_choices_all_levels(
-    nodes: list[Storage],
+def make_tensor_choices_all_levels(
+    nodes: list[TensorHolder],
     symbol_table: dict[str, InvertibleSet],
     seen_tensors: set[TensorName] = None,
-) -> Generator[tuple[dict[str, list[Storage]], SymbolTable], None, None]:
+    is_copy_op: bool = False,
+) -> Generator[tuple[dict[str, list[TensorHolder]], SymbolTable], None, None]:
     """
-    Generate combinations of storage nodes based on keep and bypass
+    Generate combinations of TensorHolder nodes based on keep and bypass
     constraints.
 
-    Each generated dict maps memory name to a list of storage nodes for
+    Each generated dict maps memory name to a list of TensorHolder nodes for
     single tensors.
     """
     seen_tensors = set() if seen_tensors is None else seen_tensors
     if len(nodes) == 0:
         yield dict(), symbol_table
         return
-    for choice, symbol_table, new_seen_tensors in make_storage_choices_one_level(
-        nodes[0], symbol_table, seen_tensors
+    for choice, symbol_table, new_seen_tensors in make_tensor_choices_one_level(
+        nodes[0], symbol_table, seen_tensors, is_copy_op
     ):
-        for subchoices, symbol_table in make_storage_choices_all_levels(
-            nodes[1:], symbol_table, new_seen_tensors
+        for subchoices, symbol_table in make_tensor_choices_all_levels(
+            nodes[1:], symbol_table, new_seen_tensors, is_copy_op
         ):
             yield {**subchoices, nodes[0].name: choice}, symbol_table
 

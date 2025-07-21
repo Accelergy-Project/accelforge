@@ -16,7 +16,7 @@ def get_fused_loops_per_tensor(pmapping: Mapping, intermediate_tensors, non_fuse
                 or tensor in tensor_to_n_fused_loops
             ):
                 continue
-            if node.memory == non_fused_memory:
+            if node.component == non_fused_memory:
                 tensor_to_n_fused_loops[tensor] = None
             else:
                 tensor_to_n_fused_loops[tensor] = n_loops

@@ -1,9 +1,16 @@
+  # d=4, all others = 2
+  # - name: Q
+  #   tensor_accesses:
+  #   - {name: I, projection: [ b, m, d ]}
+  #   - {name: WQ, projection: [ h, e, d ]}
+  #   - {name: Q, projection: [ b, m, h, e ], output: True}
+
 mapping:
   version: "0.5"
   nodes:
   - !Storage
     tensors: [I, WQ, Q]
-    memory: MainMemory
+    component: MainMemory
   - !Temporal
     rank_variable: b
     tile_shape: 1
@@ -20,13 +27,13 @@ mapping:
     across: LocalBuffer
   - !Storage
     tensors: [Q]
-    memory: LocalBuffer
+    component: LocalBuffer
   - !Temporal
     rank_variable: m
     tile_shape: 1
   - !Storage
     tensors: [I]
-    memory: LocalBuffer
+    component: LocalBuffer
   - !Compute
     einsum: Q
     compute: MAC

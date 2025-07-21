@@ -84,7 +84,7 @@ class Comparison(ParsableModel):
 
     def force_to_one(self):
         return self.value == 1 and self.operator in ["==", "<=", "product==", "product<="]
-        
+
 # class ComparisonList(ParsableList):
 #     def __init__(self, *args, **kwargs):
 #         new_args = []
@@ -108,7 +108,7 @@ class Comparison(ParsableModel):
 #         raise ValueError(f"Must be a list. Got {type(x)}")
 #     return ComparisonList(*x)
 
-class Storage(ParsableModel):
+class Tensors(ParsableModel):
     bypass: Union[str, InvertibleSet[TensorName], set[TensorName]] = "~All"
     keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "~All"
     coalesce: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
@@ -181,17 +181,17 @@ class Temporal(Iteration):
         )
         
 class Dataflow(ParsableModel):
-    storage_orders: ParsableList[ParsableList[Union[str, InvertibleSet[TensorName], set[TensorName]]]] = ParsableList()
+    tensor_orders: ParsableList[ParsableList[Union[str, InvertibleSet[TensorName], set[TensorName]]]] = ParsableList()
 
     def _parse(self, symbol_table: dict[str, Any], location: str):
         result = type(self)(
-            storage_orders=[
+            tensor_orders=[
                 [eval_set_expression(x, symbol_table, "tensors", location) for x in order_choice]
-                for order_choice in self.storage_orders
+                for order_choice in self.tensor_orders
             ],
         )
         # Assert that there are no intersecting sets
-        for order in result.storage_orders:
+        for order in result.tensor_orders:
             for i, s0 in enumerate(order):
                 for j, s1 in enumerate(order):
                     if i == j:
@@ -205,7 +205,7 @@ class ConstraintGroup(ParsableModel):
     name: Optional[str] = None
     spatial: ParsableList[Spatial] = ParsableList()
     temporal: Temporal = Temporal()
-    storage: Storage = Storage()
+    tensors: Tensors = Tensors()
     dataflow: Dataflow = Dataflow()
     
 class ConstraintLambda:

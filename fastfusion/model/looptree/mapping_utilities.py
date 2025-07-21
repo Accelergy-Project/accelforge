@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential, Storage
+from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential, TensorHolder
 from fastfusion.frontend.workload import Workload
 
 
@@ -26,17 +26,6 @@ def get_leaves(mapping: Mapping, is_path):
             yield node
 
 
-def get_einsums_with_complete_mappings(mapping: Mapping, workload: Workload, is_path):
-    einsums_with_complete_mappings = set()
-    for compute_node in get_leaves(mapping, is_path):
-        einsum = compute_node.compute
-        if 'incomplete' not in compute_node:
-            einsums_with_complete_mappings.add(einsum)
-        if 'incomplete' in compute_node and not compute_node['incomplete']:
-            einsums_with_complete_mappings.add(einsum)
-    return einsums_with_complete_mappings
-
-
 def get_intermediate_tensors(workload: Workload):
     result = set()
     for einsum in workload.einsum_id_to_name():
@@ -49,20 +38,3 @@ def get_intermediate_tensors(workload: Workload):
                     break
 
     return result
-
-
-def get_last_storage_node(mapping, tensor):
-    for i, node in enumerate(mapping):
-        if isinstance(node, Storage) and tensor in node.tensor:
-            return i
-    return None
-
-
-def get_last_fused_loop_idx(mapping, intermediate_tensors):
-    intermediates_remaining = set(intermediate_tensors)
-    for i, node in enumerate(mapping):
-        if node['type'] == 'storage':
-            intermediates_remaining -= set(node['dspace'])
-        if not intermediates_remaining:
-            return i
-    return float('inf')

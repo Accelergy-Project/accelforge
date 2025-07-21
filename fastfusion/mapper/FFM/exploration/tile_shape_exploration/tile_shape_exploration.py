@@ -13,7 +13,7 @@ from fastfusion.frontend.architecture import Memory
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.symbolic import get_stride_and_halo
-from fastfusion.frontend.mapping import Temporal, Spatial, Storage, Pattern
+from fastfusion.frontend.mapping import Temporal, Spatial, TensorHolder, Pattern
 
 from fastfusion.mapper import metrics
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
@@ -677,19 +677,19 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
 
     reuse = analyze_reuse(pmapping, workload)
     overall_latency, comp_latency, mem_latency = get_latency(reuse, pmapping, workload, flattened_arch)
-    actions = gather_actions(reuse, pmapping, workload, None, is_path=True, use_name=True)
+    actions = gather_actions(reuse, None, use_name=True)
     energy = compute_energy_from_actions(actions, ert)
 
     intermediate_tensors = workload.intermediate_tensor_names
     tensor_to_backing = {}
     for node in pmapping.nodes:
-        if isinstance(node, Storage):
+        if isinstance(node, TensorHolder):
             for tensor in node.tensors:
                 if (
                     tensor not in tensor_to_backing
                     and tensor in intermediate_tensors
                 ):
-                    tensor_to_backing[tensor] = node.memory
+                    tensor_to_backing[tensor] = node.component
 
     total_occupancy = {}
     compute_unit = pmapping.nodes[-1].compute
@@ -698,7 +698,7 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
         if buffet.level == compute_unit:
             continue
 
-        occupancy = stats.occupancy*memory_to_datawidth[buffet.level]
+        occupancy = stats.max_occupancy*memory_to_datawidth[buffet.level]
 
         if (
             buffet.tensor in tensor_to_backing

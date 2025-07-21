@@ -23,6 +23,8 @@ renames:
     - name: Intermediates
       source: Nothing
     {% endif %}
+    - name: output
+      source: Outputs()
 
   - name: QK
     tensor_accesses:

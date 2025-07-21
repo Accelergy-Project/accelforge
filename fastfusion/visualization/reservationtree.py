@@ -1,7 +1,7 @@
 from collections import defaultdict
 import pydot
 from typing import Any, Iterable
-from fastfusion.mapper.FFM.joining.sim import Compatibility, TensorStorage, Loop
+from fastfusion.mapper.FFM.joining.sim import Compatibility, TensorReservation, Loop
 from fastfusion.util import expfmt
 from fastfusion.mapper.FFM.pareto import IN_PROGRESS_STATS, col2nameloop
 
@@ -74,23 +74,23 @@ class Node:
             for k, v in c.get_reservations().items():
                 reservations[k] = max(reservations[k], v)
         for t in self.this_level:
-            if isinstance(t, TensorStorage):
+            if isinstance(t, TensorReservation):
                 reservations[str(t.resource_name)] += t.size
         return dict(reservations)
 
-    def get_all_storage(
+    def get_all_tensors(
         self, _entry: bool = True, start_at: int = 0
-    ) -> list[TensorStorage]:
+    ) -> list[TensorReservation]:
         if start_at <= 0:
-            storage = set(t for t in self.this_level if isinstance(t, TensorStorage))
+            tensors = set(t for t in self.this_level if isinstance(t, TensorReservation))
         else:
-            storage = set()
+            tensors = set()
         for c in self.children:
-            storage.update(c.get_all_storage(_entry=False, start_at=start_at - 1))
-        return sorted(storage) if _entry else storage
+            tensors.update(c.get_all_tensors(_entry=False, start_at=start_at - 1))
+        return sorted(tensors) if _entry else tensors
 
-    def get_backing_stores(self):
-        return TensorStorage.get_backing_stores(self.get_all_storage())
+    def get_backing_tensors(self):
+        return TensorReservation.get_backing_tensors(self.get_all_tensors())
 
     def merge(self, other: "Node") -> "Node":
         new_this_level = self.this_level + other.this_level
@@ -109,9 +109,9 @@ class Node:
 
     def get_shared_tensors(
         self, other: "Node", start_at: int = 0
-    ) -> set[TensorStorage]:
-        return set(self.get_all_storage(start_at=start_at)) & set(
-            other.get_all_storage(start_at=start_at)
+    ) -> set[TensorReservation]:
+        return set(self.get_all_tensors(start_at=start_at)) & set(
+            other.get_all_tensors(start_at=start_at)
         )
 
     def find_node_with(self, key: Any) -> "Node":
@@ -171,14 +171,14 @@ def mappings2reservationtree(
     # If a tensor appears in non-back-to-back Einsums, then we need to store it for
     # all Einsums in between
     tensors_lifetimes = {e: [] for e in einsum_ids}
-    all_tensors = set().union(*[set(t.storage) for t in mappings.values()])
-    backers = TensorStorage.get_backing_stores(all_tensors)
+    all_tensors = set().union(*[set(t.tensors) for t in mappings.values()])
+    backers = TensorReservation.get_backing_tensors(all_tensors)
     for t in backers:
         first_appearance = min(
-            i for i, ts in enumerate(mappings.values()) if t in ts.storage
+            i for i, ts in enumerate(mappings.values()) if t in ts.tensors
         )
         last_appearance = max(
-            i for i, ts in enumerate(mappings.values()) if t in ts.storage
+            i for i, ts in enumerate(mappings.values()) if t in ts.tensors
         )
         if t.name in still_live_tensors or still_live_tensors == "all":
             last_appearance = len(einsum_ids) - 1
@@ -204,11 +204,11 @@ def mappings2reservationtree(
             for k, v in per_component_energy[einsum_id].items():
                 n.children[-1].this_level.append(f"{k} energy: {expfmt(v)}")
         id2tensor = defaultdict(set)
-        for t in sorted(mapping.storage) + tensors_lifetimes[einsum_id]:
+        for t in sorted(mapping.tensors) + tensors_lifetimes[einsum_id]:
             id2tensor[t.name].add(t)
         id2tensor = {k: sorted(v) for k, v in id2tensor.items()}
-        for tensor_name, storage in id2tensor.items():
-            for tensor in storage:
+        for tensor_name, tensors in id2tensor.items():
+            for tensor in tensors:
                 n = root.access_level(tensor.above_loop_index)
                 # TODO if tensor not in n.this_level or tensor not in backers:
                 if tensor not in n.this_level or tensor not in backers:
@@ -228,7 +228,7 @@ def mappings2reservationtree(
                 shared_tensors = children[i].get_shared_tensors(children[j], start_at=1)
                 shared_tensors |= set(
                     c
-                    for c in children[i].get_all_storage(start_at=1)
+                    for c in children[i].get_all_tensors(start_at=1)
                     if c.name in still_live_tensors or still_live_tensors == "all"
                 )
                 if shared_tensors & set(backers):
@@ -274,7 +274,7 @@ def mappings2reservationtree(
                     continue
                 name, _ = nameloop
                 node = root.find_node_with(get_einsum_key(einsum))
-                node.this_level.append(TensorStorage("Reservation", -1, name, size))
+                node.this_level.append(TensorReservation("Reservation", -1, name, size))
 
     root.deduplicate_reservations(backers)
 

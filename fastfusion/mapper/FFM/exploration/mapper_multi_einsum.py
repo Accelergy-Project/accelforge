@@ -9,7 +9,7 @@ from fastfusion.accelerated_imports import pd
 
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.mapping import Iteration, Mapping, Reservation, Storage
+from fastfusion.frontend.mapping import Iteration, Mapping, TensorHolder
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
@@ -105,10 +105,11 @@ def get_jobs(
     einsum2jobs = {}
     for einsum_name, jobs in parallel(
         [delayed(make_jobs_for_einsum)(einsum_name) for einsum_name in einsum_names],
-        pbar="Generating Jobs",
+        pbar="Generating jobs",
         return_as="generator",
     ):
-        print(f"Generated {sum(len(j) for j in jobs.values())} jobs for {einsum_name}")
+        n_jobs = sum(len(j) for j in jobs.values())
+        print(f"Generated {n_jobs} job{'s'[:n_jobs != 1]} for {einsum_name}")
         einsum2jobs[einsum_name] = jobs
 
     if fail_if_no_pmappings_for_einsum:
@@ -147,14 +148,14 @@ def get_memories_to_track(
                 f"every tensor in the workload."
             )
 
-    # If the memory is below every backing storage node, then we need it for the
+    # If the memory is below every backing tensor holder node, then we need it for the
     # pmapping exploration but can drop it immediately
     for m in list(memories_track_all):
         must_track = False
         for job in jobs:
             seen = False
             for node in job.mapping.nodes:
-                if isinstance(node, Storage) and node.memory == m:
+                if isinstance(node, TensorHolder) and node.component == m:
                     seen = True
                 if isinstance(node, Iteration) and node._fused and seen:
                     must_track = True
@@ -205,11 +206,6 @@ def get_sims(
         pbar=f"Generating pmappings",
         return_as="generator_unordered",
     ):
-        # grouped_decompress_data.register_decompress_data(
-        #     einsum_name,
-        #     job_ids,
-        #     decompress_data,
-        # )
         sims[einsum_name].extend(new_sims)
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
     return sims, pmapping_objects

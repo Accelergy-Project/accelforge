@@ -9,7 +9,6 @@ from fastfusion.frontend.mapping import (
     Iteration,
     Mapping,
     ModelOnlyNode,
-    Storage,
     Spatial,
 )
 from fastfusion.frontend.specification import Specification
@@ -26,7 +25,7 @@ from fastfusion.mapper.FFM.joining.mappinginfo import (
     Compatibility,
     Loop,
     TilePattern,
-    TensorStorage,
+    TensorReservation,
 )
 from fastfusion.mapper.FFM.exploration.contraints.constraints import (
     MappingConstraints,
@@ -58,7 +57,7 @@ def make_compatibility(
             loop_idx2reservations.setdefault(len(fused_loops), []).append(node)
         elif isinstance(node, ModelOnlyNode):
             continue
-        elif isinstance(node, Storage):
+        elif isinstance(node, TensorHolder):
             continue
         else:
             raise ValueError(f"Unexpected node type: {type(node)}")
@@ -81,7 +80,7 @@ def make_compatibility(
                 tensor_loops.append(Loop(rank, None, isinstance(loop, Spatial)))
 
             compatibility_reservations.append(
-                TensorStorage(
+                TensorReservation(
                     name=reservation.purpose,
                     loops=tuple(tensor_loops),
                     resource_name=reservation.resource,
@@ -91,7 +90,7 @@ def make_compatibility(
 
     compatibility = Compatibility(
         n_loops=len(fused_loops),
-        storage=fzs(compatibility_reservations),
+        tensors=fzs(compatibility_reservations),
     )
 
     def update_compatibility_with_tile_shapes(tile_shapes, tensor2size):
@@ -132,7 +131,7 @@ def make_compatibility(
 
             tile_shape_idx += 1
 
-        storages = []
+        tensors = []
         for n_loops, reservations_at_level in loop_idx2reservations.items():
             for reservation in reservations_at_level:
                 tensor = reservation.purpose
@@ -175,14 +174,14 @@ def make_compatibility(
 
                     tensor_loops.append(Loop(rank, rank_bound, isinstance(loop, Spatial)))
 
-                storages.append(TensorStorage(
+                tensors.append(TensorReservation(
                     reservation.purpose,
                     tuple(tensor_loops),
                     reservation.resource,
                     size=tensor2size[reservation.purpose]
                 ))
-        compat = Compatibility(n_loops=max([0] + [len(s.loops) for s in storages]),
-                               storage=fzs(storages))
+        compat = Compatibility(n_loops=max([0] + [len(s.loops) for s in tensors]),
+                               tensors=fzs(tensors))
         return compat, null_loop_indices
     return compatibility, update_compatibility_with_tile_shapes
 
@@ -230,13 +229,17 @@ class Job:
                                 self.spec.workload,
                                 self.rank_variable_bounds,
                                 self.stride_and_halo)
+            
+    @property
+    def is_copy_operation(self) -> bool:
+        return self.spec.workload.einsums[self.einsum_name].is_copy_operation
 
 
 class SameSpecJobs(list[Job]):
     @property
     def spec(self) -> Specification:
         return first(self).spec
-    
+
     @property
     def rank_variable_bounds(self) -> dict[RankVariableName, int]:
         return first(self).rank_variable_bounds
@@ -244,7 +247,7 @@ class SameSpecJobs(list[Job]):
     @property
     def tagger(self) -> Callable[[Mapping], Tags]:
         return first(self).tagger
-    
+
     @property
     def metrics(self) -> metrics.Metrics:
         return first(self).metrics
@@ -271,6 +274,10 @@ class SameEinsumJobs(SameSpecJobs):
     @property
     def stride_and_halo(self) -> dict[tuple[str, str], dict[tuple[str, str], tuple[int, int]]]:
         return first(self).stride_and_halo
+
+    @property
+    def is_copy_op(self) -> bool:
+        return first(self).is_copy_operation
 
 
 class SameCompatibilityJobs(SameEinsumJobs):

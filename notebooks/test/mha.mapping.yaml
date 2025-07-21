@@ -1,36 +1,36 @@
 mapping:
   nodes:
-  - {type: Storage, tensors: [I, AV, Z, FFB], memory: Global Buffer}
+  - {type: Storage, tensors: [I, AV, Z, FFB], component: Global Buffer}
   - type: Split
     nodes:
     - type: Nested # Q, K, V, QK, AV
       nodes:
       - {type: Temporal, rank_variable: h, loop_bound: 1}
-      - {type: Storage, tensors: [Q, K, V], memory: Global Buffer}
+      - {type: Storage, tensors: [Q, K, V], component: Global Buffer}
       - type: Split
         nodes:
         - type: Nested # Q
           nodes:
           - {type: Temporal, rank_variable: f, loop_bound: 1}
           - {type: Temporal, rank_variable: d, loop_bound: 1}
-          - {type: Storage, tensors: [WV], memory: Global Buffer}
+          - {type: Storage, tensors: [WV], component: Global Buffer}
           - {type: Compute, einsum: V}
         - type: Nested # K
           nodes:
           - {type: Temporal, rank_variable: e, loop_bound: 1}
           - {type: Temporal, rank_variable: d, loop_bound: 1}
-          - {type: Storage, tensors: [WK], memory: Global Buffer}
+          - {type: Storage, tensors: [WK], component: Global Buffer}
           - {type: Compute, einsum: K}
         - type: Nested # V
           nodes:
           - {type: Temporal, rank_variable: f, loop_bound: 1}
           - {type: Temporal, rank_variable: d, loop_bound: 1}
-          - {type: Storage, tensors: [WQ], memory: Global Buffer}
+          - {type: Storage, tensors: [WQ], component: Global Buffer}
           - {type: Compute, einsum: Q}
         - type: Nested # QK, AV
           nodes:
           - {type: Temporal, rank_variable: p, loop_bound: 1}
-          - {type: Storage, tensors: [QK], memory: Global Buffer}
+          - {type: Storage, tensors: [QK], component: Global Buffer}
           - type: Split
             nodes:
             - {type: Compute, einsum: QK}
@@ -41,24 +41,24 @@ mapping:
       - {type: Temporal, rank_variable: h, loop_bound: 1}
       - {type: Temporal, rank_variable: f, loop_bound: 1}
       - {type: Temporal, rank_variable: g, loop_bound: 1}
-      - {type: Storage, tensors: [WZ], memory: Global Buffer}
+      - {type: Storage, tensors: [WZ], component: Global Buffer}
       - {type: Compute, einsum: Z}
 
     - type: Nested  # FFA, FFB
       nodes:
       - {type: Temporal, rank_variable: nFFA, loop_bound: 1}
-      - {type: Storage, tensors: [FFA], memory: Global Buffer}
+      - {type: Storage, tensors: [FFA], component: Global Buffer}
       - type: Split
         nodes:
         - type: Nested # FFA
           nodes:
           - {type: Temporal, rank_variable: g, loop_bound: 1}
-          - {type: Storage, tensors: [WFFA], memory: Global Buffer}
+          - {type: Storage, tensors: [WFFA], component: Global Buffer}
           - {type: Compute, einsum: FFA}
         - type: Nested # FFB
           nodes:
           - {type: Temporal, rank_variable: nFFB, loop_bound: 1}
-          - {type: Storage, tensors: [FFB], memory: Global Buffer}
+          - {type: Storage, tensors: [FFB], component: Global Buffer}
           - {type: Compute, einsum: FFB}
 
 

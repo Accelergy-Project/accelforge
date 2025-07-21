@@ -2,10 +2,9 @@ import os
 from pathlib import Path
 import pickle
 from fastfusion import Specification
-from fastfusion.mapper.FFM.exploration.mapper_multi_einsum import get_sims
-from fastfusion.mapper.FFM.joining.simexplore import join_sims
+from fastfusion.mapper.FFM.ffm import make_pmappings, join_pmappings
 from fastfusion.mapper.FFM.exploration.mapping_filter_tags import get_one_split_tag, get_ffmt_tag
-from fastfusion.mapper.FFM.exploration.metrics import Metrics
+from fastfusion.mapper.metrics import Metrics
 
 
 ARCH_DIR          = Path('architecture/')
@@ -59,27 +58,18 @@ def get_sims_with_cache(tagger_name=None,
     flattened_architecture = spec.get_flattened_architecture()
 
     sims_name = get_experiment_name(tagger_name, arch_name, workload_name)
-    sims_pickle_name = MAPPINGS_SIMS_DIR / f'{sims_name}.sims.pkl'
-    decompress_data_pickle_name = MAPPINGS_SIMS_DIR / f'{sims_name}.decompress.pkl'
-    if sims_pickle_name.is_file() and not refresh_cache:
-        assert decompress_data_pickle_name.is_file()
-        with open(sims_pickle_name, 'rb') as f:
-            sims = pickle.load(f)
-            print(f'Loaded SIMs from {sims_pickle_name}')
-        with open(decompress_data_pickle_name, 'rb') as f:
-            decompress_data = pickle.load(f)
-            print(f'Loaded decompress data from {decompress_data_pickle_name}')
+    pmappings_pickle_name = MAPPINGS_SIMS_DIR / f'{sims_name}.pmappings.pkl'
+    if pmappings_pickle_name.is_file() and not refresh_cache:
+        with open(pmappings_pickle_name, 'rb') as f:
+            pmappings = pickle.load(f)
+            print(f'Loaded pmappings from {pmappings_pickle_name}')
     else:
-        sims, decompress_data = get_sims(spec, flattened_architecture,
-                                         tagger=tagger, metrics=Metrics.ENERGY)
+        pmappings = make_pmappings(spec)
 
-    with open(sims_pickle_name, 'wb') as f:
-        pickle.dump(sims, f)
-    with open(decompress_data_pickle_name, 'wb') as f:
-        pickle.dump(decompress_data, f)
+    with open(pmappings_pickle_name, 'wb') as f:
+        pickle.dump(pmappings, f)
 
-    mappings = join_sims(sims, spec, flattened_architecture, drop_valid_reservations=False)
-    mappings.decompress(decompress_data)
+    mappings = join_pmappings(spec, pmappings)
 
     with open(result_pickle_name, 'wb') as f:
         pickle.dump(mappings, f)

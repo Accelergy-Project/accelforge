@@ -9,10 +9,10 @@ NOT_ONE_SPLIT = 'NOT_ONE_SPLIT'
 def get_one_split_tag(compatibility: Compatibility) -> Tags:
     # TODO
     unique_loops = set()
-    for storage in compatibility.storage:
-        if storage.resource_name == "MainMemory":
+    for tensor in compatibility.tensors:
+        if tensor.resource_name == "MainMemory":
             continue
-        unique_loops.add(storage.above_loop_index)
+        unique_loops.add(tensor.above_loop_index)
 
     if len(unique_loops) == 0:
         return Tags()  # unfused is compatible with anything

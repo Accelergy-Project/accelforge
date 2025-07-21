@@ -207,6 +207,14 @@ class Einsum(ParsableModel):
     
     def output_tensors(self) -> set[TensorName]:
         return {TensorName(t.name) for t in self.tensor_accesses if t.output}
+    
+    def copy_source_tensor(self) -> TensorName | None:
+        if not self.is_copy_operation:
+            return None
+        input_tensors = self.input_tensors()
+        if len(input_tensors) != 1:
+            raise ValueError(f"Einsum {self.name} has {len(input_tensors)} input tensors, expected 1")
+        return input_tensors.pop()
 
 class Workload(ParsableModel):
     version: Annotated[str, assert_version] = __version__
