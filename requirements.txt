@@ -9,3 +9,4 @@ islpy
 sympy
 platformdirs
 pydot
+joblib
