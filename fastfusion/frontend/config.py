@@ -7,9 +7,12 @@ import os
 import sys
 from pathlib import Path
 
+
+USER_CUSTOM_CONFIG_PATH_VAR = "FASTFUSION_CONFIG_PATH"
+
 def get_config():
-    if "FFM_CONFIG_PATH" in os.environ:
-        f = os.environ["FFM_CONFIG_PATH"]
+    if USER_CUSTOM_CONFIG_PATH_VAR in os.environ:
+        f = os.environ[USER_CUSTOM_CONFIG_PATH_VAR]
     elif hasattr(sys, "real_prefix") or (
         hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
     ):
