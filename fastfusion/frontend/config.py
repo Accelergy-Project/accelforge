@@ -8,12 +8,12 @@ import sys
 from pathlib import Path
 
 def get_config():
-    if hasattr(sys, "real_prefix") or (
+    if "FFM_CONFIG_PATH" in os.environ:
+        f = os.environ["FFM_CONFIG_PATH"]
+    elif hasattr(sys, "real_prefix") or (
         hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
     ):
         f = os.path.join(sys.prefix, "fastfusion", "config.yaml")
-    elif "FFM_CONFIG_PATH" in os.environ:
-        f = os.environ["FFM_CONFIG_PATH"]
     else:
         f = os.path.join(user_config_dir("fastfusion"), "config.yaml")
 
