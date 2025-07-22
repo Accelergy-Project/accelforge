@@ -16,8 +16,7 @@ architecture:
       area: 1
     constraints:
       tensors:
-        keep: ~Intermediates() - I_in
-        bypass: I_in
+        keep: ~Intermediates()
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
@@ -35,7 +34,7 @@ architecture:
       area: 1
     constraints:
       tensors:
-        keep: All() # ~MainMemory.tensors() | input | output
+        keep: ~MainMemory.tensors() | input | output
         # bypass: weight - ( ~MainMemory.tensors() | input | output)
       # dataflow:
       #   tensor_orders:
