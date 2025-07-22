@@ -19,7 +19,7 @@ workload:
     - {name: I_in, projection: [b, m, d]}
     - {name: IV, projection: [b, m, d], output: True}
     - {name: IK, projection: [b, m, d], output: True}
-    # - {name: IQ, projection: [b, m, d], output: True}
+    - {name: IQ, projection: [b, m, d], output: True}
 
   - name: V
     tensor_accesses:
