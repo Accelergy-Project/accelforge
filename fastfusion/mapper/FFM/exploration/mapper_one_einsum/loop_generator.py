@@ -121,8 +121,7 @@ def insert_temporal_loops(
         # Partially-relevant loop becomes fused if we lower.
         prev_has_backing = any(s._backing for s in prev_tensor_holders)
         if prev_has_backing and partially_relevant_to_previous:
-            assert len(prev_tensor_holders) == 1
-            lowering_choices.append([True, False] * len(prev_tensor_holders))
+            lowering_choices.extend([[True, False]] * len(prev_tensor_holders))
 
         # Option 2: No backing in previous. Lower all. No cost to lowering. Conditioned
         # on option 1 being false.

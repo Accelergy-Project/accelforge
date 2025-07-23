@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import fastfusion.frontend.mapping as mapping_spec
-from fastfusion.frontend.mapping import Mapping, MappingNode, ProcessingStage, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern, TensorHolder
+from fastfusion.frontend.architecture import ProcessingStage
+from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern, TensorHolder
 from fastfusion.frontend.workload import (
     Workload,
     TensorName,
