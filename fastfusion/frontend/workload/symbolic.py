@@ -90,6 +90,7 @@ def compute_rank_occupancy(
 def get_stride_and_halo_of_einsum(
     einsum_name: str,
     workload: Workload,
+    rank_variable_bounds: dict[RankVariableName, int] | None = None,
 ) -> dict[TensorName, dict[tuple[RankName, RankVariableName]], tuple[int, int]]:
     """
     Get stride and halo (initial delta) for an Einsum in workload.
@@ -99,7 +100,10 @@ def get_stride_and_halo_of_einsum(
     """
     stride_and_halo = {}
     einsum = workload.einsums[einsum_name]
-    shape = get_rank_variable_bounds(workload, einsum_name)
+    if rank_variable_bounds is None:
+        shape = get_rank_variable_bounds(workload, einsum_name)
+    else:
+        shape = rank_variable_bounds
     for tensor in einsum.tensor_names:
         stride_and_halo[tensor] = {}
         tensor_stride_and_halo = stride_and_halo[tensor]

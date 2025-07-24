@@ -14,7 +14,7 @@ architecture:
       datawidth: 8
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: ~Intermediates() {% if FFMT | default(false) %} | weight {% endif %}
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
@@ -32,11 +32,11 @@ architecture:
       datawidth: 8
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: ~MainMemory.tensors() | input | output
       {% if FFMT | default(false) %}
       dataflow:
-        storage_orders:
+        tensor_order_options:
         - [weight, input, output]
         - [weight, output, input]
       {% endif %}
@@ -55,11 +55,11 @@ architecture:
       datawidth: 8
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: Intermediates() - weight
         bypass: weight
       dataflow:
-        storage_orders:
+        tensor_order_options:
         - [All()] # No uneven. Put all tensors at the same level.
       spatial:
         - dimension: X
@@ -81,7 +81,7 @@ architecture:
   #     datawidth: 8
   #     area: 0
   #   constraints:
-  #     storage:
+  #     tensors:
   #       keep: All()
   #       tile_shape:
   #       - expression: parallel_rank | reduced_rank
@@ -91,7 +91,7 @@ architecture:
   #         operator: ==
   #         value: 1
   #     dataflow:
-  #       storage_orders:
+  #       tensor_order_options:
   #       - [input, output, weight]
   #   actions:
   #   - {name: read, arguments: {energy: 0}}
@@ -109,7 +109,7 @@ architecture:
       depth: 1000
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: weight
         bypass: ~weight
         tile_shape:
@@ -117,7 +117,7 @@ architecture:
           operator: ==
           value: 1
       dataflow:
-        storage_orders:
+        tensor_order_options:
         - [All()] # Outputs more stationary than inputs
       spatial:
         - dimension: X # Parallel rank

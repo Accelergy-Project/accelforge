@@ -13,8 +13,8 @@ architecture:
       datawidth: 1
       area: 1
     constraints:
-      storage:
-        keep: ~Intermediates() {% if FFMT | default(false) %} | weight {% endif %}
+      tensors:
+        keep: ~Intermediates()
     actions:
     - {name: read, arguments: {energy: 1}}
     - {name: write, arguments: {energy: 1}}
@@ -28,20 +28,8 @@ architecture:
       datawidth: 1
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: All()
-        tile_shape:
-        - expression: b
-          operator: ==
-          value: 1
-        - expression: head
-          operator: ==
-          value: 1
-      {% if FFMT | default(false) %}
-      dataflow:
-        storage_orders:
-        - [input | output, weight]
-      {% endif %}
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}

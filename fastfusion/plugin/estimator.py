@@ -56,13 +56,13 @@ def install(path: str, add_full_dir: bool = False):
         path = os.path.dirname(path)
 
     cfg = load_yaml(cfg_yaml)
-    python_paths = cfg.get("python_plug_ins", [])
+    python_paths = cfg.get("python_models", [])
 
     # Update the list of paths
     if path in python_paths:
         info(f"Path {path} already in the list of python paths.")
     else:
-        cfg.update({"python_plug_ins": python_paths + [path]})
+        cfg.update({"python_models": python_paths + [path]})
         info(f"Added path {path} to the list of python paths.")
         write_yaml_file(cfg_yaml, cfg)
 
@@ -75,13 +75,13 @@ def uninstall(path: str, remove_full_dir: bool = False):
         path = os.path.dirname(path)
 
     cfg = load_yaml(cfg_yaml)
-    python_paths = cfg.get("python_plug_ins", [])
+    python_paths = cfg.get("python_models", [])
 
     # Update the list of paths
     if path not in python_paths:
         info(f"Path {path} not in the list of python paths.")
     else:
-        cfg.update({"python_plug_ins": [p for p in python_paths if p != path]})
+        cfg.update({"python_models": [p for p in python_paths if p != path]})
         info(f"Removed path {path} from the list of python paths.")
         write_yaml_file(cfg_yaml, cfg)
 

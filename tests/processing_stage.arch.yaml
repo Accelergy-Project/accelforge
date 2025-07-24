@@ -1,0 +1,52 @@
+variables:
+  global_cycle_seconds: 1e-9
+  technology: "7nm"
+
+architecture:
+  version: "0.5"
+  nodes:
+  - !Memory
+    name: MainMemory
+    attributes:
+      size: 1e9
+      area: 1
+      datawidth: 8
+    constraints:
+      tensors: {keep: All()}
+    actions:
+    - {name: read, arguments: {energy: 0}}
+    - {name: write, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
+
+  - !ProcessingStage
+    name: ProcessingStage
+    attributes:
+      datawidth: 8
+      area: 1
+    constraints:
+      tensors: {keep: All()}
+    actions:
+    - {name: read, arguments: {energy: 100}}
+    - {name: write, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
+
+  - !Memory
+    name: LocalBuffer
+    attributes:
+      size: 1e9
+      datawidth: 8
+      area: 1
+    constraints:
+      tensors: {keep: All()}
+    actions:
+    - {name: read, arguments: {energy: 0}}
+    - {name: write, arguments: {energy: 0}}
+    - {name: leak, arguments: {energy: 0}}
+
+  - !Compute
+    name: MAC
+    component_class: intmac
+    attributes: {area: 1}
+    actions:
+    - {name: compute, arguments: {energy: 0.0}}
+    - {name: leak, arguments: {energy: 0}}

@@ -29,7 +29,8 @@ node_list: TypeAlias = ParsableList[Annotated[
             Annotated["Reservation", Tag("Reservation")],
             Annotated["Fill", Tag("Fill")],
             Annotated["Mapping", Tag("Mapping")],
-        ], 
+            Annotated["ProcessingStage", Tag("ProcessingStage")],
+        ],
     Discriminator(get_tag)
 ]]
 
@@ -304,32 +305,32 @@ class Spatial(Iteration):
                self.across == other.across and \
                self.across_object == other.across_object
 
-class Storage(MappingNode):
+
+class TensorHolder(MappingNode):
     tensors: ParsableList[TensorName]
-    memory: str
-    memory_object: Optional[architecture.Memory] = None # Reference to memory node for convenience
+    component: str
+    component_object: Optional[architecture.Component] = None # Reference to component node
     _must_keep_tensors: ParsableList[TensorName] = ParsableList() # Must the mapper keep these tensors here?
-    _backing: set[TensorName] = set()  # Is this node a backing storage?
-    _even_with_below: bool = False
+    _backing: set[TensorName] = set() # Which tensor(s) are backed by this node?
     _lower: bool = True
 
     def compact_string(self) -> str:
         tname = ",".join(self.tensors)
-        return f"[{self.memory} {tname} {self._lower}]"
+        return f"[{self.component} {tname} {self._lower}]"
     
     def __str__(self, color_map: ColorMap = None) -> str:
         tensors = self.tensors
         if color_map is not None:
-            # format_list = comma_separated_list(tensors) + [f" reused via {self.memory}"]
-            format_list = [f"{self.memory} reuses"] + comma_separated_list(tensors)
+            # format_list = comma_separated_list(tensors) + [f" reused via {self.component}"]
+            format_list = [f"{self.component} reuses"] + comma_separated_list(tensors)
             return color_map.format_list(format_list)
-        return f"{self.memory} reuses {', '.join(tensors)}"
+        return f"{self.component} reuses {', '.join(tensors)}"
     
     @property
     def tensor(self) -> TensorName:
         if len(self.tensors) != 1:
             raise ValueError(
-                f"Storage node {repr(self)} has {len(self.tensors)} tensors. "
+                f"TensorHolder node {repr(self)} has {len(self.tensors)} tensors. "
                 f"Access the tensors property instead."
             )
         return self.tensors[0]
@@ -339,6 +340,13 @@ class Storage(MappingNode):
     
     def _render_node_color(self) -> str:
         return "#D7FCD7"
+
+
+class Storage(TensorHolder):
+    pass
+
+class ProcessingStage(TensorHolder):
+    pass
 
 class Compute(MappingNode):
     einsum: str
@@ -375,13 +383,13 @@ class MappingNodeWithChildren(MappingNode):
             lines.extend(child._render_make_children())
         return lines
     
-    def get_backing_storage_nodes(self) -> list[Storage]:
+    def get_backers(self) -> list[TensorHolder]:
         backing = []
         for child in self.nodes:
-            if isinstance(child, Storage) and child._backing:
+            if isinstance(child, TensorHolder) and child._backing:
                 backing.append(child)
             elif isinstance(child, MappingNodeWithChildren):
-                backing.extend(child.get_backing_storage_nodes())
+                backing.extend(child.get_backers())
         return backing
 
 
@@ -405,13 +413,13 @@ class MappingNodeWithChildren(MappingNode):
             new_nodes.append(node)
         self.nodes = ParsableList(new_nodes)
     
-    def _consolidate_storage(self) -> None:
+    def _consolidate_tensor_holders(self) -> None:
         new_nodes = []
         for node in self.nodes:
-            if isinstance(node, Storage):
+            if isinstance(node, TensorHolder):
                 found = False
                 for n in new_nodes[::-1]:
-                    if isinstance(n, Storage) and n.memory == node.memory:
+                    if isinstance(n, TensorHolder) and n.component == node.component:
                         n.tensors.extend(n2 for n2 in node.tensors if n2 not in n.tensors)
                         found = True
                         break
@@ -422,7 +430,7 @@ class MappingNodeWithChildren(MappingNode):
             else:
                 new_nodes.append(node)
             if isinstance(node, MappingNodeWithChildren):
-                node._consolidate_storage()
+                node._consolidate_tensor_holders()
         assert new_nodes, "BUG"
         self.nodes = ParsableList(new_nodes)
     
@@ -447,15 +455,15 @@ class MappingNodeWithChildren(MappingNode):
         assert new_nodes, "BUG"
         self.nodes = ParsableList(new_nodes)
 
-    def _elevate_storage_above_splits(self) -> None:
+    def _elevate_tensor_holders_above_splits(self) -> None:
         new_nodes: list[MappingNode] = []
         for node in self.nodes:
             if isinstance(node, Split):
-                shared_storages = node._get_shared_storage_nodes()
-                new_nodes.extend(shared_storages)
-                node.clear_nodes(*shared_storages)
+                shared_tensor_holders = node._get_shared_tensor_holders()
+                new_nodes.extend(shared_tensor_holders)
+                node.clear_nodes(*shared_tensor_holders)
             if isinstance(node, MappingNodeWithChildren):
-                node._elevate_storage_above_splits()
+                node._elevate_tensor_holders_above_splits()
             new_nodes.append(node)
         self.nodes = ParsableList(new_nodes)
         
@@ -490,13 +498,13 @@ class MappingNodeWithChildren(MappingNode):
                         if s not in reservations3:
                             node3.nodes.insert(0, copy.deepcopy(s))
                 
-    def _move_storage_above_reservations(self) -> None:
+    def _move_tensor_holders_above_reservations(self) -> None:
         groups = []
         cur_group = []
         for node in self.nodes:
             if isinstance(node, MappingNodeWithChildren):
-                node._move_storage_above_reservations()
-            if not isinstance(node, (Storage, Reservation)):
+                node._move_tensor_holders_above_reservations()
+            if not isinstance(node, (TensorHolder, Reservation)):
                 groups.append(cur_group)
                 cur_group = []
             cur_group.append(node)
@@ -504,8 +512,8 @@ class MappingNodeWithChildren(MappingNode):
         groups = [g for g in groups if g]
         
         groups = [
-            [x for x in g if not isinstance(x, (Storage, Reservation))] +
-            [x for x in g if isinstance(x, (Storage))] +
+            [x for x in g if not isinstance(x, (TensorHolder, Reservation))] +
+            [x for x in g if isinstance(x, (TensorHolder))] +
             [x for x in g if isinstance(x, (Reservation))]
             for g in groups
         ]
@@ -520,18 +528,18 @@ class Split(MappingNodeWithChildren):
     def _render_node_shape(self) -> str:
         return "hexagon"
     
-    def _get_shared_storage_nodes(self) -> list[Storage]:
-        storages = [n.get_nodes_of_type(Storage) for n in self.nodes]
-        shared_storages = []
-        for i in range(len(storages)):
-            for j in range(i + 1, len(storages)):
-                for a in storages[i]:
-                    for b in storages[j]:
-                        if a._backing & b._backing and a not in shared_storages:
+    def _get_shared_tensor_holders(self) -> list[TensorHolder]:
+        tensor_holders = [n.get_nodes_of_type(TensorHolder) for n in self.nodes]
+        shared_tensor_holders = []
+        for i in range(len(tensor_holders)):
+            for j in range(i + 1, len(tensor_holders)):
+                for a in tensor_holders[i]:
+                    for b in tensor_holders[j]:
+                        if a._backing & b._backing and a not in shared_tensor_holders:
                             assert len(a.tensors) == 1 and len(b.tensors) == 1, "BUG"
-                            shared_storages.append(a)
+                            shared_tensor_holders.append(a)
                             break
-        return shared_storages
+        return shared_tensor_holders
 
     def _render_node_color(self) -> str:
         return "#FFFFE0"
@@ -575,24 +583,24 @@ class Nested(MappingNodeWithChildren):
         return self.nodes[0]._render_node_name()
     
     def get_n_shared_loops(self, other: "Nested") -> int:
-        my_backing_storage = set(
-            (t, s.memory)
-            for s in self.get_backing_storage_nodes() for t in s._backing
+        my_backing = set(
+            (t, s.component)
+            for s in self.get_backers() for t in s._backing
         )
-        other_backing_storage = set(
-            (t, s.memory)
-            for s in other.get_backing_storage_nodes() for t in s._backing
+        other_backing = set(
+            (t, s.component)
+            for s in other.get_backers() for t in s._backing
         )
-        shared_storage = my_backing_storage & other_backing_storage
+        shared_backing = my_backing & other_backing
         
-        if not shared_storage:
+        if not shared_backing:
             return 0
         
         n_shared_loops = 0
         for i, node in enumerate(self.nodes):
             if isinstance(node, Iteration):
                 n_shared_loops += 1
-            if isinstance(node, Reservation) and (node.purpose, node.resource) in shared_storage:
+            if isinstance(node, Reservation) and (node.purpose, node.resource) in shared_backing:
                 return n_shared_loops
             if isinstance(node, Split):
                 for child in node.nodes:
@@ -817,7 +825,7 @@ class Fill(MappingNode, ModelOnlyNode):
     memory: str
 
     def compact_string(self) -> str:
-        return f'F {self.tensor} in {self.memory}'
+        return f'F {self.tensor} in {self.component}'
 
 # =============================================================================
 # Top-level Mapping
@@ -831,7 +839,8 @@ MappingNodeTypes: TypeAlias = Union[
     Sequential,
     Compute,
     Reservation,
-    Fill
+    Fill,
+    TensorHolder,
 ]    
 
 class Mapping(Nested):
@@ -887,7 +896,7 @@ class Mapping(Nested):
         color_keys = set()
         all_nodes = self.flatten()
         for node in all_nodes:
-            if isinstance(node, Storage):
+            if isinstance(node, TensorHolder):
                 color_keys.update(node.tensors)
             if isinstance(node, Reservation):
                 color_keys.update(node.purposes)
@@ -895,7 +904,7 @@ class Mapping(Nested):
         color_map = ColorMap(sorted(color_keys))
         
         for node in all_nodes:
-            if isinstance(node, (Storage, Reservation)):
+            if isinstance(node, (TensorHolder, Reservation)):
                 graph_nodes = graph.get_node(node._render_node_name())
                 for graph_node in graph_nodes:
                     # Set HTML-like label for color support
@@ -948,11 +957,11 @@ class Mapping(Nested):
             )
             
         mapping: Mapping = cls(nodes=pmappings)
-        mapping._elevate_storage_above_splits()
+        mapping._elevate_tensor_holders_above_splits()
         mapping._propagate_reservations_between_splits()
-        mapping._consolidate_storage()
+        mapping._consolidate_tensor_holders()
         mapping._consolidate_reservations()
-        mapping._move_storage_above_reservations()
+        mapping._move_tensor_holders_above_reservations()
         return mapping
         
         

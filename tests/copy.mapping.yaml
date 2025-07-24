@@ -1,0 +1,36 @@
+# I: Moves from local buffer to register
+# O1: Stays in local buffer
+# O2: Moves from local buffer to global buffer
+# O3: Moves from global buffer to main memory
+# O4: Moves from local buffer to register
+
+mapping:
+  version: "0.5"
+  nodes:
+  - !Storage
+    tensors: [O3]
+    component: Disk
+  - !Storage
+    tensors: [O3]
+    component: MainMemory
+  - !Temporal
+    rank_variable: a
+    tile_shape: 1
+  - !Storage
+    tensors: []
+    component: GlobalBuffer
+  - !Temporal
+    rank_variable: b
+    tile_shape: 1
+  - !Storage
+    tensors: [I, O1]
+    component: LocalBuffer
+  - !Temporal
+    rank_variable: c
+    tile_shape: 1
+  - !Storage
+    tensors: [O4]
+    component: Register
+  - !Compute
+    einsum: copy
+    compute: MAC

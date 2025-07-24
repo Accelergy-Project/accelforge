@@ -7,7 +7,7 @@ from fastfusion.frontend.specification import Specification, Mapping
 from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingConstraints
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import *
-from fastfusion.mapper.FFM.exploration.metrics import Metrics
+from fastfusion.mapper.metrics import Metrics
 from fastfusion.frontend import architecture
 
 
@@ -18,7 +18,7 @@ class TestTileShapeExploration(unittest.TestCase):
             PARENT_DIR / 'conv.workload.yaml',
             PARENT_DIR / 'four_level.arch.yaml'
         )
-        specification.estimate_energy_area()
+        specification.calculate_component_energy_area()
 
         mapping = Mapping.from_yaml(PARENT_DIR / 'conv_sym.mapping.yaml')
         

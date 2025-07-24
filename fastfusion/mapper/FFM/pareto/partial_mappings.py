@@ -8,7 +8,7 @@ import re
 from typing import Iterable, Optional, Tuple, Union
 
 from fastfusion.frontend.mapping import Iteration, Nested
-from fastfusion.mapper.FFM.joining.mappinginfo import TensorStorage
+from fastfusion.mapper.FFM.joining.mappinginfo import TensorReservation
 from fastfusion.util import fzs
 
 from fastfusion.accelerated_imports import pd
@@ -290,9 +290,9 @@ class PartialMappings:
         shared_loop_index: int,
         next_shared_loop_index: int,
         live_tensors: set[int],
-        shared_storage: set[TensorStorage],
-        still_live_reservations: set[TensorStorage],
-        duplicated_aliased_tensors: set[TensorStorage],
+        shared_tensors: set[TensorReservation],
+        still_live_reservations: set[TensorReservation],
+        duplicated_aliased_tensors: set[TensorReservation],
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
     ) -> "PartialMappings":
@@ -352,7 +352,7 @@ class PartialMappings:
                 # If there's a merged version column, then it's in both trees
                 if target + "_RIGHT_MERGE" in df:
                     continue
-                df.loc[:, target] += df[source]
+                add_to_col(df, target, source)
             # For LEFT tree, LEFT reservations: Add the immediately-above
             # reservation from the right tree.
             for resource in iter_reservations(self.left_reservations):
@@ -361,7 +361,7 @@ class PartialMappings:
                 right_merge_source = source + "_RIGHT_MERGE"
                 target = nameloop2col(resource, nloops, left=True)
                 if source is not None:
-                    df.loc[:, target] += df[right_merge_source if right_merge_source in df else source]
+                    add_to_col(df, target, right_merge_source if right_merge_source in df else source)
             # For LEFT tree, RIGHT reservations: Add the same-level reservation from
             # the right tree. This will double-count reservations that are in both branches,
             # so we remove them later.
@@ -371,7 +371,7 @@ class PartialMappings:
                 right_merge_source = source + "_RIGHT_MERGE"
                 target = nameloop2col(resource, nloops)
                 if source is not None:
-                    df.loc[:, target] += df[right_merge_source if right_merge_source in df else source]
+                    add_to_col(df, target, right_merge_source if right_merge_source in df else source)
 
         # For everything else: Simple add
         dropcols = [c for c in df.columns if c.endswith("_RIGHT_MERGE")]
@@ -380,14 +380,14 @@ class PartialMappings:
             if not col_used_in_pareto(target):
                 raise ValueError(f"{target} is not used in pareto")
             if col2nameloop(target) is None:
-                df.loc[:, target] += df[source]
+                add_to_col(df, target, source)
                 
         df = df.drop(columns=dropcols)
         n_pmappings = self.n_pmappings * right.n_pmappings
         result = PartialMappings(df, skip_pareto=True, check_above_subset_below=False, n_pmappings=n_pmappings)
         # Remove tensors that were allocated in both branches and got added
         # together.
-        shared_to_free = [s for s in shared_storage if s.above_loop_index <= shared_loop_index]
+        shared_to_free = [s for s in shared_tensors if s.above_loop_index <= shared_loop_index]
         live_to_alloc = [s for s in still_live_reservations if s.above_loop_index > shared_loop_index]
         result.adjust_reservations(
             alloc=live_to_alloc,
@@ -410,8 +410,8 @@ class PartialMappings:
     def _adjust_reservations_one_resource(
         self,
         resource: str,
-        alloc: Iterable[TensorStorage],
-        free: Iterable[TensorStorage],
+        alloc: Iterable[TensorReservation],
+        free: Iterable[TensorReservation],
     ):
         alloc, free = list(alloc), list(free)
         # Iterate through each reservation and level
@@ -447,8 +447,8 @@ class PartialMappings:
     @error_check_wrapper
     def adjust_reservations(
             self,
-            alloc: Iterable[TensorStorage],
-            free: Iterable[TensorStorage],
+            alloc: Iterable[TensorReservation],
+            free: Iterable[TensorReservation],
         ):
         alloc, free = list(alloc), list(free)
         all_resources = {t.resource_name for t in alloc} | {t.resource_name for t in free}
@@ -604,13 +604,13 @@ class PartialMappings:
                     )
 
     def fail(self, index, live_tensors):
-        from fastfusion.mapper.FFM.joining.sim import TensorStorage
+        from fastfusion.mapper.FFM.joining.sim import TensorReservation
         r = self.data.iloc[index]
         assert not self.data.isnull().values.any(), f"NaN in {self.data}"
         self = self.copy()
         self._draw_index(index, live_tensors, self._get_target_path(suffix="fail"))
-        all_tensors = set(t for tn in r[MAPPING_COLUMN].values() for t in tn.storage)
-        all_tensors = TensorStorage.get_backing_stores(all_tensors)
+        all_tensors = set(t for tn in r[MAPPING_COLUMN].values() for t in tn.tensors)
+        all_tensors = TensorReservation.get_backing_tensors(all_tensors)
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")
     

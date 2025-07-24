@@ -1,0 +1,15 @@
+workload:
+  shape:
+    a: 0 <= a < 2
+    b: 0 <= b < 2
+    c: 0 <= c < 2
+
+  einsums:
+  - name: copy
+    is_copy_operation: True
+    tensor_accesses:
+    - {name: I, projection: [ a, b, c ]}
+    - {name: O1, projection: [ a, b, c ], output: True}
+    - {name: O2, projection: [ a, b, c ], output: True}
+    - {name: O3, projection: [ a, b, c ], output: True}
+    - {name: O4, projection: [ a, b, c ], output: True}

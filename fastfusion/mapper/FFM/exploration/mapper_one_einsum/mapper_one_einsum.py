@@ -15,7 +15,7 @@ from fastfusion.frontend.mapping import (
     Iteration,
     Mapping,
     MappingNode,
-    Storage,
+    TensorHolder,
     Temporal,
 )
 from fastfusion.frontend.specification import Specification
@@ -28,7 +28,7 @@ from fastfusion.frontend.workload.workload import (
     Workload,
 )
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.dataflow_generator import (
-    get_storage_choices,
+    get_tensor_choices,
 )
 from fastfusion.mapper.metrics import Metrics
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import (
@@ -82,18 +82,18 @@ def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
 
 
 def label_fused_loops(mapping: List[MappingNode]):
-    last_backing_storage = None
+    last_backer = None
     for i, node in enumerate(mapping):
-        if isinstance(node, Storage) and node._backing:
-            last_backing_storage = i
-    if last_backing_storage is None:
+        if isinstance(node, TensorHolder) and node._backing:
+            last_backer = i
+    if last_backer is None:
         raise ValueError(
-            f"No backing storage found in mapping {", ".join(m.compact_string() for m in mapping)}"
+            f"No backing TensorHolder found in mapping {", ".join(m.compact_string() for m in mapping)}"
         )
 
     for i, node in enumerate(mapping):
         if isinstance(node, Iteration):
-            node._fused = i < last_backing_storage
+            node._fused = i < last_backer
     return mapping
 
 
@@ -150,9 +150,9 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
     # insert_point = 0
     # while insert_point < len(mapping) and not isinstance(mapping[insert_point], Temporal):
     #     insert_point += 1
-    # Insert point: Right under the last backing storage
+    # Insert point: Right under the last backing
     for i in range(len(mapping) - 1, -1, -1):
-        if isinstance(mapping[i], Storage) and mapping[i]._backing:
+        if isinstance(mapping[i], TensorHolder) and mapping[i]._backing:
             insert_point = i + 1
             break
 
@@ -180,15 +180,16 @@ def pad_with_bottom_loops(mapping: list[MappingNode], einsum: Einsum):
 
 
 def timeloop_style_even(mapping: list[MappingNode]):
-    # Iterate through the mapping. If there are >2 storage nodes for the same
+    # Iterate through the mapping. If there are >2 TensorHolder nodes for the same
     # memory, combine all but the innermost one
     memory2indices = defaultdict(list)
     i = 0
     for i, node in enumerate(mapping):
-        if not isinstance(mapping[i], Storage):
+        if not isinstance(mapping[i], TensorHolder):
             i += 1
             continue
-        seen = memory2indices[node.memory]
+        node: TensorHolder
+        seen = memory2indices[node.component]
         if len(seen) <= 1:
             seen.append(i)
         else:
@@ -226,8 +227,8 @@ def iterate_mappings_no_constraints(
 
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
-    for mapping, symbol_table in get_storage_choices(
-        arch_flattened, symbol_table, spec
+    for mapping, symbol_table in get_tensor_choices(
+        einsum_name, arch_flattened, symbol_table, spec
     ):
         mapping = copy.deepcopy(mapping)
         if spec.mapper_ffm.timeloop_style_even:
@@ -387,21 +388,23 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
             job.rank_variable_bounds,
             job.except_from_imperfect,
         ),
-        desc=f"Generating storage and loop choices for Einsum {job.einsum_name}",
+        desc=f"Generating tensor order and loop choices for Einsum {job.einsum_name}",
     )
+    rank_variable_bounds = get_rank_variable_bounds(
+                job.spec.workload, job.einsum_name
+            )
 
     jobs = SameEinsumJobs()
     for i, (mapping, constraints) in enumerate(mappings_constraints):
-        new_job = copy.deepcopy(job)
+        new_job = copy.copy(job)
         new_job.mapping = mapping
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
         new_job.flattened_arch = job.flattened_arch
-        new_job.rank_variable_bounds = get_rank_variable_bounds(
-            job.spec.workload, job.einsum_name
-        )
+        new_job.rank_variable_bounds = rank_variable_bounds
         new_job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name,
-                                                                job.spec.workload)
+                                                                job.spec.workload,
+                                                                rank_variable_bounds)
         jobs.append(new_job)
 
     return jobs
@@ -414,6 +417,7 @@ def generate_pmappings(
     results = []
     
     job_ids = [job.job_id for job in jobs_with_similar_compatibilities]
+    einsum_name = jobs_with_similar_compatibilities.einsum_name
     
     for job in jobs_with_similar_compatibilities:
         result, n_pmappings = explore_tile_shapes(job)
@@ -515,7 +519,7 @@ def generate_pmappings(
         for tensor in intermediate_tensors:  # Sizes are all the same
             tensor2size[tensor] = mappings[tensor2col(tensor)].iloc[0]
             dropcols.append(tensor2col(tensor))
-        mappings.drop(columns=dropcols, inplace=True)
+        mappings = mappings.drop(columns=dropcols)
 
         new_compatibility, null_loop_indices = compatibility_updater(tile_shape,
                                                                      tensor2size)

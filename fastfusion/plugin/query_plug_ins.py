@@ -67,7 +67,7 @@ def get_area_estimation(plug_in: Any, query: EnergyAreaQuery) -> Estimation:
 
 
 def get_best_estimate(
-    plug_ins: List[EnergyAreaEstimatorWrapper],
+    models: List[EnergyAreaEstimatorWrapper],
     query: EnergyAreaQuery,
     is_energy_estimation: bool,
 ) -> Estimation:
@@ -84,21 +84,21 @@ def get_best_estimate(
                 del drop_from[to_drop]
 
     estimations = []
-    supported_plug_ins = sorted(
-        plug_ins, key=lambda x: x.percent_accuracy, reverse=True
+    supported_models = sorted(
+        models, key=lambda x: x.percent_accuracy, reverse=True
     )
-    supported_plug_ins = [p for p in supported_plug_ins if p.is_class_supported(query)]
+    supported_models = [p for p in supported_models if p.is_class_supported(query)]
 
-    if not supported_plug_ins:
-        if not plug_ins:
+    if not supported_models:
+        if not models:
             raise KeyError(f"No plug-ins found. Please check your configuration.")
-        supported_classes = set.union(*[set(p.get_class_names()) for p in plug_ins])
+        supported_classes = set.union(*[set(p.get_class_names()) for p in models])
         raise KeyError(
             f"Class {query.class_name} is not supported by any plug-ins. Supported classes: {supported_classes}"
         )
 
     estimation = None
-    for plug_in in supported_plug_ins:
+    for plug_in in supported_models:
         estimation = est_func(plug_in, copy.deepcopy(query))
         logger = get_logger(plug_in.get_name())
         if not estimation.success:

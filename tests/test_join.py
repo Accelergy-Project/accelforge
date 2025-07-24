@@ -7,7 +7,7 @@ from fastfusion.mapper.FFM.exploration.mapper_multi_einsum import get_sims
 from fastfusion.mapper.FFM.joining.compatexplore import join_compatibilities, sims2untiled_compats, remove_unimportant_sims
 from fastfusion.mapper.FFM.joining.simexplore import join_sims
 
-from .simcache import make_sim_pickle_cache
+from simcache import make_sim_pickle_cache
 
 
 PARENT_DIR = Path(__file__).parent
@@ -22,7 +22,7 @@ class TestPreJoin(unittest.TestCase):
         ]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         flattened_arch = spec.get_flattened_architecture()
 
         sim_cache = make_sim_pickle_cache(config_names)
@@ -48,12 +48,11 @@ class TestJoin(unittest.TestCase):
             PARENT_DIR / "mha.workload.yaml",
             PARENT_DIR / "mha.renames.yaml"
         )
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
 
         flattened_arch = spec.get_flattened_architecture()
         sims, decompress_data = get_sims(spec, flattened_arch)
         mappings = join_sims(sims, spec, flattened_arch, drop_valid_reservations=False)
-        mappings.decompress(decompress_data)
 
     def test_mha_full(self):
         config_names = [
@@ -63,14 +62,13 @@ class TestJoin(unittest.TestCase):
         ]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         flattened_arch = spec.get_flattened_architecture()
 
         sim_cache = make_sim_pickle_cache(config_names)
         sims, decompress_data = sim_cache.get(lambda: get_sims(spec, flattened_arch))
 
         mappings = join_sims(sims, spec, flattened_arch)
-        mappings.decompress(decompress_data)
 
     def test_mha_full_with_prejoin_pruning(self):
         config_names = [
@@ -80,7 +78,7 @@ class TestJoin(unittest.TestCase):
         ]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         flattened_arch = spec.get_flattened_architecture()
 
         sim_cache = make_sim_pickle_cache(config_names)
@@ -91,17 +89,18 @@ class TestJoin(unittest.TestCase):
         einsum2pruned_sims = remove_unimportant_sims(sims, einsum2important_compats)
 
         mappings = join_sims(einsum2pruned_sims, spec, flattened_arch)
-        mappings.decompress(decompress_data)
 
     def test_mobilenet(self):
-        spec = Specification.from_yaml(
-            PARENT_DIR / "snowcat.arch.yaml",
-            PARENT_DIR / "mobilenet_long.workload.yaml",
-        )
-        spec.estimate_energy_area()
+        config_names = [
+            "snowcat.arch",
+            "mobilenet_long.workload",
+        ]
+        paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
+        spec = Specification.from_yaml(*paths)
+        spec.calculate_component_energy_area()
+        flattened_arch = spec.get_flattened_architecture()
 
-        flattened_architecture = spec.get_flattened_architecture()
+        sim_cache = make_sim_pickle_cache(config_names)
+        sims, decompress_data = sim_cache.get(lambda: get_sims(spec))
 
-        sims, decompress_data = get_sims(spec, flattened_architecture, except_from_imperfect={'q0', 'r0', 's0', 'q1', 'r1', 's2', 'q2'})
-        mappings = join_sims(sims, spec, flattened_architecture, drop_valid_reservations=False)
-        mappings.decompress(decompress_data)
+        mappings = join_sims(sims, spec, flattened_arch)

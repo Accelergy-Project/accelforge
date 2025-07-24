@@ -2,10 +2,8 @@ import copy
 from typing import Union, Annotated
 from fastfusion.frontend.component_classes import ComponentAttributes
 from fastfusion.version import assert_version, __version__
-from fastfusion.util.basetypes import ParsableDict, ParsableModel, ParsableList, ParsesTo
-from numbers import Number
-from fastfusion.plugin.query_plug_ins import EnergyAreaQuery
-from fastfusion.plugin.query_plug_ins import get_best_estimate
+from fastfusion.util.basetypes import ParsableModel, ParsableList, ParsesTo
+from hwcomponents import get_energy
 
 class Subaction(ParsableModel):
     name: str
@@ -22,13 +20,13 @@ class Action(ParsableModel):
     subactions: ParsableList['Subaction']
 
     @staticmethod
-    def from_plug_ins(
+    def from_models(
         class_name: str,
         attributes: dict,
         arguments: dict,
         action_name: str,
         spec: "Specification",
-        plug_ins: list,
+        models: list,
         return_subactions: bool = False,
     ) -> Union["EnergyEntry", list["Subaction"]]:
         attributes, arguments = copy.deepcopy((attributes, arguments))
@@ -74,19 +72,24 @@ class Action(ParsableModel):
                 action_name, attributes, arguments
             ):
                 entries.extend(
-                    Action.from_plug_ins(
+                    Action.from_models(
                         component,
                         component_attributes,
                         sub_arguments,
                         subaction_name,
                         spec,
-                        plug_ins,
+                        models,
                         return_subactions=True,
                     )
                 )
         else:
-            query = EnergyAreaQuery(class_name, attributes.model_dump(), action_name, arguments.model_dump())
-            estimation = get_best_estimate(plug_ins, query, True)
+            estimation = get_energy(
+                component_name=class_name,
+                component_attributes=attributes.model_dump(),
+                action_name=action_name,
+                action_arguments=arguments.model_dump(),
+                models=models,
+            )
             energy = estimation.value
             entries.append(
                 Subaction(
@@ -123,25 +126,25 @@ class EnergyEntry(ParsableModel):
         return id(self)
 
     @staticmethod
-    def from_plug_ins(
+    def from_models(
         class_name: str,
         attributes: dict,
         arguments: list[dict],
         action_names: list[str],
         spec: "Specification",
-        plug_ins: list,
+        models: list,
         name: str,
     ):
         actions = []
         for action_name, action_arguments in zip(action_names, arguments):
             actions.append(
-                Action.from_plug_ins(
+                Action.from_models(
                     class_name,
                     attributes,
                     action_arguments,
                     action_name,
                     spec,
-                    plug_ins,
+                    models,
                 )
             )
         return EnergyEntry(name=name, actions=actions, attributes=attributes)
@@ -161,4 +164,12 @@ class ComponentEnergy(ParsableModel):
                 r[(t.name, a.name)] = a.energy
         return r
 
-    
+    def find_action(self, component: str, action: str):
+        try:
+            return self.entries[component].find_action(action)
+        except KeyError:
+            pass
+        raise KeyError(
+            f"Could not find energy for action {action} for component {component}. "
+            f"Try running calculate_component_energy_area() on the Specification first."
+        )

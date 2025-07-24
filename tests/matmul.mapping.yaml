@@ -3,25 +3,25 @@ mapping:
   nodes:
   - !Storage
     tensors: [T1, T0, W0]
-    memory: MainMemory
+    component: MainMemory
   - !Temporal
     rank_variable: m
     tile_shape: 128
   - !Storage
     tensors: [T1]
-    memory: LocalBuffer
+    component: LocalBuffer
   - !Temporal
     rank_variable: n0
     tile_shape: 1
   - !Storage
     tensors: [T0]
-    memory: LocalBuffer
+    component: LocalBuffer
   - !Temporal
     rank_variable: n1
     tile_shape: 1
   - !Storage
     tensors: [W0]
-    memory: LocalBuffer
+    component: LocalBuffer
   - !Temporal
     rank_variable: m
     tile_shape: 1

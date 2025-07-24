@@ -15,13 +15,13 @@ architecture:
       datawidth: 8
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: ~Intermediates()
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, arguments: {energy: 7.03e-12}}
-    - {name: write, arguments: {energy: 7.03e-12}}
+    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 1}}
+    - {name: write, arguments: {energy: 7.03e-12, bits_per_action: 1}}
     - {name: leak, arguments: {energy: 0}}
 
   - !Memory
@@ -33,57 +33,55 @@ architecture:
       datawidth: 8
       area: 1
     constraints:
-      storage:
-        keep: All() #~MainMemory.tensors() | input | output
+      tensors:
+        keep: ~MainMemory.tensors() | input | output
         # bypass: weight - ( ~MainMemory.tensors() | input | output)
       # dataflow:
-      #   storage_orders:
+      #   tensor_order_options:
       #   # - [weight, ~weight]
       #   - [MainMemory.tensors(), ~MainMemory.tensors()]
       {% if FFMT | default(false) %}
       dataflow:
-        storage_orders:
+        tensor_order_options:
         - [weight, input, output]
         - [weight, output, input]
       {% endif %}
     actions:
-    - {name: read, arguments: {energy: 1.88e-12}}
-    - {name: write, arguments: {energy: 2.36e-12}}
+    - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 1}}
+    - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 1}}
     - {name: leak, arguments: {energy: 0}}
 
-  # - !Memory
-  #   name: LocalBuffer
-  #   component_class: SRAM 
-  #   spatial: {fanout: {X: 4}}
-  #   attributes:
-  #     size: 1024*1024*4*8 # 4MB
-  #     width: 2048
-  #     datawidth: 8
-  #     area: 1
-  #   constraints:
-  #     storage:
-  #       keep: Nothing()
-  #       bypass: All()
-  #       # keep: input | output
-  #       # bypass: weight
-  #     dataflow:
-  #       storage_orders:
-  #       # - [All()] # No uneven. Put all tensors at the same level.
-  #       - [input, output]
-  #     spatial:
-  #       - dimension: X
-  #         min_utilization: 1
-  #         loop_bounds:
-  #         - expression: weight.rank_variables()
-  #           operator: ==
-  #           value: 1
-  #         # - expression: b
-  #         #   operator: ==
-  #         #   value: 4
-  #   actions:
-  #   - {name: read, arguments: {energy: 0.249e-12}}
-  #   - {name: write, arguments: {energy: 0.293e-12}}
-  #   - {name: leak, arguments: {energy: 0}}
+  - !Memory
+    name: LocalBuffer
+    component_class: SRAM 
+    spatial: {fanout: {X: 4}}
+    attributes:
+      size: 1024*1024*4*8 # 4MB
+      width: 2048
+      datawidth: 8
+      area: 1
+    constraints:
+      tensors:
+        keep: input | output
+        bypass: weight
+      dataflow:
+        tensor_order_options:
+        # - [All()] # No uneven. Put all tensors at the same level.
+        - [input, output]
+      spatial:
+        - dimension: X
+          min_utilization: 1
+          loop_bounds:
+          - expression: weight.rank_variables()
+            operator: ==
+            value: 1
+          # - expression: b
+          #   operator: ==
+          #   value: 4
+    actions:
+    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 1}}
+    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 1}}
+    - {name: leak, arguments: {energy: 0}}
 
   # - !Memory
   #   name: Reg2
@@ -93,7 +91,7 @@ architecture:
   #     datawidth: 8
   #     area: 0
   #   constraints:
-  #     storage:
+  #     tensors:
   #       keep: All()
   #       tile_shape:
   #       - expression: parallel_rank | reduced_rank
@@ -103,7 +101,7 @@ architecture:
   #         operator: ==
   #         value: 1
   #     dataflow:
-  #       storage_orders:
+  #       tensor_order_options:
   #       - [input, output, weight]
   #   actions:
   #   - {name: read, arguments: {energy: 0}}
@@ -113,15 +111,16 @@ architecture:
   - !Memory
     name: Register
     component_class: dummy_storage
-    spatial: {fanout: {X: 128, Y: 128, Z: 4}}
+    spatial: {fanout: {X: 128, Y: 128}}
     attributes:
       size: 8 # 8b
       datawidth: 8
+
       width: 8
       depth: 1
       area: 1
     constraints:
-      storage:
+      tensors:
         # keep: weight - GlobalBuffer.tensors()
         bypass: All() # ~weight | GlobalBuffer.tensors()
         # tile_shape:
@@ -129,7 +128,7 @@ architecture:
         #   operator: ==
         #   value: 1
       dataflow:
-        storage_orders:
+        tensor_order_options:
         - [All()] # Outputs more stationary than inputs
       spatial:
       - dimension: X # Parallel rank
@@ -144,12 +143,12 @@ architecture:
         - expression: output.rank_variables() # | ~weight.rank_variables()
           operator: ==
           value: 1
-      - dimension: Z
-        min_utilization: 1
-        loop_bounds:
-        - expression: weight.rank_variables()
-          operator: ==
-          value: 1
+      # - dimension: Z
+      #   min_utilization: 1
+      #   loop_bounds:
+      #   - expression: weight.rank_variables()
+      #     operator: ==
+      #     value: 1
         # - expression: b
         #   operator: ==
         #   value: 1

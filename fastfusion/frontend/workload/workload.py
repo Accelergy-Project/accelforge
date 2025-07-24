@@ -207,6 +207,14 @@ class Einsum(ParsableModel):
     
     def output_tensors(self) -> set[TensorName]:
         return {TensorName(t.name) for t in self.tensor_accesses if t.output}
+    
+    def copy_source_tensor(self) -> TensorName | None:
+        if not self.is_copy_operation:
+            return None
+        input_tensors = self.input_tensors()
+        if len(input_tensors) != 1:
+            raise ValueError(f"Einsum {self.name} has {len(input_tensors)} input tensors, expected 1")
+        return input_tensors.pop()
 
 class Workload(ParsableModel):
     version: Annotated[str, assert_version] = __version__
@@ -369,16 +377,19 @@ class Workload(ParsableModel):
                 source = rename_tensor.source
                 expected_count = rename_tensor.expected_count
                 try:
-                    symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", f"{einsum_name} tensor renames", expected_count=expected_count)
+                    symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", f"{name} tensor renames", expected_count=expected_count)
                 except ParseError as e:
                     e.add_field(einsum_name)
-                    e.add_field(name)
                     raise
             for rename_rank_variable in rename.rank_variables:
                 name = rename_rank_variable.name
                 source = rename_rank_variable.source
                 expected_count = rename_rank_variable.expected_count
-                symbol_table[name] = eval_set_expression(source, symbol_table, "rank_variables", f"{einsum_name} rank variable renames", expected_count=expected_count)
+                try:
+                    symbol_table[name] = eval_set_expression(source, symbol_table, "rank_variables", f"{name} rank variable renames", expected_count=expected_count)
+                except ParseError as e:
+                    e.add_field(einsum_name)
+                    raise
                 
         for rank_variable in einsum.rank_variables:
             symbol_table[rank_variable] = InvertibleSet(instance=(rank_variable,), space_name="rank_variables", full_space=einsum.rank_variables)
@@ -414,12 +425,13 @@ class Workload(ParsableModel):
 
         return equivalent_rank_variables
 
-    def get_tensor_copies(self) -> dict[TensorName, TensorName]:
+    def get_tensor_copies(self) -> dict[TensorName, set[TensorName]]:
         tensor_copies = {}
         for einsum in self.einsums:
             if not einsum.is_copy_operation:
                 continue
-            for input_tensor in einsum.input_tensors():
-                for output_tensor in einsum.output_tensors():
-                    tensor_copies[input_tensor] = output_tensor
+            input_tensor = einsum.copy_source_tensor()
+            for output_tensor in einsum.output_tensors():
+                tensor_copies.setdefault(input_tensor, set()).add(output_tensor)
+                tensor_copies.setdefault(output_tensor, set()).add(input_tensor)
         return tensor_copies

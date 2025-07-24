@@ -148,7 +148,7 @@ def get_sims_data(
         aliased_tensors,
         full_equivalent_rank_variables,
     )
-    
+
 
 def join_sims(
     sims: dict[str, list[SIM]],

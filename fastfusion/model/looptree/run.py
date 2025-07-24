@@ -29,7 +29,7 @@ class LoopTreeStatistics:
 
 def run_symbolic_model(mapping, workload, architecture):
     result = analyze_reuse(mapping, workload)
-    actions = gather_actions(result, mapping, workload, bindings, use_name=True)
+    actions = gather_actions(result, bindings, use_name=True)
     pass
 
 
@@ -54,7 +54,7 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
 
     result = deserialize_looptree_output(model.run(), isl.DEFAULT_CONTEXT)
 
-    actions = gather_actions(result, spec.mapping, workload, bindings)
+    actions = gather_actions(result, bindings)
     energy = compute_energy_from_actions(actions, spec.ERT)
 
     latency, comp_latency, mem_latency = get_latency(result,
@@ -100,7 +100,7 @@ def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy)
 
     tile_shapes, result = analyze_reuse(spec.mapping.nodes, workload, analyzer)
 
-    actions = gather_actions(result, spec.mapping, workload, bindings, use_name=True)
+    actions = gather_actions(result, bindings, use_name=True)
     energy = compute_energy_from_actions(actions, spec.ERT)
 
     latency, comp_latency, mem_latency = get_latency(result,

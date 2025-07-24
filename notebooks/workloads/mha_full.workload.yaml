@@ -1,7 +1,7 @@
 workload:
   version: "0.5"
   shape:
-    b: 0 <= b < 64
+    b: 0 <= b < 1
     m: 0 <= m < 512
     p: 0 <= p < 512 # = m
     h: 0 <= h < 32
@@ -18,6 +18,8 @@ workload:
     tensor_accesses:
     - {name: I_in, projection: [b, m, d]}
     - {name: I, projection: [b, m, d], output: True}
+    # - {name: IK, projection: [b, m, d], output: True}
+    # - {name: IQ, projection: [b, m, d], output: True}
 
   - name: V
     tensor_accesses:

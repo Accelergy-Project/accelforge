@@ -13,7 +13,7 @@ architecture:
       datawidth: 1
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: ~Intermediates()
     actions:
     - {name: read, arguments: {energy: 1}}
@@ -28,7 +28,7 @@ architecture:
       datawidth: 1
       area: 1
     constraints:
-      storage:
+      tensors:
         keep: All()
     actions:
     - {name: read, arguments: {energy: 0}}

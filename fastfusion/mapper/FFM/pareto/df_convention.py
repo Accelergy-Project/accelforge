@@ -83,6 +83,12 @@ def is_left_col(x):
     return "_LEFT_LEVEL_" in x
 
 def add_to_col(df, target, source):
+    if target in df:
+        target_type = df[target].dtype
+        source_type = df[source].dtype
+        if target_type != source_type:
+            df[target] = df[target].astype("float64")
+            df[source] = df[source].astype("float64")
     df.loc[:, target] = df[target] + df[source] if target in df else df[source]
 
 
