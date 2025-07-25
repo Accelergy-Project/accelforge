@@ -36,7 +36,7 @@ class SIM:
         right: "SIM",
         live_tensors: set[str],
         live_tensors_with_right: set[str],
-        aliased_tensors: dict[str, str],
+        aliased_tensors: dict[str, set[str]],
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
         delay: bool = False,
@@ -56,11 +56,11 @@ class SIM:
 
         duplicated_aliased_tensors = set()
         for name, my_tensor in self.tensors.items():
-            aliased_tensor = right.tensors.get(aliased_tensors.get(name, None), None)
-            if aliased_tensor is None:
-                continue
-            if my_tensor.resource_name == aliased_tensor.resource_name:
-                duplicated_aliased_tensors.add(aliased_tensor)
+            for aliased_tensor in aliased_tensors.get(name, set()):
+                if (aliased_tensor := right.tensors.get(aliased_tensor, None)) is None:
+                    continue
+                if my_tensor.resource_name == aliased_tensor.resource_name:
+                    duplicated_aliased_tensors.add(aliased_tensor.name)
 
         mapping = delayed(self.mappings.merge_next)(
             right.mappings,

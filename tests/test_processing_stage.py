@@ -25,7 +25,7 @@ class TestProcessingStage(unittest.TestCase):
             Path(__file__).parent / 'matmul.workload.yaml'
         ])
         spec.mapper_ffm.metrics = Metrics.ENERGY
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         pmappings = make_pmappings(spec)
         mappings = join_pmappings(spec, pmappings)
 

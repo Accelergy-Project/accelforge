@@ -21,7 +21,7 @@ import itertools
 
 
 def insert_temporal_loops(
-    mapping: list[Storage],
+    mapping: list[TensorHolder],
     einsum: Einsum,
     first_memory: architecture.Memory,
     rank_variable_bounds: dict[RankVariableName, int],
@@ -121,8 +121,7 @@ def insert_temporal_loops(
         # Partially-relevant loop becomes fused if we lower.
         prev_has_backing = any(s._backing for s in prev_tensor_holders)
         if prev_has_backing and partially_relevant_to_previous:
-            assert len(prev_storages) == 1
-            lowering_choices.append([True, False] * len(prev_storages))
+            lowering_choices.extend([[True, False]] * len(prev_tensor_holders))
 
         # Option 2: No backing in previous. Lower all. No cost to lowering. Conditioned
         # on option 1 being false.
@@ -142,7 +141,7 @@ def insert_temporal_loops(
         else:
             raise RuntimeError("BUG")
 
-    # =======================================================================================
+    # ==================================================================================
     # Iterate over all possible mappings
     # ==================================================================================
     for loop_orders in itertools.product(*choices):
@@ -152,8 +151,8 @@ def insert_temporal_loops(
             full_mapping.extend(
                 Temporal(rank_variable=r, tile_shape="symbol") for r in loop_order
             )
-        storage_nodes = [node for node in full_mapping if isinstance(node, Storage)]
-        assert len(lowering_choices) == len(storage_nodes)
+        tensor_holders = [node for node in full_mapping if isinstance(node, TensorHolder)]
+        assert len(lowering_choices) == len(tensor_holders)
         for lowering_choice in itertools.product(*lowering_choices):
             for lower, node in zip(lowering_choice, tensor_holders):
                 node._lower = lower

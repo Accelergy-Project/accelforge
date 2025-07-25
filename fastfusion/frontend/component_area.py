@@ -2,8 +2,7 @@ import copy
 from typing import Annotated, Any, Optional, Union
 from fastfusion.version import assert_version, __version__
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel, ParsesTo, ParsableDict
-from fastfusion.plugin.query_plug_ins import EnergyAreaQuery
-from fastfusion.plugin.query_plug_ins import get_best_estimate
+from hwcomponents import get_area
 
 class AreaSubcomponent(ParsableModel):
     name: str
@@ -18,17 +17,18 @@ class AreaEntry(ParsableModel):
     subcomponents: ParsableList[AreaSubcomponent]
 
     @staticmethod
-    def from_plug_ins(
+    def from_models(
         class_name: str,
         attributes: dict,
         spec: "Specification",
-        plug_ins: list,
+        models: list,
         return_subcomponents: bool = False,
         name: str = None,
     ) -> Union["AreaEntry", list["AreaSubcomponent"]]:
         attributes = copy.deepcopy(attributes)
         entries = []
         definition = None
+
         try:
             definition = spec.component_classes.component_classes[class_name]
         except KeyError:
@@ -46,17 +46,20 @@ class AreaEntry(ParsableModel):
             for component in definition.subcomponents:
                 component_attributes = component.attributes.parse_expressions(attributes.model_dump())[0]
                 entries.extend(
-                    AreaEntry.from_plug_ins(
+                    AreaEntry.from_models(
                         component.component_class,
                         component_attributes,
                         spec,
-                        plug_ins,
+                        models,
                         return_subcomponents=True,
                     )
                 )
         else:
-            query = EnergyAreaQuery(class_name, attributes.model_dump())
-            estimation = get_best_estimate(plug_ins, query, False)
+            estimation = get_area(
+                component_name=class_name,
+                component_attributes=attributes.model_dump(),
+                models=models,
+            )
             area = estimation.value
             entries.append(
                 AreaSubcomponent(

@@ -31,7 +31,7 @@ architecture:
       tensors:
         keep: All()
       dataflow:
-        tensor_orders:
+        tensor_order_options:
         - [All()] # No uneven. Put all tensors at the same level.
     actions:
     - {name: read, arguments: {energy: 0}}

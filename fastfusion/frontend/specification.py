@@ -11,11 +11,10 @@ from fastfusion.frontend.config import Config, get_config
 from fastfusion.frontend.component_area import ComponentArea, AreaEntry
 from fastfusion.frontend.component_energy import ComponentEnergy, EnergyEntry
 from fastfusion.frontend.mapping import Mapping
+import hwcomponents
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 from fastfusion.util.basetypes import ParsableModel
-
-from ..plugin.gather_plug_ins import gather_plug_ins
 
 
 class Specification(ParsableModel):
@@ -48,40 +47,40 @@ class Specification(ParsableModel):
             symbol_table.update(parsed_variables)
             symbol_table["variables"] = parsed_variables
             return super().parse_expressions(symbol_table, **kwargs)
-
-    def estimate_energy_area(self):
-        plug_ins = gather_plug_ins(self.config.component_plug_ins)
+        
+    def calculate_component_energy_area(self, energy: bool = True, area: bool = True):
+        self.component_energy = ComponentEnergy() if energy else self.component_energy
+        self.component_area = ComponentArea() if area else self.component_area
+        models = hwcomponents.get_models(
+            self.config.component_models, 
+            include_installed=self.config.use_installed_component_models
+        )
         with ParseExpressionsContext(self):
             processed, _ = self.parse_expressions()
             components = processed.architecture._flatten(processed.variables)
-            area = ComponentArea()
-            energy = ComponentEnergy()
             for component in components:
-                area.entries.append(
-                    AreaEntry.from_plug_ins(
+                self.component_area.entries.append(
+                    AreaEntry.from_models(
                         component.component_class,
                         component.attributes,
                         processed,
-                        plug_ins,
+                        models,
                         name=component.name,
                     )
                 )
-
                 action_names = [action.name for action in component.actions]
                 action_args = [action.arguments for action in component.actions]
-                energy.entries.append(
-                    EnergyEntry.from_plug_ins(
+                self.component_energy.entries.append(
+                    EnergyEntry.from_models(
                         component.component_class,
                         component.attributes,
                         action_args,
                         action_names,
                         processed,
-                        plug_ins,
+                        models,
                         name=component.name,
                     )
                 )
-            self.component_area = area
-            self.component_energy = energy
             
     def get_flattened_architecture(self) -> list[Leaf]:
         with ParseExpressionsContext(self):

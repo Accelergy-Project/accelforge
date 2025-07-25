@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential, TensorHolder
+from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential
 from fastfusion.frontend.workload import Workload
 
 

@@ -37,12 +37,12 @@ architecture:
         keep: ~MainMemory.tensors()
         # bypass: weight - ( ~MainMemory.tensors() | input | output)
       # dataflow:
-      #   tensor_orders:
+      #   tensor_order_options:
       #   # - [weight, ~weight]
       #   - [MainMemory.tensors(), ~MainMemory.tensors()]
       {% if FFMT | default(false) %}
       dataflow:
-        tensor_orders:
+        tensor_order_options:
         - [weight, input, output]
         - [weight, output, input]
       {% endif %}
@@ -67,7 +67,7 @@ architecture:
         # keep: input | output
         # bypass: weight
       dataflow:
-        tensor_orders:
+        tensor_order_options:
         # - [All()] # No uneven. Put all tensors at the same level.
         - [input, output]
       spatial:
@@ -103,7 +103,7 @@ architecture:
         #   operator: ==
         #   value: 1
       dataflow:
-        tensor_orders:
+        tensor_order_options:
         - [All()] # Outputs more stationary than inputs
       spatial:
       - dimension: X # Parallel rank

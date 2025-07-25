@@ -34,7 +34,7 @@ def get_all_estimators_in_module(
     return found
 
 
-def gather_plug_ins(paths: list):
+def gather_models(paths: list):
     """
     instantiate a list of estimator plug-in objects for later queries estimator
     plug-in paths are specified in config file
@@ -55,7 +55,7 @@ def gather_plug_ins(paths: list):
     ]
 
     # Load Python plug-ins
-    plug_ins = []
+    models = []
     plug_in_ids = set()
     n_plugins = 0
     for path in paths_globbed:
@@ -65,7 +65,7 @@ def gather_plug_ins(paths: list):
         prev_sys_path = copy.deepcopy(sys.path)
         sys.path.append(os.path.dirname(os.path.abspath(path)))
         python_module = SourceFileLoader(f"plug_in{n_plugins}", path).load_module()
-        plug_ins += get_all_estimators_in_module(python_module, plug_in_ids)
+        models += get_all_estimators_in_module(python_module, plug_in_ids)
         sys.path = prev_sys_path
         n_plugins += 1
-    return plug_ins
+    return models

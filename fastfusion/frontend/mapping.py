@@ -29,7 +29,7 @@ node_list: TypeAlias = ParsableList[Annotated[
             Annotated["Reservation", Tag("Reservation")],
             Annotated["Fill", Tag("Fill")],
             Annotated["Mapping", Tag("Mapping")],
-            Annotated["TensorHolder", Tag("TensorHolder")],
+            Annotated["ProcessingStage", Tag("ProcessingStage")],
         ],
     Discriminator(get_tag)
 ]]
@@ -343,6 +343,9 @@ class TensorHolder(MappingNode):
 
 
 class Storage(TensorHolder):
+    pass
+
+class ProcessingStage(TensorHolder):
     pass
 
 class Compute(MappingNode):

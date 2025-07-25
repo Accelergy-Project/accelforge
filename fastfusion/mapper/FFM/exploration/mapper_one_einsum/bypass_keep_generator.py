@@ -3,6 +3,7 @@ from collections.abc import Generator
 from itertools import chain, combinations
 
 import fastfusion.frontend.architecture as architecture
+from fastfusion.frontend.architecture import ProcessingStage
 from fastfusion.frontend.mapping import Storage, TensorHolder
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
@@ -30,6 +31,8 @@ def make_tensor_choices_one_level(
 
     if isinstance(node, architecture.Memory):
         target_type = Storage
+    elif isinstance(node, architecture.ProcessingStage):
+        target_type = ProcessingStage
     else:
         raise ValueError(f"Unexpected tensor holder type: {type(node)}")
 

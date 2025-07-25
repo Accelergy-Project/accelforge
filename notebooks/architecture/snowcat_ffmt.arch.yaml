@@ -31,7 +31,7 @@ architecture:
       tensors:
         keep: All()
       dataflow:
-        tensor_orders:
+        tensor_order_options:
         - [Intermediates(), All()-Intermediates()]
         - [All()-Intermediates(), Intermediates()]
     actions:

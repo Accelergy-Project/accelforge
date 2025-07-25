@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from fastfusion.frontend.architecture import Memory
+from fastfusion.frontend.architecture import Memory, TensorHolder
 
 from fastfusion.frontend.mapping import Compute
 from fastfusion.model.looptree.accesses import isl_buffer_accesses_from_buffet_actions
@@ -79,7 +79,7 @@ def get_bandwidth(flattened_arch):
     component_bandwidths = {}
     component_tensor_datawidth = {}
     for node in flattened_arch:
-        if not isinstance(node, Memory):
+        if not isinstance(node, TensorHolder):
             continue
         attributes = node.attributes
 

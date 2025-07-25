@@ -58,7 +58,7 @@ def row2mapping(row: pd.Series, spec: Specification, rank_variable_bounds: dict[
 def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings):
     compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
     joined = join_sims(
-        compressed, 
+        compressed,
         spec,
         pmappings.resource2capacity
     )

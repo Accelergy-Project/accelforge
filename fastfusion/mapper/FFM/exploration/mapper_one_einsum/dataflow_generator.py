@@ -51,8 +51,8 @@ def get_dataflow_constraint(nodes, symbol_table, tensors):
         constraint = node.constraints.dataflow._parse(
             symbol_table, f"{node.name}.constraints.dataflow"
         )
-        if constraint.tensor_orders:
-            for order_constraint in constraint.tensor_orders:
+        if constraint.tensor_order_options:
+            for order_constraint in constraint.tensor_order_options:
                 order = Order()
                 for together_tensors in order_constraint:
                     in_mapping_together_tensors = [

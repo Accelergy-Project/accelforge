@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import fastfusion.frontend.mapping as mapping_spec
+from fastfusion.frontend.architecture import ProcessingStage
 from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern, TensorHolder
 from fastfusion.frontend.workload import (
     Workload,
@@ -532,6 +533,7 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnaly
         Reservation: analyze_reservation,
         mapping_spec.Compute: analyze_compute,
         Fill: analyze_fill,
+        ProcessingStage: analyze_processing_stage,
     }
     if type(node) not in class2analysis_function:
         raise TypeError(f"Unknown node type {type(node)}")
@@ -685,7 +687,7 @@ def has_parent_tensor_holder(tensor: TensorName, node_idx: int, info: AnalysisIn
             return True
     return False
 
-def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
+def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_child_results: bool = False):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
@@ -704,6 +706,10 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
         
         fills = compute_dense_tile_occupancy(projection, current_shape)
         
+        child = child_result.get_child_buffet_stats(buffet)
+        inherit_from_child = _propagate_child_results and child is not None
+            
+        
         # ==============================================================================
         # Calculate the total fills and reads to parent. These propagate upward.
         # ==============================================================================
@@ -711,8 +717,8 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
             # Initial fetch: If we're below the backing storage, fetch data from above
             # at the beginning.
             if not is_backing and below_backing:
-                stats.total_reads_to_parent += fills
-                stats.max_per_parent_reads_to_parent += fills
+                stats.total_reads_to_parent += child.total_reads_to_parent if inherit_from_child else fills
+                stats.max_per_parent_reads_to_parent += child.max_per_parent_reads_to_parent if inherit_from_child else fills
 
             # Data writeback. Do not writeback if it's a copy operation and we're below
             # the backing storage; data only flows upward.
@@ -722,14 +728,14 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
             #   results upward to any storage nodes that will need this data.
             # - This is a written tensor, so we need to write back the written data.
             if tensor in info.workload.tensors_written_by_einsum(einsum_name) or not below_backing:
-                stats.total_writes_to_parent += fills
-                stats.max_per_parent_writes_to_parent += fills
+                stats.total_writes_to_parent += child.total_writes_to_parent if inherit_from_child else fills
+                stats.max_per_parent_writes_to_parent += child.max_per_parent_writes_to_parent if inherit_from_child else fills
 
             # For read+write tensors, we skip the first fill because the data will be
             # initialized with a zero value.
             if tensor in info.workload.tensors_written_by_einsum(einsum_name):
-                stats.total_skipped_first_reads_to_parent += fills
-                stats.min_per_parent_skipped_first_reads_to_parent += fills
+                stats.total_skipped_first_reads_to_parent += child.total_skipped_first_reads_to_parent if inherit_from_child else fills
+                stats.min_per_parent_skipped_first_reads_to_parent += child.min_per_parent_skipped_first_reads_to_parent if inherit_from_child else fills
 
         # ==============================================================================
         # Convert to actions. These are not used used upward; they are used to get
@@ -756,7 +762,7 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
 
         # =========================
         # Data exchanges with child
-        if (child := child_result.get_child_buffet_stats(buffet)) is not None:
+        if child is not None:
             stats.total_read_actions += child.total_reads_to_parent
             stats.max_per_unit_read_actions += child.max_per_parent_reads_to_parent
 
@@ -769,6 +775,17 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo):
         
     return child_result
 
+
+def analyze_processing_stage(node_idx, current_shape, info: AnalysisInfo):
+    mapping = info.mapping
+    einsum_name = mapping[-1].einsum
+    node = mapping[node_idx]
+    storage_result = analyze_storage(node_idx, current_shape, info, _propagate_child_results=True)
+    for tensor in node.tensors:
+        buffet = Buffet(tensor, einsum_name, node.component)
+        stats = storage_result.buffet_stats[buffet]
+        stats.max_occupancy = 0
+    return storage_result
 
 def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping

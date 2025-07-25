@@ -352,7 +352,7 @@ class PartialMappings:
                 # If there's a merged version column, then it's in both trees
                 if target + "_RIGHT_MERGE" in df:
                     continue
-                df.loc[:, target] += df[source]
+                add_to_col(df, target, source)
             # For LEFT tree, LEFT reservations: Add the immediately-above
             # reservation from the right tree.
             for resource in iter_reservations(self.left_reservations):
@@ -361,7 +361,7 @@ class PartialMappings:
                 right_merge_source = source + "_RIGHT_MERGE"
                 target = nameloop2col(resource, nloops, left=True)
                 if source is not None:
-                    df.loc[:, target] += df[right_merge_source if right_merge_source in df else source]
+                    add_to_col(df, target, right_merge_source if right_merge_source in df else source)
             # For LEFT tree, RIGHT reservations: Add the same-level reservation from
             # the right tree. This will double-count reservations that are in both branches,
             # so we remove them later.
@@ -371,7 +371,7 @@ class PartialMappings:
                 right_merge_source = source + "_RIGHT_MERGE"
                 target = nameloop2col(resource, nloops)
                 if source is not None:
-                    df.loc[:, target] += df[right_merge_source if right_merge_source in df else source]
+                    add_to_col(df, target, right_merge_source if right_merge_source in df else source)
 
         # For everything else: Simple add
         dropcols = [c for c in df.columns if c.endswith("_RIGHT_MERGE")]
@@ -380,7 +380,7 @@ class PartialMappings:
             if not col_used_in_pareto(target):
                 raise ValueError(f"{target} is not used in pareto")
             if col2nameloop(target) is None:
-                df.loc[:, target] += df[source]
+                add_to_col(df, target, source)
                 
         df = df.drop(columns=dropcols)
         n_pmappings = self.n_pmappings * right.n_pmappings

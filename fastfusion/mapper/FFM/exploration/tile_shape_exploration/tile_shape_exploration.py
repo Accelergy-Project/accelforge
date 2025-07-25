@@ -99,7 +99,8 @@ def explore_tile_shapes(job: "Job"):
         specification,
         flattened_arch,
         metrics,
-        job.memories_track_all + job.memories_track_pmappings_only
+        job.memories_track_all + job.memories_track_pmappings_only,
+        job.is_copy_operation
     )
 
     try:
@@ -660,7 +661,7 @@ def set_last_tile_shape_to_one(pmapping):
         last_node.tile_shape = 1
 
 
-def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: metrics.Metrics, track_memories: list[str]):
+def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: metrics.Metrics, track_memories: list[str], is_copy_op: bool):
     workload = spec.workload
     ert = spec.component_energy
 
@@ -668,9 +669,10 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
     memory_to_datawidth = {}
     memory_to_size = {}
     for node in flattened_arch:
-        if isinstance(node, Memory):
+        if isinstance(node, architecture.TensorHolder):
             memory_to_datawidth[node.name] = node.attributes.datawidth
-            memory_to_size[node.name] = node.attributes.size
+            if isinstance(node, architecture.Memory):
+                memory_to_size[node.name] = node.attributes.size
         component_to_max_fanout[node.name] = node.spatial.fanout
 
     df = {}
@@ -694,17 +696,19 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
     total_occupancy = {}
     compute_unit = pmapping.nodes[-1].compute
     max_n_loops = 0
+    
     for buffet, stats in reuse.buffet_stats.items():
         if buffet.level == compute_unit:
             continue
 
         occupancy = stats.max_occupancy*memory_to_datawidth[buffet.level]
-
-        if (
-            buffet.tensor in tensor_to_backing
-            and tensor_to_backing[buffet.tensor] == buffet.level
-        ):
-            df[tensor2col(buffet.tensor)] = occupancy
+        
+        if occupancy == 0:
+            continue
+        
+        for tensor, backing in tensor_to_backing.items():
+            if (is_copy_op or buffet.tensor == tensor) and buffet.level == backing:
+                df[tensor2col(tensor)] = occupancy
 
         if buffet.level not in total_occupancy:
             total_occupancy[buffet.level] = {stats.n_loops_above: occupancy}

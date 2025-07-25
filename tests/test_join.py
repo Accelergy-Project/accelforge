@@ -7,7 +7,7 @@ from fastfusion.mapper.FFM.exploration.mapper_multi_einsum import get_sims
 from fastfusion.mapper.FFM.joining.compatexplore import join_compatibilities, sims2untiled_compats, remove_unimportant_sims
 from fastfusion.mapper.FFM.joining.simexplore import join_sims
 
-from .simcache import make_sim_pickle_cache
+from simcache import make_sim_pickle_cache
 
 
 PARENT_DIR = Path(__file__).parent
@@ -22,7 +22,7 @@ class TestPreJoin(unittest.TestCase):
         ]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         flattened_arch = spec.get_flattened_architecture()
 
         sim_cache = make_sim_pickle_cache(config_names)
@@ -48,7 +48,7 @@ class TestJoin(unittest.TestCase):
             PARENT_DIR / "mha.workload.yaml",
             PARENT_DIR / "mha.renames.yaml"
         )
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
 
         flattened_arch = spec.get_flattened_architecture()
         sims, decompress_data = get_sims(spec, flattened_arch)
@@ -62,7 +62,7 @@ class TestJoin(unittest.TestCase):
         ]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         flattened_arch = spec.get_flattened_architecture()
 
         sim_cache = make_sim_pickle_cache(config_names)
@@ -78,7 +78,7 @@ class TestJoin(unittest.TestCase):
         ]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         flattened_arch = spec.get_flattened_architecture()
 
         sim_cache = make_sim_pickle_cache(config_names)
@@ -97,7 +97,7 @@ class TestJoin(unittest.TestCase):
         ]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
-        spec.estimate_energy_area()
+        spec.calculate_component_energy_area()
         flattened_arch = spec.get_flattened_architecture()
 
         sim_cache = make_sim_pickle_cache(config_names)
