@@ -1,0 +1,72 @@
+architecture:
+  name: "test_distributed_spec"
+  version: 0.4
+  nodes:
+  - !Container
+    name: system_arch
+    attributes:
+      # Top-level attributes inherited by all components unless overridden
+      technology: "45nm"
+      global_cycle_seconds: 1e-9
+      datawidth: 16
+  
+  - !Network
+    name: L2
+    topology: Mesh
+    dims:
+      - x
+    constraints:
+      - 0 <= x < 2
+  - !Network
+    name: L1
+    topology: Mesh
+    dims:
+      - x
+      - y
+    constraints:
+      - 0 <= x < 1
+      - -1 <= y <= 1
+    port: |
+      {L2[x] -> L1[x', y'] : x = 1 and x' = 0 and y' = 0}
+
+  - !Component
+    name: DRAM                 # offchip DRAM is the source of all datatypes
+    class: DRAM                # assume DRAM is large enough to store all the data, so no depth specification needed
+    attributes:
+      datawidth: datawidth
+      width: 64                # width in bits
+    network:
+      level: L2
+      placement: "{ DRAM[i] -> L2[i] | i = 1 }"
+
+  - !Container
+    name: PE
+    network:
+      level: L1
+      placement: |
+        {
+          PE[i, j] -> L1[x, y] : 
+            j = y and x < 0 and i = -x - 1;
+            j = y and x > 0 and i = x;
+        }
+
+  # registers for the mac unit
+  - !Component
+    name: weight_reg
+    class: reg_storage
+    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
+      
+  - !Component
+    name: input_activation_reg
+    class: reg_storage
+    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
+
+  - !Component
+    name: output_activation_reg
+    class: reg_storage
+    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
+
+  - !Component
+    name: mac
+    class: mac_compute
+    attributes: {num_pipline_stages: 2, datawidth: datawidth}

@@ -1,0 +1,100 @@
+-   binding:
+        version: 0.4
+        nodes:
+        -   logical:
+                name: PE
+                l_dims: [i]
+            physical: 
+                name: PE
+                p_dims: [x, y]
+            relations:
+                tensorA: i = x + y * 2 # This is a dimension-major compression into the logical. It is bijective.
+                tensorB: i = x + y * 2 # This is a dimension-major compression into the logical. It is bijective.
+        -   logical:
+                name: Scratchpad
+                l_dims: [x, y]
+            physical:
+                name: GLB
+                p_dims: [a, b]
+            relations:
+                tensorA: x = a and y = b
+                tensorB: x = b and y = a
+    solution:
+        version: 0.4
+        nodes:
+            -
+                tensorA: |
+                    {
+                        [
+                            tensorA_ranks[c, h, w, p, q, r, s] -> 
+                            l_PE_dims[i]
+                        ] ->
+                        p_PE_dims[x, y] :
+                        i = x + 2y
+                    }
+                tensorB: |
+                    {
+                        [
+                            tensorB_ranks[c, h, w, p, q, r, s] -> 
+                            l_PE_dims[i]
+                        ] ->
+                        p_PE_dims[x, y] :
+                        i = x + (y * 2)
+                    }
+            -
+                tensorA: |
+                    {
+                        [
+                            tensorA_ranks[c, h, w, p, q, r, s] -> 
+                            l_Scratchpad_dims[x, y]
+                        ] ->
+                        p_GLB_dims[ a, b ] :
+                        x = a and y = b
+                    }
+                tensorB: |
+                    {
+                        [
+                            tensorB_ranks[c, h, w, p, q, r, s] -> 
+                            l_Scratchpad_dims[x, y]
+                        ] ->
+                        p_GLB_dims[ a, b ] :
+                        x = b and y = a
+                    }
+
+-   binding:
+        version: 0.4
+        nodes:
+        -   logical:
+                name: DRAM
+                l_dims: [i]
+            physical:
+                name: DRAM
+                p_dims: [i]
+            relation: # Compression relation where less DRAM chips than planned.
+                weights: i = i // 2
+                inputs: i = i // 2
+                outputs: i = i // 2
+        -   logical:
+                name: Scratchpad
+                l_dims: [i]
+            physical:
+                name: GLB
+                p_dims: [x, y, z]
+            relation: # weight stationary relation
+                weights: c = x and h = y and w = z
+                inputs: i=x and i=y and i=z
+                outputs: i=x and i=y and i=z
+        -   logical:
+                name: PE_Buffer
+                l_dims: [i]
+            physical:
+                name: GLB
+                l_dims: [x, y, z]
+            relation: # Some weird bypass shenanigans.
+                weights: 
+                inputs:
+                outputs:
+                
+
+
+-   

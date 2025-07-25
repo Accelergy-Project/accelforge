@@ -1,0 +1,100 @@
+networks:
+    - name: L2
+      topology: Mesh
+      dims:
+        - x
+        - y
+      constraints:
+        - 0 <= x < 2
+        - 0 <= y < 3
+      affine: | 
+        {
+            [L2[x, y] -> L2[x', y']] -> hops[(x - x') + (y - y')] : 
+                x >= x' and y >= y';
+            [L2[x, y] -> L2[x', y']] -> hops[-(x - x') + -(y - y')] : 
+                x < x' and y < y';
+            [L2[x, y] -> L2[x', y']] -> hops[-(x - x') + (y - y')] : 
+                x < x' and y >= y';
+            [L2[x, y] -> L2[x', y']] -> hops[(x - x') + -(y - y')] : 
+                x >= x' and y < y'
+        }
+      domain_restriction: |
+        {
+            [L2[x, y] -> L2[x', y']] -> hops[(x - x') + (y - y')] : 
+                x >= x' and y >= y' and 0 <= x < 2 and 0 <= x' < 2 and 0 <= y < 3 and 0 <= y' < 3;
+            [L2[x, y] -> L2[x', y']] -> hops[-(x - x') + (y - y')] : 
+                x < x' and y >= y' and 0 <= x < 2 and 0 <= x' < 2 and 0 <= y < 3 and 0 <= y' < 3;
+            [L2[x, y] -> L2[x', y']] -> hops[(x - x') + -(y - y')] : 
+                x >= x' and y < y' and 0 <= x < 2 and 0 <= x' < 2 and 0 <= y < 3 and 0 <= y' < 3;
+            [L2[x, y] -> L2[x', y']] -> hops[-(x - x') + -(y - y')] : 
+                x < x' and y < y' and 0 <= x < 2 and 0 <= x' < 2 and 0 <= y < 3 and 0 <= y' < 3
+        }
+    - name: L1
+      topology: Mesh
+      dims:
+        - x
+        - y
+        - z
+      constraints:
+        - 0 <= x < 2027
+        - 0 <= y < 2029
+        - 0 <= z < 17
+      affine: |
+        { 
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') + (y - y') + (z - z') ] :
+                x >= x' and y >= y' and z >= z';
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') + (y - y') - (z - z') ] :
+                x >= x' and y >= y' and z < z';
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') - (y - y') + (z - z') ] :
+                x >= x' and y < y' and z >= z';
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') + (y - y') + (z - z') ] :
+                x < x' and y >= y' and z >= z';
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') - (y - y') + (z - z') ] :
+                x < x' and y < y' and z >= z';
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') - (y - y') - (z - z') ] :
+                x >= x' and y < y' and z < z';
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') + (y - y') - (z - z') ] :
+                x < x' and y >= y' and z < z';
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') - (y - y') - (z - z') ] :
+                x < x' and y < y' and z < z'
+        }
+      domain_restriction: |  
+        { 
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') + (y - y') + (z - z') ] :
+                x >= x' and y >= y' and z >= z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17;
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') + (y - y') - (z - z') ] :
+                x >= x' and y >= y' and z < z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17;
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') - (y - y') + (z - z') ] :
+                x >= x' and y < y' and z >= z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17;
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') + (y - y') + (z - z') ] :
+                x < x' and y >= y' and z >= z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17;
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') - (y - y') + (z - z') ] :
+                x < x' and y < y' and z >= z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17;
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ (x - x') - (y - y') - (z - z') ] :
+                x >= x' and y < y' and z < z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17;
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') + (y - y') - (z - z') ] :
+                x < x' and y >= y' and z < z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17;
+            [L1[x, y, z] -> L1[x', y', z']] -> hops[ -(x - x') - (y - y') - (z - z') ] :
+                x < x' and y < y' and z < z' and 
+                0 <= x < 2027 and 0 <= y < 2029 and 0 <= z < 17 and
+                0 <= x' < 2027 and 0 <= y' < 2029 and 0 <= z' < 17
+        }
+placement:
+    - level: DRAM
+      placement: "DRAM[i] -> L2[x, y] : i = x and y = 0"
+    - level: MAC
+      placement: "MAC[i] -> L1[x, y, z] : i = x and y = 0 and z = 0"
