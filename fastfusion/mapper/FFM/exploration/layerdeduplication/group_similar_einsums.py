@@ -2,9 +2,9 @@ from collections import defaultdict
 from collections.abc import Iterable
 from itertools import permutations, product
 
-from pytimeloop.bindings.looptree import LooptreeWorkload, LooptreeDependencyAnalyzer
+from fastfusion.model.looptree.workload import LooptreeWorkload, LooptreeDependencyAnalyzer
 
-from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
+from fastfusion.model.looptree.mapping_utilities import get_intermediate_tensors
 from fastfusion.util import fzs
 
 from .grouped_einsums import GroupOfSimilarEinsums, Id

@@ -12,9 +12,6 @@ from fastfusion.model.looptree.mapping_utilities import get_paths, get_leaves
 from fastfusion.frontend.mapping import Mapping, TensorHolder, Compute
 from fastfusion.frontend.workload import Workload
 
-# from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
-# from pytimeloop.isl.sum import sum_with_mask
-
 
 @dataclass(eq=True)
 class Accesses:
