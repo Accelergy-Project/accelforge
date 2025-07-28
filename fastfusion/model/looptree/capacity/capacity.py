@@ -1,4 +1,4 @@
-from pytimeloop.isl.singular import get_value_from_singular_qpolynomial
+from fastfusion.frontend.workload.isl import get_value_from_singular_qpolynomial
 
 from .aggregators import CAPACITY_AGGREGATORS
 
