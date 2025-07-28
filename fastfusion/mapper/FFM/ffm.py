@@ -39,11 +39,15 @@ class MultiEinsumPmappings:
         return self
 
 def make_pmappings(
-    spec: Specification, einsum_names: list[EinsumName] | None = None
+    spec: Specification, einsum_names: list[EinsumName] | None = None, tagger = None,
 ) -> MultiEinsumPmappings:
     flattened_arch = spec.get_flattened_architecture()
     sims, pmapping_objects = get_sims(
-        spec, flattened_arch, metrics=spec.mapper_ffm.metrics, einsum_names=einsum_names
+        spec,
+        flattened_arch,
+        tagger=tagger,
+        metrics=spec.mapper_ffm.metrics,
+        einsum_names=einsum_names
     )
     resource2capacity = {}
     for l in flattened_arch:
