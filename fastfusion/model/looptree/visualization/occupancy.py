@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-from pytimeloop.looptree.reuse.isl.des import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse.isl.des import IslReuseAnalysisOutput
 
 
 def plot_occupancy_graph(output: IslReuseAnalysisOutput, workload):

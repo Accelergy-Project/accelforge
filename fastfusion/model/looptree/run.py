@@ -3,18 +3,18 @@ from pathlib import Path
 
 import islpy as isl
 
-from bindings.config import Config
+from fastfusion.frontend.config import Config
 from bindings.looptree import LooptreeModelApp, LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
 from pytimeloop.file import gather_yaml_configs
 
-from pytimeloop.looptree.capacity import compute_capacity_usage
-from pytimeloop.looptree.reuse.isl.des import deserialize_looptree_output
-from pytimeloop.looptree.reuse.summarized import analyze_reuse
-from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
-from pytimeloop.looptree.latency import get_latency
+from fastfusion.model.looptree.capacity import compute_capacity_usage
+from fastfusion.model.looptree.reuse.isl.des import deserialize_looptree_output
+from fastfusion.model.looptree.reuse.summarized import analyze_reuse
+from fastfusion.model.looptree.energy import gather_actions, compute_energy_from_actions
+from fastfusion.model.looptree.latency import get_latency
 
-from pytimeloop.timeloopfe.v4fused import Specification
+from fastfusion.frontend.specification import Specification
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 
 
