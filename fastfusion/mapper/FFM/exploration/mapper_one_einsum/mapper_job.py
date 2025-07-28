@@ -41,6 +41,7 @@ from fastfusion.frontend.mapping import Reservation as ReservationNode
 
 def make_compatibility(
     mapping: Mapping,
+    tagger,
     intermediate_tensors: set[TensorName],
     workload: Workload,
     rank_variable_bounds: dict[RankVariableName, int],
@@ -182,6 +183,8 @@ def make_compatibility(
                 ))
         compat = Compatibility(n_loops=max([0] + [len(s.loops) for s in tensors]),
                                tensors=fzs(tensors))
+        # tags = tagger(compat)
+        # compat = compat.update(tags=tags)
         return compat, null_loop_indices
     return compatibility, update_compatibility_with_tile_shapes
 
@@ -225,10 +228,11 @@ class Job:
         )
         self._compatibility, self._update_compatibility_with_tile_shapes = \
             make_compatibility(with_reservations,
-                                self.intermediate_tensors,
-                                self.spec.workload,
-                                self.rank_variable_bounds,
-                                self.stride_and_halo)
+                               self.tagger,
+                               self.intermediate_tensors,
+                               self.spec.workload,
+                               self.rank_variable_bounds,
+                               self.stride_and_halo)
             
     @property
     def is_copy_operation(self) -> bool:

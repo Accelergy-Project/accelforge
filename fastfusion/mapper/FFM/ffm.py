@@ -1,3 +1,4 @@
+from typing import Callable
 from uuid import UUID
 from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
@@ -8,7 +9,7 @@ from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.mapper.FFM.joining.simexplore import join_sims
 from fastfusion.mapper.FFM.pareto.df_convention import MAPPING_COLUMN
-from fastfusion.mapper.FFM.pareto.partial_mappings import row2pmappings
+from fastfusion.mapper.FFM.pareto.partial_mappings import PartialMappings, row2pmappings
 from fastfusion.mapper.FFM.exploration.mapper_multi_einsum import get_rank_variable_bounds_for_all_einsums
 from fastfusion.accelerated_imports import pd
 
@@ -37,13 +38,26 @@ class MultiEinsumPmappings:
                 )
         self.pmapping_objects.update(other.pmapping_objects)
         return self
+    
+    def filter(self, filter_lambda: Callable[[SIM], bool], einsum_names: list[EinsumName] | None = None):
+        if einsum_names is None:
+            einsum_names = list(self.einsum2pmappings.keys())
+        for einsum_name in einsum_names:
+            self.einsum2pmappings[einsum_name] = [
+                pm for pm in self.einsum2pmappings[einsum_name]
+                if filter_lambda(pm)
+            ]
 
 def make_pmappings(
-    spec: Specification, einsum_names: list[EinsumName] | None = None
+    spec: Specification, einsum_names: list[EinsumName] | None = None, tagger = None,
 ) -> MultiEinsumPmappings:
     flattened_arch = spec.get_flattened_architecture()
     sims, pmapping_objects = get_sims(
-        spec, flattened_arch, metrics=spec.mapper_ffm.metrics, einsum_names=einsum_names
+        spec,
+        flattened_arch,
+        tagger=tagger,
+        metrics=spec.mapper_ffm.metrics,
+        einsum_names=einsum_names
     )
     resource2capacity = {}
     for l in flattened_arch:
@@ -55,7 +69,7 @@ def row2mapping(row: pd.Series, spec: Specification, rank_variable_bounds: dict[
     return Mapping.from_pmappings(row2pmappings(row, spec.workload.einsum_names, rank_variable_bounds), rank_variable_bounds=rank_variable_bounds)
 
 
-def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings):
+def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings) -> PartialMappings:
     compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
     joined = join_sims(
         compressed,

@@ -181,7 +181,8 @@ def pad_with_bottom_loops(mapping: list[MappingNode], einsum: Einsum):
 
 def timeloop_style_even(mapping: list[MappingNode]):
     # Iterate through the mapping. If there are >2 TensorHolder nodes for the same
-    # memory, combine all but the innermost one
+    # memory, move all below the 2nd to the same level as the 2nd.
+    mapping = copy.deepcopy(mapping)
     memory2indices = defaultdict(list)
     i = 0
     for i, node in enumerate(mapping):
@@ -193,9 +194,9 @@ def timeloop_style_even(mapping: list[MappingNode]):
         if len(seen) <= 1:
             seen.append(i)
         else:
-            mapping[i] = None
-            mapping[seen[-1]].tensors.extend(node.tensors)
-    return [m for m in mapping if m is not None]
+            mapping[i]._lower = False
+            mapping.insert(seen[-1] + 1, mapping.pop(i))
+    return mapping
 
 
 def get_ranks_with_tile_pattern(producer_name: EinsumName, workload: Workload):
@@ -231,8 +232,6 @@ def iterate_mappings_no_constraints(
         einsum_name, arch_flattened, symbol_table, spec
     ):
         mapping = copy.deepcopy(mapping)
-        if spec.mapper_ffm.timeloop_style_even:
-            mapping = timeloop_style_even(mapping)
         # print(", ".join(m.compact_string() for m in mapping))
         for mapping in insert_temporal_loops(
             mapping,
@@ -252,6 +251,9 @@ def iterate_mappings_no_constraints(
             # print('POST-LABEL')
             # print(", ".join(m.compact_string() for m in mapping))
             # print(f'{einsum_name}: {", ".join(m.compact_string() for m in mapping)}')
+            if spec.mapper_ffm.timeloop_style_even:
+                mapping = timeloop_style_even(mapping)
+
             for mapping2 in max_fused_loops_per_rank(
                 spec,
                 mapping,
