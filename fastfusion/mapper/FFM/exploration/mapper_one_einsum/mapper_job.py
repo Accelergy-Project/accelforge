@@ -86,10 +86,7 @@ def make_compatibility(
                 )
             )
 
-    compatibility = Compatibility(
-        n_loops=len(fused_loops),
-        tensors=fzs(compatibility_reservations),
-    )
+    compatibility = Compatibility(tensors=fzs(compatibility_reservations))
 
     def update_compatibility_with_tile_shapes(tile_shapes, tensor2size):
         tile_shape_idx = 0
@@ -178,8 +175,7 @@ def make_compatibility(
                     reservation.resource,
                     size=tensor2size[reservation.purpose]
                 ))
-        compat = Compatibility(n_loops=max([0] + [len(s.loops) for s in tensors]),
-                               tensors=fzs(tensors))
+        compat = Compatibility(tensors=fzs(tensors))
         # tags = tagger(compat)
         # compat = compat.update(tags=tags)
         return compat, null_loop_indices

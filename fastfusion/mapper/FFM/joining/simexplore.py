@@ -243,10 +243,10 @@ def join_sims(
         # print_time("Grouping")
 
         # ======================================================================
-        # Remove dead tensors from left and right. This happens after grouping
-        # because we only reserve space for shared tensors after it's dead. This
-        # is in case the tensor lifetime extends beyond the Einsums for which it
-        # is used.
+        # Remove dead tensors from left and right. This happens after grouping because
+        # we only reserve space for shared tensors after it's dead (alive is handled by
+        # the normal reservation system). This is in case the tensor lifetime extends
+        # beyond the Einsums for which it is used.
         # ======================================================================
         SIM.remove_dead_tensors(
             [s for lr in [left, right] for v in lr.values() for s in v], live_tensors
@@ -299,17 +299,18 @@ def join_sims(
                         print(f"\tREVERSE: No match for {b.compatibility} using {k}")
 
         # print_time("Bucket merging")
+        def raise_no_match_error():
+            estr = f"No match found for any group.\n"
+            estr += f"Left compatibility:\n\t" + "\n\t".join(str(c) for c in left.keys())
+            estr += f"Right compatibility:\n\t" + "\n\t".join(str(c) for c in right.keys())
+            raise ValueError(estr)
 
         # ======================================================================
         # Look ahead to the next Einsum and see if any of our groups will not
         # be able to merge with it. If so, we can drop them immediately.
         # ======================================================================
         if sims and lookahead_filter:
-            prev_len = len(combined)
             next_right_tensors = sims[0].tensor_names
-            next_right_rank_variables = spec.workload.einsums[
-                sims[0].einsum_name
-            ].rank_variables
             combined = SIM.group_left(combined, next_right_tensors, drop_tags=True)
             for k in list(combined):
                 if not k in sims[0].sims:
@@ -318,7 +319,7 @@ def join_sims(
                             print(f"\tLOOKAHEAD: No match for {b.compatibility}")
                     del combined[k]
             if not combined:
-                raise ValueError("No match found for any group")
+                raise_no_match_error()
             combined = list(itertools.chain.from_iterable(combined.values()))
             # print(
             #     f"Removed {prev_len - len(combined)}/{prev_len} ({len(combined)/prev_len*100:.2f}% remaining)"
@@ -326,7 +327,7 @@ def join_sims(
             # print_time("Removing mappings that can't be combined later")
 
         if not combined:
-            raise ValueError("No match found for any group")
+            raise_no_match_error()
 
         # ======================================================================
         # If we delayed the mapping merging, do it now.

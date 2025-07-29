@@ -159,10 +159,16 @@ class Split:
 
 @dataclass(frozen=True)
 class Compatibility(Updatable):
-    n_loops: int
     tensors: fzs[TensorReservation]
     splits: fzs[Split] = fzs()
     tags: Tags = Tags(fzs())
+    _n_loops_override: int | None = None
+    
+    @property
+    def n_loops(self) -> int:
+        if self._n_loops_override is not None:
+            return self._n_loops_override
+        return max((len(s.loops) for s in self.tensors), default=0)
 
     @property
     def loops(self) -> tuple[Loop, ...]:
@@ -221,13 +227,13 @@ class Compatibility(Updatable):
         If `keep_tensors` is a set, tensors in the set are kept.
         """
         remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
-        if keep_loops:
-            new_n_loops = self.n_loops
-        else:
-            new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
+        new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
         new_splits = fzs(split for split in self.splits if split.n_loops <= new_n_loops)
         tags = self.tags if not drop_tags else Tags(fzs())
-        return Compatibility(new_n_loops, remaining_tensors, new_splits, tags)
+        kwargs = dict(tensors=remaining_tensors, splits=new_splits, tags=tags)
+        if keep_loops:
+            kwargs["_n_loops_override"] = new_n_loops
+        return Compatibility(**kwargs)
 
     def __lt__(self, other):
         return (self.loops, self.tensors) < (other.loops, other.tensors)
@@ -242,9 +248,8 @@ class Compatibility(Updatable):
         self, right: "Compatibility", live_tensors: set[str]
     ) -> "Compatibility":
         return Compatibility(
-            right.n_loops,
-            fzs(s for s in (self.tensors | right.tensors) if s.name in live_tensors),
-            right.tags,
+            tensors=fzs(s for s in (self.tensors | right.tensors) if s.name in live_tensors),
+            tags=right.tags,
         )
 
     def rename(
@@ -263,7 +268,7 @@ class Compatibility(Updatable):
 
     def all_n_loops(self) -> list["Compatibility"]:
         min_n_loops = max(len(s.loops) for s in self.tensors)
-        return [Compatibility(n_loops, self.tensors, self.tags)
+        return [Compatibility(_n_loops_override=n_loops, tensors=self.tensors, tags=self.tags)
                 for n_loops in range(min_n_loops, self.n_loops+1)]
 
     def _permute(
@@ -313,17 +318,3 @@ class Compatibility(Updatable):
     def clear_loop_bounds(self) -> "Compatibility":
         return self.update(tensors=fzs(tensor.clear_loop_bounds()
                                        for tensor in self.tensors))
-    
-    def subsets_of_loops(self, clear_bounds: bool = False) -> Generator["Compatibility", None, None]:
-        assert len(self.tensor_names) == 1, "Only works for single tensor"
-        tensor = next(iter(self.tensors))
-        assert tensor.above_loop_index == len(self.loops), "Only works for last loop"
-
-        indices = list(range(len(self.loops)))
-        for i in range(len(indices) + 1):
-            for subset in itertools.combinations(indices, i):
-                loops = tuple(self.loops[i] for i in subset)
-                if clear_bounds:
-                    loops = tuple(l.update(bound=0) for l in loops)
-                tensor = next(iter(self.tensors)).update(above_loop_index=len(subset))
-                yield self.update(loops=loops, tensors=fzs([tensor]))
