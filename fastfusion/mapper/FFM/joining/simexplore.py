@@ -142,8 +142,13 @@ def join_sims(
     # ======================================================================
     n_mappings["Post Intra-Layer"] = 0
     for i, sim_holder in enumerate(sims):
+        cur_tensors = sim_holder.tensor_names
         right_tensors = set.union(set(), *[s.tensor_names for s in sims[i + 1 :]])
         if i == 0:
+            if cur_tensors - right_tensors:
+                SIM.remove_dead_tensors(sim_holder.sims, right_tensors)
+                for s in sim_holder.sims:
+                    s.compatibility = s.compatibility.clear_dead_tensors(right_tensors)
             sim_holder.sims = SIM.left_consolidate(
                 sim_holder.sims,
                 right_tensors,
@@ -155,6 +160,13 @@ def join_sims(
         left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
         live_tensors = right_tensors
         shared_tensors = left_tensors & sim_holder.tensor_names
+        
+        if cur_tensors - (right_tensors | left_tensors):
+            SIM.remove_dead_tensors(sim_holder.sims, right_tensors | left_tensors)
+            for s in sim_holder.sims:
+                s.compatibility = s.compatibility.clear_dead_tensors(right_tensors | left_tensors)
+
+        
         sim_holder.sims = sorted(
             sim_holder.sims, key=lambda x: len(x.mappings.data), reverse=True
         )
