@@ -141,7 +141,7 @@ def get_memories_to_track(
         memory = [n for n in flattened_arch if n.name == m]
         assert len(memory) == 1
         memory = memory[0]
-        if memory.attributes.size >= total_tensor_sizes * memory.attributes.datawidth: # max(m.attributes.datawidth.values()):
+        if memory.attributes.size >= total_tensor_sizes * max(memory.attributes.datawidth.values()):
             memories_track_all.remove(m)
             logging.info(
                 f"Not tracking memory {m}. It is big enough to hold "

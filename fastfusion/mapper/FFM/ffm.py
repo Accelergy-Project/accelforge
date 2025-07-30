@@ -47,6 +47,11 @@ class MultiEinsumPmappings:
                 pm for pm in self.einsum2pmappings[einsum_name]
                 if filter_lambda(pm)
             ]
+            
+    def drop_einsums(self, *einsum_names: EinsumName):
+        for einsum_name in einsum_names:
+            del self.einsum2pmappings[einsum_name]
+            del self.pmapping_objects[einsum_name]
 
 def make_pmappings(
     spec: Specification, einsum_names: list[EinsumName] | None = None, tagger = None,

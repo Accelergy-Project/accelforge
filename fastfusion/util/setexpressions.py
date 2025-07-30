@@ -130,6 +130,8 @@ def eval_set_expression(
     expected_count: int | None = None
 ) -> InvertibleSet:
     try:
+        if not isinstance(expression, str):
+            raise TypeError(f"Expected a string, got {type(expression)}: {expression}")
         result = eval(expression, {"__builtins__": {}}, symbol_table)
         if not isinstance(result, InvertibleSet):
             raise TypeError(

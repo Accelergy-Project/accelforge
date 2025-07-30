@@ -3,7 +3,7 @@ from collections import defaultdict
 import math
 from numbers import Number
 import time
-from typing import Callable, Iterator, List
+from typing import Any, Callable, Iterator, List
 import uuid
 
 from fastfusion.accelerated_imports import pd
@@ -62,6 +62,7 @@ from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import (
     SameCompatibilityJobs,
     SameEinsumJobs
 )
+from fastfusion.util.setexpressions import eval_set_expression
 
 
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
@@ -185,17 +186,20 @@ def timeloop_style_even(mapping: list[MappingNode]):
     mapping = copy.deepcopy(mapping)
     memory2indices = defaultdict(list)
     i = 0
-    for i, node in enumerate(mapping):
+    while i < len(mapping):
+        node = mapping[i]
         if not isinstance(mapping[i], TensorHolder):
             i += 1
             continue
         node: TensorHolder
         seen = memory2indices[node.component]
+        mapping[i]._lower = len(seen) > 0
         if len(seen) <= 1:
             seen.append(i)
         else:
             mapping[i]._lower = False
             mapping.insert(seen[-1] + 1, mapping.pop(i))
+        i += 1
     return mapping
 
 
@@ -278,7 +282,7 @@ def iterate_mappings_constraints(
     arch_flattened: list[architecture.Leaf] | None = None,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     except_from_imperfect: set = set(),
-) -> Iterator[tuple[Mapping, MappingConstraints]]:
+) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
     if arch_flattened is None:
         arch_flattened = spec.get_flattened_architecture()
     compute_name = arch_flattened[-1].name
@@ -305,7 +309,7 @@ def iterate_mappings_constraints(
             )
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
-            yield mapping, constraints
+            yield mapping, constraints, symbol_table
 
 
 # =================================================================================================
@@ -377,6 +381,64 @@ def shift_reservations_by_null_loop_indices(
     assert len(mappings.columns) == len(mappings.columns.unique())
     return mappings
 
+def parse_flattened_arch(
+    job: Job,
+    symbol_table: dict[str, str],
+) -> list[architecture.Leaf]:
+    flattened_arch = copy.deepcopy(job.flattened_arch)
+    
+    tensor_names = job.spec.workload.einsums[job.einsum_name].tensor_names
+
+    def parse_tensor2bits(to_parse: dict[str, Any], location: str, symbol_table: dict[str, str]) -> dict[str, Any]:
+        result = {}
+        if not isinstance(to_parse, dict):
+            raise ValueError(
+                f"Expected a dict, got {type(to_parse)}: {to_parse}"
+            )
+        for key, value in to_parse.items():
+            key_parsed = eval_set_expression(
+                expression=key,
+                symbol_table=symbol_table,
+                expected_space_name="tensors",
+                location=f"{location} {key}"
+            )
+            for k2 in key_parsed:
+                if k2 in result and result[k2] != value:
+                    raise ValueError(
+                        f"Multiple entries for {k2} in {location}: "
+                        f"{result[k2]} and {value}"
+                    )
+                result[k2] = value
+                
+        for tensor_name in tensor_names:
+            if tensor_name not in result:
+                raise ValueError(
+                    f"Tensor {tensor_name} not found in {location}. "
+                    f"Available tensors: {', '.join(result.keys())}. Original "
+                    f"expressions: {', '.join(to_parse.keys())}. Symbol table:\n\t"
+                    + "\n\t".join(f"{k}: {v}" for k, v in symbol_table.items())
+                )
+
+        return result
+
+    for node in flattened_arch:
+        if not isinstance(node, architecture.TensorHolder):
+            continue
+
+        node.attributes.datawidth = parse_tensor2bits(
+            node.attributes.datawidth,
+            location=f"datawidth of {node.name} for Einsum {job.einsum_name}",
+            symbol_table=symbol_table
+        )
+
+        for action in node.actions:
+            action.arguments.bits_per_action = parse_tensor2bits(
+                action.arguments.bits_per_action,
+                location=f"bits_per_action of {node.name} action {action.name} for Einsum {job.einsum_name}",
+                symbol_table=symbol_table
+            )
+            
+    return flattened_arch
 
 # =================================================================================================
 # Top level
@@ -397,12 +459,12 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
             )
 
     jobs = SameEinsumJobs()
-    for i, (mapping, constraints) in enumerate(mappings_constraints):
+    for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
         new_job = copy.copy(job)
         new_job.mapping = mapping
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
-        new_job.flattened_arch = job.flattened_arch
+        new_job.flattened_arch = parse_flattened_arch(new_job, symbol_table)
         new_job.rank_variable_bounds = rank_variable_bounds
         new_job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name,
                                                                 job.spec.workload,

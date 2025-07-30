@@ -163,7 +163,7 @@ class ParsesTo(Generic[T]):
         def validate_raw_string(value):
             if isinstance(value, str) and is_raw_string(value):
                 return RawString(value)
-            raise ValueError("Not a raw string")  # pragma: no cover  # noqa: T100
+            raise ValueError("Not a raw string")
             
         # Create a union schema that either validates as raw string or normal validation
         return union_schema([

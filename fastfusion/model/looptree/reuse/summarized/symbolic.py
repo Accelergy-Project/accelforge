@@ -2,6 +2,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
+from fastfusion.frontend import architecture
 import fastfusion.frontend.mapping as mapping_spec
 from fastfusion.frontend.architecture import ProcessingStage
 from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern, TensorHolder
@@ -19,6 +20,7 @@ from fastfusion.frontend.workload.symbolic import (
     PartiallyRelevant
 )
 
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.util.sympy.broadcast_max import Min, Max
 
 import sympy
@@ -253,6 +255,8 @@ class AnalysisInfo:
     tensor_to_backer_id: dict[TensorName, int]
 
     is_copy_operation: TensorName | None
+    
+    job: Job
 
 def quick_insert_reservation_nodes(
     mapping: Mapping,
@@ -278,6 +282,7 @@ def quick_insert_reservation_nodes(
         tensor_to_relevancy=tensor_to_relevancy,
         tensor_to_backer_id=None,
         is_copy_operation=None,
+        job=None,
     )
     insert_reservation_nodes(mapping, info)
     return Mapping(nodes=mapping)
@@ -320,6 +325,7 @@ def convert_to_copy(mapping: list[MappingNode], workload: Workload) -> tuple[lis
 def analyze_reuse(
     mapping: Mapping,
     workload: Workload,
+    job: Job | None = None,
 ) -> SummarizedAnalysisOutput:
     mapping = mapping.nodes
     einsum_name = mapping[-1].einsum
@@ -353,6 +359,7 @@ def analyze_reuse(
         tensor_to_relevancy=tensor_to_relevancy,
         tensor_to_backer_id=tensor_to_backer_id,
         is_copy_operation=is_copy_operation,
+        job=job,
     )
     symbols = insert_sympy_symbols(mapping)
 
@@ -560,7 +567,7 @@ def analyze_temporal(node_idx,
         accumulated_buffet_stats = result_accumulator.buffet_stats
         for buffet, stats in child_result.buffet_stats.items():
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
-            
+
             accumulated_stats = accumulated_buffet_stats.setdefault(buffet, BuffetStats())
             accumulated_stats += stats.repeat_temporal(shape_repeats, is_fully_relevant=isinstance(relevancy, Relevant))
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
@@ -687,6 +694,12 @@ def has_parent_tensor_holder(tensor: TensorName, node_idx: int, info: AnalysisIn
             return True
     return False
 
+def find_component_object(component: str, flattened_arch: list[architecture.Leaf]) -> architecture.TensorHolder:
+    for node in flattened_arch:
+        if node.name == component:
+            return node
+    raise ValueError(f"Component {component} not found in flattened arch")
+
 def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_child_results: bool = False):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
@@ -697,19 +710,19 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
     for tensor in node.tensors:
         tensor = TensorName(tensor)
         buffet = Buffet(tensor, einsum_name, node.component)
+
         stats = child_result.buffet_stats.setdefault(buffet, BuffetStats())
         backer_id = info.tensor_to_backer_id[tensor]
         is_backing = backer_id == id(node)
         below_backing = backer_id in [id(m) for m in mapping[:node_idx]]
 
         projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-        
+
         fills = compute_dense_tile_occupancy(projection, current_shape)
-        
+
         child = child_result.get_child_buffet_stats(buffet)
         inherit_from_child = _propagate_child_results and child is not None
-            
-        
+
         # ==============================================================================
         # Calculate the total fills and reads to parent. These propagate upward.
         # ==============================================================================
@@ -741,37 +754,43 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
         # Convert to actions. These are not used used upward; they are used to get
         # energy and latency.
         # ==============================================================================
-        
+        component_object = find_component_object(node.component, info.job.flattened_arch)
+        datawidth = component_object.attributes.datawidth[tensor]
+        bits_per_read = component_object.actions["read"].arguments.bits_per_action[tensor]
+        bits_per_write = component_object.actions["write"].arguments.bits_per_action[tensor]
+        read_scale = datawidth / bits_per_read
+        write_scale = datawidth / bits_per_write
+
         # ==========================
         # Data exchanges with parent
-        stats.total_write_actions += stats.total_reads_to_parent
-        stats.max_per_unit_write_actions += stats.total_reads_to_parent
+        stats.total_write_actions += stats.total_reads_to_parent * write_scale
+        stats.max_per_unit_write_actions += stats.total_reads_to_parent * write_scale
 
         # Comment this to have the final writeback to a buffer hit both that buffer and
         # go directly to the parent without incurring another read from the buffer.
-        stats.total_read_actions += stats.total_writes_to_parent
-        stats.max_per_unit_read_actions += stats.total_writes_to_parent
+        stats.total_read_actions += stats.total_writes_to_parent * read_scale
+        stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
 
-        stats.total_skipped_first_write_actions += stats.total_skipped_first_reads_to_parent
-        stats.min_per_unit_skipped_first_write_actions += stats.min_per_parent_skipped_first_reads_to_parent
+        stats.total_skipped_first_write_actions += stats.total_skipped_first_reads_to_parent * write_scale
+        stats.min_per_unit_skipped_first_write_actions += stats.min_per_parent_skipped_first_reads_to_parent * write_scale
 
         # ========================
         # Data exchanges with peer
-        stats.total_read_actions += stats.total_reads_to_peer
-        stats.total_write_actions += stats.total_reads_to_peer
+        stats.total_read_actions += stats.total_reads_to_peer * read_scale
+        stats.total_write_actions += stats.total_reads_to_peer * write_scale
 
         # =========================
         # Data exchanges with child
         if child is not None:
-            stats.total_read_actions += child.total_reads_to_parent
-            stats.max_per_unit_read_actions += child.max_per_parent_reads_to_parent
+            stats.total_read_actions += child.total_reads_to_parent * read_scale
+            stats.max_per_unit_read_actions += child.max_per_parent_reads_to_parent * read_scale
 
-            stats.total_write_actions += child.total_writes_to_parent
-            stats.max_per_unit_write_actions += child.max_per_parent_writes_to_parent
+            stats.total_write_actions += child.total_writes_to_parent * write_scale
+            stats.max_per_unit_write_actions += child.max_per_parent_writes_to_parent * write_scale
 
             # Skip first read
-            stats.total_skipped_first_read_actions += child.total_skipped_first_reads_to_parent
-            stats.min_per_unit_skipped_first_read_actions += child.min_per_parent_skipped_first_reads_to_parent
+            stats.total_skipped_first_read_actions += child.total_skipped_first_reads_to_parent * read_scale
+            stats.min_per_unit_skipped_first_read_actions += child.min_per_parent_skipped_first_reads_to_parent * read_scale
         
     return child_result
 
@@ -803,8 +822,10 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
 
     stats = BuffetStats()
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
+    component_object = find_component_object(node.resource, info.job.flattened_arch)
+    datawidth = component_object.attributes.datawidth[tensor]
     stats.max_occupancy = \
-        compute_dense_tile_occupancy(projection, current_shape)
+        compute_dense_tile_occupancy(projection, current_shape) * datawidth
     child_result.buffet_stats[buffet] = stats
 
     fanout_key = (node.resource, einsum_name)

@@ -16,6 +16,7 @@ from fastfusion.frontend.workload.symbolic import get_stride_and_halo
 from fastfusion.frontend.mapping import Temporal, Spatial, TensorHolder, Pattern
 
 from fastfusion.mapper import metrics
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
 from fastfusion.model.looptree.latency import get_latency
@@ -89,19 +90,10 @@ def explore_tile_shapes(job: "Job"):
     pmapping = job.mapping
     constraints = job.constraints
     specification = job.spec
-    flattened_arch = job.flattened_arch
-    metrics = job.metrics
     
     set_last_tile_shape_to_one(pmapping)
 
-    symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(
-        pmapping,
-        specification,
-        flattened_arch,
-        metrics,
-        job.memories_track_all + job.memories_track_pmappings_only,
-        job.is_copy_operation
-    )
+    symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(job)
 
     try:
         compiled_df = compile_dict(symbols, symbolic_df)
@@ -661,24 +653,28 @@ def set_last_tile_shape_to_one(pmapping):
         last_node.tile_shape = 1
 
 
-def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: metrics.Metrics, track_memories: list[str], is_copy_op: bool):
+def run_model(job: Job):
+    pmapping = job.mapping
+    spec = job.spec
+    metrics = job.metrics
+    track_memories = job.memories_track_all + job.memories_track_pmappings_only
+    is_copy_op = job.is_copy_operation
+
     workload = spec.workload
     ert = spec.component_energy
 
     component_to_max_fanout = {}
-    memory_to_datawidth = {}
     memory_to_size = {}
-    for node in flattened_arch:
+    for node in job.flattened_arch:
         if isinstance(node, architecture.TensorHolder):
-            memory_to_datawidth[node.name] = node.attributes.datawidth
             if isinstance(node, architecture.Memory):
                 memory_to_size[node.name] = node.attributes.size
         component_to_max_fanout[node.name] = node.spatial.fanout
 
     df = {}
 
-    reuse = analyze_reuse(pmapping, workload)
-    overall_latency, comp_latency, mem_latency = get_latency(reuse, pmapping, workload, flattened_arch)
+    reuse = analyze_reuse(pmapping, workload, job)
+    overall_latency, comp_latency, mem_latency = get_latency(reuse, pmapping, workload, job.flattened_arch)
     actions = gather_actions(reuse, None, use_name=True)
     energy = compute_energy_from_actions(actions, ert)
 
@@ -701,7 +697,7 @@ def run_model(pmapping, spec, flattened_arch: list[architecture.Leaf], metrics: 
         if buffet.level == compute_unit:
             continue
 
-        occupancy = stats.max_occupancy*memory_to_datawidth[buffet.level]
+        occupancy = stats.max_occupancy
         
         if occupancy == 0:
             continue

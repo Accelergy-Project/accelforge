@@ -259,7 +259,7 @@ class SIM:
         )
 
     @staticmethod
-    def remove_dead_tensors(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
+    def remove_dead_tensors(sims: list["SIM"], live_tensors: set[str]):
         for s in sims:
             for t in list(s.tensors):
                 if t not in live_tensors:

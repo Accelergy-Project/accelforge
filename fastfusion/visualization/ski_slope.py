@@ -39,7 +39,7 @@ def plot_ski_slope(
 
     for label, sub_df in zip(labels, separated_datas):
         ax.plot(
-            *_make_staircase(
+            *make_staircase(
                 sub_df["Occupancy"].to_numpy(), sub_df["Offchip Accesses"].to_numpy()
             ),
             label=label,
@@ -54,7 +54,8 @@ def plot_ski_slope(
     return fig, ax
 
 
-def _make_staircase(x: np.array, y: np.array):
+def make_staircase(x: np.array, y: np.array):
+    """Make staircase from x, y coordinates."""
     sort_idx = np.argsort(x)
     x, y = x[sort_idx], y[sort_idx]
 
@@ -84,4 +85,4 @@ def _dataflow_from_fullmapping(fullmapping: str):
 
 
 if __name__ == "__main__":
-    print(_make_staircase(np.array([1, 2, 3, 4]), np.array([4, 3, 2, 1])))
+    print(make_staircase(np.array([1, 2, 3, 4]), np.array([4, 3, 2, 1])))
