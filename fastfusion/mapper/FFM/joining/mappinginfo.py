@@ -164,6 +164,7 @@ class Compatibility(Updatable):
     splits: fzs[Split] = fzs()
     tags: Tags = Tags(fzs())
     _n_loops_override: int | None = None
+    _loops_override: tuple[Loop, ...] | None = None
     
     @property
     def n_loops(self) -> int:
@@ -173,6 +174,8 @@ class Compatibility(Updatable):
 
     @property
     def loops(self) -> tuple[Loop, ...]:
+        if self._loops_override is not None:
+            return self._loops_override
         if self.tensors:
             return max((t.loops for t in self.tensors), key=len)
         return tuple()
@@ -233,12 +236,13 @@ class Compatibility(Updatable):
         If `keep_tensors` is a set, tensors in the set are kept.
         """
         remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
-        new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
+        new_n_loops = max((len(s.loops) for s in self.tensors), default=0)
         new_splits = fzs(split for split in self.splits if split.n_loops <= new_n_loops)
         tags = self.tags if not drop_tags else Tags(fzs())
         kwargs = dict(tensors=remaining_tensors, splits=new_splits, tags=tags)
         if keep_loops:
             kwargs["_n_loops_override"] = new_n_loops
+            kwargs["_loops_override"] = self.loops
         return Compatibility(**kwargs)
 
     def __lt__(self, other):
