@@ -35,7 +35,10 @@ def run_symbolic_model(mapping, workload, architecture):
 
 def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     yaml_str = gather_yaml_configs(config_dir, paths)
-    config = Config(yaml_str, 'yaml')
+    config = Config()
+    config.from_yaml(
+        
+    )
     model = LooptreeModelApp(config)
 
     workload = LooptreeWorkload.parse_cfg(config.root['problem'])
