@@ -1,0 +1,50 @@
+from pathlib import Path
+import unittest
+
+import islpy as isl
+import yaml
+
+from fastfusion.frontend.workload import Workload
+from fastfusion.frontend.workload.isl import get_rank_variable_bounds
+from fastfusion.frontend.workload.workload import RankVariableName
+
+from fastfusion.frontend.constraints import LoopOrder
+from fastfusion.frontend.mapping import Mapping
+
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl import analyze_mapping
+
+TEST_CONFIG_PATH: Path = Path(__file__).parent / "configs"
+
+class TestMappingToIsl(unittest.TestCase):
+
+    def test_conv1d(self):
+        # Loads in the CONV1D Config
+        CONV1D_CONFIG_PATH: Path = TEST_CONFIG_PATH
+        workload: Workload = Workload.from_yaml(CONV1D_CONFIG_PATH / "conv1d.workload.yaml")
+
+        rank_var_bounds: dict = get_rank_variable_bounds(workload, "conv")        
+        rank_P = rank_var_bounds["p"]
+        rank_R = rank_var_bounds["r"]
+
+        print(rank_P)
+        print(rank_R)
+
+        # loop_nest: LooptreeWorkload = LooptreeWorkload()
+        loop_order: LoopOrder = LoopOrder(
+            [RankVariableName('p'), RankVariableName('r')]
+        )
+        mapping: Mapping = Mapping.from_yaml(CONV1D_CONFIG_PATH / "conv1d.mapping.yaml")
+
+        
+
+
+
+
+
+
+
+
+
+                
+
+        

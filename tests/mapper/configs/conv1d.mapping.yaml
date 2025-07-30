@@ -1,0 +1,23 @@
+mapping:
+  version: "0.5"
+  nodes:
+  - !Storage
+    tensors: [I, W, O]
+    component: MainMemory
+  - !Spatial
+    rank_variable: r
+    tile_shape: 3
+    dimension: 0
+    across: LocalBuffer
+  - !Temporal
+    rank_variable: p
+    tile_shape: 10
+  - !Storage
+    tensors: [I, W, O]
+    component: LocalBuffer
+  - !Temporal
+    rank_variable: p
+    tile_shape: 2
+  - !Compute
+    einsum: conv
+    compute: MAC
