@@ -135,23 +135,10 @@ class Container(Leaf, ABC):
 
 
 class ArchMemoryActionArguments(ComponentAttributes):
-    bits_per_action: ParsesTo[Union[dict, int, float]] = 1
+    bits_per_action: ParsesTo[Union[int, float]] = 1
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if not isinstance(self.bits_per_action, dict):
-            self.bits_per_action = {"All()": self.bits_per_action}
-
-    def parse_expressions(self, *args, **kwargs):
-        class MyPostCall(PostCall):
-            def __call__(self, field, value, parsed, symbol_table):
-                if field == "bits_per_action":
-                    parsed = _parse_tensor2bits(
-                        parsed, location="bits_per_action", symbol_table=symbol_table
-                    )
-                return parsed
-
-        return super().parse_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
 
 
 class ArchMemoryAction(SubcomponentAction):
