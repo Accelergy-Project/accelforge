@@ -24,8 +24,6 @@ from fastfusion.model.looptree.latency import get_latency
 from fastfusion.mapper.FFM.pareto import nameloop2col, tensor2col
 from fastfusion.mapper.metrics import Metrics
 
-
-
 class GivenShape(int):
     def __str__(self):
         return f'GivenShape({super().__repr__()})'
@@ -41,17 +39,20 @@ class NumLoops:
 
 
 class TilingSegment:
-    def __init__(self, full_shape):
+    def __init__(self, full_shape, max_fused_loops: int):
         self.data: list[GivenShape | NumLoops] = [GivenShape(full_shape), NumLoops(0)]
         self.indices: list[int] = []
         self.is_symbol: list[bool] = []
+        self.max_fused_loops: int = max_fused_loops
+        self.is_fused: list[bool] = []
 
-    def add_symbol(self, loop_idx: int):
+    def add_symbol(self, loop_idx: int, fused: bool):
         self.data[-1].n_loops += 1
         self.indices.append(loop_idx)
         self.is_symbol.append(True)
+        self.is_fused.append(fused)
 
-    def add_pattern(self, loop_idx: int, initial_delta_choices):
+    def add_pattern(self, loop_idx: int, initial_delta_choices, fused: bool):
         last_data = self.data[-1]
         last_data.initial_delta_choices[last_data.n_loops] = \
             initial_delta_choices
@@ -60,14 +61,16 @@ class TilingSegment:
         self.indices.append(loop_idx+1)
         self.is_symbol.append(True)
         self.is_symbol.append(True)
+        self.is_fused.append(fused)
 
-    def add_tile_shape(self, shape, loop_idx: int):
+    def add_tile_shape(self, shape, loop_idx: int, fused: bool):
         self.data.append(GivenShape(shape))
         self.data.append(NumLoops(1))
         self.data.append(GivenShape(shape))
         self.data.append(NumLoops(0))
         self.indices.append(loop_idx)
         self.is_symbol.append(False)
+        self.is_fused.append(fused)
 
     def finish(self):
         if isinstance(self.data[-1], NumLoops) and self.data[-1].n_loops == 0:
@@ -129,7 +132,7 @@ def explore_tile_shapes(job: "Job"):
         df[key] = compiled_df[key](*tile_shapes)
 
     df = pd.DataFrame(df)
-    return df, total_pmappings
+    return df, total_pmappings               
 
 
 def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specification):
@@ -140,9 +143,9 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
 
     shape = get_rank_variable_bounds(workload, pmapping[-1].einsum)
 
-    rank_var_to_tiling_segments = collect_tiling_segments(pmapping, shape, initial_delta_choices)
+    rank_var_to_tiling_segments = collect_tiling_segments(pmapping, shape, specification, initial_delta_choices)
 
-    def check_valid_tile_shape(combined_choices, is_symbols, other_rank_var_and_choices, indices, ranks):
+    def check_valid_tile_shape(combined_choices, is_symbols, other_rank_var_and_choices, indices, ranks, shape):
         # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
         if combined_choices.shape[0] == 0:
             return combined_choices
@@ -153,6 +156,8 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
         # Insert ones
         combined_choices_with_ones = combined_choices
         combined_choices_with_largest = combined_choices
+        initial_indices = indices.copy()
+
         for other_ranks, other_indices, other_is_symbol, other_choices in other_rank_var_and_choices:
             indices.extend(other_indices)
             is_symbols.extend(other_is_symbol)
@@ -212,6 +217,25 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             #     print(f'No valid utilization for {rank_var}')
 
         good_choices = combined_choices[mask,:]
+
+        # Check that we're less than the n_loops limit
+        n_loops = np.zeros(good_choices.shape[0], dtype=np.int64)
+        for rank in ranks:
+            tiling_segments = rank_var_to_tiling_segments[rank]
+            
+            # Previous size = the full rank variable size. Initialize a vector with that size 
+            cur_size = np.zeros(good_choices.shape[0], dtype=np.int64) + shape[rank]
+            
+            for i in [indices.index(i) for i in tiling_segments.indices]:
+                n_loops += cur_size != good_choices[:,i]
+                cur_size = good_choices[:,i]
+                
+                
+        max_loops = min(
+            specification.mapper_ffm.max_loops,
+            specification.mapper_ffm.max_loops_minus_ranks + len(ranks)
+        )
+        good_choices = good_choices[n_loops <= max_loops,:]
 
         return good_choices
 
@@ -333,7 +357,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
     for rv in rank_var_and_choices:
         total_pmappings *= rv[-1].shape[0]
 
-    def get_combined_choices(rank_var_and_choices_a, rank_var_and_choices_b, other_rank_var_and_choices, tile_shape=128):
+    def get_combined_choices(rank_var_and_choices_a, rank_var_and_choices_b, other_rank_var_and_choices, shape, tile_shape=128):
         rank_a, index_a, is_symbol_a, choices_a = rank_var_and_choices_a
         rank_b, index_b, is_symbol_b, choices_b = rank_var_and_choices_b
 
@@ -367,7 +391,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     axis=1
                 )
 
-                good_choices = check_valid_tile_shape(combined_choices, is_symbol_a + is_symbol_b, other_rank_var_and_choices, index_a + index_b, rank_a | rank_b)
+                good_choices = check_valid_tile_shape(combined_choices, is_symbol_a + is_symbol_b, other_rank_var_and_choices, index_a + index_b, rank_a | rank_b, shape)
                 all_good_choices.append(good_choices)
 
                 # # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
@@ -468,7 +492,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                     continue
 
                 other_rank_var_and_choices = [x for k, x in enumerate(rank_var_and_choices) if k not in (i, j)]
-                combined = get_combined_choices(rank_var_and_choices_a, rank_var_and_choices_b, other_rank_var_and_choices)
+                combined = get_combined_choices(rank_var_and_choices_a, rank_var_and_choices_b, other_rank_var_and_choices, shape)
                 choices_combined = combined[-1]
                 if choices_a.shape[0] == 0 or choices_b.shape[0] == 0:
                     reduction = 0
@@ -504,7 +528,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
             return smallest
         smallest = get_smallest()
         smallest2 = get_smallest()
-        rank_var_and_choices.append(get_combined_choices(smallest, smallest2, rank_var_and_choices))
+        rank_var_and_choices.append(get_combined_choices(smallest, smallest2, rank_var_and_choices, shape))
 
     # Sort rank var and choices by the rank variable name
     # rank_var_and_choices.sort(key=lambda x: x[0])
@@ -518,7 +542,7 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
     indices = rank_var_and_choices[0][1]
     ranks = rank_var_and_choices[0][0]
     other_rank_var_and_choices = []  # All rank variables have been combined, so no others remain
-    good_choices = check_valid_tile_shape(combined_choices, is_symbol, other_rank_var_and_choices, indices, ranks)
+    good_choices = check_valid_tile_shape(combined_choices, is_symbol, other_rank_var_and_choices, indices, ranks, shape)
 
 
     _, inverted_indices, is_symbol, choices = rank_var_and_choices[0]
@@ -541,6 +565,7 @@ def invert_indices(inverted_indices):
 def collect_tiling_segments(
     pmapping,
     rank_shape: dict,
+    spec: "Specification",
     initial_delta_choices: dict[str, set[int]]={}
 ) -> dict[str, TilingSegment]:
     rank_var_to_tiling_segments = {}
@@ -551,15 +576,15 @@ def collect_tiling_segments(
             tile_shape = node.tile_shape
             tile_pattern = node.tile_pattern
 
-            if rank_var not in rank_var_to_tiling_segments:
-                rank_var_to_tiling_segments[rank_var] = \
-                    TilingSegment(rank_shape[rank_var])
-            tiling_segment: TilingSegment = rank_var_to_tiling_segments[rank_var]
+            tiling_segment = rank_var_to_tiling_segments.setdefault(
+                rank_var,
+                TilingSegment(rank_shape[rank_var], spec.mapper_ffm.max_fused_loops_per_rank)
+            )
 
             if tile_shape == 'symbol' or isinstance(tile_shape, sympy.Symbol):
-                tiling_segment.add_symbol(loop_idx)
+                tiling_segment.add_symbol(loop_idx, node._fused)
             elif isinstance(tile_shape, int):
-                tiling_segment.add_tile_shape(tile_shape, loop_idx)
+                tiling_segment.add_tile_shape(tile_shape, loop_idx, node._fused)
             elif isinstance(tile_pattern, Pattern):
                 stride = tile_pattern.stride
                 initial_tile_shape = tile_pattern.initial_tile_shape
@@ -568,17 +593,17 @@ def collect_tiling_segments(
                     raise ValueError('Recomputation not yet supported')
                 assert stride is not None and initial_tile_shape is not None
                 if isinstance(stride, int):
-                    tiling_segment.add_tile_shape(stride, loop_idx)
+                    tiling_segment.add_tile_shape(stride, loop_idx, node._fused)
                 elif isinstance(stride, sympy.Symbol):
                     tiling_segment.add_pattern(loop_idx,
-                                               initial_delta_choices[rank_var])
+                                               initial_delta_choices[rank_var], node._fused)
                 else:
                     raise RuntimeError('BUG')
             else:
                 raise NotImplementedError(f'Unsupported tile shape {tile_shape}')
 
             loop_idx += 1
-
+            
     for rank_var, tiling_segment in rank_var_to_tiling_segments.items():
         tiling_segment.finish()
 
@@ -624,6 +649,14 @@ def make_shapes_for_one_rank(tiling_segments: TilingSegment):
             all_tile_shapes = np.tile(all_tile_shapes, (tile_shape.shape[0], 1))
             tile_shape = np.repeat(tile_shape, repeats=all_tile_shapes_n_rows, axis=0)
             all_tile_shapes = np.concatenate((all_tile_shapes, tile_shape), axis=1)
+
+    # Max fused loops check
+    n_loops = np.zeros(all_tile_shapes.shape[0], dtype=np.int64)
+    for i in range(len(tiling_segments.is_fused)):
+        if tiling_segments.is_fused[i]:
+            prev = all_tile_shapes[:,i-1] if i > 0 else max_shape
+            n_loops += all_tile_shapes[:,i] != prev
+    all_tile_shapes = all_tile_shapes[n_loops <= tiling_segments.max_fused_loops,:]
 
     return all_tile_shapes
 
@@ -726,21 +759,23 @@ def run_model(job: Job):
                     df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
-        df['metric_Latency'] = overall_latency
-        df['compute_Latency'] = comp_latency
+        df['metric_latency'] = overall_latency
+        df['compute_latency'] = comp_latency
         for mem, latency in mem_latency.items():
-            df[f'{mem}_Latency'] = latency
+            df[f'{mem}_latency'] = latency
 
     if metrics & Metrics.ENERGY:
-        df['metric_Energy'] = sum(energy.values())
+        df['metric_energy'] = sum(energy.values())
+        for memory, energy in energy.items():
+            df[f'{memory}_energy'] = energy
 
     if metrics & Metrics.PER_COMPONENT_ENERGY:
         for component, component_energy in energy.items():
-            df[f'{component}_Energy'] = component_energy
+            df[f'{component}_energy'] = component_energy
 
     if metrics & Metrics.RESERVATIONS:
         for memory, occupancies in total_occupancy.items():
-            df[f'{memory}_Reservations'] = sum(occupancies.values())
+            df[f'{memory}_reservations'] = sum(occupancies.values())
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():

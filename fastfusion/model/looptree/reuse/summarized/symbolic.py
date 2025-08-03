@@ -756,8 +756,8 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
         # ==============================================================================
         component_object = find_component_object(node.component, info.job.flattened_arch)
         datawidth = component_object.attributes.datawidth[tensor]
-        bits_per_read = component_object.actions["read"].arguments.bits_per_action[tensor]
-        bits_per_write = component_object.actions["write"].arguments.bits_per_action[tensor]
+        bits_per_read = component_object.actions["read"].arguments.bits_per_action
+        bits_per_write = component_object.actions["write"].arguments.bits_per_action
         read_scale = datawidth / bits_per_read
         write_scale = datawidth / bits_per_write
 

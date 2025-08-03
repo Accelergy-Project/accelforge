@@ -40,7 +40,7 @@ class TestTileShapeExploration(unittest.TestCase):
 
         result = explore_tile_shapes(job)
         data, total_pmappings = result
-        self.assertTrue('metric_Latency' in data.columns)
+        self.assertTrue('metric_latency' in data.columns)
 
 if __name__ == '__main__':
     unittest.main()

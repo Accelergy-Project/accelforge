@@ -328,3 +328,14 @@ class Compatibility(Updatable):
     def clear_loop_bounds(self) -> "Compatibility":
         return self.update(tensors=fzs(tensor.clear_loop_bounds()
                                        for tensor in self.tensors))
+
+    def compatible_with(self, other: "Compatibility") -> bool:
+        if not MHA_PATCH:
+            return True
+        for a in self.tensors:
+            a = a.loops
+            for b in other.tensors:
+                b = b.loops
+                if a[:len(b)] != b[:len(a)]:
+                    return False
+        return True

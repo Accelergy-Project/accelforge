@@ -74,8 +74,8 @@ def get_bandwidth(flattened_arch):
         if not isinstance(node, TensorHolder):
             continue
         component_bandwidths[node.name] = [
-            node.attributes.read_bandwidth,
-            node.attributes.write_bandwidth,
-            node.attributes.shared_read_write_bandwidth
+            node.attributes.bandwidth_reads_per_cycle,
+            node.attributes.bandwidth_writes_per_cycle,
+            node.attributes.bandwidth_reads_plus_writes_per_cycle
         ]
     return component_bandwidths

@@ -53,6 +53,20 @@ class MultiEinsumPmappings:
             del self.einsum2pmappings[einsum_name]
             del self.pmapping_objects[einsum_name]
 
+
+class MappingFromRow:
+    def __init__(self, row: pd.Series, spec: Specification, rank_variable_bounds: dict[str, dict[str, int]]):
+        self.row = row
+        self.spec = spec
+        self.rank_variable_bounds = rank_variable_bounds
+
+    def __call__(self) -> Mapping:
+        return row2mapping(self.row, self.spec, self.rank_variable_bounds)
+
+    def render(self) -> str:
+        return self().render()
+
+
 def make_pmappings(
     spec: Specification, einsum_names: list[EinsumName] | None = None, tagger = None,
 ) -> MultiEinsumPmappings:
@@ -90,5 +104,5 @@ def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings) -> Part
         )
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    joined.data[MAPPING_COLUMN] = joined.data.apply(lambda row: lambda: row2mapping(row, spec, rank_variable_bounds), axis=1)
+    joined.data[MAPPING_COLUMN] = joined.data.apply(lambda row: MappingFromRow(row, spec, rank_variable_bounds), axis=1)
     return joined
