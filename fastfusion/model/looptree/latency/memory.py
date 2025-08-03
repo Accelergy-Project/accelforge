@@ -43,23 +43,16 @@ def memory_latency(
         assert isinstance(compute_node, Compute)
         compute_targets.add(compute_node.compute)
 
-    bandwidths, component_tensor_datawidth = get_bandwidth(flattened_arch)
+    bandwidths = get_bandwidth(flattened_arch)
 
     component_to_read_writes = defaultdict(lambda: [0, 0])
     for buffet, buffet_stats in looptree_results.buffet_stats.items():
         component = buffet.level
         if component in compute_targets:
             continue
-        tensor = buffet.tensor
-        if (component, tensor) in component_tensor_datawidth:
-            datawidth = component_tensor_datawidth[(component, tensor)]
-        elif (component, '*') in component_tensor_datawidth:
-            datawidth = component_tensor_datawidth[(component, '*')]
-        else:
-            raise RuntimeError(f'No datawidth for {component} and {tensor}')
         
-        component_to_read_writes[component][0] += buffet_stats.max_per_unit_read_actions*datawidth
-        component_to_read_writes[component][1] += buffet_stats.max_per_unit_write_actions*datawidth
+        component_to_read_writes[component][0] += buffet_stats.max_per_unit_read_actions - buffet_stats.min_per_unit_skipped_first_read_actions#*datawidth
+        component_to_read_writes[component][1] += buffet_stats.max_per_unit_write_actions - buffet_stats.min_per_unit_skipped_first_write_actions#*datawidth
 
     component_latency = {}
     for component, (reads, writes) in component_to_read_writes.items():
@@ -77,18 +70,12 @@ def memory_latency(
 def get_bandwidth(flattened_arch):
     """Returns a dictionary from memory to bandwidth in bits/cycle"""
     component_bandwidths = {}
-    component_tensor_datawidth = {}
     for node in flattened_arch:
         if not isinstance(node, TensorHolder):
             continue
-        attributes = node.attributes
-
         component_bandwidths[node.name] = [
-            node.attributes.read_bandwidth,
-            node.attributes.write_bandwidth,
-            node.attributes.shared_read_write_bandwidth
+            node.attributes.bandwidth_reads_per_cycle,
+            node.attributes.bandwidth_writes_per_cycle,
+            node.attributes.bandwidth_reads_plus_writes_per_cycle
         ]
-
-        # NOTE: supports per-tensor datawidth in the future. '*' can be tensor name
-        component_tensor_datawidth[(node.name, '*')] = attributes.datawidth
-    return component_bandwidths, component_tensor_datawidth
+    return component_bandwidths

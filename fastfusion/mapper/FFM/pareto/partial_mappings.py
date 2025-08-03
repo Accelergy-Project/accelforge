@@ -559,79 +559,77 @@ class PartialMappings:
                 self.fail(first_failing_index, live_tensors)
                 raise ValueError(error)
             
-    @error_check_wrapper
-    def check_reservations(self, live_tensors: set[int]):
-        from fastfusion.visualization.reservationtree import mappings2reservationtree
-        assert not self.data.isnull().values.any(), f"NaN in {self.data}"
+    # @error_check_wrapper
+    # def check_reservations(self, live_tensors: set[int]):
+    #     from fastfusion.visualization.reservationtree import mappings2reservationtree
+    #     assert not self.data.isnull().values.any(), f"NaN in {self.data}"
 
-        self = self.copy()
+    #     self = self.copy()
 
-        self.free_to_loop_index(-1, check_correctness=False)
-        self.shift_bottom_reservation_left(-1)
+    #     self.free_to_loop_index(-1, check_correctness=False)
+    #     self.shift_bottom_reservation_left(-1)
 
-        for i, r in self.data.iterrows():
-            looptree = mappings2reservationtree(
-                r[MAPPING_COLUMN],
-                r.get(STATS, None),
-                still_live_tensors=live_tensors
-            )
-            reservations = dict(looptree.get_reservations())
+    #     for i, r in self.data.iterrows():
+    #         looptree = mappings2reservationtree(
+    #             r[MAPPING_COLUMN],
+    #             r.get(STATS, None),
+    #             still_live_tensors=live_tensors
+    #         )
+    #         reservations = dict(looptree.get_reservations())
             
-            # If r doesn't have any columns, continue. It's a copy Einsum so it has no
-            # stats.
-            if r.empty:
-                continue
+    #         # If r doesn't have any columns, continue. It's a copy Einsum so it has no
+    #         # stats.
+    #         if r.empty:
+    #             continue
 
-            for k, v in reservations.items():
-                col = self.get_reservation_or_parent(k, 0, left=True)
-                if str(k) == "0":
-                    continue
-                if col not in self.data.columns:
-                    got = r[[c for c in self.data.columns if col2nameloop(c) is not None]]
-                    self.fail(i, live_tensors)
-                    raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
-                if r[col] != v:
-                    got = r[[c for c in self.data.columns if col2nameloop(c) is not None]]
-                    self.fail(i, live_tensors)
-                    looptree = mappings2reservationtree(
-                        r[MAPPING_COLUMN],
-                        r.get(STATS, None),
-                        # skip_backing_tensors_in_right_branch=live_tensors,
-                        still_live_tensors=live_tensors,
-                    )
-                    raise ValueError(
-                        f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}"
-                    )
+    #         for k, v in reservations.items():
+    #             col = self.get_reservation_or_parent(k, 0, left=True)
+    #             if str(k) == "0":
+    #                 continue
+    #             if col not in self.data.columns:
+    #                 got = r[[c for c in self.data.columns if col2nameloop(c) is not None]]
+    #                 self.fail(i, live_tensors)
+    #                 raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
+    #             if r[col] != v:
+    #                 got = r[[c for c in self.data.columns if col2nameloop(c) is not None]]
+    #                 self.fail(i, live_tensors)
+    #                 looptree = mappings2reservationtree(
+    #                     r[MAPPING_COLUMN],
+    #                     r.get(STATS, None),
+    #                     # skip_backing_tensors_in_right_branch=live_tensors,
+    #                     still_live_tensors=live_tensors,
+    #                 )
+    #                 raise ValueError(
+    #                     f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}"
+    #                 )
 
-    def fail(self, index, live_tensors):
-        from fastfusion.mapper.FFM.joining.sim import TensorReservation
-        r = self.data.iloc[index]
-        assert not self.data.isnull().values.any(), f"NaN in {self.data}"
-        self = self.copy()
-        self._draw_index(index, live_tensors, self._get_target_path(suffix="fail"))
-        all_tensors = set(t for tn in r[MAPPING_COLUMN].values() for t in tn.tensors)
-        all_tensors = TensorReservation.get_backing_tensors(all_tensors)
-        for t in sorted(all_tensors):
-            print(f"{t.__repr__()},")
+    # def fail(self, index, live_tensors):
+    #     from fastfusion.mapper.FFM.joining.sim import TensorReservation
+    #     r = self.data.iloc[index]
+    #     assert not self.data.isnull().values.any(), f"NaN in {self.data}"
+    #     self = self.copy()
+    #     self._draw_index(index, live_tensors, self._get_target_path(suffix="fail"))
+    #     all_tensors = set(t for tn in r[MAPPING_COLUMN].values() for t in tn.tensors)
+    #     all_tensors = TensorReservation.get_backing_tensors(all_tensors)
+    #     for t in sorted(all_tensors):
+    #         print(f"{t.__repr__()},")
     
-    def _draw_index(self, index: int, live_tensors, to_file: str = "test.png"):
-        from fastfusion.visualization.reservationtree import mappings2reservationtree
-        import pydot
-        looptree = mappings2reservationtree(
-            self.data.iloc[index][MAPPING_COLUMN],
-            self.data.iloc[index].get(STATS, None),
-            still_live_tensors=live_tensors,
-        )
-        graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
-        looptree.to_pydot(graph)
-        row = self.data.iloc[index]
-        all_data = sorted(
-            f"{k}: {v}" for k, v in row.items() if k not in DICT_COLUMNS and k != LOGSTRING
-        )
-        data_str = "\n".join(all_data)
-        graph.add_node(pydot.Node("data", label=data_str, shape="plaintext"))
-        with open(to_file, "wb") as f:
-            f.write(graph.create_png())
+    # def _draw_index(self, index: int, live_tensors, to_file: str = "test.png"):
+    #     from fastfusion.visualization.reservationtree import mappings2reservationtree
+    #     import pydot
+    #     looptree = mappings2reservationtree(
+    #         self.data.iloc[index][MAPPING_COLUMN],
+    #         self.data.iloc[index].get(STATS, None),
+    #         still_live_tensors=live_tensors,
+    #     )
+    #     graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
+    #     looptree.to_pydot(graph)
+    #     row = self.data.iloc[index]
+    #     all_data = sorted(f"{k}: {v}" for k, v in row.items() if k not in DICT_COLUMNS)
+    #     data_str = "\n".join(all_data)
+    #     graph.add_node(pydot.Node("data", label=data_str, shape="plaintext"))
+    #     with open(to_file, "wb") as f:
+    #         f.write(graph.create_png())
 
 
 def row2pmappings(row: pd.Series, einsum_names: list[str], rank_variable_bounds: dict[str, dict[str, int]]) -> list[Nested]:

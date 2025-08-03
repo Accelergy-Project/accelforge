@@ -1,25 +1,10 @@
-from numbers import Number
 import os
-from typing import Any, Iterable, Optional, Union
+from typing import Optional, Union
 import plotly
-import pydot
 from IPython.display import SVG, display
 import plotly.graph_objs as go
 from ipywidgets import Output, VBox, HBox
 from fastfusion.accelerated_imports import pd
-import plotly.express as px
-
-from fastfusion.mapper.FFM.joining.sim import Loop, TensorReservation, Compatibility
-from fastfusion.util import expfmt
-from fastfusion.visualization.reservationtree import mappings2svg
-from fastfusion.mapper.FFM.pareto import (
-    MAPPING_COLUMN,
-    STATS,
-    TENSORS,
-    IN_PROGRESS_STATS,
-    MAPPING_HASH,
-    PER_COMPONENT_ACCESSES_ENERGY,
-)
 
 from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.FFM.visualization import make_mapping

@@ -56,7 +56,7 @@
 # from fastfusion.mapper.FFM.visualization import make_mapping
 # from IPython.display import SVG
 
-# # plotly_show(mappings.data, "RESOURCE_GlobalBuffer_LEVEL_0", "metric_Energy", logscales=True)
+# # plotly_show(mappings.data, "RESOURCE_GlobalBuffer_LEVEL_0", "metric_energy", logscales=True)
 
 # newmapping = make_mapping(mappings.data.iloc[0], spec.workload.einsum_names)
 # display(SVG(newmapping.render()))

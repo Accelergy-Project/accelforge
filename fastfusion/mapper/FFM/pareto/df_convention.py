@@ -4,34 +4,12 @@ import re
 from fastfusion.util import fzs
 
 
-LOGSTRING = "__Mappings"
-MAPPING_COLUMN = "__MAPPING"
-STATS = "__STATS"
-OCCUPANCY = "__Occupancy"
-TENSORS = "__TENSORS"
-IN_PROGRESS_STATS = "__IN_PROGRESS_STATS"
-MAPPING_HASH = "__MAPPING_HASH"
-TAGS_COLUMN = "__TAGS"
-PER_COMPONENT_ACCESSES_ENERGY = "Per-Component Energy"
-COMPRESSED_INDEX = "__COMPRESSED_INDEX"
+MAPPING_COLUMN = "_MAPPING"
+COMPRESSED_INDEX = "_COMPRESSED_INDEX"
+TILE_SHAPE_PREFIX = "_tile_shape"
 
-TILE_SHAPE_PREFIX = "__tile_shape"
-
-DICT_COLUMNS = set(
-    [
-        LOGSTRING,
-        MAPPING_COLUMN,
-        STATS,
-        TENSORS,
-        IN_PROGRESS_STATS,
-        MAPPING_HASH,
-        TAGS_COLUMN,
-        PER_COMPONENT_ACCESSES_ENERGY,
-    ]
-)
+DICT_COLUMNS = set([MAPPING_COLUMN])
 RESERVED_COLUMNS = DICT_COLUMNS
-
-TUPLABE_COLUMNS = set([MAPPING_COLUMN, TENSORS])
 
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 

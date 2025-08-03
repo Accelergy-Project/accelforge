@@ -3,7 +3,7 @@ from collections import defaultdict
 import math
 from numbers import Number
 import time
-from typing import Callable, Iterator, List
+from typing import Any, Callable, Iterator, List
 import uuid
 
 from fastfusion.accelerated_imports import pd
@@ -62,6 +62,7 @@ from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import (
     SameCompatibilityJobs,
     SameEinsumJobs
 )
+from fastfusion.util.setexpressions import eval_set_expression
 
 
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
@@ -100,46 +101,6 @@ def label_fused_loops(mapping: List[MappingNode]):
 # =================================================================================================
 # Iterate over mappings
 # =================================================================================================
-def max_fused_loops_per_rank(
-    spec: Specification,
-    mapping: List[MappingNode],
-    rank_variables: list[RankVariableName],
-    rank_variable_bounds: dict[RankVariableName, int],
-):
-    rank_variables = list(rank_variables)
-    if not rank_variables:
-        yield mapping
-        return
-
-    my_rank_variable = RankVariableName(rank_variables.pop())
-    fused_loops = [
-        i
-        for i, node in enumerate(mapping)
-        if isinstance(node, Iteration)
-        and node._fused
-        and my_rank_variable == node.rank_variable
-        and rank_variable_bounds[my_rank_variable]
-        > 1  # Don't worry about loops with size 1
-    ]
-
-    if len(fused_loops) <= spec.mapper_ffm.max_fused_loops_per_rank:
-        yield from max_fused_loops_per_rank(
-            spec,
-            mapping, rank_variables, rank_variable_bounds
-        )
-        return
-
-    for choice in fused_loops:
-        mapping_new = list(mapping)
-        for f in fused_loops[::-1]:
-            if f != choice:
-                mapping_new.pop(f)
-        yield from max_fused_loops_per_rank(
-            spec,
-            mapping_new, rank_variables, rank_variable_bounds
-        )
-
-
 def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
     # If any rank variables are missing, add them as high as possible.
     rank_variables = einsum.rank_variables
@@ -185,17 +146,20 @@ def timeloop_style_even(mapping: list[MappingNode]):
     mapping = copy.deepcopy(mapping)
     memory2indices = defaultdict(list)
     i = 0
-    for i, node in enumerate(mapping):
+    while i < len(mapping):
+        node = mapping[i]
         if not isinstance(mapping[i], TensorHolder):
             i += 1
             continue
         node: TensorHolder
         seen = memory2indices[node.component]
+        mapping[i]._lower = False # Lowering might re-uneven the reservationsxs
+
         if len(seen) <= 1:
             seen.append(i)
         else:
-            mapping[i]._lower = False
             mapping.insert(seen[-1] + 1, mapping.pop(i))
+        i += 1
     return mapping
 
 
@@ -224,7 +188,6 @@ def iterate_mappings_no_constraints(
         raise ValueError("No memory found in architecture")
 
     ranks_with_tile_pattern = get_ranks_with_tile_pattern(einsum_name, spec.workload)
-    # print('RANKS WITH TILE PATTERN', ranks_with_tile_pattern)
 
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
@@ -232,7 +195,6 @@ def iterate_mappings_no_constraints(
         einsum_name, arch_flattened, symbol_table, spec
     ):
         mapping = copy.deepcopy(mapping)
-        # print(", ".join(m.compact_string() for m in mapping))
         for mapping in insert_temporal_loops(
             mapping,
             einsum,
@@ -243,34 +205,15 @@ def iterate_mappings_no_constraints(
             except_from_imperfect,
         ):
             mapping = copy.deepcopy(mapping)
-            # print(", ".join(m.compact_string() for m in mapping))
             insert_spatial_loops(mapping, einsum, arch_flattened)
-            # print(", ".join(m.compact_string() for m in mapping))
             mapping = unpack_loops_to_rank_variables(mapping)
             label_fused_loops(mapping)
-            # print('POST-LABEL')
-            # print(", ".join(m.compact_string() for m in mapping))
-            # print(f'{einsum_name}: {", ".join(m.compact_string() for m in mapping)}')
             if spec.mapper_ffm.timeloop_style_even:
                 mapping = timeloop_style_even(mapping)
-
-            for mapping2 in max_fused_loops_per_rank(
-                spec,
-                mapping,
-                list(spec.workload.einsums[einsum_name].rank_variables),
-                rank_variable_bounds,
-            ):  # TODO
-                # print('PRE-PADDING')
-                # print(", ".join(m.compact_string() for m in mapping2))
-                place_missing_temporal_loops(mapping, einsum)
-                # pad_with_bottom_loops(mapping2, einsum)
-                # print('POST-PADDING')
-                # print(", ".join(m.compact_string() for m in mapping2))
-                # print('FINAL')
-                # print(", ".join(m.compact_string() for m in mapping))
-
-                yield mapping2, symbol_table
-
+                
+                
+            place_missing_temporal_loops(mapping, einsum)
+            yield mapping, symbol_table
 
 def iterate_mappings_constraints(
     spec: Specification,
@@ -278,7 +221,7 @@ def iterate_mappings_constraints(
     arch_flattened: list[architecture.Leaf] | None = None,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     except_from_imperfect: set = set(),
-) -> Iterator[tuple[Mapping, MappingConstraints]]:
+) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
     if arch_flattened is None:
         arch_flattened = spec.get_flattened_architecture()
     compute_name = arch_flattened[-1].name
@@ -305,7 +248,7 @@ def iterate_mappings_constraints(
             )
             mapping.append(Compute(einsum=einsum_name, compute=compute_name))
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
-            yield mapping, constraints
+            yield mapping, constraints, symbol_table
 
 
 # =================================================================================================
@@ -377,6 +320,57 @@ def shift_reservations_by_null_loop_indices(
     assert len(mappings.columns) == len(mappings.columns.unique())
     return mappings
 
+def parse_flattened_arch(
+    job: Job,
+    symbol_table: dict[str, str],
+) -> list[architecture.Leaf]:
+    flattened_arch = copy.deepcopy(job.flattened_arch)
+    
+    tensor_names = job.spec.workload.einsums[job.einsum_name].tensor_names
+
+    def parse_tensor2bits(to_parse: dict[str, Any], location: str, symbol_table: dict[str, str]) -> dict[str, Any]:
+        result = {}
+        if not isinstance(to_parse, dict):
+            raise ValueError(
+                f"Expected a dict, got {type(to_parse)}: {to_parse}"
+            )
+        for key, value in to_parse.items():
+            key_parsed = eval_set_expression(
+                expression=key,
+                symbol_table=symbol_table,
+                expected_space_name="tensors",
+                location=f"{location} {key}"
+            )
+            for k2 in key_parsed:
+                if k2 in result and result[k2] != value:
+                    raise ValueError(
+                        f"Multiple entries for {k2} in {location}: "
+                        f"{result[k2]} and {value}"
+                    )
+                result[k2] = value
+                
+        for tensor_name in tensor_names:
+            if tensor_name not in result:
+                raise ValueError(
+                    f"Tensor {tensor_name} not found in {location}. "
+                    f"Available tensors: {', '.join(result.keys())}. Original "
+                    f"expressions: {', '.join(to_parse.keys())}. Symbol table:\n\t"
+                    + "\n\t".join(f"{k}: {v}" for k, v in symbol_table.items())
+                )
+
+        return result
+
+    for node in flattened_arch:
+        if not isinstance(node, architecture.TensorHolder):
+            continue
+
+        node.attributes.datawidth = parse_tensor2bits(
+            node.attributes.datawidth,
+            location=f"datawidth of {node.name} for Einsum {job.einsum_name}",
+            symbol_table=symbol_table
+        )
+            
+    return flattened_arch
 
 # =================================================================================================
 # Top level
@@ -397,12 +391,12 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
             )
 
     jobs = SameEinsumJobs()
-    for i, (mapping, constraints) in enumerate(mappings_constraints):
+    for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
         new_job = copy.copy(job)
         new_job.mapping = mapping
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
-        new_job.flattened_arch = job.flattened_arch
+        new_job.flattened_arch = parse_flattened_arch(new_job, symbol_table)
         new_job.rank_variable_bounds = rank_variable_bounds
         new_job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name,
                                                                 job.spec.workload,
@@ -479,7 +473,7 @@ def generate_pmappings(
     ).data
 
     if results.empty:
-        return einsum_name, [], None, job_ids
+        return einsum_name, [], {}
 
     # fused_loop_cols = [col for col in results if col.startswith(TILE_SHAPE_PREFIX)]
     fused_loop_cols = [f"{einsum_name}___tile_shape{i}" for i in range(compatibility.n_loops)] # TODO: Make this work for extended Einsums

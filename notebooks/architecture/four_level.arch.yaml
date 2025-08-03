@@ -10,8 +10,7 @@ architecture:
     component_class: DRAM
     attributes:
       size: 9999999999999
-      width: 4678
-      shared_read_write_bandwidth: 614e9 * 8 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
       datawidth: 8
       area: 1
     constraints:
@@ -20,8 +19,8 @@ architecture:
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 1}}
-    - {name: write, arguments: {energy: 7.03e-12, bits_per_action: 1}}
+    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 8}}
+    - {name: write, arguments: {energy: 7.03e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
 
   - !Memory
@@ -47,14 +46,14 @@ architecture:
         - [weight, output, input]
       {% endif %}
     actions:
-    - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 1}}
-    - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 1}}
+    - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}}
+    - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
 
   - !Memory
     name: LocalBuffer
     component_class: SRAM 
-    spatial: {fanout: {X: 4}}
+    spatial: {fanout: {Z: 4}}
     attributes:
       size: 1024*1024*4*8 # 4MB
       width: 2048
@@ -62,25 +61,21 @@ architecture:
       area: 1
     constraints:
       tensors:
-        keep: input | output
-        bypass: weight
+        #keep: input | output
+        bypass: All() # weight
       dataflow:
         tensor_order_options:
-        # - [All()] # No uneven. Put all tensors at the same level.
         - [input, output]
       spatial:
-        - dimension: X
-          min_utilization: 1
+        - dimension: Z
+          min_utilization: 1 if len(All()) > 2 else 0
           loop_bounds:
           - expression: weight.rank_variables()
             operator: ==
             value: 1
-          # - expression: b
-          #   operator: ==
-          #   value: 4
     actions:
-    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 1}}
-    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 1}}
+    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}}
+    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
 
   # - !Memory
@@ -115,43 +110,26 @@ architecture:
     attributes:
       size: 8 # 8b
       datawidth: 8
-
-      width: 8
-      depth: 1
       area: 1
     constraints:
       tensors:
-        # keep: weight - GlobalBuffer.tensors()
-        bypass: All() # ~weight | GlobalBuffer.tensors()
-        # tile_shape:
-        # - expression: weight.rank_variables()
-        #   operator: ==
-        #   value: 1
+        bypass: ~weight | GlobalBuffer.tensors()
       dataflow:
         tensor_order_options:
         - [All()] # Outputs more stationary than inputs
       spatial:
       - dimension: X # Parallel rank
-        min_utilization: 1
+        min_utilization: 1 if len(All()) > 2 else 0
         loop_bounds:
-        - expression: input.rank_variables() # | ~weight.rank_variables()
+        - expression: (input.rank_variables() | ~output.rank_variables()) if len(All()) > 2 else Nothing.rank_variables() # | ~weight.rank_variables()
           operator: ==
           value: 1
       - dimension: Y # Reduced rank. No iteration over outputs
-        min_utilization: 1
+        min_utilization: 1 if len(All()) > 2 else 0
         loop_bounds:
-        - expression: output.rank_variables() # | ~weight.rank_variables()
+        - expression: (output.rank_variables() | ~input.rank_variables()) # if len(All()) > 2 else Nothing.rank_variables() # | ~weight.rank_variables()
           operator: ==
           value: 1
-      # - dimension: Z
-      #   min_utilization: 1
-      #   loop_bounds:
-      #   - expression: weight.rank_variables()
-      #     operator: ==
-      #     value: 1
-        # - expression: b
-        #   operator: ==
-        #   value: 1
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
@@ -162,7 +140,7 @@ architecture:
     component_class: intmac
     attributes: {multiplier_width: 8, adder_width: 16, area: 1}
     actions:
-    - {name: compute, arguments: {energy: 0.84e-12 / 8}}
+    - {name: compute, arguments: {energy: 0.84e-12}}
     - {name: leak, arguments: {energy: 0}}
 
 component_classes:

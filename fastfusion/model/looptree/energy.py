@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 from numbers import Real
 
+from fastfusion.frontend import architecture
 from fastfusion.frontend.component_energy import ComponentEnergy
 from fastfusion.model.looptree.reuse.summarized.symbolic import SummarizedAnalysisOutput
 from fastfusion.frontend.workload import Workload
@@ -34,6 +35,7 @@ def gather_actions(looptree_results: SummarizedAnalysisOutput, bindings: dict[st
             buf = bindings[buf]
 
         key = (buf, 'read')
+
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += accesses.net_total_read_actions()
@@ -46,7 +48,6 @@ def gather_actions(looptree_results: SummarizedAnalysisOutput, bindings: dict[st
         actions[key].max_per_unit += accesses.net_max_per_unit_write_actions()
 
     for compute, ops in looptree_results.compute_stats.items():
-        
         key = (compute.level, 'compute')
         if key not in actions:
             actions[key] = ActionCount.default()
@@ -68,6 +69,6 @@ def compute_energy_from_actions(action_counts: MappingABC[(str, str), Real],
                 f'Could not find action {action} for component {component}'
             )
         energy_per_ac = action_table.energy
-        energy_result[(component, action)] = counts.total*energy_per_ac
+        energy_result[(component, action)] = counts.total * energy_per_ac
 
     return energy_result

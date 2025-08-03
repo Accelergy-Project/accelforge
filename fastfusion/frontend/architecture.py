@@ -2,11 +2,29 @@ from abc import ABC
 from logging import Logger
 import math
 from numbers import Number
-from typing import Any, Dict, List, Optional, Tuple, Union, Annotated, TypeVar, TypeAlias
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Annotated,
+    TypeVar,
+    TypeAlias,
+)
 from pydantic import ConfigDict, RootModel, BaseModel, Tag
 
-from fastfusion.util.basetypes import InferFromTag, ParsableDict, ParsableModel, ParsableList, ParsesTo, PostCall, get_tag
-from fastfusion.util.parse_expressions import ParseError
+from fastfusion.util.basetypes import (
+    InferFromTag,
+    ParsableDict,
+    ParsableModel,
+    ParsableList,
+    ParsesTo,
+    PostCall,
+    get_tag,
+)
+from fastfusion.util.parse_expressions import ParseError, parse_expression
 
 from .component_classes import ComponentAttributes, SubcomponentAction
 from . import constraints
@@ -14,6 +32,7 @@ from fastfusion.version import assert_version, __version__
 from pydantic import Discriminator
 
 from fastfusion.frontend.constraints import ConstraintGroup
+
 
 class ArchNode(ParsableModel):
     def __init__(self, *args, **kwargs):
@@ -39,6 +58,7 @@ class ArchNode(ParsableModel):
     def find(self, *args, **kwargs) -> "Leaf":
         return self.name2leaf(*args, **kwargs)
 
+
 class ArchNodes(ParsableList):
     def combine(self, other: "ArchNodes") -> "ArchNodes":
         return ArchNodes(self + other)
@@ -52,7 +72,11 @@ class ArchNodes(ParsableList):
                 if isinstance(parsed, Container):
                     symbol_table.update(parsed.attributes)
                 return parsed
-        return super().parse_expressions(*args, **kwargs, post_calls=(PostCallArchNode(),))
+
+        return super().parse_expressions(
+            *args, **kwargs, post_calls=(PostCallArchNode(),)
+        )
+
 
 class Spatial(ParsableModel):
     fanout: ParsableDict[str, ParsesTo[int]] = ParsableDict()
@@ -62,6 +86,7 @@ class Spatial(ParsableModel):
 
     def to_fanout_string(self):
         return f"[1..{self.get_fanout()}]"
+
 
 class Leaf(ArchNode, ABC):
     name: str
@@ -75,11 +100,14 @@ class Leaf(ArchNode, ABC):
                 if field == "attributes":
                     symbol_table.update(parsed.model_dump())
                 return parsed
-        return super().parse_expressions(*args, **kwargs, post_calls=(PostCallLeaf(),), order=("attributes",))
+
+        return super().parse_expressions(
+            *args, **kwargs, post_calls=(PostCallLeaf(),), order=("attributes",)
+        )
 
     def get_fanout(self):
         return self.spatial.get_fanout()
-    
+
     def _parse_constraints(self, outer_scope: dict[str, Any]):
         self.constraints.name = self.name
         return self.constraints._parse(outer_scope, location=f"{self.name} constraints")
@@ -90,7 +118,7 @@ class Component(Leaf, ABC):
     enabled: ParsesTo[bool] = True
     power_gated_at: ParsesTo[Optional[str]] = None
     actions: ParsableList[SubcomponentAction]
-    
+
     def _update_actions(self, new_actions: ParsableList[SubcomponentAction]):
         has_actions = set(x.name for x in self.actions)
         for action in new_actions:
@@ -105,18 +133,49 @@ class Actions(ParsableList[SubcomponentAction]):
 class Container(Leaf, ABC):
     pass
 
+
+class ArchMemoryActionArguments(ComponentAttributes):
+    bits_per_action: ParsesTo[Union[int, float]] = 1
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class ArchMemoryAction(SubcomponentAction):
+    arguments: ArchMemoryActionArguments
+
+
 MEMORY_ACTIONS = ParsableList(
-    [SubcomponentAction(name="read"),
-    SubcomponentAction(name="write"),
-    SubcomponentAction(name="leak"),
+    [
+        ArchMemoryAction(name="read", arguments={"bits_per_action": 1}),
+        ArchMemoryAction(name="write", arguments={"bits_per_action": 1}),
+        SubcomponentAction(name="leak"),
     ]
 )
 
 COMPUTE_ACTIONS = ParsableList(
-    [SubcomponentAction(name="compute"),
-    SubcomponentAction(name="leak"),
+    [
+        SubcomponentAction(name="compute"),
+        SubcomponentAction(name="leak"),
     ]
 )
+
+
+def _parse_tensor2bits(
+    to_parse: dict[str, Any], location: str, symbol_table: dict[str, Any]
+) -> dict[str, Any]:
+    result = {}
+    for key, value in to_parse.items():
+        if isinstance(value, Number):
+            result[key] = value
+            continue
+        result[key] = parse_expression(
+            expression=value,
+            symbol_table=symbol_table,
+            attr_name=key,
+            location=location,
+        )
+    return result
 
 
 class Attributes(ComponentAttributes):
@@ -124,10 +183,26 @@ class Attributes(ComponentAttributes):
 
 
 class TensorHolderAttributes(Attributes):
-    datawidth: ParsesTo[Union[int, float]]
-    shared_read_write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
-    read_bandwidth: ParsesTo[Union[int, float]] = float('inf')
-    write_bandwidth: ParsesTo[Union[int, float]] = float('inf')
+    datawidth: ParsesTo[Union[dict, int, float]] = 1
+    bandwidth_reads_plus_writes_per_cycle: ParsesTo[Union[int, float]] = float("inf")
+    bandwidth_reads_per_cycle: ParsesTo[Union[int, float]] = float("inf")
+    bandwidth_writes_per_cycle: ParsesTo[Union[int, float]] = float("inf")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not isinstance(self.datawidth, dict):
+            self.datawidth = {"All()": self.datawidth}
+
+    def parse_expressions(self, *args, **kwargs):
+        class MyPostCall(PostCall):
+            def __call__(self, field, value, parsed, symbol_table):
+                if field == "datawidth":
+                    parsed = _parse_tensor2bits(
+                        parsed, location="datawidth", symbol_table=symbol_table
+                    )
+                return parsed
+
+        return super().parse_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
 
 
 class MemoryAttributes(TensorHolderAttributes):
@@ -136,18 +211,21 @@ class MemoryAttributes(TensorHolderAttributes):
 
 
 class TensorHolder(Component):
-    actions: ParsableList[SubcomponentAction] = MEMORY_ACTIONS
-    attributes: 'TensorHolderAttributes'
-    
+    actions: ParsableList[ArchMemoryAction] = MEMORY_ACTIONS
+    attributes: TensorHolderAttributes
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._update_actions(MEMORY_ACTIONS)
 
+
 class Memory(TensorHolder):
-    attributes: 'MemoryAttributes'
-    
+    attributes: "MemoryAttributes"
+
+
 class ProcessingStage(TensorHolder):
     pass
+
 
 class Compute(Component):
     actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
@@ -159,17 +237,20 @@ class Compute(Component):
 
 class Branch(ArchNode, ABC):
     # nodes: ArchNodes[InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
-    nodes: ArchNodes[Annotated[
-        Union[
-            Annotated[Compute, Tag("Compute")],
-            Annotated[Memory, Tag("Memory")],
-            Annotated[ProcessingStage, Tag("ProcessingStage")],
-        ], 
-        Discriminator(get_tag)
-    ]] = ArchNodes()
-        
+    nodes: ArchNodes[
+        Annotated[
+            Union[
+                Annotated[Compute, Tag("Compute")],
+                Annotated[Memory, Tag("Memory")],
+                Annotated[ProcessingStage, Tag("ProcessingStage")],
+            ],
+            Discriminator(get_tag),
+        ]
+    ] = ArchNodes()
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
 
 class Hierarchical(Branch):
     def _flatten(self, attributes: dict, fanout: int = 1, return_fanout: bool = False):
@@ -201,8 +282,10 @@ class Hierarchical(Branch):
             return nodes, fanout
         return nodes
 
+
 class Architecture(Hierarchical):
     version: Annotated[str, assert_version] = __version__
+
 
 # We had to reference Hierarchical before it was defined
 Branch.model_rebuild()
