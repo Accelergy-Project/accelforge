@@ -12,15 +12,15 @@ from tests.util import TEST_TMP_DIR
 import logging
 from pathlib import Path
 
-from fastfusion.frontend.config import Config
+from bindings.config import Config
 
 import pickle
 
 from fastfusion.mapper.simanneal.simanneal import mapper
 from fastfusion.mapper.FFM.joining.simexplore import join_sims
 from fastfusion.visualization.ski_slope import plot_ski_slope
-from fastfusion.mapper.metrics import Metrics
-from fastfusion.frontend.specification import Specification
+from fastfusion.mapper.simanneal.process_results import Metrics
+from pytimeloop.frontend.v4fused import Specification
 from pytimeloop.fastfusion.filter_mappings import get_tileflow_tag_mha, get_ffmt_tag_mha, get_layernorm_tag_mha, get_looptree_tag_mha, get_optimus_tag
 
 from tests.util import CONFIG_DIR, TEST_TMP_DIR
