@@ -1,7 +1,6 @@
 annotated-types==0.7.0
 -e git+https://github.com/gilbertmike/combinatorics.git@64b53b116ec1d05dcb3fd7760235d00408ee7a40#egg=combinatorics
 fast-pareto==1.0.4
--e git+ssh://git@github.com/Accelergy-Project/fastfusion.git@75bbe06a236230578121ca8380bb45e61edef87a#egg=fastfusion
 hwcomponents @ git+https://github.com/Accelergy-Project/hwcomponents.git@bea2550e096285652335bb8f870a37432ed7317f
 islpy
 Jinja2
