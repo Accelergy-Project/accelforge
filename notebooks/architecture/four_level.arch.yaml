@@ -1,6 +1,6 @@
 variables:
-  global_cycle_seconds: 1e-9
-  technology: "7nm"
+  global_cycle_period: 1e-9
+  tech_node: "7nm"
 
 architecture:
   version: "0.5"
@@ -9,7 +9,7 @@ architecture:
     name: MainMemory
     component_class: DRAM
     attributes:
-      size: 9999999999999
+      size: inf
       bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
       datawidth: 8
       area: 1
@@ -34,17 +34,6 @@ architecture:
     constraints:
       tensors:
         keep: ~MainMemory.tensors() | input | output
-        # bypass: weight - ( ~MainMemory.tensors() | input | output)
-      # dataflow:
-      #   tensor_order_options:
-      #   # - [weight, ~weight]
-      #   - [MainMemory.tensors(), ~MainMemory.tensors()]
-      {% if FFMT | default(false) %}
-      dataflow:
-        tensor_order_options:
-        - [weight, input, output]
-        - [weight, output, input]
-      {% endif %}
     actions:
     - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}}
     - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}}
@@ -61,11 +50,7 @@ architecture:
       area: 1
     constraints:
       tensors:
-        #keep: input | output
-        bypass: All() # weight
-      dataflow:
-        tensor_order_options:
-        - [input, output]
+        bypass: weight
       spatial:
         - dimension: Z
           min_utilization: 1 if len(All()) > 2 else 0
@@ -77,31 +62,6 @@ architecture:
     - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}}
     - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
-
-  # - !Memory
-  #   name: Reg2
-  #   component_class: SRAM
-  #   attributes:
-  #     size: 99999999999
-  #     datawidth: 8
-  #     area: 0
-  #   constraints:
-  #     tensors:
-  #       keep: All()
-  #       tile_shape:
-  #       - expression: parallel_rank | reduced_rank
-  #         operator: ==
-  #         value: 128
-  #       - expression: ~(parallel_rank | reduced_rank)
-  #         operator: ==
-  #         value: 1
-  #     dataflow:
-  #       tensor_order_options:
-  #       - [input, output, weight]
-  #   actions:
-  #   - {name: read, arguments: {energy: 0}}
-  #   - {name: write, arguments: {energy: 0}}
-  #   - {name: leak, arguments: {energy: 0}}
 
   - !Memory
     name: Register
@@ -127,7 +87,7 @@ architecture:
       - dimension: Y # Reduced rank. No iteration over outputs
         min_utilization: 1 if len(All()) > 2 else 0
         loop_bounds:
-        - expression: (output.rank_variables() | ~input.rank_variables()) # if len(All()) > 2 else Nothing.rank_variables() # | ~weight.rank_variables()
+        - expression: (output.rank_variables() | ~input.rank_variables())
           operator: ==
           value: 1
     actions:
@@ -142,33 +102,3 @@ architecture:
     actions:
     - {name: compute, arguments: {energy: 0.84e-12}}
     - {name: leak, arguments: {energy: 0}}
-
-component_classes:
-  version: "0.5"         # REQUIRED version number
-  component_classes:
-  - name: intmac
-    attributes:
-      technology: REQUIRED
-      multiplier_width: REQUIRED
-      adder_width: REQUIRED
-      global_cycle_seconds: REQUIRED
-    subcomponents:
-    - name: intadder
-      component_class: aladdin_adder
-      attributes: {width: adder_width}
-    - name: intmultiplier
-      component_class: aladdin_multiplier
-      attributes: {width_a: multiplier_width, width_b: multiplier_width}
-    actions:
-    - name: compute
-      subcomponents:
-      - name: intadder
-        actions: [name: read]
-      - name: intmultiplier
-        actions: [{name: read}]
-    - name: leak
-      subcomponents:
-      - name: intadder
-        actions: [{name: leak}]
-      - name: intmultiplier
-        actions: [{name: leak}]

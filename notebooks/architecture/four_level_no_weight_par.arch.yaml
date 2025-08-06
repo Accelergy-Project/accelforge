@@ -1,6 +1,6 @@
 variables:
-  global_cycle_seconds: 1e-9
-  technology: "7nm"
+  global_cycle_period: 1e-9
+  tech_node: "7nm"
 
 architecture:
   version: "0.5"
@@ -11,7 +11,7 @@ architecture:
     attributes:
       size: 9999999999999
       width: 4678
-      shared_read_write_bandwidth: 614e9 * 8 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      bandwidth_reads_plus_writes_per_cycle: 614e9 * 8 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
       datawidth: 8
       area: 1
     constraints:
@@ -171,10 +171,10 @@ component_classes:
   component_classes:
   - name: intmac
     attributes:
-      technology: REQUIRED
+      tech_node: REQUIRED
       multiplier_width: REQUIRED
       adder_width: REQUIRED
-      global_cycle_seconds: REQUIRED
+      global_cycle_period: REQUIRED
     subcomponents:
     - name: intadder
       component_class: aladdin_adder

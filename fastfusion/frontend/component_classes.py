@@ -8,8 +8,8 @@ from fastfusion.util.basetypes import (
 from fastfusion.version import assert_version, __version__
 
 class ComponentAttributes(ParsableModel, ParseExtras):
-    technology: ParsesTo[str] = "REQUIRED"
-    global_cycle_seconds: ParsesTo[Union[int, float]] = "REQUIRED"
+    tech_node: ParsesTo[float] = "REQUIRED"
+    global_cycle_period: ParsesTo[Union[int, float]] = "REQUIRED"
     n_instances: ParsesTo[Union[int, float]] = 1
     energy_scale: ParsesTo[Union[int, float]] = 1
     area_scale: ParsesTo[Union[int, float]] = 1

@@ -38,7 +38,7 @@ class EnergyAreaEstimator(ListLoggable, ABC):
         pass
 
     @abstractmethod
-    def leak(self, global_cycle_seconds: float) -> Number:
+    def leak(self, global_cycle_period: float) -> Number:
         """Returns the leakage energy per global cycle or an Estimation object
         with the leakage energy and units."""
         pass

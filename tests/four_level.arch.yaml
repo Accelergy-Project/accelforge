@@ -1,6 +1,6 @@
 variables:
-  global_cycle_seconds: 1e-9
-  technology: "7nm"
+  global_cycle_period: 1e-9
+  tech_node: "7nm"
 
 architecture:
   version: "0.5"
@@ -150,10 +150,10 @@ component_classes:
   component_classes:
   - name: intmac
     attributes:
-      technology: REQUIRED
+      tech_node: REQUIRED
       multiplier_width: REQUIRED
       adder_width: REQUIRED
-      global_cycle_seconds: REQUIRED
+      global_cycle_period: REQUIRED
     subcomponents:
     - name: intadder
       component_class: aladdin_adder
