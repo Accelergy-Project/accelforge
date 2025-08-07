@@ -218,10 +218,11 @@ class Parsable(ABC, Generic[M]):
             [(field, getattr(self, field) if use_setattr else self[field], self.get_validator(field))
                 for field in self.get_fields()]
         )
+
         for field in field_order:
             value = getattr(self, field) if use_setattr else self[field]
             validator = self.get_validator(field)
-            parsed = parse_field(field, value, validator, symbol_table, **kwargs)
+            parsed = parse_field(field, value, validator, symbol_table, self, **kwargs)
             for post_call in post_calls:
                 parsed = post_call(field, value, parsed, symbol_table)
             if use_setattr:
@@ -350,7 +351,7 @@ class FromYAMLAble:
         c._yaml_source = ",".join(files)
         return c
 
-def parse_field(field, value, validator, symbol_table, **kwargs):
+def parse_field(field, value, validator, symbol_table, parent, **kwargs):
     try:
         # Get the origin type (ParsesTo) and its arguments
         origin = get_origin(validator)
@@ -383,7 +384,10 @@ def parse_field(field, value, validator, symbol_table, **kwargs):
         else:
             return value
     except ParseError as e:
-        e.add_field(field)
+        try:
+            e.add_field(parent[field].name)
+        except:
+            e.add_field(field)
         raise e
 
 # python_name_regex = re.compile(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b')
@@ -407,7 +411,7 @@ def get_parsable_field_order(order: tuple[str, ...], field_value_validator_tripl
         for other_field, other_value in to_sort:
             if field != other_field:
                 if re.findall(r'\b' + re.escape(field) + r'\b', other_value):
-                    dependencies[field].add(other_field)
+                    dependencies[other_field].add(field)
 
     while to_sort:
         for field, value in to_sort:
@@ -420,13 +424,13 @@ def get_parsable_field_order(order: tuple[str, ...], field_value_validator_tripl
                 f"Circular dependency detected in expressions. "
                 f"Fields: {', '.join(t[0] for t in to_sort)}"
             )
-            
+
     return order
 
 class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
     type: Optional[str] = None
-    
+
     def __post_init__(self):
         if self.type is not None:
             if not isinstance(self, self.type):
@@ -434,7 +438,7 @@ class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
                     f"type field {self.type} does not match" 
                     f"{self.__class__.__name__}"
                 )
-    
+
     def get_validator(self, field: str) -> Type:
         if field in self.__class__.model_fields:
             return self.__class__.model_fields[field].annotation
@@ -445,7 +449,6 @@ class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
         if getattr(self, '__pydantic_extra__', None) is not None:
             fields.update(self.__pydantic_extra__.keys())
         return sorted(fields)
-
 
     def __init__(self, **data):
         try:
@@ -461,9 +464,21 @@ class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
         return new._parse_expressions(symbol_table, order, post_calls, use_setattr=True, **kwargs)
 
-    def to_yaml(self, f: str):
-        yaml.write_yaml_file(f, self.model_dump())
-        
+    def to_yaml(self, f: str = None) -> str:
+        dump = self.model_dump()
+        def _to_str(value: Any):
+            if isinstance(value, list):
+                return [_to_str(x) for x in value]
+            elif isinstance(value, dict):
+                return {_to_str(k): _to_str(v) for k, v in value.items()}
+            elif isinstance(value, str):
+                return str(value)
+            return value
+
+        if f is not None:
+            yaml.write_yaml_file(f, _to_str(dump))
+        return yaml.to_yaml_string(_to_str(dump))
+
     def all_fields_default(self):
         for field in self.__class__.model_fields:
             default = self.__class__.model_fields[field].default

@@ -7,7 +7,7 @@ from hwcomponents import get_area
 class AreaSubcomponent(ParsableModel):
     name: str
     area: ParsesTo[Union[int, float]]
-    estimator: Optional[str] = None
+    model_name: Optional[str] = None
     messages: list[str] = []
     attributes: ParsableDict[str, ParsesTo[Any]]
 
@@ -66,7 +66,7 @@ class AreaEntry(ParsableModel):
                     name=class_name,
                     attributes=attributes.model_dump(),
                     area=area * attributes.area_scale,
-                    estimator=estimation.estimator_name,
+                    model_name=estimation.model_name,
                     messages=estimation.messages,
                 )
             )

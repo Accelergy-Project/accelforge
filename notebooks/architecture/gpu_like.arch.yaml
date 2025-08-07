@@ -9,8 +9,8 @@
 # pJ/MAC = 700 / 1978.9 * 2 = 0.354
 # https://resources.nvidia.com/en-us-tensor-core
 variables:
-  global_cycle_seconds: 1e-9
-  technology: "4nm"
+  global_cycle_period: 1e-9
+  tech_node: "4nm"
 
 
 architecture:
@@ -88,7 +88,7 @@ architecture:
         #   operator: ==
         #   value: 1
       dataflow:
-        tensor_orders:
+        tensor_order_options:
         - [All()] # Outputs more stationary than inputs
       spatial:
       - dimension: X # Parallel rank

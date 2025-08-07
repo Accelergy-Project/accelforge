@@ -10,7 +10,7 @@ class Subaction(ParsableModel):
     attributes: ComponentAttributes = ComponentAttributes()
     arguments: ComponentAttributes = ComponentAttributes()
     energy: ParsesTo[Union[int, float]]
-    estimator: Union[str, None] = None
+    model_name: Union[str, None] = None
     messages: list[str] = []
 
 class Action(ParsableModel):
@@ -97,7 +97,7 @@ class Action(ParsableModel):
                     attributes=attributes,
                     arguments=arguments,
                     energy=energy * attributes.energy_scale * arguments.energy_scale,
-                    estimator=estimation.estimator_name,
+                    model_name=estimation.model_name,
                     messages=estimation.messages,
                 )
             )
