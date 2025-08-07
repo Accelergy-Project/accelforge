@@ -63,7 +63,6 @@ def skew_from_path(
         accumulator[bte] = Skew(all_tags[:idx], skew_isl[:idx])
 
 
-
 def make_tag_from_node(node):
     if node['type'] == 'temporal':
         return TemporalTag()
