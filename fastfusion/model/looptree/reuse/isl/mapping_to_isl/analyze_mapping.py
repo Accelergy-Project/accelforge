@@ -35,7 +35,7 @@ def get_mapping_group_einsums(
     mapping: Mapping
 ) -> defaultdict[NodeID, Set[EinsumID]]:
     """
-    From a mapping, get the group of einsums for  given node.
+    From a mapping, get the group of einsums for a given node.
     
     :param mapping: The mapping we are getting the grouped einsums for.
 
