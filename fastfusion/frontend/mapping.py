@@ -5,13 +5,36 @@ in FastFusion.
 
 from abc import ABC
 import copy
-from pydantic import BaseModel, Discriminator, Tag, model_validator
-from fastfusion.frontend import architecture
-from typing import Callable, List, Union, Annotated, Literal, TypeVar, TypeAlias
-from abc import ABC
-from fastfusion.util.basetypes import ParsableModel, ParsableList, ParsesTo, get_tag
-from fastfusion.version import assert_version, __version__
+import pydot
 
+from typing import (
+    # Collections
+    Iterator,
+    List,
+    # Object definitions
+    Annotated,
+    Callable,
+    Literal,
+    # Type constructions
+    Type,
+    TypeVar,
+    TypeAlias,
+    # Variable meta-mandates
+    Optional,
+    Union,
+)
+from collections.abc import Set
+from pydantic import BaseModel, Discriminator, Tag, model_validator
+
+from fastfusion.util.basetypes import (
+    # Parsing helpers for the input files.
+    ParsableModel,
+    ParsableList,
+    ParsesTo,
+    # Retrieves information from YAML tags.
+    get_tag,
+    InferFromTag,
+)
 from fastfusion.frontend import architecture
 from fastfusion.frontend.workload.workload import RankVariableName, TensorName
 from fastfusion.version import assert_version, __version__
@@ -186,10 +209,11 @@ class MappingNode(ParsableModel, ABC):
     operation manipulation.
 
     :param constraint_lambda: A series of constraints that the Node must satisfy.
-    :type constraint_lambda: List[Callable[[], bool]]
     :param must_be_here: Controls if the Mapper can move the Node in the Mapping.
-    :type must_be_here: bool
     :param required: Whether the Mapper must keep this node in exploration.
+
+    :type constraint_lambda: List[Callable[[], bool]]
+    :type must_be_here: bool
     :type required: bool
 
     :undoc-members:
@@ -270,7 +294,26 @@ class Pattern(ParsableModel):
 
 
 class Iteration(MappingNode):
-    rank_variable: Union[set[RankVariableName], RankVariableName]
+    """
+    A bounded loop over a rank with a given shape and pattern.
+
+    :param rank_variable: The rank variable or set of rank variables being iterated
+    over in this MappingNode.
+    :param loop_bound: The Iteration occurs over [0..loop_bound)
+    :param tile_pattern: The pattern the Iteration occurs in.
+    :param assume_perfect_factor: Whether the Mapper assumes perfect factorization
+    is necessary to performant operation.
+    :param _fused: Whether or not this Iteration is fused with another.
+
+
+    :type rank_variable: Union[Set[RankVariableName], RankVariableName]
+    :type loop_bound: ParsesTo[Union[Literal['symbol'], int, None]]
+    :type tile_pattern: ParsesTo[Union[Literal['symbol'], Pattern, None]]
+    :type assume_perfect_factor: bool
+    :type _fused: bool
+    """
+
+    rank_variable: Union[Set[RankVariableName], RankVariableName]
     loop_bound: ParsesTo[Union[Literal["symbol"], int, None]] = None
     tile_shape: ParsesTo[Union[Literal["symbol"], int, None]] = None
     tile_pattern: ParsesTo[Union[Literal["symbol"], Pattern, None]] = None
@@ -394,7 +437,7 @@ class TensorHolder(MappingNode):
     _must_keep_tensors: ParsableList[TensorName] = (
         ParsableList()
     )  # Must the mapper keep these tensors here?
-    _backing: set[TensorName] = set()  # Which tensor(s) are backed by this node?
+    _backing: Set[TensorName] = set()  # Which tensor(s) are backed by this node?
     _lower: bool = True
 
     def compact_string(self) -> str:
@@ -926,6 +969,11 @@ class Nested(MappingNodeWithChildren):
 
 
 class Pipeline(Split):
+    """
+    A :class:`~.Split` where the tensors are stored and processed
+    in parallel.
+    """
+
     pass
 
 
@@ -1027,6 +1075,7 @@ MappingNodeTypes: TypeAlias = Union[
     Fill,
     TensorHolder,
 ]
+"""TypeAlias MappingNodeTypes: The types of MappingNodes possible."""
 
 
 class Mapping(Nested):
