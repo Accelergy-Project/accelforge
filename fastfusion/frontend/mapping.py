@@ -271,9 +271,9 @@ class Pattern(ParsableModel):
 
 class Iteration(MappingNode):
     rank_variable: Union[set[RankVariableName], RankVariableName]
-    loop_bound: ParsesTo[Union[Literal['symbol'], int, None]] = None
-    tile_shape: ParsesTo[Union[Literal['symbol'], int, None]] = None
-    tile_pattern: ParsesTo[Union[Literal['symbol'], Pattern, None]] = None
+    loop_bound: ParsesTo[Union[Literal["symbol"], int, None]] = None
+    tile_shape: ParsesTo[Union[Literal["symbol"], int, None]] = None
+    tile_pattern: ParsesTo[Union[Literal["symbol"], Pattern, None]] = None
     assume_perfect_factor: bool = True
     _fused: bool = False
 
@@ -388,9 +388,13 @@ class TensorHolder(MappingNode):
 
     tensors: ParsableList[TensorName]
     component: str
-    component_object: Optional[architecture.Component] = None # Reference to component node
-    _must_keep_tensors: ParsableList[TensorName] = ParsableList() # Must the mapper keep these tensors here?
-    _backing: set[TensorName] = set() # Which tensor(s) are backed by this node?
+    component_object: Optional[architecture.Component] = (
+        None  # Reference to component node
+    )
+    _must_keep_tensors: ParsableList[TensorName] = (
+        ParsableList()
+    )  # Must the mapper keep these tensors here?
+    _backing: set[TensorName] = set()  # Which tensor(s) are backed by this node?
     _lower: bool = True
 
     def compact_string(self) -> str:
@@ -1022,7 +1026,8 @@ MappingNodeTypes: TypeAlias = Union[
     Reservation,
     Fill,
     TensorHolder,
-]    
+]
+
 
 class Mapping(Nested):
     """
