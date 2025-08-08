@@ -18,7 +18,7 @@ from fastfusion.mapper.metrics import Metrics
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum import get_single_einsum_jobs
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility
 from fastfusion.mapper.FFM.joining.sim import SIM
-from fastfusion.mapper.FFM.tags import Tags
+from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.util.util import parallel
 from fastfusion.util import util
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job, SameCompatibilityJobs

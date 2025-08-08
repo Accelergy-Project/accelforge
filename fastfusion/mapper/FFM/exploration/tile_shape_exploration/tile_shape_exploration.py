@@ -93,7 +93,7 @@ def explore_tile_shapes(job: "Job"):
     pmapping = job.mapping
     constraints = job.constraints
     specification = job.spec
-    
+
     set_last_tile_shape_to_one(pmapping)
 
     symbols, symbolic_df, per_memory_occupancy_df, utilization_df = run_model(job)
@@ -120,18 +120,18 @@ def explore_tile_shapes(job: "Job"):
 
     df = {}
     for i in range(tile_shapes.shape[1]):
-        df[f'__tile_shape{i}'] = tile_shapes[:,i]
+        df[f"tile_shape\0{i}"] = tile_shapes[:, i]
 
     tile_shapes = tile_shapes[:, is_symbol]
     tile_shapes = [
-        tile_shapes[:,i]
+        tile_shapes[:, i]
         for i in range(tile_shapes.shape[1])
     ]
 
     for key in compiled_df:
         df[key] = compiled_df[key](*tile_shapes)
-
-    df = pd.DataFrame(df)
+        
+    df = pd.DataFrame(df, columns=df.keys())
     return df, total_pmappings               
 
 
@@ -759,23 +759,19 @@ def run_model(job: Job):
                     df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
-        df['metric_latency'] = overall_latency
-        df['compute_latency'] = comp_latency
-        for mem, latency in mem_latency.items():
-            df[f'{mem}_latency'] = latency
+        df[f'Total\0latency'] = overall_latency
+        df[f'latency\0compute'] = comp_latency
+        for component, latency in mem_latency.items():
+            df[f'latency\0{component}'] = latency
 
     if metrics & Metrics.ENERGY:
-        df['metric_energy'] = sum(energy.values())
-        for memory, energy in energy.items():
-            df[f'{memory}_energy'] = energy
-
-    if metrics & Metrics.PER_COMPONENT_ENERGY:
-        for component, component_energy in energy.items():
-            df[f'{component}_energy'] = component_energy
+        df[f'Total\0energy'] = sum(energy.values())
+        for (component, action), energy in energy.items():
+            df[f'energy\0{component}\0{action}'] = energy
 
     if metrics & Metrics.RESERVATIONS:
         for memory, occupancies in total_occupancy.items():
-            df[f'{memory}_reservations'] = sum(occupancies.values())
+            df[f'reservations\0{memory}'] = sum(occupancies.values())
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():
@@ -784,9 +780,8 @@ def run_model(job: Job):
     utilization_df = {}
     for (component, einsum), per_dim_fanout in reuse.fanout.items():
         for dim, fanout in per_dim_fanout.items():
-            utilization_df[(component, dim)] = \
+            utilization_df[f'utilization\0{component}\0{dim}'] = \
                 fanout / component_to_max_fanout[component][dim]
-
 
     return reuse.symbols, df, per_memory_usage_df, utilization_df
 

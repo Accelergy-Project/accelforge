@@ -1,5 +1,5 @@
 from fastfusion.frontend.mapping import Iteration, Temporal
-from fastfusion.mapper.FFM.tags import Tags
+from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 
 from .util import get_fused_loops_per_tensor
 

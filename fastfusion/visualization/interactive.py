@@ -7,7 +7,7 @@ from ipywidgets import Output, VBox, HBox
 from fastfusion.accelerated_imports import pd
 
 from fastfusion.accelerated_imports import pd
-from fastfusion.mapper.FFM.visualization import make_mapping
+from fastfusion.mapper.FFM.deprecate_maybe.visualization import make_mapping
 from fastfusion.frontend.mapping import Mapping
 
 def mapping2svg(mapping: pd.Series, einsum_names: list[str], rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None):

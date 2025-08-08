@@ -16,13 +16,13 @@ class DecompressData(NamedTuple):
 def _compress(einsum_name: EinsumName, pmappings: PartialMappings, start_index: int) -> tuple["PartialMappings", pd.DataFrame]:
     data = pmappings.data
     data.reset_index(drop=True, inplace=True)
-    data[f"{einsum_name}_{COMPRESSED_INDEX}"] = data.index
+    data[f"{einsum_name}\0{COMPRESSED_INDEX}"] = data.index
     data.index += start_index
     keep_cols = [c for c in data.columns if col_used_in_pareto(c)]
     compress_cols = [c for c in data.columns if c not in keep_cols]
     compressed_data = data[keep_cols].copy()
     decompress_data = data[compress_cols]
-    compressed_data[f"{einsum_name}_{COMPRESSED_INDEX}"] = data.index
+    compressed_data[f"{einsum_name}\0{COMPRESSED_INDEX}"] = data.index
     return PartialMappings(compressed_data, skip_pareto=True), decompress_data
 
 
@@ -84,10 +84,17 @@ def decompress_pmappings(
         data = pd.merge(
             data,
             decompress,
-            left_on=f"{einsum_name}_{COMPRESSED_INDEX}",
+            left_on=f"{einsum_name}\0{COMPRESSED_INDEX}",
             right_index=True,
             how="left",
         )
+        # Remove compressed_index columns that may have been created during
+        # merge
+    compressed_index_cols = [
+        col for col in data.columns if COMPRESSED_INDEX in col
+    ]
+    if compressed_index_cols:
+        data = data.drop(columns=compressed_index_cols)
     return PartialMappings(data, skip_pareto=True)
 
 

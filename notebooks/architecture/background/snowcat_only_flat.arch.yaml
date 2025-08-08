@@ -1,6 +1,6 @@
 variables:
   global_cycle_period: 1e-9
-  tech_node: "7nm"
+  tech_node: 7e-9
 
 architecture:
   version: "0.5"

@@ -230,7 +230,7 @@ class Experiment:
             f.write(config_str)
         spec = Specification.from_yaml_files([TEST_TMP_DIR / "tmp.yaml"])
 
-        metrics = Metrics.ENERGY | Metrics.LATENCY | Metrics.MAPPING
+        metrics = Metrics.ENERGY | Metrics.LATENCY
         if not prune:
             metrics |= Metrics.VALID
 

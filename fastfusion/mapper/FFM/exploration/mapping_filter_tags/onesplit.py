@@ -1,4 +1,4 @@
-from fastfusion.mapper.FFM.tags import Tags
+from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.mapper.FFM.joining.mappinginfo import Compatibility
 
 

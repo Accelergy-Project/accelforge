@@ -160,7 +160,7 @@ def join_sims(
     objective_function_cols = None
     cols = next(iter(sims.values()))[0].mappings.data.columns
     if objective_function_cols is None:
-        objective_function_cols = [c for c in cols if "metric" in c]
+        objective_function_cols = [c for c in cols if "Total" in c]
     keepcols = []
 
     for sim_list in sims.values():

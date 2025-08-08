@@ -29,7 +29,7 @@ class TestProcessingStage(unittest.TestCase):
         pmappings = make_pmappings(spec)
         mappings = join_pmappings(spec, pmappings)
 
-        energy = mappings.data.iloc[0]['metric_energy']
+        energy = mappings.data.iloc[0]['Total_energy']
         self.assertAlmostEqual(energy, 100 * (128 * 64 * 2 + 128 * 128))
 
 if __name__ == '__main__':

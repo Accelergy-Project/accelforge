@@ -53,10 +53,10 @@
 # import re
 # from fastfusion.frontend.mapping import Iteration, Mapping, Nested, Split, Storage
 # from fastfusion.visualization.interactive import plotly_show
-# from fastfusion.mapper.FFM.visualization import make_mapping
+# from fastfusion.mapper.FFM.deprecate_maybe.visualization import make_mapping
 # from IPython.display import SVG
 
-# # plotly_show(mappings.data, "RESOURCE_GlobalBuffer_LEVEL_0", "metric_energy", logscales=True)
+# # plotly_show(mappings.data, "RESOURCE_GlobalBuffer_LEVEL_0", "Total_energy", logscales=True)
 
 # newmapping = make_mapping(mappings.data.iloc[0], spec.workload.einsum_names)
 # display(SVG(newmapping.render()))

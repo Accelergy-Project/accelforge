@@ -636,7 +636,7 @@ def row2pmappings(row: pd.Series, einsum_names: list[str], rank_variable_bounds:
     from fastfusion.frontend.mapping import Fill, Reservation
     pmappings: list[Nested] = []
     for einsum_name in einsum_names:
-        pmapping: Nested = copy.deepcopy(row[f"{einsum_name}_{MAPPING_COLUMN}"])
+        pmapping: Nested = copy.deepcopy(row[f"{einsum_name}\0{MAPPING_COLUMN}"])
         tile_shape_reg = einsum_name + r"___tile_shape\d+"
         tile_shapes = list(row[[c for c in row.index if re.match(tile_shape_reg, c)]])
         for node in pmapping.nodes:

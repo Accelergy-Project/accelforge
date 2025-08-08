@@ -30,7 +30,7 @@ from fastfusion.mapper.FFM.joining.mappinginfo import (
 from fastfusion.mapper.FFM.exploration.contraints.constraints import (
     MappingConstraints,
 )
-from fastfusion.mapper.FFM.tags import Tags
+from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.util.util import fzs
 from fastfusion.util.itertools import first
 from fastfusion.frontend.mapping import Reservation as ReservationNode

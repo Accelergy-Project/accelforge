@@ -6,7 +6,7 @@ from numbers import Number
 from typing import Any, Generator, NamedTuple, Union, TypeVar
 
 from fastfusion.frontend.workload.workload import RankName
-from fastfusion.mapper.FFM.tags import Tags
+from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 
 from fastfusion.util import expfmt, fzs
 
@@ -156,7 +156,7 @@ class Split:
     kind: SplitKind
     n_loops: int
     
-MHA_PATCH = False
+MHA_PATCH = True
 
 @dataclass(frozen=True)
 class Compatibility(Updatable):

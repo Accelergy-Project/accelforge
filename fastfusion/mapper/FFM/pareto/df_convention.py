@@ -4,9 +4,9 @@ import re
 from fastfusion.util import fzs
 
 
-MAPPING_COLUMN = "_MAPPING"
-COMPRESSED_INDEX = "_COMPRESSED_INDEX"
-TILE_SHAPE_PREFIX = "_tile_shape"
+MAPPING_COLUMN = "mapping"
+COMPRESSED_INDEX = "compressed_index"
+TILE_SHAPE_PREFIX = "tile_shape"
 
 DICT_COLUMNS = set([MAPPING_COLUMN])
 RESERVED_COLUMNS = DICT_COLUMNS
@@ -14,6 +14,7 @@ RESERVED_COLUMNS = DICT_COLUMNS
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
 _resource_name_tensor_reg = re.compile(r"RESOURCE_(.+?)_LEVEL_(.+?)")
+
 
 def dict_cached(func):
     cache = {}
@@ -27,38 +28,69 @@ def dict_cached(func):
 
     return wrapper
 
+
+def partition_col(col, prefix, expected_len=None):
+    col = col.split("\0")
+    if col[0] != prefix:
+        return None
+    if expected_len is not None and len(col) != expected_len:
+        raise ValueError(
+            f"Expected {expected_len} parts in \"{col}\" with prefix \"{prefix}\" "
+            f"but got {len(col)}"
+        )
+    return col[1:]
+
+
 @dict_cached
 def col2nameloop(x):
-    m = _resource_name_nloops_reg.match(x)
-    return (m.group(1), int(m.group(2))) if m is not None else None
+    """ Format: reservation name level left """
+    x = partition_col(x, "reservation", 4)
+    if x is None:
+        return None
+    return x[0], int(x[1])
 
 
 @dict_cached
 def nameloop2col(name, nloops, left: bool = False):
-    if left:
-        return f"RESOURCE_{name}_LEFT_LEVEL_{nloops}"
-    return f"RESOURCE_{name}_LEVEL_{nloops}"
+    """ Format: reservation name level left """
+    return f"reservation\0{name}\0{nloops}\0left" if left else "right"
 
 @dict_cached
 def tensor2col(tensor):
-    return f"TENSOR_{tensor}"
+    """ Format: tensor tensor_name """
+    return f"tensor\0{tensor}"
+
 
 @dict_cached
 def col2nametensor(col):
-    m = _resource_name_tensor_reg.match(col)
-    return (m.group(1), m.group(2)) if m is not None else None
+    """ Format: tensor tensor_name """
+    x = partition_col(col, "tensor", 2)
+    if x is None:
+        return None
+    return x[1]
+
 
 @dict_cached
 def col2nameloopleft(x):
-    m = _resource_name_nloops_reg.match(x)
-    return (m.group(1), int(m.group(2)), is_left_col(x)) if m is not None else None
+    """ Format: reservation name level left """
+    x = partition_col(x, "reservation", 4)
+    if x is None:
+        return None
+    return x[0], x[1], x[2] == "left"
+
 
 def is_reservation_col(x):
     return col2nameloop(x) is not None
 
+
 @dict_cached
 def is_left_col(x):
-    return "_LEFT_LEVEL_" in x
+    """ Format: reservation name level left """
+    x = partition_col(x, "reservation", 4)
+    if x is None:
+        return False
+    return x[2] == "left"
+
 
 def add_to_col(df, target, source):
     if target in df:
@@ -77,8 +109,11 @@ def max_to_col(df, target, source):
 def is_special_col(c):
     return c in RESERVED_COLUMNS or col2nameloop(c) is not None
 
+
 def col_used_in_pareto(c):
-    return col2nameloop(c) is not None or c.startswith("metric_")
+    return col2nameloop(c) is not None or partition_col(c, "Total") is not None
+
+
 # Pipeline:
 # - Need to share temporal loops up to the spatial loop index
 #   Resources:

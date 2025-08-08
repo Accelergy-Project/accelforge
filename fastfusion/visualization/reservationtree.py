@@ -3,7 +3,7 @@ import pydot
 from typing import Any, Iterable
 from fastfusion.mapper.FFM.joining.sim import Compatibility, TensorReservation, Loop
 from fastfusion.util import expfmt
-from fastfusion.mapper.FFM.pareto import IN_PROGRESS_STATS, col2nameloop
+from fastfusion.mapper.FFM.pareto import col2nameloop
 
 PYDOT_NODE_DEFAULTS = {
     "shape": "box",

@@ -213,7 +213,7 @@ class Einsum(ParsableModel):
             return None
         input_tensors = self.input_tensors()
         if len(input_tensors) != 1:
-            raise ValueError(f"Einsum {self.name} has {len(input_tensors)} input tensors, expected 1")
+            raise ValueError(f"Copy Einsum {self.name} has {len(input_tensors)} input tensors, expected 1")
         return input_tensors.pop()
 
 class Workload(ParsableModel):

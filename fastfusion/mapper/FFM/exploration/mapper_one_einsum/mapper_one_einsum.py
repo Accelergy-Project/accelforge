@@ -51,7 +51,7 @@ from fastfusion.mapper.FFM.exploration.contraints.constraints import (
     MappingConstraints,
     get_constraints,
 )
-from fastfusion.mapper.FFM.tags import Tags
+from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.frontend.mapping import Reservation as ReservationNode
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.loop_generator import (
     insert_temporal_loops,
@@ -475,23 +475,24 @@ def generate_pmappings(
     if results.empty:
         return einsum_name, [], {}
 
-    # fused_loop_cols = [col for col in results if col.startswith(TILE_SHAPE_PREFIX)]
-    fused_loop_cols = [f"{einsum_name}___tile_shape{i}" for i in range(compatibility.n_loops)] # TODO: Make this work for extended Einsums
-    
+    fused_loop_cols = [
+        f"{einsum_name}\0tile_shape\0{i}"
+        for i in range(compatibility.n_loops)
+    ]  # TODO: Make this work for extended Einsums
+
     tensor_cols = [tensor2col(tensor) for tensor in intermediate_tensors]
-    
+
     results.columns = [
-        c if col_used_in_pareto(c) or c in tensor_cols
-        else f"{einsum_name}_{c}"
+        c if col_used_in_pareto(c) or c in tensor_cols else f"{einsum_name}\0{c}"
         for c in results.columns
     ]
-    
+
     # Pareto prune
     prev_size = len(results)
     results = makepareto(results, split_by_cols=fused_loop_cols)
     new_size = len(results)
     
-    jobs_passed_pareto = sorted(results[f"{einsum_name}_{MAPPING_COLUMN}"].unique())
+    jobs_passed_pareto = sorted(results[f"{einsum_name}\0{MAPPING_COLUMN}"].unique())
     pmapping_objects = {job.job_id: job.mapping for job in jobs_with_similar_compatibilities if job.job_id in jobs_passed_pareto}
     # print(f'Pareto pruned from {prev_size} to {new_size} pmappings ({new_size / prev_size * 100:.2f}%)')
 
