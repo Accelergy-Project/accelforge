@@ -21,7 +21,7 @@ from typing import Tuple
 import islpy as isl
 
 from fastfusion.frontend.mapper import Mapping
-from fastfusion.frontend.mapping import Nested, node_list
+from fastfusion.frontend.mapping import Nested, NodeList
 from fastfusion.frontend.workload.workload import Workload, RankVariableName, TensorName
 
 import fastfusion.model.looptree.reuse.isl.isl_functions as isl_help

@@ -1,22 +1,33 @@
-import copy
-from pydantic import BaseModel, Discriminator, Tag, model_validator
-from fastfusion.frontend import architecture
-from typing import Callable, List, Union, Annotated, Literal, TypeVar, TypeAlias
-from abc import ABC
-from fastfusion.util.basetypes import ParsableModel, ParsableList, ParsesTo, get_tag
-from fastfusion.version import assert_version, __version__
+"""
+A module containing the visualization and types needed to run mapspace exploratioon
+in FastFusion.
+"""
 
-from fastfusion.frontend import architecture
-from fastfusion.frontend.workload.workload import RankVariableName, TensorName
-from typing import Callable, Iterator, List, Optional, Type, TypeVar, Union, Annotated
 from abc import ABC
-from fastfusion.util.basetypes import ParsableModel, ParsableList, ParsesTo, InferFromTag
-from fastfusion.version import assert_version, __version__
+import copy
 import pydot
 
-T = TypeVar("T", bound="MappingNode")
+from typing import ( 
+    Iterator, List,                 # Collections
+    Annotated, Callable, Literal,   # Object definitions
+    Type, TypeVar, TypeAlias,       # Type constructions
+    Optional, Union                 # Variable meta-mandates
+)
+from collections.abc import Set
+from pydantic import BaseModel, Discriminator, Tag, model_validator
 
-node_list: TypeAlias = ParsableList[Annotated[
+from fastfusion.util.basetypes import (
+    ParsableModel, ParsableList, ParsesTo,  # Parsing helpers for the input files.
+    get_tag, InferFromTag                   # Retrieves information from YAML tags.
+)
+from fastfusion.frontend import architecture
+from fastfusion.frontend.workload.workload import RankVariableName, TensorName
+from fastfusion.version import assert_version, __version__
+
+T = TypeVar("T", bound="MappingNode")
+"""TypeVar T: Restricts the allowable types to types of MappingNodes."""
+
+NodeList: TypeAlias = ParsableList[Annotated[
         Union[
             Annotated["Split", Tag("Split")],
             Annotated["Compute", Tag("Compute")],
@@ -33,6 +44,10 @@ node_list: TypeAlias = ParsableList[Annotated[
         ],
     Discriminator(get_tag)
 ]]
+"""
+TypeAlias NodeList: ParsableList that can contain and discriminate between
+MappingNodes of different types.
+"""
 
 def comma_separated_list(items: list[str]) -> list[str]:
     return items
@@ -60,6 +75,10 @@ def comma_separated_list(items: list[str]) -> list[str]:
 
 
 class ColorMap():
+    """
+    A ColorMap used to visualize the Mapping objects.
+    """
+
     def __init__(self, keys: list[str]):
         self.keys = keys
         self.color_list = self._make_color_map(len(keys))
@@ -166,6 +185,20 @@ class ColorMap():
 # =============================================================================
 
 class MappingNode(ParsableModel, ABC):
+    """
+    Represents a Node in the Mapping, which is any granular layer of data or
+    operation manipulation.
+    
+    :param constraint_lambda: A series of constraints that the Node must satisfy.
+    :type constraint_lambda: List[Callable[[], bool]]
+    :param must_be_here: Controls if the Mapper can move the Node in the Mapping.
+    :type must_be_here: bool
+    :param required: Whether the Mapper must keep this node in exploration.
+    :type required: bool
+
+    :undoc-members:
+    """
+
     _constraint_lambdas: List[Callable[[], bool]] = []
     _must_be_here: bool = False  # Can the mapper move this node?
     _required: bool = False  # Must the mapper keep this node?
@@ -226,12 +259,37 @@ class MappingNode(ParsableModel, ABC):
 
 
 class Pattern(ParsableModel):
+    """
+    A pattern in tile traversal.
+
+    :param stride: The stride between applications of the pattern.
+    :type stride: ParsesTo[Literal['symbol'] | int]
+    """
     stride: ParsesTo[Literal['symbol'] | int]
     initial_tile_shape: ParsesTo[Literal['symbol'] | int | None] = None
     tile_shape: ParsesTo[Literal['symbol'] | int | None] = None
 
 class Iteration(MappingNode):
-    rank_variable: Union[set[RankVariableName], RankVariableName]
+    """
+    A bounded loop over a rank with a given shape and pattern.
+
+    :param rank_variable: The rank variable or set of rank variables being iterated 
+    over in this MappingNode.
+    :param loop_bound: The Iteration occurs over [0..loop_bound)
+    :param tile_pattern: The pattern the Iteration occurs in.
+    :param assume_perfect_factor: Whether the Mapper assumes perfect factorization
+    is necessary to performant operation.
+    :param _fused: Whether or not this Iteration is fused with another.
+
+
+    :type rank_variable: Union[Set[RankVariableName], RankVariableName]
+    :type loop_bound: ParsesTo[Union[Literal['symbol'], int, None]]
+    :type tile_pattern: ParsesTo[Union[Literal['symbol'], Pattern, None]]
+    :type assume_perfect_factor: bool
+    :type _fused: bool
+    """
+
+    rank_variable: Union[Set[RankVariableName], RankVariableName]
     loop_bound: ParsesTo[Union[Literal['symbol'], int, None]] = None
     tile_shape: ParsesTo[Union[Literal['symbol'], int, None]] = None
     tile_pattern: ParsesTo[Union[Literal['symbol'], Pattern, None]] = None
@@ -273,6 +331,9 @@ class Iteration(MappingNode):
         return "#FCC2FC"
 
 class Temporal(Iteration):
+    """
+    A Temporal :class:`~.Iteration`.
+    """
     def compact_string(self) -> str:
         if self.loop_bound is not None:
             return f"{self.rank_variable} shape {self.tile_shape}"
@@ -288,6 +349,17 @@ class Temporal(Iteration):
                super().__eq__(other)
 
 class Spatial(Iteration):
+    """
+    A Spatial :class:`~.Iteration`.
+
+    :param dimension: The dimension the spatial is occuring over.
+    :param across: The hardware feature name hosting the iteration.
+    :param across_object: The hardware feature hosting the Iteration.
+
+    :type dimension: Union[int, str]
+    :type across: str
+    :type across_object: Optional[architecture.Leaf]
+    """
     dimension: Union[int, str]
     across: str
     across_object: Optional[architecture.Leaf] = None
@@ -307,11 +379,29 @@ class Spatial(Iteration):
 
 
 class TensorHolder(MappingNode):
+    """
+    A :class:`~.MappingNode` that represents a hardware Component holding a set of tensors.
+
+    :param tensors: The tensors, by name, being held in this Node.
+    :param component: The component type holding the tensors.
+    :param component_object: The specific FastFusion object representing the
+    component holding the tensors.
+    :param _must_keep_sensors: Which tensor(s) the Mapper must keep here.
+    :param _backing: The tensor(s) backed by this node.
+    :param _lower: Whether the tensor names are compressed to lowercase.
+
+    :type tensors: ParsableList[TensorName]
+    :type component: str
+    :type component_object: Optional[architecture.Component]
+    :type _must_keep_tensors: ParsableList[TensorName]
+    :type _backing: Set[TensorName]
+    :type _lower: bool
+    """
     tensors: ParsableList[TensorName]
     component: str
     component_object: Optional[architecture.Component] = None # Reference to component node
     _must_keep_tensors: ParsableList[TensorName] = ParsableList() # Must the mapper keep these tensors here?
-    _backing: set[TensorName] = set() # Which tensor(s) are backed by this node?
+    _backing: Set[TensorName] = set() # Which tensor(s) are backed by this node?
     _lower: bool = True
 
     def compact_string(self) -> str:
@@ -343,12 +433,28 @@ class TensorHolder(MappingNode):
 
 
 class Storage(TensorHolder):
+    """
+    A Storage component that acts as a :class:`~.TensorHolder`.
+    """
     pass
 
 class ProcessingStage(TensorHolder):
+    """
+    A ProcessingStage that acts as a :class:`~.TensorHolder`.
+    """
     pass
 
 class Compute(MappingNode):
+    """
+    Represents the einsum of a compute [type] that is occuring.
+    
+    :param einsum: The string representing the einsum occuring.
+    :param compute: The string representing the type of computation occurring.
+
+    :type einsum: str
+    :type compute: str
+    """
+
     einsum: str
     compute: str = "MAC"
 
@@ -365,7 +471,14 @@ class Compute(MappingNode):
         return "#E0EEFF"
 
 class MappingNodeWithChildren(MappingNode):
-    nodes: node_list = ParsableList()
+    """
+    A :class:`~.MappingNode` that also contains children.
+
+    :param nodes: The child nodes.
+
+    :type nodes: NodeList
+    """
+    nodes: NodeList = ParsableList()
 
     def _parent2child(self, parent: MappingNode) -> list[tuple[MappingNode, MappingNode]]:
         mine = [(self, node) for node in self.nodes]
@@ -520,6 +633,10 @@ class MappingNodeWithChildren(MappingNode):
         self.nodes = ParsableList([x for g in groups for x in g])
         
 class Split(MappingNodeWithChildren):
+    """
+    A :class:`~.MappingNodeWithChildren` that determines a Tensor split between
+    the child nodes.
+    """
     pass
 
     def __str__(self) -> str:
@@ -549,6 +666,12 @@ LoopGroup: TypeAlias = list[Iteration]
 NonLoopGroup: TypeAlias = list[MappingNode]
 
 class Nested(MappingNodeWithChildren):
+    """
+    A :class:`~.MappingNodeWithChildren` where the last Node may, but is not
+    obligated to be, a :class:`~.MappingNodeWithChildren` and where all other 
+    nodes are guaranteed to to be not :class:`~.MappingNodeWithChildren`.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for node in list(self.nodes)[:-1]:
@@ -777,10 +900,18 @@ class Nested(MappingNodeWithChildren):
                         
 
 class Pipeline(Split):
+    """
+    A :class:`~.Split` where the tensors are stored and processed
+    in parallel.
+    """
     pass
 
 
 class Sequential(Split):
+    """
+    A :class:`~.Split` where the tensors are stored and processed
+    in series.
+    """
     pass
 
 # =============================================================================
@@ -788,9 +919,21 @@ class Sequential(Split):
 # =============================================================================
 
 class ModelOnlyNode:
+    """
+    A node only the model can insert.
+    """
     pass
     
 class Reservation(MappingNode, ModelOnlyNode):
+    """
+    Reserving a hardware resource for a specific task.
+
+    :param purposes: The reasons for reserving the resource.
+    :param resource: The resource being reserved.
+
+    :type purposes: ParsableList[str]
+    :type resource: str
+    """
     purposes: ParsableList[str]
     resource: str
 
@@ -821,6 +964,15 @@ class Reservation(MappingNode, ModelOnlyNode):
         return "#E8E8E8" # Light gray
 
 class Fill(MappingNode, ModelOnlyNode):
+    """
+    The operation of moving data into a storage component.
+
+    :param tensor: The tensor being moved.
+    :param memory: The storage component being filled.
+
+    :type tensor: str
+    :type memory: str
+    """
     tensor: str
     memory: str
 
@@ -841,9 +993,18 @@ MappingNodeTypes: TypeAlias = Union[
     Reservation,
     Fill,
     TensorHolder,
-]    
+]
+"""TypeAlias MappingNodeTypes: The types of MappingNodes possible."""
 
 class Mapping(Nested):
+    """
+    A Mapping of tensors and einsums to hardware actions.
+
+    :param version: The version of the FastFusion specification used.
+
+    :type version: Annotated[str, assert_version]
+    """
+
     version: Annotated[str, assert_version] = __version__
 
     def get_fused_slice(self, intermediate_tensors: set[TensorName]) -> "Mapping":
