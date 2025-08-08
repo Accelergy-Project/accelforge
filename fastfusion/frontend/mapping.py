@@ -825,7 +825,7 @@ class Fill(MappingNode, ModelOnlyNode):
     memory: str
 
     def compact_string(self) -> str:
-        return f'F {self.tensor} in {self.component}'
+        return f'F {self.tensor} in {self.memory}'
 
 # =============================================================================
 # Top-level Mapping
@@ -928,6 +928,9 @@ class Mapping(Nested):
     
     @classmethod
     def from_pmappings(cls, pmappings: list[Nested], rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None) -> "Mapping":
+        mapping: Mapping = cls(nodes=[Sequential(nodes=pmappings)])
+        return mapping
+
         pmappings = list(copy.deepcopy(pmappings))
         for pmapping in pmappings:
             pmapping.beautify_loops(rank_variable_bounds)
@@ -963,48 +966,6 @@ class Mapping(Nested):
         mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
         return mapping
-        
-        
-        # import mermaid as md
-        # from mermaid.graph import Graph
-        # lines = []
-        # lines = [
-        #     "graph TD",
-        #     "%%{init: {'flowchart': {'nodeSpacing': 30, 'rankSpacing': 30, 'padding': 2}, 'themeVariables': {'fontFamily': 'Arial, sans-serif'}}}%%"
-        # ]
-        # lines.extend(self._render_make_children())
-        # for parent, child in self._parent2child(None):
-        #     if parent is not None:
-        #         lines.append(f"{parent._render_node_name()} --> {child._render_node_name()}")
-        #     # if _is_root:
-        # #     lines.extend([
-        # #         "",
-        # #         "classDef default fill:#fff,stroke:#000,stroke-width:1px,color:#000,font-family:Arial,font-size:12px,padding:2px;",
-        # #         "classDef compact fill:#fff,stroke:#000,stroke-width:1px,color:#000,font-family:Arial,font-size:12px,padding:2px;"
-        # #     ])
-
-        # # Create the graph with the flowchart script
-        # flowchart_script = "\n".join(lines)
-        # graph = Graph('Flowchart', flowchart_script)
-        
-        # # Set the configuration for compact layout
-        # config = md.Config()
-        # config.theme = 'base'
-        # # config.theme_variables = {
-        # #     'primaryColor': '#ffffff',
-        # #     'primaryTextColor': '#000000', 
-        # #     'primaryBorderColor': '#000000',
-        # #     'lineColor': '#000000',
-        # #     'fontSize': '12px'
-        # # }
-        # # config.flowchart = {
-        # #     'nodeSpacing': 20,
-        # #     'rankSpacing': 10,
-        # #     'curve': 'linear'
-        # # }
-        # graph.config = config
-
-        # return md.Mermaid(graph)
 
 
 class MappingTree(MappingNode): # TODO: Make this a full mapping
