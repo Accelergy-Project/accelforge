@@ -7,10 +7,8 @@ from operator import or_
 class Metrics(Flag):
     LATENCY = auto()
     ENERGY = auto()
-    PER_COMPONENT_ENERGY = auto()
     RESERVATIONS = auto()
     # OCCUPANCY = auto()
-    OFF_CHIP_ACCESSES = auto()
     OP_INTENSITY = auto()
     DEBUG = auto()
     PER_COMPONENT_ACCESSES_ENERGY = auto()
@@ -19,5 +17,5 @@ class Metrics(Flag):
 
     @classmethod
     def all_metrics(cls):
-        return reduce(or_, iter(cls), cls.LATENCY) ^ Metrics.OP_INTENSITY
+        return reduce(or_, iter(cls), cls.LATENCY)
 
