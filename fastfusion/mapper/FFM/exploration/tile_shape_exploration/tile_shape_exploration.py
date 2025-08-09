@@ -202,7 +202,8 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
         # Compute utilization
         utilization = {}
         utilization2 = {}
-        for (component, dim), utilization_model in utilization_df.items():
+        for component_dim, utilization_model in utilization_df.items():
+            _, component, dim = component_dim.split('\0')
             utilization[(component, dim)] = utilization_model(*[
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
@@ -316,7 +317,8 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
 
         utilization = {}
         utilization2 = {}
-        for (component, dim), utilization_model in utilization_df.items():
+        for component_dim, utilization_model in utilization_df.items():
+            _, component, dim = component_dim.split('\0')
             utilization[(component, dim)] = utilization_model(*[
                 corrected_choices[:,i] for i in range(corrected_choices.shape[1])
             ])
@@ -709,7 +711,7 @@ def run_model(job: Job):
     reuse = analyze_reuse(pmapping, workload, job)
     overall_latency, comp_latency, mem_latency = get_latency(reuse, pmapping, workload, job.flattened_arch)
     actions = gather_actions(reuse, None, use_name=True)
-    energy = compute_energy_from_actions(actions, ert)
+    energy = compute_energy_from_actions(actions, ert, overall_latency)
 
     intermediate_tensors = workload.intermediate_tensor_names
     tensor_to_backing = {}
