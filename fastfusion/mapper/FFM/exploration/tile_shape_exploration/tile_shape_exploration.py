@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Callable
 from combinatorics.integer import *
 from dataclasses import dataclass, field
 
@@ -10,12 +11,14 @@ from fastfusion.accelerated_imports import pd
 
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.architecture import Memory
+from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.symbolic import get_stride_and_halo
-from fastfusion.frontend.mapping import Temporal, Spatial, TensorHolder, Pattern
+from fastfusion.frontend.mapping import MappingNode, Temporal, Spatial, TensorHolder, Pattern
 
 from fastfusion.mapper import metrics
+from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingConstraints
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
@@ -132,10 +135,17 @@ def explore_tile_shapes(job: "Job"):
         df[key] = compiled_df[key](*tile_shapes)
         
     df = pd.DataFrame(df, columns=df.keys())
-    return df, total_pmappings               
+    assert not df.isna().any().any()
+    return df, total_pmappings
 
 
-def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specification):
+def generate_tile_shapes(
+        pmapping: list[MappingNode],
+        constraints: MappingConstraints,
+        usage_df: dict[str, Callable],
+        utilization_df: dict[str, Callable],
+        specification: Specification
+):
     pmapping = pmapping.nodes
     workload = specification.workload
 
@@ -233,8 +243,8 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 
                 
         max_loops = min(
-            specification.mapper_ffm.max_loops,
-            specification.mapper_ffm.max_loops_minus_ranks + len(ranks)
+            specification.mapper.ffm.max_loops,
+            specification.mapper.ffm.max_loops_minus_ranks + len(ranks)
         )
         good_choices = good_choices[n_loops <= max_loops,:]
 
@@ -373,6 +383,14 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
                 new_is_symbol,
                 np.empty((0, len(new_index)), dtype=np.int64)
             )
+            
+        # If the product of the number of choices is > than ffm.max_explored_tile_shapes_per_bypass_choice,
+        # then randomly permute the choices
+        max_choices = specification.mapper.ffm.max_explored_tile_shapes_per_bypass_choice
+        if choices_a.shape[0] * choices_b.shape[0] > max_choices:
+            choices_a = choices_a[np.random.permutation(choices_a.shape[0])]
+            choices_b = choices_b[np.random.permutation(choices_b.shape[0])]
+        found_choices = 0
 
         all_good_choices = []
         for a_idx in range(0, choices_a.shape[0], tile_shape):
@@ -395,6 +413,9 @@ def generate_tile_shapes(pmapping, constraints, usage_df, utilization_df, specif
 
                 good_choices = check_valid_tile_shape(combined_choices, is_symbol_a + is_symbol_b, other_rank_var_and_choices, index_a + index_b, rank_a | rank_b, shape)
                 all_good_choices.append(good_choices)
+                found_choices += good_choices.shape[0]
+                if found_choices >= max_choices:
+                    break
 
                 # # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
                 # n_rows = combined_choices.shape[0]
@@ -580,7 +601,7 @@ def collect_tiling_segments(
 
             tiling_segment = rank_var_to_tiling_segments.setdefault(
                 rank_var,
-                TilingSegment(rank_shape[rank_var], spec.mapper_ffm.max_fused_loops_per_rank)
+                TilingSegment(rank_shape[rank_var], spec.mapper.ffm.max_fused_loops_per_rank)
             )
 
             if tile_shape == 'symbol' or isinstance(tile_shape, sympy.Symbol):
@@ -761,10 +782,10 @@ def run_model(job: Job):
                     df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
-        df[f'Total\0latency'] = overall_latency
-        df[f'latency\0compute'] = comp_latency
+        df[f'Total\0latency'] = overall_latency * spec.variables.global_cycle_period
+        df[f'latency\0compute'] = comp_latency * spec.variables.global_cycle_period
         for component, latency in mem_latency.items():
-            df[f'latency\0{component}'] = latency
+            df[f'latency\0{component}'] = latency * spec.variables.global_cycle_period
 
     if metrics & Metrics.ENERGY:
         df[f'Total\0energy'] = sum(energy.values())
