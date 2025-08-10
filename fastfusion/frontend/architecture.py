@@ -227,8 +227,13 @@ class ProcessingStage(TensorHolder):
     pass
 
 
+class ComputeAttributes(ComponentAttributes):
+    computes_per_cycle: ParsesTo[int] = 1
+
+
 class Compute(Component):
     actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
+    attributes: ComputeAttributes
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
