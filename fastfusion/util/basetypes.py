@@ -218,6 +218,7 @@ class Parsable(ABC, Generic[M]):
             [(field, getattr(self, field) if use_setattr else self[field], self.get_validator(field))
                 for field in self.get_fields()]
         )
+        prev_symbol_table = symbol_table.copy()
 
         for field in field_order:
             value = getattr(self, field) if use_setattr else self[field]
@@ -230,6 +231,14 @@ class Parsable(ABC, Generic[M]):
             else:
                 self[field] = parsed
             symbol_table[field] = parsed
+
+        for k, v in prev_symbol_table.items():
+            if k.startswith("global_") and symbol_table.get(k, None) != v:
+                raise ParseError(
+                    f"Global variable {k} is already set to {v} in the outer scope. "
+                    f"It cannot be changed to {symbol_table[k]}."
+                )
+
         return self, symbol_table
 
 
