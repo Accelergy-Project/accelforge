@@ -58,7 +58,8 @@ def gather_actions(looptree_results: SummarizedAnalysisOutput, bindings: dict[st
 
 
 def compute_energy_from_actions(action_counts: MappingABC[(str, str), Real],
-                                ert: ComponentEnergy):
+                                ert: ComponentEnergy,
+                                overall_latency: float):
     energy_result = {}
     for (component, action), counts in action_counts.items():
         if counts == 0:
@@ -70,5 +71,12 @@ def compute_energy_from_actions(action_counts: MappingABC[(str, str), Real],
             )
         energy_per_ac = action_table.energy
         energy_result[(component, action)] = counts.total * energy_per_ac
+
+    for action_table in ert.entries:
+        try:
+            leak_energy = overall_latency * action_table.actions["leak"].energy
+        except KeyError:
+            leak_energy = 0
+        energy_result[(action_table.name, 'leak')] = leak_energy
 
     return energy_result

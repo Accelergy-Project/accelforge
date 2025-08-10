@@ -20,7 +20,9 @@ class Mappings:
     def __getitem__(self, key: str | int) -> Union[pd.Series, "Mappings"]:
         if isinstance(key, int):
             return Mappings(self.spec, self.einsum_names, pd.DataFrame(self.data.iloc[key]).T)
-        return self.data.iloc[:, key]
+        if len(self) == 1:
+            return self.data[key].iloc[0]
+        return self.data[key]
 
     def __len__(self):
         return len(self.data)

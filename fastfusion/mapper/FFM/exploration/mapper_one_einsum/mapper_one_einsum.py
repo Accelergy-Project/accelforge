@@ -208,7 +208,7 @@ def iterate_mappings_no_constraints(
             insert_spatial_loops(mapping, einsum, arch_flattened)
             mapping = unpack_loops_to_rank_variables(mapping)
             label_fused_loops(mapping)
-            if spec.mapper_ffm.timeloop_style_even:
+            if spec.mapper.ffm.timeloop_style_even:
                 mapping = timeloop_style_even(mapping)
                 
                 

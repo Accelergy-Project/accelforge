@@ -134,7 +134,7 @@ def valid_tensor_holder_order(
             assert len(mapping[i].tensors) == 1
             assert len(mapping[j].tensors) == 1
 
-            if spec.mapper_ffm.force_memory_hierarchy_order:
+            if spec.mapper.ffm.force_memory_hierarchy_order:
                 if i < j and s2_idx < s1_idx:
                     return False
 

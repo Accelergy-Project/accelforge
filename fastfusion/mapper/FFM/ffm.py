@@ -34,7 +34,7 @@ def make_pmappings(
         spec,
         flattened_arch,
         tagger=tagger,
-        metrics=spec.mapper_ffm.metrics,
+        metrics=spec.mapper.ffm.metrics,
         einsum_names=einsum_names
     )
     resource2capacity = {}
@@ -64,4 +64,8 @@ def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings) -> Part
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
     joined.data[f"Total\0{MAPPING_COLUMN}"] = joined.data.apply(lambda row: MappingFromRow(row, spec, rank_variable_bounds), axis=1)
+    # Fill nans with 0. We might get missing columns for some mapping entries if there
+    # are energy entries for some pmappings but not others (e.g., one pmapping accesses
+    # DRAM while another doesn't.)
+    joined._data = joined.data.fillna(0)
     return Mappings(spec, list(pmappings.einsum2pmappings.keys()), joined.data)

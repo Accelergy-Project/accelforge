@@ -101,7 +101,7 @@ def join_sims(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
-    metrics = spec.mapper_ffm.metrics
+    metrics = spec.mapper.ffm.metrics
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
 

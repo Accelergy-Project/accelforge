@@ -83,7 +83,7 @@ class CompoundComponent(ParsableModel):
             arguments = arguments.parse_expressions(component_attributes.model_dump(), multiply_multipliers=False)[0]
             for subaction in subcomponent.actions:
                 subaction_args = subaction.arguments.parse_expressions(arguments.model_dump(), multiply_multipliers=True)[0]
-                yield component.component_class, component_attributes, subaction_args, subaction.name
+                yield component.get_component_class(), component_attributes, subaction_args, subaction.name
 
 # Components are only instantiated when they are called in the architecture. The
 # top-level components are non-parsable.

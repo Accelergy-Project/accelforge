@@ -864,12 +864,13 @@ def analyze_compute(node_idx,
                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
     einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
+    compute_node: architecture.Compute = info.job.flattened_arch[-1]
     
     computes = 0 if info.is_copy_operation else 1
 
     result_accumulator = SummarizedAnalysisOutput()
-    
-    result_accumulator.temporal_steps[einsum] = computes
+
+    result_accumulator.temporal_steps[einsum] = computes / compute_node.attributes.computes_per_cycle
     result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(computes, computes)
     
     if info.is_copy_operation:
