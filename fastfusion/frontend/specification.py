@@ -65,7 +65,7 @@ class Specification(ParsableModel):
             for component in components:
                 self.component_area.entries.append(
                     AreaEntry.from_models(
-                        component.component_class,
+                        component.get_component_class(),
                         component.attributes,
                         processed,
                         models,
@@ -76,7 +76,7 @@ class Specification(ParsableModel):
                 action_args = [action.arguments for action in component.actions]
                 self.component_energy.entries.append(
                     EnergyEntry.from_models(
-                        component.component_class,
+                        component.get_component_class(),
                         component.attributes,
                         action_args,
                         action_names,

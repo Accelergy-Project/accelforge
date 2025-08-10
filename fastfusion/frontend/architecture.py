@@ -125,6 +125,14 @@ class Component(Leaf, ABC):
             if action.name not in has_actions:
                 self.actions.append(action)
 
+    def get_component_class(self) -> str:
+        if self.component_class is None:
+            raise ParseError(
+                f"component_class must be set to a valid string. "
+                f"Got {self.component_class}.",
+                source_field=f"{self.name}.component_class",
+            )
+        return self.component_class
 
 class Actions(ParsableList[SubcomponentAction]):
     pass

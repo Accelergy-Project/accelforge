@@ -47,7 +47,7 @@ class AreaEntry(ParsableModel):
                 component_attributes = component.attributes.parse_expressions(attributes.model_dump())[0]
                 entries.extend(
                     AreaEntry.from_models(
-                        component.component_class,
+                        component.get_component_class(),
                         component_attributes,
                         spec,
                         models,
