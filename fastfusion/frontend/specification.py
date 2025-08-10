@@ -1,6 +1,6 @@
 from fastfusion.frontend.mapper.mapper import Mapper
 from fastfusion.frontend.renames import Renames
-from fastfusion.util.parse_expressions import ParseExpressionsContext
+from fastfusion.util.parse_expressions import ParseError, ParseExpressionsContext
 from fastfusion.frontend.architecture import Leaf
 from fastfusion.frontend.architecture import Architecture
 from fastfusion.frontend.constraints import Constraints
@@ -43,7 +43,11 @@ class Specification(ParsableModel):
         symbol_table = {} if symbol_table is None else symbol_table.copy()
         symbol_table["spec"] = self
         with ParseExpressionsContext(self):
-            parsed_variables, _ = self.variables.parse_expressions(symbol_table, **kwargs)
+            try:
+                parsed_variables, _ = self.variables.parse_expressions(symbol_table, **kwargs)
+            except ParseError as e:
+                e.add_field("Specification().variables")
+                raise e
             symbol_table.update(parsed_variables)
             symbol_table["variables"] = parsed_variables
             return super().parse_expressions(symbol_table, **kwargs)
