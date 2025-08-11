@@ -119,23 +119,18 @@ def get_head_among_einsums(einsum_set: Set[EinsumName], workload: Workload) -> S
     :return:    The set of all head einsums.
     """
 
-    heads: Set[EinsumName] = set()
+    return {
+        einsum
+        for einsum in einsum_set
+        if all(
+            not any(
+                consumer in einsum_set
+                for consumer in workload.einsums_that_read_tensor(output_tensor)
 
-    for einsum in einsum_set:
-        is_head: bool = True
-
-        for output_dataspace in workload.tensors_written_by_einsum(einsum):
-            for consumer_einsum in workload.einsums_that_read_tensor(output_dataspace):
-                if consumer_einsum in einsum_set:
-                    is_head = False
-                    break
-            if not is_head:
-                break
-        
-        if is_head:
-            heads.add(einsum)
-        
-    return heads
+            )
+            for output_tensor in workload.tensors_written_by_einsum(einsum)
+        )
+    }
                 
 
 def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
