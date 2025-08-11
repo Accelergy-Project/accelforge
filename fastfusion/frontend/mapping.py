@@ -9,7 +9,7 @@ import pydot
 
 from typing import (
     # Collections
-    Iterator,
+    Any,
     List,
     # Object definitions
     Annotated,
@@ -341,7 +341,7 @@ class Iteration(MappingNode):
             x.append(f"in [0..{self.loop_bound})")
         return f"for {self.rank_variable} {' '.join(x)}"
 
-    def __eq__(self, other: "Iteration") -> bool:
+    def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, Iteration)
             and self.rank_variable == other.rank_variable
@@ -521,7 +521,6 @@ class MappingNodeWithChildren(MappingNode):
     """
 
     nodes: AnnotatedMappingNode = ParsableList()
-    _einsum_descendents: Set[Einsum] = None
 
     def _parent2child(
         self, parent: MappingNode
@@ -676,6 +675,12 @@ class MappingNodeWithChildren(MappingNode):
             for g in groups
         ]
         self.nodes = ParsableList([x for g in groups for x in g])
+    
+    def __hash__(self):
+        """
+        Hashing functor to create mappings of nodes to other objects.
+        """
+        return id(self)
 
 
 class Split(MappingNodeWithChildren):
