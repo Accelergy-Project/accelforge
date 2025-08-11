@@ -106,7 +106,9 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[AnnotatedMappingN
     return result
 
 
-def get_head_among_einsums(einsum_set: Set[EinsumName], workload: Workload) -> Set[EinsumName]:
+def get_head_among_einsums(
+    einsum_set: Set[EinsumName], workload: Workload
+) -> Set[EinsumName]:
     """
     Gets the provider einsums that only produce data (i.e., non-consumer einsums).
 
