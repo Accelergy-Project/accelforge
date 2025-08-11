@@ -36,6 +36,7 @@ from fastfusion.frontend.workload.workload import Workload
 from fastfusion.frontend.mapping import TensorName
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
+    Tiling,
     BranchTilings,
     MappingAnalysisResult,
 )
@@ -51,8 +52,10 @@ def get_mapping_group_einsums(
     From a mapping, get the group of einsums for a given node.
 
     :param mapping: The mapping we are getting the grouped einsums for.
+    :type mapping:  Mapping
 
-    :return: A dictionary relating a Node to a set of einsums.
+    :return:    A dictionary relating a Node to a set of einsums.
+    :rtype:     defaultdict[AnnotatedMappingNode, Set[EinsumName]]
     """
     # Each pair is a (current_node, last_non_branch_node)
     dfs_stack: deque[Tuple[AnnotatedMappingNode, AnnotatedMappingNode]] = deque()
@@ -122,6 +125,7 @@ def get_head_among_einsums(
     :type workload:     Workload
 
     :return:    The set of all head einsums.
+    :rtype:     Set[EinsumName]
     """
     # Returns set of einsums that have no consumer.
     return {
@@ -142,9 +146,13 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     Given a mapping and a workload generates a tiling.
 
     :param mapping: A mapping of data to hardware.
-    :param workload: The problem being solved.
+    :param workload:The problem being solved.
+
+    :type mapping:  Mapping
+    :type workload: Workload
 
     :return:    BranchTilings associating a node's ID with its tiling.
+    :rtype:     BrancTilings
     """
     result: BranchTilings = BranchTilings()
     # Grabs the head einsums.
@@ -167,13 +175,26 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     root: AnnotatedMappingNode = mapping.nodes[0]
     dfs_stack.append(root)
     for einsum_name in workload.einsum_names:
-        p_tiling: isl.Map = isl.Map.from_range(
+        tiling: Tiling = isl.Map.from_range(
             workload.einsum_ospace_bound(einsum_name)
         )
+
 
 
 def occupancies_from_mapping(
     mapping: Mapping, workload: Workload
 ) -> MappingAnalysisResult:
+    """
+    Given a Mapping and a Workload, extract the data occupancies in memory.
+
+    :param mapping: The Mapping of data to hardware.
+    :param workload:The Workload occurring on chip.
+
+    :type mapping:  Mapping
+    :type workload: Workload
+
+    :return:    The occupancies as an analysis of the Workload on Mapping.
+    :rtype:     MappingAnalysisResult
+    """
     result = MappingAnalysisResult()
     result.compute_to_assumed_parallelism = tiling_from_mapping(mapping, workload)
