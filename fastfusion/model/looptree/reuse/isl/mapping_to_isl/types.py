@@ -1,13 +1,13 @@
 from abc import ABC
 
 from collections import defaultdict
-from collections.abc import List
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from islpy import isl
+import islpy as isl
 
-from fastfusion.frontend.mapping import AnnotatedMappingNode
+from fastfusion.frontend.mapping import MappingNode
 from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
 
 class TaggedMap:
@@ -86,7 +86,7 @@ class ComputeEinsum:
 #   to be fully specified.
 EinsumName: TypeAlias = str
 Tiling: TypeAlias = isl.Map # Tiling of data and operations.
-BranchTilings: TypeAlias = defaultdict[AnnotatedMappingNode, Tiling]  # Relation between a node and its tiling.
+BranchTilings: TypeAlias = defaultdict[MappingNode, Tiling]  # Relation between a node and its tiling.
 BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
 
 
@@ -114,16 +114,16 @@ class MappingAnalysisResult:
     ##
     #   @brief Logical buffers found between the current root/branch node and the
     #   next one.
-    node_to_logical_buffers: defaultdict[NodeID, List[Buffet]]
+    node_to_logical_buffers: defaultdict[MappingNode, Iterable[Buffet]]
     ##
     #   @brief Tiling of each branch. The tiling is a relation between tiling
     #   variables and operations.
     #
     #   An uncompletely tiled branch will have multiple-valued isl.Map.
-    branch_tiling: defaultdict[NodeID, isl.Map]
+    branch_tiling: defaultdict[MappingNode, isl.Map]
     ##
     #   @brief We can assume an amount of parallelism to quickly calculate approx.
     #   compute latency by simply dividing number of operations with assumed
     #   parallelism.
-    compute_to_assumed_parallelism: defaultdict[NodeID, float]
+    compute_to_assumed_parallelism: defaultdict[MappingNode, float]
 
