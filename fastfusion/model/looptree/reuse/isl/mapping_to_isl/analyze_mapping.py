@@ -7,7 +7,9 @@ Flow of analysis:
     (buffer, tensor, einsum) tuple.
 -   Run tile shape inference.
 
-Adapted from: https://github.com/NVlabs/timeloop/blob/4cf6d4cd043bc2a5d2eb02afa9063d7117a4dc11/src/loop-analysis/mapping-to-isl/mapping-to-isl.cpp#L261
+Adapted from: 
+https://github.com/NVlabs/timeloop/blob/4cf6d4cd043bc2a5d2eb02afa9063d7117a4dc11/ \
+    src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp
 -   DataspaceId -> TensorName
 -   LogicalBuffer -> Buffet
 -   LogicalComputeUnit -> ComputeEinsum
@@ -26,22 +28,27 @@ from fastfusion.frontend.mapping import (
     AnnotatedMappingNode,
     # Mapping objects
     Mapping,
-    MappingNode,
     MappingNodeWithChildren,
-    Nested,
     # Physical object types in Mappings.
     Compute,
 )
-from fastfusion.frontend.workload.workload import Workload, RankVariableName, TensorName
-
-import fastfusion.model.looptree.reuse.isl.isl_functions as isl_help
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import *
+from fastfusion.frontend.workload.workload import Workload
+from fastfusion.frontend.mapping import (
+    TensorName
+)
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
+    EinsumName,
+    BranchTilings,
+    MappingAnalysisResult,
+)
 
 DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
 LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
 
 
-def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[AnnotatedMappingNode, Set[EinsumName]]:
+def get_mapping_group_einsums(
+    mapping: Mapping,
+) -> defaultdict[AnnotatedMappingNode, Set[EinsumName]]:
     """
     From a mapping, get the group of einsums for a given node.
 
@@ -49,9 +56,9 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[AnnotatedMappingN
 
     :return: A dictionary relating a Node to a set of einsums.
     """
-    # Each pair is a (current_node_id, last_non_branch_node_id)
+    # Each pair is a (current_node, last_non_branch_node)
     dfs_stack: deque[Tuple[AnnotatedMappingNode, AnnotatedMappingNode]] = deque()
-    # Each pair is a (last_non_branch_node_id, set_of_children_ids)
+    # Each pair is a (last_non_branch_node, set_of_children_nodes)
     child_stack: deque[Tuple[AnnotatedMappingNode, Set[AnnotatedMappingNode]]] = deque()
     result: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = defaultdict(set)
 
@@ -76,7 +83,7 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[AnnotatedMappingN
                             result[last_non_branch].add(node.einsum)
                         else:
                             raise TypeError(
-                                f"The following node should be of class "\
+                                f"The following node should be of class "
                                 f"Compute as it has no children:\n---\n{node}"
                             )
                     # Explore the children further.
@@ -92,8 +99,8 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[AnnotatedMappingN
                 result[last_non_branch].add(node.einsum)
             case _:
                 raise AttributeError(
-                    f"The following node of class {type(node)} has "\
-                    f"indeterminant number of children:\n---\n"\
+                    f"The following node of class {type(node)} has "
+                    f"indeterminant number of children:\n---\n"
                     f"{node}"
                 )
 
@@ -110,7 +117,7 @@ def get_head_among_einsums(
     einsum_set: Set[EinsumName], workload: Workload
 ) -> Set[EinsumName]:
     """
-    Gets the provider einsums that only produce data (i.e., non-consumer einsums).
+    Gets the provider einsums that only consume data (i.e., sink einsums).
 
     :param einsum_set:  Set of einsums to consider.
     :param workload:    The workload context the einsums exist in.
@@ -120,7 +127,7 @@ def get_head_among_einsums(
 
     :return:    The set of all head einsums.
     """
-
+    # Returns set of einsums that have no consumer.
     return {
         einsum
         for einsum in einsum_set
@@ -128,12 +135,11 @@ def get_head_among_einsums(
             not any(
                 consumer in einsum_set
                 for consumer in workload.einsums_that_read_tensor(output_tensor)
-
             )
             for output_tensor in workload.tensors_written_by_einsum(einsum)
         )
     }
-                
+
 
 def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     """
@@ -145,11 +151,27 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     :return:    BranchTilings associating a node's ID with its tiling.
     """
     result: BranchTilings = BranchTilings()
-    mapping_groups: defaultdict[AnnotatedMappingNode, EinsumName] = get_mapping_group_einsums()
-    mapping_group_heads: defaultdict[AnnotatedMappingNode, Set[EinsumName]]
+    # Grabs the head einsums.
+    mapping_groups: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = (
+        get_mapping_group_einsums(mapping)
+    )
+    mapping_group_heads: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = {
+        node: get_head_among_einsums(group, workload) 
+        for node, group in mapping_groups.items()
+    }
 
-    for node, group in mapping_groups:
-        mapping_group_heads[node] = get_head_among_einsums(group, workload)
+    tensor_to_reuse_level: defaultdict[TensorName, int]
+    dfs_stack: deque[AnnotatedMappingNode] = deque()
+
+    # Maps last non-branch to tiling of each in the group.
+    tiling_info: defaultdict[AnnotatedMappingNode, 
+                             defaultdict[EinsumName, isl.Map]] = {}
+
+    root: AnnotatedMappingNode = mapping.nodes[0]
+    dfs_stack.append(root)
+    for einsum_name in workload.einsum_names:
+        p_tiling: isl.Map = isl.Map.from_range(workload.einsum_ospace_bound(einsum_name))
+
 
 
 def occupancies_from_mapping(
