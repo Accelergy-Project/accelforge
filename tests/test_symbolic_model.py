@@ -6,21 +6,29 @@ from fastfusion.frontend import Specification
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import Workload
 
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.model.looptree.accesses import isl_buffer_accesses_from_buffet_actions, Accesses
 from fastfusion.model.looptree.energy import gather_actions
 from fastfusion.model.looptree.latency import get_latency
-from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, analyze_reuse, Compute, Buffet
+from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, analyze_reuse_and_add_reservations_to_mapping, Compute, Buffet
 
 
 PARENT_DIR = Path(__file__).parent
 
+def make_job(mapping: Mapping, workload: Workload) -> Job:
+    return Job(
+        spec=None,
+        tagger=None,
+        mapping=mapping,
+        workload=workload,
+    )
 
 class TestSymbolicModel(unittest.TestCase):
     def test_q_mapping(self):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'Q_mapping.yaml')
         workload = Workload.from_yaml(Path(__file__).parent / 'mha.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
 
         self.assertAlmostEqual(result.compute_stats[Compute('Q', 'MAC')].total_ops, 64.0)
         self.assertAlmostEqual(result.compute_stats[Compute('Q', 'MAC')].max_per_unit_ops, 16.0)
@@ -29,7 +37,7 @@ class TestSymbolicModel(unittest.TestCase):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'conv.mapping.yaml')
         workload = Workload.from_yaml(Path(__file__).parent / 'conv.workload.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
 
         self.assertAlmostEqual(result.compute_stats[Compute('conv', 'MAC')].total_ops, 120.0)
         self.assertAlmostEqual(result.compute_stats[Compute('conv', 'MAC')].max_per_unit_ops, 10.0)
@@ -38,7 +46,7 @@ class TestSymbolicModel(unittest.TestCase):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'matmul.mapping.yaml')
         workload = Workload.from_yaml(Path(__file__).parent / 'matmul.workload.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
 
         REF_OCCUPANCY = {
             'W0': 1,
@@ -55,7 +63,7 @@ class TestSymbolicModel(unittest.TestCase):
         mapping = Mapping.from_yaml(PARENT_DIR / 'matmul_spatial.mapping.yaml')
         workload = Workload.from_yaml(PARENT_DIR / 'matmul.workload.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
         self.assertAlmostEqual(
             result.fanout,
             {('LocalBuffer', 'Matmul1'): {0: 128.0, 1: 4.0}, ('MainMemory', 'Matmul1'): {}}
@@ -65,7 +73,7 @@ class TestSymbolicModel(unittest.TestCase):
         mapping = Mapping.from_yaml(PARENT_DIR / 'copy.mapping.yaml')
         workload = Workload.from_yaml(PARENT_DIR / 'copy.workload.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
 
         self.assertAlmostEqual(result.compute_stats[Compute('copy', 'MAC')].total_ops, 0)
         self.assertAlmostEqual(result.compute_stats[Compute('copy', 'MAC')].max_per_unit_ops, 0)
@@ -123,7 +131,7 @@ class TestSymbolicAccesses(unittest.TestCase):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'Q_mapping.yaml')
         workload = Workload.from_yaml(Path(__file__).parent / 'mha.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
 
         # main_memory_I_accesses = accesses.get_accesses('MainMemory', 'I', 'Q')
         stats = result.buffet_stats[Buffet(level='MainMemory', tensor='I', einsum='Q')]
@@ -156,7 +164,7 @@ class TestSymbolicActions(unittest.TestCase):
         mapping = Mapping.from_yaml(Path(__file__).parent / 'Q_mapping.yaml')
         workload = Workload.from_yaml(Path(__file__).parent / 'mha.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
         actions = gather_actions(result, None, use_name=True)
 
         self.assertAlmostEqual(actions[('LocalBuffer', 'read')].total, 128.0)
@@ -179,7 +187,7 @@ class TestSymbolicLatency(unittest.TestCase):
         architecture = spec.get_flattened_architecture()
         mapping = Mapping.from_yaml(Path(__file__).parent / 'Q_mapping.yaml')
 
-        result = analyze_reuse(mapping, workload)
+        result = analyze_reuse_and_add_reservations_to_mapping(make_job(mapping, workload))
         overall_latency, _, _ = get_latency(result, mapping, workload, architecture)
 
         self.assertAlmostEqual(overall_latency, 16.0)

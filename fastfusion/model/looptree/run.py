@@ -10,13 +10,14 @@ from pytimeloop.file import gather_yaml_configs
 
 from pytimeloop.looptree.capacity import compute_capacity_usage
 from pytimeloop.looptree.reuse.isl.des import deserialize_looptree_output
-from pytimeloop.looptree.reuse.summarized import analyze_reuse
+from pytimeloop.looptree.reuse.summarized import analyze_reuse_and_add_reservations_to_mapping
 from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
 from pytimeloop.looptree.latency import get_latency
 
 from pytimeloop.timeloopfe.v4fused import Specification
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 
+from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 
 @dataclass
 class LoopTreeStatistics:
@@ -26,9 +27,9 @@ class LoopTreeStatistics:
     memory_latency: dict
     capacity_usage: dict
 
-
 def run_symbolic_model(mapping, workload, architecture):
-    result = analyze_reuse(mapping, workload)
+    job = Job.make_job(mapping=mapping, workload=workload, architecture=architecture)
+    result = analyze_reuse_and_add_reservations_to_mapping(job)
     actions = gather_actions(result, bindings, use_name=True)
     pass
 
@@ -98,7 +99,8 @@ def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy)
         ] + [str(Path(tmp_path) / 'ERT.yaml')])
 
 
-    tile_shapes, result = analyze_reuse(spec.mapping.nodes, workload, analyzer)
+    job = Job.make_job(mapping=spec.mapping, workload=workload, architecture=spec.architecture)
+    tile_shapes, result = analyze_reuse_and_add_reservations_to_mapping(job)
 
     actions = gather_actions(result, bindings, use_name=True)
     energy = compute_energy_from_actions(actions, spec.ERT)

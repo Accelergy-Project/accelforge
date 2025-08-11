@@ -633,17 +633,21 @@ class PartialMappings:
 
 
 def row2pmappings(row: pd.Series, einsum_names: list[str], rank_variable_bounds: dict[str, dict[str, int]]) -> list[Nested]:
-    from fastfusion.frontend.mapping import Fill, Reservation
     pmappings: list[Nested] = []
     for einsum_name in einsum_names:
         pmapping: Nested = copy.deepcopy(row[f"{einsum_name}\0{MAPPING_COLUMN}"])
-        tile_shape_reg = einsum_name + r"___tile_shape\d+"
-        tile_shapes = list(row[[c for c in row.index if re.match(tile_shape_reg, c)]])
-        for node in pmapping.nodes:
-            if isinstance(node, Iteration):
-                node.tile_shape = tile_shapes.pop(0)
-        pmapping.clear_nodes_of_type(Fill)
+        tile_shapes = {}
+        for r, v in row.items():
+            if r.startswith(f"{einsum_name}\0tile_shape\0"):
+                k = int(r.split("\0")[-1])
+                assert k not in tile_shapes, f"Duplicate tile shape for {einsum_name}: {k}"
+                tile_shapes[k] = v
+        tile_shapes = [tile_shapes[k] for k in sorted(tile_shapes.keys())]
+        for shape, node in zip(
+            tile_shapes,
+            [n for n in pmapping.nodes if isinstance(n, Iteration)],
+        ):
+            node.tile_shape = shape
         pmappings.append(pmapping)
         pmapping.beautify_loops(rank_variable_bounds)
     return pmappings
-

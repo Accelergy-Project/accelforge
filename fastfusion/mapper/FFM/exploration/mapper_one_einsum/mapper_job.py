@@ -234,6 +234,20 @@ class Job:
     def is_copy_operation(self) -> bool:
         return self.spec.workload.einsums[self.einsum_name].is_copy_operation
 
+    @classmethod
+    def make_job(
+        cls,
+        **kwargs,
+    ) -> "Job":
+        defaults = {
+            'spec': None,
+            'tagger': None,
+            'mapping': None,
+            'workload': None,
+            'architecture': None,
+        }
+        kwargs = {**defaults, **kwargs}
+        return cls(**kwargs)
 
 class SameSpecJobs(list[Job]):
     @property

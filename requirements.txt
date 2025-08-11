@@ -2,14 +2,14 @@ annotated-types==0.7.0
 -e git+https://github.com/gilbertmike/combinatorics.git@64b53b116ec1d05dcb3fd7760235d00408ee7a40#egg=combinatorics
 fast-pareto==1.0.4
 hwcomponents @ git+https://github.com/Accelergy-Project/hwcomponents.git@bea2550e096285652335bb8f870a37432ed7317f
-islpy
-Jinja2
-joblib
+islpy==2025.2.5
+Jinja2==3.1.6
+joblib==1.5.1
 MarkupSafe==3.0.2
 mpmath==1.3.0
-numpy
-pandas
-platformdirs
+numpy==2.3.0
+pandas==2.3.0
+platformdirs==4.3.8
 pydantic>=2.0.0
 pydantic-yaml>=0.11.0
 pydantic_core==2.33.2

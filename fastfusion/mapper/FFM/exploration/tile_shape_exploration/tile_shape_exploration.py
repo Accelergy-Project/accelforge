@@ -20,7 +20,7 @@ from fastfusion.frontend.mapping import MappingNode, Temporal, Spatial, TensorHo
 from fastfusion.mapper import metrics
 from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingConstraints
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
-from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse
+from fastfusion.model.looptree.reuse.summarized.symbolic import analyze_reuse_and_add_reservations_to_mapping
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
 from fastfusion.model.looptree.latency import get_latency
 
@@ -729,7 +729,7 @@ def run_model(job: Job):
 
     df = {}
 
-    reuse = analyze_reuse(pmapping, workload, job)
+    reuse = analyze_reuse_and_add_reservations_to_mapping(job)
     overall_latency, comp_latency, mem_latency = get_latency(reuse, pmapping, workload, job.flattened_arch)
     actions = gather_actions(reuse, None, use_name=True)
     energy = compute_energy_from_actions(actions, ert, overall_latency)

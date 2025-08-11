@@ -5,7 +5,7 @@ from typing import Any
 from fastfusion.frontend import architecture
 import fastfusion.frontend.mapping as mapping_spec
 from fastfusion.frontend.architecture import ProcessingStage
-from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Fill, Iteration, Pattern, TensorHolder
+from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Iteration, Pattern, TensorHolder# NOFILL: Fill
 from fastfusion.frontend.workload import (
     Workload,
     TensorName,
@@ -322,18 +322,20 @@ def convert_to_copy(mapping: list[MappingNode], workload: Workload) -> tuple[lis
 
     
     
-def analyze_reuse(
-    mapping: Mapping,
-    workload: Workload,
-    job: Job | None = None,
+def analyze_reuse_and_add_reservations_to_mapping(
+    job: Job,
 ) -> SummarizedAnalysisOutput:
-    mapping = mapping.nodes
+    mapping = job.mapping.nodes
+    workload = job.spec.workload
     einsum_name = mapping[-1].einsum
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
-    
+
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
     if is_copy_operation:
         mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
+        # We're working with a new mapping at this point, so we need to add reservations
+        # to the job mapping.
+        job.mapping = quick_insert_reservation_nodes(job.mapping, workload)
     else:
         tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
@@ -489,22 +491,19 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
                     to_remove.append(tracker_idx)
         elif isinstance(node, Reservation):
             pass
-        elif isinstance(node, Fill):
-            pass
         else:
             raise NotImplementedError(f"Unknown node type {type(node)}")
 
-        fill_insert_below = []
-        fill_insert_above = []
-        for tracker in trackers:
-            if not tracker.is_fill_level:
-                continue
-            buffet = tracker.buffet
-            node = Fill(tensor=buffet.tensor, memory=buffet.level)
-            if tracker.insert_fill_under:
-                fill_insert_below.append(node)
-            else:
-                fill_insert_above.append(node)
+        # NOFILL: fill_insert_below = []
+        # NOFILL: fill_insert_above = []
+        # NOFILL: for tracker in trackers:
+        # NOFILL:     if not tracker.is_fill_level:
+        # NOFILL:         continue
+        # NOFILL:     buffet = tracker.buffet
+        # NOFILL:     if tracker.insert_fill_under:
+        # NOFILL:         fill_insert_below.append(node)
+        # NOFILL:     else:
+        # NOFILL:         fill_insert_above.append(node)
 
         reservation_insert_below = []
         reservation_insert_above = []
@@ -520,12 +519,12 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         # The order of these for loops is important. Reservation must be below fill.
         for node in reservation_insert_below:
             mapping.insert(i+1, node)
-        for node in fill_insert_below:
-            mapping.insert(i+1, node)
+        # NOFILL: for node in fill_insert_below:
+        # NOFILL:     mapping.insert(i+1, node)
         for node in reservation_insert_above:
             mapping.insert(i, node)
-        for node in fill_insert_above:
-            mapping.insert(i, node)
+        # NOFILL: for node in fill_insert_above:
+        # NOFILL:     mapping.insert(i, node)
 
         i += 1
         n_nodes = len(mapping)
@@ -539,7 +538,6 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnaly
         Storage: analyze_storage,
         Reservation: analyze_reservation,
         mapping_spec.Compute: analyze_compute,
-        Fill: analyze_fill,
         ProcessingStage: analyze_processing_stage,
     }
     if type(node) not in class2analysis_function:

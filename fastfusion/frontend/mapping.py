@@ -54,7 +54,7 @@ AnnotatedMappingNode: TypeAlias = ParsableList[
             Annotated["Pipeline", Tag("Pipeline")],
             Annotated["Nested", Tag("Nested")],
             Annotated["Reservation", Tag("Reservation")],
-            Annotated["Fill", Tag("Fill")],
+            # NOFILL: Annotated["Fill", Tag("Fill")],
             Annotated["Mapping", Tag("Mapping")],
             Annotated["ProcessingStage", Tag("ProcessingStage")],
         ],
@@ -1043,22 +1043,22 @@ class Reservation(MappingNode, ModelOnlyNode):
         return "#E8E8E8"  # Light gray
 
 
-class Fill(MappingNode, ModelOnlyNode):
-    """
-    The operation of moving data into a storage component.
+# class Fill(MappingNode, ModelOnlyNode):
+#     """
+#     The operation of moving data into a storage component.
 
-    :param tensor: The tensor being moved.
-    :param memory: The storage component being filled.
+#     :param tensor: The tensor being moved.
+#     :param memory: The storage component being filled.
 
-    :type tensor: str
-    :type memory: str
-    """
+#     :type tensor: str
+#     :type memory: str
+#     """
 
-    tensor: str
-    memory: str
+#     tensor: str
+#     memory: str
 
-    def compact_string(self) -> str:
-        return f"F {self.tensor} in {self.component}"
+#     def compact_string(self) -> str:
+#         return f"F {self.tensor} in {self.component}"
 
 
 # =============================================================================
@@ -1073,7 +1073,7 @@ MappingNodeTypes: TypeAlias = Union[
     Sequential,
     Compute,
     Reservation,
-    Fill,
+    # Fill,
     TensorHolder,
 ]
 """TypeAlias MappingNodeTypes: The types of MappingNodes possible."""

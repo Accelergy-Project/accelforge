@@ -225,7 +225,7 @@ def _allocate_jobs(einsum2jobs):
     for einsum_name, jobs in einsum2jobs.items():
         calls.extend(delayed(generate_pmappings)(job_list)
                     for job_list in jobs.values())
-        
+
     if util.PARALLELIZE and len(calls) < util.N_PARALLEL_THREADS * 4:
         logging.warning(
             f"Insufficient jobs available to utilize available threads. "

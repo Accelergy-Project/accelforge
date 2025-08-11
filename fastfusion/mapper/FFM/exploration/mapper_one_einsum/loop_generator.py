@@ -179,15 +179,16 @@ def insert_spatial_loops(
                 insertion_point = i + 1
 
         rv = einsum.rank_variables
-        # rv = {r for r in rv if rank_variable_bounds[r] > 1}
-        for fanout_dim, fanout_size in fanout.spatial.fanout.items():
-            mapping.insert(
-                insertion_point,
-                Spatial(
-                    rank_variable=rv,
-                    dimension=fanout_dim,
-                    across_object=fanout,
-                    across=fanout.name,
-                    tile_shape="symbol",
-                ),
-            )
+        for fanout_dim in fanout.spatial.fanout:
+            for r in rv:
+                mapping.insert(
+                    insertion_point,
+                    Spatial(
+                        rank_variable=r,
+                        dimension=fanout_dim,
+                        across_object=fanout,
+                        across=fanout.name,
+                        tile_shape="symbol",
+                    ),
+                )
+                

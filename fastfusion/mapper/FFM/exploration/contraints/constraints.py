@@ -94,6 +94,7 @@ def constrained_loops(mapping: list[MappingNode], rank_variables: set[RankVariab
             continue
         if across is not None and (not isinstance(m, Spatial) or m.across != across):
             continue
+        assert isinstance(m.rank_variable, RankVariableName)
         if m.rank_variable in remaining_rank_variables:
             nodes.append(m)
             remaining_rank_variables.discard(m.rank_variable)
