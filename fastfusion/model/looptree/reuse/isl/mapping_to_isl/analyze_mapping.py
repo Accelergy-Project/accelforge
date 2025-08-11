@@ -41,19 +41,19 @@ DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
 LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
 
 
-def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[NodeID, Set[EinsumID]]:
+def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[AnnotatedMappingNode, Set[EinsumName]]:
     """
     From a mapping, get the group of einsums for a given node.
 
     :param mapping: The mapping we are getting the grouped einsums for.
 
-    :return: A dictionary relating a NodeID to a set of EinsumIDs.
+    :return: A dictionary relating a Node to a set of einsums.
     """
     # Each pair is a (current_node_id, last_non_branch_node_id)
     dfs_stack: deque[Tuple[AnnotatedMappingNode, AnnotatedMappingNode]] = deque()
     # Each pair is a (last_non_branch_node_id, set_of_children_ids)
     child_stack: deque[Tuple[AnnotatedMappingNode, Set[AnnotatedMappingNode]]] = deque()
-    result: defaultdict[AnnotatedMappingNode, Set[Einsum]] = defaultdict(set)
+    result: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = defaultdict(set)
 
     # Start DFS hierarchical search from the root.
     root = mapping.loops[0]
@@ -99,12 +99,44 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[NodeID, Set[Einsu
 
     # Push up einsums to parents.
     for node, children in reversed(child_stack):
-        einsum_set: Set[Einsum] = result[node]
+        einsum_set: Set[EinsumName] = result[node]
         for child in children:
             einsum_set.update(result[child])
 
     return result
 
+
+def get_head_among_einsums(einsum_set: Set[EinsumName], workload: Workload) -> Set[EinsumName]:
+    """
+    Gets the provider einsums that only produce data (i.e., non-consumer einsums).
+
+    :param einsum_set:  Set of einsums to consider.
+    :param workload:    The workload context the einsums exist in.
+
+    :type einsum_set:   Set[EinsumName]
+    :type workload:     Workload
+
+    :return:    The set of all head einsums.
+    """
+
+    heads: Set[EinsumName] = set()
+
+    for einsum in einsum_set:
+        is_head: bool = True
+
+        for output_dataspace in workload.tensors_written_by_einsum(einsum):
+            for consumer_einsum in workload.einsums_that_read_tensor(output_dataspace):
+                if consumer_einsum in einsum_set:
+                    is_head = False
+                    break
+            if not is_head:
+                break
+        
+        if is_head:
+            heads.add(einsum)
+        
+    return heads
+                
 
 def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     """
@@ -116,6 +148,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     :return:    BranchTilings associating a node's ID with its tiling.
     """
     result: BranchTilings = BranchTilings()
+    mapping_groups: defaultdict[AnnotatedMappingNode, EinsumName] = get_mapping_group_einsums()
+    mapping_group_heads: defaultdict[AnnotatedMappingNode, Set[EinsumName]]
+
+    for node, group in mapping_groups:
+        mapping_group_heads[node] = get_head_among_einsums(group, workload)
 
 
 def occupancies_from_mapping(

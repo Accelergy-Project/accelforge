@@ -84,7 +84,7 @@ class ComputeEinsum:
 #   The tiling relation may have unspecified bounds which will be inferred by
 #   LoopTree. The tiling relation that goes to the nest analysis is guaranteed
 #   to be fully specified.
-Einsum: TypeAlias = str
+EinsumName: TypeAlias = str
 Tiling: TypeAlias = isl.Map     # Tiling of data and operations.
 BranchTilings: TypeAlias = defaultdict[AnnotatedMappingNode, Tiling]  # Relation between a node and its tiling.
 BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
