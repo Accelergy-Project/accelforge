@@ -21,8 +21,17 @@ from typing import Tuple
 
 import islpy as isl
 
-from fastfusion.frontend.mapper import Mapping
-from fastfusion.frontend.mapping import Nested, NodeList
+from fastfusion.frontend.mapping import (
+    # Types
+    NodeList,
+    # Mapping objects
+    Mapping,
+    MappingNode,
+    MappingNodeWithChildren,
+    Nested,
+    # Physical object types in Mappings.
+    Compute,
+)
 from fastfusion.frontend.workload.workload import Workload, RankVariableName, TensorName
 
 import fastfusion.model.looptree.reuse.isl.isl_functions as isl_help
@@ -41,18 +50,60 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[NodeID, Set[Einsu
     :return: A dictionary relating a NodeID to a set of EinsumIDs.
     """
     # Each pair is a (current_node_id, last_non_branch_node_id)
-    dfs_stack: deque[Tuple[NodeID, NodeID]] = deque()
+    dfs_stack: deque[Tuple[NodeList, NodeList]] = deque()
     # Each pair is a (last_non_branch_node_id, set_of_children_ids)
-    child_stack: deque[Tuple[NodeID, Set[NodeID]]] = deque()
-    result: defaultdict[NodeID, Set[EinsumID]] = {}
+    child_stack: deque[Tuple[NodeList, Set[NodeList]]] = deque()
+    result: defaultdict[NodeList, Set[Einsum]] = defaultdict(set)
 
+    # Start DFS hierarchical search from the root.
     root = mapping.loops[0]
     dfs_stack.append((root, root))
 
+    # Exhaustive DFS search.
     while dfs_stack:
-        node_id, last_non_branch = dfs_stack.pop()
+        # Grabs latest node to search.
+        node, last_non_branch = dfs_stack.pop()
 
-        node
+        # Differentiates behavior by number of child nodes.
+        match node:
+            case MappingNodeWithChildren():
+                match len(node.nodes):
+                    # No children, log as a folded result.
+                    case 0:
+                        # Note:: Check necesary in case Distrobuffers elides
+                        # computes into one large unit.
+                        if isinstance(node, Compute):
+                            result[last_non_branch].add(node.einsum)
+                        else:
+                            raise TypeError(
+                                f"The following node should be of class "\
+                                f"Compute as it has no children:\n---\n{node}"
+                            )
+                    # Explore the children further.
+                    case 1:
+                        dfs_stack.append((node.nodes[0], last_non_branch))
+                    # Log all branching children and explore all children.
+                    case _:
+                        children: Set[NodeList] = set(node.nodes)
+                        child_stack.extend((last_non_branch, children))
+                        dfs_stack.extend((child, child) for child in children)
+            # Assumed no children, log as a folded result.
+            case Compute():
+                result[last_non_branch].add(node.einsum)
+            case _:
+                raise AttributeError(
+                    f"The following node of class {type(node)} has "\
+                    f"indeterminant number of children:\n---\n"\
+                    f"{node}"
+                )
+
+    # Push up einsums to parents.
+    for node, children in reversed(child_stack):
+        einsum_set: Set[Einsum] = result[node]
+        for child in children:
+            einsum_set.update(result[child])
+
+    return result
 
 
 def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:

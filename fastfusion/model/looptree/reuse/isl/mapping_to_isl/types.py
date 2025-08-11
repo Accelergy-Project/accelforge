@@ -7,6 +7,7 @@ from typing import TypeAlias
 
 from islpy import isl
 
+from fastfusion.frontend.mapping import NodeList
 from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
 
 class TaggedMap:
@@ -67,7 +68,7 @@ class BufferTensorEinsum:
     einsum: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class ComputeEinsum:
     compute: str
     einsum: str
@@ -83,10 +84,9 @@ class ComputeEinsum:
 #   The tiling relation may have unspecified bounds which will be inferred by
 #   LoopTree. The tiling relation that goes to the nest analysis is guaranteed
 #   to be fully specified.
-EinsumID: TypeAlias = int
-NodeID: TypeAlias = int         # Index of an execution node in mapping.
+Einsum: TypeAlias = str
 Tiling: TypeAlias = isl.Map     # Tiling of data and operations.
-BranchTilings: TypeAlias = defaultdict[NodeID, Tiling]  # Relation between a node and its tiling.
+BranchTilings: TypeAlias = defaultdict[NodeList, Tiling]  # Relation between a node and its tiling.
 BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
 
 
