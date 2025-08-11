@@ -23,7 +23,7 @@ import islpy as isl
 
 from fastfusion.frontend.mapping import (
     # Types
-    NodeList,
+    AnnotatedMappingNode,
     # Mapping objects
     Mapping,
     MappingNode,
@@ -50,10 +50,10 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[NodeID, Set[Einsu
     :return: A dictionary relating a NodeID to a set of EinsumIDs.
     """
     # Each pair is a (current_node_id, last_non_branch_node_id)
-    dfs_stack: deque[Tuple[NodeList, NodeList]] = deque()
+    dfs_stack: deque[Tuple[AnnotatedMappingNode, AnnotatedMappingNode]] = deque()
     # Each pair is a (last_non_branch_node_id, set_of_children_ids)
-    child_stack: deque[Tuple[NodeList, Set[NodeList]]] = deque()
-    result: defaultdict[NodeList, Set[Einsum]] = defaultdict(set)
+    child_stack: deque[Tuple[AnnotatedMappingNode, Set[AnnotatedMappingNode]]] = deque()
+    result: defaultdict[AnnotatedMappingNode, Set[Einsum]] = defaultdict(set)
 
     # Start DFS hierarchical search from the root.
     root = mapping.loops[0]
@@ -84,7 +84,7 @@ def get_mapping_group_einsums(mapping: Mapping) -> defaultdict[NodeID, Set[Einsu
                         dfs_stack.append((node.nodes[0], last_non_branch))
                     # Log all branching children and explore all children.
                     case _:
-                        children: Set[NodeList] = set(node.nodes)
+                        children: Set[AnnotatedMappingNode] = set(node.nodes)
                         child_stack.extend((last_non_branch, children))
                         dfs_stack.extend((child, child) for child in children)
             # Assumed no children, log as a folded result.

@@ -42,7 +42,7 @@ from fastfusion.version import assert_version, __version__
 T = TypeVar("T", bound="MappingNode")
 """TypeVar T: Restricts the allowable types to types of MappingNodes."""
 
-NodeList: TypeAlias = ParsableList[
+AnnotatedMappingNode: TypeAlias = ParsableList[
     Annotated[
         Union[
             Annotated["Split", Tag("Split")],
@@ -62,7 +62,7 @@ NodeList: TypeAlias = ParsableList[
     ]
 ]
 """
-TypeAlias NodeList: ParsableList that can contain and discriminate between
+TypeAlias AnnotatedMappingNode: ParsableList that can contain and discriminate between
 MappingNodes of different types.
 """
 
@@ -517,10 +517,10 @@ class MappingNodeWithChildren(MappingNode):
 
     :param nodes: The child nodes.
 
-    :type nodes: NodeList
+    :type nodes: AnnotatedMappingNode
     """
 
-    nodes: NodeList = ParsableList()
+    nodes: AnnotatedMappingNode = ParsableList()
 
     def _parent2child(
         self, parent: MappingNode

@@ -7,7 +7,7 @@ from typing import TypeAlias
 
 from islpy import isl
 
-from fastfusion.frontend.mapping import NodeList
+from fastfusion.frontend.mapping import AnnotatedMappingNode
 from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
 
 class TaggedMap:
@@ -86,7 +86,7 @@ class ComputeEinsum:
 #   to be fully specified.
 Einsum: TypeAlias = str
 Tiling: TypeAlias = isl.Map     # Tiling of data and operations.
-BranchTilings: TypeAlias = defaultdict[NodeList, Tiling]  # Relation between a node and its tiling.
+BranchTilings: TypeAlias = defaultdict[AnnotatedMappingNode, Tiling]  # Relation between a node and its tiling.
 BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
 
 
