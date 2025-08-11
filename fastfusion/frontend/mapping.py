@@ -521,6 +521,7 @@ class MappingNodeWithChildren(MappingNode):
     """
 
     nodes: AnnotatedMappingNode = ParsableList()
+    _einsum_descendents: Set[Einsum] = None
 
     def _parent2child(
         self, parent: MappingNode

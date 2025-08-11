@@ -10,12 +10,17 @@ Flow of analysis:
 Adapted from: 
 https://github.com/NVlabs/timeloop/blob/4cf6d4cd043bc2a5d2eb02afa9063d7117a4dc11/ \
     src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp
+Relevant Name Changes:
 -   DataspaceId -> TensorName
 -   LogicalBuffer -> Buffet
 -   LogicalComputeUnit -> ComputeEinsum
+-   Loop -> Iteration
+-   Loop.op_dim -> Iteration.rank_variable
 """
 
 import os
+
+import logging
 
 from collections import defaultdict, deque
 from collections.abc import Set
@@ -31,9 +36,15 @@ from fastfusion.frontend.mapping import (
     MappingNodeWithChildren,
     # Physical object types in Mappings.
     Compute,
+    Iteration
 )
 from fastfusion.frontend.workload.workload import Workload
+from fastfusion.frontend.workload.isl import
+(
+    get_einsum_operation_space
+)
 from fastfusion.frontend.mapping import TensorName
+from fastfusion.mapper.FFM.joining.mappinginfo import Loop
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
     Tiling,
@@ -172,13 +183,37 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
         {}
     )
 
+    # Initiates the DFS at the mapping root and appends its info.
     root: AnnotatedMappingNode = mapping.nodes[0]
     dfs_stack.append(root)
     for einsum_name in workload.einsum_names:
         tiling: Tiling = isl.Map.from_range(
-            workload.einsum_ospace_bound(einsum_name)
+           get_einsum_operation_space(einsum_name)
         )
+        if DUMP_ISL_IR: print(f"Tiling: {tiling}")
+        tiling_info[root][einsum_name] = tiling
+    
+    while dfs_stack:
+        node = dfs_stack.pop()
+        heads = mapping_group_heads[node]
 
+        current_node: AnnotatedMappingNode = node
+        is_tiling: bool = True
+
+        while is_tiling:
+            if isinstance(current_node, Iteration):
+                if heads.size != 1:
+                    raise ValueError(f"Cannot fuse tiled set with {len(heads)} heads.")
+                
+                rank_var = current_node.rank_variable
+                head = next(iter(heads))
+
+                old_tiling: Tiling = tiling_info[current_node][head]
+                isl_rank_idx: int = tuple(
+                    workload.einsums[einsum_name].rank_variables
+                ).index(rank_var)
+
+                
 
 
 def occupancies_from_mapping(
