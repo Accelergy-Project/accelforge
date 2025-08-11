@@ -33,9 +33,7 @@ from fastfusion.frontend.mapping import (
     Compute,
 )
 from fastfusion.frontend.workload.workload import Workload
-from fastfusion.frontend.mapping import (
-    TensorName
-)
+from fastfusion.frontend.mapping import TensorName
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
     BranchTilings,
@@ -106,9 +104,7 @@ def get_mapping_group_einsums(
 
     # Push up einsums to parents.
     for node, children in reversed(child_stack):
-        einsum_set: Set[EinsumName] = result[node]
-        for child in children:
-            einsum_set.update(result[child])
+        result[node].update(result[child] for child in children)
 
     return result
 
@@ -156,7 +152,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
         get_mapping_group_einsums(mapping)
     )
     mapping_group_heads: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = {
-        node: get_head_among_einsums(group, workload) 
+        node: get_head_among_einsums(group, workload)
         for node, group in mapping_groups.items()
     }
 
@@ -164,14 +160,16 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     dfs_stack: deque[AnnotatedMappingNode] = deque()
 
     # Maps last non-branch to tiling of each in the group.
-    tiling_info: defaultdict[AnnotatedMappingNode, 
-                             defaultdict[EinsumName, isl.Map]] = {}
+    tiling_info: defaultdict[AnnotatedMappingNode, defaultdict[EinsumName, isl.Map]] = (
+        {}
+    )
 
     root: AnnotatedMappingNode = mapping.nodes[0]
     dfs_stack.append(root)
     for einsum_name in workload.einsum_names:
-        p_tiling: isl.Map = isl.Map.from_range(workload.einsum_ospace_bound(einsum_name))
-
+        p_tiling: isl.Map = isl.Map.from_range(
+            workload.einsum_ospace_bound(einsum_name)
+        )
 
 
 def occupancies_from_mapping(
