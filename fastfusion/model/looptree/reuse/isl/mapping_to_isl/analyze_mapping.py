@@ -127,7 +127,7 @@ def get_head_among_einsums(
     :return:    The set of all head einsums.
     :rtype:     Set[EinsumName]
     """
-    # Returns set of einsums that have no consumer.
+    # Returns set of einsums that are not data producers.
     return {
         einsum
         for einsum in einsum_set
