@@ -23,14 +23,13 @@ import os
 import logging
 
 from collections import defaultdict, deque
-from collections.abc import Set
 from typing import Tuple
 
 import islpy as isl
 
 from fastfusion.frontend.mapping import (
     # Types
-    AnnotatedMappingNode,
+    MappingNode,
     # Mapping objects
     Mapping,
     MappingNodeWithChildren,
@@ -38,9 +37,13 @@ from fastfusion.frontend.mapping import (
     Compute,
     Iteration
 )
-from fastfusion.frontend.workload.workload import Workload
-from fastfusion.frontend.workload.isl import
-(
+from fastfusion.frontend.workload.workload import (
+    # Workload class for all of FastFusion.
+    Workload,
+    # Helpful TypeAlias
+    RankVariableName,
+)
+from fastfusion.frontend.workload.isl import (
     get_einsum_operation_space
 )
 from fastfusion.frontend.mapping import TensorName
@@ -51,6 +54,7 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     BranchTilings,
     MappingAnalysisResult,
 )
+from fastfusion.model.looptree.workload import Einsum
 
 DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
 LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
@@ -58,7 +62,7 @@ LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
 
 def get_mapping_group_einsums(
     mapping: Mapping,
-) -> defaultdict[AnnotatedMappingNode, Set[EinsumName]]:
+) -> defaultdict[MappingNode, set[EinsumName]]:
     """
     From a mapping, get the group of einsums for a given node.
 
@@ -66,13 +70,13 @@ def get_mapping_group_einsums(
     :type mapping:  Mapping
 
     :return:    A dictionary relating a Node to a set of einsums.
-    :rtype:     defaultdict[AnnotatedMappingNode, Set[EinsumName]]
+    :rtype:     defaultdict[MappingNode, Set[EinsumName]]
     """
     # Each pair is a (current_node, last_non_branch_node)
-    dfs_stack: deque[Tuple[AnnotatedMappingNode, AnnotatedMappingNode]] = deque()
+    dfs_stack: deque[Tuple[MappingNode, MappingNode]] = deque()
     # Each pair is a (last_non_branch_node, set_of_children_nodes)
-    child_stack: deque[Tuple[AnnotatedMappingNode, Set[AnnotatedMappingNode]]] = deque()
-    result: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = defaultdict(set)
+    child_stack: deque[Tuple[MappingNode, set[MappingNode]]] = deque()
+    result: defaultdict[MappingNode, set[EinsumName]] = defaultdict(set)
 
     # Start DFS hierarchical search from the root.
     root = mapping.loops[0]
@@ -103,8 +107,8 @@ def get_mapping_group_einsums(
                         dfs_stack.append((node.nodes[0], last_non_branch))
                     # Log all branching children and explore all children.
                     case _:
-                        children: Set[AnnotatedMappingNode] = set(node.nodes)
-                        child_stack.extend((last_non_branch, children))
+                        children: set[MappingNode] = set(node.nodes)
+                        child_stack.append((last_non_branch, children))
                         dfs_stack.extend((child, child) for child in children)
             # Assumed no children, log as a folded result.
             case Compute():
@@ -118,14 +122,15 @@ def get_mapping_group_einsums(
 
     # Push up einsums to parents.
     for node, children in reversed(child_stack):
-        result[node].update(result[child] for child in children)
+        node_einsum_set: set[EinsumName] = result[node]
+        node_einsum_set.update({result[child] for child in children}) # type: ignore
 
     return result
 
 
 def get_head_among_einsums(
-    einsum_set: Set[EinsumName], workload: Workload
-) -> Set[EinsumName]:
+    einsum_set: set[EinsumName], workload: Workload
+) -> set[EinsumName]:
     """
     Gets the provider einsums that only consume data (i.e., sink einsums).
 
@@ -152,6 +157,80 @@ def get_head_among_einsums(
     }
 
 
+def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling:
+    """
+    Given a tiling, add a new dimension to the tiling.
+    """
+
+    # new_tiling has one extra dimension at the end compared to old_tiling.
+    new_tiling = old_tiling.insert_dims(
+        isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), 1
+    )
+
+    # Min and max of dim_idx. dimension being tiled as function of tiled dimensions.
+    dim_min: isl.PwAff = new_tiling.dim_min(dim_idx)
+    dim_max: isl.PwAff = new_tiling.dim_max(dim_idx)
+
+    # Aff from tiled dimensions space to value of newest dim.
+    new_dim_id: isl.Aff = isl.Aff.var_on_domain(
+        dim_min.get_domain_space().to_local_space(),
+        isl.dim_type.set,
+        dim_min.dim(isl.dim_type.in_)-1
+    )
+
+    # Aff from tiled dimensions space to tile tile size constant.
+    tile_size_aff: isl.Aff = isl.Aff.val_on_domain_space(
+        dim_min.get_domain_space(), 
+        isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_size)
+    )
+
+    # PwAff from tiled dimension space to tile_size * newest_dim.
+    tile_translate: isl.PwAff = isl.PwAff.from_aff(new_dim_id.mul(tile_size_aff))
+
+    # What dim_min should be given new tiling.
+    new_dim_min: isl.PwAff = dim_min.add(tile_translate)
+
+    # What dim_max should be given new tiling.
+    new_dim_max: isl.PwAff = new_dim_min.add(
+        isl.PwAff.from_aff(tile_size_aff.add_constant_val(-1))
+    )
+
+    # TODO: Might be logically equivalent to new_dim_id:
+    # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/tiling.cpp#L52-L59
+    new_iter_id: isl.PwAff = isl.PwAff.from_aff(
+        isl.Aff.var_on_domain(
+            new_tiling.get_space().domain(),
+            isl.dim_type.set,
+            old_tiling.dim(isl.dim_type.in_)
+        )
+    )
+
+    # The set of valid values of the new tiled dimensions.
+    iter_set: isl.Set = new_tiling.domain()
+    iter_set = iter_set.intersect(
+        new_iter_id.le_set(dim_max.div(tile_size_aff).ceil())
+    )
+    iter_set = iter_set.intersect(
+        new_dim_min.ge_set(dim_min)
+    )
+
+    # The value of iter dims cannot exceed what was available before tiling.
+    new_tiling = new_tiling.intersect_domain(iter_set)
+
+    # The set of operations need to to follow the new tile bounds.
+    identity: isl.PwAff = isl.PwAff.from_aff(
+        isl.Aff.var_on_domain(
+            new_tiling.get_space().range(),
+            isl.dim_type.set,
+            dim_idx
+        )
+    )
+    new_tiling = new_tiling.intersect(new_dim_min.le_map(identity))
+    new_tiling = new_tiling.intersect(new_dim_max.ge_map(identity))
+
+    return new_tiling
+
+
 def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     """
     Given a mapping and a workload generates a tiling.
@@ -167,28 +246,30 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     """
     result: BranchTilings = BranchTilings()
     # Grabs the head einsums.
-    mapping_groups: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = (
+    mapping_groups: defaultdict[MappingNode, set[EinsumName]] = (
         get_mapping_group_einsums(mapping)
     )
-    mapping_group_heads: defaultdict[AnnotatedMappingNode, Set[EinsumName]] = {
-        node: get_head_among_einsums(group, workload)
-        for node, group in mapping_groups.items()
-    }
+    mapping_group_heads: defaultdict[MappingNode, set[EinsumName]] = defaultdict(
+        set, {
+            node: get_head_among_einsums(group, workload)
+            for node, group in mapping_groups.items()
+        }
+    )
 
     tensor_to_reuse_level: defaultdict[TensorName, int]
-    dfs_stack: deque[AnnotatedMappingNode] = deque()
+    dfs_stack: deque[MappingNode] = deque()
 
     # Maps last non-branch to tiling of each in the group.
-    tiling_info: defaultdict[AnnotatedMappingNode, defaultdict[EinsumName, isl.Map]] = (
-        {}
+    tiling_info: defaultdict[MappingNode, defaultdict[EinsumName, Tiling]] = (
+        defaultdict(defaultdict)
     )
 
     # Initiates the DFS at the mapping root and appends its info.
-    root: AnnotatedMappingNode = mapping.nodes[0]
+    root: MappingNode = mapping.nodes[0]
     dfs_stack.append(root)
     for einsum_name in workload.einsum_names:
         tiling: Tiling = isl.Map.from_range(
-           get_einsum_operation_space(einsum_name)
+           get_einsum_operation_space(workload, einsum_name)
         )
         if DUMP_ISL_IR: print(f"Tiling: {tiling}")
         tiling_info[root][einsum_name] = tiling
@@ -197,23 +278,33 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
         node = dfs_stack.pop()
         heads = mapping_group_heads[node]
 
-        current_node: AnnotatedMappingNode = node
+        current_node: MappingNode = node
         is_tiling: bool = True
 
         while is_tiling:
             if isinstance(current_node, Iteration):
-                if heads.size != 1:
+                if len(heads) != 1:
                     raise ValueError(f"Cannot fuse tiled set with {len(heads)} heads.")
                 
                 rank_var = current_node.rank_variable
                 head = next(iter(heads))
 
                 old_tiling: Tiling = tiling_info[current_node][head]
+                # set, not AbstractSet, iteration in python is the same. Downstreeams
+                # of "heads" is also constaint.
                 isl_rank_idx: int = tuple(
-                    workload.einsums[einsum_name].rank_variables
+                    workload.einsums[head].rank_variables
                 ).index(rank_var)
 
-                
+                # Adds a new tile_dim
+                if node.tile_size:
+                    new_tiling: Tiling = add_new_tile_dim(
+                        old_tiling, isl_rank_idx, node.tile_size
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Tile size analysis not implemented for type {type(node)}"
+                    )
 
 
 def occupancies_from_mapping(
