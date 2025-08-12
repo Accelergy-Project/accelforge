@@ -71,7 +71,7 @@ class Mappings:
             if found_index is not None and col.index(key) != found_index:
                 raise ValueError(
                     f"Key {key} found at varying indexes in the column names. "
-                    f"Columns: \"{col}\""
+                    f"Columns: \"{col}\" and \"{found}\""
                 )
             found_index = col.index(key)
             found.append("\0".join(col))
