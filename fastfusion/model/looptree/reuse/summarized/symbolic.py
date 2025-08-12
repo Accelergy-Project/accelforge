@@ -616,13 +616,26 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         child_result = analyze_node(node_idx+1, child_shape, info)
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
-        for buffet, buffet_stats in child_result.buffet_stats.items():
+        child_stats = list(child_result.buffet_stats.items())
+        for i, (buffet, buffet_stats) in enumerate(child_stats):
             stats = buffet_stats
             accumulated_stats = accumulated_buffet_stats.setdefault(buffet, BuffetStats())
             relevancy = info.tensor_to_relevancy[buffet.tensor][rank_var]
+
+            # Reuse parent accesses only:
+            # - Irrelevant loops
+            # - The outermost level that holds the tensor (the one whose parent accesses
+            #   will be going through the network)
+            last_buffet = True
+            for other_buffet, _ in child_stats[i+1:]:
+                if other_buffet.tensor == buffet.tensor:
+                    last_buffet = False
+                    break
+            reuse_parent_accesses = last_buffet and isinstance(relevancy, Irrelevant)
+
             accumulated_stats += stats.repeat_spatial(
                 shape_repeats,
-                reuse_parent_accesses=isinstance(relevancy, Irrelevant) and buffet.level == node.across
+                reuse_parent_accesses=reuse_parent_accesses
             )
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
@@ -883,9 +896,7 @@ def analyze_compute(node_idx,
             stats.total_writes_to_parent = 1
             stats.max_per_parent_writes_to_parent = 1
             stats.total_skipped_first_reads_to_parent = 1
-            stats.total_skipped_first_reads_to_peer = 1
             stats.min_per_parent_skipped_first_reads_to_parent = 1
-            stats.min_per_unit_skipped_first_writes_to_peer = 1
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 
