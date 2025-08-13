@@ -442,7 +442,7 @@ class PartialMappings:
 
             # We're creating a new column, so copy allocations from any parents
             source = self.get_reservation_or_parent(resource, level-1)
-            # source is None -> We're at the top        print(f"\t\tLEFT COLS: {self.mappings.data.columns}")
+            self.data[target] = size + (self.data[source] if source else 0)
 
     @error_check_wrapper
     def adjust_reservations(
