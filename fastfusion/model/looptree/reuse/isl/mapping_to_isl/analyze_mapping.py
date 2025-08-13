@@ -405,7 +405,15 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                     fused_set, workload
                 )
 
-                
+                random_head = next(iter(heads))
+                if len(shared_input_tensor) == 1:
+                    shared_input_based_tile_shape_inference(
+                        tiling[node], fused_set, workload, random_head
+                    )
+                else:
+                    consumer_based_tile_shape_inference(
+                        tiling[node], tensor_to_reuse_level, fused_set, workload, random_head
+                    )
 
 
 def occupancies_from_mapping(
