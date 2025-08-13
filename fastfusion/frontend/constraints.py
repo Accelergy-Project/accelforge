@@ -115,10 +115,23 @@ class Tensors(ParsableModel):
     tile_shape: ParsableList[Comparison] = []
 
     def _parse_keep_bypass(self, symbol_table: dict[str, Any], location: str):
-        return type(self)(
-            bypass=eval_set_expression(self.bypass, symbol_table, "tensors", location),
-            keep=eval_set_expression(self.keep, symbol_table, "tensors", location),
-        )
+        if "bypass" in self.keep and "keep" in self.bypass:
+            raise ValueError(
+                f"Bypass and keep constraints reference each other: {self.bypass} and {self.keep}"
+            )
+
+        if isinstance(self.bypass, str) and "keep" in self.bypass:
+            keep = eval_set_expression(self.keep, symbol_table, "tensors", location)
+            symbol_table = copy.copy(symbol_table)
+            symbol_table["keep"] = keep
+            bypass = eval_set_expression(self.bypass, symbol_table, "tensors", location)
+            return type(self)(bypass=bypass, keep=keep)
+        else:
+            bypass = eval_set_expression(self.bypass, symbol_table, "tensors", location)
+            symbol_table = copy.copy(symbol_table)
+            symbol_table["bypass"] = bypass
+            keep = eval_set_expression(self.keep, symbol_table, "tensors", location)
+            return type(self)(bypass=bypass, keep=keep)
 
     def _parse_non_keep_bypass(self, symbol_table: dict[str, Any], location: str):
         return type(self)(
