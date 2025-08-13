@@ -35,6 +35,8 @@ from fastfusion.frontend.mapping import (
     MappingNodeWithChildren,
     # Physical object types in Mappings.
     Compute,
+    Storage,
+    # Logical object types in Mappings.
     Iteration
 )
 from fastfusion.frontend.workload.workload import (
@@ -269,7 +271,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
         }
     )
 
-    tensor_to_reuse_level: defaultdict[TensorName, int]
+    tensor_to_reuse_level: defaultdict[TensorName, int] = defaultdict(lambda: 0)
     dfs_stack: deque[MappingNode] = deque()
 
     # Maps last non-branch to tiling of each in the group.
@@ -337,7 +339,15 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                     tiling = tiling.intersect_domain(iteration_set)
                 
                 current_node = current_node.flatten()[0]
-
+            elif isinstance(current_node, Storage):
+                # Check if current_node is the highest level of Storage to determine reuse level.
+                if current_node.tensor not in tensor_to_reuse_level:
+                    random_einsum: EinsumName = next(iter(mapping_groups[node]))
+                    tiling: Tiling = tiling_info[node][random_einsum]
+                    tensor_to_reuse_level[current_node.tensor] = tiling.dim(isl.dim_type.in_)
+                
+                current_node = current_node.flatten()[0]
+                
 
 
 def occupancies_from_mapping(

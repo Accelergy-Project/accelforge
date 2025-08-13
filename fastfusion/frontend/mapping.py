@@ -417,7 +417,7 @@ class TensorHolder(MappingNode):
     :param component: The component type holding the tensors.
     :param component_object: The specific FastFusion object representing the
     component holding the tensors.
-    :param _must_keep_sensors: Which tensor(s) the Mapper must keep here.
+    :param _must_keep_tensors: Which tensor(s) the Mapper must keep here.
     :param _backing: The tensor(s) backed by this node.
     :param _lower: Whether the tensor names are compressed to lowercase.
 
@@ -460,6 +460,10 @@ class TensorHolder(MappingNode):
                 f"Access the tensors property instead."
             )
         return self.tensors[0]
+    
+    @property
+    def exploits_reuse(self) -> bool:
+        return bool()
 
     def _render_node_shape(self) -> str:
         return "cylinder"
