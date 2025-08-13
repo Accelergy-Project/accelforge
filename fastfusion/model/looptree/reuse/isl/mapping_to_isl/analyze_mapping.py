@@ -18,6 +18,7 @@ Relevant Name Changes:
 -   Loop.op_dim -> Iteration.rank_variable
 -   *MappingNode.child -> MappingNode.flatten()[0]?
 -   Root -> Mapping?
+-   Compute.kernel -> Compute.einsum
 """
 
 import os
@@ -353,6 +354,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
             # If we are at the Mapping root, just go to the actual Nodes.
             if isinstance(current_node, Mapping):
                 current_node = current_node.flatten()[0]
+            # If we hit the compute node, we've finished tiling, end!
+            if isinstance(current_node, Compute):
+                result[current_node] = tiling_info[node][current_node.einsum]
+                is_tiling = False
+            
 
 
 def occupancies_from_mapping(
