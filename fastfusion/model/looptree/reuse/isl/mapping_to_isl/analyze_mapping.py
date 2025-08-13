@@ -251,9 +251,25 @@ def add_new_tile_dim(
 def detect_shared_input_tensor(
     fused_set: set[EinsumName], workload: Workload
 ) -> List[TensorName]:
+    """
+    Given a set of fused einsums on a workload, detect the input tensor that they
+    all are dependent on, if it exists.
+
+    :param fused_set:   The set of fused einsums being analyzed.
+    :param workload:    The workload context the einsums exist in.
+
+    :type fused_set:    set[EinsumName]
+    :type workload:     Workload
+
+    :return:    The list of tensors shared by the inputs. Because we default to
+                consumer-based analysis if there's more than 1 shared input among
+                the tensors, we only return tuple sizes of {0, 1, 2}.
+    :rtype:     List[EinsumName]
+    """
     n_einsums: int = 0
     tensor_read_counts: defaultdict[TensorName, int] = defaultdict(lambda: 0)
 
+    # Counts the number of times a tensor is read by an einsum.
     for einsum in fused_set:
         for tensor in workload.tensors_read_by_einsum(einsum):
             tensor_read_counts[tensor] += 1
@@ -261,8 +277,12 @@ def detect_shared_input_tensor(
     
     shared_input_tensors: List[TensorName] = []
     for tensor, count in tensor_read_counts.items():
+        # Tensor is shared by all einsums.
         if count == n_einsums:
             shared_input_tensors.append(tensor)
+            # Caller should resort to consumer-based fusing methods.
+            if len(shared_input_tensors) > 1:
+                return shared_input_tensors
     
     return shared_input_tensors
 
