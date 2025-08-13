@@ -1,4 +1,5 @@
 from collections import defaultdict
+import random
 from typing import Callable
 from combinatorics.integer import *
 from dataclasses import dataclass, field
@@ -383,24 +384,27 @@ def generate_tile_shapes(
                 new_is_symbol,
                 np.empty((0, len(new_index)), dtype=np.int64)
             )
-            
+
         # If the product of the number of choices is > than ffm.max_explored_tile_shapes_per_bypass_choice,
         # then randomly permute the choices
         max_choices = specification.mapper.ffm.max_explored_tile_shapes_per_bypass_choice
+
+        a_idx_choices = list(range(0, choices_a.shape[0], tile_shape))
+        b_idx_choices = list(range(0, choices_b.shape[0], tile_shape))
+
         if choices_a.shape[0] * choices_b.shape[0] > max_choices:
-            choices_a = choices_a[np.random.permutation(choices_a.shape[0])]
-            choices_b = choices_b[np.random.permutation(choices_b.shape[0])]
+            random.shuffle(a_idx_choices)
+            random.shuffle(b_idx_choices)
         found_choices = 0
 
         all_good_choices = []
-        for a_idx in range(0, choices_a.shape[0], tile_shape):
+        for a_idx in a_idx_choices:
             a_idx_max = min(a_idx+tile_shape, choices_a.shape[0])
             tile_occupancy_a = a_idx_max - a_idx
-            
-            for b_idx in range(0, choices_b.shape[0], tile_shape):
+            for b_idx in b_idx_choices:
                 b_idx_max = min(b_idx+tile_shape, choices_b.shape[0])
                 tile_occupancy_b = b_idx_max - b_idx
-                
+
                 combined_choices = np.concatenate(
                     (
                         np.tile(choices_a[a_idx:a_idx_max,:], (tile_occupancy_b, 1)),
