@@ -157,7 +157,9 @@ def get_head_among_einsums(
     }
 
 
-def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling:
+def add_new_tile_dim(
+    old_tiling: Tiling, dim_idx: int, tile_size: int
+) -> Tiling:
     """
     Given a tiling, add a new dimension to the tiling.
 
@@ -308,13 +310,14 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 ).index(rank_var)
 
                 # Adds a new tile_dim
-                if current_node.tile_shape:
+                if isinstance(current_node.tile_shape, int):
                     new_tiling: Tiling = add_new_tile_dim(
                         old_tiling, isl_rank_idx, current_node.tile_shape
                     )
                 else:
                     raise NotImplementedError(
                         f"Tile size analysis not implemented for type {type(node)}"
+                        f"with tile shape {current_node.tile_shape}"
                     )
 
 
