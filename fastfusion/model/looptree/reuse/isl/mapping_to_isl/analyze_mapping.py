@@ -16,6 +16,8 @@ Relevant Name Changes:
 -   LogicalComputeUnit -> ComputeEinsum
 -   Loop -> Iteration
 -   Loop.op_dim -> Iteration.rank_variable
+-   *MappingNode.child -> MappingNode.flatten()[0]?
+-   Root -> Mapping?
 """
 
 import os
@@ -339,6 +341,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                     tiling = tiling.intersect_domain(iteration_set)
                 
                 current_node = current_node.flatten()[0]
+            # Notes what reuse level the tensor is on.
             elif isinstance(current_node, Storage):
                 # Check if current_node is the highest level of Storage to determine reuse level.
                 if current_node.tensor not in tensor_to_reuse_level:
@@ -346,6 +349,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                     tiling: Tiling = tiling_info[node][random_einsum]
                     tensor_to_reuse_level[current_node.tensor] = tiling.dim(isl.dim_type.in_)
                 
+                current_node = current_node.flatten()[0]
+            # If we are at the Mapping root, just go to the actual Nodes.
+            if isinstance(current_node, Mapping):
                 current_node = current_node.flatten()[0]
 
 
