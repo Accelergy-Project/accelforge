@@ -42,15 +42,13 @@ from fastfusion.frontend.mapping import (
     Storage,
     # Logical object types in Mappings.
     Iteration,
-    Split
+    Split,
 )
 from fastfusion.frontend.workload.workload import (
     # Workload class for all of FastFusion.
     Workload,
 )
-from fastfusion.frontend.workload.isl import (
-    get_einsum_operation_space
-)
+from fastfusion.frontend.workload.isl import get_einsum_operation_space
 from fastfusion.frontend.mapping import TensorName
 from fastfusion.mapper.FFM.joining.mappinginfo import Loop
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
@@ -127,7 +125,7 @@ def get_mapping_group_einsums(
     # Push up einsums to parents.
     for node, children in reversed(child_stack):
         node_einsum_set: set[EinsumName] = result[node]
-        node_einsum_set.update({result[child] for child in children}) # type: ignore
+        node_einsum_set.update({result[child] for child in children})  # type: ignore
 
     return result
 
@@ -161,9 +159,7 @@ def get_head_among_einsums(
     }
 
 
-def add_new_tile_dim(
-    old_tiling: Tiling, dim_idx: int, tile_size: int
-) -> Tiling:
+def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling:
     """
     Given a tiling, add a new dimension to the tiling.
 
@@ -192,13 +188,12 @@ def add_new_tile_dim(
     new_dim_id: isl.Aff = isl.Aff.var_on_domain(
         dim_min.get_domain_space().to_local_space(),
         isl.dim_type.set,
-        dim_min.dim(isl.dim_type.in_)-1
+        dim_min.dim(isl.dim_type.in_) - 1,
     )
 
     # Aff from tiled dimensions space to tile tile size constant.
     tile_size_aff: isl.Aff = isl.Aff.val_on_domain_space(
-        dim_min.get_domain_space(), 
-        isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_size)
+        dim_min.get_domain_space(), isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_size)
     )
 
     # PwAff from tiled dimension space to tile_size * newest_dim.
@@ -218,29 +213,21 @@ def add_new_tile_dim(
         isl.Aff.var_on_domain(
             new_tiling.get_space().domain(),
             isl.dim_type.set,
-            old_tiling.dim(isl.dim_type.in_)
+            old_tiling.dim(isl.dim_type.in_),
         )
     )
 
     # The set of valid values of the new tiled dimensions.
     iter_set: isl.Set = new_tiling.domain()
-    iter_set = iter_set.intersect(
-        new_iter_id.le_set(dim_max.div(tile_size_aff).ceil())
-    )
-    iter_set = iter_set.intersect(
-        new_dim_min.ge_set(dim_min)
-    )
+    iter_set = iter_set.intersect(new_iter_id.le_set(dim_max.div(tile_size_aff).ceil()))
+    iter_set = iter_set.intersect(new_dim_min.ge_set(dim_min))
 
     # The value of iter dims cannot exceed what was available before tiling.
     new_tiling = new_tiling.intersect_domain(iter_set)
 
     # The set of operations need to to follow the new tile bounds.
     identity: isl.PwAff = isl.PwAff.from_aff(
-        isl.Aff.var_on_domain(
-            new_tiling.get_space().range(),
-            isl.dim_type.set,
-            dim_idx
-        )
+        isl.Aff.var_on_domain(new_tiling.get_space().range(), isl.dim_type.set, dim_idx)
     )
     new_tiling = new_tiling.intersect(new_dim_min.le_map(identity))
     new_tiling = new_tiling.intersect(new_dim_max.ge_map(identity))
@@ -274,7 +261,7 @@ def detect_shared_input_tensor(
         for tensor in workload.tensors_read_by_einsum(einsum):
             tensor_read_counts[tensor] += 1
         n_einsums += 1
-    
+
     shared_input_tensors: List[TensorName] = []
     for tensor, count in tensor_read_counts.items():
         # Tensor is shared by all einsums.
@@ -283,7 +270,7 @@ def detect_shared_input_tensor(
             # Caller should resort to consumer-based fusing methods.
             if len(shared_input_tensors) > 1:
                 return shared_input_tensors
-    
+
     return shared_input_tensors
 
 
@@ -306,10 +293,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
         get_mapping_group_einsums(mapping)
     )
     mapping_group_heads: defaultdict[MappingNode, set[EinsumName]] = defaultdict(
-        set, {
+        set,
+        {
             node: get_head_among_einsums(group, workload)
             for node, group in mapping_groups.items()
-        }
+        },
     )
 
     tensor_to_reuse_level: defaultdict[TensorName, int] = defaultdict()
@@ -325,11 +313,12 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     dfs_stack.append(root)
     for einsum_name in workload.einsum_names:
         tiling: Tiling = isl.Map.from_range(
-           get_einsum_operation_space(workload, einsum_name)
+            get_einsum_operation_space(workload, einsum_name)
         )
-        if DUMP_ISL_IR: print(f"Tiling: {tiling}")
+        if DUMP_ISL_IR:
+            print(f"Tiling: {tiling}")
         tiling_info[root][einsum_name] = tiling
-    
+
     while dfs_stack:
         node = dfs_stack.pop()
         heads = mapping_group_heads[node]
@@ -342,7 +331,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
             if isinstance(current_node, Iteration):
                 if len(heads) != 1:
                     raise ValueError(f"Cannot fuse tiled set with {len(heads)} heads.")
-                
+
                 # Grabs rank_var to tile and the head to tile it from.
                 rank_var = current_node.rank_variable
                 head = next(iter(heads))
@@ -350,12 +339,15 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 old_tiling: Tiling = tiling_info[node][head]
                 # set, not AbstractSet, iteration in python is the same. Downstreeams
                 # of "heads" is also constaint.
-                isl_rank_idx: int = tuple(
-                    workload.einsums[head].rank_variables
-                ).index(rank_var)
+                isl_rank_idx: int = tuple(workload.einsums[head].rank_variables).index(
+                    rank_var
+                )
 
                 # Adds a new tile_dim to the old tiling.
-                if isinstance(current_node.tile_shape, int) and current_node.tile_shape != 0:
+                if (
+                    isinstance(current_node.tile_shape, int)
+                    and current_node.tile_shape != 0
+                ):
                     new_tiling: Tiling = add_new_tile_dim(
                         old_tiling, isl_rank_idx, current_node.tile_shape
                     )
@@ -364,7 +356,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                         f"Tile size analysis not implemented for type {type(node)} "
                         f"with tile shape {current_node.tile_shape}"
                     )
-                
+
                 # Saves the fused tiling.
                 tiling_info[node][head] = new_tiling
 
@@ -378,7 +370,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                         isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
                     )
                     tiling = tiling.intersect_domain(iteration_set)
-                
+
                 current_node = current_node.flatten()[0]
             # Notes what reuse level the tensor is on.
             elif isinstance(current_node, Storage):
@@ -386,8 +378,10 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 if current_node.tensor not in tensor_to_reuse_level:
                     random_einsum: EinsumName = next(iter(mapping_groups[node]))
                     tiling: Tiling = tiling_info[node][random_einsum]
-                    tensor_to_reuse_level[current_node.tensor] = tiling.dim(isl.dim_type.in_)
-                
+                    tensor_to_reuse_level[current_node.tensor] = tiling.dim(
+                        isl.dim_type.in_
+                    )
+
                 current_node = current_node.flatten()[0]
             # If we are at the Mapping root, just go to the actual Nodes.
             elif isinstance(current_node, Mapping):
@@ -408,11 +402,15 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 random_head = next(iter(heads))
                 if len(shared_input_tensor) == 1:
                     shared_input_based_tile_shape_inference(
-                        tiling[node], fused_set, workload, random_head
+                        tiling_info[node], fused_set, workload, random_head
                     )
                 else:
                     consumer_based_tile_shape_inference(
-                        tiling[node], tensor_to_reuse_level, fused_set, workload, random_head
+                        tiling_info[node],
+                        tensor_to_reuse_level,
+                        fused_set,
+                        workload,
+                        random_head,
                     )
 
 
