@@ -19,6 +19,7 @@ Relevant Name Changes:
 -   *MappingNode.child -> MappingNode.flatten()[0]?
 -   Root -> Mapping?
 -   Compute.kernel -> Compute.einsum
+-   Branch -> Split?
 """
 
 import os
@@ -26,7 +27,7 @@ import os
 import logging
 
 from collections import defaultdict, deque
-from typing import Tuple
+from typing import List, Tuple
 
 import islpy as isl
 
@@ -40,13 +41,12 @@ from fastfusion.frontend.mapping import (
     Compute,
     Storage,
     # Logical object types in Mappings.
-    Iteration
+    Iteration,
+    Split
 )
 from fastfusion.frontend.workload.workload import (
     # Workload class for all of FastFusion.
     Workload,
-    # Helpful TypeAlias
-    RankVariableName,
 )
 from fastfusion.frontend.workload.isl import (
     get_einsum_operation_space
@@ -59,7 +59,6 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     BranchTilings,
     MappingAnalysisResult,
 )
-from fastfusion.model.looptree.workload import Einsum
 
 DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
 LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
@@ -249,6 +248,25 @@ def add_new_tile_dim(
     return new_tiling
 
 
+def detect_shared_input_tensor(
+    fused_set: set[EinsumName], workload: Workload
+) -> List[TensorName]:
+    n_einsums: int = 0
+    tensor_read_counts: defaultdict[TensorName, int] = defaultdict(lambda: 0)
+
+    for einsum in fused_set:
+        for tensor in workload.tensors_read_by_einsum(einsum):
+            tensor_read_counts[tensor] += 1
+        n_einsums += 1
+    
+    shared_input_tensors: List[TensorName] = []
+    for tensor, count in tensor_read_counts.items():
+        if count == n_einsums:
+            shared_input_tensors.append(tensor)
+    
+    return shared_input_tensors
+
+
 def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     """
     Given a mapping and a workload generates a tiling.
@@ -352,13 +370,22 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 
                 current_node = current_node.flatten()[0]
             # If we are at the Mapping root, just go to the actual Nodes.
-            if isinstance(current_node, Mapping):
+            elif isinstance(current_node, Mapping):
                 current_node = current_node.flatten()[0]
             # If we hit the compute node, we've finished tiling, end!
-            if isinstance(current_node, Compute):
+            elif isinstance(current_node, Compute):
                 result[current_node] = tiling_info[node][current_node.einsum]
                 is_tiling = False
-            
+            elif isinstance(current_node, Split):
+                fused_set: set = mapping_groups[node]
+                if len(heads) != 1:
+                    # There can't be a tiling, so no inference to be done.
+                    break
+                shared_input_tensor: List[TensorName] = detect_shared_input_tensor(
+                    fused_set, workload
+                )
+
+                
 
 
 def occupancies_from_mapping(
