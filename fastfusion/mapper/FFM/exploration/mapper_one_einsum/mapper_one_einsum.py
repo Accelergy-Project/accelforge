@@ -1,5 +1,6 @@
 import copy
 from collections import defaultdict
+import itertools
 import math
 from numbers import Number
 import time
@@ -172,6 +173,25 @@ def get_ranks_with_tile_pattern(producer_name: EinsumName, workload: Workload):
     }
 
 
+def max_fused_loops(mapping: Mapping, max_fused_loops: int):
+    fused_loops = [
+        i
+        for i, node in enumerate(mapping)
+        if isinstance(node, Iteration)
+        and node._fused
+    ]
+
+    if len(fused_loops) <= max_fused_loops:
+        yield mapping
+        return
+
+    for choice in itertools.combinations(fused_loops, max_fused_loops):
+        to_remove = set(fused_loops) - set(choice)
+        mapping_new = list(mapping)
+        for f in sorted(to_remove, reverse=True):
+            mapping_new.pop(f)
+        yield mapping_new
+
 def iterate_mappings_no_constraints(
     spec: Specification,
     einsum_name: str,
@@ -211,9 +231,12 @@ def iterate_mappings_no_constraints(
             if spec.mapper.ffm.timeloop_style_even:
                 mapping = timeloop_style_even(mapping)
                 
-                
             place_missing_temporal_loops(mapping, einsum)
-            yield mapping, symbol_table
+            for mapping2 in max_fused_loops(
+                mapping,
+                spec.mapper.ffm.max_fused_loops,
+            ):
+                yield mapping2, symbol_table
 
 def iterate_mappings_constraints(
     spec: Specification,
