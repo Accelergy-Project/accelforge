@@ -105,13 +105,13 @@ def explore_tile_shapes(job: "Job"):
         compiled_df = compile_dict(symbols, symbolic_df)
         compiled_per_memory_occupancy_df = compile_dict(symbols, per_memory_occupancy_df)
         compiled_utilization_df = compile_dict(symbols, utilization_df)
-    except:
+    except Exception as e:
         print('Compilation failed for this mapping:')
         for node in pmapping.nodes:
             if hasattr(node, 'compact_string'):
                 print(node.compact_string())
         print(symbolic_df)
-        raise RuntimeError('Compilation failed')
+        raise RuntimeError('Compilation failed') from e
 
     tile_shapes, is_symbol, total_pmappings = generate_tile_shapes(
         pmapping,

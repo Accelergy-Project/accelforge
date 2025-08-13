@@ -40,14 +40,11 @@ def get_rank_variable_bounds_for_all_einsums(spec: Specification):
                     )
     return result
 
-def get_num_computes(spec: Specification) -> int:
+def get_num_computes(spec: Specification, einsum_name: EinsumName | None = None) -> int:
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    return sum(
-        prod(
-            rank_variable_bounds[r] for r in einsum.rank_variables
-        )
-        for einsum in spec.workload.einsums
-    )
+    einsums = spec.workload.einsums
+    einsums = [einsums[einsum_name]] if einsum_name is not None else einsums
+    return sum(prod(rank_variable_bounds[r] for r in e.rank_variables)for e in einsums)
     
 def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)

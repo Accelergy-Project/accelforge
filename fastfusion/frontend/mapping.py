@@ -243,6 +243,7 @@ class MappingNode(ParsableModel, ABC):
             shape=self._render_node_shape(),
             style="filled",
             fillcolor=self._render_node_color(),
+            margin=0,
         )
 
     def _parent2next(self) -> "MappingNode":
@@ -1033,7 +1034,7 @@ class Reservation(MappingNode, ModelOnlyNode):
         return f"{self.resource} reserved for {",".join(purposes)}"
 
     def _render_node_shape(self) -> str:
-        return "signature"
+        return "component"
 
     @property
     def purpose(self) -> str:
@@ -1133,7 +1134,7 @@ class Mapping(Nested):
         return f"Root"
 
     def render(self) -> str:
-        graph = pydot.Dot(graph_type="digraph", rankdir="TD")
+        graph = pydot.Dot(graph_type="digraph", rankdir="TD", ranksep=0.2)
         graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
         graph.set_edge_defaults(fontname="Arial", fontsize="10")
         # Enable HTML-like labels for color support

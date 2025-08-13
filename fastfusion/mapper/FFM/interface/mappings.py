@@ -11,8 +11,8 @@ class Mappings:
         self.einsum_names = einsum_names
         self.data = data
 
-    def num_computes(self) -> int:
-        return get_num_computes(self.spec)
+    def num_computes(self, einsum_name: EinsumName | None = None) -> int:
+        return get_num_computes(self.spec, einsum_name)
 
     def per_tensor_size(self) -> dict[TensorName, int]:
         return get_per_tensor_size(self.spec)
@@ -71,7 +71,7 @@ class Mappings:
             if found_index is not None and col.index(key) != found_index:
                 raise ValueError(
                     f"Key {key} found at varying indexes in the column names. "
-                    f"Columns: \"{col}\""
+                    f"Columns: \"{col}\" and \"{found}\""
                 )
             found_index = col.index(key)
             found.append("\0".join(col))
@@ -155,9 +155,38 @@ class Mappings:
     @property
     def columns(self) -> list[str]:
         return list(self.data.columns)
-    
+
     def to_dict(self) -> dict[str, list[float]]:
         new = self.data.to_dict(orient="list")
         if len(self) == 1:
             new = {k: v[0] for k, v in new.items()}
         return new
+
+    def per_compute(self, per_einsum: bool = False) -> "Mappings":
+        new_df = self.data.copy()
+        total_computes = self.num_computes()
+        for col in new_df.columns:
+            n_computes = total_computes
+            if per_einsum:
+                einsum_name = col.split("\0")[0]
+                if einsum_name not in self.einsum_names and einsum_name != "Total":
+                    raise ValueError(
+                        f"Einsum name {einsum_name} not found. Ensure that all "
+                        f"columns are prefixed with the Einsum name if per_einsum "
+                        f"is True."
+                    )
+                if einsum_name != "Total":
+                    n_computes = self.num_computes(einsum_name)
+            # Check if the column can be converted to numeric
+            try:
+                pd.to_numeric(new_df[col], errors='raise')
+                new_df[col] /= n_computes
+            except (ValueError, TypeError):
+                # Skip columns that can't be converted to numeric
+                continue
+        return Mappings(self.spec, self.einsum_names, new_df)
+
+    def drop_zero(self) -> "Mappings":
+        new_df = self.data.copy()
+        new_df = new_df[(c for c in new_df.columns if (new_df[c] != 0).any())]
+        return Mappings(self.spec, self.einsum_names, new_df)
