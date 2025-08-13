@@ -460,10 +460,6 @@ class TensorHolder(MappingNode):
                 f"Access the tensors property instead."
             )
         return self.tensors[0]
-    
-    @property
-    def exploits_reuse(self) -> bool:
-        return bool()
 
     def _render_node_shape(self) -> str:
         return "cylinder"

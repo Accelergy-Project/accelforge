@@ -271,7 +271,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
         }
     )
 
-    tensor_to_reuse_level: defaultdict[TensorName, int] = defaultdict(lambda: 0)
+    tensor_to_reuse_level: defaultdict[TensorName, int] = defaultdict()
     dfs_stack: deque[MappingNode] = deque()
 
     # Maps last non-branch to tiling of each in the group.
@@ -347,7 +347,6 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                     tensor_to_reuse_level[current_node.tensor] = tiling.dim(isl.dim_type.in_)
                 
                 current_node = current_node.flatten()[0]
-                
 
 
 def occupancies_from_mapping(
