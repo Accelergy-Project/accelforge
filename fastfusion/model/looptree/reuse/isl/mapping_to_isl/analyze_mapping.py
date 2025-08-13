@@ -160,6 +160,17 @@ def get_head_among_einsums(
 def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling:
     """
     Given a tiling, add a new dimension to the tiling.
+
+    :param old_tiling:  The previous tiling the mapper proposed.
+    :param dim_idx:     The index of the dimension being tiled.
+    :param tile_size:   The size of the tiling on dim_idx.
+
+    :type old_tiling:   Tiling
+    :type dim_idx:      int
+    :type tile_size:    int
+
+    :return:    The new Tiling with tiled dimension at dim_idx.
+    :rtype:     Tiling
     """
 
     # new_tiling has one extra dimension at the end compared to old_tiling.
@@ -297,9 +308,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 ).index(rank_var)
 
                 # Adds a new tile_dim
-                if node.tile_size:
+                if current_node.tile_shape:
                     new_tiling: Tiling = add_new_tile_dim(
-                        old_tiling, isl_rank_idx, node.tile_size
+                        old_tiling, isl_rank_idx, current_node.tile_shape
                     )
                 else:
                     raise NotImplementedError(
