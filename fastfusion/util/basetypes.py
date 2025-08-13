@@ -443,7 +443,21 @@ def get_parsable_field_order(order: tuple[str, ...], field_value_validator_tripl
 
     return order
 
-class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
+
+class ModelWithUnderscoreFields(BaseModel):
+    def __init__(self, **kwargs):
+        new_kwargs = {}
+        for field, value in kwargs.items():
+            if field.startswith("_") and \
+                field not in self.__class__.model_fields and \
+                field[1:] in self.__class__.model_fields:
+                new_kwargs[field[1:]] = value
+            else:
+                new_kwargs[field] = value
+        super().__init__(**new_kwargs)
+
+
+class ParsableModel(ModelWithUnderscoreFields, Parsable['ParsableModel'], FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
     type: Optional[str] = None
 
@@ -502,7 +516,7 @@ class ParsableModel(BaseModel, Parsable['ParsableModel'], FromYAMLAble):
                 return False
         return True
 
-class NonParsableModel(BaseModel, FromYAMLAble):
+class NonParsableModel(ModelWithUnderscoreFields, FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
     type: Optional[str] = None
 
