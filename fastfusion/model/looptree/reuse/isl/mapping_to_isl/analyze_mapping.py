@@ -295,30 +295,49 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
         is_tiling: bool = True
 
         while is_tiling:
+            # Fuses current_node to one of the heads.
             if isinstance(current_node, Iteration):
                 if len(heads) != 1:
                     raise ValueError(f"Cannot fuse tiled set with {len(heads)} heads.")
                 
+                # Grabs rank_var to tile and the head to tile it from.
                 rank_var = current_node.rank_variable
                 head = next(iter(heads))
 
-                old_tiling: Tiling = tiling_info[current_node][head]
+                old_tiling: Tiling = tiling_info[node][head]
                 # set, not AbstractSet, iteration in python is the same. Downstreeams
                 # of "heads" is also constaint.
                 isl_rank_idx: int = tuple(
                     workload.einsums[head].rank_variables
                 ).index(rank_var)
 
-                # Adds a new tile_dim
-                if isinstance(current_node.tile_shape, int):
+                # Adds a new tile_dim to the old tiling.
+                if isinstance(current_node.tile_shape, int) and current_node.tile_shape != 0:
                     new_tiling: Tiling = add_new_tile_dim(
                         old_tiling, isl_rank_idx, current_node.tile_shape
                     )
                 else:
                     raise NotImplementedError(
-                        f"Tile size analysis not implemented for type {type(node)}"
+                        f"Tile size analysis not implemented for type {type(node)} "
                         f"with tile shape {current_node.tile_shape}"
                     )
+                
+                # Saves the fused tiling.
+                tiling_info[node][head] = new_tiling
+
+                iteration_set: isl.Set = new_tiling.domain()
+                for einsum in mapping_groups[node]:
+                    if einsum == head:
+                        continue
+
+                    tiling = tiling_info[node][einsum]
+                    tiling = tiling.insert_dims(
+                        isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
+                    )
+                    tiling = tiling.intersect_domain(iteration_set)
+                
+                current_node = current_node.flatten()[0]
+
 
 
 def occupancies_from_mapping(
