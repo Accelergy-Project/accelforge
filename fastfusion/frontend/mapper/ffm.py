@@ -1,11 +1,11 @@
 from typing import Any, Annotated
 
 from fastfusion.mapper.metrics import Metrics
-from fastfusion.util.basetypes import ParsableModel, ParseExtras
+from fastfusion.util.basetypes import ParsableModel
 from fastfusion.version import assert_version, __version__
 
 
-class FFM(ParsableModel, ParseExtras):
+class FFM(ParsableModel):
     version: Annotated[str, assert_version] = __version__
     timeloop_style_even: bool = False
     force_memory_hierarchy_order: bool = True
