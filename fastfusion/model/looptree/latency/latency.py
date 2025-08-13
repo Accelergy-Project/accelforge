@@ -23,13 +23,8 @@ def get_latency(looptree_results,
                                  flattened_arch,
                                  mapping,
                                  workload)
-    max_mem_latency = Max(*mem_latency.values())
-    # The following form helps broadcasting a NumPy input after lambdify.
-    # May be needed in other places
-    overall_latency = Piecewise(
-        (comp_latency, comp_latency > max_mem_latency),
-        (max_mem_latency, True)
-    )
+    
+    overall_latency = Max(comp_latency, *mem_latency.values())
     return overall_latency, comp_latency, mem_latency
 
 
