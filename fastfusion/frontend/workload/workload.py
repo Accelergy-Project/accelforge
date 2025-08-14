@@ -396,7 +396,7 @@ class Workload(ParsableModel):
             
         for t in self.tensor_names:
             if t not in symbol_table:
-                symbol_table[t] = InvertibleSet(instance=(), space_name="tensors", full_space=self.tensor_names)
+                symbol_table[t] = InvertibleSet(instance=(), space_name="tensors", full_space=all_)
                 
         return symbol_table
 
