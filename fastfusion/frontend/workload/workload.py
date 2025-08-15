@@ -69,6 +69,7 @@ class TensorAccess(ParsableModel):
     :type output:       bool
     :type factors:      list
     """
+
     name: TensorName
     projection: dict[str, str] | list[str]
     output: bool = False
@@ -185,6 +186,7 @@ class Shape(ParsableList):
     """
     Specifies valid values for the rank variables.
     """
+
     @property
     def rank_variables(self) -> set[str]:
         if not self:
@@ -206,6 +208,7 @@ class Einsum(ParsableModel):
     :type shape:                Shape[str]
     :type is_copy_operation:    bool
     """
+
     name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape[str] = Shape() # NOTE: Type checker knows Shape is a ParsableList[str], Pydantic does not.
