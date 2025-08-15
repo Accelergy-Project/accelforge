@@ -10,6 +10,7 @@ import pydot
 from fastfusion.util.util import pydot_graph
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from fastfusion.frontend.renames import Renames
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.version import assert_version, __version__
@@ -182,7 +183,7 @@ def shape_factory(shape: list | str):
     return Shape(shape)
 
 
-class Shape(ParsableList):
+class Shape(ParsableList[str]):
     """
     Specifies valid values for the rank variables.
     """
@@ -431,7 +432,7 @@ class Workload(ParsableModel):
         graph = pydot_graph()
         
         # Add all tensors as nodes (circles)
-        tensors = []
+        tensors: list[TensorName] = []
         seen_tensor_names = set()
         for einsum in self.einsums:
             node = pydot.Node(f"Einsum_{einsum.name}", shape="box", label=f"<{einsum.to_formatted_string(compress=True)}>")
