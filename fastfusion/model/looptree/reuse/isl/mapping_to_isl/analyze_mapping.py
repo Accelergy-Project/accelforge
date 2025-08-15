@@ -46,7 +46,10 @@ from fastfusion.frontend.workload.workload import (
     # Workload class for all of FastFusion.
     Workload,
 )
-from fastfusion.frontend.workload.isl import get_einsum_operation_space
+from fastfusion.frontend.workload.isl import (
+    get_einsum_operation_space,
+    get_projection_map,
+)
 from fastfusion.frontend.mapping import TensorName
 from fastfusion.mapper.FFM.joining.mappinginfo import Loop
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
@@ -236,10 +239,43 @@ def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling
 def shared_input_based_tile_shape_inference(
     workload: Workload, tiling_info: defaultdict[EinsumName, Tiling],
     einsums: set[EinsumName], shared_input_tensor: TensorName, tiled_einsum: EinsumName
-):
+) -> None:
     """
+    Given a `tiled_einsum` in a `workload`, restrict the other `einsums`' execution
+    in this tiling to one in which the data is shared with the `tiled_einsum`. This
+    is because, when tiled, data is multicast so the other einsums being tiled together
+    must shared data.
+
+    :param workload:        The workload context the tiling is occuring in.
+    :param tiling_info:     Relation of `EinsumName` and its viable tiling on hardware.
+    :param einsums:         The set of all einsums.
+    :param shared_input_tensor: The singular tensor `einsums` all read from.
+    :param tiled_einsum:    The einsum being tiled.
+
+    Postconditions:
+    --------------
+    `tiling_info` is updated such that each Tiling contains only compatible tilings
+    with `tiled_einsum`.
     """
-    tiled_einsum_read_accesses = workload.accesses_for_tensor(shared_input_tensor)
+    # Gets the data tiled_einsum reads from shared_input_tensor
+    tiled_einsum_read_accesses: isl.Map = get_projection_map(
+        workload.einsums[tiled_einsum], shared_input_tensor
+    )
+    read_data: isl.Map = tiling_info[tiled_einsum].apply_range(tiled_einsum_read_accesses)
+
+    # Goes through all other einsums and restrict their tilings to only the executable
+    # operations after one of the einsums is tiled.
+    for einsum in einsums:
+        if einsum == tiled_einsum:
+            continue
+
+        read_accesses: isl.Map = get_projection_map(workload.einsums[einsum], shared_input_tensor)
+        executable_operations: isl.Map = read_data.apply_range(read_accesses.reverse())
+        executable_operations = executable_operations.intersect_range(
+            get_einsum_operation_space(workload, einsum)
+        )
+
+        tiling_info[einsum] = tiling_info[einsum].intersect(executable_operations)
 
 
 def detect_shared_input_tensor(

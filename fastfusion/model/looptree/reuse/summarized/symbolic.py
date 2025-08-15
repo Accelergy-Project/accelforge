@@ -266,7 +266,7 @@ def quick_insert_reservation_nodes(
     einsum_name = mapping[-1].einsum
 
     einsum = workload.einsums[einsum_name]
-    all_tensors = einsum.input_tensors() | einsum.output_tensors()
+    all_tensors = einsum.input_tensors | einsum.output_tensors
 
     tensor_to_relevancy = {
         tensor: get_rank_variable_relevancy(einsum, tensor)
@@ -341,7 +341,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
 
     einsum_tensor_to_projection = {}
     einsum = workload.einsums[einsum_name]
-    all_tensors = einsum.input_tensors() | einsum.output_tensors()
+    all_tensors = einsum.input_tensors | einsum.output_tensors
     for tensor in all_tensors:
         einsum_tensor_to_projection[(einsum_name, tensor)] = \
             get_projection_expr(einsum, tensor)
