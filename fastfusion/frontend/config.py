@@ -37,7 +37,7 @@ class Config(ParsableModel):
     environment_variables: ParsableDict[str, str] = ParsableDict()
     expression_custom_functions: ParsableList[str] = ParsableList()
     component_models: ParsableList[str] = ParsableList()
-    use_installed_component_models: Optional[bool] = None
+    use_installed_component_models: Optional[bool] = True
 
     @classmethod
     def from_yaml(cls, f: str) -> "Config":

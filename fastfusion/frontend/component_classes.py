@@ -7,7 +7,7 @@ from fastfusion.util.basetypes import (
 )
 from fastfusion.version import assert_version, __version__
 
-class ComponentAttributes(ParsableModel, ParseExtras):
+class ComponentAttributes(ParseExtras):
     tech_node: ParsesTo[float] = "REQUIRED"
     global_cycle_period: ParsesTo[Union[int, float]] = "REQUIRED"
     n_instances: ParsesTo[Union[int, float]] = 1

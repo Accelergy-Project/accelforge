@@ -42,16 +42,16 @@ def make_tensor_choices_one_level(
     )
     must_keep = tensors.to_my_space(tensor_constraints.keep)
     must_bypass = tensors.to_my_space(tensor_constraints.bypass)
-    
+
     if must_keep - tensors:
         raise KeyError(
             f"Keep constraint for {node.name} includes tensors that are "
-            f"not in the einsum: {must_keep - new_symbol_table['All']}"
+            f"not in the workload: {must_keep - new_symbol_table['All']}"
         )
     if must_bypass - tensors:
         raise KeyError(
             f"Bypass constraint for {node.name} includes tensors that are "
-            f"not in the einsum: {must_bypass - tensors.full_space}"
+            f"not in the workload: {must_bypass - tensors.full_space}"
         )
     if must_keep & must_bypass:
         raise KeyError(
