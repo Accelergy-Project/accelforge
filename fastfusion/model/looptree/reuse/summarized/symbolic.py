@@ -173,17 +173,20 @@ class BuffetStats:
 class ComputeStats:
     total_ops: Any = field(default=0)
     max_per_unit_ops: Any = field(default=0)
+    max_latency: Any = field(default=0)
     
     def repeat_temporal(self, factor: int) -> "ComputeStats":
         new = copy.copy(self)
         new.total_ops *= factor
         new.max_per_unit_ops *= factor
+        new.max_latency *= factor
         return new
     
     def __add__(self, other: "ComputeStats") -> "ComputeStats":
         new = copy.copy(self)
         new.total_ops += other.total_ops
         new.max_per_unit_ops += other.max_per_unit_ops
+        new.max_latency += other.max_latency
         return new
 
 
@@ -672,6 +675,10 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 compute_stats.max_per_unit_ops,
                 child_result.compute_stats[key].max_per_unit_ops
             )
+            compute_stats.max_latency = Max(
+                compute_stats.max_latency,
+                child_result.compute_stats[key].max_latency
+            )
 
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
@@ -881,8 +888,8 @@ def analyze_compute(node_idx,
 
     result_accumulator = SummarizedAnalysisOutput()
 
-    result_accumulator.temporal_steps[einsum] = computes / compute_node.attributes.computes_per_cycle
-    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(computes, computes)
+    result_accumulator.temporal_steps[einsum] = computes
+    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(computes, computes, 1 / compute_node.attributes.computes_per_cycle)
     
     if info.is_copy_operation:
         return result_accumulator

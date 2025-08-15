@@ -2,6 +2,7 @@ from typing import overload
 from sympy import Piecewise
 
 # from fastfusion.model.looptree.isl.singular import get_value_from_singular_qpolynomial
+from fastfusion.frontend.architecture import Compute
 from fastfusion.model.looptree.latency.processors import LATENCY_PROCESSORS
 from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
@@ -54,13 +55,13 @@ def calculate_compute_latency(reuse_analysis_results, mapping, workload):
 def compute_summarized_latency(compute_stats, mapping, workload):
     # TODO: this is only for single-Einsum!!!
     longest_compute_latency = 0
-    for compute, stats in compute_stats.items():
+    for stats in compute_stats.values():
         if longest_compute_latency == 0:
-            longest_compute_latency = stats.max_per_unit_ops
+            longest_compute_latency = stats.max_latency
         else:
             longest_compute_latency = Max(
                 longest_compute_latency,
-                stats.max_per_unit_ops
+                stats.max_latency
             )
     return longest_compute_latency
 
