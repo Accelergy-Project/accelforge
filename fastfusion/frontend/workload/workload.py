@@ -7,7 +7,11 @@ from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.version import assert_version, __version__
 from typing import Annotated, Any, Callable, TypeAlias, Union
-from pydantic_core.core_schema import CoreSchema, chain_schema, no_info_plain_validator_function
+from pydantic_core.core_schema import (
+    CoreSchema,
+    chain_schema,
+    no_info_plain_validator_function,
+)
 
 
 CLIST_OPERATORS = [
@@ -56,6 +60,7 @@ class TensorAccess(ParsableModel):
     :type output:       bool
     :type factors:      list
     """
+
     name: TensorName
     projection: dict[str, str]
     output: bool = False
@@ -90,8 +95,10 @@ class TensorAccess(ParsableModel):
     @property
     def rank2rank_variables(self) -> dict[RankName, set[RankVariableName]]:
         return {
-            RankName(rank): set(RankVariableName(rank_var)
-                                for rank_var in re.findall(ISL_REGEX, projection))
+            RankName(rank): set(
+                RankVariableName(rank_var)
+                for rank_var in re.findall(ISL_REGEX, projection)
+            )
             for rank, projection in self.projection.items()
         }
 
@@ -111,7 +118,10 @@ class TensorAccess(ParsableModel):
     @property
     def rank_variables(self) -> set[RankVariableName]:
         # Projection values may be expressions, so we need to grab all identifiers
-        return set(RankVariableName(x) for x in re.findall(ISL_REGEX, " ".join(self.projection.values())))
+        return set(
+            RankVariableName(x)
+            for x in re.findall(ISL_REGEX, " ".join(self.projection.values()))
+        )
 
     @property
     def relevant_rank_variables(self) -> set[RankVariableName]:
@@ -119,14 +129,18 @@ class TensorAccess(ParsableModel):
 
     @property
     def fully_relevant_rank_variables(self) -> set[RankVariableName]:
-        return set(RankVariableName(x) for x in self.projection.values() if ISL_REGEX.match(x))
+        return set(
+            RankVariableName(x) for x in self.projection.values() if ISL_REGEX.match(x)
+        )
 
     @property
     def partially_relevant_rank_variables(self) -> set[RankVariableName]:
         return self.rank_variables - self.fully_relevant_rank_variables
 
+
 class ImpliedProjection(dict):
     pass
+
 
 def projection_factory(projection: dict | list):
     if isinstance(projection, list):
@@ -155,21 +169,25 @@ def projection_factory(projection: dict | list):
             )
     return projection
 
+
 def shape_factory(shape: list | str):
     if isinstance(shape, str):
         shape = [shape]
     return Shape(shape)
+
 
 class Shape(ParsableList):
     """
     A space description in the space Z^{len(self)} where the list contains specifications
     of valid values for each of the specified rank variables.
     """
+
     @property
     def rank_variables(self) -> set[str]:
         if not self:
             return set()
         return set.union(*[set(re.findall(ISL_REGEX, x)) for x in self])
+
 
 class Einsum(ParsableModel):
     """
@@ -185,6 +203,7 @@ class Einsum(ParsableModel):
     :type shape:                Shape[str]
     :type is_copy_operation:    bool
     """
+
     name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape[str] = Shape()
@@ -195,63 +214,79 @@ class Einsum(ParsableModel):
         if not self.tensor_accesses:
             return set()
         return set.union(*[t.rank_variables for t in self.tensor_accesses])
-    
+
     @property
     def tensor_names(self) -> set[TensorName]:
         return set([TensorName(t.name) for t in self.tensor_accesses])
-    
+
     @property
     def tensors(self) -> set[TensorName]:
         return set([TensorName(t.name) for t in self.tensor_accesses])
-    
+
     @property
     def tensor2rank_variables(self) -> dict[TensorName, set[RankVariableName]]:
         return {TensorName(t.name): t.rank_variables for t in self.tensor_accesses}
 
     @property
-    def tensor2fully_relevant_rank_variables(self) -> dict[TensorName,
-                                                           set[RankVariableName]]:
-        return {TensorName(t.name): t.fully_relevant_rank_variables
-                for t in self.tensor_accesses}
-
-    @property
-    def tensor2partially_relevant_rank_variables(self) -> dict[TensorName,
-                                                               set[RankVariableName]]:
-        fully_relevant_rank_vars = self.tensor2fully_relevant_rank_variables
+    def tensor2fully_relevant_rank_variables(
+        self,
+    ) -> dict[TensorName, set[RankVariableName]]:
         return {
-            TensorName(t.name): t.rank_variables-fully_relevant_rank_vars[t.name]
+            TensorName(t.name): t.fully_relevant_rank_variables
             for t in self.tensor_accesses
         }
 
     @property
-    def tensor2irrelevant_rank_variables(self) -> dict[TensorName,
-                                                        set[RankVariableName]]:
+    def tensor2partially_relevant_rank_variables(
+        self,
+    ) -> dict[TensorName, set[RankVariableName]]:
+        fully_relevant_rank_vars = self.tensor2fully_relevant_rank_variables
+        return {
+            TensorName(t.name): t.rank_variables - fully_relevant_rank_vars[t.name]
+            for t in self.tensor_accesses
+        }
+
+    @property
+    def tensor2irrelevant_rank_variables(
+        self,
+    ) -> dict[TensorName, set[RankVariableName]]:
         partially_relevant = self.tensor2partially_relevant_rank_variables
         fully_relevant = self.tensor2fully_relevant_rank_variables
         rank_variables = self.rank_variables
-        return {TensorName(t.name): rank_variables - fully_relevant[t.name] - partially_relevant[t.name]
-                for t in self.tensor_accesses}
+        return {
+            TensorName(t.name): rank_variables
+            - fully_relevant[t.name]
+            - partially_relevant[t.name]
+            for t in self.tensor_accesses
+        }
 
     def to_formatted_string(self, compress: bool = False) -> str:
         lhs_join = ",\n" if compress else " , "
         rhs_join = "#215;\n" if compress else " #215; "
-        lhs = lhs_join.join([t.to_formatted_string() for t in self.tensor_accesses if t.output])
-        rhs = rhs_join.join([t.to_formatted_string() for t in self.tensor_accesses if not t.output])
+        lhs = lhs_join.join(
+            [t.to_formatted_string() for t in self.tensor_accesses if t.output]
+        )
+        rhs = rhs_join.join(
+            [t.to_formatted_string() for t in self.tensor_accesses if not t.output]
+        )
         return f"{lhs}=\n{rhs}" if compress else f"{lhs} = {rhs}"
-    
+
     def input_tensors(self) -> set[TensorName]:
         return {TensorName(t.name) for t in self.tensor_accesses if not t.output}
-    
+
     def output_tensors(self) -> set[TensorName]:
         return {TensorName(t.name) for t in self.tensor_accesses if t.output}
-    
+
     def copy_source_tensor(self) -> TensorName | None:
         if not self.is_copy_operation:
             return None
         input_tensors = self.input_tensors()
         if len(input_tensors) != 1:
-            raise ValueError(f"Copy Einsum {self.name} has {len(input_tensors)} input tensors, expected 1")
+            raise ValueError(
+                f"Copy Einsum {self.name} has {len(input_tensors)} input tensors, expected 1"
+            )
         return input_tensors.pop()
+
 
 class Workload(ParsableModel):
     """
@@ -261,12 +296,12 @@ class Workload(ParsableModel):
     :param einsums: The operations occurring in the workload expressed as einsums.
     :param shape:   A relation between a RankVariableName and the allowable values
                     of that RankVariable.
-    
+
     :type version:  Annotated[str, assert_version]
     :type einsums:  ParsableList[Einsum]
     :type shape:    ParsableDict[RankVariableName, str]
     """
-    
+
     version: Annotated[str, assert_version] = __version__
     einsums: ParsableList[Einsum] = []
     shape: ParsableDict[RankVariableName, str] = {}
@@ -311,7 +346,7 @@ class Workload(ParsableModel):
 
     def einsums_that_write_tensor(self, tensor: TensorName) -> list["Einsum"]:
         return [e for e in self.einsums if tensor in e.output_tensors()]
-    
+
     def accesses_for_tensor(self, tensor: TensorName) -> list[TensorAccess]:
         return [t for e in self.einsums for t in e.tensor_accesses if t.name == tensor]
 
@@ -320,10 +355,14 @@ class Workload(ParsableModel):
         einsum_shape = einsum.shape
         global_shape = [self.shape[r] for r in einsum.rank_variables if r in self.shape]
         return " and ".join(term for term in einsum_shape + global_shape)
-    
+
     @property
     def intermediate_tensor_names(self) -> set[TensorName]:
-        return {t for t in self.tensor_names if self.einsums_that_read_tensor(t) and self.einsums_that_write_tensor(t)}
+        return {
+            t
+            for t in self.tensor_names
+            if self.einsums_that_read_tensor(t) and self.einsums_that_write_tensor(t)
+        }
 
     @property
     def tensor_names(self) -> set[TensorName]:
@@ -332,37 +371,43 @@ class Workload(ParsableModel):
     def render(self) -> str:
         import mermaid as md
         from mermaid.graph import Graph
-        lines = [
-            "graph LR",
-            "linkStyle default interpolate basis"
-        ]
-        
+
+        lines = ["graph LR", "linkStyle default interpolate basis"]
+
         # Add all tensors as nodes (circles)
         tensors = []
         seen_tensor_names = set()
         for einsum in self.einsums:
-            lines.append(f"\tEinsum_{einsum.name}[\"<b>{einsum.name}</b>\n<small>{einsum.to_formatted_string(compress=True)}</small>\"]")
+            lines.append(
+                f'\tEinsum_{einsum.name}["<b>{einsum.name}</b>\n<small>{einsum.to_formatted_string(compress=True)}</small>"]'
+            )
             for tensor_access in einsum.tensor_accesses:
                 if tensor_access.name not in seen_tensor_names:
                     tensors.append(tensor)
                     seen_tensor_names.add(tensor_access.name)
-                    lines.append(f"\tTensor_{tensor_access.name}{{{{\"<b>{tensor_access.name}</b>\n\"}}}}")
-        
+                    lines.append(
+                        f'\tTensor_{tensor_access.name}{{{{"<b>{tensor_access.name}</b>\n"}}}}'
+                    )
+
         # Add all einsums as nodes (rectangles)
         for einsum in self.einsums:
             # Add edges from tensors to einsums
             for tensor_access in einsum.tensor_accesses:
                 if tensor_access.output:
                     # Output tensor: einsum -> tensor
-                    lines.append(f"\tEinsum_{einsum.name} --> Tensor_{tensor_access.name}")
+                    lines.append(
+                        f"\tEinsum_{einsum.name} --> Tensor_{tensor_access.name}"
+                    )
                 else:
                     # Input tensor: tensor -> einsum
-                    lines.append(f"\tTensor_{tensor_access.name} --> Einsum_{einsum.name}")
-        
+                    lines.append(
+                        f"\tTensor_{tensor_access.name} --> Einsum_{einsum.name}"
+                    )
+
         # Create the graph with the flowchart script
         flowchart_script = "\n".join(lines)
-        graph = Graph('Flowchart', flowchart_script)
-        
+        graph = Graph("Flowchart", flowchart_script)
+
         # Set the configuration to ignore node order
         config = md.Config()
         graph.config = config
@@ -370,7 +415,7 @@ class Workload(ParsableModel):
         return md.Mermaid(graph)
 
     def get_constraint_symbol_table(
-        self, 
+        self,
         einsum_name: EinsumName,
         renames: Union["Renames", None] = None,
     ) -> SymbolTable:
@@ -382,9 +427,19 @@ class Workload(ParsableModel):
         inputs = einsum.input_tensors()
         outputs = einsum.output_tensors()
         all_ = inputs | outputs
-        intermediates = {t for t in all_ if self.einsums_that_read_tensor(t) and self.einsums_that_write_tensor(t)}
+        intermediates = {
+            t
+            for t in all_
+            if self.einsums_that_read_tensor(t) and self.einsums_that_write_tensor(t)
+        }
         shared = {
-            t for t in all_ if len(set(e.name for e in self.einsums_that_read_tensor(t)) | set(e.name for e in self.einsums_that_write_tensor(t))) > 1
+            t
+            for t in all_
+            if len(
+                set(e.name for e in self.einsums_that_read_tensor(t))
+                | set(e.name for e in self.einsums_that_write_tensor(t))
+            )
+            > 1
         }
 
         element_to_child_space = {}
@@ -396,7 +451,7 @@ class Workload(ParsableModel):
                 full_space=all_rank_variables,
                 space_name=f"rank_variables",
             )
-                
+
         kwargs_tensors = dict(
             full_space=all_,
             space_name=f"tensors",
@@ -415,10 +470,12 @@ class Workload(ParsableModel):
             "Intermediates": InvertibleSet(instance=intermediates, **kwargs_tensors),
             "Shared": InvertibleSet(instance=shared, **kwargs_tensors),
             **{t: InvertibleSet(instance=(t,), **kwargs_tensors) for t in all_},
-            **{r: InvertibleSet(instance=(r,), **kwargs_rank_variables) for r in all_rank_variables},
+            **{
+                r: InvertibleSet(instance=(r,), **kwargs_rank_variables)
+                for r in all_rank_variables
+            },
         }
 
-        
         if renames is not None:
             rename = renames.get_renames_for_einsum(einsum_name)
             for rename_tensor in rename.tensor_accesses:
@@ -427,7 +484,13 @@ class Workload(ParsableModel):
                 source = rename_tensor.source
                 expected_count = rename_tensor.expected_count
                 try:
-                    symbol_table[name] = eval_set_expression(source, symbol_table, "tensors", f"{name} tensor renames", expected_count=expected_count)
+                    symbol_table[name] = eval_set_expression(
+                        source,
+                        symbol_table,
+                        "tensors",
+                        f"{name} tensor renames",
+                        expected_count=expected_count,
+                    )
                 except ParseError as e:
                     e.add_field(einsum_name)
                     raise
@@ -436,21 +499,35 @@ class Workload(ParsableModel):
                 source = rename_rank_variable.source
                 expected_count = rename_rank_variable.expected_count
                 try:
-                    symbol_table[name] = eval_set_expression(source, symbol_table, "rank_variables", f"{name} rank variable renames", expected_count=expected_count)
+                    symbol_table[name] = eval_set_expression(
+                        source,
+                        symbol_table,
+                        "rank_variables",
+                        f"{name} rank variable renames",
+                        expected_count=expected_count,
+                    )
                 except ParseError as e:
                     e.add_field(einsum_name)
                     raise
-                
+
         for rank_variable in einsum.rank_variables:
-            symbol_table[rank_variable] = InvertibleSet(instance=(rank_variable,), space_name="rank_variables", full_space=einsum.rank_variables)
-            
+            symbol_table[rank_variable] = InvertibleSet(
+                instance=(rank_variable,),
+                space_name="rank_variables",
+                full_space=einsum.rank_variables,
+            )
+
         for t in self.tensor_names:
             if t not in symbol_table:
-                symbol_table[t] = InvertibleSet(instance=(), space_name="tensors", full_space=all_)
-                
+                symbol_table[t] = InvertibleSet(
+                    instance=(), space_name="tensors", full_space=all_
+                )
+
         return symbol_table
 
-    def get_pairwise_equivalent_rank_variables(self) -> dict[RankVariableName, set[RankVariableName]]:
+    def get_pairwise_equivalent_rank_variables(
+        self,
+    ) -> dict[RankVariableName, set[RankVariableName]]:
         equivalent_rank_variables: dict[RankVariableName, set[RankVariableName]] = {}
         for tensor in self.tensor_names:
             accesses = self.accesses_for_tensor(tensor)
@@ -469,8 +546,9 @@ class Workload(ParsableModel):
                         rank2_rank_vars_j = access_j.rank2rank_variables
                         if rank not in rank2_rank_vars_j:
                             continue
-                        equiv_js = equivalent_rank_variables.setdefault(i_rank_var,
-                                                                        set())
+                        equiv_js = equivalent_rank_variables.setdefault(
+                            i_rank_var, set()
+                        )
                         equiv_js.update(rank2_rank_vars_j[rank])
 
         return equivalent_rank_variables
