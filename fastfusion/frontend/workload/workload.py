@@ -69,7 +69,6 @@ class TensorAccess(ParsableModel):
     :type output:       bool
     :type factors:      list
     """
-
     name: TensorName
     projection: dict[str, str] | list[str]
     output: bool = False
@@ -207,7 +206,6 @@ class Einsum(ParsableModel):
     :type shape:                Shape[str]
     :type is_copy_operation:    bool
     """
-
     name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape[str] = Shape() # NOTE: Type checker knows Shape is a ParsableList[str], Pydantic does not.
@@ -320,7 +318,6 @@ class Workload(ParsableModel):
     :type einsums:  ParsableList[Einsum]
     :type shape:    ParsableDict[RankVariableName, str]
     """
-
     version: Annotated[str, assert_version] = __version__
     einsums: ParsableList[Einsum] = ParsableList()
     shape: ParsableDict[RankVariableName, str] = ParsableDict()
