@@ -252,6 +252,15 @@ def shared_input_based_tile_shape_inference(
     :param shared_input_tensor: The singular tensor `einsums` all read from.
     :param tiled_einsum:    The einsum being tiled.
 
+    :type workload:     Workload
+    :type tiling_info:  defaultdict[EinsumName, Tiling]
+    :type einsums:      set[EinsumName]
+    :type shared_input_tensor:  TensorName
+    :type tiled_einsum: EinsumName
+
+    :returns: None
+    :rtype: None
+
     Postconditions:
     --------------
     `tiling_info` is updated such that each Tiling contains only compatible tilings
