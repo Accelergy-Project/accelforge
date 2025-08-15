@@ -24,8 +24,6 @@ Relevant Name Changes:
 
 import os
 
-import logging
-
 from collections import defaultdict, deque
 from typing import List, Tuple
 
@@ -235,6 +233,15 @@ def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling
     return new_tiling
 
 
+def shared_input_based_tile_shape_inference(
+    workload: Workload, tiling_info: defaultdict[EinsumName, Tiling],
+    einsums: set[EinsumName], shared_input_tensor: TensorName, tiled_einsum: EinsumName
+):
+    """
+    """
+    tiled_einsum_read_accesses = workload.accesses_for_tensor(shared_input_tensor)
+
+
 def detect_shared_input_tensor(
     fused_set: set[EinsumName], workload: Workload
 ) -> List[TensorName]:
@@ -391,7 +398,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 result[current_node] = tiling_info[node][current_node.einsum]
                 is_tiling = False
             elif isinstance(current_node, Split):
-                fused_set: set = mapping_groups[node]
+                fused_set: set[EinsumName] = mapping_groups[node]
                 if len(heads) != 1:
                     # There can't be a tiling, so no inference to be done.
                     break
@@ -402,7 +409,8 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 random_head = next(iter(heads))
                 if len(shared_input_tensor) == 1:
                     shared_input_based_tile_shape_inference(
-                        tiling_info[node], fused_set, workload, random_head
+                        workload, tiling_info[node], fused_set, 
+                        shared_input_tensor[0], random_head
                     )
                 else:
                     consumer_based_tile_shape_inference(
