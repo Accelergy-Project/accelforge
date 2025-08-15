@@ -26,6 +26,12 @@ CLIST_OPERATORS = [
 ISL_REGEX = re.compile(
     r"\b(?!(?:" + "|".join(CLIST_OPERATORS) + r")\b)[a-zA-Z#$@][a-zA-Z0-9_]*\b"
 )
+"""
+Pattern[AnyStr@compile] ISL_REGEX: A compiled regex pattern that matches 
+words that are not exactly in CLIST_OPERATORS (case-sensitive), start with a
+letter, `#`, `$`, or `@`, and are followed by zero or more letters, digits, 
+or underscores.
+"""
 
 TensorName: TypeAlias = str
 RankVariableName: TypeAlias = str
@@ -36,6 +42,20 @@ SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 
 class TensorAccess(ParsableModel):
+    """
+    Information about how a given einsum accesses a tensor.
+
+    :param name:        The tensor being accessed.
+    :param projection:  The data projection of the tensor with irrelevant ranks
+                        removed.
+    :param output:      Whether the tensor access is a write.
+    :param factors:     The terms of the einsum.
+
+    :type name:         TensorName
+    :type projection:   dict[str, str]
+    :type output:       bool
+    :type factors:      list
+    """
     name: TensorName
     projection: dict[str, str]
     output: bool = False
@@ -141,6 +161,10 @@ def shape_factory(shape: list | str):
     return Shape(shape)
 
 class Shape(ParsableList):
+    """
+    A space description in the space Z^{len(self)} where the list contains specifications
+    of valid values for each of the specified rank variables.
+    """
     @property
     def rank_variables(self) -> set[str]:
         if not self:
@@ -148,6 +172,19 @@ class Shape(ParsableList):
         return set.union(*[set(re.findall(ISL_REGEX, x)) for x in self])
 
 class Einsum(ParsableModel):
+    """
+    Represents an einsum operation.
+
+    :param name:                The name of the einsum.
+    :param tensor_accesses:     The tensors accessed by the einsum.
+    :param shape:               The space which the einsum operates.
+    :param is_copy_operation:   Whether the einsum is just mirroring data.
+
+    :type name:                 EinsumName
+    :type tensor_accesses:      ParsableList[TensorAccess]
+    :type shape:                Shape[str]
+    :type is_copy_operation:    bool
+    """
     name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape[str] = Shape()
@@ -217,6 +254,19 @@ class Einsum(ParsableModel):
         return input_tensors.pop()
 
 class Workload(ParsableModel):
+    """
+    An operation occurring on-chip.
+
+    :param version: The FastFusion version the input is compliant with.
+    :param einsums: The operations occurring in the workload expressed as einsums.
+    :param shape:   A relation between a RankVariableName and the allowable values
+                    of that RankVariable.
+    
+    :type version:  Annotated[str, assert_version]
+    :type einsums:  ParsableList[Einsum]
+    :type shape:    ParsableDict[RankVariableName, str]
+    """
+    
     version: Annotated[str, assert_version] = __version__
     einsums: ParsableList[Einsum] = []
     shape: ParsableDict[RankVariableName, str] = {}
