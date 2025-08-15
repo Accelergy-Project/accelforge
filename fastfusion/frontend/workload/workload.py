@@ -5,7 +5,7 @@ All the objects used for a Workload description in FastFusion.
 import re
 from itertools import product
 
-from typing import Annotated,TypeAlias, Union
+from typing import Annotated, TypeAlias, Union
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion.frontend.renames import Renames
