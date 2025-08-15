@@ -339,8 +339,11 @@ class Workload(ParsableModel):
 
         element_to_child_space = {}
         all_rank_variables = einsum.rank_variables
-        for tensor in all_:
-            rank_variables = einsum.tensor_accesses[tensor].rank_variables
+        for tensor in self.tensor_names:
+            if tensor in all_:
+                rank_variables = einsum.tensor_accesses[tensor].rank_variables
+            else:
+                rank_variables = set()
             element_to_child_space[tensor] = InvertibleSet(
                 instance=rank_variables,
                 full_space=all_rank_variables,
@@ -399,7 +402,13 @@ class Workload(ParsableModel):
             
         for t in self.tensor_names:
             if t not in symbol_table:
-                symbol_table[t] = InvertibleSet(instance=(), space_name="tensors", full_space=all_)
+                symbol_table[t] = InvertibleSet(
+                    instance=(), 
+                    space_name="tensors", 
+                    full_space=all_,
+                    child_access_name="rank_variables",
+                    element_to_child_space=element_to_child_space,
+                )
                 
         return symbol_table
 
