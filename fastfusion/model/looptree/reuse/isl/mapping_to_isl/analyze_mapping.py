@@ -25,7 +25,7 @@ Relevant Name Changes:
 import os
 
 from collections import defaultdict, deque
-from typing import List, Tuple
+from typing import Iterable, List, Tuple
 
 import islpy as isl
 
@@ -51,13 +51,13 @@ from fastfusion.frontend.workload.isl import (
     get_projection_map,
 )
 from fastfusion.frontend.mapping import TensorName
-from fastfusion.mapper.FFM.joining.mappinginfo import Loop
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
     Tiling,
     BranchTilings,
     MappingAnalysisResult,
 )
+from fastfusion.model.looptree.workload import Einsum
 
 DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
 LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
@@ -287,6 +287,38 @@ def shared_input_based_tile_shape_inference(
         tiling_info[einsum] = tiling_info[einsum].intersect(executable_operations)
 
 
+def consumer_based_tile_shape_inference(
+    workload: Workload, tiling_info: defaultdict[EinsumName, Tiling],
+    tensor_to_reuse_level: defaultdict[TensorName, int], einsums: set[EinsumName],
+    tiled_einsum: EinsumName
+) -> Iterable[EinsumName]:
+    queue: deque[EinsumName] = deque([tiled_einsum])
+
+    while queue:
+        einsum: EinsumName = queue.popleft()
+        tiling: Tiling = tiling_info[einsum]
+
+        for tensor in workload.tensors_read_by_einsum(einsum):
+            producer_einsums: set[EinsumName] = {
+                e.name for e in workload.einsums_that_write_tensor(tensor)
+            }
+            # Not an intermediate tensor.
+            if not producer_einsums:
+                continue
+
+            producer_einsums.intersection_update(einsums)
+            # No producer einsum in this fusion set.
+            if not producer_einsums:
+                continue
+
+            read_data = tiling_info[tiled_einsum]
+            read_accesses = 
+            for producer_einsum in producer_einsums:
+                read_accesses: isl.Map = get_projection_map(
+                    workload.einsums[producer_einsum], tensor
+                ).union
+
+
 def detect_shared_input_tensor(
     fused_set: set[EinsumName], workload: Workload
 ) -> List[TensorName]:
@@ -459,11 +491,8 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                     )
                 else:
                     consumer_based_tile_shape_inference(
-                        tiling_info[node],
-                        tensor_to_reuse_level,
-                        fused_set,
-                        workload,
-                        random_head,
+                        workload, tiling_info[node], tensor_to_reuse_level,
+                        fused_set, random_head
                     )
 
 
