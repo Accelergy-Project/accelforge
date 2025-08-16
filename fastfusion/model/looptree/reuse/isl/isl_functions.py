@@ -5,17 +5,16 @@ sake of code concision.
 
 import islpy as isl
 
-def dim(map: isl.Map, dim_type: isl.dim_type) -> int:
-    return map.dim(dim_type)
 
-
-def project_dim_in_after(map: isl.Map, start: int) -> isl.Map:
+def project_dim_in_after(map_: isl.Map, start: int) -> isl.Map:
     """Projects out the dims"""
-    n_dim_in: int = map.dim(isl.dim_type.in_)
-    return map.project_out(isl.dim_type.in_, start, n_dim_in - start)
+    n_dim_in: int = map_.dim(isl.dim_type.in_)
+    return map_.project_out(isl.dim_type.in_, start, n_dim_in - start)
 
 
-def insert_equal_dims_maff(maff: isl.MultiAff, in_pos: int, out_pos: int, n: int) -> isl.MultiAff:
+def insert_equal_dims_maff(
+    maff: isl.MultiAff, in_pos: int, out_pos: int, n: int
+) -> isl.MultiAff:
     """
     Given a multi affine, insert equal numbers of input and output dimensions.
 
@@ -43,7 +42,7 @@ def insert_equal_dims_maff(maff: isl.MultiAff, in_pos: int, out_pos: int, n: int
         aff: isl.Aff = maff.get_at(out_pos + i)
         aff = aff.set_coefficient_val(isl.dim_type.in_, in_pos + i, 1)
         maff = maff.set_aff(out_pos + i, aff)
-    
+
     return maff
 
 
@@ -78,7 +77,7 @@ def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> i
         constraint = constraint.set_coefficient_val(isl.dim_type.in_, in_pos + i, 1)
         constraint = constraint.set_coefficient_val(isl.dim_type.out, out_pos + i, -1)
         map_ = map_.add_constraint(constraint)
-    
+
     return map_
 
 
@@ -94,7 +93,7 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
     :type n_in_dims:    int
     :type top:          int
 
-    :returns:           
+    :returns:
 
 
     Preconditions
@@ -119,16 +118,16 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
             constraint = constraint.set_coefficient_val(isl.dim_type.out, i, 1)
             constraint = constraint.set_coefficient_val(isl.dim_type.in_, i, -1)
             tmp_map = tmp_map.add_constraint(constraint)
-        
-        # 
+
+        #
         constraint = isl.Constraint.alloc_equality(local_space)
-        constraint = constraint.set_coefficient_val(isl.dim_type.out, top-1, 1)
-        constraint = constraint.set_coefficient_val(isl.dim_type.in_, top-1, -1)
+        constraint = constraint.set_coefficient_val(isl.dim_type.out, top - 1, 1)
+        constraint = constraint.set_coefficient_val(isl.dim_type.in_, top - 1, -1)
         constraint = constraint.set_constant_val(1)
         tmp_map = tmp_map.add_constraint(constraint)
 
         map_ = map_.union(tmp_map)
-    
+
     if top < n_in_dims:
         tmp_map: isl.Map = isl.Map.lex_gt(
             isl.Space.set_alloc(
@@ -137,5 +136,5 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
         )
         tmp_map = insert_equal_dims_map(tmp_map, 0, 0, top)
         map_ = map_.union(tmp_map)
-    
+
     return map_
