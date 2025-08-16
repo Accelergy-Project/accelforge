@@ -25,7 +25,7 @@ Relevant Name Changes:
 import os
 
 from collections import defaultdict, deque
-from typing import Iterable, List, Tuple
+from typing import Iterable, Iterator, List, Tuple
 
 import islpy as isl
 
@@ -51,6 +51,9 @@ from fastfusion.frontend.workload.isl import (
     get_projection_map,
 )
 from fastfusion.frontend.mapping import TensorName
+from fastfusion.model.looptree.reuse.isl.isl_functions import(
+    map_to_prior_data,
+)
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
     Tiling,
@@ -311,12 +314,25 @@ def consumer_based_tile_shape_inference(
             if not producer_einsums:
                 continue
 
-            read_data = tiling_info[tiled_einsum]
-            read_accesses = 
-            for producer_einsum in producer_einsums:
+            # Collates all the producer einsum read accesses.
+            producer_einsums_iter: Iterator[EinsumName] = iter(producer_einsums)
+            read_accesses: isl.Map = get_projection_map(
+                workload.einsums[next(producer_einsums_iter)], tensor
+            )
+            for producer_einsum in producer_einsums_iter:
                 read_accesses: isl.Map = get_projection_map(
                     workload.einsums[producer_einsum], tensor
-                ).union
+                ).union(read_accesses)
+            # Required data of the tiling as a mapping of read accesses.
+            required_data: isl.Map = tiling.apply_range(read_accesses)
+
+            computed_data: isl.Map = required_data
+            if tensor in tensor_to_reuse_level:
+                reuse_level: int = tensor_to_reuse_level[tensor]
+                shifter = map_to_prior_data(
+
+                )
+            
 
 
 def detect_shared_input_tensor(
