@@ -25,7 +25,7 @@ Relevant Name Changes:
 import os
 
 from collections import defaultdict, deque
-from typing import Iterable, Iterator, List, Tuple
+from typing import Iterator, List, Tuple
 
 import islpy as isl
 
@@ -60,7 +60,6 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     BranchTilings,
     MappingAnalysisResult,
 )
-from fastfusion.model.looptree.workload import Einsum
 
 DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
 LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
