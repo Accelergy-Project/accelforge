@@ -51,7 +51,7 @@ from fastfusion.frontend.workload.isl import (
     get_projection_map,
 )
 from fastfusion.frontend.mapping import TensorName
-from fastfusion.model.looptree.reuse.isl.isl_functions import(
+from fastfusion.model.looptree.reuse.isl.isl_functions import (
     map_to_prior_data,
 )
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
@@ -240,8 +240,11 @@ def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling
 
 
 def shared_input_based_tile_shape_inference(
-    workload: Workload, tiling_info: defaultdict[EinsumName, Tiling],
-    einsums: set[EinsumName], shared_input_tensor: TensorName, tiled_einsum: EinsumName
+    workload: Workload,
+    tiling_info: defaultdict[EinsumName, Tiling],
+    einsums: set[EinsumName],
+    shared_input_tensor: TensorName,
+    tiled_einsum: EinsumName,
 ) -> None:
     """
     Given a `tiled_einsum` in a `workload`, restrict the other `einsums`' execution
@@ -273,7 +276,9 @@ def shared_input_based_tile_shape_inference(
     tiled_einsum_read_accesses: isl.Map = get_projection_map(
         workload.einsums[tiled_einsum], shared_input_tensor
     )
-    read_data: isl.Map = tiling_info[tiled_einsum].apply_range(tiled_einsum_read_accesses)
+    read_data: isl.Map = tiling_info[tiled_einsum].apply_range(
+        tiled_einsum_read_accesses
+    )
 
     # Goes through all other einsums and restrict their tilings to only the executable
     # operations after one of the einsums is tiled.
@@ -281,7 +286,9 @@ def shared_input_based_tile_shape_inference(
         if einsum == tiled_einsum:
             continue
 
-        read_accesses: isl.Map = get_projection_map(workload.einsums[einsum], shared_input_tensor)
+        read_accesses: isl.Map = get_projection_map(
+            workload.einsums[einsum], shared_input_tensor
+        )
         executable_operations: isl.Map = read_data.apply_range(read_accesses.reverse())
         executable_operations = executable_operations.intersect_range(
             get_einsum_operation_space(workload, einsum)
@@ -291,9 +298,11 @@ def shared_input_based_tile_shape_inference(
 
 
 def consumer_based_tile_shape_inference(
-    workload: Workload, tiling_info: defaultdict[EinsumName, Tiling],
-    tensor_to_reuse_level: defaultdict[TensorName, int], einsums: set[EinsumName],
-    tiled_einsum: EinsumName
+    workload: Workload,
+    tiling_info: defaultdict[EinsumName, Tiling],
+    tensor_to_reuse_level: defaultdict[TensorName, int],
+    einsums: set[EinsumName],
+    tiled_einsum: EinsumName,
 ):
     """
     Given a `tiled_einsum` in a `workload`, restrict the other `einsums`' execution
@@ -362,7 +371,7 @@ def consumer_based_tile_shape_inference(
                 )
                 buffered_data: isl.Map = shifter.apply_range(required_data)
                 computed_data = computed_data.subtract(buffered_data).coalesce()
-            
+
             # Grabs the elements this tensor relies on from producer_einsums.
             producer_einsums_iter = iter(producer_einsums)
             producer_einsum = next(producer_einsums_iter)
@@ -373,7 +382,7 @@ def consumer_based_tile_shape_inference(
                 producer_write_dependency = producer_write_dependency.union(
                     get_projection_map(workload.einsums[producer_einsum], tensor)
                 )
-            
+
             # Gets the required operations to produce the current tensor.
             required_operations: isl.Map = computed_data.apply_range(
                 producer_write_dependency.reverse()
@@ -382,7 +391,7 @@ def consumer_based_tile_shape_inference(
                 required_operations = required_operations.intersect_range(
                     get_einsum_operation_space(workload, producer_einsum)
                 )
-            
+
             # Mutations of the tilings of producer einsums.
             for producer_einsum in producer_einsums:
                 tiling_info[producer_einsum] = tiling_info[producer_einsum].intersect(
@@ -559,13 +568,19 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                 random_head = next(iter(heads))
                 if len(shared_input_tensor) == 1:
                     shared_input_based_tile_shape_inference(
-                        workload, tiling_info[node], fused_set, 
-                        shared_input_tensor[0], random_head
+                        workload,
+                        tiling_info[node],
+                        fused_set,
+                        shared_input_tensor[0],
+                        random_head,
                     )
                 else:
                     consumer_based_tile_shape_inference(
-                        workload, tiling_info[node], tensor_to_reuse_level,
-                        fused_set, random_head
+                        workload,
+                        tiling_info[node],
+                        tensor_to_reuse_level,
+                        fused_set,
+                        random_head,
                     )
 
 
