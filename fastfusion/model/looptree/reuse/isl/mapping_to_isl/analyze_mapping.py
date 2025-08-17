@@ -321,12 +321,13 @@ def consumer_based_tile_shape_inference(
     `tiling_info` is updated such that each Tiling contains only compatible tilings
     with `tiled_einsum`.
     """
+    # Goes recursively through tensor dependencies (read tensors) and tiles them.
     queue: deque[EinsumName] = deque([tiled_einsum])
-
     while queue:
         einsum: EinsumName = queue.popleft()
         tiling: Tiling = tiling_info[einsum]
 
+        # For each tensor read by this einsum, tile that tensor's producers.
         for tensor in workload.tensors_read_by_einsum(einsum):
             producer_einsums: set[EinsumName] = {
                 e.name for e in workload.einsums_that_write_tensor(tensor)
