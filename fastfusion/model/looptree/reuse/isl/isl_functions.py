@@ -16,7 +16,8 @@ def insert_equal_dims_maff(
     maff: isl.MultiAff, in_pos: int, out_pos: int, n: int
 ) -> isl.MultiAff:
     """
-    Given a multi affine, insert equal numbers of input and output dimensions.
+    Given a multi affine, insert equal numbers of input and output dimensions and 
+    enforce equality between the values of the two dims.
 
     :param maff:    The multi affine base to insert dims into.
     :param in_pos:  The index to start inserting input dimensions at in `maff`.
@@ -48,14 +49,15 @@ def insert_equal_dims_maff(
 
 def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> isl.Map:
     """
-    Given a map, insert equal numbers of input and output dimensions.
+    Given a map, insert equal numbers of input and output dimensions and enforce
+    equality between the values of the two dims.
 
     :param map_:    The map base to insert dims into.
     :param in_pos:  The index to start inserting input dimensions at in `map_`.
     :param out_pos: The index to start inserting output dimensions at in `map_`.
     :param n:       The number of dimensions to insert.
 
-    :type maff:     isl.Map
+    :type map_:     isl.Map
     :type in_pos:   int
     :type out_pos:  int
     :type n:        int
@@ -73,6 +75,7 @@ def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> i
     # in the map.
     local_space: isl.LocalSpace = map_.get_space().to_local_space()
     for i in range(n):
+        # out - in == 0 => out == in
         constraint: isl.Constraint = isl.Constraint.alloc_equality(local_space)
         constraint = constraint.set_coefficient_val(isl.dim_type.in_, in_pos + i, 1)
         constraint = constraint.set_coefficient_val(isl.dim_type.out, out_pos + i, -1)
@@ -83,8 +86,8 @@ def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> i
 
 def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
     """
-    Create a map that relates presence to new data presence.
-    Goal: { [i0, ..., i{n_in_dims-1}] -> [i0, ..., i{top}-1, o{top+1}, ..., o{n_in_dims}] }
+    Create a map that relates current index vector to new index vector.
+    Goal: { [i0, ..., i{n_in_dims-1}] -> [i0, ..., i{top-1}, o{top+1}, ..., o{n_in_dims}] }
 
     :param n_in_dims:   The number of input/output dims of the dataspace.
     :param top:         The pivot point where input data got swapped out for new
@@ -93,7 +96,7 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
     :type n_in_dims:    int
     :type top:          int
 
-    :returns:
+    :returns:           A map 
 
 
     Preconditions
@@ -113,13 +116,15 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
         # Create a temporary map.
         tmp_map: isl.Map = isl.Map.universe(space)
         # Model the conservation of data along each data dimension in that map.
+        # out - in == 0 => out == in
         for i in range(top - 1):
             constraint = isl.Constraint.alloc_equality(local_space)
             constraint = constraint.set_coefficient_val(isl.dim_type.out, i, 1)
             constraint = constraint.set_coefficient_val(isl.dim_type.in_, i, -1)
             tmp_map = tmp_map.add_constraint(constraint)
 
-        #
+        # Sets constraints such that the pivot value is decremented.
+        # out - in + 1 == 0 => out == in - 1
         constraint = isl.Constraint.alloc_equality(local_space)
         constraint = constraint.set_coefficient_val(isl.dim_type.out, top - 1, 1)
         constraint = constraint.set_coefficient_val(isl.dim_type.in_, top - 1, -1)
@@ -128,6 +133,7 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
 
         map_ = map_.union(tmp_map)
 
+    # If we're pivoting any of the data, preserve the `top` datapoints.
     if top < n_in_dims:
         tmp_map: isl.Map = isl.Map.lex_gt(
             isl.Space.set_alloc(
