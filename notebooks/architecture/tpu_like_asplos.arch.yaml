@@ -54,14 +54,15 @@ architecture:
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
-        bypass: weight
+        keep: (Intermediates() - weight) - GlobalBuffer.tensors()
+        bypass: weight | GlobalBuffer.tensors()
       spatial:
-        - dimension: Z
-          min_utilization: 1
-          loop_bounds:
-          - expression: weight.rank_variables()
-            operator: ==
-            value: 1
+      - dimension: Z
+        min_utilization: 1 if len(All()) > 2 else 0
+        loop_bounds:
+        - expression: weight.rank_variables()
+          operator: ==
+          value: 1
 
   - !Compute
     name: scalar_unit
@@ -80,6 +81,8 @@ architecture:
     attributes:
       size: 8 # 8b
       datawidth: 8
+      width: 8
+      depth: 1000
       area: 1
     actions:
     - {name: read, arguments: {energy: 0}}
@@ -87,6 +90,7 @@ architecture:
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
+        keep: weight - GlobalBuffer.tensors()
         bypass: ~weight | GlobalBuffer.tensors()
       spatial:
       - dimension: X # Parallel rank

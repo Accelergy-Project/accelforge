@@ -1,7 +1,7 @@
 from fastfusion.frontend.mapper.mapper import Mapper
 from fastfusion.frontend.renames import Renames
 from fastfusion.util.parse_expressions import ParseError, ParseExpressionsContext
-from fastfusion.frontend.architecture import Leaf
+from fastfusion.frontend.architecture import Compute, Leaf
 from fastfusion.frontend.architecture import Architecture
 from fastfusion.frontend.constraints import Constraints
 from fastfusion.frontend.workload import Workload
@@ -13,7 +13,7 @@ from fastfusion.frontend.component_energy import ComponentEnergy, EnergyEntry
 from fastfusion.frontend.mapping import Mapping
 import hwcomponents
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from fastfusion.util.basetypes import ParsableModel
 
 
@@ -59,10 +59,14 @@ class Specification(ParsableModel):
             self.config.component_models, 
             include_installed=self.config.use_installed_component_models
         )
-        with ParseExpressionsContext(self):
-            processed, _ = self.parse_expressions()
-            components = processed.architecture._flatten(processed.variables)
-            for component in components:
+        
+        components = set()
+        arches, processed = self.get_flattened_architecture(return_processed=True)
+        for arch in arches:
+            for component in arch:
+                if component.name in components:
+                    continue
+                components.add(component.name)
                 self.component_area.entries.append(
                     AreaEntry.from_models(
                         component.get_component_class(),
@@ -86,7 +90,27 @@ class Specification(ParsableModel):
                     )
                 )
             
-    def get_flattened_architecture(self) -> list[Leaf]:
+    def get_flattened_architecture(self, compute_node: Union[str, Compute] = None, return_processed: bool=False) -> list[list[Leaf]] | list[Leaf]:
+        all_leaves = self.architecture.get_instances_of_type(Leaf)
+        found_names = set()
+        for leaf in all_leaves:
+            if leaf.name in found_names:
+                raise ParseError(f"Duplicate name in architecture: {leaf.name}")
+            found_names.add(leaf.name)
+
+        found = []
         with ParseExpressionsContext(self):
             processed, _ = self.parse_expressions()
-            return processed.architecture._flatten(processed.variables)
+        
+            if compute_node is None:
+                compute_nodes = [c.name for c in self.architecture.get_instances_of_type(Compute)]
+            else:
+                compute_nodes = [compute_node.name if isinstance(compute_node, Compute) else compute_node]
+            
+            for c in compute_nodes:
+                found.append(processed.architecture._flatten(processed.variables, c))
+                if found[-1][-1].name != c:
+                    raise ParseError(f"Compute node {c} not found in architecture")
+
+        found = found if compute_node is None else [found[0]]
+        return (found, processed) if return_processed else found

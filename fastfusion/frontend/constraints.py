@@ -232,7 +232,6 @@ class ConstraintLambda:
         final = self.rank_variables.issubset(rank_variables)
         return self.constraint_lambda(final, sizes)
 
-
 class TileShapeConstraintLambda(ConstraintLambda):
     pass
 
@@ -258,6 +257,9 @@ class MinUtilizationConstraintLambda(ConstraintLambda):
         max_utilization = np.max(utilizations, axis=0)
         return utilizations == max_utilization
 
+
+class ComputeConstraints(ParsableModel):
+    enabled: Union[str, bool] = True
 
 
 class Constraints(ParsableModel):

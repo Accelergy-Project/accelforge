@@ -277,7 +277,7 @@ class Compatibility(Updatable):
         return all(any(s == t for s in self.tensors) for t in tensors)
 
     def all_n_loops(self) -> list["Compatibility"]:
-        min_n_loops = max(len(s.loops) for s in self.tensors)
+        min_n_loops = max((len(s.loops) for s in self.tensors), default=0)
         return [Compatibility(_n_loops_override=n_loops, tensors=self.tensors, tags=self.tags)
                 for n_loops in range(min_n_loops, self.n_loops+1)]
 

@@ -210,6 +210,12 @@ class Parsable(ABC, Generic[M]):
                     yield from item.get_instances_of_type(type)
                 elif isinstance(item, type):
                     yield item
+        elif isinstance(self, ParsableModel):
+            for field in self.get_fields():
+                if isinstance(getattr(self, field), Parsable):
+                    yield from getattr(self, field).get_instances_of_type(type)
+                elif isinstance(getattr(self, field), type):
+                    yield getattr(self, field)
 
 
     def _parse_expressions(self, symbol_table: dict[str, Any], order: tuple[str, ...], post_calls: tuple[PostCall[T], ...], use_setattr: bool = True, **kwargs) -> tuple["Parsable", dict[str, Any]]:

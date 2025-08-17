@@ -269,7 +269,7 @@ def iterate_mappings_constraints(
             mapping, constraints = get_constraints(
                 arch_flattened, mapping, symbol_table, einsum_name
             )
-            mapping.append(Compute(einsum=einsum_name, compute=compute_name))
+            mapping.append(Compute(einsum=einsum_name, compute=compute_name, component_object=arch_flattened[-1]))
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
             yield mapping, constraints, symbol_table
 

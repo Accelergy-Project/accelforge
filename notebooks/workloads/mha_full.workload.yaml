@@ -1,9 +1,11 @@
 workload:
   version: "0.5"
   shape:
-    b: 0 <= b < 1    # {BATCH_SIZE}
-    m: 0 <= m < 128  # {N_TOKENS}
-    p: 0 <= p < 128  # {N_TOKENS} # = m
+    {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
+    b: 0 <= b < {{BATCH_SIZE}}
+    {% set N_TOKENS = N_TOKENS | default(8192) %}
+    m: 0 <= m < {{N_TOKENS}} # = b
+    p: 0 <= p < {{N_TOKENS}} # = m
     h: 0 <= h < 32
     e: 0 <= e < 128
     f: 0 <= f < 128
@@ -18,8 +20,6 @@ workload:
     tensor_accesses:
     - {name: I_in, projection: [b, m, d]}
     - {name: I, projection: [b, m, d], output: True}
-    # - {name: IK, projection: [b, m, d], output: True}
-    # - {name: IQ, projection: [b, m, d], output: True}
 
   - name: V
     tensor_accesses:

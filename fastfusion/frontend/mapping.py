@@ -498,12 +498,13 @@ class Compute(MappingNode):
 
     einsum: str
     compute: str = "MAC"
+    component_object: Optional[architecture.Compute] = None
 
     def compact_string(self) -> str:
-        return f"Einsum {self.einsum}"
+        return f"{self.compute} computes {self.einsum}"
 
     def __str__(self) -> str:
-        return f"Einsum {self.einsum}"
+        return f"{self.compute} computes {self.einsum}"
 
     def _render_node_shape(self) -> str:
         return "ellipse"

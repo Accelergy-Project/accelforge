@@ -70,7 +70,7 @@ def get_jobs(
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     except_from_imperfect: set = set(),
-    fail_if_no_pmappings_for_einsum: bool = True,
+    fail_if_no_pmappings_for_einsum: bool = False,
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
     einsum2jobs = {}

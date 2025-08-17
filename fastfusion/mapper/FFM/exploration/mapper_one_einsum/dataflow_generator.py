@@ -7,6 +7,7 @@ import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.mapping import MappingNode, TensorHolder
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
+from fastfusion.util.parse_expressions import MATH_FUNCS
 
 from .bypass_keep_generator import make_tensor_choices_all_levels
 from fastfusion.frontend.workload.workload import EinsumName
@@ -17,6 +18,7 @@ def get_tensor_choices(
     symbol_table: SymbolTable,
     spec: Specification,
 ) -> Generator[tuple[list[TensorHolder], Any], None, None]:
+    nodes, compute = nodes[:-1], nodes[-1]
     while not isinstance(nodes[0], architecture.Memory):
         nodes = nodes[1:]
     first_tensor_holder = nodes[0]
@@ -38,6 +40,13 @@ def get_tensor_choices(
         required_order = get_dataflow_constraint(
             nodes, symbol_table, tensors
         )
+
+        if isinstance(compute.constraints.enabled, str):
+            enabled = eval(compute.constraints.enabled, {"__builtins__": MATH_FUNCS}, symbol_table)
+        if not isinstance(enabled, bool):
+            raise ValueError(f"Compute constraints enabled for {compute.name} must be a boolean, got {type(enabled)}: {enabled}")
+        if not enabled:
+            continue
 
         for mapping in recursive_order_tensor_choices(
             einsum_name, tensors, base_mapping, nodes, all_tensor_holders, required_order, spec, is_copy_op
