@@ -31,7 +31,7 @@ from . import constraints
 from fastfusion.version import assert_version, __version__
 from pydantic import Discriminator
 
-from fastfusion.frontend.constraints import ConstraintGroup, ComputeConstraints
+from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
 
 
 class ArchNode(ParsableModel):
@@ -110,7 +110,6 @@ class Leaf(ArchNode, ABC):
 
 class Component(Leaf, ABC):
     component_class: Optional[str] = None
-    enabled: ParsesTo[bool] = True
     power_gated_at: ParsesTo[Optional[str]] = None
     actions: ParsableList[SubcomponentAction]
 
@@ -237,7 +236,7 @@ class ComputeAttributes(ComponentAttributes):
 class Compute(Component):
     actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
     attributes: ComputeAttributes
-    constraints: ComputeConstraints = ComputeConstraints()
+    constraints: MiscOnlyConstraints = MiscOnlyConstraints()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

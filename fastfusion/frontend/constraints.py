@@ -213,14 +213,21 @@ class Dataflow(ParsableModel):
                         raise ValueError(f"Intersecting entries in dataflow constraint: {s0} and {s1}")
         return result
 
+class Misc(ParsableModel):
+    enabled: Union[str, bool] = True
 
-class ConstraintGroup(ParsableModel):
+
+class MiscOnlyConstraints(ParsableModel):
     name: Optional[str] = None
+    misc: Misc = Misc()
+
+
+class ConstraintGroup(MiscOnlyConstraints):
     spatial: ParsableList[Spatial] = ParsableList()
     temporal: Temporal = Temporal()
     tensors: Tensors = Tensors()
     dataflow: Dataflow = Dataflow()
-    
+
 class ConstraintLambda:
     def __init__(self, constraint: Comparison, target_mapping_nodes: list[Spatial], rank_variables: set[str]):
         self.constraint = constraint
@@ -256,11 +263,6 @@ class MinUtilizationConstraintLambda(ConstraintLambda):
         # Nobody is amove the minimum. Return the best we can do.
         max_utilization = np.max(utilizations, axis=0)
         return utilizations == max_utilization
-
-
-class ComputeConstraints(ParsableModel):
-    enabled: Union[str, bool] = True
-
 
 class Constraints(ParsableModel):
     version: Annotated[str, assert_version] = __version__
