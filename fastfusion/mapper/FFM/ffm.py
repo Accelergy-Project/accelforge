@@ -53,6 +53,13 @@ def row2mapping(row: pd.Series, spec: Specification, rank_variable_bounds: dict[
 
 
 def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings) -> PartialMappings:
+    for einsum_name, einsum_pmappings in pmappings.einsum2pmappings.items():
+        total = sum(len(p.mappings.data) for p in einsum_pmappings)
+        n_compatibilities = len(einsum_pmappings)
+        print(f"Einsum {einsum_name} has {total} pmappings with {n_compatibilities} compatibilities")
+        if total == 0:
+            raise ValueError(f"Einsum {einsum_name} has no pmappings")
+        
     compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
     joined = join_sims(
         compressed,
