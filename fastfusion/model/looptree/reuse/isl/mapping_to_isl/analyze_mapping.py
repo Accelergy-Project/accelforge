@@ -589,7 +589,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                     # Each child needs tilings for all Einsums in its group.
                     group: set[EinsumName] = mapping_groups[child]
                     tilings: defaultdict[EinsumName, Tiling] = defaultdict()
-                    
+
                     # For all einsums the child is involved in, update their tilings.
                     for einsum in group:
                         tiling: Tiling = tiling_info[node][einsum]
