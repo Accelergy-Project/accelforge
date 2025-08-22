@@ -1,3 +1,10 @@
+"""
+Relevant name changes:
+- [logical] buffer/lbuf -> buffet
+- [logical] comp/lcomp -> compute_einsum
+- 
+"""
+
 from abc import ABC
 
 from collections import defaultdict
@@ -99,31 +106,29 @@ class SkewsInfo:
 
 @dataclass
 class MappingAnalysisResult:
-    ## 
-    #   @brief Whether a logical buffer is right above a sequential node. 
-    #   
-    #   This is used when calculating capacity since some data can be dropped
-    #   earlier than usual when using sequential mapping without tiling.
+    """
+    Results of mapping analysis that will become input into reuse
+    analysis.
+    
+    :param buffet_direct_above_sequential: Whether a buffet is right above 
+        a sequential node. This is used when calculating capacity since some data 
+        can be dropped earlier than usual when using sequential mapping without tiling.
+    :param buffet_to_capacity: The occupancy of every buffet as defined in 
+        the mapping.
+    :param compute_einsum_to_occupancy: The occupancy of every compute unit.
+    :param node_to_buffets: Buffets found between the current root/branch node and
+        the next one.
+    :param branch_tiling: Tiling of each branch. The tiling is a relation between tiling
+        variables and operations. An uncompletely tiled branch will have multiple-valued
+        isl.Map.
+    :param compute_to_assumed_parallelism: We can assume an amount of parallelism
+        to quickly calculate approx. compute latency by simply dividing number of
+        operations with assumed parallelism.
+    """
     buffet_direct_above_sequential: defaultdict[ComputeEinsum, Skew]
-    ##
-    #   @brief The occupancy of every logical buffer as defined in the mapping.
     buffet_to_capacity: defaultdict[Buffet, Occupancy]
-    ##
-    #   @brief The occupancy of every compute unit.
     compute_einsum_to_occupancy: defaultdict[ComputeEinsum, OperationOccupancy]
-    ##
-    #   @brief Logical buffers found between the current root/branch node and the
-    #   next one.
-    node_to_logical_buffers: defaultdict[MappingNode, Iterable[Buffet]]
-    ##
-    #   @brief Tiling of each branch. The tiling is a relation between tiling
-    #   variables and operations.
-    #
-    #   An uncompletely tiled branch will have multiple-valued isl.Map.
-    branch_tiling: defaultdict[MappingNode, isl.Map]
-    ##
-    #   @brief We can assume an amount of parallelism to quickly calculate approx.
-    #   compute latency by simply dividing number of operations with assumed
-    #   parallelism.
+    node_to_buffets: defaultdict[MappingNode, Iterable[Buffet]]
+    branch_tiling: defaultdict[MappingNode, Tiling]
     compute_to_assumed_parallelism: defaultdict[MappingNode, float]
 
