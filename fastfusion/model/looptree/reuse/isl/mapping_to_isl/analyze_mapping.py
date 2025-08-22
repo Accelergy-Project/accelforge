@@ -60,7 +60,6 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     BranchTilings,
     MappingAnalysisResult,
 )
-from fastfusion.model.looptree.workload import Einsum
 
 DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
 LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
@@ -595,7 +594,8 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
                         tiling: Tiling = tiling_info[node][einsum]
                         new_tiling: Tiling = tiling.add_dims(isl.dim_type.in_, 1)
 
-                        ## TODO: Verify this is correct: https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L477-L482
+                        ## TODO: Verify this is correct:
+                        # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L477-L482
                         tilings[einsum] = new_tiling.fix_input_si(
                             new_tiling.dim(isl.dim_type.in_) - 1, idx
                         )
