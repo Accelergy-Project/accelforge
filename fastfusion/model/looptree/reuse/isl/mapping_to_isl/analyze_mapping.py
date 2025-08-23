@@ -22,8 +22,6 @@ Relevant Name Changes:
 -   Branch -> Split?
 """
 
-import os
-
 from collections import defaultdict, deque
 from typing import Iterator, List, Tuple
 
@@ -54,16 +52,13 @@ from fastfusion.frontend.mapping import TensorName
 from fastfusion.model.looptree.reuse.isl.isl_functions import (
     map_to_prior_data,
 )
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR, LOG_ISL_IR
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
     Tiling,
     BranchTilings,
     MappingAnalysisResult,
 )
-
-DUMP_ISL_IR: bool = os.getenv("FASTFUSION_DUMP_ISL_IR") == "1"
-LOG_ISL_IR: bool = os.getenv("FASTFUSION_LOG_ISL_IR") == "1"
-
 
 def get_mapping_group_einsums(
     mapping: Mapping,
@@ -626,4 +621,6 @@ def occupancies_from_mapping(
     :rtype:     MappingAnalysisResult
     """
     result = MappingAnalysisResult()
-    result.compute_to_assumed_parallelism = tiling_from_mapping(mapping, workload)
+    result.compute_to_assumed_parallelism = get_parallelism(mapping)
+    
+    branch_tiling: BranchTilings = tiling_from_mapping(mapping, workload)
