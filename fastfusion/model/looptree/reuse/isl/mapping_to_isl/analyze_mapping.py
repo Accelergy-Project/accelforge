@@ -22,10 +22,23 @@ Relevant Name Changes:
 -   Branch -> Split?
 """
 
-from fastfusion.frontend.mapping import Mapping
-from fastfusion.frontend.workload import Workload
+from collections import defaultdict
 
-from .types import MappingAnalysisResult
+import islpy as isl
+
+from fastfusion.frontend.mapping import Compute, Mapping
+from fastfusion.frontend.workload import Workload
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import skews_from_mapping
+from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
+
+from . import DUMP_ISL_IR, LOG_ISL_IR
+from .tiling import tiling_from_mapping
+from .types import (
+    BranchTiling,
+    MappingAnalysisResult,
+    Occupancy,
+)
+
 
 def occupancies_from_mapping(
     mapping: Mapping, workload: Workload
@@ -42,7 +55,26 @@ def occupancies_from_mapping(
     :return:    The occupancies as an analysis of the Workload on Mapping.
     :rtype:     MappingAnalysisResult
     """
-    result = MappingAnalysisResult()
-    result.compute_to_assumed_parallelism = get_parallelism(mapping)
+    branch_tiling: BranchTiling = tiling_from_mapping(mapping, workload)
+    if DUMP_ISL_IR:
+        for node, tiling in branch_tiling.items():
+            print(f"[Tiling]Node({node}): {tiling}")
+            # TODO: Port this line 
+            # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L55-L64
+            print(f"[Ops]Node({node}): ")
     
-    branch_tiling: BranchTilings = tiling_from_mapping(mapping, workload)
+    occupancies: defaultdict[Buffet, Occupancy] = defaultdict()
+    # TODO: Implement skews_from_mapping
+    skews: Skew = skews_from_mapping(mapping, workload)
+
+    for buf, skew in skews.buffet_to_skew:
+        if DUMP_ISL_IR:
+            print(f"{buf} has skew: {skew}")
+
+    # TODO: Implement both called functions.
+    return MappingAnalysisResult(
+        branch_tiling=branch_tiling.
+        buffet_direct_above_sequential=buffet_direct_above_sequential(mapping),
+
+        compute_to_assumed_parallelism=get_parallelism(mapping)
+    ) 

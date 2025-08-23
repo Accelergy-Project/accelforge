@@ -93,7 +93,7 @@ class ComputeEinsum:
 #   to be fully specified.
 EinsumName: TypeAlias = str
 Tiling: TypeAlias = isl.Map # Tiling of data and operations.
-BranchTilings: TypeAlias = defaultdict[MappingNode, Tiling]  # Relation between a node and its tiling.
+BranchTiling: TypeAlias = defaultdict[MappingNode, Tiling]  # Relation between a node and its tiling.
 BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
 
 
@@ -109,11 +109,11 @@ class MappingAnalysisResult:
     """
     Results of mapping analysis that will become input into reuse
     analysis.
-    
+
     :param buffet_direct_above_sequential: Whether a buffet is right above 
         a sequential node. This is used when calculating capacity since some data 
         can be dropped earlier than usual when using sequential mapping without tiling.
-    :param buffet_to_capacity: The occupancy of every buffet as defined in 
+    :param buffet_to_occupancy: The occupancy of every buffet as defined in 
         the mapping.
     :param compute_einsum_to_occupancy: The occupancy of every compute unit.
     :param node_to_buffets: Buffets found between the current root/branch node and
@@ -126,9 +126,9 @@ class MappingAnalysisResult:
         operations with assumed parallelism.
     """
     buffet_direct_above_sequential: defaultdict[ComputeEinsum, Skew]
-    buffet_to_capacity: defaultdict[Buffet, Occupancy]
+    buffet_to_occupancy: defaultdict[Buffet, Occupancy]
     compute_einsum_to_occupancy: defaultdict[ComputeEinsum, OperationOccupancy]
     node_to_buffets: defaultdict[MappingNode, Iterable[Buffet]]
-    branch_tiling: defaultdict[MappingNode, Tiling]
+    branch_tiling: BranchTiling
     compute_to_assumed_parallelism: defaultdict[MappingNode, float]
 

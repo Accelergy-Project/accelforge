@@ -37,8 +37,9 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
     Tiling,
-    BranchTilings,
+    BranchTiling,
 )
+
 
 def get_mapping_group_einsums(
     mapping: Mapping,
@@ -414,7 +415,7 @@ def detect_shared_input_tensor(
     return shared_input_tensors
 
 
-def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
+def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
     """
     Given a mapping and a workload generates a tiling.
 
@@ -424,10 +425,10 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTilings:
     :type mapping:  Mapping
     :type workload: Workload
 
-    :return:    BranchTilings associating a node's ID with its tiling.
-    :rtype:     BrancTilings
+    :return:    BranchTiling associating a node's ID with its tiling.
+    :rtype:     BranchTiling
     """
-    result: BranchTilings = BranchTilings()
+    result: BranchTiling = BranchTiling()
     # Grabs the head einsums.
     mapping_groups: defaultdict[MappingNode, set[EinsumName]] = (
         get_mapping_group_einsums(mapping)
