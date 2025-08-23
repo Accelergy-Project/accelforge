@@ -165,29 +165,29 @@ def insert_spatial_loops(
     einsum: Einsum,
     arch_flattened: list[architecture.Memory],
 ):
-    nodes_with_fanout = [n for n in arch_flattened if n.spatial.get_fanout() > 1]
+    nodes_with_fanout = [n for n in arch_flattened if n.get_fanout() > 1]
     arch_node_names = [n.name for n in arch_flattened]
 
     # Place spatials above the last instance of the first memory ABOVE each fanout
-    for fanout in nodes_with_fanout:
+    for node in nodes_with_fanout:
         insertion_point = 0
         for i in range(len(mapping)):
             if not isinstance(mapping[i], TensorHolder):
                 continue
             component = mapping[i].component
-            if arch_node_names.index(component) < arch_node_names.index(fanout.name):
+            if arch_node_names.index(component) < arch_node_names.index(node.name):
                 insertion_point = i + 1
 
         rv = einsum.rank_variables
-        for fanout_dim in fanout.spatial.fanout:
+        for fanout_dim in node.spatial:
             for r in rv:
                 mapping.insert(
                     insertion_point,
                     Spatial(
                         rank_variable=r,
-                        dimension=fanout_dim,
-                        across_object=fanout,
-                        across=fanout.name,
+                        name=fanout_dim.name,
+                        component_object=node,
+                        component=node.name,
                         tile_shape="symbol",
                     ),
                 )

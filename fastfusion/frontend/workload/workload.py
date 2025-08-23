@@ -334,7 +334,6 @@ class Workload(ParsableModel):
         return [EinsumName(e.name) for e in self.einsums]
 
     def einsums_with_tensor(self, tensor: TensorName) -> list["Einsum"]:
-        print(tensor)
         return [e for e in self.einsums if tensor in e.tensor_names]
 
     def tensors_read_by_einsum(self, einsum_name: str) -> set[TensorName]:
@@ -447,8 +446,11 @@ class Workload(ParsableModel):
 
         element_to_child_space = {}
         all_rank_variables = einsum.rank_variables
-        for tensor in all_:
-            rank_variables = einsum.tensor_accesses[tensor].rank_variables
+        for tensor in self.tensor_names:
+            if tensor in all_:
+                rank_variables = einsum.tensor_accesses[tensor].rank_variables
+            else:
+                rank_variables = set()
             element_to_child_space[tensor] = InvertibleSet(
                 instance=rank_variables,
                 full_space=all_rank_variables,
@@ -467,16 +469,16 @@ class Workload(ParsableModel):
         }
         symbol_table = {
             "Nothing": InvertibleSet(instance=(), **kwargs_tensors),
+            "Tensors": InvertibleSet(instance=all_, **kwargs_tensors),
             "All": InvertibleSet(instance=all_, **kwargs_tensors),
             "Inputs": InvertibleSet(instance=inputs, **kwargs_tensors),
             "Outputs": InvertibleSet(instance=outputs, **kwargs_tensors),
             "Intermediates": InvertibleSet(instance=intermediates, **kwargs_tensors),
             "Shared": InvertibleSet(instance=shared, **kwargs_tensors),
             **{t: InvertibleSet(instance=(t,), **kwargs_tensors) for t in all_},
-            **{
-                r: InvertibleSet(instance=(r,), **kwargs_rank_variables)
-                for r in all_rank_variables
-            },
+            **{r: InvertibleSet(instance=(r,), **kwargs_rank_variables) for r in all_rank_variables},
+            "Einsum": einsum_name,
+            "Einsum_Object": einsum,
         }
 
         if renames is not None:
@@ -523,9 +525,13 @@ class Workload(ParsableModel):
         for t in self.tensor_names:
             if t not in symbol_table:
                 symbol_table[t] = InvertibleSet(
-                    instance=(), space_name="tensors", full_space=all_
+                    instance=(), 
+                    space_name="tensors", 
+                    full_space=all_,
+                    child_access_name="rank_variables",
+                    element_to_child_space=element_to_child_space,
                 )
-
+                
         return symbol_table
 
     def get_pairwise_equivalent_rank_variables(

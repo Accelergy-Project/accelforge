@@ -23,8 +23,8 @@ mapping:
   - !Spatial
     rank_variable: d
     tile_shape: 1
-    dimension: 0
-    across: LocalBuffer
+    name: 0
+    component: LocalBuffer
   - !Storage
     tensors: [Q]
     component: LocalBuffer

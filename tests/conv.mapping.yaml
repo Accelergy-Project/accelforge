@@ -10,13 +10,13 @@ mapping:
   - !Spatial
     rank_variable: r
     tile_shape: 1
-    dimension: 0
-    across: LocalBuffer
+    name: 0
+    component: LocalBuffer
   - !Spatial
     rank_variable: m
     tile_shape: 1
-    dimension: 0
-    across: LocalBuffer
+    name: 0
+    component: LocalBuffer
   - !Storage
     tensors: [I]
     component: LocalBuffer

@@ -357,56 +357,103 @@ class Iteration(MappingNode):
     def _render_node_color(self) -> str:
         return "#FCC2FC"
 
+    def compact_str(self) -> str:
+        rv = self.rank_variable
+        if isinstance(rv, (set, frozenset)):
+            rv = ",".join(sorted(rv))
+        if self.loop_bound is not None:
+            return f"{rv} shape {self.tile_shape}"
+        elif self.tile_pattern is not None:
+            return f"{rv} patrn {self.tile_pattern}"
+        elif self.loop_bound is not None:
+            return f"{rv} bound {self.loop_bound}"
+        else:
+            return f"{rv}"
+        
+    def merge(self, other: "Iteration", **kwargs) -> "Iteration":
+        if not isinstance(other, Iteration):
+            raise ValueError(f"Expected Iteration, got {type(other)}")
+        if self.loop_bound != other.loop_bound:
+            raise ValueError(f"Loop bounds do not match: {self.loop_bound} != {other.loop_bound}")
+        if self.tile_shape != other.tile_shape:
+            raise ValueError(f"Tile shapes do not match: {self.tile_shape} != {other.tile_shape}")
+        if self.tile_pattern != other.tile_pattern:
+            raise ValueError(f"Tile patterns do not match: {self.tile_pattern} != {other.tile_pattern}")
+
+        my_rv, other_rv = self.rank_variable, other.rank_variable
+        my_rv = my_rv if isinstance(my_rv, (set, frozenset)) else set((my_rv,))
+        other_rv = other_rv if isinstance(other_rv, (set, frozenset)) else set((other_rv,))
+        return type(self)(
+            rank_variable=my_rv | other_rv,
+            loop_bound=self.loop_bound,
+            tile_shape=self.tile_shape,
+            tile_pattern=self.tile_pattern,
+            assume_perfect_factor=self.assume_perfect_factor,
+            **kwargs
+        )
+
 
 class Temporal(Iteration):
     """
     A Temporal :class:`~.Iteration`.
     """
 
-    def compact_string(self) -> str:
-        if self.loop_bound is not None:
-            return f"{self.rank_variable} shape {self.tile_shape}"
-        elif self.tile_pattern is not None:
-            return f"{self.rank_variable} patrn {self.tile_pattern}"
-        elif self.loop_bound is not None:
-            return f"{self.rank_variable} bound {self.loop_bound}"
-        else:
-            return f"{self.rank_variable} None"
+    def compact_str(self) -> str:
+        return f"T-{super().compact_str()}"
 
     def __eq__(self, other: "Temporal") -> bool:
         return isinstance(other, Temporal) and super().__eq__(other)
+    
+    def merge(self, other: "Temporal") -> "Temporal":
+        if not isinstance(other, Temporal):
+            raise ValueError(f"Expected Temporal, got {type(other)}")
+        return super().merge(other)
 
 
 class Spatial(Iteration):
     """
     A Spatial :class:`~.Iteration`.
 
-    :param dimension: The dimension the spatial is occuring over.
-    :param across: The hardware feature name hosting the iteration.
-    :param across_object: The hardware feature hosting the Iteration.
+    :param name: The dimension the spatial is occuring over.
+    :param component: The hardware feature name hosting the iteration.
+    :param component_object: The hardware feature hosting the Iteration.
 
-    :type dimension: Union[int, str]
-    :type across: str
-    :type across_object: Optional[architecture.Leaf]
+    :type name: Union[int, str]
+    :type component: str
+    :type component_object: Optional[architecture.Leaf]
     """
 
-    dimension: Union[int, str]
-    across: str
-    across_object: Optional[architecture.Leaf] = None
+    name: Union[int, str]
+    component: str
+    component_object: Optional[architecture.Leaf] = None
 
-    def compact_string(self) -> str:
-        return f"S{self.dimension}-{self.rank_variable}-{self.loop_bound}"
+    def compact_str(self) -> str:
+        return f"S-{self.name}-{super().compact_str()}"
 
     def __str__(self) -> str:
-        return f"S{self.dimension} " + super().__str__()
+        return f"S-{self.name} " + super().__str__()
 
     def __eq__(self, other: "Spatial") -> bool:
         return (
             isinstance(other, Spatial)
             and super().__eq__(other)
-            and self.dimension == other.dimension
-            and self.across == other.across
-            and self.across_object == other.across_object
+            and self.name == other.name
+            and self.component == other.component
+            and self.component_object == other.component_object
+        )
+
+    def merge(self, other: "Spatial") -> "Spatial":
+        if not isinstance(other, Spatial):
+            raise ValueError(f"Expected Spatial, got {type(other)}")
+        if self.name != other.name:
+            raise ValueError(f"Names do not match: {self.name} != {other.name}")
+        if self.component != other.component:
+            raise ValueError(f"Components do not match: {self.component} != {other.component}")
+        return super().merge(
+            other, 
+            name=self.name, 
+            component=self.component, 
+            component_object=self.component_object
         )
 
 
@@ -441,9 +488,9 @@ class TensorHolder(MappingNode):
     _backing: Set[TensorName] = set()  # Which tensor(s) are backed by this node?
     _lower: bool = True
 
-    def compact_string(self) -> str:
+    def compact_str(self) -> str:
         tname = ",".join(self.tensors)
-        return f"[{self.component} {tname} {self._lower}]"
+        return f"[{tname} in {self.component}]"
 
     def __str__(self, color_map: ColorMap = None) -> str:
         tensors = self.tensors
@@ -469,12 +516,32 @@ class TensorHolder(MappingNode):
         return "#D7FCD7"
 
 
+    def merge(self, other: "TensorHolder") -> "TensorHolder":
+        if not isinstance(other, TensorHolder):
+            raise ValueError(f"Expected TensorHolder, got {type(other)}")
+
+        if self.component != other.component:
+            raise ValueError(f"Components do not match: {self.component} != {other.component}")
+
+        new = type(self)(
+            tensors=self.tensors + other.tensors,
+            component=self.component,
+            component_object=self.component_object,
+        )
+        new._must_keep_tensors = self._must_keep_tensors + other._must_keep_tensors
+        new._backing = self._backing | other._backing
+        new._lower = self._lower
+        return new
+
 class Storage(TensorHolder):
     """
     A Storage component that acts as a :class:`~.TensorHolder`.
     """
 
-    pass
+    def merge(self, other: "Storage") -> "Storage":
+        if not isinstance(other, Storage):
+            raise ValueError(f"Expected Storage, got {type(other)}")
+        return super().merge(other)
 
 
 class ProcessingStage(TensorHolder):
@@ -498,12 +565,13 @@ class Compute(MappingNode):
 
     einsum: str
     compute: str = "MAC"
+    component_object: Optional[architecture.Compute] = None
 
-    def compact_string(self) -> str:
-        return f"Einsum {self.einsum}"
+    def compact_str(self) -> str:
+        return f"{self.compute} computes {self.einsum}"
 
     def __str__(self) -> str:
-        return f"Einsum {self.einsum}"
+        return f"{self.compute} computes {self.einsum}"
 
     def _render_node_shape(self) -> str:
         return "ellipse"
@@ -974,6 +1042,20 @@ class Nested(MappingNodeWithChildren):
 
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
 
+    def compact_str(self) -> str:
+        result = []
+        prev = None
+        for node in self.nodes:
+            try:
+                prev = prev.merge(node)
+            except:
+                if prev is not None:
+                    result.append(prev)
+                prev = node
+        if prev is not None:
+            result.append(prev)
+        
+        return " ".join(node.compact_str() for node in result)
 
 class Pipeline(Split):
     """
@@ -1020,8 +1102,8 @@ class Reservation(MappingNode, ModelOnlyNode):
     purposes: ParsableList[str]
     resource: str
 
-    def compact_string(self) -> str:
-        return f'R {",".join(self.purposes)} reserves {self.resource}'
+    def compact_str(self) -> str:
+        return f'{",".join(self.purposes)} reserves {self.resource}'
 
     def __str__(self, color_map: ColorMap = None) -> str:
         purposes = self.purposes
@@ -1043,7 +1125,7 @@ class Reservation(MappingNode, ModelOnlyNode):
         raise ValueError(f"Reservation has multiple purposes: {self.purposes}")
 
     def __eq__(self, other: "Reservation") -> bool:
-        return self.purposes == other.purposes and self.resource == other.resource
+        return isinstance(other, Reservation) and self.purposes == other.purposes and self.resource == other.resource
 
     def _render_node_color(self) -> str:
         return "#E8E8E8"  # Light gray
@@ -1063,7 +1145,7 @@ class Reservation(MappingNode, ModelOnlyNode):
 #     tensor: str
 #     memory: str
 
-#     def compact_string(self) -> str:
+#     def compact_str(self) -> str:
 #         return f"F {self.tensor} in {self.component}"
 
 

@@ -31,7 +31,7 @@ from . import constraints
 from fastfusion.version import assert_version, __version__
 from pydantic import Discriminator
 
-from fastfusion.frontend.constraints import ConstraintGroup
+from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
 
 
 class ArchNode(ParsableModel):
@@ -79,19 +79,14 @@ class ArchNodes(ParsableList):
 
 
 class Spatial(ParsableModel):
-    fanout: ParsableDict[str, ParsesTo[int]] = ParsableDict()
-
-    def get_fanout(self):
-        return int(math.prod(self.fanout.values()))
-
-    def to_fanout_string(self):
-        return f"[1..{self.get_fanout()}]"
+    name: str
+    fanout: ParsesTo[int]
 
 
 class Leaf(ArchNode, ABC):
     name: str
     attributes: ComponentAttributes
-    spatial: Spatial = Spatial()
+    spatial: ParsableList[Spatial] = ParsableList()
     constraints: ConstraintGroup = ConstraintGroup()
 
     def parse_expressions(self, *args, **kwargs):
@@ -106,7 +101,7 @@ class Leaf(ArchNode, ABC):
         )
 
     def get_fanout(self):
-        return self.spatial.get_fanout()
+        return int(math.prod(x.fanout for x in self.spatial))
 
     def _parse_constraints(self, outer_scope: dict[str, Any]):
         self.constraints.name = self.name
@@ -115,7 +110,6 @@ class Leaf(ArchNode, ABC):
 
 class Component(Leaf, ABC):
     component_class: Optional[str] = None
-    enabled: ParsesTo[bool] = True
     power_gated_at: ParsesTo[Optional[str]] = None
     actions: ParsableList[SubcomponentAction]
 
@@ -242,6 +236,7 @@ class ComputeAttributes(ComponentAttributes):
 class Compute(Component):
     actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
     attributes: ComputeAttributes
+    constraints: MiscOnlyConstraints = MiscOnlyConstraints()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -256,6 +251,8 @@ class Branch(ArchNode, ABC):
                 Annotated[Compute, Tag("Compute")],
                 Annotated[Memory, Tag("Memory")],
                 Annotated[ProcessingStage, Tag("ProcessingStage")],
+                Annotated["Parallel", Tag("Parallel")],
+                Annotated["Hierarchical", Tag("Hierarchical")],
             ],
             Discriminator(get_tag),
         ]
@@ -263,27 +260,69 @@ class Branch(ArchNode, ABC):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
+        
+class Parallel(Branch):
+    def _flatten(self, attributes: dict, compute_node: str, fanout: int = 1, return_fanout: bool = False):
+        nodes = []
+        
+        def _parse_node(node: Leaf, fanout: int):
+            fanout *= node.get_fanout()
+            node2 = node.model_copy()
+            node2.attributes = type(node.attributes)(
+                **{**attributes.model_dump(), **node.attributes.model_dump()}
+            )
+            node2.attributes.n_instances *= fanout
+            nodes.append(node2)
+            return fanout
+        
+        for node in self.nodes:
+            if isinstance(node, Compute) and node.name == compute_node:
+                fanout = _parse_node(node, fanout)
+                break
+            if isinstance(node, Branch):
+                computes = node.get_instances_of_type(Compute)
+                if compute_node in [c.name for c in computes]:
+                    new_nodes, new_fanout = node._flatten(attributes, compute_node, fanout, return_fanout=True)
+                    nodes.extend(new_nodes)
+                    fanout *= new_fanout
+                    break
+        else:
+            raise ParseError(f"Compute node {compute_node} not found in parallel node")
+        
+        return nodes, fanout if return_fanout else nodes
 
 class Hierarchical(Branch):
-    def _flatten(self, attributes: dict, fanout: int = 1, return_fanout: bool = False):
+    def _flatten(self, attributes: dict, compute_node: str, fanout: int = 1, return_fanout: bool = False):
         nodes = []
+        
+        def _parse_node(node: Leaf, fanout: int):
+            fanout *= node.get_fanout()
+            node2 = node.model_copy()
+            node2.attributes = type(node.attributes)(
+                **{**attributes.model_dump(), **node.attributes.model_dump()}
+            )
+            node2.attributes.n_instances *= fanout
+            nodes.append(node2)
+            return fanout
+        
         for i, node in enumerate(self.nodes):
             try:
-                if isinstance(node, Hierarchical):
+                if isinstance(node, (Hierarchical, Parallel)):
+                    if isinstance(node, Parallel) and i < len(self.nodes) - 1:
+                        raise ParseError(f"Parallel node {node.name} must be the last node in a hierarchical node")
                     new_nodes, new_fanout = node._flatten(
-                        attributes, fanout, return_fanout=True
+                        attributes, compute_node, fanout, return_fanout=True
                     )
                     nodes.extend(new_nodes)
                     fanout *= new_fanout
+                    if any(isinstance(n, Compute) and n.name == compute_node for n in new_nodes):
+                        break
+                elif isinstance(node, Compute):
+                    if node.name == compute_node:
+                        fanout = _parse_node(node, fanout)
+                        break
                 elif isinstance(node, Leaf) and not isinstance(node, Container):
-                    fanout *= node.get_fanout()
-                    node2 = node.model_copy()
-                    node2.attributes = type(node.attributes)(
-                        **{**attributes.model_dump(), **node.attributes.model_dump()}
-                    )
-                    node2.attributes.n_instances *= fanout
-                    nodes.append(node2)
+                    fanout = _parse_node(node, fanout)
                 elif isinstance(node, Container):
                     fanout *= node.get_fanout()
                 else:
@@ -291,6 +330,7 @@ class Hierarchical(Branch):
             except ParseError as e:
                 e.add_field(node)
                 raise e
+
         if return_fanout:
             return nodes, fanout
         return nodes

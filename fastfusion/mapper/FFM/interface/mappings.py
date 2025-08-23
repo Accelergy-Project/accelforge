@@ -186,7 +186,7 @@ class Mappings:
                 continue
         return Mappings(self.spec, self.einsum_names, new_df)
 
-    def drop_zero(self) -> "Mappings":
+    def drop_zeros(self) -> "Mappings":
         new_df = self.data.copy()
         new_df = new_df[(c for c in new_df.columns if (new_df[c] != 0).any())]
         return Mappings(self.spec, self.einsum_names, new_df)

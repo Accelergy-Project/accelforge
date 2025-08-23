@@ -48,6 +48,10 @@ def join_compatibilities(
 
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT: see `simexplore.join_sims`
     """
+    for einsum_name, compats in einsum2compatibilities.items():
+        if sum(len(c) for c in compats) == 0:
+            raise ValueError(f"No pmappings for {einsum_name}")
+
     if len(einsum2compatibilities) == 0:
         raise ValueError("Nothing to join")
 
