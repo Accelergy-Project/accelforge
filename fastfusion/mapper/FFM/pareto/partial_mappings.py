@@ -14,7 +14,7 @@ from fastfusion.util import fzs
 from fastfusion.accelerated_imports import pd
 
 from .df_convention import *
-from .pareto_impl import makepareto
+from .pareto_implementation import makepareto
 
 
 CHECK_CORRECTNESS = False

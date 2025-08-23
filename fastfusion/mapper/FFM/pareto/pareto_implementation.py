@@ -2,7 +2,6 @@ import time
 
 import pandas as pd
 
-from fast_pareto import is_pareto_front
 from paretoset import paretoset
 from joblib import delayed
 
@@ -48,6 +47,7 @@ def quickpareto(df: pd.DataFrame) -> pd.DataFrame:
     return mask
 
 def makepareto_quick2(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    from fast_pareto import is_pareto_front
     m2 = mappings[columns]
     m2 = m2[is_pareto_front(m2.to_numpy())].drop_duplicates()
     return mappings.loc[m2.index]

@@ -1,0 +1,10 @@
+include README.md
+include requirements.txt
+include LICENSE
+include *.yaml
+include *.yml
+include *.md
+recursive-include fastfusion *.py
+recursive-include tests *.py
+recursive-include notebooks *.ipynb
+recursive-include hwcomponents *.py
