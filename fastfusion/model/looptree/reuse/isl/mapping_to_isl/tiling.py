@@ -60,7 +60,7 @@ def get_mapping_group_einsums(
     result: defaultdict[MappingNode, set[EinsumName]] = defaultdict(set)
 
     # Start DFS hierarchical search from the root.
-    root = mapping.loops[0]
+    root: MappingNode = mapping
     dfs_stack.append((root, root))
 
     # Exhaustive DFS search.
@@ -440,7 +440,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
     )
 
     # Initiates the DFS at the mapping root and appends its info.
-    root: MappingNode = mapping.nodes[0]
+    root: MappingNode = mapping
     dfs_stack.append(root)
     for einsum_name in workload.einsum_names:
         tiling: Tiling = isl.Map.from_range(
