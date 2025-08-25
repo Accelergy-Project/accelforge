@@ -334,7 +334,6 @@ class Workload(ParsableModel):
         return [EinsumName(e.name) for e in self.einsums]
 
     def einsums_with_tensor(self, tensor: TensorName) -> list["Einsum"]:
-        print(tensor)
         return [e for e in self.einsums if tensor in e.tensor_names]
 
     def tensors_read_by_einsum(self, einsum_name: str) -> set[TensorName]:
@@ -370,52 +369,45 @@ class Workload(ParsableModel):
     def tensor_names(self) -> set[TensorName]:
         return {TensorName(t.name) for e in self.einsums for t in e.tensor_accesses}
 
-    def render(self) -> str:
-        import mermaid as md
-        from mermaid.graph import Graph
+    # def render(self) -> str:
+    #     import mermaid as md
+    #     from mermaid.graph import Graph
+    #     lines = [
+    #         "graph LR",
+    #         "linkStyle default interpolate basis"
+    #     ]
+        
+    #     # Add all tensors as nodes (circles)
+    #     tensors = []
+    #     seen_tensor_names = set()
+    #     for einsum in self.einsums:
+    #         lines.append(f"\tEinsum_{einsum.name}[\"<b>{einsum.name}</b>\n<small>{einsum.to_formatted_string(compress=True)}</small>\"]")
+    #         for tensor_access in einsum.tensor_accesses:
+    #             if tensor_access.name not in seen_tensor_names:
+    #                 tensors.append(tensor)
+    #                 seen_tensor_names.add(tensor_access.name)
+    #                 lines.append(f"\tTensor_{tensor_access.name}{{{{\"<b>{tensor_access.name}</b>\n\"}}}}")
+        
+    #     # Add all einsums as nodes (rectangles)
+    #     for einsum in self.einsums:
+    #         # Add edges from tensors to einsums
+    #         for tensor_access in einsum.tensor_accesses:
+    #             if tensor_access.output:
+    #                 # Output tensor: einsum -> tensor
+    #                 lines.append(f"\tEinsum_{einsum.name} --> Tensor_{tensor_access.name}")
+    #             else:
+    #                 # Input tensor: tensor -> einsum
+    #                 lines.append(f"\tTensor_{tensor_access.name} --> Einsum_{einsum.name}")
+        
+    #     # Create the graph with the flowchart script
+    #     flowchart_script = "\n".join(lines)
+    #     graph = Graph('Flowchart', flowchart_script)
+        
+    #     # Set the configuration to ignore node order
+    #     config = md.Config()
+    #     graph.config = config
 
-        lines = ["graph LR", "linkStyle default interpolate basis"]
-
-        # Add all tensors as nodes (circles)
-        tensors: list[TensorName] = []
-        seen_tensor_names = set()
-        for einsum in self.einsums:
-            lines.append(
-                f'\tEinsum_{einsum.name}["<b>{einsum.name}</b>\n<small>'
-                f'{einsum.to_formatted_string(compress=True)}</small>"]'
-            )
-            for tensor_access in einsum.tensor_accesses:
-                if tensor_access.name not in seen_tensor_names:
-                    tensors.append(tensor_access.name)
-                    seen_tensor_names.add(tensor_access.name)
-                    lines.append(
-                        f'\tTensor_{tensor_access.name}{{{{"<b>{tensor_access.name}</b>\n"}}}}'
-                    )
-
-        # Add all einsums as nodes (rectangles)
-        for einsum in self.einsums:
-            # Add edges from tensors to einsums
-            for tensor_access in einsum.tensor_accesses:
-                if tensor_access.output:
-                    # Output tensor: einsum -> tensor
-                    lines.append(
-                        f"\tEinsum_{einsum.name} --> Tensor_{tensor_access.name}"
-                    )
-                else:
-                    # Input tensor: tensor -> einsum
-                    lines.append(
-                        f"\tTensor_{tensor_access.name} --> Einsum_{einsum.name}"
-                    )
-
-        # Create the graph with the flowchart script
-        flowchart_script = "\n".join(lines)
-        graph = Graph("Flowchart", flowchart_script)
-
-        # Set the configuration to ignore node order
-        config = md.Config()
-        graph.config = config
-
-        return md.Mermaid(graph)
+    #     return md.Mermaid(graph)
 
     def get_constraint_symbol_table(
         self,

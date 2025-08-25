@@ -12,6 +12,17 @@ from fastfusion.util.parse_expressions import MATH_FUNCS
 from .bypass_keep_generator import make_tensor_choices_all_levels
 from fastfusion.frontend.workload.workload import EinsumName
 
+def eval_enabled(component: architecture.Component, symbol_table: SymbolTable) -> bool:
+    enabled = component.constraints.misc.enabled
+    if isinstance(enabled, str):
+        return eval(enabled, {"__builtins__": MATH_FUNCS}, symbol_table)
+    if isinstance(enabled, bool):
+        return enabled
+    raise ValueError(
+        f"enabled for {component.name} must be a bool or evaluate to a bool, "
+        f"got {type(enabled)}: {enabled}"
+    )
+
 def get_tensor_choices(
     einsum_name: EinsumName,
     nodes: list[architecture.Memory],
@@ -19,8 +30,17 @@ def get_tensor_choices(
     spec: Specification,
 ) -> Generator[tuple[list[TensorHolder], Any], None, None]:
     nodes, compute = nodes[:-1], nodes[-1]
-    while not isinstance(nodes[0], architecture.Memory):
-        nodes = nodes[1:]
+    while True:
+        if not nodes:
+            return
+        if not isinstance(nodes[0], architecture.Memory):
+            nodes = nodes[1:]
+            continue
+        if not eval_enabled(nodes[0], symbol_table):
+            nodes = nodes[1:]
+            continue
+        break
+
     first_tensor_holder = nodes[0]
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
@@ -41,11 +61,7 @@ def get_tensor_choices(
             nodes, symbol_table, tensors
         )
 
-        if isinstance(compute.constraints.enabled, str):
-            enabled = eval(compute.constraints.enabled, {"__builtins__": MATH_FUNCS}, symbol_table)
-        if not isinstance(enabled, bool):
-            raise ValueError(f"Compute constraints enabled for {compute.name} must be a boolean, got {type(enabled)}: {enabled}")
-        if not enabled:
+        if not eval_enabled(compute, symbol_table):
             continue
 
         for mapping in recursive_order_tensor_choices(
@@ -98,7 +114,7 @@ def recursive_order_tensor_choices(
                 f"Einsum {einsum_name} has a mapping that is missing tensors. Ensure that "
                 f"there is a node storing each tensor in the Einsum. Missing tensors: "
                 f"{tensors - tensors_in_mapping}. Mapping:\n\t" + "\n\t".join(
-                    m.compact_string() for m in mapping
+                    m.compact_str() for m in mapping
                 )
             )
     
@@ -117,7 +133,7 @@ def recursive_order_tensor_choices(
             yield mapping
             return
 
-    for choice in sorted(remaining_choices, key=lambda x: x.compact_string()):
+    for choice in sorted(remaining_choices, key=lambda x: x.compact_str()):
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
         if valid_tensor_holder_order(mapping, [n.name for n in nodes], required_order, spec):

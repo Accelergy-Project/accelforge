@@ -42,7 +42,7 @@ architecture:
   - !Memory
     name: LocalBuffer
     component_class: SRAM 
-    spatial: {fanout: {Z: 4}}
+    spatial: [{name: Z, fanout: 4}]
     attributes:
       size: 1024*1024*4*8 # 4MB
       width: 2048
@@ -57,7 +57,7 @@ architecture:
         keep: (Intermediates() - weight) - GlobalBuffer.tensors()
         bypass: weight | GlobalBuffer.tensors()
       spatial:
-      - dimension: Z
+      - name: Z
         min_utilization: 1 if len(All()) > 2 else 0
         loop_bounds:
         - expression: weight.rank_variables()
@@ -71,13 +71,12 @@ architecture:
     actions:
     - {name: compute, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}
-    constraints:
-      enabled: len(All()) == 2
+    constraints: {misc: {enabled: len(All()) == 2}}
 
   - !Memory
     name: Register
     component_class: dummy_storage
-    spatial: {fanout: {X: 128, Y: 128}}
+    spatial: [{name: X, fanout: 128}, {name: Y, fanout: 128}]
     attributes:
       size: 8 # 8b
       datawidth: 8
@@ -93,13 +92,13 @@ architecture:
         keep: weight - GlobalBuffer.tensors()
         bypass: ~weight | GlobalBuffer.tensors()
       spatial:
-      - dimension: X # Parallel rank
+      - name: X # Parallel rank
         min_utilization: 1
         loop_bounds:
         - expression: input.rank_variables() | ~output.rank_variables()
           operator: ==
           value: 1
-      - dimension: Y # Reduced rank. No iteration over outputs
+      - name: Y # Reduced rank. No iteration over outputs
         min_utilization: 1
         loop_bounds:
         - expression: output.rank_variables() | ~input.rank_variables()
@@ -113,5 +112,4 @@ architecture:
     actions:
     - {name: compute, arguments: {energy: 0.84e-12}}
     - {name: leak, arguments: {energy: 0}}
-    constraints:
-      enabled: len(All()) == 3
+    constraints: {misc: {enabled: len(All()) == 3}}

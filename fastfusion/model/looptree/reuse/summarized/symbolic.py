@@ -434,7 +434,7 @@ class ReservationAnalysisTracker:
             self.has_filled = True
 
     def track_spatial_loop(self, relevancy, node):
-        if node.across != self.buffet.level:
+        if node.component != self.buffet.level:
             self.should_stop = True
             if not self.has_filled:
                 self.is_fill_level = True
@@ -604,7 +604,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
     rank_var = node.rank_variable
-    node_dim = node.dimension
+    node_dim = node.name
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
 
     result_accumulator = SummarizedAnalysisOutput()
@@ -651,7 +651,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                     child_steps
                 )
 
-        my_key = (node.across, einsum_name)
+        my_key = (node.component, einsum_name)
         child_result.fanout.setdefault(my_key, {})
 
         # Propagate up everything except the current level and dimension

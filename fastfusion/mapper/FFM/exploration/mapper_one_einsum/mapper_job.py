@@ -1,13 +1,15 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import logging
 from numbers import Number
-from typing import Callable
+from typing import Callable, Optional
 from uuid import UUID
 
 import fastfusion.frontend.architecture as architecture
 from fastfusion.frontend.mapping import (
     Iteration,
     Mapping,
+    MappingNode,
     ModelOnlyNode,
     Spatial,
 )
@@ -29,6 +31,7 @@ from fastfusion.mapper.FFM.joining.mappinginfo import (
 )
 from fastfusion.mapper.FFM.exploration.contraints.constraints import (
     MappingConstraints,
+    ConstraintLambda,
 )
 from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.util.util import fzs
@@ -202,6 +205,12 @@ class Job:
     _update_compatibility_with_tile_shapes: Callable[[Sequence[Number], dict], Compatibility] | None = None
     memories_track_all: list[str] | None = None
     memories_track_pmappings_only: list[str] | None = None
+    messages: list[str] = field(default_factory=list)
+    time_limit: float | int = float('inf')
+    memory_limit: float | int = float('inf')
+    mask_ratios: dict[str, int] = field(default_factory=dict)
+    mask_totals: dict[str, int] = field(default_factory=dict)
+    mask_total: Optional[int] = None
 
     @property
     def compatibility(self) -> Compatibility:
@@ -229,7 +238,7 @@ class Job:
                                self.spec.workload,
                                self.rank_variable_bounds,
                                self.stride_and_halo)
-            
+
     @property
     def is_copy_operation(self) -> bool:
         return self.spec.workload.einsums[self.einsum_name].is_copy_operation
@@ -248,6 +257,68 @@ class Job:
         }
         kwargs = {**defaults, **kwargs}
         return cls(**kwargs)
+    
+    def pretty_str(self) -> str:
+        constraints = self.constraints.get_all_constraints()
+        node2constraints: dict[int, list[ConstraintLambda]] = {}
+        for constraint in constraints:
+            for target_index in constraint._target_node_indices:
+                l = node2constraints.setdefault(target_index, [])
+                l.append(constraint)
+                
+        # Reservations are added after mapping generation so it messes up the indexing
+        mapping = [n for n in self.mapping.nodes if not isinstance(n, ReservationNode)]
+
+        s = ''
+        s += '=' * 80 + '\n'
+        s += f'Mapper job with ID {self.job_id}\n'
+        s += f'Einsum name: {self.einsum_name}\n'
+        s += f'Rank variable bounds: {self.rank_variable_bounds}\n'
+        s += f'Compute node name: {self.flattened_arch[-1].name}\n'
+        s += f'Mapping:\n'
+        for i, node in enumerate(mapping):
+            cur_constraints = sorted(constraints.index(c) for c in node2constraints.get(i, []))
+            s += f'\t{i} {node.compact_str()} constrained by {cur_constraints}\n'
+        s += self.constraints.pretty_str()
+        s += f"Messages:\n"
+        for m in self.messages:
+            s += f'\t{m}\n'
+        s += f"Pmapping elimination reasons:\n"
+        for cause, n_pruned in self.mask_ratios.items():
+            s += f'\t{cause}: {n_pruned} pmappings\n'
+        s += '=' * 80 + '\n'
+        return s
+
+    def log_message(self, message: str):
+        self.messages.append(message)
+        logging.info(message)
+        # print(message)
+
+    def log_mask(self, cause: str, n_pruned: int, size: int):
+        if n_pruned == 0:
+            return
+        if self.mask_total is None:
+            self.mask_ratios[cause] = self.mask_ratios.get(cause, 1) * n_pruned
+            # print(f"Mask ratio {cause}: {self.mask_ratios[cause]}")
+        else:
+            self.mask_totals[cause] = self.mask_ratios.get(cause, 0) + n_pruned * size
+            
+    def create_new_mask_total(self, size: int):
+        self.mask_total = size
+        assert not self.mask_totals, "Clear mask totals before creating a new mask total"
+
+    def clear_mask_total(self):
+        mask_total = self.mask_total
+        self.mask_total = None
+        for cause, n_pruned in self.mask_totals.items():
+            self.log_mask(cause, n_pruned / mask_total, mask_total)
+        self.mask_totals.clear()
+
+    def clear_mask_totals(self):
+        for cause, n_pruned in self.mask_totals.items():
+            self.log_message(f"Eliminated {n_pruned} pmappings because {cause}")
+        self.mask_totals.clear()
+
 
 class SameSpecJobs(list[Job]):
     @property

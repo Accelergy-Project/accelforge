@@ -13,18 +13,18 @@ mapping:
   - !Spatial
     rank_variable: n0
     tile_shape: 8
-    dimension: 0
-    across: LocalBuffer
+    name: 0
+    component: LocalBuffer
   - !Spatial
     rank_variable: n0
     tile_shape: 2
-    dimension: 1
-    across: LocalBuffer
+    name: 1
+    component: LocalBuffer
   - !Spatial
     rank_variable: n1
     tile_shape: 8
-    dimension: 0
-    across: LocalBuffer
+    name: 0
+    component: LocalBuffer
   - !Temporal
     rank_variable: n0
     tile_shape: 1

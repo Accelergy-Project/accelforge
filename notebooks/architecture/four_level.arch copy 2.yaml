@@ -54,7 +54,7 @@ architecture:
   - !Memory
     name: LocalBuffer
     component_class: SRAM 
-    spatial: {fanout: {X: 4}}
+    spatial: [{name: X, fanout: 4}]
     attributes:
       size: 1024*1024*4*8 # 4MB
       width: 2048
@@ -71,7 +71,7 @@ architecture:
         # - [All()] # No uneven. Put all tensors at the same level.
         - [input, output]
       spatial:
-        - dimension: X
+        - name: X
           min_utilization: 1
           loop_bounds:
           - expression: weight.rank_variables()
@@ -87,7 +87,7 @@ architecture:
   - !Memory
     name: Register
     component_class: dummy_storage
-    spatial: {fanout: {X: 128, Y: 128}}
+    spatial: [{name: X, fanout: 128}, {name: Y, fanout: 128}]
     attributes:
       size: 8 # 8b
       datawidth: 8
@@ -106,13 +106,13 @@ architecture:
         tensor_order_options:
         - [All()] # Outputs more stationary than inputs
       spatial:
-      - dimension: X # Parallel rank
+      - name: X # Parallel rank
         min_utilization: 1
         loop_bounds:
         - expression: input.rank_variables() # | ~weight.rank_variables()
           operator: ==
           value: 1
-      - dimension: Y # Reduced rank. No iteration over outputs
+      - name: Y # Reduced rank. No iteration over outputs
         min_utilization: 1
         loop_bounds:
         - expression: output.rank_variables() # | ~weight.rank_variables()

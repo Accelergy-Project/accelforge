@@ -90,7 +90,7 @@ def label_fused_loops(mapping: List[MappingNode]):
             last_backer = i
     if last_backer is None:
         raise ValueError(
-            f"No backing TensorHolder found in mapping {", ".join(m.compact_string() for m in mapping)}"
+            f"No backing TensorHolder found in mapping {", ".join(m.compact_str() for m in mapping)}"
         )
 
     for i, node in enumerate(mapping):
@@ -399,6 +399,7 @@ def parse_flattened_arch(
 # Top level
 # =================================================================================================
 def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
+    compute_name = job.flattened_arch[-1].name
     mappings_constraints = tqdm(
         iterate_mappings_constraints(
             job.spec,
@@ -407,7 +408,7 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
             job.rank_variable_bounds,
             job.except_from_imperfect,
         ),
-        desc=f"Generating tensor order and loop choices for Einsum {job.einsum_name}",
+        desc=f"Generating tensor order and loop choices for Einsum {job.einsum_name} compute node {compute_name}",
     )
     rank_variable_bounds = get_rank_variable_bounds(
                 job.spec.workload, job.einsum_name

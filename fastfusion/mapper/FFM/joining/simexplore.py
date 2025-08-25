@@ -1,5 +1,6 @@
 from collections import defaultdict
 import itertools
+import logging
 import time
 from fastfusion.accelerated_imports import pd
 from fastfusion.frontend import architecture
@@ -35,21 +36,21 @@ def init_print_time():
 def print_time(what: str):
     global prev_time
     t = time.time() - prev_time
-    print(f"{what}: {t:.2f} seconds")
+    logging.info(f"{what}: {t:.2f} seconds")
     total_time[what] += t
     prev_time = time.time()
 
 
 def print_total_time():
-    print(f"\n======== Total time ========")
+    logging.info(f"\n======== Total time ========")
     for k, v in total_time.items():
-        print(f"{k}: {v:.2f} seconds")
+        logging.info(f"{k}: {v:.2f} seconds")
     total = sum(total_time.values())
     if total > 60:
-        print(f"\nTotal: {total:.2f} seconds ({total/60:.2f} minutes)")
+        logging.info(f"\nTotal: {total:.2f} seconds ({total/60:.2f} minutes)")
     else:
-        print(f"\nTotal: {total:.2f} seconds")
-    print(f"============================\n")
+        logging.info(f"\nTotal: {total:.2f} seconds")
+    logging.info(f"============================\n")
 
 
 class GroupOfSIMsHolder:
@@ -128,14 +129,13 @@ def join_sims(
 
     for einsum_name, s in sims:
         if not s:
-            raise ValueError(f"No SIMs for {einsum_name}")
-        print(f"SIM {einsum_name} tensors: {s[0].tensor_names}")
+            raise ValueError(f"No pmappings for {einsum_name}")
     init_print_time()
 
     sims = [GroupOfSIMsHolder(*s) for s in sims]
 
     if not sims:
-        raise ValueError("No SIMs to join")
+        raise ValueError("No pmappings to join")
 
     # ======================================================================
     # Initial consolidate and group all SIMs
@@ -217,8 +217,7 @@ def join_sims(
         nbuckets.append(len(left))
         # nmappings.append(sum(len(s.mappings.data) for s in left))
         right, right_einsum, right_tensors = grab_sim_holder()
-        right_rank_variables = spec.workload.einsums[right_einsum].rank_variables
-        print(f"\nEinsum {right_einsum} ({n_iterations}/{total_iterations})")
+        logging.info(f"Einsum {right_einsum} ({n_iterations}/{total_iterations})")
 
         partial_mapping_size += 1
 
@@ -339,7 +338,7 @@ def join_sims(
         if DELAY:
             mappings = parallel(
                 [c.mappings for c in combined],
-                pbar=f"Merging mappings {left_einsum} <--> {right_einsum}",
+                pbar=f"Merging pmappings for {left_einsum} <--> {right_einsum} ({n_iterations}/{total_iterations})",
                 return_as="generator",
             )
             for c, mapping in zip(combined, mappings):
@@ -366,19 +365,19 @@ def join_sims(
         # ======================================================================
         # Print statements
         # ======================================================================
-        print(
+        logging.info(
             f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}"
         )
 
         nmappings = sum(len(s.mappings.data) for s in combined)
         for_einsum_text = f"for Einsum {right_einsum}"
-        print(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
+        logging.info(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
         # for c in combined:
         #     print(f"\t\t{c.compatibility}")
-        print(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
-        print(f"\tMappings per group {for_einsum_text}: {nmappings / len(combined)}")
-        print(f'\tLargest left: {max(len(s2.mappings.data) for s in left.values() for s2 in s)}')
-        print(f'\tLargest right: {max(len(s2.mappings.data) for s in right.values() for s2 in s)}')
+        logging.info(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
+        logging.info(f"\tMappings per group {for_einsum_text}: {nmappings / len(combined)}")
+        logging.info(f'\tLargest left: {max(len(s2.mappings.data) for s in left.values() for s2 in s)}')
+        logging.info(f'\tLargest right: {max(len(s2.mappings.data) for s in right.values() for s2 in s)}')
 
         # ======================================================================
         # Update left for the next iteration.

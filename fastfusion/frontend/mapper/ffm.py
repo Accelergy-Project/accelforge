@@ -16,5 +16,10 @@ class FFM(ParsableModel):
     max_explored_tile_shapes_per_bypass_choice: float | int = float('inf')
     metrics: Metrics = Metrics.ENERGY
     
+    memory_limit: float | int = float('inf')
+    memory_limit_per_process: float | int = float('inf')
+    time_limit: float | int = float('inf')
+    time_limit_per_bypass_choice: float | int = float('inf')
+    
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)

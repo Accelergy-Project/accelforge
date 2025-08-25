@@ -1,24 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-import islpy as isl
-
-from bindings.config import Config
-from bindings.looptree import LooptreeModelApp, LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
-
-from pytimeloop.file import gather_yaml_configs
-
-from pytimeloop.looptree.capacity import compute_capacity_usage
-from pytimeloop.looptree.reuse.isl.des import deserialize_looptree_output
-from pytimeloop.looptree.reuse.summarized import analyze_reuse_and_add_reservations_to_mapping
-from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
-from pytimeloop.looptree.latency import get_latency
-
-from pytimeloop.timeloopfe.v4fused import Specification
-from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
-
-from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
-
 @dataclass
 class LoopTreeStatistics:
     latency: float
@@ -28,6 +10,9 @@ class LoopTreeStatistics:
     capacity_usage: dict
 
 def run_symbolic_model(mapping, workload, architecture):
+    from pytimeloop.looptree.reuse.summarized import analyze_reuse_and_add_reservations_to_mapping
+    from pytimeloop.looptree.energy import gather_actions
+
     job = Job.make_job(mapping=mapping, workload=workload, architecture=architecture)
     result = analyze_reuse_and_add_reservations_to_mapping(job)
     actions = gather_actions(result, bindings, use_name=True)
@@ -35,6 +20,16 @@ def run_symbolic_model(mapping, workload, architecture):
 
 
 def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
+    import islpy as isl
+    from bindings.config import Config
+    from bindings.looptree import LooptreeModelApp, LooptreeWorkload
+    from pytimeloop.file import gather_yaml_configs
+    from pytimeloop.looptree.capacity import compute_capacity_usage
+    from pytimeloop.looptree.reuse.isl.des import deserialize_looptree_output
+    from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
+    from pytimeloop.looptree.latency import get_latency
+    from pytimeloop.timeloopfe.v4fused import Specification
+    from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
     yaml_str = gather_yaml_configs(config_dir, paths)
     config = Config(yaml_str, 'yaml')
     model = LooptreeModelApp(config)
@@ -80,6 +75,17 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
 
 
 def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy):
+    from bindings.config import Config
+    from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
+    from pytimeloop.file import gather_yaml_configs
+    from pytimeloop.looptree.capacity import compute_capacity_usage
+    from pytimeloop.looptree.reuse.summarized import analyze_reuse_and_add_reservations_to_mapping
+    from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
+    from pytimeloop.looptree.latency import get_latency
+    from pytimeloop.timeloopfe.v4fused import Specification
+    from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
+    from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
+
     yaml_str = gather_yaml_configs(config_dir, paths)
 
     config = Config(yaml_str, 'yaml')

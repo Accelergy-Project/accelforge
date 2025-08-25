@@ -178,7 +178,7 @@ def join_sims(
         flattened_architecture,
     )
 
-    n_threads = util.N_PARALLEL_THREADS
+    n_threads = util.N_PARALLEL_PROCESSES
     while n_threads >= 1:
         try:
             results_and_trackers = parallel([delayed(_fuse_sims)(

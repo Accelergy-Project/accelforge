@@ -48,7 +48,7 @@ class Comparison(ParsableModel):
         return sorted(set((x, )) for x in self.expression)
 
     def to_constraint_lambda(
-            self, 
+            self,
             increasing_sizes: bool,
         ) -> Callable[[bool, np.ndarray], Union[bool, np.ndarray]]:
         # Equal operators can only evaluate when all sizes are known
@@ -85,34 +85,12 @@ class Comparison(ParsableModel):
     def force_to_one(self):
         return self.value == 1 and self.operator in ["==", "<=", "product==", "product<="]
 
-# class ComparisonList(ParsableList):
-#     def __init__(self, *args, **kwargs):
-#         new_args = []
-#         for arg in args:
-#             if isinstance(arg, Comparison):
-#                 new_args.extend(arg)
-#             elif isinstance(arg, list):
-#                 if len(arg) != 3:
-#                     raise ValueError(
-#                         "To make a comparison from a list, it must have "
-#                         "three elements: expression, operator, value. Got "
-#                         f"{arg}"
-#                     )
-#                 new_args.append(Comparison(arg))
-#             else:
-#                 new_args.append(arg)
-#         super().__init__(*new_args, **kwargs)
-        
-# def parse_comparison_list(x: ParsableList[RankVariableName]) -> ComparisonList:
-#     if not isinstance(x, list):
-#         raise ValueError(f"Must be a list. Got {type(x)}")
-#     return ComparisonList(*x)
 
 class Tensors(ParsableModel):
     bypass: Union[str, InvertibleSet[TensorName], set[TensorName]] = "~All"
     keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "~All"
-    coalesce: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
     tile_shape: ParsableList[Comparison] = []
+    no_refetch_from_above: Union[str, InvertibleSet[TensorName], set[TensorName]] = "~All"
 
     def _parse_keep_bypass(self, symbol_table: dict[str, Any], location: str):
         if "bypass" in self.keep and "keep" in self.bypass:
@@ -135,8 +113,8 @@ class Tensors(ParsableModel):
 
     def _parse_non_keep_bypass(self, symbol_table: dict[str, Any], location: str):
         return type(self)(
-            coalesce=eval_set_expression(self.coalesce, symbol_table, "tensors", location),
             tile_shape=[x._parse(symbol_table, location) for x in self.tile_shape],
+            no_refetch_from_above=eval_set_expression(self.no_refetch_from_above, symbol_table, "tensors", location),
         )
 
 class Iteration(ParsableModel):
@@ -154,7 +132,7 @@ class Iteration(ParsableModel):
         )
         
 class Spatial(Iteration):
-    dimension: str
+    name: str
     min_utilization: Union[float, str] = 0.0
     def combine(self, other: "Spatial"):
         if self.reuse != other.reuse:
@@ -166,11 +144,11 @@ class Spatial(Iteration):
         
     @property
     def name(self):
-        return self.dimension
+        return self.name
     
     def _parse(self, symbol_table: dict[str, Any], location: str):
         return type(self)(
-            dimension=self.dimension,
+            name=self.name,
             loop_bounds=[x._parse(symbol_table, location) for x in self.loop_bounds],
             reuse=eval_set_expression(self.reuse, symbol_table, "tensors", location),
             min_utilization=parse_expression(self.min_utilization, symbol_table, "min_utilization", location),
@@ -213,38 +191,55 @@ class Dataflow(ParsableModel):
                         raise ValueError(f"Intersecting entries in dataflow constraint: {s0} and {s1}")
         return result
 
+class Misc(ParsableModel):
+    enabled: Union[str, bool] = True
 
-class ConstraintGroup(ParsableModel):
+
+class MiscOnlyConstraints(ParsableModel):
     name: Optional[str] = None
+    misc: Misc = Misc()
+
+
+class ConstraintGroup(MiscOnlyConstraints):
     spatial: ParsableList[Spatial] = ParsableList()
     temporal: Temporal = Temporal()
     tensors: Tensors = Tensors()
     dataflow: Dataflow = Dataflow()
-    
+
 class ConstraintLambda:
     def __init__(self, constraint: Comparison, target_mapping_nodes: list[Spatial], rank_variables: set[str]):
         self.constraint = constraint
         self.constraint_lambda = None if constraint is None else constraint.to_constraint_lambda(True)
         self.target_mapping_nodes = target_mapping_nodes
         self.rank_variables = rank_variables
+        self._target_node_indices = None
+        self._target_loop_indices = None
 
     def __call__(self, rank_variables: set[RankVariableName], sizes: np.ndarray) -> bool:
         final = self.rank_variables.issubset(rank_variables)
         return self.constraint_lambda(final, sizes)
+    
+    def _constrained_node_str(self) -> str:
+        return f"constrains {self._target_node_indices}"
 
 class TileShapeConstraintLambda(ConstraintLambda):
-    pass
+    def pretty_str(self) -> str:
+        return f"Tile shape {self.constraint.operator} {self.constraint.value} {self._constrained_node_str()}"
+
 
 class LoopBoundsConstraintLambda(ConstraintLambda):
-    pass
+    def pretty_str(self) -> str:
+        return f"Loop bounds {self.constraint.operator} {self.constraint.value} {self._constrained_node_str()}"
+
 
 class MinUtilizationConstraintLambda(ConstraintLambda):
     def __init__(self, target_mapping_nodes: list[Spatial], rank_variables: set[str], min_utilization: float):
         super().__init__(None, target_mapping_nodes, rank_variables)
         self.min_utilization = min_utilization
         
-    def __call__(self, rank_variables: set[RankVariableName], utilizations: np.ndarray) -> bool:
-        final = self.rank_variables.issubset(rank_variables)
+    def __call__(self, complete_indices: list[int], utilizations: np.ndarray) -> bool:
+        # final = self.rank_variables.issubset(rank_variables)
+        final = set(self._target_loop_indices).issubset(set(complete_indices))
         if not final:
             return np.ones(utilizations.shape[0], dtype=np.bool)
         
@@ -256,10 +251,9 @@ class MinUtilizationConstraintLambda(ConstraintLambda):
         # Nobody is amove the minimum. Return the best we can do.
         max_utilization = np.max(utilizations, axis=0)
         return utilizations == max_utilization
-
-
-class ComputeConstraints(ParsableModel):
-    enabled: Union[str, bool] = True
+    
+    def pretty_str(self) -> str:
+        return f"Min utilization {self.min_utilization} {self._constrained_node_str()}"
 
 
 class Constraints(ParsableModel):

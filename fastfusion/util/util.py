@@ -10,7 +10,7 @@ import sys
 from tqdm import tqdm
 
 PARALLELIZE = True
-N_PARALLEL_THREADS = 24
+N_PARALLEL_PROCESSES = 24
 
 
 class fzs(frozenset):
@@ -102,7 +102,7 @@ def parallel(
         args["return_as"] = return_as
 
     if n_jobs is None:
-        n_jobs = N_PARALLEL_THREADS
+        n_jobs = N_PARALLEL_PROCESSES
 
     if one_job_if_debugging and debugger_active():
         n_jobs = 1
@@ -136,13 +136,3 @@ def parallel(
         return yield_results()
     
     return list(yield_results())
-
-if __name__ == "__main__":
-
-    def test_job(x):
-        print(f"Called with {x}")
-        return (x, 1)
-
-    jobs = [delayed(test_job)(i) for i in range(100)]
-    for j in parallel(jobs, pbar="test", return_as="generator"):
-        print(j)

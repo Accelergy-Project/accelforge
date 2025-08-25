@@ -1,7 +1,7 @@
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.util import fzs
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, TypeVar, Generic, Any, Union
+from typing import Iterator, Optional, TypeVar, Generic, Any, Union
 from fastfusion.util.parse_expressions import MATH_FUNCS
 
 T = TypeVar("T")
@@ -126,6 +126,16 @@ class InvertibleSet(BaseModel, Generic[T]):
 
     def __getitem__(self, item):
         return self.instance[item]
+    
+    def iter_one_element_sets(self) -> Iterator["InvertibleSet[T]"]:
+        for item in self.instance:
+            yield InvertibleSet(
+                instance=set((item, )),
+                full_space=self.full_space,
+                space_name=self.space_name,
+                child_access_name=self.child_access_name,
+                element_to_child_space=self.element_to_child_space,
+            )
 
 
 def eval_set_expression(

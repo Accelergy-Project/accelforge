@@ -31,7 +31,7 @@ from . import constraints
 from fastfusion.version import assert_version, __version__
 from pydantic import Discriminator
 
-from fastfusion.frontend.constraints import ConstraintGroup, ComputeConstraints
+from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
 
 
 class ArchNode(ParsableModel):
@@ -79,19 +79,14 @@ class ArchNodes(ParsableList):
 
 
 class Spatial(ParsableModel):
-    fanout: ParsableDict[str, ParsesTo[int]] = ParsableDict()
-
-    def get_fanout(self):
-        return int(math.prod(self.fanout.values()))
-
-    def to_fanout_string(self):
-        return f"[1..{self.get_fanout()}]"
+    name: str
+    fanout: ParsesTo[int]
 
 
 class Leaf(ArchNode, ABC):
     name: str
     attributes: ComponentAttributes
-    spatial: Spatial = Spatial()
+    spatial: ParsableList[Spatial] = ParsableList()
     constraints: ConstraintGroup = ConstraintGroup()
 
     def parse_expressions(self, *args, **kwargs):
@@ -106,7 +101,7 @@ class Leaf(ArchNode, ABC):
         )
 
     def get_fanout(self):
-        return self.spatial.get_fanout()
+        return int(math.prod(x.fanout for x in self.spatial))
 
     def _parse_constraints(self, outer_scope: dict[str, Any]):
         self.constraints.name = self.name
@@ -115,7 +110,6 @@ class Leaf(ArchNode, ABC):
 
 class Component(Leaf, ABC):
     component_class: Optional[str] = None
-    enabled: ParsesTo[bool] = True
     power_gated_at: ParsesTo[Optional[str]] = None
     actions: ParsableList[SubcomponentAction]
 
@@ -242,7 +236,7 @@ class ComputeAttributes(ComponentAttributes):
 class Compute(Component):
     actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
     attributes: ComputeAttributes
-    constraints: ComputeConstraints = ComputeConstraints()
+    constraints: MiscOnlyConstraints = MiscOnlyConstraints()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

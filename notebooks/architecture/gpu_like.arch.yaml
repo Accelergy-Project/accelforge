@@ -91,7 +91,7 @@ architecture:
         tensor_order_options:
         - [All()] # Outputs more stationary than inputs
       spatial:
-      - dimension: X # Parallel rank
+      - name: X # Parallel rank
         loop_bounds:
         - expression: ~parallel_rank
           operator: ==
@@ -99,7 +99,7 @@ architecture:
         # - expression: parallel_rank
         #   operator: ==
         #   value: 128
-      - dimension: Y # Reduced rank. No iteration over outputs
+      - name: Y # Reduced rank. No iteration over outputs
         loop_bounds:
         - expression: ~reduced_rank
           operator: ==
