@@ -16,17 +16,16 @@ Relevant Name Changes:
 -   LogicalComputeUnit -> ComputeEinsum
 -   Loop -> Iteration
 -   Loop.op_dim -> Iteration.rank_variable
--   *MappingNode.child -> MappingNode.flatten()[0]?
--   Root -> Mapping?
+-   *MappingNode.child -> MappingNode.flatten()[0]
+-   Root -> Mapping
 -   Compute.kernel -> Compute.einsum
--   Branch -> Split?
+-   Branch -> Split
+-   FusedMapping -> Mapping
 """
 
-from collections import defaultdict
+from collections import defaultdict, deque
 
-import islpy as isl
-
-from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.mapping import Compute, Mapping, MappingNode, MappingNodeWithChildren
 from fastfusion.frontend.workload import Workload
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import skews_from_mapping
 from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
@@ -39,6 +38,43 @@ from .types import (
     Occupancy,
     Skew,
 )
+
+
+def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
+    """
+    Given a `fastfusion.frontend.mapping.Mapping`, get the parallelism values for
+    the Compute leafs.
+
+    :param mapping: The mapping to get parallelism for.
+    
+    :type mapping: Mapping
+
+    :returns:   A map relating Compute nodes with their parallelism.
+    :rtype:     defaultdict[MappingNode, float]
+    """
+    result: defaultdict[MappingNode, float] = defaultdict()
+
+    # Initiates DFS at the root of the mapping.
+    dfs_stack: deque[MappingNode] = deque([mapping])
+
+    while dfs_stack:
+        node: MappingNode = dfs_stack.pop()
+
+        match node:
+            # Recursively traverse children to find computes for parallelism.
+            case MappingNodeWithChildren():
+                dfs_stack.extend(node.nodes)
+            # If Compute has pre-specified parallelism from internal models, trust
+            # that it is right. Otherwise, assume none.
+            case Compute():
+                if hasattr(node, "parallelism"):
+                    result[node] = node.parallelism
+                else:
+                    result[node] = 1
+            case _:
+                raise ValueError(f"Cannot compute parallelism behavior for type: {type(node)}")
+        
+    return result
 
 
 def occupancies_from_mapping(
@@ -74,8 +110,6 @@ def occupancies_from_mapping(
 
     # TODO: Implement both called functions.
     return MappingAnalysisResult(
-        branch_tiling=branch_tiling.
         buffet_direct_above_sequential=buffet_direct_above_sequential(mapping),
-
         compute_to_assumed_parallelism=get_parallelism(mapping)
     ) 
