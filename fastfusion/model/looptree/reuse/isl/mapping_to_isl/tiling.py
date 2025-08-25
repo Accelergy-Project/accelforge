@@ -31,7 +31,7 @@ from fastfusion.frontend.workload.isl import (
 )
 from fastfusion.frontend.mapping import TensorName
 from fastfusion.model.looptree.reuse.isl.isl_functions import (
-    map_to_prior_data,
+    map_to_prior_coordinate,
 )
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
@@ -316,6 +316,9 @@ def consumer_based_tile_shape_inference(
             producer_einsums: set[EinsumName] = {
                 e.name for e in workload.einsums_that_write_tensor(tensor)
             }
+            if len(producer_einsums) > 1:
+                raise NotImplementedError("Tile shape inference cannot handle multiple einsums writing the same tensor.")
+
             # Not an intermediate tensor.
             if not producer_einsums:
                 continue
@@ -326,14 +329,10 @@ def consumer_based_tile_shape_inference(
                 continue
 
             # Collates all the producer einsum read accesses.
-            producer_einsums_iter: Iterator[EinsumName] = iter(producer_einsums)
+            producer_einsum: EinsumName = next(iter(producer_einsums))
             read_accesses: isl.Map = get_projection_map(
-                workload.einsums[next(producer_einsums_iter)], tensor
+                workload.einsums[producer_einsum], tensor
             )
-            for producer_einsum in producer_einsums_iter:
-                read_accesses: isl.Map = get_projection_map(
-                    workload.einsums[producer_einsum], tensor
-                ).union(read_accesses)
             # Required data of the tiling as a mapping of read accesses.
             required_data: isl.Map = tiling.apply_range(read_accesses)
 
@@ -341,39 +340,30 @@ def consumer_based_tile_shape_inference(
             computed_data: isl.Map = required_data
             if tensor in tensor_to_reuse_level:
                 reuse_level: int = tensor_to_reuse_level[tensor]
-                shifter: isl.Map = map_to_prior_data(
+                shifter: isl.Map = map_to_prior_coordinate(
                     tiling.dim(isl.dim_type.in_), reuse_level
                 )
                 buffered_data: isl.Map = shifter.apply_range(required_data)
                 computed_data = computed_data.subtract(buffered_data).coalesce()
 
             # Grabs the elements this tensor relies on from producer_einsums.
-            producer_einsums_iter = iter(producer_einsums)
-            producer_einsum = next(producer_einsums_iter)
             producer_write_dependency: isl.Map = get_projection_map(
                 workload.einsums[producer_einsum], tensor
             )
-            for producer_einsum in producer_einsums_iter:
-                producer_write_dependency = producer_write_dependency.union(
-                    get_projection_map(workload.einsums[producer_einsum], tensor)
-                )
-
             # Gets the required operations to produce the current tensor.
             required_operations: isl.Map = computed_data.apply_range(
                 producer_write_dependency.reverse()
             )
-            for producer_einsum in producer_einsums:
-                required_operations = required_operations.intersect_range(
-                    get_einsum_operation_space(workload, producer_einsum)
-                )
+            required_operations = required_operations.intersect_range(
+                get_einsum_operation_space(workload, producer_einsum)
+            )
 
             # Mutations of the tilings of producer einsums.
-            for producer_einsum in producer_einsums:
-                tiling_info[producer_einsum] = tiling_info[producer_einsum].intersect(
-                    required_operations
-                )
+            tiling_info[producer_einsum] = tiling_info[producer_einsum].intersect(
+                required_operations
+            )
 
-            queue.extend(producer_einsums)
+            queue.append(producer_einsum)
 
 
 def detect_shared_input_tensor(
@@ -570,8 +560,6 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         tiling: Tiling = tiling_info[node][einsum]
                         new_tiling: Tiling = tiling.add_dims(isl.dim_type.in_, 1)
 
-                        ## TODO: Verify this is correct:
-                        # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L477-L482
                         tilings[einsum] = new_tiling.fix_input_si(
                             new_tiling.dim(isl.dim_type.in_) - 1, idx
                         )

@@ -84,24 +84,25 @@ def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> i
     return map_
 
 
-def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
+def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
     """
-    Create a map that relates current index vector to new index vector.
-    Goal: { [i0, ..., i{n_in_dims-1}] -> [i0, ..., i{top-1}, o{top+1}, ..., o{n_in_dims}] }
+    Create a map that relates current time index vector to a previous index vector.
+    It shifts the coordinate at shifted_idx back by 1.
+
+    Goal: { [i0, ..., i{n_in_dims-1}] -> [i0, ..., i{shifted_idx}-1, i{shifted_idx+1}, ..., i{n_in_dims-1}] }
 
     :param n_in_dims:   The number of input/output dims of the dataspace.
-    :param top:         The pivot point where input data got swapped out for new
-                        data.
+    :param shifted_idx: The coordinate being shifted.
 
     :type n_in_dims:    int
-    :type top:          int
+    :type shifted_idx:  int
 
     :returns:           A map 
 
 
     Preconditions
     -------------
-    -   0 <= top <=n_in_dims
+    -   0 <= shifted_idx <=n_in_dims-1
     """
 
     # Creates the space, map, and local_space the temporal reuse data map will exist
@@ -112,12 +113,12 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
 
     constraint: isl.Constraint
     # If there is any data replacement
-    if top > 0:
+    if shifted_idx > 0:
         # Create a temporary map.
         tmp_map: isl.Map = isl.Map.universe(space)
         # Model the conservation of data along each data dimension in that map.
         # out - in == 0 => out == in
-        for i in range(top - 1):
+        for i in range(shifted_idx - 1):
             constraint = isl.Constraint.alloc_equality(local_space)
             constraint = constraint.set_coefficient_val(isl.dim_type.out, i, 1)
             constraint = constraint.set_coefficient_val(isl.dim_type.in_, i, -1)
@@ -126,21 +127,21 @@ def map_to_prior_data(n_in_dims: int, top: int) -> isl.Map:
         # Sets constraints such that the pivot value is decremented.
         # out - in + 1 == 0 => out == in - 1
         constraint = isl.Constraint.alloc_equality(local_space)
-        constraint = constraint.set_coefficient_val(isl.dim_type.out, top - 1, 1)
-        constraint = constraint.set_coefficient_val(isl.dim_type.in_, top - 1, -1)
+        constraint = constraint.set_coefficient_val(isl.dim_type.out, shifted_idx - 1, 1)
+        constraint = constraint.set_coefficient_val(isl.dim_type.in_, shifted_idx - 1, -1)
         constraint = constraint.set_constant_val(1)
         tmp_map = tmp_map.add_constraint(constraint)
 
         map_ = map_.union(tmp_map)
 
-    # If we're pivoting any of the data, preserve the `top` datapoints.
-    if top < n_in_dims:
+    # If we're pivoting any of the data, preserve the `shifted_idx` datapoints.
+    if shifted_idx < n_in_dims:
         tmp_map: isl.Map = isl.Map.lex_gt(
             isl.Space.set_alloc(
-                isl.DEFAULT_CONTEXT, map_.dim(isl.dim_type.param), n_in_dims - top
+                isl.DEFAULT_CONTEXT, map_.dim(isl.dim_type.param), n_in_dims - shifted_idx
             )
         )
-        tmp_map = insert_equal_dims_map(tmp_map, 0, 0, top)
+        tmp_map = insert_equal_dims_map(tmp_map, 0, 0, shifted_idx)
         map_ = map_.union(tmp_map)
 
     return map_
