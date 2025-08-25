@@ -15,7 +15,7 @@ from typing import TypeAlias
 import islpy as isl
 
 from fastfusion.frontend.mapping import MappingNode
-from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
+from fastfusion.model.looptree.reuse import Buffet
 
 class TaggedMap:
     def __init__(self, tags, map):

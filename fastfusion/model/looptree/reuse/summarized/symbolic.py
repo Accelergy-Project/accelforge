@@ -20,6 +20,8 @@ from fastfusion.frontend.workload.symbolic import (
     PartiallyRelevant
 )
 
+from fastfusion.model.looptree.reuse import Buffet
+
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.util.sympy.broadcast_max import Min, Max
 
@@ -27,13 +29,6 @@ import sympy
 
 
 SYMBOL = 'symbol'
-
-
-@dataclass(eq=True, frozen=True)
-class Buffet:
-    tensor: TensorName
-    einsum: str
-    level: str
 
 
 @dataclass(eq=True, frozen=True)

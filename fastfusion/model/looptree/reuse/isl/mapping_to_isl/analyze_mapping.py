@@ -24,11 +24,12 @@ Relevant Name Changes:
 """
 
 from collections import defaultdict, deque
+from typing import List
 
 from fastfusion.frontend.mapping import Compute, Mapping, MappingNode, MappingNodeWithChildren
 from fastfusion.frontend.workload import Workload
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import skews_from_mapping
-from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
+from fastfusion.model.looptree.reuse import Buffet
 
 from . import DUMP_ISL_IR, LOG_ISL_IR
 from .tiling import tiling_from_mapping
@@ -38,6 +39,23 @@ from .types import (
     Occupancy,
     Skew,
 )
+
+def buffet_right_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]:
+    result: defaultdict[Buffet, bool] = defaultdict()
+    # TODO: Figure out of get_paths from mapping_utilities is the right function.
+    # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L506
+    for path in get_paths(mapping):
+        leaf = path[-1]
+        last_bufs: List[Buffet] = []
+
+        for node in path:
+            match node:
+                case Storage():
+                    last_bufs.append(Buffet(
+                        node.
+                    ))
+
+    return result
 
 
 def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:

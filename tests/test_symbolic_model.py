@@ -10,7 +10,8 @@ from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.model.looptree.accesses import isl_buffer_accesses_from_buffet_actions, Accesses
 from fastfusion.model.looptree.energy import gather_actions
 from fastfusion.model.looptree.latency import get_latency
-from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, analyze_reuse_and_add_reservations_to_mapping, Compute, Buffet
+from fastfusion.model.looptree.reuse import Buffet
+from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, analyze_reuse_and_add_reservations_to_mapping, Compute
 
 
 PARENT_DIR = Path(__file__).parent
