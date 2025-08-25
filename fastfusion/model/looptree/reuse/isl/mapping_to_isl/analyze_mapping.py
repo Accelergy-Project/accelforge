@@ -26,7 +26,7 @@ from collections import defaultdict
 
 import islpy as isl
 
-from fastfusion.frontend.mapping import Compute, Mapping
+from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import Workload
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import skews_from_mapping
 from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet
@@ -37,6 +37,7 @@ from .types import (
     BranchTiling,
     MappingAnalysisResult,
     Occupancy,
+    Skew,
 )
 
 
