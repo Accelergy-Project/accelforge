@@ -20,6 +20,7 @@ class FFM(ParsableModel):
     memory_limit_per_process: float | int = float('inf')
     time_limit: float | int = float('inf')
     time_limit_per_bypass_choice: float | int = float('inf')
+    greedily_maximize_reuse: bool = False
     
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
