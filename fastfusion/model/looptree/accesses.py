@@ -5,7 +5,7 @@ from typing import Optional, overload
 
 import islpy as isl
 
-from fastfusion.model.looptree.reuse._isl import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, SummarizedAnalysisOutput
 from fastfusion.model.looptree.mapping_utilities import get_paths, get_leaves
 

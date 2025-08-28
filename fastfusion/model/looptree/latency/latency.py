@@ -4,7 +4,7 @@ from sympy import Piecewise
 # from fastfusion.model.looptree._isl.singular import get_value_from_singular_qpolynomial
 from fastfusion.frontend.arch import Compute
 from fastfusion.model.looptree.latency.processors import LATENCY_PROCESSORS
-from fastfusion.model.looptree.reuse._isl import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
 from fastfusion.model.looptree.latency.memory import memory_latency
 
