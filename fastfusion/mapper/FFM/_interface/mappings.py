@@ -5,6 +5,7 @@ from typing import Union
 from fastfusion.frontend.workload.workload import TensorName
 from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_num_computes, get_per_tensor_size
 
+
 class Mappings:
     def __init__(self, spec: Specification, einsum_names: list[EinsumName] | None = None, data: pd.DataFrame | None = None):
         self.spec = spec

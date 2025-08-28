@@ -6,7 +6,7 @@ from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import compress_ei
 from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_sims
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM._join_pmappings.simexplore import join_sims
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_sims
 from fastfusion.mapper.FFM._pmapping_group.df_convention import MAPPING_COLUMN
 from fastfusion.mapper.FFM._pmapping_group.pmapping_group import PmappingGroup, row2pmappings
 from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_rank_variable_bounds_for_all_einsums

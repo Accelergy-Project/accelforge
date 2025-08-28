@@ -4,6 +4,7 @@ from fastfusion.mapper.FFM._join_pmappings.sim import SIM
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
 
+
 class MultiEinsumPmappings:
     def __init__(
         self,

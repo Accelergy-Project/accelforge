@@ -46,7 +46,7 @@ def join_compatibilities(
     Return dict from Einsum name to compatibilities (without tile shape)
     that will ever contribute to full mappings.
 
-    CONTRACT FOR MAPPINGS GETTING TO THIS POINT: see `simexplore.join_sims`
+    CONTRACT FOR MAPPINGS GETTING TO THIS POINT: see `join_pmappings.join_sims`
     """
     for einsum_name, compats in einsum2compatibilities.items():
         if sum(len(c) for c in compats) == 0:

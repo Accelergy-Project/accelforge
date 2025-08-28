@@ -217,7 +217,7 @@ class SIM:
                 for g in groups
                 if len(g) > 1
             ],
-            pbar=f"Grouping Partial Mappings{pbar_postfix}",
+            pbar=f"Grouping pmappings{pbar_postfix}",
         )
         return groups_with_one + others + no_combine
 
