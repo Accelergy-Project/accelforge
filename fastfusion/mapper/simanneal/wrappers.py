@@ -5,7 +5,7 @@ import time
 from typing import TypeAlias, Union
 from joblib import delayed
 from fastfusion.accelerated_imports import pd
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
 from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
 from fastfusion.mapper.FFM.pareto import PartialMappings, is_reservation_col
@@ -120,12 +120,12 @@ def get_sims_data(
     sims: dict[str, list[SIM]],
     evaluations_tracker,
     spec: Specification = None,
-    flattened_architecture: list[architecture.Leaf] = None,
+    flattened_architecture: list[arch.Leaf] = None,
 ):
     resource2capacity = {}
     flattened_architecture = flattened_architecture or spec.get_flattened_architecture()
     for l in flattened_architecture:
-        if isinstance(l, architecture.Memory):
+        if isinstance(l, arch.Memory):
             resource2capacity[l.name] = l.attributes.size
 
     pairwise_equivalent_rank_variables = (
@@ -155,7 +155,7 @@ def join_sims(
     evaluations_tracker: EvaluationsScoreTracker,
     algorithm: str,
     spec: Specification = None,
-    flattened_architecture: list[architecture.Leaf] = None,
+    flattened_architecture: list[arch.Leaf] = None,
 ) -> PartialMappings:
     objective_function_cols = None
     cols = next(iter(sims.values()))[0].mappings.data.columns

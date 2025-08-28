@@ -8,7 +8,7 @@ from fastfusion.mapper.FFM.exploration.contraints.constraints import MappingCons
 from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
 from fastfusion.mapper.FFM.exploration.tile_shape_exploration import *
 from fastfusion.mapper.metrics import Metrics
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 
 
 class TestTileShapeExploration(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestTileShapeExploration(unittest.TestCase):
         mapping = Mapping.from_yaml(PARENT_DIR / 'conv_sym.mapping.yaml')
         
         flattened_arch = specification.get_flattened_architecture()
-        memories_track_all = [m.name for m in flattened_arch if isinstance(m, architecture.Memory)]
+        memories_track_all = [m.name for m in flattened_arch if isinstance(m, arch.Memory)]
         memories_track_pmappings_only = []
         
         job = Job(

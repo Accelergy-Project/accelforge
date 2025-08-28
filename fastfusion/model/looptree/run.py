@@ -56,7 +56,7 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     latency, comp_latency, mem_latency = get_latency(result,
                                                      spec.mapping,
                                                      workload,
-                                                     spec.architecture,
+                                                     spec.arch,
                                                      bindings)
 
     capacity_usage = compute_capacity_usage(spec.mapping.nodes,
@@ -105,7 +105,7 @@ def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy)
         ] + [str(Path(tmp_path) / 'ERT.yaml')])
 
 
-    job = Job.make_job(mapping=spec.mapping, workload=workload, architecture=spec.architecture)
+    job = Job.make_job(mapping=spec.mapping, workload=workload, architecture=spec.arch)
     tile_shapes, result = analyze_reuse_and_add_reservations_to_mapping(job)
 
     actions = gather_actions(result, bindings, use_name=True)
@@ -114,7 +114,7 @@ def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy)
     latency, comp_latency, mem_latency = get_latency(result,
                                                      spec.mapping,
                                                      workload,
-                                                     spec.architecture,
+                                                     spec.arch,
                                                      bindings)
 
     capacity_usage = compute_capacity_usage(spec.mapping.nodes,

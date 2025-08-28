@@ -28,7 +28,7 @@ arch:
     component_class: SRAM
     attributes:
       size: 1024*1024*128*8 # 128MB
-      width: 8192
+      width: 8192 
       datawidth: 8
       area: 1
     actions:
@@ -54,14 +54,8 @@ arch:
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
-        bypass: weight
-      spatial:
-        - name: Z
-          min_utilization: 1
-          loop_bounds:
-          - expression: weight.rank_variables()
-            operator: ==
-            value: 1
+        keep: (Intermediates() - weight) - GlobalBuffer.tensors()
+        bypass: weight | GlobalBuffer.tensors()
 
   - !Compute
     name: scalar_unit
@@ -79,6 +73,8 @@ arch:
     attributes:
       size: 8 # 8b
       datawidth: 8
+      width: 8
+      depth: 1000
       area: 1
     actions:
     - {name: read, arguments: {energy: 0}}
@@ -86,6 +82,7 @@ arch:
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
+        keep: weight - GlobalBuffer.tensors()
         bypass: ~weight | GlobalBuffer.tensors()
       spatial:
       - name: X # Parallel rank

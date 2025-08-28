@@ -1,8 +1,8 @@
 from fastfusion.frontend.mapper.mapper import Mapper
 from fastfusion.frontend.renames import Renames
 from fastfusion.util.parse_expressions import ParseError, ParseExpressionsContext
-from fastfusion.frontend.architecture import Compute, Leaf
-from fastfusion.frontend.architecture import Architecture
+from fastfusion.frontend.arch import Compute, Leaf
+from fastfusion.frontend.arch import Arch
 from fastfusion.frontend.constraints import Constraints
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.variables import Variables
@@ -18,7 +18,7 @@ from fastfusion.util.basetypes import ParsableModel
 
 
 class Specification(ParsableModel):
-    architecture: Architecture = Architecture()
+    architecture: Arch = Arch()
     component_classes: Components = Components()
     constraints: Constraints = Constraints()
     mapping: Mapping = Mapping()
@@ -91,7 +91,7 @@ class Specification(ParsableModel):
                 )
             
     def get_flattened_architecture(self, compute_node: Union[str, Compute] = None, return_processed: bool=False) -> list[list[Leaf]] | list[Leaf]:
-        all_leaves = self.architecture.get_instances_of_type(Leaf)
+        all_leaves = self.arch.get_instances_of_type(Leaf)
         found_names = set()
         for leaf in all_leaves:
             if leaf.name in found_names:
@@ -103,12 +103,12 @@ class Specification(ParsableModel):
             processed, _ = self.parse_expressions()
         
             if compute_node is None:
-                compute_nodes = [c.name for c in self.architecture.get_instances_of_type(Compute)]
+                compute_nodes = [c.name for c in self.arch.get_instances_of_type(Compute)]
             else:
                 compute_nodes = [compute_node.name if isinstance(compute_node, Compute) else compute_node]
             
             for c in compute_nodes:
-                found.append(processed.architecture._flatten(processed.variables, c))
+                found.append(processed.arch._flatten(processed.variables, c))
                 if found[-1][-1].name != c:
                     raise ParseError(f"Compute node {c} not found in architecture")
 

@@ -1,4 +1,3 @@
-from fastfusion.frontend import architecture
 from fastfusion.frontend.specification import Specification
 from fastfusion.mapper.FFM.interface.pmappings import MultiEinsumPmappings
 from fastfusion.mapper.FFM.interface.mappings import Mappings
@@ -40,7 +39,7 @@ def make_pmappings(
     resource2capacity = {}
     for flattened_arch in flattened_arches:
         for l in flattened_arch:
-            if isinstance(l, architecture.Memory):
+            if isinstance(l, arch.Memory):
                 resource2capacity[l.name] = l.attributes.size
     return MultiEinsumPmappings(sims, pmapping_objects, resource2capacity)
 

@@ -10,7 +10,7 @@ import uuid
 from fastfusion.accelerated_imports import pd
 from tqdm import tqdm
 
-import fastfusion.frontend.architecture as architecture
+import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
     Compute,
     Iteration,
@@ -195,13 +195,13 @@ def max_fused_loops(mapping: Mapping, max_fused_loops: int):
 def iterate_mappings_no_constraints(
     spec: Specification,
     einsum_name: str,
-    arch_flattened: list[architecture.Leaf],
+    arch_flattened: list[arch.Leaf],
     rank_variable_bounds: dict[RankVariableName, int],
     except_from_imperfect: set,
 ):
     first_memory = None
     for node in arch_flattened:
-        if isinstance(node, architecture.Memory):
+        if isinstance(node, arch.Memory):
             first_memory = node
             break
     if first_memory is None:
@@ -241,7 +241,7 @@ def iterate_mappings_no_constraints(
 def iterate_mappings_constraints(
     spec: Specification,
     einsum_names: list[str] | str | None = None,
-    arch_flattened: list[architecture.Leaf] | None = None,
+    arch_flattened: list[arch.Leaf] | None = None,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
     except_from_imperfect: set = set(),
 ) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
@@ -346,7 +346,7 @@ def shift_reservations_by_null_loop_indices(
 def parse_flattened_arch(
     job: Job,
     symbol_table: dict[str, str],
-) -> list[architecture.Leaf]:
+) -> list[arch.Leaf]:
     flattened_arch = copy.deepcopy(job.flattened_arch)
     
     tensor_names = job.spec.workload.einsums[job.einsum_name].tensor_names
@@ -384,7 +384,7 @@ def parse_flattened_arch(
         return result
 
     for node in flattened_arch:
-        if not isinstance(node, architecture.TensorHolder):
+        if not isinstance(node, arch.TensorHolder):
             continue
 
         node.attributes.datawidth = parse_tensor2bits(

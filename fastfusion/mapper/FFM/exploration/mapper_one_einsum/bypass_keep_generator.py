@@ -2,8 +2,8 @@ import copy
 from collections.abc import Generator
 from itertools import chain, combinations
 
-import fastfusion.frontend.architecture as architecture
-from fastfusion.frontend.architecture import ProcessingStage
+import fastfusion.frontend.arch as arch
+from fastfusion.frontend.arch import ProcessingStage
 from fastfusion.frontend.mapping import Storage, TensorHolder
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
@@ -11,7 +11,7 @@ from fastfusion.util.setexpressions import InvertibleSet
 
 
 def make_tensor_choices_one_level(
-    node: architecture.Leaf,
+    node: arch.Leaf,
     symbol_table: dict[str, InvertibleSet],
     seen_tensors: set[TensorName] = (),
     is_copy_op: bool = False,
@@ -25,13 +25,13 @@ def make_tensor_choices_one_level(
     assert "All" in symbol_table
     tensors = symbol_table["All"]
 
-    if not isinstance(node, architecture.TensorHolder):
+    if not isinstance(node, arch.TensorHolder):
         yield [], symbol_table, set(seen_tensors)
         return
 
-    if isinstance(node, architecture.Memory):
+    if isinstance(node, arch.Memory):
         target_type = Storage
-    elif isinstance(node, architecture.ProcessingStage):
+    elif isinstance(node, arch.ProcessingStage):
         target_type = ProcessingStage
     else:
         raise ValueError(f"Unexpected tensor holder type: {type(node)}")

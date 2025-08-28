@@ -3,7 +3,7 @@ import itertools
 import logging
 import time
 from fastfusion.accelerated_imports import pd
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload import Einsum
 from fastfusion.mapper.metrics import Metrics

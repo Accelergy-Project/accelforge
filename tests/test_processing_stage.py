@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from fastfusion.frontend import Specification
-from fastfusion.frontend.architecture import Architecture
+from fastfusion.frontend.arch import Arch
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import Workload
 

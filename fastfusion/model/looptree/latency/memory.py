@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from fastfusion.frontend.architecture import Memory, TensorHolder
+from fastfusion.frontend.arch import Memory, TensorHolder
 
 from fastfusion.frontend.mapping import Compute
 from fastfusion.model.looptree.accesses import isl_buffer_accesses_from_buffet_actions

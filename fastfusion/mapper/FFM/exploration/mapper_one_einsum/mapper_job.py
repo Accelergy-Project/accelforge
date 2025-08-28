@@ -5,7 +5,7 @@ from numbers import Number
 from typing import Callable, Optional
 from uuid import UUID
 
-import fastfusion.frontend.architecture as architecture
+import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
     Iteration,
     Mapping,
@@ -196,7 +196,7 @@ class Job:
     mapping: Mapping | None = None
     constraints: MappingConstraints | None = None
     intermediate_tensors: set[TensorName] | None = None
-    flattened_arch: list[architecture.Leaf] | None = None
+    flattened_arch: list[arch.Leaf] | None = None
     einsum_name: EinsumName | None = None
     tensor2compatibilties: dict[TensorName, set[Compatibility]] | None = None
     tensor2boundless_compatibilities: dict[TensorName, set[Compatibility]] | None = None

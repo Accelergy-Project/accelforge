@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import List
 from fastfusion.accelerated_imports import np
-import fastfusion.frontend.architecture as architecture
+import fastfusion.frontend.arch as arch
 from fastfusion.frontend.constraints import Comparison, ConstraintGroup, MinUtilizationConstraintLambda, TileShapeConstraintLambda, LoopBoundsConstraintLambda, ConstraintLambda
 from fastfusion.frontend.constraints import Spatial as SpatialConstraint
 from fastfusion.frontend.mapping import Iteration, MappingNode, TensorHolder, Temporal, Spatial
@@ -151,7 +151,7 @@ def constrained_loops(
     return nodes
 
 def get_constraints(
-    arch_flattened: list[architecture.Leaf],
+    arch_flattened: list[arch.Leaf],
     mapping: List[MappingNode],
     symbol_table: dict[str, InvertibleSet],
     einsum_name: EinsumName,
@@ -162,7 +162,7 @@ def get_constraints(
     # Tensor constraints
     for m in arch_flattened:
         # Ignore if not a memory
-        if not isinstance(m, architecture.Memory):
+        if not isinstance(m, arch.Memory):
             continue
         
         # Ignore if it doesn't hold any tensors
@@ -200,7 +200,7 @@ def get_constraints(
             
     # Spatial constraints
     for m in arch_flattened:
-        if not isinstance(m, architecture.Memory):
+        if not isinstance(m, arch.Memory):
             continue
 
         for dim in m.spatial:

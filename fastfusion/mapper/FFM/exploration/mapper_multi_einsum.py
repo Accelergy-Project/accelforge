@@ -7,7 +7,7 @@ import uuid
 from joblib import delayed
 
 
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.mapping import Iteration, Mapping, TensorHolder
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
@@ -65,7 +65,7 @@ def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
 
 def get_jobs(
     spec: Specification,
-    flattened_arches: list[list[architecture.Leaf]],
+    flattened_arches: list[list[arch.Leaf]],
     tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
@@ -77,7 +77,7 @@ def get_jobs(
     intermediate_tensors = spec.workload.intermediate_tensor_names
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
-    def make_jobs_for_einsum(einsum_name: EinsumName, flattened_arch: list[architecture.Leaf]):
+    def make_jobs_for_einsum(einsum_name: EinsumName, flattened_arch: list[arch.Leaf]):
         workload_einsum = spec.workload.einsums[einsum_name]
         # Create jobs for each Einsum
         jobs = {}
@@ -139,11 +139,11 @@ def get_jobs(
 
     return einsum2jobs
 
-def get_memory_to_size(flattened_arches: list[list[architecture.Leaf]]) -> dict[str, tuple[architecture.Memory, int]]:
+def get_memory_to_size(flattened_arches: list[list[arch.Leaf]]) -> dict[str, tuple[arch.Memory, int]]:
     result = {}
     for flattened_arch in flattened_arches:
         for l in flattened_arch:
-            if not isinstance(l, architecture.Memory):
+            if not isinstance(l, arch.Memory):
                 continue
             size = l.attributes.size
             result.setdefault(l.name, (l, size))
@@ -156,7 +156,7 @@ def get_memory_to_size(flattened_arches: list[list[architecture.Leaf]]) -> dict[
 
 def get_memories_to_track(
     spec: Specification,
-    flattened_arches: list[list[architecture.Leaf]],
+    flattened_arches: list[list[arch.Leaf]],
     jobs: list[Job],
     metrics: Metrics,
 ) -> tuple[list[str], list[str]]:
@@ -205,7 +205,7 @@ def get_memories_to_track(
 
 def get_sims(
     spec: Specification,
-    flattened_arches: list[list[architecture.Leaf]],
+    flattened_arches: list[list[arch.Leaf]],
     tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,

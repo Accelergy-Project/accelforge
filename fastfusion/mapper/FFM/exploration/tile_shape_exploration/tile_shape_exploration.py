@@ -15,8 +15,8 @@ import sympy
 from fastfusion.accelerated_imports import pd
 
 from fastfusion.frontend import mapping
-import fastfusion.frontend.architecture as architecture
-from fastfusion.frontend.architecture import Memory
+import fastfusion.frontend.arch as arch
+from fastfusion.frontend.arch import Memory
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload.isl import get_rank_variable_bounds
@@ -825,8 +825,8 @@ def run_model(job: Job):
     component_to_max_fanout = {}
     memory_to_size = {}
     for node in job.flattened_arch:
-        if isinstance(node, architecture.TensorHolder):
-            if isinstance(node, architecture.Memory):
+        if isinstance(node, arch.TensorHolder):
+            if isinstance(node, arch.Memory):
                 memory_to_size[node.name] = node.attributes.size
         component_to_max_fanout[node.name] = {s.name: s.fanout for s in node.spatial}
 

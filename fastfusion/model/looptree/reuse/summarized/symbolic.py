@@ -2,9 +2,9 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 import fastfusion.frontend.mapping as mapping_spec
-from fastfusion.frontend.architecture import ProcessingStage
+from fastfusion.frontend.arch import ProcessingStage
 from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Iteration, Pattern, TensorHolder# NOFILL: Fill
 from fastfusion.frontend.workload import (
     Workload,
@@ -712,7 +712,7 @@ def has_parent_tensor_holder(tensor: TensorName, node_idx: int, info: AnalysisIn
             return True
     return False
 
-def find_component_object(component: str, flattened_arch: list[architecture.Leaf]) -> architecture.TensorHolder:
+def find_component_object(component: str, flattened_arch: list[arch.Leaf]) -> arch.TensorHolder:
     for node in flattened_arch:
         if node.name == component:
             return node
@@ -882,7 +882,7 @@ def analyze_compute(node_idx,
                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
     einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
-    compute_node: architecture.Compute = info.job.flattened_arch[-1]
+    compute_node: arch.Compute = info.job.flattened_arch[-1]
     
     computes = 0 if info.is_copy_operation else 1
 

@@ -2,7 +2,7 @@ variables:
   global_cycle_period: 1e-9
   tech_node: 7e-9
 
-architecture:
+arch:
   version: "0.5"
   nodes:
   - !Memory

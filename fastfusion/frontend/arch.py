@@ -336,7 +336,7 @@ class Hierarchical(Branch):
         return nodes
 
 
-class Architecture(Hierarchical):
+class Arch(Hierarchical):
     version: Annotated[str, assert_version] = __version__
 
 

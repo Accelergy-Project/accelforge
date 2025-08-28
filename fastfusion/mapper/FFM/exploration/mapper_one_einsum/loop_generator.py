@@ -1,6 +1,6 @@
 import itertools
 
-import fastfusion.frontend.architecture as architecture
+import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
     MappingNode,
     Temporal,
@@ -23,7 +23,7 @@ import itertools
 def insert_temporal_loops(
     mapping: list[TensorHolder],
     einsum: Einsum,
-    first_memory: architecture.Memory,
+    first_memory: arch.Memory,
     rank_variable_bounds: dict[RankVariableName, int],
     ranks_with_tile_pattern: set,
     workload: Workload,
@@ -163,7 +163,7 @@ def insert_temporal_loops(
 def insert_spatial_loops(
     mapping: list[MappingNode],
     einsum: Einsum,
-    arch_flattened: list[architecture.Memory],
+    arch_flattened: list[arch.Memory],
 ):
     nodes_with_fanout = [n for n in arch_flattened if n.get_fanout() > 1]
     arch_node_names = [n.name for n in arch_flattened]

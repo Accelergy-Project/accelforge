@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from itertools import product
 from typing import Any
 
-import fastfusion.frontend.architecture as architecture
+import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import MappingNode, TensorHolder
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
@@ -12,7 +12,7 @@ from fastfusion.util.parse_expressions import MATH_FUNCS
 from .bypass_keep_generator import make_tensor_choices_all_levels
 from fastfusion.frontend.workload.workload import EinsumName
 
-def eval_enabled(component: architecture.Component, symbol_table: SymbolTable) -> bool:
+def eval_enabled(component: arch.Component, symbol_table: SymbolTable) -> bool:
     enabled = component.constraints.misc.enabled
     if isinstance(enabled, str):
         return eval(enabled, {"__builtins__": MATH_FUNCS}, symbol_table)
@@ -25,7 +25,7 @@ def eval_enabled(component: architecture.Component, symbol_table: SymbolTable) -
 
 def get_tensor_choices(
     einsum_name: EinsumName,
-    nodes: list[architecture.Memory],
+    nodes: list[arch.Memory],
     symbol_table: SymbolTable,
     spec: Specification,
 ) -> Generator[tuple[list[TensorHolder], Any], None, None]:
@@ -33,7 +33,7 @@ def get_tensor_choices(
     while True:
         if not nodes:
             return
-        if not isinstance(nodes[0], architecture.Memory):
+        if not isinstance(nodes[0], arch.Memory):
             nodes = nodes[1:]
             continue
         if not eval_enabled(nodes[0], symbol_table):
@@ -99,7 +99,7 @@ def recursive_order_tensor_choices(
     einsum_name: EinsumName,
     tensors: set[TensorName],
     mapping: Sequence[MappingNode],
-    nodes: list[architecture.Memory],
+    nodes: list[arch.Memory],
     remaining_choices: list,
     required_order: list[list[TensorHolder]],
     spec: Specification,

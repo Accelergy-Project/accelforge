@@ -1,7 +1,7 @@
 """Timeloop Specification. Each piece below (minus processors) corresponds to a top key in the Timeloop specification. """
 
 from .specification import *
-import fastfusion.frontend.architecture as architecture
+import fastfusion.frontend.arch as arch
 import fastfusion.frontend.component_area as component_area
 import fastfusion.frontend.component_classes as component_classes
 import fastfusion.frontend.component_energy as component_energy

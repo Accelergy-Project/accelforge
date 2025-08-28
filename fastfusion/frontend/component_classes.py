@@ -85,7 +85,7 @@ class CompoundComponent(ParsableModel):
                 subaction_args = subaction.arguments.parse_expressions(arguments.model_dump(), multiply_multipliers=True)[0]
                 yield component.get_component_class(), component_attributes, subaction_args, subaction.name
 
-# Components are only instantiated when they are called in the architecture. The
+# Components are only instantiated when they are called in the arch. The
 # top-level components are non-parsable.
 class Components(NonParsableModel):
     version: Annotated[str, assert_version] = __version__
