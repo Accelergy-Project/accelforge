@@ -19,8 +19,8 @@ import fastfusion.frontend.arch as arch
 from fastfusion.frontend.arch import Memory
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload import Workload
-from fastfusion.frontend.workload.isl import get_rank_variable_bounds
-from fastfusion.frontend.workload.symbolic import get_stride_and_halo
+from fastfusion.frontend.workload._isl import get_rank_variable_bounds
+from fastfusion.frontend.workload._symbolic import get_stride_and_halo
 from fastfusion.frontend.mapping import Iteration, MappingNode, Temporal, Spatial, TensorHolder, Pattern
 
 from fastfusion.mapper import metrics

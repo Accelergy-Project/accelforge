@@ -13,7 +13,7 @@ from .workload import (
     RankName,
     RankVariableName,
 )
-from .isl import get_rank_variable_bounds
+from ._isl import get_rank_variable_bounds
 
 
 def get_projection_expr(einsum: Einsum, tensor: TensorName) -> dict[str, sympy.Expr]:

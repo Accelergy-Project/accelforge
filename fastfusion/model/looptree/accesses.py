@@ -5,15 +5,15 @@ from typing import Optional, overload
 
 import islpy as isl
 
-from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse._isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized.symbolic import BuffetStats, SummarizedAnalysisOutput
 from fastfusion.model.looptree.mapping_utilities import get_paths, get_leaves
 
 from fastfusion.frontend.mapping import Mapping, TensorHolder, Compute
 from fastfusion.frontend.workload import Workload
 
-# from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
-# from pytimeloop.isl.sum import sum_with_mask
+# from pytimeloop._isl.singular import get_sum_of_pw_qpolynomial
+# from pytimeloop._isl.sum import sum_with_mask
 
 
 @dataclass(eq=True)

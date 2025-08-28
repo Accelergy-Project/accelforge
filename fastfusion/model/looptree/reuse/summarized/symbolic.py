@@ -11,7 +11,7 @@ from fastfusion.frontend.workload import (
     TensorName,
     get_rank_variable_bounds
 )
-from fastfusion.frontend.workload.symbolic import (
+from fastfusion.frontend.workload._symbolic import (
     get_projection_expr,
     get_rank_variable_relevancy,
     compute_dense_tile_occupancy,

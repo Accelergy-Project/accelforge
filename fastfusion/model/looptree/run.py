@@ -25,7 +25,7 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     from bindings.looptree import LooptreeModelApp, LooptreeWorkload
     from pytimeloop.file import gather_yaml_configs
     from pytimeloop.looptree.capacity import compute_capacity_usage
-    from pytimeloop.looptree.reuse.isl.des import deserialize_looptree_output
+    from pytimeloop.looptree.reuse._isl.des import deserialize_looptree_output
     from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
     from pytimeloop.looptree.latency import get_latency
     from pytimeloop.timeloopfe.v4fused import Specification

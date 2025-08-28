@@ -10,7 +10,7 @@ from joblib import delayed
 from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.mapping import Iteration, Mapping, TensorHolder
-from fastfusion.frontend.workload.isl import get_rank_variable_bounds
+from fastfusion.frontend.workload._isl import get_rank_variable_bounds
 from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_one_einsum import generate_pmappings

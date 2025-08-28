@@ -5,7 +5,7 @@ from fastfusion.frontend.arch import Memory, TensorHolder
 from fastfusion.frontend.mapping import Compute
 from fastfusion.model.looptree.accesses import isl_buffer_accesses_from_buffet_actions
 from fastfusion.model.looptree.mapping_utilities import get_leaves
-from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion.model.looptree.reuse._isl import IslReuseAnalysisOutput
 from fastfusion.model.looptree.reuse.summarized import SummarizedAnalysisOutput
 
 from fastfusion.model.looptree.reuse.summarized.symbolic import Buffet, BuffetStats

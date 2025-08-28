@@ -3,8 +3,8 @@ import pprint
 import islpy as isl
 
 # from bindings.looptree import PipelineSpatialTag
-# from pytimeloop.isl.sum import sum_until_idx, make_reduction_map
-# from pytimeloop.isl.qpolynomial import from_pw_qpolynomial_fold
+# from pytimeloop._isl.sum import sum_until_idx, make_reduction_map
+# from pytimeloop._isl.qpolynomial import from_pw_qpolynomial_fold
 
 def process_sequential_latency(top_idx: int, latencies):
     common_dim_tags = latencies[0][0][:top_idx]

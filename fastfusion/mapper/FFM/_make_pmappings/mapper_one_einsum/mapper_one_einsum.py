@@ -20,8 +20,8 @@ from fastfusion.frontend.mapping import (
     Temporal,
 )
 from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload.isl import get_rank_variable_bounds
-from fastfusion.frontend.workload.symbolic import get_stride_and_halo_of_einsum
+from fastfusion.frontend.workload._isl import get_rank_variable_bounds
+from fastfusion.frontend.workload._symbolic import get_stride_and_halo_of_einsum
 from fastfusion.frontend.workload.workload import (
     Einsum,
     EinsumName,
