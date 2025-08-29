@@ -195,25 +195,29 @@ class Parsable(ABC, Generic[M]):
     def get_validator(self, field: str) -> type:
         raise NotImplementedError("Subclasses must implement this method")
     
-    def get_instances_of_type(self, type: Type[T]) -> Iterator[T]:
+    def get_instances_of_type(self, type: Type[T], _first_call: bool = True) -> Iterator[T]:
+        if not _first_call:
+            if self.__class__.__name__ == "Specification":
+                return
+
         if isinstance(self, type):
             yield self
         elif isinstance(self, list):
             for item in self:
                 if isinstance(item, Parsable):
-                    yield from item.get_instances_of_type(type)
+                    yield from item.get_instances_of_type(type, _first_call=False)
                 elif isinstance(item, type):
                     yield item
         elif isinstance(self, dict):
             for item in self.values():
                 if isinstance(item, Parsable):
-                    yield from item.get_instances_of_type(type)
+                    yield from item.get_instances_of_type(type, _first_call=False)
                 elif isinstance(item, type):
                     yield item
         elif isinstance(self, ParsableModel):
             for field in self.get_fields():
                 if isinstance(getattr(self, field), Parsable):
-                    yield from getattr(self, field).get_instances_of_type(type)
+                    yield from getattr(self, field).get_instances_of_type(type, _first_call=False)
                 elif isinstance(getattr(self, field), type):
                     yield getattr(self, field)
 
