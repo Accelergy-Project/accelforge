@@ -8,7 +8,6 @@ from fastfusion.util.basetypes import (
 from fastfusion.version import assert_version, __version__
 
 class ComponentAttributes(ParseExtras):
-    tech_node: ParsesTo[Union[float, None]] = None
     global_cycle_period: ParsesTo[Union[int, float]] = "REQUIRED"
     n_instances: ParsesTo[Union[int, float]] = 1
     energy_scale: ParsesTo[Union[int, float]] = 1
@@ -36,7 +35,11 @@ class ComponentAttributes(ParseExtras):
 
         if inherit_all:
             for key, value in symbol_table.items():
-                if not hasattr(new_self, key):
+                if isinstance(key, str) and not hasattr(new_self, key):
+                    setattr(new_self, key, value)
+        else:
+            for key, value in symbol_table.items():
+                if isinstance(key, str) and getattr(new_self, key, None) is None:
                     setattr(new_self, key, value)
                     
         return new_self, new_symbol_table

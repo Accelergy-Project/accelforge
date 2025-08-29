@@ -4,7 +4,6 @@ arch:
   nodes:
   - !Memory
     name: MainMemory
-    component_class: DRAM
     attributes: 
       _size: inf
       _bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
@@ -12,7 +11,7 @@ arch:
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, arguments: {bits_per_action: 8}}
+    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 8}}
     - {name: write, arguments: {energy: 7.03e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
     constraints:

@@ -111,7 +111,6 @@ class Leaf(ArchNode, ABC):
 
 class Component(Leaf, ABC):
     component_class: Optional[str] = None
-    power_gated_at: ParsesTo[Optional[str]] = None
     actions: ParsableList[SubcomponentAction]
 
     def _update_actions(self, new_actions: ParsableList[SubcomponentAction]):
@@ -210,7 +209,6 @@ class TensorHolderAttributes(Attributes):
 
 class MemoryAttributes(TensorHolderAttributes):
     size: ParsesTo[Union[int, float]]
-    multiple_buffering: ParsesTo[Union[int, float]] = 1
 
 
 class TensorHolder(Component):
