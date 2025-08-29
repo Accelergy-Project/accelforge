@@ -1,1 +1,2 @@
-from .mapper_one_einsum import get_single_einsum_jobs
+from .pmapping_template_generator import get_single_einsum_jobs
+from .mapper_one_einsum import generate_pmappings

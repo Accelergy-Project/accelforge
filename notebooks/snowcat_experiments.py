@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 from fastfusion import Specification
 from fastfusion.mapper.FFM.ffm import make_pmappings, join_pmappings
-from fastfusion.mapper.FFM._make_pmappings.mapping_filter_tags import get_one_split_tag, get_ffmt_tag
+from fastfusion.mapper.FFM.deprecate_maybe.mapping_filter_tags import get_one_split_tag, get_ffmt_tag
 from fastfusion.mapper.metrics import Metrics
 
 

@@ -6,7 +6,6 @@ from fastfusion.frontend import Specification, Workload
 from fastfusion.mapper import metrics
 from fastfusion.mapper.FFM._make_pmappings.tile_shape_exploration import get_initial_delta_choices
 from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_sims
-from fastfusion.mapper.FFM._make_pmappings.mapping_filter_tags import get_one_split_tag
 from fastfusion.mapper.FFM._pmapping_group import nameloop2col
 
 from simcache import make_sim_pickle_cache
@@ -46,6 +45,7 @@ class TestPmappingExploration(unittest.TestCase):
                         )
 
     def test_mha_with_tags(self):
+        from fastfusion.mapper.FFM.deprecate_maybe.mapping_filter_tags import get_one_split_tag
         spec = Specification.from_yaml(
             PARENT_DIR / "four_level.arch.yaml",
             PARENT_DIR / "mha.workload.yaml",

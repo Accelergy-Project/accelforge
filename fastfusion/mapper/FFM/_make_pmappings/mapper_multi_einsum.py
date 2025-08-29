@@ -130,7 +130,7 @@ def get_jobs(
     )
     for einsum_name, compatibility_jobs in einsum2jobs.items():
         total_jobs = sum(len(j) for j in compatibility_jobs.values())
-        logging.warning(f"Einsum {einsum_name} has {total_jobs} bypass choices:")
+        logging.warning(f"Einsum {einsum_name} has {total_jobs} pmapping templates:")
         for job_list in compatibility_jobs.values():
             for job in job_list:
                 logging.warning(f"\t{job.mapping.compact_str()}")
