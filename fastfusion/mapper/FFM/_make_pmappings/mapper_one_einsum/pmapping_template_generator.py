@@ -263,8 +263,8 @@ def parse_flattened_arch(
     job: Job,
     symbol_table: dict[str, str],
 ) -> list[arch.Leaf]:
-    flattened_arch = copy.deepcopy(job.flattened_arch)
-    
+    flattened_arch = [n for n in job.flattened_arch]
+
     tensor_names = job.spec.workload.einsums[job.einsum_name].tensor_names
 
     def parse_tensor2bits(to_parse: dict[str, Any], location: str, symbol_table: dict[str, str]) -> dict[str, Any]:
@@ -299,9 +299,12 @@ def parse_flattened_arch(
 
         return result
 
-    for node in flattened_arch:
+    for i, node in enumerate(flattened_arch):
         if not isinstance(node, arch.TensorHolder):
             continue
+        node = copy.copy(node)
+        flattened_arch[i] = node
+        node.attributes = copy.copy(node.attributes)
 
         node.attributes.datawidth = parse_tensor2bits(
             node.attributes.datawidth,
@@ -329,6 +332,10 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
     rank_variable_bounds = get_rank_variable_bounds(
                 job.spec.workload, job.einsum_name
             )
+    
+    stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name,
+                                                                job.spec.workload,
+                                                                rank_variable_bounds)
 
     jobs = SameEinsumJobs()
     for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
@@ -338,9 +345,7 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
         new_job.job_id = uuid.uuid4()
         new_job.flattened_arch = parse_flattened_arch(new_job, symbol_table)
         new_job.rank_variable_bounds = rank_variable_bounds
-        new_job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name,
-                                                                job.spec.workload,
-                                                                rank_variable_bounds)
+        new_job.stride_and_halo = stride_and_halo
         jobs.append(new_job)
 
     return jobs

@@ -148,7 +148,19 @@ def eval_set_expression(
     try:
         if not isinstance(expression, str):
             raise TypeError(f"Expected a string, got {type(expression)}: {expression}")
-        result = eval(expression, {"__builtins__": MATH_FUNCS}, symbol_table)
+        prev_result = "NOT_FOUND"
+        result = prev_result
+        if expression in symbol_table:
+            result = symbol_table[expression]
+        elif expression[-2:] == "()" and expression[:-2] in symbol_table:
+            try:
+                result = symbol_table[expression[:-2]]()
+            except:
+                pass
+            
+        if id(result) == id(prev_result):
+            result = eval(expression, {"__builtins__": MATH_FUNCS}, symbol_table)
+        
         if not isinstance(result, InvertibleSet):
             raise TypeError(
                 f"Returned a non-InvertibleSet with type {type(result)}: {result}"

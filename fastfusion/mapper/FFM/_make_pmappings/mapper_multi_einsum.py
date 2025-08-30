@@ -163,12 +163,12 @@ def get_memories_to_track(
     memory_to_size = get_memory_to_size(flattened_arches)
     memories_track_all = list(memory_to_size.keys())
     memories_track_pmappings_only = []
-    
+
     if metrics.RESOURCE_USAGE in metrics:
         return memories_track_all, memories_track_pmappings_only
-    
+
     total_tensor_sizes = sum(get_per_tensor_size(spec).values())
-    
+
     # If the memory is big enough to hold all the tensors then we don't need to consider
     # it
     for m in list(memories_track_all):
