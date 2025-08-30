@@ -17,7 +17,7 @@ from fastfusion.frontend.mapping import (
 )
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload._isl import get_rank_variable_bounds
-from fastfusion.frontend.workload._symbolic import get_stride_and_halo_of_einsum
+from fastfusion.frontend.workload._symbolic import get_rank_variable_relevancy, get_stride_and_halo_of_einsum
 from fastfusion.frontend.workload.workload import (
     Einsum,
     EinsumName,
@@ -319,6 +319,12 @@ def parse_flattened_arch(
 # =================================================================================================
 def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
     compute_name = job.flattened_arch[-1].name
+    
+    job.tensor_to_relevancy = {
+        tensor: get_rank_variable_relevancy(job.spec.workload.einsums[job.einsum_name], tensor)
+        for tensor in job.spec.workload.einsums[job.einsum_name].tensor_names
+    }
+
     mappings_constraints = tqdm(
         iterate_mappings_constraints(
             job.spec,
@@ -346,6 +352,7 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
         new_job.flattened_arch = parse_flattened_arch(new_job, symbol_table)
         new_job.rank_variable_bounds = rank_variable_bounds
         new_job.stride_and_halo = stride_and_halo
+        new_job.compatibility
         jobs.append(new_job)
 
     return jobs

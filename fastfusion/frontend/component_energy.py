@@ -29,7 +29,7 @@ class Action(ParsableModel):
         models: list,
         return_subactions: bool = False,
     ) -> Union["EnergyEntry", list["Subaction"]]:
-        attributes, arguments = copy.deepcopy((attributes, arguments))
+        attributes, arguments = copy.copy((attributes, arguments))
         entries = []
 
         definition = None

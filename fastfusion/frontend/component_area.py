@@ -25,7 +25,7 @@ class AreaEntry(ParsableModel):
         return_subcomponents: bool = False,
         name: str = None,
     ) -> Union["AreaEntry", list["AreaSubcomponent"]]:
-        attributes = copy.deepcopy(attributes)
+        attributes = copy.copy(attributes)
         entries = []
         definition = None
         

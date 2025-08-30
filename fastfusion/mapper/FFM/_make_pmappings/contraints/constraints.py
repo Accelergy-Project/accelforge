@@ -159,6 +159,7 @@ def get_constraints(
     
     constraints = MappingConstraints()
     
+    
     # Tensor constraints
     for m in arch_flattened:
         # Ignore if not a memory

@@ -1074,15 +1074,7 @@ class Sequential(Split):
 # =============================================================================
 
 
-class ModelOnlyNode:
-    """
-    A node only the model can insert.
-    """
-
-    pass
-
-
-class Reservation(MappingNode, ModelOnlyNode):
+class Reservation(MappingNode):
     """
     Reserving a hardware resource for a specific task.
 
@@ -1189,7 +1181,7 @@ class Mapping(Nested):
         fused_slice = Mapping(nodes=[])
         to_add = []
         for node in self.nodes:
-            node = copy.deepcopy(node)
+            node = copy.copy(node)
             if isinstance(node, Reservation):
                 if node.purpose not in relevant_intermediate_tensors:
                     continue

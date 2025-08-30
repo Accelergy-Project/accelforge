@@ -261,20 +261,13 @@ class AnalysisInfo:
     
     job: Job
 
-def quick_insert_reservation_nodes(
-    mapping: Mapping,
-    workload: Workload
-) -> list[MappingNode]:
-    mapping = list(mapping.nodes)
+def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
+    mapping = list(job.mapping.nodes)
+    workload = job.spec.workload
     einsum_name = mapping[-1].einsum
 
     einsum = workload.einsums[einsum_name]
     all_tensors = einsum.input_tensors() | einsum.output_tensors()
-
-    tensor_to_relevancy = {
-        tensor: get_rank_variable_relevancy(einsum, tensor)
-        for tensor in all_tensors
-    }
 
     info = AnalysisInfo(
         mapping=None,
@@ -282,7 +275,7 @@ def quick_insert_reservation_nodes(
         full_rank_variable_shapes=None,
         all_tensors=None,
         einsum_tensor_to_projection=None,
-        tensor_to_relevancy=tensor_to_relevancy,
+        tensor_to_relevancy=job.tensor_to_relevancy,
         tensor_to_backer_id=None,
         is_copy_operation=None,
         job=None,
@@ -338,7 +331,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
         mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
         # We're working with a new mapping at this point, so we need to add reservations
         # to the job mapping.
-        job.mapping = quick_insert_reservation_nodes(job.mapping, workload)
+        job.mapping = quick_insert_reservation_nodes(job)
     else:
         tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 

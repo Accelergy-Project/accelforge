@@ -9,11 +9,11 @@ import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
     Iteration,
     Mapping,
-    MappingNode,
-    ModelOnlyNode,
+    Reservation,
     Spatial,
 )
 from fastfusion.frontend.specification import Specification
+from fastfusion.frontend.workload._symbolic import Relevant, PartiallyRelevant
 from fastfusion.frontend.workload.workload import (
     EinsumName,
     RankVariableName,
@@ -56,9 +56,7 @@ def make_compatibility(
             fused_loops.append(node)
         elif isinstance(node, ReservationNode):
             loop_idx2reservations.setdefault(len(fused_loops), []).append(node)
-        elif isinstance(node, ModelOnlyNode):
-            continue
-        elif isinstance(node, TensorHolder):
+        elif isinstance(node, arch.TensorHolder):
             continue
         else:
             raise ValueError(f"Unexpected node type: {type(node)}")
@@ -69,7 +67,7 @@ def make_compatibility(
             tensor = reservation.purpose
             rank_var2ranks = einsum.tensor_accesses[tensor].rank_variable2ranks
             tensor_loops = []
-            for loop_idx, loop in enumerate(fused_loops[:above_loop_index]):
+            for loop in fused_loops[:above_loop_index]:
                 ranks = rank_var2ranks[loop.rank_variable]
                 if len(ranks) > 1:
                     raise NotImplementedError('co-iteration of ranks with '
@@ -209,6 +207,7 @@ class Job:
     memory_limit: float | int = float('inf')
     messages: list[str] = field(default_factory=list)
     pmapping_keep_rates: dict[str, float] = field(default_factory=dict)
+    tensor_to_relevancy: dict[TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]] | None = None
 
     total_pmappings: int | None = None
     valid_pmappings: int | None = None
@@ -229,9 +228,7 @@ class Job:
         from fastfusion.model.looptree.reuse.summarized.symbolic import (
             quick_insert_reservation_nodes,
         )
-        with_reservations = quick_insert_reservation_nodes(
-            self.mapping, self.spec.workload
-        )
+        with_reservations = quick_insert_reservation_nodes(self)
         self._compatibility, self._update_compatibility_with_tile_shapes = \
             make_compatibility(with_reservations,
                                self.tagger,
