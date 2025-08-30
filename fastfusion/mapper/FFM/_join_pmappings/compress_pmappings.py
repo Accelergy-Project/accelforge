@@ -31,19 +31,19 @@ def _compress_pmapping_list(einsum_name: EinsumName, pmappings: list[SIM]) -> tu
     compressed = []
     start_index = 0
     jobs = []
-    
+
     def job(start_index: int, pmappings: SIM):
         compress, decompress = _compress(einsum_name, pmappings.mappings, start_index)
         compress = SIM(pmappings.compatibility, compress)
         compressed.append(compress)
         decompress_data.append(decompress)
         return compress, decompress
-        
+
     for pmapping in pmappings:
         jobs.append(delayed(job)(start_index, pmapping))
         start_index += len(pmapping.mappings.data)
 
-    for compress, decompress in parallel(jobs):
+    for compress, decompress in parallel(jobs, n_jobs=1):
         compressed.append(compress)
         decompress_data.append(decompress)
 
@@ -55,23 +55,23 @@ def compress_einsum2pmappings(
 ) -> tuple[dict[EinsumName, list[PmappingGroup]], DecompressData]:
     decompress_data = {}
     compressed_einsum2pmappings = {}
-    
-    # jobs = []
-    # def job(einsum_name: EinsumName, pmappings: list[SIM]):
-    #     compressed, decompress = _compress_pmapping_list(einsum_name, pmappings)
-    #     return einsum_name, compressed, decompress
 
-    # for einsum_name, pmappings in einsum2pmappings.items():
-    #     jobs.append(delayed(job)(einsum_name, pmappings))
-
-    # for einsum_name, compressed, decompress in parallel(jobs):
-    #     compressed_einsum2pmappings[einsum_name] = compressed
-    #     decompress_data[einsum_name] = decompress
-
-    for einsum_name, pmappings in tqdm(einsum2pmappings.items(), desc="Compressing pmappings"):
+    jobs = []
+    def job(einsum_name: EinsumName, pmappings: list[SIM]):
         compressed, decompress = _compress_pmapping_list(einsum_name, pmappings)
+        return einsum_name, compressed, decompress
+
+    for einsum_name, pmappings in einsum2pmappings.items():
+        jobs.append(delayed(job)(einsum_name, pmappings))
+
+    for einsum_name, compressed, decompress in parallel(jobs, pbar="Compresssing pmappings"):
         compressed_einsum2pmappings[einsum_name] = compressed
         decompress_data[einsum_name] = decompress
+
+    # for einsum_name, pmappings in tqdm(einsum2pmappings.items(), desc="Compressing pmappings"):
+    #     compressed, decompress = _compress_pmapping_list(einsum_name, pmappings)
+    #     compressed_einsum2pmappings[einsum_name] = compressed
+    #     decompress_data[einsum_name] = decompress
     return compressed_einsum2pmappings, DecompressData(decompress_data)
 
 

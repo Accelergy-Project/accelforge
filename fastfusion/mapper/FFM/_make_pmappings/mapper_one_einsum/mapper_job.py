@@ -34,7 +34,7 @@ from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     ConstraintLambda,
 )
 from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
-from fastfusion.util.util import fzs
+from fastfusion.util.util import expfmt, fzs
 from fastfusion.util.itertools import first
 from fastfusion.frontend.mapping import Reservation as ReservationNode
 
@@ -205,12 +205,13 @@ class Job:
     _update_compatibility_with_tile_shapes: Callable[[Sequence[Number], dict], Compatibility] | None = None
     memories_track_all: list[str] | None = None
     memories_track_pmappings_only: list[str] | None = None
-    messages: list[str] = field(default_factory=list)
     time_limit: float | int = float('inf')
     memory_limit: float | int = float('inf')
-    mask_ratios: dict[str, int] = field(default_factory=dict)
-    mask_totals: dict[str, int] = field(default_factory=dict)
-    mask_total: Optional[int] = None
+    messages: list[str] = field(default_factory=list)
+    pmapping_keep_rates: dict[str, float] = field(default_factory=dict)
+
+    total_pmappings: int | None = None
+    valid_pmappings: int | None = None
 
     @property
     def compatibility(self) -> Compatibility:
@@ -283,42 +284,43 @@ class Job:
         s += f"Messages:\n"
         for m in self.messages:
             s += f'\t{m}\n'
+            
+        s += f"Total pmappings: {self.total_pmappings}\n"
+        s += f"Valid pmappings: {self.valid_pmappings}\n"
+        s += f"One in {expfmt(self.total_pmappings / self.valid_pmappings)} pmappings is valid\n"
         s += f"Pmapping elimination reasons:\n"
-        for cause, n_pruned in self.mask_ratios.items():
-            s += f'\t{cause}: {n_pruned} pmappings\n'
+        for cause, keep_rate in self.pmapping_keep_rates.items():
+            s += f'\t{cause} kept one in {expfmt(1/keep_rate)} pmappings\n'
         s += '=' * 80 + '\n'
         return s
+    
+    def set_total_pmappings(self, n_pmappings: int):
+        self.total_pmappings = n_pmappings
+        
+    def log_porp_pmappings_kept(
+        self,
+        cause: str,
+        porp_kept: float,
+        out_of: int=None,
+    ):
+        if out_of is not None:
+            n_kept = porp_kept * out_of + (self.total_pmappings - out_of)
+            porp_kept = n_kept / self.total_pmappings
+            
+        self.pmapping_keep_rates.setdefault(cause, 1)
+        self.pmapping_keep_rates[cause] *= porp_kept
+        self.total_pmappings *= porp_kept
 
     def log_message(self, message: str):
         self.messages.append(message)
         logging.info(message)
-        # print(message)
 
-    def log_mask(self, cause: str, n_pruned: int, size: int):
-        if n_pruned == 0:
-            return
-        if self.mask_total is None:
-            self.mask_ratios[cause] = self.mask_ratios.get(cause, 1) * n_pruned
-            # print(f"Mask ratio {cause}: {self.mask_ratios[cause]}")
-        else:
-            self.mask_totals[cause] = self.mask_ratios.get(cause, 0) + n_pruned * size
-            
-    def create_new_mask_total(self, size: int):
-        self.mask_total = size
-        assert not self.mask_totals, "Clear mask totals before creating a new mask total"
-
-    def clear_mask_total(self):
-        mask_total = self.mask_total
-        self.mask_total = None
-        for cause, n_pruned in self.mask_totals.items():
-            self.log_mask(cause, n_pruned / mask_total, mask_total)
-        self.mask_totals.clear()
-
-    def clear_mask_totals(self):
-        for cause, n_pruned in self.mask_totals.items():
-            self.log_message(f"Eliminated {n_pruned} pmappings because {cause}")
-        self.mask_totals.clear()
-
+    def __copy__(self) -> "Job":
+        new = self.__class__(**self.__dict__)
+        new.messages = self.messages.copy()
+        new.pmapping_keep_rates = self.pmapping_keep_rates.copy()
+        return new
+       
 
 class SameSpecJobs(list[Job]):
     @property

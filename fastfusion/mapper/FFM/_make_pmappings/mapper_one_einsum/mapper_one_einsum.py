@@ -1,8 +1,9 @@
 import copy
 from typing import Callable
 import pandas as pd
-
+from uuid import UUID
 from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.workload.workload import EinsumName
 from fastfusion.mapper.FFM._pmapping_group import (
     col2nameloop,
     is_reservation_col,
@@ -79,7 +80,7 @@ def get_equivalent_sims(
 
 def generate_pmappings(
     jobs_with_similar_compatibilities: SameCompatibilityJobs
-):
+) -> tuple[EinsumName, list[SIM], dict[UUID, Mapping], SameCompatibilityJobs]:
     total_pmappings = 0
     results = []
     
@@ -107,6 +108,8 @@ def generate_pmappings(
         # space will still be much bigger than reported here since the extra loops would
         # also increase the index factorization space size.
         # n_pmappings *= math.prod(math.factorial(n) for n in n_loops)
+
+        # print(job.pretty_str())
         
         result[MAPPING_COLUMN] = job.job_id
         cols_to_drop = []
@@ -143,7 +146,7 @@ def generate_pmappings(
     ).data
 
     if results.empty:
-        return einsum_name, [], {}
+        return einsum_name, [], {}, jobs_with_similar_compatibilities
 
     fused_loop_cols = [
         f"{einsum_name}\0tile_shape\0{i}"
@@ -217,4 +220,4 @@ def generate_pmappings(
         seen_compatibilities.update(e.compatibility for e in sim._equivalent_sims)
         sims.append(sim)
 
-    return einsum_name, sims, pmapping_objects
+    return einsum_name, sims, pmapping_objects, jobs_with_similar_compatibilities

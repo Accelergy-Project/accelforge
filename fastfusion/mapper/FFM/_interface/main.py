@@ -27,12 +27,14 @@ class MappingFromRow:
 
 
 def make_pmappings(
-    spec: Specification, einsum_names: list[EinsumName] | None = None, tagger = None,
+    spec: Specification, 
+    einsum_names: list[EinsumName] | None = None, 
+    tagger = None,
 ) -> MultiEinsumPmappings:
     parsed_spec, _ = spec.parse_expressions()
     parsed_spec.calculate_component_energy_area(area=False)
     flattened_arches = parsed_spec.get_flattened_architecture()
-    sims, pmapping_objects = get_sims(
+    sims, pmapping_objects, einsum2jobs = get_sims(
         parsed_spec,
         flattened_arches,
         tagger=tagger,
@@ -44,7 +46,7 @@ def make_pmappings(
         for l in flattened_arch:
             if isinstance(l, arch.Memory):
                 resource2capacity[l.name] = l.attributes.size
-    return MultiEinsumPmappings(sims, pmapping_objects, resource2capacity)
+    return MultiEinsumPmappings(sims, pmapping_objects, resource2capacity, einsum2jobs)
 
 def row2mapping(row: pd.Series, spec: Specification, rank_variable_bounds: dict[str, dict[str, int]]) -> Mapping:
     return Mapping.from_pmappings(row2pmappings(row, spec.workload.einsum_names, rank_variable_bounds), rank_variable_bounds=rank_variable_bounds)

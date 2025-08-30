@@ -92,7 +92,7 @@ def get_jobs(
             tagger=tagger,
             job_id=uuid.uuid4(),
             except_from_imperfect=except_from_imperfect,
-            intermediate_tensors=intermediate_tensors & workload_einsum.tensor_names
+            intermediate_tensors=intermediate_tensors & workload_einsum.tensor_names,
         )
         for j in get_single_einsum_jobs(job):
             jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
@@ -210,7 +210,7 @@ def get_sims(
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     fail_if_no_pmappings_for_einsum: bool = True
-) -> tuple[dict[EinsumName, list[SIM]], dict[EinsumName, dict[uuid.UUID, Mapping]]]:
+) -> tuple[dict[EinsumName, list[SIM]], dict[EinsumName, dict[uuid.UUID, Mapping]], dict[EinsumName, list[Job]]]:
     """
     Explores pmapspace of `einsum_names` (default: all Einsums in workload).
     """
@@ -235,14 +235,16 @@ def get_sims(
 
     pmapping_objects = {}
     sims = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
-    for einsum_name, new_sims, pmappings in parallel(
+    return_jobs = {}
+    for einsum_name, new_sims, pmappings, jobs_with_similar_compatibilities in parallel(
         calls,
         pbar=f"Generating pmappings",
         return_as="generator_unordered",
     ):
         sims[einsum_name].extend(new_sims)
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
-    return sims, pmapping_objects
+        return_jobs.setdefault(einsum_name, []).extend(jobs_with_similar_compatibilities)
+    return sims, pmapping_objects, return_jobs
 
 
 def _raise_error_if_no_pmappings(einsum2jobs):

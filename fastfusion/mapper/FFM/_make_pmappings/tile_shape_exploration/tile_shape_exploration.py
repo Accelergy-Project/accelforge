@@ -229,7 +229,7 @@ def generate_tile_shapes(
         new_sum = new_mask.sum()
         if track_masked and prev_sum != 0 and prev_sum != new_sum:
             # print(f"Mask {cause}: {new_sum / prev_sum}")
-            job.log_mask(cause, new_sum / prev_sum, prev_mask.shape[0])
+            job.log_porp_pmappings_kept(cause, new_sum / prev_sum, out_of=prev_sum)
         return new_mask
 
     def get_corrected_choices(combined_choices, indices, is_symbols, other_rank_var_and_choices):
@@ -272,7 +272,6 @@ def generate_tile_shapes(
         corrected_choices_with_largest = corrected_choices_with_largest[:,is_symbols]
         return corrected_choices, corrected_choices_with_largest, complete_indices
 
-    # INCORRECT
     def check_valid_tile_shape(combined_choices, is_symbols, other_rank_var_and_choices, indices, ranks, shape, track_masked=True):
         # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
         if combined_choices.shape[0] == 0:
@@ -318,8 +317,8 @@ def generate_tile_shapes(
 
         good_choices = combined_choices[mask,:]
 
+        # TODO: Bring back loop limit  mi
         # # Check that we're less than the n_loops limit
-        # TODO: Bring back loop limit
         # n_loops = np.zeros(good_choices.shape[0], dtype=np.int64)
         # for rank in ranks:
         #     tiling_segments = rank_var_to_tiling_segments[rank]
@@ -330,15 +329,13 @@ def generate_tile_shapes(
         #     for i in [indices.index(i) for i in tiling_segments.indices]:
         #         n_loops += cur_size != good_choices[:,i]
         #         cur_size = good_choices[:,i]
-                
-                
-        max_loops = min(
-            specification.mapper.ffm.max_loops,
-            specification.mapper.ffm.max_loops_minus_ranks + len(ranks)
-        )
-        mask = np.ones(good_choices.shape[0], dtype=np.bool)
-        mask = update_mask(mask, n_loops <= max_loops, "max loops", track_masked=track_masked)
-        good_choices = good_choices[mask,:]
+        # max_loops = min(
+        #     specification.mapper.ffm.max_loops,
+        #     specification.mapper.ffm.max_loops_minus_ranks + len(ranks)
+        # )
+        # mask = np.ones(good_choices.shape[0], dtype=np.bool)
+        # mask = update_mask(mask, n_loops <= max_loops, "max loops", track_masked=track_masked)
+        # good_choices = good_choices[mask,:]
 
         return good_choices
 
@@ -348,11 +345,10 @@ def generate_tile_shapes(
         for rank_var, tiling_segments in rank_var_to_tiling_segments.items()
     }
 
-    nominal_n_mappings = 1
+    nominal_n_mappings = np.prod([x.shape[0] for x in rv2choices.values()])
 
     for rank_var, tiling_segments in rank_var_to_tiling_segments.items():
         choices = rv2choices.pop(rank_var)
-        nominal_n_mappings *= choices.shape[0]
 
         n_loops = choices.shape[1]
 
@@ -389,7 +385,9 @@ def generate_tile_shapes(
                 axis=1
             )
 
-        # TODO: there may be a more efficient order
+        job.set_total_pmappings(choices.shape[0])
+
+        # # TODO: there may be a more efficient order
         corrected_indices = np.asarray(invert_indices(indices))
         corrected_choices = choices[:,corrected_indices]
         corrected_choices2 = choices2[:,corrected_indices]
@@ -427,9 +425,6 @@ def generate_tile_shapes(
 
         good_choices = choices[mask,:]
 
-        if good_choices.shape[0] == 0:
-            return good_choices, is_symbols, 0
-        
         job.log_message(
             f"Rank {rank_var} has {good_choices.shape[0]} valid tile shape choices."
         )
@@ -438,7 +433,7 @@ def generate_tile_shapes(
             frozenset((rank_var,)),
             tiling_segments.indices.copy(),
             tiling_segments.is_symbol.copy(),
-            good_choices[:,:n_loops]
+            good_choices
         ))
         
         
@@ -475,8 +470,6 @@ def generate_tile_shapes(
                 np.empty((0, len(new_index)), dtype=np.int64)
             )
             
-        job.create_new_mask_total(choices_a.shape[0] * choices_b.shape[0])
-        job.log_message(f"Combining {choices_a.shape[0]} choices for {index_a} and {choices_b.shape[0]} choices for {index_b}")
         combined_choices = []
             
         # Now bin the choices of a by the choices for loops in rank_b
@@ -491,17 +484,22 @@ def generate_tile_shapes(
         b_loops = choices_a[:, [index_a.index(i) for i in a_index_prev]]
         for i in range(choices_a.shape[0]):
             bin_a.setdefault(tuple(b_loops[i]), []).append(i)
-
-        assert choices_b.shape[1] == 1
+            
+        b_option_to_valid_a_indices = {}
         for b_option in choices_b.flatten():
-            valid_a_bins = []
+            b_option_to_valid_a_indices[b_option] = []
             for k, v in bin_a.items():
                 if tuple(k) + (b_option,) in prev_options:
-                    valid_a_bins.append(v)
-                    
-            job.log_message(f"Found {len(valid_a_bins)} valid bins for {b_option}")
+                    b_option_to_valid_a_indices[b_option].extend(v)
 
-            valid_a_indices = list(itertools.chain.from_iterable([v for v in valid_a_bins]))
+        if track_masked:
+            n = sum(len(v) for v in b_option_to_valid_a_indices.values())
+            job.log_message(
+                f"Combining {choices_a.shape[0]} choices for loops {index_a}, {choices_b.shape[0]} choices for loops {index_b}. N valid combinations: {n}")
+            job.set_total_pmappings(n)
+
+        assert choices_b.shape[1] == 1
+        for b_option, valid_a_indices in b_option_to_valid_a_indices.items():
             cur_choices_a = choices_a[valid_a_indices]
 
             choices = np.concatenate(
@@ -517,8 +515,6 @@ def generate_tile_shapes(
             good_choices = check_valid_tile_shape(choices, is_symbol_a + is_symbol_b, other_rank_var_and_choices, index_a + index_b, rank_a | rank_b, shape, track_masked=track_masked)
             combined_choices.append(good_choices)
             
-        job.clear_mask_total()
-            
         good_choices = np.concatenate(combined_choices, axis=0)
         good_choices = check_valid_tile_shape(good_choices, is_symbol_a + is_symbol_b, other_rank_var_and_choices, index_a + index_b, rank_a | rank_b, shape, track_masked=track_masked)
         return (
@@ -527,7 +523,7 @@ def generate_tile_shapes(
             new_is_symbol,
             good_choices
         )
-        
+
     def greedily_maximize_reuse(rank_var_and_choices_a, other_rank_var_and_choices):
         rank_a, index_a, is_symbol_a, choices_a = rank_var_and_choices_a
 
@@ -580,12 +576,14 @@ def generate_tile_shapes(
             df[(component, dim)] = util
             
         import paretoset
-        return rank_var_and_choices_a
         return (
             rank_a,
             index_a,
             is_symbol_a,
-            choices_a,#[paretoset._paretoset(np.concatenate([x.reshape(-1, 1) for x in df.values()], axis=1)), :]
+            choices_a[paretoset.paretoset(
+                np.concatenate([x.reshape(-1, 1) for x in df.values()], axis=1),
+                sense=["max"] * len(df)
+            ), :]
         )
 
     # First, combine spatial loops
@@ -622,6 +620,9 @@ def generate_tile_shapes(
             choices_a = a[-1]
             for i, b in enumerate(rank_var_and_choices):
                 choices_b = b[-1]
+                if choices_b.shape[0] == 1:
+                    best_index = i
+                    break
 
                 # If we're going to have too many choices, skip
                 if choices_a.shape[0] * choices_b.shape[0] > 100000:
@@ -673,16 +674,13 @@ def generate_tile_shapes(
 
     # Invert indices
     indices = invert_indices(inverted_indices)
-
-    # print(f'Nominal n mappings: {nominal_n_mappings}')
-    # print(f'Actual n mappings: {choices[:,indices].shape[0]}')
-    # print(f'Ratio: {choices[:,indices].shape[0] / nominal_n_mappings}')
-    # v = 1
-    # for r in job.mask_ratios.values():
-    #     v *= r
-    # print(f'Product of ratios: {v}')
-    # print(f'Product of ratios: {v * choices[:,indices].shape[0] / nominal_n_mappings}')
-
+    
+    job.log_message(f"Found {choices[:,indices].shape[0]} valid tile shapes")
+    job.log_message(f'Nominal n mappings: {nominal_n_mappings}')
+    job.log_message(f'Actual n mappings: {choices[:,indices].shape[0]}')
+    job.log_message(f'Ratio: {choices[:,indices].shape[0] / nominal_n_mappings}')
+    job.total_pmappings = nominal_n_mappings
+    job.valid_pmappings = choices.shape[0]
 
     return choices[:,indices], is_symbol[indices], total_pmappings
 
