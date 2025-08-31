@@ -79,30 +79,26 @@ def decompress_pmappings(
 ) -> PmappingGroup:
     data = pmappings.data
     for einsum_name, decompress in decompress_data.data.items():
-        index2row = {}
-        for i in data[f"{einsum_name}\0{COMPRESSED_INDEX}"]:
-            if i in index2row:
-                continue
-            chosen = None
-            for start_index, cur_decompress in decompress.items():
-                if start_index > i:
-                    break
-                chosen = cur_decompress
+        decompress_sub_dfs = []
+        decompress_iter = iter(decompress.items())
+        start_index, chosen = float("inf"), None
+        for i in sorted(set(data[f"{einsum_name}\0{COMPRESSED_INDEX}"])):
+            while chosen is None or i > start_index:
+                start_index, chosen = next(decompress_iter)
             assert chosen is not None, f"Start index {start_index}, decompress {list(decompress.keys())}"
             chosen = chosen[chosen.index == i]
             assert len(chosen) == 1, f"Expected 1 row, got {len(chosen)}"
-            index2row[i] = chosen
-        decompress = pd.concat(index2row.values())
+            decompress_sub_dfs.append(chosen)
         data = pd.merge(
             data,
-            decompress,
+            pd.concat(decompress_sub_dfs),
             left_on=f"{einsum_name}\0{COMPRESSED_INDEX}",
             right_index=True,
             how="left",
         )
 
-        # Remove compressed_index columns that may have been created during
-        # merge
+    # Remove compressed_index columns that may have been created during
+    # merge
     compressed_index_cols = [
         col for col in data.columns if COMPRESSED_INDEX in col
     ]
