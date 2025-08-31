@@ -408,20 +408,20 @@ class Workload(ParsableModel):
                 except ParseError as e:
                     e.add_field(einsum_name)
                     raise
-                
+
         for rank_variable in einsum.rank_variables:
             symbol_table[rank_variable] = InvertibleSet(instance=(rank_variable,), space_name="rank_variables", full_space=einsum.rank_variables)
-            
+
         for t in self.tensor_names:
             if t not in symbol_table:
                 symbol_table[t] = InvertibleSet(
-                    instance=(), 
-                    space_name="tensors", 
+                    instance=(),
+                    space_name="tensors",
                     full_space=all_,
                     child_access_name="rank_variables",
                     element_to_child_space=element_to_child_space,
                 )
-                
+
         return symbol_table
 
     def get_pairwise_equivalent_rank_variables(self) -> dict[RankVariableName, set[RankVariableName]]:
