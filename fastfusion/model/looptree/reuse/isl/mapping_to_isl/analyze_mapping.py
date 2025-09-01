@@ -38,7 +38,9 @@ from fastfusion.frontend.workload import Workload
 
 from fastfusion.model.looptree.mapping_utilities import get_paths
 from fastfusion.model.looptree.reuse import Buffet
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import skews_from_mapping
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import (
+    skews_from_mapping,
+)
 
 from . import DUMP_ISL_IR, LOG_ISL_IR
 from .tiling import tiling_from_mapping
@@ -49,6 +51,7 @@ from .types import (
     Skew,
 )
 
+
 def buffet_right_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]:
     """
     TODO: Verify this docstring
@@ -58,9 +61,9 @@ def buffet_right_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]
     `~.Sequential`.
 
     :param mapping: The mapping context of the buffets to sequential elements.
-    
+
     :type mapping:  Mapping
-    
+
     :returns:   A dictionary of buffets and whether they're directly above a Sequential.
     :rtype:     defaultdict[Buffet, bool]
     """
@@ -80,11 +83,11 @@ def buffet_right_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]
                     # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L518-L520
                     # Note: Buffet seems to have changed a lot?
                     # https://github.com/NVlabs/timeloop/blob/master/include/loop-analysis/isl-ir.hpp#L96
-                    last_bufs.append(Buffet(
-                        tensor=node.tensor,
-                        einsum=leaf.einsum,
-                        level=node.component
-                    ))
+                    last_bufs.append(
+                        Buffet(
+                            tensor=node.tensor, einsum=leaf.einsum, level=node.component
+                        )
+                    )
                 # TODO: Check that all buffets are unique, because right now
                 # it seems it's dependent on the last leaf in traversal?
 
@@ -110,7 +113,7 @@ def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
     the Compute leafs.
 
     :param mapping: The mapping to get parallelism for.
-    
+
     :type mapping: Mapping
 
     :returns:   A map relating Compute nodes with their parallelism.
@@ -136,8 +139,10 @@ def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
                 else:
                     result[node] = 1
             case _:
-                raise ValueError(f"Cannot compute parallelism behavior for type: {type(node)}")
-        
+                raise ValueError(
+                    f"Cannot compute parallelism behavior for type: {type(node)}"
+                )
+
     return result
 
 
@@ -160,10 +165,10 @@ def occupancies_from_mapping(
     if DUMP_ISL_IR:
         for node, tiling in branch_tiling.items():
             print(f"[Tiling]Node({node}): {tiling}")
-            # TODO: Port this line 
+            # TODO: Port this line
             # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L55-L64
             print(f"[Ops]Node({node}): ")
-    
+
     occupancies: defaultdict[Buffet, Occupancy] = defaultdict()
     # TODO: Implement skews_from_mapping
     skews: Skew = skews_from_mapping(mapping, workload)
@@ -175,5 +180,5 @@ def occupancies_from_mapping(
     # TODO: Implement both called functions.
     return MappingAnalysisResult(
         buffet_direct_above_sequential=buffet_direct_above_sequential(mapping),
-        compute_to_assumed_parallelism=get_parallelism(mapping)
-    ) 
+        compute_to_assumed_parallelism=get_parallelism(mapping),
+    )
