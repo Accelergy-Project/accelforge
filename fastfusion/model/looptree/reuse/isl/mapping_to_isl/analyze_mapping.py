@@ -52,7 +52,7 @@ from .types import (
 )
 
 
-def buffet_right_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]:
+def buffet_direct_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]:
     """
     TODO: Verify this docstring
     For all Buffets (logical objects containing a tensor, its operating einsum,
