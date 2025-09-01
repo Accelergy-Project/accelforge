@@ -26,10 +26,19 @@ Relevant Name Changes:
 from collections import defaultdict, deque
 from typing import List
 
-from fastfusion.frontend.mapping import Compute, Mapping, MappingNode, MappingNodeWithChildren
+from fastfusion.frontend.mapping import (
+    Compute,
+    Mapping,
+    MappingNode,
+    MappingNodeWithChildren,
+    Sequential,
+    Storage,
+)
 from fastfusion.frontend.workload import Workload
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import skews_from_mapping
+
+from fastfusion.model.looptree.mapping_utilities import get_paths
 from fastfusion.model.looptree.reuse import Buffet
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import skews_from_mapping
 
 from . import DUMP_ISL_IR, LOG_ISL_IR
 from .tiling import tiling_from_mapping
@@ -41,19 +50,56 @@ from .types import (
 )
 
 def buffet_right_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]:
+    """
+    TODO: Verify this docstring
+    For all Buffets (logical objects containing a tensor, its operating einsum,
+    and a abstract hardware level), denote whether the buffet is directly above
+    a :class:`~.Sequential`, or has an uninterrupted path of other buffets to a
+    `~.Sequential`.
+
+    :param mapping: The mapping context of the buffets to sequential elements.
+    
+    :type mapping:  Mapping
+    
+    :returns:   A dictionary of buffets and whether they're directly above a Sequential.
+    :rtype:     defaultdict[Buffet, bool]
+    """
     result: defaultdict[Buffet, bool] = defaultdict()
-    # TODO: Figure out of get_paths from mapping_utilities is the right function.
-    # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L506
+    # TODO: Figure out if get_paths is just for certain MappingNodesWithChildren
+    # or not.
     for path in get_paths(mapping):
-        leaf = path[-1]
+        leaf: Compute = path[-1]
         last_bufs: List[Buffet] = []
 
+        node: MappingNode
         for node in path:
             match node:
+                # If we have a storage, create a buffet for the current leaf.
                 case Storage():
+                    # TODO: Verify this port:
+                    # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L518-L520
+                    # Note: Buffet seems to have changed a lot?
+                    # https://github.com/NVlabs/timeloop/blob/master/include/loop-analysis/isl-ir.hpp#L96
                     last_bufs.append(Buffet(
-                        node.
+                        tensor=node.tensor,
+                        einsum=leaf.einsum,
+                        level=node.component
                     ))
+                # TODO: Check that all buffets are unique, because right now
+                # it seems it's dependent on the last leaf in traversal?
+
+                # If we encounter a sequential, we know all the last buffet and its
+                # parents that are buffets are directly above sequential.
+                case Sequential():
+                    for buf in last_bufs:
+                        result[buf] = True
+                    last_bufs.clear()
+                # If we encounter no storages or a sequential, we must not be
+                # directly above a sequential element, and thus can purge the path.
+                case _:
+                    for buf in last_bufs:
+                        result[buf] = False
+                    last_bufs.clear()
 
     return result
 
