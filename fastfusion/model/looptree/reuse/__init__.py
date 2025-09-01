@@ -1,3 +1,7 @@
+"""
+Contains shared elements of reuse data analysis.
+"""
+
 from dataclasses import dataclass
 from typing import TypeAlias
 
@@ -5,6 +9,7 @@ from fastfusion.frontend.mapping import TensorName
 from fastfusion.frontend.workload.workload import EinsumName
 
 ComponentName: TypeAlias = str
+
 
 @dataclass(eq=True, frozen=True)
 class Buffet:

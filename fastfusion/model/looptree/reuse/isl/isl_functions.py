@@ -24,6 +24,7 @@ def project_dim_in_after(map_: isl.Map, start: int) -> isl.Map:
     n_dim_in: int = map_.dim(isl.dim_type.in_)
     return map_.project_out(isl.dim_type.in_, start, n_dim_in - start)
 
+
 def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:
     """
     Given a space, create a map that projects out the dims [start: start+n).
@@ -36,10 +37,7 @@ def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:
     :rtype:     isl.Map
     """
     return isl.Map.project_out(
-        isl.Map.identity(isl.Space.map_from_set(space)),
-        isl.dim_type.in_,
-        start,
-        n
+        isl.Map.identity(isl.Space.map_from_set(space)), isl.dim_type.in_, start, n
     )
 
 
@@ -58,7 +56,7 @@ def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
     for i in range(len(mask) - 1, -1, -1):
         if mask[i]:
             projector = projector.project_out(isl.dim_type.in_, i, 1)
-    
+
     return projector
 
 
@@ -66,7 +64,7 @@ def insert_equal_dims_maff(
     maff: isl.MultiAff, in_pos: int, out_pos: int, n: int
 ) -> isl.MultiAff:
     """
-    Given a multi affine, insert equal numbers of input and output dimensions and 
+    Given a multi affine, insert equal numbers of input and output dimensions and
     enforce equality between the values of the two dims.
 
     :param maff:    The multi affine base to insert dims into.
@@ -139,7 +137,8 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
     Create a map that relates current time index vector to a previous index vector.
     It shifts the coordinate at shifted_idx back by 1.
 
-    Goal: { [i0, ..., i{n_in_dims-1}] -> [i0, ..., i{shifted_idx}-1, i{shifted_idx+1}, ..., i{n_in_dims-1}] }
+    Goal: { [i0,...,i{n_in_dims-1}] ->
+            [i0, ..., i{shifted_idx}-1, i{shifted_idx+1}, ..., i{n_in_dims-1}] }
 
     :param n_in_dims:   The number of input/output dims of the dataspace.
     :param shifted_idx: The coordinate being shifted.
@@ -147,7 +146,9 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
     :type n_in_dims:    int
     :type shifted_idx:  int
 
-    :returns:           A map 
+    :returns:   A map relating a current index vector to a previous index
+                to a previous index vector by shifting the coordinate at shifted_idx
+                back by 1.
 
 
     Preconditions
@@ -177,8 +178,12 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
         # Sets constraints such that the pivot value is decremented.
         # out - in + 1 == 0 => out == in - 1
         constraint = isl.Constraint.alloc_equality(local_space)
-        constraint = constraint.set_coefficient_val(isl.dim_type.out, shifted_idx - 1, 1)
-        constraint = constraint.set_coefficient_val(isl.dim_type.in_, shifted_idx - 1, -1)
+        constraint = constraint.set_coefficient_val(
+            isl.dim_type.out, shifted_idx - 1, 1
+        )
+        constraint = constraint.set_coefficient_val(
+            isl.dim_type.in_, shifted_idx - 1, -1
+        )
         constraint = constraint.set_constant_val(1)
         tmp_map = tmp_map.add_constraint(constraint)
 
@@ -188,7 +193,9 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
     if shifted_idx < n_in_dims:
         tmp_map: isl.Map = isl.Map.lex_gt(
             isl.Space.set_alloc(
-                isl.DEFAULT_CONTEXT, map_.dim(isl.dim_type.param), n_in_dims - shifted_idx
+                isl.DEFAULT_CONTEXT,
+                map_.dim(isl.dim_type.param),
+                n_in_dims - shifted_idx,
             )
         )
         tmp_map = insert_equal_dims_map(tmp_map, 0, 0, shifted_idx)
