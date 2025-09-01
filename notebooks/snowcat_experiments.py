@@ -3,8 +3,8 @@ from pathlib import Path
 import pickle
 from fastfusion import Specification
 from fastfusion.mapper.FFM.ffm import make_pmappings, join_pmappings
-from fastfusion.mapper.FFM.exploration.mapping_filter_tags import get_one_split_tag, get_ffmt_tag
-from fastfusion.mapper.metrics import Metrics
+from fastfusion.mapper.FFM.deprecate_maybe.mapping_filter_tags import get_one_split_tag, get_ffmt_tag
+from fastfusion.frontend.mapper.metrics import Metrics
 
 
 ARCH_DIR          = Path('architecture/')
@@ -52,7 +52,6 @@ def get_sims_with_cache(tagger_name=None,
         ARCH_DIR / f'{arch_name}.arch.yaml',
         WORKLOAD_DIR / f'{workload_name}.workload.yaml'
     )
-    spec.calculate_component_energy_area()
     workload = spec.workload
     renames = spec.renames
     flattened_architecture = spec.get_flattened_architecture()

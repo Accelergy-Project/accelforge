@@ -8,7 +8,7 @@ from itertools import product
 from typing import Annotated, TypeAlias, Union
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
-from fastfusion.frontend.renames import Renames
+from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.version import assert_version, __version__
@@ -37,10 +37,6 @@ letter, `#`, `$`, or `@`, and are followed by zero or more letters, digits,
 or underscores.
 """
 
-TensorName: TypeAlias = str
-RankVariableName: TypeAlias = str
-RankName: TypeAlias = str
-EinsumName: TypeAlias = str
 
 SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
@@ -208,6 +204,12 @@ class Einsum(ParsableModel):
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape = Shape()
     is_copy_operation: bool = False
+    renames: RenameList[Rename] = RenameList()
+    
+    def __init__(self, *args, **kwargs):
+        if "renames" in kwargs:
+            kwargs["renames"] = rename_list_factory(kwargs["renames"])
+        super().__init__(*args, **kwargs)
 
     @property
     def rank_variables(self) -> set[RankVariableName]:
@@ -476,12 +478,23 @@ class Workload(ParsableModel):
             "Einsum": einsum_name,
             "Einsum_Object": einsum,
         }
+        
+        taken_renames = set()
+        for rename in self.einsums[einsum_name].renames:
+            symbol_table[rename.name] = eval_set_expression(
+                rename.source,
+                symbol_table,
+                None,
+                f"Einsum {einsum_name} renames",
+                rename.expected_count,
+            )
+            taken_renames.add(rename.name)
 
         if renames is not None:
             rename = renames.get_renames_for_einsum(einsum_name)
             for rename_tensor in rename.tensor_accesses:
-                einsum.output_tensors()
-                name = rename_tensor.name
+                if (name := rename_tensor.name) in taken_renames:
+                    continue
                 source = rename_tensor.source
                 expected_count = rename_tensor.expected_count
                 try:
@@ -496,7 +509,8 @@ class Workload(ParsableModel):
                     e.add_field(einsum_name)
                     raise
             for rename_rank_variable in rename.rank_variables:
-                name = rename_rank_variable.name
+                if (name := rename_rank_variable.name) in taken_renames:
+                    continue
                 source = rename_rank_variable.source
                 expected_count = rename_rank_variable.expected_count
                 try:
@@ -521,8 +535,8 @@ class Workload(ParsableModel):
         for t in self.tensor_names:
             if t not in symbol_table:
                 symbol_table[t] = InvertibleSet(
-                    instance=(), 
-                    space_name="tensors", 
+                    instance=(),
+                    space_name="tensors",
                     full_space=all_,
                     child_access_name="rank_variables",
                     element_to_child_space=element_to_child_space,

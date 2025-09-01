@@ -8,24 +8,19 @@
 # Peak INT8 Tensor TOPS 1978.9
 # pJ/MAC = 700 / 1978.9 * 2 = 0.354
 # https://resources.nvidia.com/en-us-tensor-core
-variables:
-  global_cycle_period: 1e-9
-  tech_node: "4nm"
 
-
-architecture:
+arch:
   # ============================================================
   # Architecture Description
   # ============================================================
   version: "0.5"
+  global_cycle_period: 1e-9
   nodes: # Top-level is hierarchical
   - !Memory
     name: MainMemory
-    component_class: DRAM
     attributes:
-      size: 9999999999999
-      area: 1
-      datawidth: 8
+      _size: inf
+      _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 7.03}}
     - {name: write, arguments: {energy: 7.03}}
@@ -33,11 +28,9 @@ architecture:
 
   - !Memory
     name: L2_cache
-    component_class: smartbuffer_SRAM
     attributes:
-      datawidth: 8
-      size: 50*1024*1024*8
-      area: 1
+      _size: 50*1024*1024*8
+      _datawidth: 8
     constraints:
       tensors:
         keep: ~MainMemory.tensors() | input | output
@@ -48,12 +41,10 @@ architecture:
 
   - !Memory
     name: RF
-    component_class: smartbuffer_SRAM
     spatial: {fanout: {X: 132}}
     attributes:
-      datawidth: 8
-      size: (256*1024*8) # 256 kB
-      area: 1
+      _size: (256*1024*8) # 256 kB
+      _datawidth: 8
     constraints:
       tensors:
         keep: All()
@@ -73,12 +64,10 @@ architecture:
 
   - !Memory
     name: Register
-    component_class: dummy_storage
     spatial: {fanout: {X: 128, Y: 256}}
     attributes:
-      size: 8 # 8b
-      datawidth: 8
-      area: 1
+      _size: 8 # 8b
+      _datawidth: 8
     constraints:
       tensors:
         keep: weight
@@ -114,8 +103,6 @@ architecture:
 
   - !Compute
     name: mac
-    component_class: intmac
-    attributes: {multiplier_width: 8, adder_width: 16, area: 1}
     actions:
     - {name: compute, arguments: {energy: 0}} #0.84}}
     - {name: leak, arguments: {energy: 0}}

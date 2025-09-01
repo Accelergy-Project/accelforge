@@ -1,3 +1,17 @@
+renames:
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs() & Intermediates()
+      expected_count: 1
+    - name: output
+      source: Outputs()
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1
+
 workload:
   version: "0.5"
   shape:
@@ -20,6 +34,8 @@ workload:
     tensor_accesses:
     - {name: I_in, projection: [b, m, d]}
     - {name: I, projection: [b, m, d], output: True}
+    renames: {weight: Nothing(), input: Inputs(), output: Outputs()}
+      
 
   - name: V
     tensor_accesses:
@@ -44,17 +60,20 @@ workload:
     - {name: Q, projection: [b, m, h, e]}
     - {name: K, projection: { B: b, M: p, H: h, E: e }}
     - {name: QK, projection: [b, m, p, h], output: True}
+    renames: {weight: K, input: Q, output: QK}
 
   - name: QK_softmax
     tensor_accesses:
     - {name: QK, projection: [b, m, p, h]}
     - {name: QK_softmax, projection: [b, m, p, h], output: True}
+    renames: {weight: Nothing()}
 
   - name: AV
     tensor_accesses:
     - {name: QK_softmax, projection: [b, m, p, h]}
     - {name: V, projection: { B: b, M: p, H: h, E: f}}
     - {name: AV, projection: [b, m, h, f], output: True}
+    renames: {weight: V, input: QK_softmax}
 
   - name: Z
     tensor_accesses:

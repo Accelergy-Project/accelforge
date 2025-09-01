@@ -3,11 +3,11 @@ import unittest
 from pathlib import Path
 
 from fastfusion.frontend import Specification
-from fastfusion.frontend.architecture import Architecture
+from fastfusion.frontend.arch import Arch
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import Workload
 
-from fastfusion.mapper.metrics import Metrics
+from fastfusion.frontend.mapper.metrics import Metrics
 from fastfusion.model.looptree.accesses import isl_buffer_accesses_from_buffet_actions, Accesses
 from fastfusion.model.looptree.energy import gather_actions
 from fastfusion.model.looptree.latency import get_latency
@@ -25,7 +25,6 @@ class TestProcessingStage(unittest.TestCase):
             Path(__file__).parent / 'matmul.workload.yaml'
         ])
         spec.mapper.ffm.metrics = Metrics.ENERGY
-        spec.calculate_component_energy_area()
         pmappings = make_pmappings(spec)
         mappings = join_pmappings(spec, pmappings)
 

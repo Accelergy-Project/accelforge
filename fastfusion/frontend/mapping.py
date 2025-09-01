@@ -35,9 +35,9 @@ from fastfusion.util.basetypes import (
     get_tag,
     InferFromTag,
 )
-from fastfusion.frontend import architecture
 from fastfusion.frontend.workload.workload import RankVariableName, TensorName
 from fastfusion.version import assert_version, __version__
+from fastfusion.frontend import arch
 
 T = TypeVar("T", bound="MappingNode")
 """TypeVar T: Restricts the allowable types to types of MappingNodes."""
@@ -420,12 +420,12 @@ class Spatial(Iteration):
 
     :type name: Union[int, str]
     :type component: str
-    :type component_object: Optional[architecture.Leaf]
+    :type component_object: Optional[arch.Leaf]
     """
 
     name: Union[int, str]
     component: str
-    component_object: Optional[architecture.Leaf] = None
+    component_object: Optional[arch.Leaf] = None
 
     def compact_str(self) -> str:
         return f"S-{self.name}-{super().compact_str()}"
@@ -471,7 +471,7 @@ class TensorHolder(MappingNode):
 
     :type tensors: ParsableList[TensorName]
     :type component: str
-    :type component_object: Optional[architecture.Component]
+    :type component_object: Optional[arch.Component]
     :type _must_keep_tensors: ParsableList[TensorName]
     :type _backing: Set[TensorName]
     :type _lower: bool
@@ -479,7 +479,7 @@ class TensorHolder(MappingNode):
 
     tensors: ParsableList[TensorName]
     component: str
-    component_object: Optional[architecture.Component] = (
+    component_object: Optional[arch.Component] = (
         None  # Reference to component node
     )
     _must_keep_tensors: ParsableList[TensorName] = (
@@ -565,7 +565,7 @@ class Compute(MappingNode):
 
     einsum: str
     compute: str = "MAC"
-    component_object: Optional[architecture.Compute] = None
+    component_object: Optional[arch.Compute] = None
 
     def compact_str(self) -> str:
         return f"{self.compute} computes {self.einsum}"
@@ -1074,15 +1074,7 @@ class Sequential(Split):
 # =============================================================================
 
 
-class ModelOnlyNode:
-    """
-    A node only the model can insert.
-    """
-
-    pass
-
-
-class Reservation(MappingNode, ModelOnlyNode):
+class Reservation(MappingNode):
     """
     Reserving a hardware resource for a specific task.
 
@@ -1189,7 +1181,7 @@ class Mapping(Nested):
         fused_slice = Mapping(nodes=[])
         to_add = []
         for node in self.nodes:
-            node = copy.deepcopy(node)
+            node = copy.copy(node)
             if isinstance(node, Reservation):
                 if node.purpose not in relevant_intermediate_tensors:
                     continue

@@ -195,30 +195,35 @@ class Parsable(ABC, Generic[M]):
     def get_validator(self, field: str) -> type:
         raise NotImplementedError("Subclasses must implement this method")
     
-    def get_instances_of_type(self, type: Type[T]) -> Iterator[T]:
+    def get_instances_of_type(self, type: Type[T], _first_call: bool = True) -> Iterator[T]:
+        if not _first_call:
+            if self.__class__.__name__ == "Specification":
+                return
+
         if isinstance(self, type):
             yield self
         elif isinstance(self, list):
             for item in self:
                 if isinstance(item, Parsable):
-                    yield from item.get_instances_of_type(type)
+                    yield from item.get_instances_of_type(type, _first_call=False)
                 elif isinstance(item, type):
                     yield item
         elif isinstance(self, dict):
             for item in self.values():
                 if isinstance(item, Parsable):
-                    yield from item.get_instances_of_type(type)
+                    yield from item.get_instances_of_type(type, _first_call=False)
                 elif isinstance(item, type):
                     yield item
         elif isinstance(self, ParsableModel):
             for field in self.get_fields():
                 if isinstance(getattr(self, field), Parsable):
-                    yield from getattr(self, field).get_instances_of_type(type)
+                    yield from getattr(self, field).get_instances_of_type(type, _first_call=False)
                 elif isinstance(getattr(self, field), type):
                     yield getattr(self, field)
 
 
     def _parse_expressions(self, symbol_table: dict[str, Any], order: tuple[str, ...], post_calls: tuple[PostCall[T], ...], use_setattr: bool = True, **kwargs) -> tuple["Parsable", dict[str, Any]]:
+        self._parsed = True
         field_order = get_parsable_field_order(
             order,
             [(field, getattr(self, field) if use_setattr else self[field], self.get_validator(field))
@@ -396,13 +401,15 @@ def parse_field(field, value, validator, symbol_table, parent, **kwargs):
             target_any = target_type is Any or isinstance(target_type, tuple) and Any in target_type
             if not target_any and not isinstance(parsed, target_type):
                 raise ParseError(
-                    f"{value} parsed to {parsed} with type {type(parsed).__name__}. "
-                    f"Expected {target_type}.",
+                    f"{value} parsed to \"{parsed}\" with type {type(parsed).__name__}."
+                    f" Expected {target_type}.",
                 )
             return parsed
         elif isinstance(value, Parsable):
             parsed, _ = value.parse_expressions(symbol_table, **kwargs)
             return parsed
+        elif isinstance(value, str):
+            return RawString(value)
         else:
             return value
     except ParseError as e:
@@ -521,6 +528,9 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable['ParsableModel'], FromYA
             if getattr(self, field) != default:
                 return False
         return True
+
+    def model_dump_non_none(self, **kwargs):
+        return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
 
 class NonParsableModel(ModelWithUnderscoreFields, FromYAMLAble):
     model_config = ConfigDict(extra="forbid")

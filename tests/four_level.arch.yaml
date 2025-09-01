@@ -1,176 +1,99 @@
 variables:
-  global_cycle_period: 1e-9
-  tech_node: 7e-9
+  abc: 123
 
-architecture:
+arch:
   version: "0.5"
+  global_cycle_period: abc
   nodes:
   - !Memory
     name: MainMemory
-    component_class: DRAM
-    attributes:
-      size: 9999999999999
-      width: 4678 # 614 GB/s at 1.05GHz
-      datawidth: 8
-      area: 1
-    constraints:
-      tensors:
-        keep: ~Intermediates() {% if FFMT | default(false) %} | weight {% endif %}
+    attributes: 
+      _size: inf
+      _bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      _datawidth: 8
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, arguments: {energy: 7.03}}
-    - {name: write, arguments: {energy: 7.03}}
+    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 8}}
+    - {name: write, arguments: {energy: 7.03e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
+    constraints:
+      tensors:
+        keep: ~Intermediates()
 
   - !Memory
     name: GlobalBuffer
-    component_class: SRAM
     attributes:
-      size: 1024*1024*128*8 # 128MB
-      width: 8192
-      datawidth: 8
-      area: 1
+      _size: 1024*1024*128*8 # 128MB
+      _datawidth: 8
+    actions:
+    - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}}
+    - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}}
+    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
         keep: ~MainMemory.tensors() | input | output
-      {% if FFMT | default(false) %}
-      dataflow:
-        tensor_order_options:
-        - [weight, input, output]
-        - [weight, output, input]
-      {% endif %}
-    actions:
-    - {name: read, arguments: {energy: 1.88}}
-    - {name: write, arguments: {energy: 2.36}}
-    - {name: leak, arguments: {energy: 0}}
 
   - !Memory
     name: LocalBuffer
-    component_class: SRAM 
-    spatial: [{name: X, fanout: 4}]
+    spatial: [{name: Z, fanout: 4}]
     attributes:
-      size: 1024*1024*4*8 # 4MB
-      width: 2048
-      datawidth: 8
-      area: 1
+      _size: 1024*1024*4*8 # 4MB
+      _datawidth: 8
+    actions:
+    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}}
+    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}}
+    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
-        keep: Intermediates() - weight
         bypass: weight
-      dataflow:
-        tensor_order_options:
-        - [All()] # No uneven. Put all tensors at the same level.
       spatial:
-        - name: X
+        - name: Z
+          min_utilization: 1
           loop_bounds:
           - expression: weight.rank_variables()
             operator: ==
             value: 1
+
+  - !Compute
+    name: scalar_unit
+    attributes:
+      _computes_per_cycle: 128
     actions:
-    - {name: read, arguments: {energy: 0.249}}
-    - {name: write, arguments: {energy: 0.293}}
+    - {name: compute, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}
-
-
-  # - !Memory
-  #   name: Reg2
-  #   component_class: SRAM
-  #   attributes:
-  #     size: 99999999999
-  #     datawidth: 8
-  #     area: 0
-  #   constraints:
-  #     tensors:
-  #       keep: All()
-  #       tile_shape:
-  #       - expression: parallel_rank | reduced_rank
-  #         operator: ==
-  #         value: 128
-  #       - expression: ~(parallel_rank | reduced_rank)
-  #         operator: ==
-  #         value: 1
-  #     dataflow:
-  #       tensor_order_options:
-  #       - [input, output, weight]
-  #   actions:
-  #   - {name: read, arguments: {energy: 0}}
-  #   - {name: write, arguments: {energy: 0}}
-  #   - {name: leak, arguments: {energy: 0}}
+    constraints: {misc: {enabled: len(All()) == 2}}
 
   - !Memory
     name: Register
-    component_class: dummy_storage
     spatial: [{name: X, fanout: 128}, {name: Y, fanout: 128}]
     attributes:
-      size: 8 # 8b
-      datawidth: 8
-      width: 8
-      depth: 1000
-      area: 1
-    constraints:
-      tensors:
-        keep: weight
-        bypass: ~weight
-        tile_shape:
-        - expression: weight.rank_variables()
-          operator: ==
-          value: 1
-      dataflow:
-        tensor_order_options:
-        - [All()] # Outputs more stationary than inputs
-      spatial:
-        - name: X # Parallel rank
-          min_utilization: 1 # 0.9
-          loop_bounds:
-          - expression: ~parallel_rank
-            operator: ==
-            value: 1
-        - name: Y # Reduced rank. No iteration over outputs
-          min_utilization: 1 # 0.9
-          loop_bounds:
-          - expression: ~reduced_rank
-            operator: ==
-            value: 1
+      _size: 8 # 8b
+      _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}
+    constraints:
+      tensors:
+        bypass: ~weight | GlobalBuffer.tensors()
+      spatial:
+      - name: X # Parallel rank
+        min_utilization: 1
+        loop_bounds:
+        - expression: input.rank_variables() | ~output.rank_variables()
+          operator: ==
+          value: 1
+      - name: Y # Reduced rank. No iteration over outputs
+        min_utilization: 1
+        loop_bounds:
+        - expression: output.rank_variables() | ~input.rank_variables()
+          operator: ==
+          value: 1
 
   - !Compute
     name: MAC
-    component_class: intmac
-    attributes: {multiplier_width: 8, adder_width: 16, area: 1}
     actions:
-    - {name: compute, arguments: {energy: 0.84}}
+    - {name: compute, arguments: {energy: 0.84e-12}}
     - {name: leak, arguments: {energy: 0}}
-
-component_classes:
-  version: "0.5"         # REQUIRED version number
-  component_classes:
-  - name: intmac
-    attributes:
-      tech_node: REQUIRED
-      multiplier_width: REQUIRED
-      adder_width: REQUIRED
-      global_cycle_period: REQUIRED
-    subcomponents:
-    - name: intadder
-      component_class: aladdin_adder
-      attributes: {width: adder_width}
-    - name: intmultiplier
-      component_class: aladdin_multiplier
-      attributes: {width_a: multiplier_width, width_b: multiplier_width}
-    actions:
-    - name: compute
-      subcomponents:
-      - name: intadder
-        actions: [name: read]
-      - name: intmultiplier
-        actions: [{name: read}]
-    - name: leak
-      subcomponents:
-      - name: intadder
-        actions: [{name: leak}]
-      - name: intmultiplier
-        actions: [{name: leak}]
+    constraints: {misc: {enabled: len(All()) == 3}}

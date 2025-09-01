@@ -1,23 +1,48 @@
 import copy
-from typing import Annotated
-from fastfusion.frontend.workload.workload import EinsumName, RankVariableName, TensorName
+from typing import Annotated, TypeAlias
 from fastfusion.util.basetypes import ParsableList, ParsableModel
 from fastfusion.version import assert_version, __version__
 
-class TensorRename(ParsableModel):
-    name: TensorName
-    source: str
-    expected_count: int | None = None
-    
-class RankVariableRename(ParsableModel):
-    name: RankVariableName
+TensorName: TypeAlias = str
+RankVariableName: TypeAlias = str
+RankName: TypeAlias = str
+EinsumName: TypeAlias = str
+
+
+class Rename(ParsableModel):
+    name: str
     source: str
     expected_count: int | None = None
 
+
+def rename_list_factory(rename_list: list | dict):
+    if isinstance(rename_list, list):
+        return RenameList(rename_list)
+    
+    if not isinstance(rename_list, dict):
+        raise TypeError(f"Expected a list or dict, got {type(rename_list)}: {rename_list}")
+    
+    return RenameList(
+        Rename(name=k, source=v, expected_count=None) for k, v in rename_list.items()
+    )
+
+
+class RenameList(ParsableList[Rename]):
+    pass
+
+
 class EinsumRename(ParsableModel):
     name: EinsumName
-    tensor_accesses: ParsableList[TensorRename] = ParsableList()
-    rank_variables: ParsableList[RankVariableRename] = ParsableList()
+    tensor_accesses: ParsableList[Rename] = ParsableList()
+    rank_variables: ParsableList[Rename] = ParsableList()
+    
+    def __init__(self, *args, **kwargs):
+        if "tensor_accesses" in kwargs:
+            kwargs["tensor_accesses"] = rename_list_factory(kwargs["tensor_accesses"])
+        if "rank_variables" in kwargs:
+            kwargs["rank_variables"] = rename_list_factory(kwargs["rank_variables"])
+        super().__init__(*args, **kwargs)
+
 
 class Renames(ParsableModel):
     version:  Annotated[str, assert_version] = __version__
