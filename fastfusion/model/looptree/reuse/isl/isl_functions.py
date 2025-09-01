@@ -3,13 +3,63 @@ ISL functions that encapsulate more commonly used workflows in looptree for the
 sake of code concision.
 """
 
+from typing import List
+
 import islpy as isl
 
 
 def project_dim_in_after(map_: isl.Map, start: int) -> isl.Map:
-    """Projects out the dims"""
+    """
+    Projects out the input dims of idx [start, end] in map_.
+
+    :param map_:    The map to project out dims from.
+    :param start:   The dim idx to start projecting dims out from.
+
+    :type map_:     isl.Map
+    :type start:    int
+
+    :returns:   map_ without the input dims [start:].
+    :rtype:     isl.Map
+    """
     n_dim_in: int = map_.dim(isl.dim_type.in_)
     return map_.project_out(isl.dim_type.in_, start, n_dim_in - start)
+
+def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:
+    """
+    Given a space, create a map that projects out the dims [start: start+n).
+
+    :param space:   The space to create the dim projector in.
+    :param start:   The index to start the projection.
+    :param n:       The number of dims from `start` to project out.
+
+    :returns:   A `isl.Map` in `space` that projects out dims [start:start+n].
+    :rtype:     isl.Map
+    """
+    return isl.Map.project_out(
+        isl.Map.identity(isl.Space.map_from_set(space)),
+        isl.dim_type.in_,
+        start,
+        n
+    )
+
+
+def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
+    """
+    Given a space, create a map that projects out the dims marked `True` in the mask.
+
+    :param space:   The space the projector is created on.
+    :param mask:    The mask of the list of dims to be projected out.
+
+    :type space:    isl.Space
+    :type mask:     List[bool]
+    """
+    projector: isl.Map = isl.Map.identity(isl.Space.map_from_set(space))
+
+    for i in range(len(mask) - 1, -1, -1):
+        if mask[i]:
+            projector = projector.project_out(isl.dim_type.in_, i, 1)
+    
+    return projector
 
 
 def insert_equal_dims_maff(
