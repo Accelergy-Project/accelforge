@@ -6,17 +6,6 @@ from fastfusion.frontend.mapping import Mapping
 
 from .types import *
 
-@dataclass
-class MappingPath:
-    ref_nodes: Iterable[MappingNode]
-
-@dataclass
-class MappingPaths:
-    fused_mapping: FusedMapping
-
-def get_paths(mapping: Mapping) -> MappingPaths:
-    pass
-
 
 def skews_from_mapping(mapping, workload) -> dict[BufferTensorEinsum, Skew]:
     result: dict[BufferTensorEinsum, Skew] = {}
