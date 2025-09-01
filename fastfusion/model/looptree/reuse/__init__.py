@@ -1,6 +1,10 @@
 from dataclasses import dataclass
+from typing import TypeAlias
+
 from fastfusion.frontend.mapping import TensorName
 from fastfusion.frontend.workload.workload import EinsumName
+
+ComponentName: TypeAlias = str
 
 @dataclass(eq=True, frozen=True)
 class Buffet:
@@ -16,6 +20,7 @@ class Buffet:
     :type einsum:   EinsumName
     :type level:    str
     """
+
     tensor: TensorName
     einsum: EinsumName
-    level: str
+    level: ComponentName
