@@ -33,7 +33,10 @@ from .types import (
     # Bookkeeping objects
     BufferTensorEinsum,
     Buffet,
+    ComputeEinsum,
+    EinsumName,
     Skew,
+    SkewsInfo,
     # Tags
     Tag,
     TemporalTag,
@@ -42,12 +45,13 @@ from .types import (
     SequentialTag,
 )
 
-def skews_from_mapping(mapping: Mapping, workload: Workload) -> dict[BufferTensorEinsum, Skew]:
+def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
     """
     Given a mapping ...
     TODO: Fill this in
     """
-    result: dict[BufferTensorEinsum, Skew] = {}
+    compute_einsum_to_skew: dict[ComputeEinsum, Skew] = defaultdict()
+    buffer_tensor_einsum_to_skew: dict[BufferTensorEinsum, Skew] = defaultdict()
 
     for path in get_paths(mapping):
         leaf: Compute = path[-1]
@@ -80,7 +84,6 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> dict[BufferTenso
                 buffer_idx += 1
 
         # Generate tags, map, and which dims (and tags) should be removed per buffer.
-        # TODO: Figure out what SpaceTime is called now.
         tags: List[Tag] = []
         removal_map: isl.Map = isl.Map.from_multi_aff(
             isl.MultiAff.identity_on_domain_space(
@@ -166,12 +169,27 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> dict[BufferTenso
 
             # TODO: This buffet structure makes no sense in this context:
             # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L740-L743
-            buffet_to_skew[Buffet(
-                tensor=buffer_tensor[1],
-                einsum=leaf.einsum,
-                level=leaf.compute
-            )]
-
+            buffer_tensor_einsum_to_skew[BufferTensorEinsum(
+                *buffer_tensor, leaf.einsum
+            )] = Skew(buffer_tags, removal_projection)
+        
+        # TODO: Figure out what is actually:
+        # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L746
+        compute_einsum_to_skew[ComputeEinsum(leaf.compute, leaf.einsum)] = Skew(
+            tags, removal_map
+        )
+        einsum: EinsumName = leaf.einsum
+        for tensor in workload.tensors_read_by_einsum(einsum):
+            buffer_tensor_einsum_to_skew[BufferTensorEinsum(
+                leaf.compute, tensor, leaf.einsum
+            )] = Skew(tags, removal_map)
+        
+        for tensor in workload.tensors_written_by_einsum(einsum):
+            buffer_tensor_einsum_to_skew[BufferTensorEinsum(
+                leaf.compute, tensor, leaf.einsum
+            )] = Skew(tags, removal_map)
+        
+    return SkewsInfo(buffer_tensor_einsum_to_skew, compute_einsum_to_skew)
 
 
 def skew_from_path(

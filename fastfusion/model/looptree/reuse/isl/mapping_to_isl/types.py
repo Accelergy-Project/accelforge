@@ -10,12 +10,29 @@ from abc import ABC
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import List, TypeAlias
 
 import islpy as isl
 
 from fastfusion.frontend.mapping import MappingNode
+from fastfusion.frontend.workload.workload import TensorName
 from fastfusion.model.looptree.reuse import Buffet
+
+
+# Mapper intermediates.
+##
+#   @brief Iteration -> Operation relation that specifies the tiling.
+#
+#   The tiling relation allows us to distribute data and operations using the
+#   skew and data distribution relations.
+#
+#   The tiling relation may have unspecified bounds which will be inferred by
+#   LoopTree. The tiling relation that goes to the nest analysis is guaranteed
+#   to be fully specified.
+EinsumName: TypeAlias = str
+Tiling: TypeAlias = isl.Map # Tiling of data and operations.
+BranchTiling: TypeAlias = defaultdict[MappingNode, Tiling]  # Relation between a node and its tiling.
+BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
 
 class TaggedMap:
     def __init__(self, tags, map):
@@ -62,7 +79,11 @@ class Occupancy(TaggedMap):
 
 
 class Skew(TaggedMap):
-    def __init__(self, tags, map):
+    def __init__(self, tags: List[isl.dim_type], map: isl.Map):
+        """
+        :param tags:    Tags for the dim in.
+        :param map:     The map being tagged.
+        """
         super().__init__(tags, map)
 
     def __repr__(self):
@@ -70,9 +91,9 @@ class Skew(TaggedMap):
 
 @dataclass
 class BufferTensorEinsum:
-    buffer: str
-    tensor: str
-    einsum: str
+    buffer: MappingNode
+    tensor: TensorName
+    einsum: EinsumName
 
 
 @dataclass(frozen=True)
@@ -81,27 +102,11 @@ class ComputeEinsum:
     einsum: str
 
 
-# Mapper intermediates.
-##
-#   @brief Iteration -> Operation relation that specifies the tiling.
-#
-#   The tiling relation allows us to distribute data and operations using the
-#   skew and data distribution relations.
-#
-#   The tiling relation may have unspecified bounds which will be inferred by
-#   LoopTree. The tiling relation that goes to the nest analysis is guaranteed
-#   to be fully specified.
-EinsumName: TypeAlias = str
-Tiling: TypeAlias = isl.Map # Tiling of data and operations.
-BranchTiling: TypeAlias = defaultdict[MappingNode, Tiling]  # Relation between a node and its tiling.
-BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
-
-
 # Output classes.
 @dataclass
 class SkewsInfo:
-    logical_buffer_to_skew: defaultdict[Buffet, Skew]
-    logical_compute_unit_to_skew: defaultdict[ComputeEinsum, Skew]
+    bte_to_skew: defaultdict[BufferTensorEinsum, Skew]
+    ce_unit_to_skew: defaultdict[ComputeEinsum, Skew]
 
 
 @dataclass
