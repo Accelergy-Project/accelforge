@@ -175,18 +175,18 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
         
         # TODO: Figure out what is actually:
         # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L746
-        compute_einsum_to_skew[ComputeEinsum(leaf.compute, leaf.einsum)] = Skew(
+        compute_einsum_to_skew[ComputeEinsum(leaf.compute, leaf)] = Skew(
             tags, removal_map
         )
         einsum: EinsumName = leaf.einsum
         for tensor in workload.tensors_read_by_einsum(einsum):
             buffer_tensor_einsum_to_skew[BufferTensorEinsum(
-                leaf.compute, tensor, leaf.einsum
+                leaf, tensor, leaf.einsum
             )] = Skew(tags, removal_map)
         
         for tensor in workload.tensors_written_by_einsum(einsum):
             buffer_tensor_einsum_to_skew[BufferTensorEinsum(
-                leaf.compute, tensor, leaf.einsum
+                leaf, tensor, leaf.einsum
             )] = Skew(tags, removal_map)
         
     return SkewsInfo(buffer_tensor_einsum_to_skew, compute_einsum_to_skew)

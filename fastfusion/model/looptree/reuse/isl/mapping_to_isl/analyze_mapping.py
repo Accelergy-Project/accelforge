@@ -57,6 +57,7 @@ from .types import (
     ComputeEinsum,
     MappingAnalysisResult,
     Occupancy,
+    OperationOccupancy,
     Skew,
     SkewsInfo,
 )
@@ -182,7 +183,6 @@ def occupancies_from_mapping(
     occupancies: defaultdict[BufferTensorEinsum, Occupancy] = defaultdict()
     skews: SkewsInfo = skews_from_mapping(mapping, workload)
 
-    buffet: Buffet
     for bte, skew in skews.bte_to_skew.items():
         if DUMP_ISL_IR:
             print(f"{bte} has skew: {skew}")
@@ -198,22 +198,22 @@ def occupancies_from_mapping(
         else:
             continue
 
-        occupancy: isl.Map = skew.map.apply_range(
+        occupancy: isl.Map = skew.map_.apply_range(
             project_dim_in_after(
-                tiling.apply_range(accesses), skew.map.dim(isl.dim_type.out)
+                tiling.apply_range(accesses), skew.map_.dim(isl.dim_type.out)
             )
         )
 
         occupancies[bte] = Occupancy(skew.tags, occupancy)
     
-    operations_occupancies: defaultdict[ComputeEinsum, OpOccupancy]
+    operations_occupancies: defaultdict[ComputeEinsum, OperationOccupancy] = defaultdict()
     for ce, skew in skews.ce_unit_to_skew.items():
         tiling: isl.Map = branch_tiling[ce.branch_leaf_node]
-        operation_occupancy: isl.Map = skew.map.apply_range(
-            project_dim_in_after(tiling, skew.map.dim(isl.dim_type.out))
+        operation_occupancy: isl.Map = skew.map_.apply_range(
+            project_dim_in_after(tiling, skew.map_.dim(isl.dim_type.out))
         )
-        operations_occupancies[ce] = OpOccupancy(
-            skew.dim_in_tags, operation_occupancy
+        operations_occupancies[ce] = OperationOccupancy(
+            skew.tags, operation_occupancy
         )
 
     return MappingAnalysisResult(

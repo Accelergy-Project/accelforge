@@ -10,11 +10,11 @@ from abc import ABC
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import List, TypeAlias
+from typing import Any, List, TypeAlias
 
 import islpy as isl
 
-from fastfusion.frontend.mapping import MappingNode
+from fastfusion.frontend.mapping import Compute, MappingNode
 from fastfusion.frontend.workload.workload import TensorName
 from fastfusion.model.looptree.reuse import Buffet
 
@@ -34,10 +34,10 @@ Tiling: TypeAlias = isl.Map # Tiling of data and operations.
 BranchTiling: TypeAlias = defaultdict[MappingNode, Tiling]  # Relation between a node and its tiling.
 BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]   # Relation between a buffet and its tiling.
 
+@dataclass(frozen=True)
 class TaggedMap:
-    def __init__(self, tags, map):
-        self.tags = tags
-        self.map = map
+    tags: List[Any]
+    map_: isl.Map
 
 
 class Tag(ABC):
@@ -45,11 +45,12 @@ class Tag(ABC):
 
 
 class TemporalTag(Tag):
-    def __init__(self):
-        pass
+    pass
 
 
 class SpatialTag(Tag):
+    spatial_dim: int
+    buffer: MappingNode
     def __init__(self, spatial_dim, buffer):
         self.spatial_dim = spatial_dim
         self.buffer = buffer
@@ -71,15 +72,23 @@ LOOP_TAGS = [TemporalTag, SpatialTag]
 
 
 class Occupancy(TaggedMap):
-    def __init__(self, tags, map):
-        super().__init__(tags, map)
+    def __init__(self, tags, map_):
+        super().__init__(tags, map_)
 
     def __repr__(self):
         return f'Occupancy({self.tags}, {self.map})'
 
 
+class OperationOccupancy(TaggedMap):
+    def __init__(self, tags, map_):
+        super().__init__(tags, map_)
+    
+    def __repr__(self) -> TensorName:
+        return f'OperationOccupancy({self.tags}, {self.map})'
+
+
 class Skew(TaggedMap):
-    def __init__(self, tags: List[isl.dim_type], map: isl.Map):
+    def __init__(self, tags: List[Tag], map: isl.Map):
         """
         :param tags:    Tags for the dim in.
         :param map:     The map being tagged.
@@ -91,7 +100,7 @@ class Skew(TaggedMap):
 
 @dataclass
 class BufferTensorEinsum:
-    buffer: MappingNode
+    buffer: str
     tensor: TensorName
     einsum: EinsumName
 
@@ -99,8 +108,7 @@ class BufferTensorEinsum:
 @dataclass(frozen=True)
 class ComputeEinsum:
     compute: str
-    einsum: str
-
+    branch_leaf_node: Compute
 
 # Output classes.
 @dataclass
