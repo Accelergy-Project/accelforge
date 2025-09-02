@@ -49,5 +49,5 @@ class FFM(ParsableModel):
     time_limit_per_pmapping_template: float | int = float('inf')
     """ The maximum time limit per pmapping template. """
 
-    # _greedily_maximize_reuse: bool = False
-    # """ Whether to greedily maximize reuse for a pmapping. """
+    _greedily_maximize_reuse: bool = False
+    """ Whether to greedily maximize reuse for a pmapping. """

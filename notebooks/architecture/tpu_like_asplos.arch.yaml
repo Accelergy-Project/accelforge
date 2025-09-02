@@ -4,9 +4,10 @@ arch:
   nodes:
   - !Memory
     name: MainMemory
-    size: inf
-    bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
-    datawidth: 8
+    attributes:
+      _size: inf
+      _bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      _datawidth: 8
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
@@ -21,8 +22,8 @@ arch:
     name: GlobalBuffer
     attributes:
       _size: 1024*1024*128*8 # 128MB
-      _width: 8192
       _datawidth: 8
+      width: 8192
     actions:
     - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}}
     - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}}
@@ -36,7 +37,7 @@ arch:
     spatial: [{name: Z, fanout: 4}]
     attributes:
       _size: 1024*1024*4*8 # 4MB
-      _width: 2048
+      width: 2048
       _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}}

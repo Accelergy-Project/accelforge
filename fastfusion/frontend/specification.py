@@ -14,14 +14,14 @@ import hwcomponents
 
 from typing import Any, Dict, Optional, Union
 from fastfusion.util.basetypes import ParsableModel
-
+from pydantic import Field
 
 class Specification(ParsableModel):
     """ Top-level specification class. """
-    
+
     arch: Arch = Arch()
     """ The hardware being used. """
-    
+
     components: Components = Components()
     """ Component classes that may be instantiated in the architecture. Component
     classes include compound components only; primitive components may be used directly
@@ -40,7 +40,7 @@ class Specification(ParsableModel):
     variables: Variables = Variables()
     """ Top-level variables that can be referenced in other places in the spec. """
 
-    config: Config = get_config()
+    config: Config = Field(default_factory=get_config)
     """ Top-level configuration settings. """
 
     component_energy: ComponentEnergy = ComponentEnergy()

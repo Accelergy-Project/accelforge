@@ -191,3 +191,11 @@ class Mappings:
         new_df = self.data.copy()
         new_df = new_df[(c for c in new_df.columns if (new_df[c] != 0).any())]
         return Mappings(self.spec, self.einsum_names, new_df)
+
+    def render(self) -> str:
+        if len(self) != 1:
+            raise ValueError(
+                f"Can only render a single mapping, but got {len(self)}. Try calling "
+                f"mappings[i].render() instead, for some integer 0 <= i < {len(self)}."
+            )
+        return self.data.iloc[0][f"Total\0mapping"].render()
