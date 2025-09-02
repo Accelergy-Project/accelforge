@@ -459,116 +459,117 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
 
         while is_tiling:
             # Fuses current_node to one of the heads.
-            if isinstance(current_node, Iteration):
-                if len(heads) != 1:
-                    raise ValueError(f"Cannot fuse tiled set with {len(heads)} heads.")
+            match current_node:
+                case Iteration():
+                    if len(heads) != 1:
+                        raise ValueError(f"Cannot fuse tiled set with {len(heads)} heads.")
 
-                # Grabs rank_var to tile and the head to tile it from.
-                rank_var = current_node.rank_variable
-                head = next(iter(heads))
+                    # Grabs rank_var to tile and the head to tile it from.
+                    rank_var = current_node.rank_variable
+                    head = next(iter(heads))
 
-                old_tiling: Tiling = tiling_info[node][head]
-                # set, not AbstractSet, iteration in python is the same. Downstreeams
-                # of "heads" is also constaint.
-                isl_rank_idx: int = tuple(workload.einsums[head].rank_variables).index(
-                    rank_var
-                )
-
-                # Adds a new tile_dim to the old tiling.
-                if (
-                    isinstance(current_node.tile_shape, int)
-                    and current_node.tile_shape != 0
-                ):
-                    new_tiling: Tiling = add_new_tile_dim(
-                        old_tiling, isl_rank_idx, current_node.tile_shape
-                    )
-                else:
-                    raise NotImplementedError(
-                        f"Tile size analysis not implemented for type {type(node)} "
-                        f"with tile shape {current_node.tile_shape}"
+                    old_tiling: Tiling = tiling_info[node][head]
+                    # set, not AbstractSet, iteration in python is the same. 
+                    # Downstreams of "heads" is also constaint.
+                    isl_rank_idx: int = tuple(workload.einsums[head].rank_variables).index(
+                        rank_var
                     )
 
-                # Saves the fused tiling.
-                tiling_info[node][head] = new_tiling
-
-                iteration_set: isl.Set = new_tiling.domain()
-                for einsum in mapping_groups[node]:
-                    if einsum == head:
-                        continue
-
-                    tiling = tiling_info[node][einsum]
-                    tiling = tiling.insert_dims(
-                        isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
-                    )
-                    tiling = tiling.intersect_domain(iteration_set)
-
-                current_node = current_node.flatten()[0]
-            # Notes what reuse level the tensor is on.
-            elif isinstance(current_node, Storage):
-                # Check if current_node is the highest level of Storage to determine reuse level.
-                if current_node.tensor not in tensor_to_reuse_level:
-                    random_einsum: EinsumName = next(iter(mapping_groups[node]))
-                    tiling: Tiling = tiling_info[node][random_einsum]
-                    tensor_to_reuse_level[current_node.tensor] = tiling.dim(
-                        isl.dim_type.in_
-                    )
-
-                current_node = current_node.flatten()[0]
-            # If we are at the Mapping root, just go to the actual Nodes.
-            elif isinstance(current_node, Mapping):
-                current_node = current_node.flatten()[0]
-            # If we hit the compute node, we've finished tiling, end!
-            elif isinstance(current_node, Compute):
-                result[current_node] = tiling_info[node][current_node.einsum]
-                is_tiling = False
-            elif isinstance(current_node, Split):
-                fused_set: set[EinsumName] = mapping_groups[node]
-                if len(heads) != 1:
-                    # There can't be a tiling, so no inference to be done.
-                    break
-                shared_input_tensor: List[TensorName] = detect_shared_input_tensor(
-                    fused_set, workload
-                )
-
-                random_head = next(iter(heads))
-                if len(shared_input_tensor) == 1:
-                    shared_input_based_tile_shape_inference(
-                        workload,
-                        tiling_info[node],
-                        fused_set,
-                        shared_input_tensor[0],
-                        random_head,
-                    )
-                else:
-                    consumer_based_tile_shape_inference(
-                        workload,
-                        tiling_info[node],
-                        tensor_to_reuse_level,
-                        fused_set,
-                        random_head,
-                    )
-
-                # Goes through each child node of the current node and propagate
-                # the tiling updates.
-                for idx, child in enumerate(current_node.nodes):
-                    # Each child needs tilings for all Einsums in its group.
-                    group: set[EinsumName] = mapping_groups[child]
-                    tilings: defaultdict[EinsumName, Tiling] = defaultdict()
-
-                    # For all einsums the child is involved in, update their tilings.
-                    for einsum in group:
-                        tiling: Tiling = tiling_info[node][einsum]
-                        new_tiling: Tiling = tiling.add_dims(isl.dim_type.in_, 1)
-
-                        tilings[einsum] = new_tiling.fix_input_si(
-                            new_tiling.dim(isl.dim_type.in_) - 1, idx
+                    # Adds a new tile_dim to the old tiling.
+                    if (
+                        isinstance(current_node.tile_shape, int)
+                        and current_node.tile_shape != 0
+                    ):
+                        new_tiling: Tiling = add_new_tile_dim(
+                            old_tiling, isl_rank_idx, current_node.tile_shape
+                        )
+                    else:
+                        raise NotImplementedError(
+                            f"Tile size analysis not implemented for type {type(node)} "
+                            f"with tile shape {current_node.tile_shape}"
                         )
 
-                    # Update the tiling info for the child.
-                    tiling_info[child] = tilings
-                    # DFS tile on the child.
-                    dfs_stack.append(child)
+                    # Saves the fused tiling.
+                    tiling_info[node][head] = new_tiling
 
-                is_tiling = False
+                    iteration_set: isl.Set = new_tiling.domain()
+                    for einsum in mapping_groups[node]:
+                        if einsum == head:
+                            continue
+
+                        tiling = tiling_info[node][einsum]
+                        tiling = tiling.insert_dims(
+                            isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
+                        )
+                        tiling = tiling.intersect_domain(iteration_set)
+
+                    current_node = current_node.flatten()[0]
+                # Notes what reuse level the tensor is on.
+                case Storage():
+                    # Check if current_node is the highest level of Storage to determine reuse level.
+                    if current_node.tensor not in tensor_to_reuse_level:
+                        random_einsum: EinsumName = next(iter(mapping_groups[node]))
+                        tiling: Tiling = tiling_info[node][random_einsum]
+                        tensor_to_reuse_level[current_node.tensor] = tiling.dim(
+                            isl.dim_type.in_
+                        )
+
+                    current_node = current_node.flatten()[0]
+                # If we are at the Mapping root, just go to the actual Nodes.
+                case Mapping():
+                    current_node = current_node.flatten()[0]
+                # If we hit the compute node, we've finished tiling, end!
+                case Compute():
+                    result[current_node] = tiling_info[node][current_node.einsum]
+                    is_tiling = False
+                case Split():
+                    fused_set: set[EinsumName] = mapping_groups[node]
+                    if len(heads) != 1:
+                        # There can't be a tiling, so no inference to be done.
+                        break
+                    shared_input_tensor: List[TensorName] = detect_shared_input_tensor(
+                        fused_set, workload
+                    )
+
+                    random_head = next(iter(heads))
+                    if len(shared_input_tensor) == 1:
+                        shared_input_based_tile_shape_inference(
+                            workload,
+                            tiling_info[node],
+                            fused_set,
+                            shared_input_tensor[0],
+                            random_head,
+                        )
+                    else:
+                        consumer_based_tile_shape_inference(
+                            workload,
+                            tiling_info[node],
+                            tensor_to_reuse_level,
+                            fused_set,
+                            random_head,
+                        )
+
+                    # Goes through each child node of the current node and propagate
+                    # the tiling updates.
+                    for idx, child in enumerate(current_node.nodes):
+                        # Each child needs tilings for all Einsums in its group.
+                        group: set[EinsumName] = mapping_groups[child]
+                        tilings: defaultdict[EinsumName, Tiling] = defaultdict()
+
+                        # For all einsums the child is involved in, update their tilings.
+                        for einsum in group:
+                            tiling: Tiling = tiling_info[node][einsum]
+                            new_tiling: Tiling = tiling.add_dims(isl.dim_type.in_, 1)
+
+                            tilings[einsum] = new_tiling.fix_input_si(
+                                new_tiling.dim(isl.dim_type.in_) - 1, idx
+                            )
+
+                        # Update the tiling info for the child.
+                        tiling_info[child] = tilings
+                        # DFS tile on the child.
+                        dfs_stack.append(child)
+
+                    is_tiling = False
 
     return result
