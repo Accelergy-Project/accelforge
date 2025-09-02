@@ -21,10 +21,14 @@ Relevant Name Changes:
 -   Compute.kernel -> Compute.einsum
 -   Branch -> Split
 -   FusedMapping -> Mapping
+-   [node]_id -> node (conditional on MappingNode having a valid hashing functor)
 """
 
 from collections import defaultdict, deque
-from typing import List
+from email.policy import default
+from typing import List, Optional
+
+import islpy as isl
 
 from fastfusion.frontend.mapping import (
     Compute,
@@ -35,9 +39,12 @@ from fastfusion.frontend.mapping import (
     Storage,
 )
 from fastfusion.frontend.workload import Workload
+from fastfusion.frontend.workload.isl import get_projection_map
+from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
 from fastfusion.model.looptree.mapping_utilities import get_paths
 from fastfusion.model.looptree.reuse import Buffet
+from fastfusion.model.looptree.reuse.isl.isl_functions import project_dim_in_after
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import (
     skews_from_mapping,
 )
@@ -46,6 +53,7 @@ from . import DUMP_ISL_IR, LOG_ISL_IR
 from .tiling import tiling_from_mapping
 from .types import (
     BranchTiling,
+    ComputeEinsum,
     MappingAnalysisResult,
     Occupancy,
     Skew,
@@ -173,12 +181,46 @@ def occupancies_from_mapping(
     # TODO: Implement skews_from_mapping
     skews: Skew = skews_from_mapping(mapping, workload)
 
-    for buf, skew in skews.buffet_to_skew:
+    buffet: Buffet
+    for buffet, skew in skews.buffet_to_skew:
         if DUMP_ISL_IR:
             print(f"{buf} has skew: {skew}")
 
-    # TODO: Implement both called functions.
+        tensor: TensorName = buffet.tensor
+        einsum: EinsumName = buffet.einsum
+        tiling = branch_tiling[buffet.branch_leaf_node]
+
+        accesses: Optional[isl.Map] = None
+        read_tensors: set[TensorName] = workload.tensors_read_by_einsum(einsum)
+        write_tensors: set[TensorName] = workload.tensors_written_by_einsum(einsum)
+
+        if tensor in read_tensors or tensor in write_tensors:
+            accesses = get_projection_map(workload.einsums[einsum], tensor)
+        else:
+            continue
+
+        occupancy: isl.Map = skew.map.apply_range(
+            project_dim_in_after(
+                tiling.apply_range(accesses), skew.map.dim(isl.dim_type.out)
+            )
+        )
+
+        occupancies[buffet] = Occupancy(skew.dim_in_tags, occupancy)
+    
+    operations_occupancies: defaultdict[ComputeEinsum, OpOccupancy]
+    for compute_einsum, skew in skews.compute_einsum_to_skew:
+        tiling: isl.Map = branch_tiling[compute_einsum.branch_leaf_node]
+        operation_occupancy: isl.Map = skew.map.apply_range(
+            project_dim_in_after(tiling, skew.map.dim(isl.dim_type.out))
+        )
+        operations_occupancies[compute_einsum] = OpOccupancy(
+            skew.dim_in_tags, operation_occupancy
+        )
+
     return MappingAnalysisResult(
+        buffet_to_occupancy=occupancies,
+        compute_einsum_to_occupancy=operations_occupancies,
         buffet_direct_above_sequential=buffet_direct_above_sequential(mapping),
         compute_to_assumed_parallelism=get_parallelism(mapping),
+        branch_tiling=branch_tiling
     )
