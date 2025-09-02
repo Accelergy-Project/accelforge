@@ -38,7 +38,7 @@ BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]
 "Relation between a buffet and its tiling."
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Tag(ABC): # pylint: disable=too-few-public-methods
     """Associating an element with its type metadata without introspection?"""
 
@@ -46,7 +46,7 @@ class Tag(ABC): # pylint: disable=too-few-public-methods
 class TemporalTag(Tag): # pylint: disable=too-few-public-methods
     """The associated element is temporally spreading?"""
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 
 class SpatialTag(Tag):  # pylint: disable=too-few-public-methods
     """The associated element is spatially spreading?"""
@@ -70,7 +70,7 @@ BRANCH_TAGS = [PipelineTag, SequentialTag]
 LOOP_TAGS = [TemporalTag, SpatialTag]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TaggedMap: # pylint: disable=too-few-public-methods
     """A :class:`isl.Map` with its dimensions tagged."""
 
@@ -93,7 +93,7 @@ class Skew(TaggedMap): # pylint: disable=too-few-public-methods
     """TODO: Figure out what this is."""
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True, slots=True)
 class BufferTensorEinsum:
     """
     A buffet relating a [logical?] hardware element storing data, a tensor it
@@ -112,7 +112,7 @@ class BufferTensorEinsum:
     "The leaf in mapping doing the einsum compute on tensor."
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True, slots=True)
 class ComputeEinsum:
     """A logical computation the workload? needs to carry out."""
 
@@ -123,7 +123,7 @@ class ComputeEinsum:
 
 
 # Output classes.
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SkewsInfo: # pylint: disable=too-few-public-methods
     """TODO: Figure out what this does."""
 
@@ -133,7 +133,7 @@ class SkewsInfo: # pylint: disable=too-few-public-methods
     """Relates a :class:`~.ComputeEinsum` to a :class:`~.Skew`"""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MappingAnalysisResult: # pylint: disable=too-few-public-methods
     """
     Results of mapping analysis that will become input into reuse
