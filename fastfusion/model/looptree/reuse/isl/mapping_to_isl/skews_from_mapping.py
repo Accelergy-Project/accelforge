@@ -2,6 +2,7 @@
 Relevant Name Changes:
 -   BufferID -> ComponentName
 """
+
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import islpy as isl
@@ -26,7 +27,7 @@ from fastfusion.model.looptree.mapping_utilities import get_paths
 from fastfusion.model.looptree.reuse import ComponentName
 from fastfusion.model.looptree.reuse.isl.isl_functions import (
     dim_projector_mask,
-    insert_equal_dims_map
+    insert_equal_dims_map,
 )
 
 from .types import (
@@ -44,6 +45,7 @@ from .types import (
     PipelineTag,
     SequentialTag,
 )
+
 
 def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
     """
@@ -100,7 +102,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
             tag: Tag,
             mask_condition: Callable[[ComponentName], bool] = (
                 lambda buffer: buffer in buffer_fully_complete
-            )
+            ),
         ) -> None:
             """
             Performs necessary modifications to removal_map and removal_mask to
@@ -123,7 +125,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                 removal_map,
                 removal_map.dim(isl.dim_type.in_),
                 removal_map.dim(isl.dim_type.out),
-                1
+                1,
             )
 
             nonlocal all_buffer_tensors
@@ -146,14 +148,22 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                     elif isinstance(node, Spatial):
                         tag: Tag = SpatialTag(0, node_to_current_buffer[node])
                     else:
-                        raise ValueError(f"Type {type(node)} is an iteration not in space or time.")
+                        raise ValueError(
+                            f"Type {type(node)} is an iteration not in space or time."
+                        )
 
                     # TODO: Verify logical equivalence to:
                     # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L660-L671
-                    add_tag(tag, lambda buffer: (
-                        (buffer in buffer_fully_complete) or
-                        (isinstance(node, Temporal) and (buffer in buffer_storage_past))
-                    ))
+                    add_tag(
+                        tag,
+                        lambda buffer: (
+                            (buffer in buffer_fully_complete)
+                            or (
+                                isinstance(node, Temporal)
+                                and (buffer in buffer_storage_past)
+                            )
+                        ),
+                    )
                 case Pipeline():
                     add_tag(PipelineTag())
                 case Sequential():
@@ -169,10 +179,10 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
 
             # TODO: This buffet structure makes no sense in this context:
             # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L740-L743
-            buffer_tensor_einsum_to_skew[BufferTensorEinsum(
-                *buffer_tensor, leaf.einsum
-            )] = Skew(buffer_tags, removal_projection)
-        
+            buffer_tensor_einsum_to_skew[
+                BufferTensorEinsum(*buffer_tensor, leaf.einsum)
+            ] = Skew(buffer_tags, removal_projection)
+
         # TODO: Figure out what is actually:
         # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L746
         compute_einsum_to_skew[ComputeEinsum(leaf.compute, leaf)] = Skew(
@@ -180,62 +190,58 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
         )
         einsum: EinsumName = leaf.einsum
         for tensor in workload.tensors_read_by_einsum(einsum):
-            buffer_tensor_einsum_to_skew[BufferTensorEinsum(
-                leaf, tensor, leaf.einsum
-            )] = Skew(tags, removal_map)
-        
+            buffer_tensor_einsum_to_skew[
+                BufferTensorEinsum(leaf, tensor, leaf.einsum)
+            ] = Skew(tags, removal_map)
+
         for tensor in workload.tensors_written_by_einsum(einsum):
-            buffer_tensor_einsum_to_skew[BufferTensorEinsum(
-                leaf, tensor, leaf.einsum
-            )] = Skew(tags, removal_map)
-        
+            buffer_tensor_einsum_to_skew[
+                BufferTensorEinsum(leaf, tensor, leaf.einsum)
+            ] = Skew(tags, removal_map)
+
     return SkewsInfo(buffer_tensor_einsum_to_skew, compute_einsum_to_skew)
 
 
 def skew_from_path(
-    mapping_path,
-    workload,
-    accumulator: dict[BufferTensorEinsum, Skew]
+    mapping_path, workload, accumulator: dict[BufferTensorEinsum, Skew]
 ) -> None:
     """
     Get compute and buffer skews in a path and collect them in accumulator.
     """
-    einsum_name = mapping_path[-1]['einsum']
+    einsum_name = mapping_path[-1]["einsum"]
 
     bte_and_idx = []
     all_tags = []
     cur_idx = 0
     for node in mapping_path:
-        if node['type'] == 'storage':
-            bte = BufferTensorEinsum(node['target'],
-                                     node['tensor'],
-                                     einsum_name)
+        if node["type"] == "storage":
+            bte = BufferTensorEinsum(node["target"], node["tensor"], einsum_name)
             bte_and_idx.append((bte, cur_idx))
-        if node['type'] not in ['compute', 'storage']:
+        if node["type"] not in ["compute", "storage"]:
             all_tags.append(make_tag_from_node(node))
             cur_idx += 1
 
     # Make { [i0, i1, ..., iN] -> [0] } where N = len(einsum_name)-1
-    iter_space_str = ', '.join(f'i{i}' for i in range(len(all_tags)))
-    iter_space = isl.Space(f'{{ [{iter_space_str} ] }}')
+    iter_space_str = ", ".join(f"i{i}" for i in range(len(all_tags)))
+    iter_space = isl.Space(f"{{ [{iter_space_str} ] }}")
 
     iteration_to_rank_variables = {
         rank_var: isl.PwAff(iter_space.zero_aff_on_domain())
         for rank_var in workload.EinsumOspaceDimensions()
     }
     for node in mapping_path:
-        if node['type'] in ['spatial', 'temporal']:
+        if node["type"] in ["spatial", "temporal"]:
             # Insert iteration variable to the left and update projection
-            iter_to_rank_var = iteration_to_rank_variables[node['rank']]
-            if 'tile_shape' in node:
+            iter_to_rank_var = iteration_to_rank_variables[node["rank"]]
+            if "tile_shape" in node:
                 raise NotImplementedError()
-            elif 'factor' in node:
+            elif "factor" in node:
                 raise NotImplementedError()
             else:
                 raise NotImplementedError()
-        elif node['type'] == 'sequential':
+        elif node["type"] == "sequential":
             raise NotImplementedError()
-        elif node['type'] == 'pipeline':
+        elif node["type"] == "pipeline":
             raise NotImplementedError()
 
     for bte, idx in bte_and_idx:
@@ -244,19 +250,17 @@ def skew_from_path(
 
 
 def make_tag_from_node(node):
-    if node['type'] == 'temporal':
+    if node["type"] == "temporal":
         return TemporalTag()
-    elif node['type'] == 'spatial':
+    elif node["type"] == "spatial":
         return SpatialTag(
-            node.get('spatial_dim', default=None),
-            node.get('buffer', default=None)
+            node.get("spatial_dim", default=None), node.get("buffer", default=None)
         )
-    elif node['type'] == 'pipeline':
+    elif node["type"] == "pipeline":
         return PipelineTag(
-            node.get('spatial_dim', default=None),
-            node.get('buffer', default=None)
+            node.get("spatial_dim", default=None), node.get("buffer", default=None)
         )
-    elif node['type'] == 'sequential':
+    elif node["type"] == "sequential":
         return SequentialTag()
     else:
-        raise ValueError(f'Unsupported node type {node}')
+        raise ValueError(f"Unsupported node type {node}")
