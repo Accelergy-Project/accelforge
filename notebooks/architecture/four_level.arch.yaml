@@ -45,6 +45,7 @@ arch:
     constraints:
       tensors:
         bypass: weight
+        keep: input | output
       spatial:
         - name: Z
           min_utilization: 1
@@ -64,7 +65,7 @@ arch:
 
   - !Memory
     name: Register
-    spatial: [{name: X, fanout: 128}] #, {name: Y, fanout: 128}]
+    spatial: [{name: X, fanout: 128}, {name: Y, fanout: 128}]
     attributes:
       _size: 8 # 8b
       _datawidth: 8
