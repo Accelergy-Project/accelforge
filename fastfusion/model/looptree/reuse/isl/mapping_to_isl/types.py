@@ -38,15 +38,17 @@ BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]
 "Relation between a buffet and its tiling."
 
 
-class Tag(ABC):
+@dataclass(frozen=True)
+class Tag(ABC): # pylint: disable=too-few-public-methods
     """Associating an element with its type metadata without introspection?"""
 
 
-class TemporalTag(Tag):
+class TemporalTag(Tag): # pylint: disable=too-few-public-methods
     """The associated element is temporally spreading?"""
 
+@dataclass(frozen=True)
 
-class SpatialTag(Tag):
+class SpatialTag(Tag):  # pylint: disable=too-few-public-methods
     """The associated element is spatially spreading?"""
 
     spatial_dim: int
@@ -55,11 +57,11 @@ class SpatialTag(Tag):
     "The buffer the spatial dim is across?"
 
 
-class PipelineTag(Tag):
+class PipelineTag(Tag): # pylint: disable=too-few-public-methods
     """The associated element is pipelined?"""
 
 
-class SequentialTag(Tag):
+class SequentialTag(Tag): # pylint: disable=too-few-public-methods
     """The associated element is serialized?"""
 
 
@@ -69,7 +71,7 @@ LOOP_TAGS = [TemporalTag, SpatialTag]
 
 
 @dataclass(frozen=True)
-class TaggedMap:
+class TaggedMap: # pylint: disable=too-few-public-methods
     """A :class:`isl.Map` with its dimensions tagged."""
 
     tags: List[Any]
@@ -79,15 +81,15 @@ class TaggedMap:
         return f"{type(self)}({self.tags}, {self.map_})"
 
 
-class Occupancy(TaggedMap):
+class Occupancy(TaggedMap): # pylint: disable=too-few-public-methods
     """Location of data in [logical?] hardware elements."""
 
 
-class OperationOccupancy(TaggedMap):
+class OperationOccupancy(TaggedMap): # pylint: disable=too-few-public-methods
     """Location of operations in [logical?] hardware elements."""
 
 
-class Skew(TaggedMap):
+class Skew(TaggedMap): # pylint: disable=too-few-public-methods
     """TODO: Figure out what this is."""
 
 
@@ -121,8 +123,8 @@ class ComputeEinsum:
 
 
 # Output classes.
-@dataclass
-class SkewsInfo:
+@dataclass(frozen=True)
+class SkewsInfo: # pylint: disable=too-few-public-methods
     """TODO: Figure out what this does."""
 
     bte_to_skew: defaultdict[BufferTensorEinsum, Skew]
@@ -131,8 +133,8 @@ class SkewsInfo:
     """Relates a :class:`~.ComputeEinsum` to a :class:`~.Skew`"""
 
 
-@dataclass
-class MappingAnalysisResult:
+@dataclass(frozen=True)
+class MappingAnalysisResult: # pylint: disable=too-few-public-methods
     """
     Results of mapping analysis that will become input into reuse
     analysis.
