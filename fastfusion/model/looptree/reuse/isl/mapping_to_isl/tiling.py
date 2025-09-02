@@ -4,7 +4,7 @@ analysis.
 """
 
 from collections import defaultdict, deque
-from typing import Iterator, List, Tuple
+from typing import List, Tuple
 
 import islpy as isl
 
@@ -317,7 +317,9 @@ def consumer_based_tile_shape_inference(
                 e.name for e in workload.einsums_that_write_tensor(tensor)
             }
             if len(producer_einsums) > 1:
-                raise NotImplementedError("Tile shape inference cannot handle multiple einsums writing the same tensor.")
+                raise NotImplementedError(
+                    "Tile shape inference cannot handle multiple einsums writing the same tensor."
+                )
 
             # Not an intermediate tensor.
             if not producer_einsums:
@@ -462,18 +464,20 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
             match current_node:
                 case Iteration():
                     if len(heads) != 1:
-                        raise ValueError(f"Cannot fuse tiled set with {len(heads)} heads.")
+                        raise ValueError(
+                            f"Cannot fuse tiled set with {len(heads)} heads."
+                        )
 
                     # Grabs rank_var to tile and the head to tile it from.
                     rank_var = current_node.rank_variable
                     head = next(iter(heads))
 
                     old_tiling: Tiling = tiling_info[node][head]
-                    # set, not AbstractSet, iteration in python is the same. 
+                    # set, not AbstractSet, iteration in python is the same.
                     # Downstreams of "heads" is also constaint.
-                    isl_rank_idx: int = tuple(workload.einsums[head].rank_variables).index(
-                        rank_var
-                    )
+                    isl_rank_idx: int = tuple(
+                        workload.einsums[head].rank_variables
+                    ).index(rank_var)
 
                     # Adds a new tile_dim to the old tiling.
                     if (
@@ -506,7 +510,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     current_node = current_node.flatten()[0]
                 # Notes what reuse level the tensor is on.
                 case Storage():
-                    # Check if current_node is the highest level of Storage to determine reuse level.
+                    # See current_node is the highest level of Storage to determine reuse level.
                     if current_node.tensor not in tensor_to_reuse_level:
                         random_einsum: EinsumName = next(iter(mapping_groups[node]))
                         tiling: Tiling = tiling_info[node][random_einsum]
