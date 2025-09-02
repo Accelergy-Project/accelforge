@@ -32,14 +32,12 @@ SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 class TensorAccess(ParsableModel):
     name: TensorName
-    projection: dict[str, str]
+    projection: dict[str, str] | list[str]
     output: bool = False
     factors: list = []
 
-    def __init__(self, **data):
-        if "projection" in data:
-            data["projection"] = projection_factory(data["projection"])
-        super().__init__(**data)
+    def model_post_init(self, __context__=None) -> None:
+        self.projection = projection_factory(self.projection)
 
         projection = [x for x in self.projection.values()]
         while projection:
@@ -222,8 +220,7 @@ class Workload(ParsableModel):
     einsums: ParsableList[Einsum] = []
     shape: ParsableDict[RankVariableName, str] = {}
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         self._validate()
 
     def _validate(self):

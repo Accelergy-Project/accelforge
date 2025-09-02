@@ -55,7 +55,7 @@ class Specification(ParsableModel):
     tensors may be renamed to "input", "output", and "weight"."""
 
     mapper: Mapper = Mapper()
-    """ Mapper is the mapper used to map the workload onto the architecture. """
+    """ Configures the mapper used to map the workload onto the architecture. """
 
     def parse_expressions(
         self,

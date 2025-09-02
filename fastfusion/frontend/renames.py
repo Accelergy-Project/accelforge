@@ -48,8 +48,7 @@ class Renames(ParsableModel):
     version:  Annotated[str, assert_version] = __version__
     einsums: ParsableList[EinsumRename] = ParsableList()
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    def model_post_init(self, __context__=None) -> None:
         assert_version(self.version)
 
     def get_renames_for_einsum(self, einsum_name: EinsumName) -> EinsumRename:

@@ -788,8 +788,7 @@ class Nested(MappingNodeWithChildren):
     nodes are guaranteed to to be not :class:`~.MappingNodeWithChildren`.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         for node in list(self.nodes)[:-1]:
             assert not isinstance(
                 node, MappingNodeWithChildren

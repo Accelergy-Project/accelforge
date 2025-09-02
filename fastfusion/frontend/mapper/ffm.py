@@ -51,6 +51,3 @@ class FFM(ParsableModel):
 
     # _greedily_maximize_reuse: bool = False
     # """ Whether to greedily maximize reuse for a pmapping. """
-    
-    def __init__(self, **kwargs: Any):
-        super().__init__(**kwargs)

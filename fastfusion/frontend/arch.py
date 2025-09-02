@@ -36,9 +36,7 @@ from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
 
 
 class ArchNode(ParsableModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def model_post_init(self, __context__=None) -> None:
         # Make sure all leaf names are unique
         leaves = {}
         for l in self.get_instances_of_type(Leaf):
@@ -139,9 +137,6 @@ class Container(Leaf, ABC):
 class ArchMemoryActionArguments(ComponentAttributes):
     bits_per_action: ParsesTo[Union[int, float]] = 1
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
 
 class ArchMemoryAction(SubcomponentAction):
     arguments: ArchMemoryActionArguments
@@ -190,8 +185,7 @@ class TensorHolderAttributes(Attributes):
     bandwidth_reads_per_cycle: ParsesTo[Union[int, float]] = float("inf")
     bandwidth_writes_per_cycle: ParsesTo[Union[int, float]] = float("inf")
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         if not isinstance(self.datawidth, dict):
             self.datawidth = {"All()": self.datawidth}
 
@@ -215,8 +209,7 @@ class TensorHolder(Component):
     actions: ParsableList[ArchMemoryAction] = MEMORY_ACTIONS
     attributes: TensorHolderAttributes = pydantic.Field(default_factory=TensorHolderAttributes)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         self._update_actions(MEMORY_ACTIONS)
 
 
@@ -237,8 +230,7 @@ class Compute(Component):
     attributes: ComputeAttributes = pydantic.Field(default_factory=ComputeAttributes)
     constraints: MiscOnlyConstraints = MiscOnlyConstraints()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
 
 
@@ -256,9 +248,6 @@ class Branch(ArchNode, ABC):
             Discriminator(get_tag),
         ]
     ] = ArchNodes()
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
         
 class Parallel(Branch):
     def _flatten(self, attributes: dict, compute_node: str, fanout: int = 1, return_fanout: bool = False):

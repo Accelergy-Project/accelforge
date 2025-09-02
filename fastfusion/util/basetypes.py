@@ -493,15 +493,6 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable['ParsableModel'], FromYA
             fields.update(self.__pydantic_extra__.keys())
         return sorted(fields)
 
-    def __init__(self, **data):
-        try:
-            super().__init__(**data)
-        except ValidationError as e:
-            for error in e.errors():
-                if error["type"] == "extra_forbidden":
-                    error["msg"] += f". Allowed fields are: {sorted(self.__class__.model_fields)}"
-            raise e
-
     def parse_expressions(self, symbol_table: dict[str, Any] = None, order: tuple[str, ...] = (), post_calls: tuple[PostCall[T], ...] = (), **kwargs) -> tuple['ParsableModel', dict[str, Any]]:
         new = self.model_copy()
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
