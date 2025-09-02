@@ -33,7 +33,6 @@ from fastfusion.model.looptree.reuse.isl.isl_functions import (
 from .types import (
     # Bookkeeping objects
     BufferTensorEinsum,
-    Buffet,
     ComputeEinsum,
     EinsumName,
     Skew,
@@ -180,7 +179,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
             # TODO: This buffet structure makes no sense in this context:
             # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L740-L743
             buffer_tensor_einsum_to_skew[
-                BufferTensorEinsum(*buffer_tensor, leaf.einsum)
+                BufferTensorEinsum(*buffer_tensor, leaf)
             ] = Skew(buffer_tags, removal_projection)
 
         # TODO: Figure out what is actually:
@@ -191,12 +190,12 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
         einsum: EinsumName = leaf.einsum
         for tensor in workload.tensors_read_by_einsum(einsum):
             buffer_tensor_einsum_to_skew[
-                BufferTensorEinsum(leaf, tensor, leaf.einsum)
+                BufferTensorEinsum(leaf.compute, tensor, leaf)
             ] = Skew(tags, removal_map)
 
         for tensor in workload.tensors_written_by_einsum(einsum):
             buffer_tensor_einsum_to_skew[
-                BufferTensorEinsum(leaf, tensor, leaf.einsum)
+                BufferTensorEinsum(leaf.compute, tensor, leaf)
             ] = Skew(tags, removal_map)
 
     return SkewsInfo(buffer_tensor_einsum_to_skew, compute_einsum_to_skew)

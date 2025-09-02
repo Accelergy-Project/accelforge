@@ -185,14 +185,14 @@ def occupancies_from_mapping(
         if DUMP_ISL_IR:
             print(f"{bte} has skew: {skew}")
 
-        tiling = branch_tiling[bte.branch_leaf_node]
+        tiling = branch_tiling[bte.einsum]
 
         accesses: Optional[isl.Map] = None
-        read_tensors: set[TensorName] = workload.tensors_read_by_einsum(bte.einsum)
-        write_tensors: set[TensorName] = workload.tensors_written_by_einsum(bte.einsum)
+        read_tensors: set[TensorName] = workload.tensors_read_by_einsum(bte.einsum.einsum)
+        write_tensors: set[TensorName] = workload.tensors_written_by_einsum(bte.einsum.einsum)
 
         if bte.tensor in read_tensors or bte.tensor in write_tensors:
-            accesses = get_projection_map(workload.einsums[bte.einsum], bte.tensor)
+            accesses = get_projection_map(workload.einsums[bte.einsum.einsum], bte.tensor)
         else:
             continue
 

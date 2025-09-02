@@ -76,7 +76,7 @@ class Occupancy(TaggedMap):
         super().__init__(tags, map_)
 
     def __repr__(self):
-        return f'Occupancy({self.tags}, {self.map})'
+        return f'Occupancy({self.tags}, {self.map_})'
 
 
 class OperationOccupancy(TaggedMap):
@@ -84,26 +84,28 @@ class OperationOccupancy(TaggedMap):
         super().__init__(tags, map_)
     
     def __repr__(self) -> TensorName:
-        return f'OperationOccupancy({self.tags}, {self.map})'
+        return f'OperationOccupancy({self.tags}, {self.map_})'
 
 
 class Skew(TaggedMap):
     def __init__(self, tags: List[Tag], map: isl.Map):
         """
         :param tags:    Tags for the dim in.
-        :param map:     The map being tagged.
+        :param map_:     The map being tagged.
         """
         super().__init__(tags, map)
 
     def __repr__(self):
-        return f'Skew({self.tags}, {self.map})'
+        return f'Skew({self.tags}, {self.map_})'
 
 @dataclass
 class BufferTensorEinsum:
     buffer: str
+    "The logical name of the buffer supplying the tensor."
     tensor: TensorName
-    einsum: EinsumName
-
+    "The tensor being supplied."
+    einsum: Compute
+    "The leaf in mapping doing the einsum compute on tensor."
 
 @dataclass(frozen=True)
 class ComputeEinsum:
@@ -138,10 +140,8 @@ class MappingAnalysisResult:
         to quickly calculate approx. compute latency by simply dividing number of
         operations with assumed parallelism.
     """
-    buffet_direct_above_sequential: defaultdict[ComputeEinsum, Skew]
-    buffet_to_occupancy: defaultdict[Buffet, Occupancy]
+    buffet_direct_above_sequential: defaultdict[Buffet, bool]
+    buffet_to_occupancy: defaultdict[BufferTensorEinsum, Occupancy]
     compute_einsum_to_occupancy: defaultdict[ComputeEinsum, OperationOccupancy]
-    node_to_buffets: defaultdict[MappingNode, Iterable[Buffet]]
     branch_tiling: BranchTiling
     compute_to_assumed_parallelism: defaultdict[MappingNode, float]
-
