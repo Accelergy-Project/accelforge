@@ -25,7 +25,6 @@ Relevant Name Changes:
 """
 
 from collections import defaultdict, deque
-from email.policy import default
 from typing import List, Optional
 
 import islpy as isl
@@ -40,7 +39,7 @@ from fastfusion.frontend.mapping import (
 )
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload.isl import get_projection_map
-from fastfusion.frontend.workload.workload import EinsumName, TensorName
+from fastfusion.frontend.workload.workload import TensorName
 
 from fastfusion.model.looptree.mapping_utilities import get_paths
 from fastfusion.model.looptree.reuse import Buffet
@@ -49,7 +48,7 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping impor
     skews_from_mapping,
 )
 
-from . import DUMP_ISL_IR, LOG_ISL_IR
+from . import DUMP_ISL_IR
 from .tiling import tiling_from_mapping
 from .types import (
     BranchTiling,
@@ -58,7 +57,6 @@ from .types import (
     MappingAnalysisResult,
     Occupancy,
     OperationOccupancy,
-    Skew,
     SkewsInfo,
 )
 
@@ -205,21 +203,21 @@ def occupancies_from_mapping(
         )
 
         occupancies[bte] = Occupancy(skew.tags, occupancy)
-    
-    operations_occupancies: defaultdict[ComputeEinsum, OperationOccupancy] = defaultdict()
+
+    operations_occupancies: defaultdict[ComputeEinsum, OperationOccupancy] = (
+        defaultdict()
+    )
     for ce, skew in skews.ce_unit_to_skew.items():
         tiling: isl.Map = branch_tiling[ce.branch_leaf_node]
         operation_occupancy: isl.Map = skew.map_.apply_range(
             project_dim_in_after(tiling, skew.map_.dim(isl.dim_type.out))
         )
-        operations_occupancies[ce] = OperationOccupancy(
-            skew.tags, operation_occupancy
-        )
+        operations_occupancies[ce] = OperationOccupancy(skew.tags, operation_occupancy)
 
     return MappingAnalysisResult(
         buffet_to_occupancy=occupancies,
         compute_einsum_to_occupancy=operations_occupancies,
         buffet_direct_above_sequential=buffet_direct_above_sequential(mapping),
         compute_to_assumed_parallelism=get_parallelism(mapping),
-        branch_tiling=branch_tiling
+        branch_tiling=branch_tiling,
     )
