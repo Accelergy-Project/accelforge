@@ -9,13 +9,14 @@ from abc import ABC
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, List, TypeAlias
+from typing import TYPE_CHECKING, Any, List, TypeAlias
 
 import islpy as isl
 
-from fastfusion.frontend.mapping import Compute, MappingNode
-from fastfusion.frontend.workload.workload import TensorName
-from fastfusion.model.looptree.reuse import Buffet
+if TYPE_CHECKING:
+    from fastfusion.frontend.mapping import Compute, MappingNode
+    from fastfusion.frontend.workload.workload import TensorName
+    from fastfusion.model.looptree.reuse import Buffet
 
 
 # Mapper intermediates.
