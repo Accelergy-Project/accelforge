@@ -1,3 +1,2 @@
 from .workload import *
-from .isl import *
-from .symbolic import *
+from ._isl import get_rank_variable_bounds

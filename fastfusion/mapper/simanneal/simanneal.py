@@ -7,9 +7,9 @@ import time
 from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.simanneal.evalmapping import quick_join
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
-from fastfusion.mapper.FFM.joining.simexplore import SIM
-from fastfusion.mapper.FFM.joining.mappinginfo import TensorReservation, Compatibility
-from fastfusion.mapper.FFM.pareto import MAPPING_COLUMN, PartialMappings
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import SIM
+from fastfusion.mapper.FFM._join_pmappings.mappinginfo import TensorReservation, Compatibility
+from fastfusion.mapper.FFM._pmapping_group import MAPPING_COLUMN, PmappingGroup
 from fastfusion.util import fzs
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 OBJECTIVE_COLUMN = None # None -> Product
@@ -287,7 +287,7 @@ class Mapping:
                 new_sims[einsum_name] = [
                     SIM(
                         compatibility=sim.compatibility,
-                        mappings=PartialMappings(sim.mappings.data.iloc[mapping_index:mapping_index+1].copy()),
+                        mappings=PmappingGroup(sim.mappings.data.iloc[mapping_index:mapping_index+1].copy()),
                     )
                 ]
                 chosen_mappings = quick_join(new_sims, mapspace_globals)

@@ -122,9 +122,6 @@ class Iteration(ParsableModel):
     reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
     loop_bounds: ParsableList[Comparison] = ParsableList()
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
     def _parse(self, symbol_table: dict[str, Any], location: str):
         return type(self)(
             loop_bounds=[x._parse(symbol_table, location) for x in self.loop_bounds],

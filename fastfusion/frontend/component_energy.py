@@ -1,6 +1,6 @@
 import copy
-from typing import Union, Annotated
-from fastfusion.frontend.component_classes import ComponentAttributes
+from typing import Callable, Union, Annotated
+from fastfusion.frontend.components import ComponentAttributes
 from fastfusion.version import assert_version, __version__
 from fastfusion.util.basetypes import ParsableModel, ParsableList, ParsesTo
 from hwcomponents import get_energy
@@ -21,7 +21,7 @@ class Action(ParsableModel):
 
     @staticmethod
     def from_models(
-        class_name: str,
+        class_name: str | Callable[[], str],
         attributes: dict,
         arguments: dict,
         action_name: str,
@@ -29,12 +29,12 @@ class Action(ParsableModel):
         models: list,
         return_subactions: bool = False,
     ) -> Union["EnergyEntry", list["Subaction"]]:
-        attributes, arguments = copy.deepcopy((attributes, arguments))
+        attributes, arguments = copy.copy((attributes, arguments))
         entries = []
 
         definition = None
         try:
-            definition = spec.component_classes.component_classes[class_name]
+            definition = spec.components.components[class_name]
         except KeyError:
             pass
                 
@@ -62,45 +62,51 @@ class Action(ParsableModel):
                     messages=["Using predefined energy value"],
                 )
             ]
-        elif definition is not None:
-            for (
-                component,
-                component_attributes,
-                sub_arguments,
-                subaction_name,
-            ) in definition.get_subcomponent_actions(
-                action_name, attributes, arguments
-            ):
-                entries.extend(
-                    Action.from_models(
-                        component,
-                        component_attributes,
-                        sub_arguments,
-                        subaction_name,
-                        spec,
-                        models,
-                        return_subactions=True,
+        else:
+            class_name = class_name if isinstance(class_name, str) else class_name()
+            try:
+                definition = spec.components.components[class_name]
+            except KeyError:
+                pass
+            if definition is not None:
+                for (
+                    component,
+                    component_attributes,
+                    sub_arguments,
+                    subaction_name,
+                ) in definition.get_subcomponent_actions(
+                    action_name, attributes, arguments
+                ):
+                    entries.extend(
+                        Action.from_models(
+                            component,
+                            component_attributes,
+                            sub_arguments,
+                            subaction_name,
+                            spec,
+                            models,
+                            return_subactions=True,
+                        )
+                    )
+            else:
+                estimation = get_energy(
+                    component_name=class_name,
+                    component_attributes=attributes.model_dump(),
+                    action_name=action_name,
+                    action_arguments=arguments.model_dump(),
+                    models=models,
+                )
+                energy = estimation.value
+                entries.append(
+                    Subaction(
+                        name=class_name,
+                        attributes=attributes,
+                        arguments=arguments,
+                        energy=energy * attributes.energy_scale * arguments.energy_scale,
+                        model_name=estimation.model_name,
+                        messages=estimation.messages,
                     )
                 )
-        else:
-            estimation = get_energy(
-                component_name=class_name,
-                component_attributes=attributes.model_dump(),
-                action_name=action_name,
-                action_arguments=arguments.model_dump(),
-                models=models,
-            )
-            energy = estimation.value
-            entries.append(
-                Subaction(
-                    name=class_name,
-                    attributes=attributes,
-                    arguments=arguments,
-                    energy=energy * attributes.energy_scale * arguments.energy_scale,
-                    model_name=estimation.model_name,
-                    messages=estimation.messages,
-                )
-            )
 
         if return_subactions:
             return entries
@@ -127,7 +133,7 @@ class EnergyEntry(ParsableModel):
 
     @staticmethod
     def from_models(
-        class_name: str,
+        class_name: str | Callable[[], str],
         attributes: dict,
         arguments: list[dict],
         action_names: list[str],
@@ -170,6 +176,6 @@ class ComponentEnergy(ParsableModel):
         except KeyError:
             pass
         raise KeyError(
-            f"Could not find energy for action {action} for component {component}. "
-            f"Try running calculate_component_energy_area() on the Specification first."
+            f"Could not find energy for component {component} action {action}. Try "
+            f"running calculate_component_energy_area() on the Specification first."
         )

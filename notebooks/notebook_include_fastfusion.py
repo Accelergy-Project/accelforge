@@ -6,7 +6,7 @@ import time
 logging.basicConfig(level=logging.WARN)
 
 from fastfusion.accelerated_imports import np
-from fastfusion.mapper.FFM.joining.sim import SIM, TensorReservation
+from fastfusion.mapper.FFM._join_pmappings.sim import SIM, TensorReservation
 from tests.util import TEST_TMP_DIR
 
 import logging
@@ -17,7 +17,7 @@ from bindings.config import Config
 import pickle
 
 from fastfusion.mapper.simanneal.simanneal import mapper
-from fastfusion.mapper.FFM.joining.simexplore import join_sims
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_sims
 from fastfusion.visualization.ski_slope import plot_ski_slope
 from fastfusion.mapper.simanneal.process_results import Metrics
 from pytimeloop.frontend.v4fused import Specification

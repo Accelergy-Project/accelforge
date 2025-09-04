@@ -1,4 +1,4 @@
-architecture:
+arch:
   version: 0.4
   nodes:
   - !Component

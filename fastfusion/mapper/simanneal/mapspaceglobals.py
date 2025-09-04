@@ -1,12 +1,12 @@
 from collections import defaultdict
 import itertools
 
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
-from fastfusion.mapper.FFM.joining.simexplore import SIM
-from fastfusion.mapper.FFM.joining.mappinginfo import Loop, Compatibility
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import SIM
+from fastfusion.mapper.FFM._join_pmappings.mappinginfo import Loop, Compatibility
 from fastfusion.util import fzs
-from fastfusion.mapper.FFM.joining.simexplore import make_full_equivalent_rank_variables
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import make_full_equivalent_rank_variables
 
 class MapspaceGlobals:
     def __init__(
@@ -14,7 +14,7 @@ class MapspaceGlobals:
         sims: dict[str, list[SIM]],
         spec: Specification,
         objective_function_cols: list[str] = None,
-        flattened_architecture: list[architecture.Leaf] = None,
+        flattened_architecture: list[arch.Leaf] = None,
     ):
         self.sims = sims
         self.einsum_names = spec.workload.einsum_names
@@ -28,7 +28,7 @@ class MapspaceGlobals:
         self.resource2capacity = {}
         flattened_architecture = flattened_architecture or spec.get_flattened_architecture()
         for l in flattened_architecture:
-            if isinstance(l, architecture.Memory):
+            if isinstance(l, arch.Memory):
                 self.resource2capacity[l.name] = l.attributes.size
         
         self.objective_function_cols = objective_function_cols

@@ -1,5 +1,5 @@
 from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM.pareto import row2pmappings
+from fastfusion.mapper.FFM._pmapping_group import row2pmappings
 from fastfusion.frontend.mapping import Mapping# NOFILL:, Fill
 
 def make_mapping(row, einsum_names, rank_variable_bounds):

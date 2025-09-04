@@ -1,5 +1,5 @@
 import copy
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any, Callable, Optional, Union
 from fastfusion.version import assert_version, __version__
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel, ParsesTo, ParsableDict
 from hwcomponents import get_area
@@ -18,21 +18,20 @@ class AreaEntry(ParsableModel):
 
     @staticmethod
     def from_models(
-        class_name: str,
+        class_name: str | Callable[[], str],
         attributes: dict,
         spec: "Specification",
         models: list,
         return_subcomponents: bool = False,
         name: str = None,
     ) -> Union["AreaEntry", list["AreaSubcomponent"]]:
-        attributes = copy.deepcopy(attributes)
+        attributes = copy.copy(attributes)
         entries = []
         definition = None
+        
+        from fastfusion import Specification
+        spec: Specification = spec
 
-        try:
-            definition = spec.component_classes.component_classes[class_name]
-        except KeyError:
-            pass
         if attributes.area is not None:
             entries = [
                 AreaSubcomponent(
@@ -42,34 +41,41 @@ class AreaEntry(ParsableModel):
                     messages=["Using predefined area value"],
                 )
             ]
-        elif definition is not None:
-            for component in definition.subcomponents:
-                component_attributes = component.attributes.parse_expressions(attributes.model_dump())[0]
-                entries.extend(
-                    AreaEntry.from_models(
-                        component.get_component_class(),
-                        component_attributes,
-                        spec,
-                        models,
-                        return_subcomponents=True,
+        else:
+            class_name = class_name if isinstance(class_name, str) else class_name()
+            try:
+                definition = spec.components.components[class_name]
+            except KeyError:
+                pass
+
+            if definition is not None:
+                for component in definition.subcomponents:
+                    component_attributes = component.attributes.parse_expressions(attributes.model_dump())[0]
+                    entries.extend(
+                        AreaEntry.from_models(
+                            component.get_component_class(),
+                            component_attributes,
+                            spec,
+                            models,
+                            return_subcomponents=True,
+                        )
+                    )
+            else:
+                estimation = get_area(
+                    component_name=class_name,
+                    component_attributes=attributes.model_dump(),
+                    models=models,
+                )
+                area = estimation.value
+                entries.append(
+                    AreaSubcomponent(
+                        name=class_name,
+                        attributes=attributes.model_dump(),
+                        area=area * attributes.area_scale,
+                        model_name=estimation.model_name,
+                        messages=estimation.messages,
                     )
                 )
-        else:
-            estimation = get_area(
-                component_name=class_name,
-                component_attributes=attributes.model_dump(),
-                models=models,
-            )
-            area = estimation.value
-            entries.append(
-                AreaSubcomponent(
-                    name=class_name,
-                    attributes=attributes.model_dump(),
-                    area=area * attributes.area_scale,
-                    model_name=estimation.model_name,
-                    messages=estimation.messages,
-                )
-            )
 
         if return_subcomponents:
             return entries

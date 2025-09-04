@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 from numbers import Real
 
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 from fastfusion.frontend.component_energy import ComponentEnergy
 from fastfusion.model.looptree.reuse.summarized.symbolic import SummarizedAnalysisOutput
 from fastfusion.frontend.workload import Workload

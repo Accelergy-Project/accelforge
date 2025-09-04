@@ -1,17 +1,12 @@
-variables:
-  global_cycle_period: 1e-9
-  tech_node: 7e-9
-
-architecture:
+arch:
   version: "0.5"
+  global_cycle_period: 1e-9
   nodes:
   - !Memory
     name: MainMemory
-    component_class: DRAM
     attributes:
-      size: 9999999999999
-      datawidth: 1
-      area: 1
+      _size: inf
+      _datawidth: 1
     constraints:
       tensors:
         keep: ~Intermediates()
@@ -22,11 +17,9 @@ architecture:
 
   - !Memory
     name: GlobalBuffer
-    component_class: SRAM
     attributes:
-      size: 9999999999999
-      datawidth: 1
-      area: 1
+      _size: inf
+      _datawidth: 1
     constraints:
       tensors:
         keep: All()
@@ -37,8 +30,6 @@ architecture:
 
   - !Compute
     name: MAC
-    component_class: intmac
-    attributes: {area: 1}
     actions:
     - {name: compute, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}

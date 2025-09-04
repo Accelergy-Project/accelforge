@@ -25,7 +25,7 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     from bindings.looptree import LooptreeModelApp, LooptreeWorkload
     from pytimeloop.file import gather_yaml_configs
     from pytimeloop.looptree.capacity import compute_capacity_usage
-    from pytimeloop.looptree.reuse.isl.des import deserialize_looptree_output
+    from pytimeloop.looptree.reuse._isl.des import deserialize_looptree_output
     from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
     from pytimeloop.looptree.latency import get_latency
     from pytimeloop.timeloopfe.v4fused import Specification
@@ -56,7 +56,7 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     latency, comp_latency, mem_latency = get_latency(result,
                                                      spec.mapping,
                                                      workload,
-                                                     spec.architecture,
+                                                     spec.arch,
                                                      bindings)
 
     capacity_usage = compute_capacity_usage(spec.mapping.nodes,
@@ -84,7 +84,7 @@ def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy)
     from pytimeloop.looptree.latency import get_latency
     from pytimeloop.timeloopfe.v4fused import Specification
     from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
-    from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
+    from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import Job
 
     yaml_str = gather_yaml_configs(config_dir, paths)
 
@@ -105,7 +105,7 @@ def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy)
         ] + [str(Path(tmp_path) / 'ERT.yaml')])
 
 
-    job = Job.make_job(mapping=spec.mapping, workload=workload, architecture=spec.architecture)
+    job = Job.make_job(mapping=spec.mapping, workload=workload, architecture=spec.arch)
     tile_shapes, result = analyze_reuse_and_add_reservations_to_mapping(job)
 
     actions = gather_actions(result, bindings, use_name=True)
@@ -114,7 +114,7 @@ def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy)
     latency, comp_latency, mem_latency = get_latency(result,
                                                      spec.mapping,
                                                      workload,
-                                                     spec.architecture,
+                                                     spec.arch,
                                                      bindings)
 
     capacity_usage = compute_capacity_usage(spec.mapping.nodes,

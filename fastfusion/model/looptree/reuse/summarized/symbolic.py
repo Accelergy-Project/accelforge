@@ -2,16 +2,16 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 import fastfusion.frontend.mapping as mapping_spec
-from fastfusion.frontend.architecture import ProcessingStage
+from fastfusion.frontend.arch import ProcessingStage
 from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Iteration, Pattern, TensorHolder# NOFILL: Fill
 from fastfusion.frontend.workload import (
     Workload,
     TensorName,
     get_rank_variable_bounds
 )
-from fastfusion.frontend.workload.symbolic import (
+from fastfusion.frontend.workload._symbolic import (
     get_projection_expr,
     get_rank_variable_relevancy,
     compute_dense_tile_occupancy,
@@ -19,10 +19,8 @@ from fastfusion.frontend.workload.symbolic import (
     Relevant,
     PartiallyRelevant
 )
-
 from fastfusion.model.looptree.reuse import Buffet
-
-from fastfusion.mapper.FFM.exploration.mapper_one_einsum.mapper_job import Job
+from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import Job
 from fastfusion.util.sympy.broadcast_max import Min, Max
 
 import sympy
@@ -256,20 +254,13 @@ class AnalysisInfo:
     
     job: Job
 
-def quick_insert_reservation_nodes(
-    mapping: Mapping,
-    workload: Workload
-) -> list[MappingNode]:
-    mapping = list(mapping.nodes)
+def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
+    mapping = list(job.mapping.nodes)
+    workload = job.spec.workload
     einsum_name = mapping[-1].einsum
 
     einsum = workload.einsums[einsum_name]
     all_tensors = einsum.input_tensors | einsum.output_tensors
-
-    tensor_to_relevancy = {
-        tensor: get_rank_variable_relevancy(einsum, tensor)
-        for tensor in all_tensors
-    }
 
     info = AnalysisInfo(
         mapping=None,
@@ -277,7 +268,7 @@ def quick_insert_reservation_nodes(
         full_rank_variable_shapes=None,
         all_tensors=None,
         einsum_tensor_to_projection=None,
-        tensor_to_relevancy=tensor_to_relevancy,
+        tensor_to_relevancy=job.tensor_to_relevancy,
         tensor_to_backer_id=None,
         is_copy_operation=None,
         job=None,
@@ -333,7 +324,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
         mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
         # We're working with a new mapping at this point, so we need to add reservations
         # to the job mapping.
-        job.mapping = quick_insert_reservation_nodes(job.mapping, workload)
+        job.mapping = quick_insert_reservation_nodes(job)
     else:
         tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
@@ -707,7 +698,7 @@ def has_parent_tensor_holder(tensor: TensorName, node_idx: int, info: AnalysisIn
             return True
     return False
 
-def find_component_object(component: str, flattened_arch: list[architecture.Leaf]) -> architecture.TensorHolder:
+def find_component_object(component: str, flattened_arch: list[arch.Leaf]) -> arch.TensorHolder:
     for node in flattened_arch:
         if node.name == component:
             return node
@@ -877,7 +868,7 @@ def analyze_compute(node_idx,
                     info: AnalysisInfo) -> SummarizedAnalysisOutput:
     einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
-    compute_node: architecture.Compute = info.job.flattened_arch[-1]
+    compute_node: arch.Compute = info.job.flattened_arch[-1]
     
     computes = 0 if info.is_copy_operation else 1
 

@@ -5,10 +5,10 @@ import time
 from typing import TypeAlias, Union
 from joblib import delayed
 from fastfusion.accelerated_imports import pd
-from fastfusion.frontend import architecture
+from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
-from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
-from fastfusion.mapper.FFM.pareto import PartialMappings, is_reservation_col
+from fastfusion.mapper.FFM._join_pmappings.sim import SIM, Loop, Compatibility
+from fastfusion.mapper.FFM._pmapping_group import PmappingGroup, is_reservation_col
 from fastfusion.mapper.simanneal.simanneal import MapspaceGlobals, _fuse_sims
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
 from fastfusion.util import fzs, parallel, util
@@ -22,7 +22,7 @@ def mapping2sims(einsum_to_result: Compatibility):
 
 
 def paretofy(k, v):
-    return SIM(k, PartialMappings(pd.DataFrame(v).fillna(0)))
+    return SIM(k, PmappingGroup(pd.DataFrame(v).fillna(0)))
 
 
 def get_possible_translations(
@@ -120,12 +120,12 @@ def get_sims_data(
     sims: dict[str, list[SIM]],
     evaluations_tracker,
     spec: Specification = None,
-    flattened_architecture: list[architecture.Leaf] = None,
+    flattened_architecture: list[arch.Leaf] = None,
 ):
     resource2capacity = {}
     flattened_architecture = flattened_architecture or spec.get_flattened_architecture()
     for l in flattened_architecture:
-        if isinstance(l, architecture.Memory):
+        if isinstance(l, arch.Memory):
             resource2capacity[l.name] = l.attributes.size
 
     pairwise_equivalent_rank_variables = (
@@ -155,8 +155,8 @@ def join_sims(
     evaluations_tracker: EvaluationsScoreTracker,
     algorithm: str,
     spec: Specification = None,
-    flattened_architecture: list[architecture.Leaf] = None,
-) -> PartialMappings:
+    flattened_architecture: list[arch.Leaf] = None,
+) -> PmappingGroup:
     objective_function_cols = None
     cols = next(iter(sims.values()))[0].mappings.data.columns
     if objective_function_cols is None:

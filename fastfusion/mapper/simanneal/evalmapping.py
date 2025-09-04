@@ -2,8 +2,8 @@ from collections import defaultdict
 import itertools
 import time
 from fastfusion.accelerated_imports import pd
-from fastfusion.mapper.FFM.joining.sim import SIM, Loop, Compatibility
-from fastfusion.mapper.FFM.pareto import PartialMappings
+from fastfusion.mapper.FFM._join_pmappings.sim import SIM, Loop, Compatibility
+from fastfusion.mapper.FFM._pmapping_group import PmappingGroup
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 from fastfusion.util.util import fzs
 
@@ -16,7 +16,7 @@ def mapping2sims(einsum_to_result: Compatibility):
 
 
 def paretofy(k, v):
-    return SIM(k, PartialMappings(pd.DataFrame(v).fillna(0)))
+    return SIM(k, PmappingGroup(pd.DataFrame(v).fillna(0)))
 
 
 def get_possible_translations(

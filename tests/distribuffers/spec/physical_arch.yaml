@@ -1,4 +1,4 @@
-architecture:
+arch:
   name: "test_distributed_spec"
   version: 0.4
   nodes:

@@ -1,16 +1,12 @@
-variables:
-  global_cycle_period: 1e-9
-  tech_node: 7e-9
-
-architecture:
+arch:
   version: "0.5"
+  global_cycle_period: 1e-9
   nodes:
   - !Memory
     name: MainMemory
     attributes:
-      size: 1e9
-      area: 1
-      datawidth: 8
+      _size: 1e9
+      _datawidth: 8
     constraints:
       tensors: {keep: All()}
     actions:
@@ -21,8 +17,7 @@ architecture:
   - !ProcessingStage
     name: ProcessingStage
     attributes:
-      datawidth: 8
-      area: 1
+      _datawidth: 8
     constraints:
       tensors: {keep: All()}
     actions:
@@ -33,9 +28,8 @@ architecture:
   - !Memory
     name: LocalBuffer
     attributes:
-      size: 1e9
-      datawidth: 8
-      area: 1
+      _size: 1e9
+      _datawidth: 8
     constraints:
       tensors: {keep: All()}
     actions:
@@ -45,8 +39,6 @@ architecture:
 
   - !Compute
     name: MAC
-    component_class: intmac
-    attributes: {area: 1}
     actions:
     - {name: compute, arguments: {energy: 0.0}}
     - {name: leak, arguments: {energy: 0}}

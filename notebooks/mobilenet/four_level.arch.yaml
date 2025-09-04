@@ -2,7 +2,7 @@ variables:
   global_cycle_period: 1e-9
   tech_node: 7e-9
 
-architecture:
+arch:
   version: "0.5"
   nodes:
   - !Memory
@@ -145,9 +145,9 @@ architecture:
     - {name: compute, arguments: {energy: 0.84}}
     - {name: leak, arguments: {energy: 0}}
 
-component_classes:
+components:
   version: "0.5"         # REQUIRED version number
-  component_classes:
+  components:
   - name: intmac
     attributes:
       tech_node: REQUIRED

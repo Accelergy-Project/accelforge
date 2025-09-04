@@ -1,18 +1,12 @@
-variables:
-  global_cycle_period: 1e-9
-  tech_node: 7e-9
-
-architecture:
+arch:
   version: "0.5"
+  global_cycle_period: 1e-9
   nodes:
   - !Memory
     name: MainMemory
-    component_class: DRAM
-    attributes:
-      size: inf
-      bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
-      datawidth: 8
-      area: 1
+    size: inf
+    bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+    datawidth: 8
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
@@ -25,12 +19,10 @@ architecture:
 
   - !Memory
     name: GlobalBuffer
-    component_class: SRAM
     attributes:
-      size: 1024*1024*128*8 # 128MB
-      width: 8192
-      datawidth: 8
-      area: 1
+      _size: 1024*1024*128*8 # 128MB
+      _width: 8192
+      _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}}
     - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}}
@@ -41,13 +33,11 @@ architecture:
 
   - !Memory
     name: LocalBuffer
-    component_class: SRAM 
     spatial: [{name: Z, fanout: 4}]
     attributes:
-      size: 1024*1024*4*8 # 4MB
-      width: 2048
-      datawidth: 8
-      area: 1
+      _size: 1024*1024*4*8 # 4MB
+      _width: 2048
+      _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}}
     - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}}
@@ -66,8 +56,8 @@ architecture:
 
   - !Compute
     name: scalar_unit
-    component_class: dummy_compute
-    attributes: {area: 1, _computes_per_cycle: 128}
+    attributes:
+      _computes_per_cycle: 128
     actions:
     - {name: compute, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}
@@ -75,14 +65,11 @@ architecture:
 
   - !Memory
     name: Register
-    component_class: dummy_storage
     spatial: [{name: X, fanout: 128}, {name: Y, fanout: 128}]
     attributes:
-      size: 8 # 8b
-      datawidth: 8
-      width: 8
-      depth: 1000
-      area: 1
+      _size: 8 # 8b
+      _datawidth: 8
+      _area: 1
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
@@ -107,8 +94,6 @@ architecture:
 
   - !Compute
     name: MAC
-    component_class: intmac
-    attributes: {multiplier_width: 8, adder_width: 16, area: 1}
     actions:
     - {name: compute, arguments: {energy: 0.84e-12}}
     - {name: leak, arguments: {energy: 0}}

@@ -13,6 +13,10 @@ PARALLELIZE = True
 N_PARALLEL_PROCESSES = 24
 
 
+def using_parallel_processing():
+    return PARALLELIZE and N_PARALLEL_PROCESSES > 1
+
+
 class fzs(frozenset):
     def __repr__(self):
         return f"{{{', '.join(sorted(x.__repr__() for x in self))}}}"

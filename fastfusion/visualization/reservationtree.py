@@ -1,9 +1,9 @@
 from collections import defaultdict
 import pydot
 from typing import Any, Iterable
-from fastfusion.mapper.FFM.joining.sim import Compatibility, TensorReservation, Loop
+from fastfusion.mapper.FFM._join_pmappings.sim import Compatibility, TensorReservation, Loop
 from fastfusion.util import expfmt
-from fastfusion.mapper.FFM.pareto import col2nameloop
+from fastfusion.mapper.FFM._pmapping_group import col2nameloop
 
 PYDOT_NODE_DEFAULTS = {
     "shape": "box",
