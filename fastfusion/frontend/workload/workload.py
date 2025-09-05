@@ -202,7 +202,7 @@ class Einsum(ParsableModel):
 
     name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
-    shape: Shape = Shape()
+    shape: Shape[str] = Shape() # NOTE: Type checker knows Shape is a ParsableList[str], Pydantic does not.
     is_copy_operation: bool = False
     renames: RenameList[Rename] = RenameList()
     
