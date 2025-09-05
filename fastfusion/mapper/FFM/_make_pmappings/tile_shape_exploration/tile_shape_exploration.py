@@ -231,10 +231,8 @@ def generate_tile_shapes(
             job.log_porp_pmappings_kept(cause, new_sum / prev_sum, out_of=prev_sum)
         return new_mask
     
-    def sort_choices(choices, indices, is_symbols):
-        symbol_indices = [i for i in indices if is_symbols[i]]
-        sorted_indices = sorted(symbol_indices)
-        return list(choices[:, symbol_indices.index(i)] for i in sorted_indices)
+    def listify_choices(choices, indices, is_symbols):
+        return list(choices[:, i] for i in range(choices.shape[1]))
 
     def get_corrected_choices(combined_choices, indices, is_symbols, other_rank_var_and_choices):
         indices = indices.copy()
@@ -268,11 +266,11 @@ def generate_tile_shapes(
                 axis=1
             )
 
-        corrected_indices = np.asarray(invert_indices(indices))
-        is_symbols = np.asarray(is_symbols)[corrected_indices]
-        corrected_choices = combined_choices_with_ones[:,corrected_indices]
+        sorted_indices = np.asarray(invert_indices(indices))
+        is_symbols = np.asarray(is_symbols)[sorted_indices]
+        corrected_choices = combined_choices_with_ones[:,sorted_indices]
         corrected_choices = corrected_choices[:,is_symbols]
-        corrected_choices_with_largest = combined_choices_with_largest[:,corrected_indices]
+        corrected_choices_with_largest = combined_choices_with_largest[:,sorted_indices]
         corrected_choices_with_largest = corrected_choices_with_largest[:,is_symbols]
         return corrected_choices, corrected_choices_with_largest, complete_indices, indices, is_symbols
 
@@ -280,9 +278,6 @@ def generate_tile_shapes(
         # print(f'\t Combined rank {rank_a} and {rank_b}: {choices_a.shape[0]} x {choices_b.shape[0]} -> {combined_choices.shape[0]}')
         if combined_choices.shape[0] == 0:
             return combined_choices
-
-        n_rows = combined_choices.shape[0]
-        n_loops = combined_choices.shape[1]
 
         # Insert ones
         corrected_choices, corrected_choices_with_largest, complete_indices, indices, is_symbols = get_corrected_choices(combined_choices, indices, is_symbols, other_rank_var_and_choices)
@@ -292,33 +287,29 @@ def generate_tile_shapes(
         mask = np.ones(corrected_choices.shape[0], dtype=np.bool)
         mask = update_mask(mask, constraints.check_tile_shape_constraints(corrected_choices, complete_indices), "tile shape constraints", track_masked=track_masked)
 
-        sorted_choices = sort_choices(corrected_choices, indices, is_symbols)
-        sorted_choices_2 = sort_choices(corrected_choices_2, indices, is_symbols)
+        listified_choices = listify_choices(corrected_choices, indices, is_symbols)
+        listified_choices_2 = listify_choices(corrected_choices_2, indices, is_symbols)
 
         # Check if capacity is overused
         for memory, usage_model in usage_df.items():
-            usage = usage_model(*sorted_choices)
+            usage = usage_model(*listified_choices)
             mask = update_mask(mask, usage <= 1.0, f"{memory} usage", track_masked=track_masked)
-            # if mask.sum() == 0:
-            #     print(f'No valid memory usage for {rank_var}')
 
-        # Compute utilization
+        # Calculate utilization
         utilization = {}
         utilization2 = {}
         for component_dim, utilization_model in utilization_df.items():
             _, component, dim = component_dim.split('\0')
-            utilization[(component, dim)] = utilization_model(*sorted_choices)
-            utilization2[(component, dim)] = utilization_model(*sorted_choices_2)
+            utilization[(component, dim)] = utilization_model(*listified_choices)
+            utilization2[(component, dim)] = utilization_model(*listified_choices_2)
             util = np.minimum(utilization[(component, dim)], utilization2[(component, dim)])
             mask = update_mask(mask, util <= 1.0, f"{component} {dim} utilization", track_masked=track_masked)
             util = util * mask
             mask = update_mask(mask, constraints.check_min_utilization_constraints(component, dim, util * mask, complete_indices), f"{component} {dim} minimum utilization", track_masked=track_masked)
-            # if mask.sum() == 0:
-            #     print(f'No valid utilization for {rank_var}')
 
         good_choices = combined_choices[mask,:]
 
-        # TODO: Bring back loop limit  mi
+        # TODO: Bring back loop limit
         # # Check that we're less than the n_loops limit
         # n_loops = np.zeros(good_choices.shape[0], dtype=np.int64)
         # for rank in ranks:
@@ -350,8 +341,6 @@ def generate_tile_shapes(
 
     for rank_var, tiling_segments in rank_var_to_tiling_segments.items():
         choices = rv2choices.pop(rank_var)
-
-        n_loops = choices.shape[1]
 
         good_choices = choices
         is_symbols = tiling_segments.is_symbol.copy()
@@ -399,12 +388,12 @@ def generate_tile_shapes(
         is_symbols = np.asarray(is_symbols)[corrected_indices]
         corrected_choices = corrected_choices[:,is_symbols]
         corrected_choices2 = corrected_choices2[:,is_symbols]
-        sorted_choices = sort_choices(corrected_choices, indices, is_symbols)
-        sorted_choices2 = sort_choices(corrected_choices2, indices, is_symbols)
+        listified_choices = listify_choices(corrected_choices, indices, is_symbols)
+        listified_choices2 = listify_choices(corrected_choices2, indices, is_symbols)
         
         # Check if capacity is overused
         for memory, usage_model in usage_df.items():
-            usage = usage_model(*sorted_choices)
+            usage = usage_model(*listified_choices)
             mask = update_mask(mask, usage <= 1.0, f"{memory} usage")
 
         # if mask.sum() == 0:
@@ -414,8 +403,8 @@ def generate_tile_shapes(
         utilization2 = {}
         for component_dim, utilization_model in utilization_df.items():
             _, component, dim = component_dim.split('\0')
-            utilization[(component, dim)] = utilization_model(*sorted_choices)
-            utilization2[(component, dim)] = utilization_model(*sorted_choices2)
+            utilization[(component, dim)] = utilization_model(*listified_choices)
+            utilization2[(component, dim)] = utilization_model(*listified_choices2)
             util = np.minimum(utilization[(component, dim)], utilization2[(component, dim)])
             mask = update_mask(mask, util <= 1.0, f"{component} {dim} utilization")
             util = util * mask
@@ -557,8 +546,8 @@ def generate_tile_shapes(
         corrected_choices, corrected_choices_with_largest, complete_indices, indices, is_symbols = get_corrected_choices(choices_a, index_a, is_symbol_a, other_rank_var_and_choices)
         corrected_choices_2 = corrected_choices.copy()
         
-        sorted_choices = sort_choices(corrected_choices, indices, is_symbols)
-        sorted_choices_2 = sort_choices(corrected_choices_2, indices, is_symbols)
+        listified_choices = sort_choices(corrected_choices, indices, is_symbols)
+        listified_choices_2 = sort_choices(corrected_choices_2, indices, is_symbols)
 
         # Get the spatial utilizations
         df = {}
@@ -567,8 +556,8 @@ def generate_tile_shapes(
 
         for component_dim, utilization_model in utilization_df.items():
             _, component, dim = component_dim.split('\0')
-            utilization[(component, dim)] = utilization_model(*sorted_choices)
-            utilization2[(component, dim)] = utilization_model(*sorted_choices_2)
+            utilization[(component, dim)] = utilization_model(*listified_choices)
+            utilization2[(component, dim)] = utilization_model(*listified_choices_2)
             util = np.minimum(utilization[(component, dim)], utilization2[(component, dim)])
             df[(component, dim)] = util
             

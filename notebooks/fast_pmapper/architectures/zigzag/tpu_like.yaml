@@ -1,0 +1,158 @@
+name: tpu_like
+
+memories:
+  rf_W:
+    size: 16
+    r_cost: 0.095
+    w_cost: 0.095
+    area: 0
+    latency: 1
+    operands: [I2]
+    ports:
+      - name: r_port_1
+        type: read
+        bandwidth_min: 16
+        bandwidth_max: 16
+        allocation: 
+          - I2, tl
+      - name: w_port_1
+        type: write
+        bandwidth_min: 16
+        bandwidth_max: 16
+        allocation: 
+          - I2, fh
+    served_dimensions: [] # Fully unrolled over all multipliers
+
+  rf_O:
+    size: 16
+    r_cost: 0.021
+    w_cost: 0.021
+    area: 0
+    latency: 1
+    operands: [O]
+    ports:
+      - name: r_port_1
+        type: read
+        bandwidth_min: 16
+        bandwidth_max: 16
+        allocation: 
+          - O, tl
+      - name: r_port_2
+        type: read
+        bandwidth_min: 16
+        bandwidth_max: 16
+        allocation: 
+          - O, th
+      - name: w_port_1
+        type: write
+        bandwidth_min: 16
+        bandwidth_max: 16
+        allocation: 
+          - O, fh
+      - name: w_port_2
+        type: write
+        bandwidth_min: 16
+        bandwidth_max: 16
+        allocation: 
+          - O, fl
+    served_dimensions: []
+
+  LLB:
+    size: 1048576  # 128 KiB
+    r_cost: 416.16
+    w_cost: 378.4
+    area: 0
+    latency: 1
+    operands: [I1, O]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+      - fh: w_port_2
+        tl: r_port_2
+        fl: w_port_2
+        th: r_port_2
+    ports:
+      - name: rw_port_1
+        type: read_write
+        bandwidth_min: 1024
+        bandwidth_max: 1024
+        allocation: 
+          - I1, tl
+          - I1, fh
+      - name: r_port_2
+        type: read
+        bandwidth_min: 1024
+        bandwidth_max: 1024
+        allocation: 
+          - O, tl
+          - O, th
+      - name: w_port_2
+        type: write
+        bandwidth_min: 1024
+        bandwidth_max: 1024
+        allocation: 
+          - O, fh
+          - O, fl
+    served_dimensions: [D1, D2]
+
+  GLB:
+    size: 41943040 # 5 MiB
+    r_cost: 416.16
+    w_cost: 378.4
+    area: 0
+    latency: 1
+    operands: [I1, O]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+      - fh: w_port_1
+        tl: r_port_1
+        fl: w_port_1
+        th: r_port_1
+    ports:
+      - name: r_port_1
+        type: read
+        bandwidth_min: 512
+        bandwidth_max: 512
+        allocation: 
+          - I1, tl
+          - O, tl
+          - O, th
+      - name: w_port_1
+        type: write
+        bandwidth_min: 512
+        bandwidth_max: 512
+        allocation: 
+          - I1, fh
+          - O, fh
+          - O, fl
+    served_dimensions: [D1, D2]
+
+  DRAM:
+    size: 100000000000
+    r_cost: 700
+    w_cost: 750
+    area: 0
+    latency: 1
+    operands: [I1, I2, O]
+    ports:
+      - name: rw_port_1
+        type: read_write
+        bandwidth_min: 256
+        bandwidth_max: 256
+        allocation: 
+          - I1, fh
+          - I1, tl
+          - I2, fh
+          - I2, tl
+          - O, fh
+          - O, tl
+          - O, fl
+          - O, th
+    served_dimensions: [D1, D2]
+
+operational_array:
+  unit_energy: 0.04 # pJ
+  unit_area: 1 # unit
+  dimensions: [D1, D2]
+  sizes: [128, 128]

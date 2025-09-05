@@ -24,7 +24,7 @@ from typing import (
     Union,
 )
 from collections.abc import Set
-from pydantic import BaseModel, Discriminator, Tag, model_validator
+from pydantic import Discriminator, Tag
 
 from fastfusion.util.basetypes import (
     # Parsing helpers for the input files.

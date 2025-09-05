@@ -4,9 +4,10 @@ arch:
   nodes:
   - !Memory
     name: MainMemory
-    size: inf
-    bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
-    datawidth: 8
+    attributes: 
+      _size: inf
+      _bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      _datawidth: 8
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
@@ -21,7 +22,6 @@ arch:
     name: GlobalBuffer
     attributes:
       _size: 1024*1024*128*8 # 128MB
-      _width: 8192
       _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}}
@@ -30,13 +30,13 @@ arch:
     constraints:
       tensors:
         keep: ~MainMemory.tensors() | input | output
+        no_refetch_from_above: All() if ~MainMemory.tensors() else Nothing()
 
   - !Memory
     name: LocalBuffer
     spatial: [{name: Z, fanout: 4}]
     attributes:
       _size: 1024*1024*4*8 # 4MB
-      _width: 2048
       _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}}
@@ -44,15 +44,15 @@ arch:
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
-        keep: (Intermediates() - weight) - GlobalBuffer.tensors()
-        bypass: weight | GlobalBuffer.tensors()
+        bypass: weight
+        keep: input | output
       spatial:
-      - name: Z
-        min_utilization: 1 if len(All()) > 2 else 0
-        loop_bounds:
-        - expression: weight.rank_variables()
-          operator: ==
-          value: 1
+        - name: Z
+          min_utilization: 1
+          loop_bounds:
+          - expression: weight.rank_variables()
+            operator: ==
+            value: 1
 
   - !Compute
     name: scalar_unit
@@ -69,14 +69,12 @@ arch:
     attributes:
       _size: 8 # 8b
       _datawidth: 8
-      _area: 1
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
-        keep: weight - GlobalBuffer.tensors()
         bypass: ~weight | GlobalBuffer.tensors()
       spatial:
       - name: X # Parallel rank
