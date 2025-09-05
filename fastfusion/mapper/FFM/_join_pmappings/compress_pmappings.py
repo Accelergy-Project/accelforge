@@ -61,10 +61,14 @@ def compress_einsum2pmappings(
 
     for einsum_name, pmappings in einsum2pmappings.items():
         jobs.append(delayed(job)(einsum_name, pmappings))
-
-    for einsum_name, compressed, decompress in parallel(jobs, pbar="Compresssing pmappings"):
+        
+    name_order = [einsum_name for einsum_name in einsum2pmappings.keys()]
+    for einsum_name, compressed, decompress in parallel(jobs, pbar="Compressing pmappings", return_as="generator"):
         compressed_einsum2pmappings[einsum_name] = compressed
         decompress_data[einsum_name] = decompress
+        
+    compressed_einsum2pmappings = {einsum_name: compressed_einsum2pmappings[einsum_name] for einsum_name in name_order}
+    decompress_data = {einsum_name: decompress_data[einsum_name] for einsum_name in name_order}
 
     # for einsum_name, pmappings in tqdm(einsum2pmappings.items(), desc="Compressing pmappings"):
     #     compressed, decompress = _compress_pmapping_list(einsum_name, pmappings)
