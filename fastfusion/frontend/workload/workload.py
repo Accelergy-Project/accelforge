@@ -8,12 +8,10 @@ from itertools import product
 from typing import Annotated, TypeAlias, Union
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
-from fastfusion.frontend.renames import Renames
+from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.version import assert_version, __version__
-
-from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
 
 
 CLIST_OPERATORS = [
@@ -202,7 +200,7 @@ class Einsum(ParsableModel):
 
     name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
-    shape: Shape = Shape()
+    shape: Shape[str] = Shape() # NOTE: Type checker knows Shape is a ParsableList[str], Pydantic does not.
     is_copy_operation: bool = False
     renames: RenameList[Rename] = RenameList()
     
@@ -470,7 +468,10 @@ class Workload(ParsableModel):
             "Intermediates": InvertibleSet(instance=intermediates, **kwargs_tensors),
             "Shared": InvertibleSet(instance=shared, **kwargs_tensors),
             **{t: InvertibleSet(instance=(t,), **kwargs_tensors) for t in all_},
-            **{r: InvertibleSet(instance=(r,), **kwargs_rank_variables) for r in all_rank_variables},
+            **{
+                r: InvertibleSet(instance=(r,), **kwargs_rank_variables)
+                for r in all_rank_variables
+            },
             "Einsum": einsum_name,
             "Einsum_Object": einsum,
         }
