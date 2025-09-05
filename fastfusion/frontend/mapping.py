@@ -5,6 +5,7 @@ in FastFusion.
 
 from abc import ABC
 import copy
+import inspect
 import pydot
 
 from typing import (
@@ -280,6 +281,23 @@ class MappingNode(ParsableModel, ABC):
     def _render_node_color(self) -> str:
         return "white"
 
+    def __hash__(self):
+        """
+        Hashing functor to create mappings of nodes to other objects.
+        """
+        return id(self)
+
+    def __eq__(self, other: Any):
+        return isinstance(other, type(self)) and id(self) == id(other)
+    
+    def __init_subclass__(cls, **kwargs):
+        # Let Pydantic build the subclass first
+        super().__init_subclass__(**kwargs)
+        # Read the *raw* attribute without descriptor binding
+        h = inspect.getattr_static(cls, '__hash__', None)
+        # Replace if unhashable (None) or if it's just BaseModel’s default
+        if h is None or h is ParsableModel.__hash__:
+            cls.__hash__ = MappingNode.__hash__
 
 class Pattern(ParsableModel):
     """
@@ -744,12 +762,6 @@ class MappingNodeWithChildren(MappingNode):
             for g in groups
         ]
         self.nodes = ParsableList([x for g in groups for x in g])
-    
-    def __hash__(self):
-        """
-        Hashing functor to create mappings of nodes to other objects.
-        """
-        return id(self)
 
 
 class Split(MappingNodeWithChildren):

@@ -10,7 +10,7 @@ from fastfusion.frontend.mapping import (
 from fastfusion.frontend.workload import Workload
 
 
-def get_paths(root: MappingNode) -> Generator[Tuple[MappingNode, Compute]]:
+def get_paths(root: MappingNode) -> Generator[Tuple[MappingNode, Compute], None, None]:
     """
     Given a MappingNode, get the paths to all all leaves in post-order.
 

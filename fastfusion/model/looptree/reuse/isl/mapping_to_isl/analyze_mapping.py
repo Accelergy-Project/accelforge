@@ -38,7 +38,7 @@ from fastfusion.frontend.mapping import (
     Storage,
 )
 from fastfusion.frontend.workload import Workload
-from fastfusion.frontend.workload.isl import get_projection_map
+from fastfusion.frontend.workload._isl import get_projection_map
 from fastfusion.frontend.workload.workload import TensorName
 
 from fastfusion.model.looptree.mapping_utilities import get_paths

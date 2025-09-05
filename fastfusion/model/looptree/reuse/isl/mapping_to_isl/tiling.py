@@ -19,13 +19,15 @@ from fastfusion.frontend.mapping import (
     Storage,
     # Logical object types in Mappings.
     Iteration,
+    Spatial,
+    Temporal,
     Split,
 )
 from fastfusion.frontend.workload.workload import (
     # Workload class for all of FastFusion.
     Workload,
 )
-from fastfusion.frontend.workload.isl import (
+from fastfusion.frontend.workload._isl import (
     get_einsum_operation_space,
     get_projection_map,
 )
@@ -94,6 +96,8 @@ def get_mapping_group_einsums(
             # Assumed no children, log as a folded result.
             case Compute():
                 result[last_non_branch].add(node.einsum)
+            case Spatial() | Temporal() | Storage():
+                continue
             case _:
                 raise AttributeError(
                     f"The following node of class {type(node)} has "
@@ -104,7 +108,8 @@ def get_mapping_group_einsums(
     # Push up einsums to parents.
     for node, children in reversed(child_stack):
         node_einsum_set: set[EinsumName] = result[node]
-        node_einsum_set.update({result[child] for child in children})  # type: ignore
+        for child in children:
+            node_einsum_set.update(result[child])
 
     return result
 

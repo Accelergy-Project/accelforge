@@ -7,8 +7,9 @@ mapping:
   - !Spatial
     rank_variable: r
     tile_shape: 3
-    dimension: 0
-    across: LocalBuffer
+    # dimension: 0
+    component: LocalBuffer
+    name: X
   - !Temporal
     rank_variable: p
     tile_shape: 10
