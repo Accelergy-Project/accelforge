@@ -979,23 +979,42 @@ def get_initial_delta_choices(einsum_name: str, workload: Workload):
 
 # FFM-Style Pmapper
 
-This doc is an attempt to formalize using FFM-style pruning for pmappings that only have some loops' tile shapes chosen.
+This doc is an attempt to formalize using FFM-style pruning for pmappings that only have
+some loops' tile shapes chosen.
 
-Suppose that we're selecting tile shapes $t_0...t_n$ to populate the loops in our pmapping template. We have a set of objectives $f_i(t_0,...t_n)$ to minimize and (TODO Constraints). Assume that we've enumerated all Pareto-optimal pmapping choices for $t_0..t_i$, and we'd like to construct critera by which we can compare two chosen sets of tile shapes.
+Suppose that we're selecting tile shapes $t_0...t_n$ to populate the loops in our
+pmapping template. We have a set of objectives $f_i(t_0,...t_n)$ to minimize. Assume
+that we've enumerated all Pareto-optimal pmapping choices for $t_0..t_i$, and we'd like
+to construct critera by which we can compare two chosen sets of tile shapes.
 
 We can construct criteria for a pmapping using the following:
+
 - For each $f_i$:
-  - Calculate $f_i(t_0...t_n)-f_i(u_0...u_n)>0$. If the function does not depend on $t_{i+1}...t_n$, then we can compare $f_i$ values directly by plugging in dummy numbers for $t_{i+1}...t_n$. This case may occur if we're minimizing one term of a sum-of-products, such as when summing energy for each component in the architecture.
-  - Otherwise, calculate $df_i/dt_j$ for each $t_0..t_i$. If the derivative $=0$, we no longer need to consider $t_j$ for this $f_i$.
+
+  - Calculate $f_i(t_0...t_n)-f_i(u_0...u_n)>0$. If the function does not depend on
+    $t_{i+1}...t_n$, then we can compare $f_i$ values directly by plugging in dummy
+    numbers for $t_{i+1}...t_n$. This case may occur if we're minimizing one term of a
+    sum-of-products, such as when summing energy for each component in the architecture.
+  - Otherwise, calculate $df_i/dt_j$ for each $t_0..t_i$. If the derivative $=0$, we no
+    longer need to consider $t_j$ for this $f_i$.
+
     - If the derivative is $>0$, mark $t_j$ as "maximize".
     - If the derivative is $<0$, mark $t_j$ as "minimize".
-    -  If the derivative depends on $t_{k\neq j}$, mark $t_j$ as "can't compare".
+    - If the derivative depends on $t_{k\neq j}$, mark $t_j$ as "can't compare".
+
 - Mark $t_i$ as "can't compare" if any of the following are true:
-  - $t_i$ is the outermost enumerated loop for a given rank, since it determine the options for future tile shapes. This check can be skipped if the next-outermost loop is not symbolic.
+
+  - $t_i$ is the outermost enumerated loop for a given rank, since it determine the
+    options for future tile shapes. This check can be skipped if the next-outermost loop
+    is not symbolic.
   - $t_i$ is a fused loop
   - $t_i$ is marked with conflicting "minimize" and "maximize".
-  
-  """
+
+To extend to constraints, make each constraint an objective with a max value. Once a
+constraint can be fully evaluated, remove all pmappings that violate the constraint and
+remove the constraint from the list of objectives.
+
+"""
   
 import math
 import sympy
@@ -1251,6 +1270,8 @@ def get_tile_shape_choices(
         symbols_enumerated.append(s)
         time_end(f"enumerate")
 
+        # TODO: Check that the outer loop is symbolic, else we don't need to mark the
+        # inner one
         symbol2goal = {s: "min" if imperfect else "diff" for r, s in last_added_symbols_per_rank.items() if r in rank2symbols_remaining}
         def update_symbol2goal(symbol: Symbol, goal: str):
             if goal is None:
