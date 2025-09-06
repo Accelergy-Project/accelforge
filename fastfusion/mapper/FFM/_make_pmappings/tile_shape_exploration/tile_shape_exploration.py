@@ -1207,8 +1207,6 @@ def get_tile_shape_choices(
     symbols_remaining = list(symbols)
     last_added_symbols_per_rank = {}
 
-    nominal_choices = 1
-
     objectives_finished_valid_check = []
 
     imperfect = False
@@ -1263,9 +1261,12 @@ def get_tile_shape_choices(
             # print(f'\tFor {s} with value {v}, the possible shapes are {shapes}')
             choices.append(append_vector(partition, shapes))
 
+        if not partitions:
+            return np.array([]).reshape(-1, len(symbols))
+
         prev_size = choices_enumerated.shape[0] if choices_enumerated is not None else 1
         choices_enumerated = np.concatenate(choices, axis=0)
-        nominal_choices *= choices_enumerated.shape[0] / prev_size
+        job.total_pmappings *= choices_enumerated.shape[0] / prev_size
         symbols_enumerated.append(symbol)
         time_end(f"enumerate")
 
@@ -1341,6 +1342,9 @@ def get_tile_shape_choices(
         if len(symbol2goal) == len(symbols_enumerated) and all(s == "diff" for s in symbol2goal.values()):
             continue
         
+        if not choices_enumerated.shape[0]:
+            return np.array([]).reshape(-1, len(symbols))
+
         if not pareto:
             continue
 
@@ -1371,14 +1375,13 @@ def get_tile_shape_choices(
         # print(f'After enumerating {s} ({len(symbols_enumerated)}/{len(symbols)}), there are {choices_enumerated.shape[0]} Pareto-optimal choices. Nominal choices: {nominal_choices}')
         # print(f"\tPareto-optimal choices shape: {choices_enumerated.shape}")
 
+
         time_end("pareto")
         
     total_time = sum(times.values())
     print(f"{total_time:.2f}s: {'  |  '.join(f'{k} {times[k] / total_time:.2%}' for k in times if times[k] / total_time > 0.01)}")
     
     
-    job.total_pmappings = nominal_choices
-    job.valid_pmappings = nominal_choices * prod(job.pmapping_keep_rates.values())
 
     # Rearrange in ascending order
     return choices_enumerated[:, [symbols_enumerated.index(s) for s in symbols]]
@@ -1510,6 +1513,7 @@ def _explore_tile_shapes_new(job: "Job"):
 
     df = pd.DataFrame(df, columns=df.keys())
     assert not df.isna().any().any()
+    job.valid_pmappings = job.total_pmappings * prod(job.pmapping_keep_rates.values())
     return df, total_pmappings
 
 

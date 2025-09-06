@@ -213,8 +213,8 @@ class Job:
     pmapping_keep_rates: dict[str, float] = field(default_factory=dict)
     tensor_to_relevancy: dict[TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]] | None = None
 
-    total_pmappings: int | None = None
-    valid_pmappings: int | None = None
+    total_pmappings: int | None = 1
+    valid_pmappings: int | None = 1
     evaluated_pmappings: int | None = 0
     
     _update_compatibility_with_tile_shapes_args: dict[str, Any] | None = None
