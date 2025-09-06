@@ -471,8 +471,6 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
             match current_node:
                 case Temporal():
                     if len(heads) != 1:
-                        pprint(mapping_group_heads)
-                        print(current_node)
                         raise ValueError(
                             f"Cannot fuse tiled set with {len(heads)} heads."
                         )
