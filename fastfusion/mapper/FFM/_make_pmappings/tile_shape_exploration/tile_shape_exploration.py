@@ -1022,6 +1022,7 @@ from sympy import Symbol
 import numpy as np
 import paretoset
 from enum import Enum
+from numbers import Number
 
 
 class EvaluationState(Enum):
@@ -1110,53 +1111,6 @@ class Objective:
             return "diff"
 
 
-class ValidCombinations:
-    def __init__(self, key_symbol: Symbol, value_symbol: Symbol, valid_combinations: dict[int, list[int]]):
-        self.key_symbol: Symbol = key_symbol
-        self.value_symbol: Symbol = value_symbol
-        self.valid_combinations: dict[int, list[int]] = valid_combinations
-
-    @property
-    def symbols(self):
-        return [self.key_symbol, self.value_symbol]
-
-    def iter_valid_combinations(
-        self,
-        symbols_enumerated: list[Symbol],
-        new_symbol: Symbol,
-        choices_enumerated: np.ndarray,
-    ):
-        if new_symbol == self.key_symbol:
-            key = self.key_symbol
-            combinations: dict[int, list[int]] = self.valid_combinations
-        else:
-            key = self.value_symbol
-            choices = set.union(*[set(v) for v in self.valid_combinations.values()])
-            combinations: dict[int, list[int]] = {
-                choice: [k for k, v in self.valid_combinations.items() if choice in v]
-                for choice in choices
-            }
-        
-        i = symbols_enumerated.index(key)
-        enumerated_partitions = {
-            v: choices_enumerated[np.where(choices_enumerated[:, i] == v)]
-            for v in np.unique(choices_enumerated[:, i])
-        }
-        
-        combined_choices = []
-        for v, partition in enumerated_partitions.items():
-            compatible_combinations = np.array(combinations[v]).reshape(-1, 1)
-            joined = np.concatenate((
-                np.repeat(partition, compatible_combinations.shape[0], axis=0),
-                np.tile(compatible_combinations, (partition.shape[0], 1)),
-            ), axis=1)
-            combined_choices.append(joined)
-            
-        combined_choices = np.concatenate(combined_choices, axis=0)
-        return combined_choices
-
-
-
 def get_possible_factor_sizes(n: int, imperfect: bool = False) -> list[int]:
     factors = []
     for i in range(1, math.ceil(n ** 0.5) + 1):
@@ -1166,8 +1120,8 @@ def get_possible_factor_sizes(n: int, imperfect: bool = False) -> list[int]:
         factors.append(math.ceil(n / i))
 
     return sorted(set(factors))
-        
-        
+
+
 def append_vector(matrix: np.ndarray, vector: np.ndarray):
     if matrix is None:
         return vector.reshape(-1, 1)
@@ -1180,14 +1134,76 @@ def symbol2int(symbol: Symbol):
     return int(re.findall(r"(\d+)", symbol.name)[0])
 
 
-def get_padded_choices(symbols_enumerated, symbols_non_enumerated_set, choices_enumerated):
+def get_padded_choices(
+        symbols_enumerated: list[Symbol],
+        symbols_non_enumerated_set: set[Symbol],
+        choices_enumerated: np.ndarray,
+        what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
+        minimize_for_objective: Objective,
+    ):
     choices_padded = {}
+    ones = np.ones(choices_enumerated.shape[0])
     for symbol in symbols_enumerated:
         choices_padded[symbol] = choices_enumerated[:, symbols_enumerated.index(symbol)]
     for symbol in symbols_non_enumerated_set:
-        choices_padded[symbol] = np.ones(choices_enumerated.shape[0])
+        choices_padded[symbol] = ones
+        if minimize_for_objective is not None:
+            if minimize_for_objective.differentiate(symbol) < 0:
+                choices_padded[symbol] *= get_max_size(symbol)
     return choices_padded
 
+
+def get_tiled_by(symbol: Symbol, what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]]):
+    for tiled_by, what_tiles in what_tiles_symbol:
+        if tiled_by == symbol:
+            return what_tiles
+    raise ValueError(f"Symbol {symbol} not found in what_tiles_symbol")
+
+def get_tiles(symbol: Symbol, what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]]):
+    for tiled_by, what_tiles in what_tiles_symbol:
+        if what_tiles == symbol:
+            return tiled_by
+    raise ValueError(f"Symbol {symbol} not found in what_tiles_symbol")
+
+def get_max_size(symbol: Symbol, what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]]):
+    for tiled_by, what_tiles in what_tiles_symbol:
+        if what_tiles == symbol:
+            return tiled_by
+    raise ValueError(f"Symbol {symbol} not found in what_tiles_symbol")
+
+
+def check_max_fused_loops_per_rank(
+    symbols: list[Symbol],
+    symbols_enumerated: list[Symbol],
+    choices_enumerated: np.ndarray,
+    max_fused_loops_per_rank_check_groups: list[list[Symbol]],
+    max_fused_loops_per_rank: Number,
+):
+    if max_fused_loops_per_rank >= len(symbols_enumerated):
+        return choices_enumerated
+    
+    def get_size(x: Union[Symbol, int]):
+        if isinstance(x, Symbol):
+            x = choices_enumerated[:, symbols_enumerated.index(x)]
+        return x
+
+    for group in max_fused_loops_per_rank_check_groups:
+        max_n = sum(k in symbols_enumerated or isinstance(k, Number) for k in group) - 1
+        if max_n <= max_fused_loops_per_rank:
+            continue
+
+        n = 0
+        for i, a in enumerate(group[:-1]):
+            b = group[i + 1]
+            if a not in symbols_enumerated or b not in symbols_enumerated:
+                continue
+            n += get_size(a) != get_size(b)
+        if isinstance(n, np.ndarray):
+            choices_enumerated = choices_enumerated[n <= max_fused_loops_per_rank]
+        elif n > max_fused_loops_per_rank:
+            choices_enumerated = choices_enumerated[0:0, :]
+
+    return choices_enumerated
 
 def get_tile_shape_choices(
     objectives: list[Objective],
@@ -1195,9 +1211,15 @@ def get_tile_shape_choices(
     what_tiles_symbol: list[tuple[Symbol, Symbol]],
     job: "Job",
     keep_symbols: list[Symbol]=(),
+    max_fused_loops_per_rank_check_groups: list[list[Symbol]]=(),
+    max_fused_loops_per_rank: Number=float('inf'),
 ):
-    # for obj in objectives:
-    #     print(f"{obj.name}: {obj.formula}")
+    fail_message = "Can only explore tile shapes, not "
+    for node in job.mapping.nodes:
+        if isinstance(node, Iteration):
+            assert node.loop_bound is None, fail_message + "loop bounds"
+            assert node.tile_pattern is None, fail_message + "tile patterns"
+
     import time
     objectives = objectives.copy()
 
@@ -1210,18 +1232,6 @@ def get_tile_shape_choices(
     objectives_finished_valid_check = []
 
     imperfect = False
-
-    def get_tiled_by(symbol: Symbol):
-        for tiled_by, what_tiles in what_tiles_symbol:
-            if tiled_by == symbol:
-                return what_tiles
-        raise ValueError(f"Symbol {symbol} not found in what_tiles_symbol")
-    
-    def get_tiles(symbol: Symbol):
-        for tiled_by, what_tiles in what_tiles_symbol:
-            if what_tiles == symbol:
-                return tiled_by
-        raise ValueError(f"Symbol {symbol} not found in what_tiles_symbol")
 
     prev_time = None
     times = {}
@@ -1237,14 +1247,14 @@ def get_tile_shape_choices(
     
     def get_max_size(symbol: Union[Symbol, int]):
         while isinstance(symbol, Symbol):
-            symbol = get_tiles(symbol)
+            symbol = get_tiles(symbol, what_tiles_symbol)
         return symbol
 
     while symbols_remaining:
         symbol = symbols_remaining.pop()
 
         choices = []
-        tiled_by = get_tiled_by(symbol)
+        tiled_by = get_tiled_by(symbol, what_tiles_symbol)
         if isinstance(tiled_by, Symbol):
             assert tiled_by in symbols_enumerated
             i = symbols_enumerated.index(tiled_by)
@@ -1269,6 +1279,12 @@ def get_tile_shape_choices(
         job.total_pmappings *= choices_enumerated.shape[0] / prev_size
         symbols_enumerated.append(symbol)
         time_end(f"enumerate")
+
+        prev_size = choices_enumerated.shape[0]
+        choices_enumerated = check_max_fused_loops_per_rank(symbols, symbols_enumerated, choices_enumerated, max_fused_loops_per_rank_check_groups, max_fused_loops_per_rank)
+        job.log_porp_pmappings_kept(f"max_fused_loops_per_rank", choices_enumerated.shape[0] / prev_size)
+        if prev_size > choices_enumerated.shape[0]:
+            print(f"Max fused loops pruned to {choices_enumerated.shape[0] / prev_size:.2%}")
 
         # If we're a symbol and an outer loop depends on us, then we need to track this
         # loop. Minimize it if we're imperfect (giving the outer the most choices
@@ -1297,30 +1313,56 @@ def get_tile_shape_choices(
         # different for imperfect tile shapes because the expected growth is much bigger
         # for each loop, so we may want a smaller number.
         solve = choices_enumerated.shape[0] > 1e5 and pareto
+        
+        def eval_objective(objective: Objective, choices: np.ndarray, minimize: bool=False):
+            padded_choices = get_padded_choices(
+                symbols_enumerated=symbols_enumerated,
+                symbols_non_enumerated_set=symbols_non_enumerated_set,
+                choices_enumerated=choices_enumerated,
+                minimize_for_objective=objective if minimize else None,
+                what_tiles_symbol=what_tiles_symbol,
+            )
+            return objective(padded_choices)
 
         # For each objective, check for validity, and use it to mark whether we should
         # minimize or maximize each symbol.
         symbols_non_enumerated_set = set(symbols) - set(symbols_enumerated)
-        for objective in objectives:
+        for objective in list(objectives):
             # If we can evaluate the objective directly and future choices don't affect
             # any comparisons we'll make, then we can use the objective directly.
             state = objective.get_evaluation_state(symbols_enumerated, symbols_non_enumerated_set, solve)
             if state == EvaluationState.EVALUATABLE:
                 if objective.max_value is not None and objective not in objectives_finished_valid_check:
-                    result = objective(get_padded_choices(symbols_enumerated, symbols_non_enumerated_set, choices_enumerated))
+                    result = eval_objective(objective, choices_enumerated)
                     valid = result <= objective.max_value
                     job.log_porp_pmappings_kept(f"{objective.name}", sum(valid) / max(1, choices_enumerated.shape[0]))
                     choices_enumerated = choices_enumerated[valid]
                     objectives_finished_valid_check.append(objective)
-                if not objective.only_care_if_valid:
+                if objective.only_care_if_valid:
+                    objectives.remove(objective)
+                else:
                     evaluatable_objectives.append(objective)
+                time_end(f"evaluation_state")
                 continue
             elif state == EvaluationState.COMPARABLE:
                 evaluatable_objectives.append(objective)
+                if objective.max_value is not None and objective not in objectives_finished_valid_check:
+                    try:
+                        result = eval_objective(objective, choices_enumerated, minimize=True)
+                        valid = result <= objective.max_value
+                        job.log_porp_pmappings_kept(f"{objective.name}", sum(valid) / max(1, choices_enumerated.shape[0]))
+                        choices_enumerated = choices_enumerated[valid]
+                    except Exception as e:
+                        # get_padded_choices will fail to maximize if there are any
+                        # symbols that are not enumerated.
+                        pass
+                time_end(f"evaluation_state")
                 continue
 
             elif state == EvaluationState.IRRELEVANT:
+                time_end(f"evaluation_state")
                 continue
+
             time_end(f"evaluation_state")
 
             if not pareto:
@@ -1355,11 +1397,9 @@ def get_tile_shape_choices(
             [symbols_enumerated.index(symbol) for symbol in symbol2goal],
         ]
 
-
         objective_values = {}
         if evaluatable_objectives:
-            choices_padded = get_padded_choices(symbols_enumerated, symbols_non_enumerated_set, choices_enumerated)
-            objective_values = np.concatenate([obj(choices_padded).reshape(-1, 1) for obj in evaluatable_objectives], axis=1)
+            objective_values = np.concatenate([eval_objective(obj, choices_enumerated).reshape(-1, 1) for obj in evaluatable_objectives], axis=1)
             to_pareto = np.concatenate((to_pareto, objective_values), axis=1)
 
         goals = list(symbol2goal.values()) + ["min"] * len(evaluatable_objectives)
@@ -1375,13 +1415,10 @@ def get_tile_shape_choices(
         # print(f'After enumerating {s} ({len(symbols_enumerated)}/{len(symbols)}), there are {choices_enumerated.shape[0]} Pareto-optimal choices. Nominal choices: {nominal_choices}')
         # print(f"\tPareto-optimal choices shape: {choices_enumerated.shape}")
 
-
         time_end("pareto")
         
     total_time = sum(times.values())
     print(f"{total_time:.2f}s: {'  |  '.join(f'{k} {times[k] / total_time:.2%}' for k in times if times[k] / total_time > 0.01)}")
-    
-    
 
     # Rearrange in ascending order
     return choices_enumerated[:, [symbols_enumerated.index(s) for s in symbols]]
@@ -1417,9 +1454,11 @@ def _explore_tile_shapes_new(job: "Job"):
                     yield v0 * v1
         else:
             yield v
+            
+    shape = get_rank_variable_bounds(job.spec.workload, pmapping.nodes[-1].einsum)
 
-    what_tiles_symbol: list[tuple[Symbol, Symbol]] = []
-    last_seen_loop_per_rank_var: dict[str, Union[Symbol, int]] = get_rank_variable_bounds(job.spec.workload, pmapping.nodes[-1].einsum)
+    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]] = []
+    last_seen_loop_per_rank_var: dict[str, Union[Symbol, int]] = dict(shape)
     keep_symbols = set()
     for node in pmapping.nodes:
         if not isinstance(node, Iteration):
@@ -1442,6 +1481,23 @@ def _explore_tile_shapes_new(job: "Job"):
 
     objectives = []
     for k, v in {**per_memory_occupancy_df, **utilization_df}.items():
+        # If we only track for pmappings, we only care if it's valid. If we track for
+        # all, we care about the value too.
+        only_care_if_valid = True
+        if k in per_memory_occupancy_df:
+            if k in job.memories_track_pmappings_only:
+                only_care_if_valid = True
+            elif k in job.memories_track_all:
+                only_care_if_valid = False
+            else:
+                continue  # No need to track this memory!
+
+        # TODO: Update check to see if we may be sharing utilization with other
+        # pmappings in parallel/pipeline.
+        if k in utilization_df:
+            name = k.split("\0")[0]
+            only_care_if_valid = True
+
         objectives.append(Objective(
             name=k,
             formula=v.simplify(),
@@ -1449,47 +1505,41 @@ def _explore_tile_shapes_new(job: "Job"):
             only_care_if_valid=True,
             max_value=1,
         ))
-
     
     for k, v in symbolic_df.items():
         if "Total" not in k:
             continue
-        
-        
+
         for i,sub_objective in enumerate(cast_max(v)):
             objectives.append(Objective(
                 name=f"{k}_{i}",
                 formula=sub_objective.simplify(),
                 symbols=symbols,
             ))
+            
+    rank_var_to_fused_loops = {}
+    for node in [n for n in pmapping.nodes if isinstance(n, Iteration) and n._fused]:
+        rank_var_to_fused_loops.setdefault(node.rank_variable, []).append(node.tile_shape)
 
-        # if isinstance(v, Max):
-        #     for symbol in v.args:
-        #         objectives.append(Objective(
-        #             name=k,
-        #             formula=symbol.simplify(),
-        #             symbols=symbols,
-        #             only_care_if_valid=True,
-        #             max_value=1,
-        #         ))
-        #     continue
-        
-        # objectives.append(Objective(
-        #     name=k,
-        #     formula=v.simplify(),
-        #     symbols=symbols,
-        # ))
+    # Max fused loops per rank
+    for k, v in rank_var_to_fused_loops.items():
+        v.insert(0, shape[k])
 
     rank2symbols = {}
     for node in pmapping.nodes:
         if isinstance(node, (Temporal, Spatial)):
             if node.tile_shape in symbols:
                 rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
-            assert node.loop_bound is None
-            assert node.tile_pattern is None
 
-    choices_enumerated = get_tile_shape_choices(objectives, symbols, what_tiles_symbol, job, keep_symbols)
-    
+    choices_enumerated = get_tile_shape_choices(
+        objectives=objectives, 
+        symbols=symbols, 
+        what_tiles_symbol=what_tiles_symbol, 
+        job=job, 
+        keep_symbols=keep_symbols, 
+        max_fused_loops_per_rank_check_groups=list(rank_var_to_fused_loops.values()), 
+        max_fused_loops_per_rank=job.spec.mapper.ffm.max_fused_loops_per_rank)
+
     try:
         compiled_df = compile_dict(symbols, symbolic_df)
         compiled_per_memory_occupancy_df = compile_dict(symbols, per_memory_occupancy_df)
@@ -1507,6 +1557,9 @@ def _explore_tile_shapes_new(job: "Job"):
     df = {}
     for i, symbol in enumerate(symbols):
         df[symbol.name] = tile_shapes[:, i]
+    for i, node in enumerate(n for n in pmapping.nodes if isinstance(n, Iteration)):
+        if isinstance(node.tile_shape, (int, float)):
+            df[f"tile_shape{i}"] = node.tile_shape
 
     for key in compiled_df:
         df[key] = compiled_df[key](*tile_shapes.T)
