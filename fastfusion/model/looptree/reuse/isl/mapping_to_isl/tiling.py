@@ -6,6 +6,8 @@ analysis.
 from collections import defaultdict, deque
 from typing import List, Tuple
 
+from pprint import pprint
+
 import islpy as isl
 
 from fastfusion.frontend.mapping import (
@@ -467,8 +469,10 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
         while is_tiling:
             # Fuses current_node to one of the heads.
             match current_node:
-                case Iteration():
+                case Temporal():
                     if len(heads) != 1:
+                        pprint(mapping_group_heads)
+                        print(current_node)
                         raise ValueError(
                             f"Cannot fuse tiled set with {len(heads)} heads."
                         )
@@ -512,24 +516,29 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         )
                         tiling = tiling.intersect_domain(iteration_set)
 
-                    current_node = current_node.flatten()[0]
+                    current_node = current_node.nodes[0]
                 # Notes what reuse level the tensor is on.
                 case Storage():
                     # See current_node is the highest level of Storage to determine reuse level.
-                    if current_node.tensor not in tensor_to_reuse_level:
-                        random_einsum: EinsumName = next(iter(mapping_groups[node]))
-                        tiling: Tiling = tiling_info[node][random_einsum]
-                        tensor_to_reuse_level[current_node.tensor] = tiling.dim(
-                            isl.dim_type.in_
-                        )
-
-                    current_node = current_node.flatten()[0]
+                    # TODO: Check this is correct too.
+                    for tensor in current_node.tensors:
+                        # Check second term
+                        if tensor not in tensor_to_reuse_level and current_node._must_keep_tensors:
+                            random_einsum: EinsumName = next(iter(mapping_groups[node]))
+                            tiling: Tiling = tiling_info[node][random_einsum]
+                            tensor_to_reuse_level[tensor] = tiling.dim(
+                                isl.dim_type.in_
+                            )
+                    # TODO: Check accuracy of not using nodes.
+                    is_tiling = False
                 # If we are at the Mapping root, just go to the actual Nodes.
                 case Mapping():
-                    current_node = current_node.flatten()[0]
+                    # TODO: Check accuracy of not using flatten.
+                    dfs_stack.extend(reversed(mapping.nodes))
+                    is_tiling = False
                 # If we hit the compute node, we've finished tiling, end!
                 case Compute():
-                    result[current_node] = tiling_info[node][current_node.einsum]
+                    result[current_node] = tiling_info[root][current_node.einsum]
                     is_tiling = False
                 case Split():
                     fused_set: set[EinsumName] = mapping_groups[node]
