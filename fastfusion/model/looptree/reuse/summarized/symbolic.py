@@ -1002,6 +1002,7 @@ def make_possibly_different_last(common_tile_shape, factor, full_shape):
 
 
 def insert_sympy_symbols(mapping):
+    # TODO: Integer constraint may not work with the solving for == zero
     loop_idx = 0
     symbols = []
     for node in mapping:
