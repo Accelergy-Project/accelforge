@@ -467,6 +467,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
         is_tiling: bool = True
 
         while is_tiling:
+            print(node)
             # Fuses current_node to one of the heads.
             match current_node:
                 case Temporal():
@@ -514,7 +515,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         )
                         tiling = tiling.intersect_domain(iteration_set)
 
-                    current_node = current_node.nodes[0]
+                    is_tiling = False
                 # Notes what reuse level the tensor is on.
                 case Storage():
                     # See current_node is the highest level of Storage to determine reuse level.
@@ -586,6 +587,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         # DFS tile on the child.
                         dfs_stack.append(child)
 
+                    is_tiling = False
+                case _:
+                    # raise NotImplementedError(f"Type {type(node)} not handled.")
                     is_tiling = False
 
     return result
