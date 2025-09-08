@@ -1042,7 +1042,7 @@ class Objective:
         only_care_if_valid: bool=False,
     ):
         self.name = name
-        self.formula = formula
+        self.formula = formula.simplify()
         self._formula_compiled = sympy.lambdify(symbols, formula)
         self._symbols = symbols
         self.max_value = max_value
@@ -1079,12 +1079,51 @@ class Objective:
         if not solve:
             return EvaluationState.INCOMPARABLE
         
+        # If f is a multiply and all but one of the factors is a constant, only take the
+        # non-constant factor
+        if isinstance(f, sympy.Mul):
+            factors = f.args
+            non_constant_factors = [factor for factor in factors if not factor.is_constant()]
+            if len(non_constant_factors) == 1:
+                f = non_constant_factors[0]
+
+        # If f is a sum, look at terms that contain enumerated symbols. The other
+        # ones will be constant and subtract out when we do f - g.
+        if isinstance(f, (sympy.Sum, sympy.Add)):
+            terms = f.args
+            non_constant_terms = [t for t in terms if set(t.free_symbols) & sym_enum]
+
+            denoms = []
+            denom_removed_terms = []
+            for term in non_constant_terms:
+                cur_denoms = []
+                if not isinstance(term, sympy.Mul):
+                    denom_removed_terms.append(term)
+                    continue
+                for factor in term.args:
+                    if isinstance(factor, sympy.Pow) and factor.args[1] == -1:
+                        cur_denoms.append(factor.args[0])
+                    else:
+                        denom_removed_terms.append(term)
+                for d in denoms:
+                    for c in cur_denoms:
+                        if d == c:
+                            cur_denoms.remove(c)
+                            break
+                denoms.extend(cur_denoms)
+
+            f = sympy.Mul(sympy.Add(*denom_removed_terms), sympy.Mul(*denoms))
+            
+        if "energy" in self.name.lower() and solve:
+            print(f"Solving!")
+
         g = f.subs((s, makesymbol(f"u{i}")) for i, s in enumerate(sym_enum))
+        
         # We want to tell if (f > g) depends on a mix of enumerated and non-enumerated
         # symbols. To do so, we'll check if there's any case where it == 0, and if this
         # point depends on any non-enumerated symbols.
         dependent_symbols = set()
-        for sol in sympy.solve(sympy.Eq(f - g, 0)):
+        for sol in sympy.solve((f - g)):
             symbols = set().union(*[k.free_symbols | v.free_symbols for k, v in sol.items()])
             dependent_symbols.update(symbols)
             
@@ -1233,18 +1272,22 @@ def get_tile_shape_choices(
 
     imperfect = False
 
-    prev_time = None
+    prev_time, start_time = time.time(), time.time()
     times = {}
     def time_end(s):
         nonlocal prev_time
         cur_time = time.time()
-        prev_time = cur_time if prev_time is None else prev_time
         times.setdefault(s, 0)
         times[s] += cur_time - prev_time
         prev_time = cur_time
 
-    time_end("init")
-    
+    log = []
+    def log_message(message: str, *args: str):
+        log.append(f"{time.time() - prev_time:.2f}s: {message} {' '.join(args)}")
+        time_end(message)
+
+    log_message("init")
+
     def get_max_size(symbol: Union[Symbol, int]):
         while isinstance(symbol, Symbol):
             symbol = get_tiles(symbol, what_tiles_symbol)
@@ -1278,13 +1321,16 @@ def get_tile_shape_choices(
         choices_enumerated = np.concatenate(choices, axis=0)
         job.total_pmappings *= choices_enumerated.shape[0] / prev_size
         symbols_enumerated.append(symbol)
-        time_end(f"enumerate")
+        log_message("enumerate", f"{symbol}", f"size={choices_enumerated.shape[0]}")
 
         prev_size = choices_enumerated.shape[0]
-        choices_enumerated = check_max_fused_loops_per_rank(symbols, symbols_enumerated, choices_enumerated, max_fused_loops_per_rank_check_groups, max_fused_loops_per_rank)
+        # choices_enumerated = check_max_fused_loops_per_rank(symbols, symbols_enumerated, choices_enumerated, max_fused_loops_per_rank_check_groups, max_fused_loops_per_rank)
         job.log_porp_pmappings_kept(f"max_fused_loops_per_rank", choices_enumerated.shape[0] / prev_size)
         if prev_size > choices_enumerated.shape[0]:
             print(f"Max fused loops pruned to {choices_enumerated.shape[0] / prev_size:.2%}")
+            
+        log_message("max_fused_loops_per_rank", f"size={choices_enumerated.shape[0]}")
+        
 
         # If we're a symbol and an outer loop depends on us, then we need to track this
         # loop. Minimize it if we're imperfect (giving the outer the most choices
@@ -1304,7 +1350,7 @@ def get_tile_shape_choices(
             else:
                 result = goal
             symbol2goal[symbol] = result
-                
+
         evaluatable_objectives = []
 
         # Solving equations is slow but gives us better Pareto pruning, so only do it if
@@ -1313,7 +1359,8 @@ def get_tile_shape_choices(
         # different for imperfect tile shapes because the expected growth is much bigger
         # for each loop, so we may want a smaller number.
         solve = choices_enumerated.shape[0] > 1e5 and pareto
-        
+        # max_solve_time = 1 if choices_enumerated.shape[0] < 1e5 else float('inf')
+
         def eval_objective(objective: Objective, choices: np.ndarray, minimize: bool=False):
             padded_choices = get_padded_choices(
                 symbols_enumerated=symbols_enumerated,
@@ -1342,7 +1389,7 @@ def get_tile_shape_choices(
                     objectives.remove(objective)
                 else:
                     evaluatable_objectives.append(objective)
-                time_end(f"evaluation_state")
+                log_message("evaluation_state", f"{objective.name}", f"solve={solve}", "EVALUATABLE", f"formula={objective.formula}")
                 continue
             elif state == EvaluationState.COMPARABLE:
                 evaluatable_objectives.append(objective)
@@ -1356,14 +1403,14 @@ def get_tile_shape_choices(
                         # get_padded_choices will fail to maximize if there are any
                         # symbols that are not enumerated.
                         pass
-                time_end(f"evaluation_state")
+                log_message("evaluation_state", f"{objective.name}", f"solve={solve}", "COMPARABLE", f"formula={objective.formula}")
                 continue
 
             elif state == EvaluationState.IRRELEVANT:
-                time_end(f"evaluation_state")
+                log_message("evaluation_state", f"{objective.name}", f"solve={solve}", "IRRELEVANT", f"formula={objective.formula}")
                 continue
 
-            time_end(f"evaluation_state")
+            log_message("evaluation_state", f"{objective.name}", f"solve={solve}", "INCOMPARABLE", f"formula={objective.formula}")
 
             if not pareto:
                 continue
@@ -1376,9 +1423,9 @@ def get_tile_shape_choices(
                 goal = objective.check_symbol_goals(symbol)
                 update_symbol2goal(symbol, goal)
                 
-            time_end("symbol_goals")
+            log_message("symbol_goals", f"{objective.name}", f"solve={solve}", f"formula={objective.formula}")
                 
-        time_end("symbols")
+        log_message("symbols")
 
         # If every symbol is marked with "diff", then we can't compare anything        
         if len(symbol2goal) == len(symbols_enumerated) and all(s == "diff" for s in symbol2goal.values()):
@@ -1404,7 +1451,7 @@ def get_tile_shape_choices(
 
         goals = list(symbol2goal.values()) + ["min"] * len(evaluatable_objectives)
 
-        time_end("make_criteria")
+        log_message("make_criteria")
 
         keep = paretoset.paretoset(to_pareto, goals)
         prev_size = choices_enumerated.shape[0]
@@ -1415,10 +1462,18 @@ def get_tile_shape_choices(
         # print(f'After enumerating {s} ({len(symbols_enumerated)}/{len(symbols)}), there are {choices_enumerated.shape[0]} Pareto-optimal choices. Nominal choices: {nominal_choices}')
         # print(f"\tPareto-optimal choices shape: {choices_enumerated.shape}")
 
-        time_end("pareto")
+        log_message("pareto", f"size={choices_enumerated.shape[0]}")
         
     total_time = sum(times.values())
     print(f"{total_time:.2f}s: {'  |  '.join(f'{k} {times[k] / total_time:.2%}' for k in times if times[k] / total_time > 0.01)}")
+
+    t = time.time() - start_time
+    if t > 60:
+        a = [
+            f"Total time: {t:.2f}s",
+            f"Pmapping: {job.mapping.compact_str()}",
+        ]
+        print('\n\t' + f'\n\t'.join(a + log))
 
     # Rearrange in ascending order
     return choices_enumerated[:, [symbols_enumerated.index(s) for s in symbols]]
@@ -1484,25 +1539,25 @@ def _explore_tile_shapes_new(job: "Job"):
         # If we only track for pmappings, we only care if it's valid. If we track for
         # all, we care about the value too.
         only_care_if_valid = True
-        if k in per_memory_occupancy_df:
-            if k in job.memories_track_pmappings_only:
-                only_care_if_valid = True
-            elif k in job.memories_track_all:
-                only_care_if_valid = False
-            else:
-                continue  # No need to track this memory!
+        # if k in per_memory_occupancy_df:
+        #     if k in job.memories_track_pmappings_only:
+        #         only_care_if_valid = True
+        #     elif k in job.memories_track_all:
+        #         only_care_if_valid = False
+        #     else:
+        #         continue  # No need to track this memory!
 
-        # TODO: Update check to see if we may be sharing utilization with other
-        # pmappings in parallel/pipeline.
-        if k in utilization_df:
-            name = k.split("\0")[0]
-            only_care_if_valid = True
+        # # TODO: Update check to see if we may be sharing utilization with other
+        # # pmappings in parallel/pipeline.
+        # if k in utilization_df:
+        #     name = k.split("\0")[0]
+        #     only_care_if_valid = True
 
         objectives.append(Objective(
             name=k,
-            formula=v.simplify(),
+            formula=v,
             symbols=symbols,
-            only_care_if_valid=True,
+            only_care_if_valid=only_care_if_valid,
             max_value=1,
         ))
     
@@ -1513,7 +1568,7 @@ def _explore_tile_shapes_new(job: "Job"):
         for i,sub_objective in enumerate(cast_max(v)):
             objectives.append(Objective(
                 name=f"{k}_{i}",
-                formula=sub_objective.simplify(),
+                formula=sub_objective,
                 symbols=symbols,
             ))
             
