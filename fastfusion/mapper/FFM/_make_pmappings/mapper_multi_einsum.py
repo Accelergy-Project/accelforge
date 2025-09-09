@@ -18,6 +18,7 @@ from fastfusion.frontend.mapper.metrics import Metrics
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum import get_single_einsum_jobs
 from fastfusion.mapper.FFM._join_pmappings.mappinginfo import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.sim import SIM
+from fastfusion.mapper.FFM._make_pmappings.tile_shape_exploration.tile_shape_exploration import EXPERIMENTAL_TILE_SHAPE_EXPLORATION
 from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.util.util import parallel
 from fastfusion.util import util
@@ -233,6 +234,15 @@ def get_sims(
 
     calls = _allocate_jobs(einsum2jobs)
 
+    if EXPERIMENTAL_TILE_SHAPE_EXPLORATION:
+        # Sort the calls by the length of the longest mapping in each job. We get long
+        # poles with the long mappings, so we want to get them done early so we don't
+        # have one or two procs slowing us down at the end.
+        def get_longest_mapping_length(call):
+            j: SameCompatibilityJobs = call[2]["jobs_with_similar_compatibilities"]
+            return max([len(j2.mapping.nodes) for j2 in j])
+        calls = sorted(calls, key=get_longest_mapping_length, reverse=True)
+
     pmapping_objects = {}
     sims = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
     return_jobs = {}
@@ -259,18 +269,26 @@ def _raise_error_if_no_pmappings(einsum2jobs):
 def _allocate_jobs(einsum2jobs):
     calls = []
     for einsum_name, jobs in einsum2jobs.items():
-        calls.extend(delayed(generate_pmappings)(job_list)
+        calls.extend(delayed(generate_pmappings)(
+            jobs_with_similar_compatibilities=job_list,
+        )
                     for job_list in jobs.values())
 
-    if util.PARALLELIZE and len(calls) < util.N_PARALLEL_PROCESSES * 4:
+    split = False
+    if not split and util.PARALLELIZE and len(calls) < util.N_PARALLEL_PROCESSES * 4:
         logging.warning(
             f"Insufficient jobs available to utilize available threads. "
             f"Splitting jobs into smaller chunks."
         )
+        split = True
+        
+    if split:
         calls = []
         for einsum_name, jobs in einsum2jobs.items():
             for job_list in jobs.values():
-                calls.extend(delayed(generate_pmappings)(job)
+                calls.extend(delayed(generate_pmappings)(
+                    jobs_with_similar_compatibilities=job,
+                )
                             for job in job_list.split())
     return calls
 
