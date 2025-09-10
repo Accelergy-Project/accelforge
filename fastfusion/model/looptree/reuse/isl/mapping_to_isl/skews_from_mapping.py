@@ -69,7 +69,8 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                     buffer: ComponentName = node.component
                     buffer_to_last_storage_node[buffer] = node
                     buffer_node.append((buffer, node))
-                    all_buffer_tensors.append((buffer, node.tensor))
+                    # TODO: Check this is correct
+                    all_buffer_tensors.extend((buffer, tensor) for tensor in node.tensors)
                 case Compute():
                     compute: ComponentName = node.compute
                     buffer_to_last_storage_node[compute] = node
@@ -137,7 +138,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
         for node in path:
             match node:
                 case Storage():
-                    buffer_storage_past.add((node.component, node.tensor))
+                    buffer_storage_past.update((node.component, tensor) for tensor in node.tensors)
                     if node == buffer_to_last_storage_node[node.component]:
                         buffer_fully_complete.add(node.component)
                 case Iteration():

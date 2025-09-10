@@ -6,7 +6,7 @@ analysis.
 from collections import defaultdict, deque
 from typing import List, Tuple
 
-from pprint import pprint
+from pprint import pformat, pprint
 
 import islpy as isl
 
@@ -98,6 +98,7 @@ def get_mapping_group_einsums(
             # Assumed no children, log as a folded result.
             case Compute():
                 result[last_non_branch].add(node.einsum)
+            # TODO: I'm pretty sure these all had children at some point in Timeloop.
             case Spatial() | Temporal() | Storage():
                 continue
             case _:
@@ -467,13 +468,15 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
         is_tiling: bool = True
 
         while is_tiling:
-            print(node)
             # Fuses current_node to one of the heads.
             match current_node:
-                case Temporal():
+                # For or Par-For loop handling.
+                case Iteration():
                     if len(heads) != 1:
                         raise ValueError(
-                            f"Cannot fuse tiled set with {len(heads)} heads."
+                            f"Cannot fuse tiled set with {len(heads)} heads.\n"
+                            f"---\n"
+                            f"mapping_group_heads={pformat(mapping_group_heads)}"
                         )
 
                     # Grabs rank_var to tile and the head to tile it from.
@@ -515,6 +518,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         )
                         tiling = tiling.intersect_domain(iteration_set)
 
+                    # TODO: Verify this bodge: https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L406
                     is_tiling = False
                 # Notes what reuse level the tensor is on.
                 case Storage():
@@ -533,7 +537,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                 # If we are at the Mapping root, just go to the actual Nodes.
                 case Mapping():
                     # TODO: Check accuracy of not using flatten.
-                    dfs_stack.extend(reversed(mapping.nodes))
+                    dfs_stack.append(mapping.nodes[0])
                     is_tiling = False
                 # If we hit the compute node, we've finished tiling, end!
                 case Compute():
@@ -589,7 +593,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
 
                     is_tiling = False
                 case _:
-                    # raise NotImplementedError(f"Type {type(node)} not handled.")
+                    raise NotImplementedError(
+                        f"Type {type(node)} not handled.\n"
+                        f"---\n"
+                        f"node={node}"
+                    )
                     is_tiling = False
 
     return result

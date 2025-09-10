@@ -185,6 +185,7 @@ def occupancies_from_mapping(
         if DUMP_ISL_IR:
             print(f"{bte} has skew: {skew}")
 
+        print(branch_tiling)
         tiling = branch_tiling[bte.einsum]
 
         accesses: Optional[isl.Map] = None

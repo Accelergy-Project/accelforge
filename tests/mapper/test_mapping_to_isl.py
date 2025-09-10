@@ -18,7 +18,6 @@ TEST_CONFIG_PATH: Path = Path(__file__).parent / "configs"
 class TestMappingToIsl(unittest.TestCase):
 
     def test_conv1d(self):
-        print("Here")
         # Loads in the CONV1D Config
         CONV1D_CONFIG_PATH: Path = TEST_CONFIG_PATH
         workload: Workload = Workload.from_yaml(CONV1D_CONFIG_PATH / "conv1d.workload.yaml")
@@ -35,11 +34,9 @@ class TestMappingToIsl(unittest.TestCase):
         #     [RankVariableName('p'), RankVariableName('r')]
         # )
         mapping: Mapping = Mapping.from_yaml(CONV1D_CONFIG_PATH / "conv1d.mapping.yaml")
-        print("Here")
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
-        print("Here")
 
         for buffer, occupancy in occupancies.buffet_to_occupancy.items():
             if buffer == list(occupancies.buffet_to_occupancy.keys())[-1]:

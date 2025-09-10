@@ -1,4 +1,4 @@
-from typing import Generator, Tuple
+from typing import Generator, List, Tuple
 
 from fastfusion.frontend.mapping import (
     Compute,
@@ -10,7 +10,7 @@ from fastfusion.frontend.mapping import (
 from fastfusion.frontend.workload import Workload
 
 
-def get_paths(root: MappingNode) -> Generator[Tuple[MappingNode, Compute], None, None]:
+def get_paths(root: Mapping) -> Generator[Tuple[MappingNode, Compute], None, None]:
     """
     Given a MappingNode, get the paths to all all leaves in post-order.
 
@@ -21,8 +21,8 @@ def get_paths(root: MappingNode) -> Generator[Tuple[MappingNode, Compute], None,
     :returns:       A generator of all the MappingNodes to a Compute leaf.
     :rtype:         Generator[List[MappingNode]]
     """
-    cur_path = []
-    for node in root:
+    cur_path: List[MappingNode] = []
+    for node in root.nodes:
         cur_path.append(node)
         match node:
             # Pipelines or sequentials should have their paths expanded.
@@ -30,13 +30,19 @@ def get_paths(root: MappingNode) -> Generator[Tuple[MappingNode, Compute], None,
             case Mapping() | Pipeline() | Sequential():
                 for child in node.nodes:
                     for subpath in get_paths(child):
-                        yield cur_path + subpath
+                        yield tuple(cur_path) + subpath
             # Computes are leaves so should get a yield here.
             case Compute():
-                yield cur_path.copy()
+                yield tuple(cur_path)
             # Not implemented so continue.
             case _:
-                raise NotImplementedError(f"{type(node)} does not have type elucidation.")
+                #TODO: Check this is correct
+                continue
+                raise NotImplementedError(
+                    f"{type(node)} does not have type elucidation.\n"
+                    f"---\n"
+                    f"node={node}"
+                )
 
 
 def get_leaves(mapping: Mapping, is_path):
