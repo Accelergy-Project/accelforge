@@ -460,6 +460,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
             print(f"Tiling: {tiling}")
         tiling_info[root][einsum_name] = tiling
 
+    iteration: int = 0
     while dfs_stack:
         node = dfs_stack.pop()
         heads = mapping_group_heads[node]
@@ -467,12 +468,15 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
         current_node: MappingNode = node
         is_tiling: bool = True
 
+        print(iteration := iteration + 1)
+
         while is_tiling:
             # Fuses current_node to one of the heads.
             match current_node:
                 # For or Par-For loop handling.
                 case Iteration():
                     if len(heads) != 1:
+                        break
                         raise ValueError(
                             f"Cannot fuse tiled set with {len(heads)} heads.\n"
                             f"---\n"
@@ -536,9 +540,8 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     is_tiling = False
                 # If we are at the Mapping root, just go to the actual Nodes.
                 case Mapping():
-                    # TODO: Check accuracy of not using flatten.
-                    dfs_stack.append(mapping.nodes[0])
-                    is_tiling = False
+                    dfs_stack.extend(mapping.flatten()[1:])
+                    current_node = mapping.nodes[0]
                 # If we hit the compute node, we've finished tiling, end!
                 case Compute():
                     result[current_node] = tiling_info[root][current_node.einsum]
@@ -598,6 +601,5 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         f"---\n"
                         f"node={node}"
                     )
-                    is_tiling = False
 
     return result

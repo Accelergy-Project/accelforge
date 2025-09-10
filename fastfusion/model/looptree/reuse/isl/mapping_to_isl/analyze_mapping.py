@@ -186,6 +186,7 @@ def occupancies_from_mapping(
             print(f"{bte} has skew: {skew}")
 
         print(branch_tiling)
+        print(bte.einsum)
         tiling = branch_tiling[bte.einsum]
 
         accesses: Optional[isl.Map] = None
