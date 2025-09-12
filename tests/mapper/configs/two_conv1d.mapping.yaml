@@ -1,0 +1,36 @@
+mapping:
+  version: "0.5"
+  nodes:
+  - !Storage
+    tensors: [I, WA, WB, O]
+    component: MainMemory
+  - !Temporal
+    rank_variable: pb
+    tile_shape: 8 # bound is 2
+  - !Storage
+    tensors: [I, WA, A, WB, O]
+    component: LocalBuffer
+  - !Sequential
+    nodes:
+    - - !Temporal
+        rank_variable: pa
+        tile_shape: 1 # bound is 8
+      - !Spatial
+        rank_variable: ra
+        tile_shape: 1 # bound is 3
+        component: MAC
+        name: X
+      - !Compute
+        einsum: convA
+        compute: MAC
+    - - !Temporal
+        rank_variable: pb
+        tile_shape: 1 # bound is 8
+      - !Spatial
+        rank_variable: rb
+        tile_shape: 1 # bound is 3
+        component: MAC
+        name: X
+      - !Compute
+        einsum: convB
+        compute: MAC
