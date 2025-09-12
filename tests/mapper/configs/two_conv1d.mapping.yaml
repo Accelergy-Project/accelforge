@@ -12,7 +12,9 @@ mapping:
     component: LocalBuffer
   - !Sequential
     nodes:
-    - - !Temporal
+    - !Nested
+      nodes:
+      - !Temporal
         rank_variable: pa
         tile_shape: 1 # bound is 8
       - !Spatial
@@ -23,7 +25,9 @@ mapping:
       - !Compute
         einsum: convA
         compute: MAC
-    - - !Temporal
+    - !Nested
+      nodes:
+      - !Temporal
         rank_variable: pb
         tile_shape: 1 # bound is 8
       - !Spatial
