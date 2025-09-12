@@ -76,7 +76,7 @@ def buffet_direct_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool
     :returns:   A dictionary of buffets and whether they're directly above a Sequential.
     :rtype:     defaultdict[Buffet, bool]
     """
-    result: defaultdict[Buffet, bool] = defaultdict()
+    result: defaultdict[Buffet, bool] = defaultdict(lambda: False)
     # TODO: Figure out if get_paths is just for certain MappingNodesWithChildren
     # or not.
     for path in get_paths(mapping):
@@ -104,13 +104,13 @@ def buffet_direct_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool
                 # parents that are buffets are directly above sequential.
                 case Sequential():
                     for buf in last_bufs:
-                        result[buf] = True
+                        result[buf] = result[buf] or True
                     last_bufs.clear()
                 # If we encounter no storages or a sequential, we must not be
                 # directly above a sequential element, and thus can purge the path.
                 case _:
                     for buf in last_bufs:
-                        result[buf] = False
+                        result[buf] = result[buf] or False
                     last_bufs.clear()
 
     return result
@@ -185,9 +185,6 @@ def occupancies_from_mapping(
     for bte, skew in skews.bte_to_skew.items():
         if DUMP_ISL_IR:
             print(f"{bte} has skew: {skew}")
-
-        print(branch_tiling)
-        print(bte.einsum)
         tiling = branch_tiling[bte.einsum]
 
         accesses: Optional[isl.Map] = None

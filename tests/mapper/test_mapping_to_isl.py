@@ -1,4 +1,5 @@
 from pathlib import Path
+from pprint import pformat
 import unittest
 
 import islpy as isl
@@ -20,32 +21,43 @@ class TestMappingToIsl(unittest.TestCase):
         CONV1D_CONFIG_PATH: Path = TEST_CONFIG_PATH
         workload: Workload = Workload.from_yaml(CONV1D_CONFIG_PATH / "conv1d.workload.yaml")
 
-        rank_var_bounds: dict = get_rank_variable_bounds(workload, "conv")        
-        # rank_P = rank_var_bounds["p"]
-        # rank_R = rank_var_bounds["r"]
-
-        # print(rank_P)
-        # print(rank_R)
-
-        # # loop_nest: LooptreeWorkload = LooptreeWorkload()
-        # loop_order: LoopOrder = LoopOrder(
-        #     [RankVariableName('p'), RankVariableName('r')]
-        # )
         mapping: Mapping = Mapping.from_yaml(CONV1D_CONFIG_PATH / "conv1d.mapping.yaml")
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
 
+        print(pformat(occupancies))
         for buffer, occupancy in occupancies.buffet_to_occupancy.items():
             if buffer == list(occupancies.buffet_to_occupancy.keys())[-1]:
-                assert occupancy.map_ == isl.Map.read_from_str(
+                print(occupancy.tags)
+                soln: isl.Map = isl.Map.read_from_str(
                     isl.DEFAULT_CONTEXT,
-                    "{ [0, 0, P1, 0, 0, P0, R, 0] -> [10*P1 + P0] : "
-                    "0 <= R < 3 and "
-                    "((P1 = 0 and 0 <= P0 < 10) or (P1 = 1 and 0 <= P0 < 6)) }"
+                    "{ [P1, P0, R] -> [P=8*P1 + P0] : "
+                    "0 <= R < 3 and 0 <= P1 < 2 and 0 <= P0 < 8}"
                 )
+                assert occupancy.map_ == soln
 
-        
+    def test_two_conv1d(self):
+        # Loads in the CONV1D Config
+        CONV1D_CONFIG_PATH: Path = TEST_CONFIG_PATH
+        workload: Workload = Workload.from_yaml(CONV1D_CONFIG_PATH / "two_conv1d.workload.yaml")
+
+        mapping: Mapping = Mapping.from_yaml(CONV1D_CONFIG_PATH / "two_conv1d.mapping.yaml")
+        occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
+            mapping, workload
+        )
+
+        print(pformat(occupancies))
+        for buffer, occupancy in occupancies.buffet_to_occupancy.items():
+            if buffer == list(occupancies.buffet_to_occupancy.keys())[-1]:
+                print(occupancy.tags)
+                soln: isl.Map = isl.Map.read_from_str(
+                    isl.DEFAULT_CONTEXT,
+                    "{ [P1, P0, R] -> [P=8*P1 + P0] : "
+                    "0 <= R < 3 and 0 <= P1 < 2 and 0 <= P0 < 8}"
+                )
+                # assert occupancy.map_ == soln       
+                print(occupancy.map_) 
 
 
 

@@ -460,15 +460,12 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
             print(f"Tiling: {tiling}")
         tiling_info[root][einsum_name] = tiling
 
-    iteration: int = 0
     while dfs_stack:
         node = dfs_stack.pop()
         heads = mapping_group_heads[node]
 
         current_node: MappingNode = node
         is_tiling: bool = True
-
-        print(iteration := iteration + 1)
 
         while is_tiling:
             # Fuses current_node to one of the heads.
@@ -509,6 +506,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
 
                     # Saves the fused tiling.
                     tiling_info[node][head] = new_tiling
+                    print(new_tiling)
 
                     iteration_set: isl.Set = new_tiling.domain()
                     for einsum in mapping_groups[node]:
@@ -520,6 +518,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                             isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
                         )
                         tiling = tiling.intersect_domain(iteration_set)
+                        tiling_info[node][einsum] = tiling
 
                     # TODO: Verify this bodge: https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L406
                     current_node = dfs_stack.pop()

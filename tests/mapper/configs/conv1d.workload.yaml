@@ -1,7 +1,7 @@
 workload:
   shape:
-    r: 0 <= p < 3
-    p: 0 <= r < 16
+    r: 0 <= r < 3
+    p: 0 <= p < 16
 
   einsums:
   - name: conv
