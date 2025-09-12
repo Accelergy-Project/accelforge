@@ -5,7 +5,9 @@ import itertools
 
 from typing import Iterable, Optional, Tuple, Union
 
-from fastfusion.frontend.mapping import Iteration, Nested
+import sympy
+
+from fastfusion.frontend.mapping import Iteration, Nested, Pattern
 from fastfusion.mapper.FFM._join_pmappings.mappinginfo import TensorReservation
 from fastfusion.util import fzs
 
@@ -634,18 +636,26 @@ def row2pmappings(row: pd.Series, einsum_names: list[str], rank_variable_bounds:
     pmappings: list[Nested] = []
     for einsum_name in einsum_names:
         pmapping: Nested = copy.deepcopy(row[f"{einsum_name}\0{MAPPING_COLUMN}"])
-        tile_shapes = {}
-        for r, v in row.items():
-            if r.startswith(f"{einsum_name}\0tile_shape\0"):
-                k = int(r.split("\0")[-1])
-                assert k not in tile_shapes, f"Duplicate tile shape for {einsum_name}: {k}"
-                tile_shapes[k] = v
-        tile_shapes = [tile_shapes[k] for k in sorted(tile_shapes.keys())]
-        for shape, node in zip(
-            tile_shapes,
-            [n for n in pmapping.nodes if isinstance(n, Iteration)],
-        ):
-            node.tile_shape = shape
+        for node in pmapping.nodes:
+            def acc(s: sympy.Symbol):
+                return row[f"{einsum_name}\0{s.name}"]
+            if not isinstance(node, Iteration):
+                continue
+            if isinstance(node.tile_shape, sympy.Symbol):
+                node.tile_shape = acc(node.tile_shape)
+            if isinstance(node.loop_bound, sympy.Symbol):
+                node.loop_bound = acc(node.loop_bound)
+            if node.tile_pattern is not None:
+                if isinstance(node.tile_pattern, sympy.Symbol):
+                    node.tile_pattern = acc(node.tile_pattern)
+                else:
+                    tile_pattern: Pattern = node.tile_pattern
+                    if isinstance(tile_pattern.stride, sympy.Symbol):
+                        tile_pattern.stride = acc(tile_pattern.stride)
+                    if isinstance(tile_pattern.initial_tile_shape, sympy.Symbol):
+                        tile_pattern.initial_tile_shape = acc(tile_pattern.initial_tile_shape)
+                    if isinstance(tile_pattern.tile_shape, sympy.Symbol):
+                        tile_pattern.tile_shape = acc(tile_pattern.tile_shape)
         pmappings.append(pmapping)
         pmapping.beautify_loops(rank_variable_bounds)
     return pmappings

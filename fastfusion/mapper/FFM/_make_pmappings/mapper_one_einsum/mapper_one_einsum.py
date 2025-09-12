@@ -149,7 +149,7 @@ def generate_pmappings(
         return einsum_name, [], {}, jobs_with_similar_compatibilities
 
     fused_loop_cols = [
-        f"{einsum_name}\0tile_shape\0{i}"
+        f"{einsum_name}\0tile_shape{i}"
         for i in range(compatibility.n_loops)
     ]  # TODO: Make this work for extended Einsums
 

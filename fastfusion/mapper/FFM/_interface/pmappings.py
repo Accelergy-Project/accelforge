@@ -49,12 +49,11 @@ class MultiEinsumPmappings:
         for einsum_name in einsum_names:
             del self.einsum2pmappings[einsum_name]
             del self.pmapping_objects[einsum_name]
-            
-    
+
     def pmapping_keep_rates(self, per_einsum: bool = False) -> dict[EinsumName, dict[str, float]] | dict[str, float]:
         result = {}
         einsum2npmappings = self.total_pmappings(per_einsum=True)
-        
+
         for einsum_name, jobs in self.mapper_jobs.items():
             cur_result = result.setdefault(einsum_name, {})
             for job in jobs:
@@ -74,9 +73,9 @@ class MultiEinsumPmappings:
                     new_result.setdefault(cause, 0)
                     new_result[cause] += keep_rate / total_pmappings
             result = new_result
-                
+
         return result
-    
+
     def total_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
         result = {
             einsum_name: sum(job.total_pmappings for job in jobs)
@@ -85,7 +84,7 @@ class MultiEinsumPmappings:
         if per_einsum:
             return result
         return sum(result.values())
-    
+
     def valid_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
         result = {
             einsum_name: sum(job.valid_pmappings for job in jobs)
@@ -94,11 +93,20 @@ class MultiEinsumPmappings:
         if per_einsum:
             return result
         return sum(result.values())
-    
+
     def pareto_optimal_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
         result = {
             einsum_name: sum(len(p.mappings.data) for p in pmappings)
             for einsum_name, pmappings in self.einsum2pmappings.items()
+        }
+        if per_einsum:
+            return result
+        return sum(result.values())
+
+    def evaluated_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
+        result = {
+            einsum_name: sum(job.evaluated_pmappings for job in jobs)
+            for einsum_name, jobs in self.mapper_jobs.items()
         }
         if per_einsum:
             return result

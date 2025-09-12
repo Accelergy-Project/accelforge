@@ -213,8 +213,9 @@ class Job:
     pmapping_keep_rates: dict[str, float] = field(default_factory=dict)
     tensor_to_relevancy: dict[TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]] | None = None
 
-    total_pmappings: int | None = None
-    valid_pmappings: int | None = None
+    total_pmappings: int | None = 1
+    valid_pmappings: int | None = 1
+    evaluated_pmappings: int | None = 0
     
     _update_compatibility_with_tile_shapes_args: dict[str, Any] | None = None
 
@@ -295,6 +296,8 @@ class Job:
         s += f"Total pmappings: {self.total_pmappings}\n"
         s += f"Valid pmappings: {self.valid_pmappings}\n"
         s += f"One in {expfmt(self.total_pmappings / self.valid_pmappings)} pmappings is valid\n"
+        s += f"Number of pmappings evaluated: {self.evaluated_pmappings}\n"
+        s += f"One in {expfmt(self.evaluated_pmappings / self.total_pmappings)} pmappings was evaluated\n"
         s += f"Pmapping elimination reasons:\n"
         for cause, keep_rate in self.pmapping_keep_rates.items():
             s += f'\t{cause} kept one in {expfmt(1/keep_rate)} pmappings\n'
@@ -316,7 +319,6 @@ class Job:
             
         self.pmapping_keep_rates.setdefault(cause, 1)
         self.pmapping_keep_rates[cause] *= porp_kept
-        self.total_pmappings *= porp_kept
 
     def log_message(self, message: str):
         self.messages.append(message)

@@ -166,21 +166,51 @@ class BuffetStats:
 class ComputeStats:
     total_ops: Any = field(default=0)
     max_per_unit_ops: Any = field(default=0)
+    # "max" below refers to the longest latency of any iteration
     max_latency: Any = field(default=0)
-    
+    # Mapping from the loop-index (0 at top) to the latency of the first
+    # iteration of that loop. "Max" because we may have loops above that and we
+    # will take the maximum of the firsts.
+    max_first_latency: dict[int, Any] = field(default_factory=dict)
+
     def repeat_temporal(self, factor: int) -> "ComputeStats":
         new = copy.copy(self)
         new.total_ops *= factor
         new.max_per_unit_ops *= factor
         new.max_latency *= factor
+        # NOTE: max_first_latency does not change
         return new
-    
+
+    def repeat_spatial(self, factor: int) -> "ComputeStats":
+        new = copy.copy(self)
+        new.total_ops *= factor
+        return new
+
     def __add__(self, other: "ComputeStats") -> "ComputeStats":
         new = copy.copy(self)
         new.total_ops += other.total_ops
         new.max_per_unit_ops += other.max_per_unit_ops
         new.max_latency += other.max_latency
+        # max_first_latency is only ever updated across loops ABOVE the loop
+        # for which we calculated that first latency, so we should MAX
+        new.max_first_latency = Max(self.max_first_latency, other.max_first_latency)
         return new
+
+    def combine_temporal(self, other: "ComputeStats"):
+        self.total_ops += other.total_ops
+        self.max_per_unit_ops += other.max_per_unit_ops
+        self.max_latency += other.max_latency
+        # max_first_latency is only ever updated across loops ABOVE the loop
+        # for which we calculated that first latency, so we should MAX
+        self.max_first_latency = Max(self.max_first_latency, other.max_first_latency)
+
+    def combine_spatial(self, other: "ComputeStats"):
+        self.total_ops += other.total_ops
+        self.max_per_unit_ops = Max(self.max_per_unit_ops, other.max_per_unit_ops)
+        self.max_latency = Max(self.max_latency, other.max_latency)
+        # max_first_latency is only ever updated across loops ABOVE the loop
+        # for which we calculated that first latency, so we should MAX
+        self.max_first_latency = Max(self.max_first_latency, other.max_first_latency)
 
 
 @dataclass
@@ -254,6 +284,9 @@ class AnalysisInfo:
     
     job: Job
 
+    # We track first latency for these nodes (should be Temporal)
+    ids_to_track_first_latency: set[int] = field(default_factory=set)
+
 def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
     mapping = list(job.mapping.nodes)
     workload = job.spec.workload
@@ -318,6 +351,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
     workload = job.spec.workload
     einsum_name = mapping[-1].einsum
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
+    symbols = insert_sympy_symbols(mapping)
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
     if is_copy_operation:
@@ -352,10 +386,9 @@ def analyze_reuse_and_add_reservations_to_mapping(
         is_copy_operation=is_copy_operation,
         job=job,
     )
-    symbols = insert_sympy_symbols(mapping)
 
     insert_reservation_nodes(mapping, info)
-    
+
     result = analyze_node(0, einsum_shape, info)
 
     result.symbols = symbols
@@ -542,7 +575,10 @@ def analyze_temporal(node_idx,
 
     result_accumulator = SummarizedAnalysisOutput()
 
+    first_latency = None
+
     def handle_repeated_value(repeated_shape):
+        nonlocal first_latency
         shape_value = repeated_shape.value
         shape_repeats = repeated_shape.repeats
 
@@ -567,12 +603,18 @@ def analyze_temporal(node_idx,
         result_accumulator.max(fanout=child_result.fanout)
 
         for key in child_result.compute_stats:
+            if first_latency is None:
+                first_latency = child_result.compute_stats[key].max_latency
+
             compute_stats = result_accumulator.compute_stats.setdefault(key, ComputeStats())
             compute_stats += child_result.compute_stats[key].repeat_temporal(shape_repeats)
             result_accumulator.compute_stats[key] = compute_stats
 
-
-
+    if node_idx in info.ids_to_track_first_latency:
+        for compute_stat in result_accumulator.compute_stats.values():
+            # Should be the first time we store this value
+            assert node_idx not in compute_stat.max_first_latency
+            compute_stat.max_first_latency[node_idx] = first_latency
 
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
@@ -655,16 +697,8 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
 
         for key in child_result.compute_stats:
             compute_stats = result_accumulator.compute_stats.setdefault(key, ComputeStats())
-            compute_stats.total_ops += child_result.compute_stats[key].total_ops * shape_repeats
-            # TODO: If check omitted
-            compute_stats.max_per_unit_ops = Max( # TODO: Assume sympy can just take in 0
-                compute_stats.max_per_unit_ops,
-                child_result.compute_stats[key].max_per_unit_ops
-            )
-            compute_stats.max_latency = Max(
-                compute_stats.max_latency,
-                child_result.compute_stats[key].max_latency
-            )
+            # TODO: If check omitted. This was in the original code, check history if needed.
+            compute_stats.combine_spatial(child_result.compute_stats[key].repeat_spatial(shape_repeats))
 
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
@@ -875,7 +909,12 @@ def analyze_compute(node_idx,
     result_accumulator = SummarizedAnalysisOutput()
 
     result_accumulator.temporal_steps[einsum] = computes
-    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(computes, computes, 1 / compute_node.attributes.computes_per_cycle)
+    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(
+        computes,
+        computes,
+        1 / compute_node.attributes.computes_per_cycle,
+        1 / compute_node.attributes.computes_per_cycle
+    )
     
     if info.is_copy_operation:
         return result_accumulator
@@ -995,17 +1034,20 @@ def make_possibly_different_last(common_tile_shape, factor, full_shape):
 
 
 def insert_sympy_symbols(mapping):
+    # TODO: Integer constraint may not work with the solving for == zero
     loop_idx = 0
     symbols = []
     for node in mapping:
         if isinstance(node, Spatial) or isinstance(node, Temporal):
             if node.tile_shape == SYMBOL:
-                node.tile_shape = sympy.symbols(f'tileshape{loop_idx}', positive=True, integer=True)
+                node.tile_shape = sympy.symbols(f'tile_shape{loop_idx}', positive=True, integer=True)
                 symbols.append(node.tile_shape)
             elif node.loop_bound == SYMBOL:
-                node.loop_bound = sympy.symbols(f'loopbound{loop_idx}', positive=True, integer=True)
+                # TODO: This won't work with mapping visualization
+                node.loop_bound = sympy.symbols(f'loop_bound{loop_idx}', positive=True, integer=True)
                 symbols.append(node.loop_bound)
             elif node.tile_pattern == SYMBOL:
+                # TODO: This won't work with mapping visualization
                 node.tile_pattern = Pattern(stride=0)
                 node.tile_pattern.stride = sympy.symbols(f'stride{loop_idx}', positive=True, integer=True)
                 node.tile_pattern.initial_tile_shape = sympy.symbols(f'initial{loop_idx}', positive=True, integer=True)
