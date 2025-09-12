@@ -26,15 +26,14 @@ class TestMappingToIsl(unittest.TestCase):
             mapping, workload
         )
 
-        print(pformat(occupancies))
         for buffer, occupancy in occupancies.buffet_to_occupancy.items():
             if buffer == list(occupancies.buffet_to_occupancy.keys())[-1]:
-                print(occupancy.tags)
                 soln: isl.Map = isl.Map.read_from_str(
                     isl.DEFAULT_CONTEXT,
                     "{ [P1, P0, R] -> [P=8*P1 + P0] : "
                     "0 <= R < 3 and 0 <= P1 < 2 and 0 <= P0 < 8}"
                 )
+                print(occupancy.map_)
                 assert occupancy.map_ == soln
 
     def test_two_conv1d(self):

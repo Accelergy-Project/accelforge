@@ -4,7 +4,7 @@ analysis.
 """
 
 from collections import defaultdict, deque
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from pprint import pformat
 
@@ -146,7 +146,9 @@ def get_head_among_einsums(
     }
 
 
-def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling:
+def add_new_tile_dim(
+    old_tiling: Tiling, dim_idx: int, tile_size: int, rank_var: Optional[str]=None
+) -> Tiling:
     """
     Given a tiling, add a new dimension to the tiling.
 
@@ -166,6 +168,10 @@ def add_new_tile_dim(old_tiling: Tiling, dim_idx: int, tile_size: int) -> Tiling
     new_tiling = old_tiling.insert_dims(
         isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), 1
     )
+    if rank_var:
+        new_tiling = new_tiling.set_dim_name(
+            isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), rank_var
+        )
 
     # Min and max of dim_idx. dimension being tiled as function of tiled dimensions.
     dim_min: isl.PwAff = new_tiling.dim_min(dim_idx)
@@ -496,7 +502,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         and current_node.tile_shape != 0
                     ):
                         new_tiling: Tiling = add_new_tile_dim(
-                            old_tiling, isl_rank_idx, current_node.tile_shape
+                            old_tiling, isl_rank_idx, current_node.tile_shape, rank_var
                         )
                     else:
                         raise NotImplementedError(
@@ -506,8 +512,8 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
 
                     # Saves the fused tiling.
                     tiling_info[node][head] = new_tiling
-                    print(new_tiling)
 
+                    # Adds the ranks to the tiling isl.Map.
                     iteration_set: isl.Set = new_tiling.domain()
                     for einsum in mapping_groups[node]:
                         if einsum == head:
@@ -517,10 +523,12 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         tiling = tiling.insert_dims(
                             isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
                         )
+                        tiling = tiling.set_dim_name(
+                            isl.dim_type.in_, tiling.dim(isl.dim_type.in_)-1, rank_var
+                        )
                         tiling = tiling.intersect_domain(iteration_set)
                         tiling_info[node][einsum] = tiling
 
-                    # TODO: Verify this bodge: https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L406
                     current_node = dfs_stack.pop()
                 # Notes what reuse level the tensor is on.
                 case Storage():
