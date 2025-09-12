@@ -6,7 +6,7 @@ analysis.
 from collections import defaultdict, deque
 from typing import List, Tuple
 
-from pprint import pformat, pprint
+from pprint import pformat
 
 import islpy as isl
 
@@ -476,7 +476,6 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                 # For or Par-For loop handling.
                 case Iteration():
                     if len(heads) != 1:
-                        break
                         raise ValueError(
                             f"Cannot fuse tiled set with {len(heads)} heads.\n"
                             f"---\n"
@@ -523,7 +522,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         tiling = tiling.intersect_domain(iteration_set)
 
                     # TODO: Verify this bodge: https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L406
-                    is_tiling = False
+                    current_node = dfs_stack.pop()
                 # Notes what reuse level the tensor is on.
                 case Storage():
                     # See current_node is the highest level of Storage to determine reuse level.
@@ -537,11 +536,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                                 isl.dim_type.in_
                             )
                     # TODO: Check accuracy of not using nodes.
-                    is_tiling = False
+                    current_node = dfs_stack.pop()
                 # If we are at the Mapping root, just go to the actual Nodes.
                 case Mapping():
-                    dfs_stack.extend(mapping.flatten()[1:])
-                    current_node = mapping.nodes[0]
+                    dfs_stack.extend(reversed(mapping.flatten()[1:]))
+                    current_node = dfs_stack.pop()
                 # If we hit the compute node, we've finished tiling, end!
                 case Compute():
                     result[current_node] = tiling_info[root][current_node.einsum]

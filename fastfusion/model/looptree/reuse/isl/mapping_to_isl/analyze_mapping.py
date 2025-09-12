@@ -92,10 +92,10 @@ def buffet_direct_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool
                     # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L518-L520
                     # Note: Buffet seems to have changed a lot?
                     # https://github.com/NVlabs/timeloop/blob/master/include/loop-analysis/isl-ir.hpp#L96
-                    last_bufs.append(
+                    last_bufs.extend(
                         Buffet(
-                            tensor=node.tensor, einsum=leaf.einsum, level=node.component
-                        )
+                            tensor=tensor, einsum=leaf.einsum, level=node.component
+                        ) for tensor in node.tensors
                     )
                 # TODO: Check that all buffets are unique, because right now
                 # it seems it's dependent on the last leaf in traversal?
@@ -148,6 +148,7 @@ def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
                 else:
                     result[node] = 1
             case _:
+                continue
                 raise ValueError(
                     f"Cannot compute parallelism behavior for type: {type(node)}"
                 )

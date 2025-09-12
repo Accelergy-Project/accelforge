@@ -5,9 +5,7 @@ import islpy as isl
 
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload._isl import get_rank_variable_bounds
-from fastfusion.frontend.workload.workload import RankVariableName
 
-from fastfusion.frontend.constraints import LoopOrder
 from fastfusion.frontend.mapping import Mapping
 
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl import analyze_mapping
