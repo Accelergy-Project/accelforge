@@ -156,6 +156,34 @@ def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
     return result
 
 
+def align_dim_names(
+    map_: isl.Map, reference: isl.Map, 
+    map_align_dim_type: isl.dim_type = isl.dim_type.in_, 
+    reference_dim_type: Optional[isl.dim_type] = None
+) -> isl.Map:
+    """
+    Given an `isl.Map` and a reference `isl.Map`, align as many of the names as
+    possible in the first map with the reference map.
+
+    e.g. `map_ = [i] -> [o]` with `reference = [x] -> [y]` becomes `[x] -> [o]`
+        with map_ 
+
+    :param map_:        The map whose input is being aligned.
+    :param reference:   The map whose input names are used as reference for aligning `map`.
+
+    :returns:   A version of `map` with aligned input names.
+    """
+    if reference_dim_type is None:
+        reference_dim_type = map_align_dim_type
+
+    for dim_idx in range(min(map_.dim(map_align_dim_type), reference.dim(reference_dim_type))):
+        dim_name: Optional[str] = reference.get_dim_name(reference_dim_type, dim_idx)
+        if dim_name is not None:
+            map_ = map_.set_dim_name(map_align_dim_type, dim_idx, dim_name)
+
+    return map_
+
+
 def occupancies_from_mapping(
     mapping: Mapping, workload: Workload
 ) -> MappingAnalysisResult:
@@ -195,8 +223,9 @@ def occupancies_from_mapping(
             accesses = get_projection_map(workload.einsums[bte.einsum.einsum], bte.tensor)
         else:
             continue
-
-        occupancy: isl.Map = skew.map_.apply_range(
+        
+        aligned_skew: isl.Map = align_dim_names(skew.map_, tiling)
+        occupancy: isl.Map = aligned_skew.apply_range(
             project_dim_in_after(
                 tiling.apply_range(accesses), skew.map_.dim(isl.dim_type.out)
             )
