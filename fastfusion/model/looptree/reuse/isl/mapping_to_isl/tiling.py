@@ -16,6 +16,7 @@ from fastfusion.frontend.mapping import (
     # Mapping objects
     Mapping,
     MappingNodeWithChildren,
+    Nested,
     # Physical object types in Mappings.
     Compute,
     Storage,
@@ -138,7 +139,7 @@ def get_head_among_einsums(
         for einsum in einsum_set
         if all(
             not any(
-                consumer in einsum_set
+                consumer.name in einsum_set
                 for consumer in workload.einsums_that_read_tensor(output_tensor)
             )
             for output_tensor in workload.tensors_written_by_einsum(einsum)
@@ -473,7 +474,12 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
         current_node: MappingNode = node
         is_tiling: bool = True
 
+        if DUMP_ISL_IR:
+            print(f"New Tiling Root: {pformat(node)}")
+
         while is_tiling:
+            if DUMP_ISL_IR:
+                print(f"Current Tiling Node: {pformat(current_node)}")
             # Fuses current_node to one of the heads.
             match current_node:
                 # For or Par-For loop handling.
@@ -546,7 +552,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     current_node = dfs_stack.pop()
                 # If we are at the Mapping root, just go to the actual Nodes.
                 case Mapping():
-                    dfs_stack.extend(reversed(mapping.flatten()[1:]))
+                    dfs_stack.extend(reversed(current_node.nodes))
                     current_node = dfs_stack.pop()
                 # If we hit the compute node, we've finished tiling, end!
                 case Compute():
@@ -601,11 +607,15 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         dfs_stack.append(child)
 
                     is_tiling = False
+                # TODO: Verify this handling of Nested as it is, effectively, `List[List[MappingNode]]`
+                case Nested():
+                    dfs_stack.extend(reversed(current_node.nodes))
+                    current_node = dfs_stack.pop()
                 case _:
                     raise NotImplementedError(
                         f"Type {type(node)} not handled.\n"
                         f"---\n"
-                        f"node={node}"
+                        f"node={pformat(node)}"
                     )
 
     return result
