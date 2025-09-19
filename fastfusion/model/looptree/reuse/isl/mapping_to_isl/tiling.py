@@ -148,7 +148,7 @@ def get_head_among_einsums(
 
 
 def add_new_tile_dim(
-    old_tiling: Tiling, dim_idx: int, tile_size: int, rank_var: Optional[str]=None
+    old_tiling: Tiling, dim_idx: int, tile_size: int, rank_var: Optional[str] = None
 ) -> Tiling:
     """
     Given a tiling, add a new dimension to the tiling.
@@ -467,6 +467,20 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
             print(f"Tiling: {tiling}")
         tiling_info[root][einsum_name] = tiling
 
+    # Tracks rank_var specified to partitioned_rank_var index, as traversal
+    # in tiling goes down the partition.
+    rank_var_partitions: defaultdict[str, int] = defaultdict(lambda: 0)
+
+    def get_rank_var_partition(rank_var: str) -> str:
+        """
+        Given a rank_var, get the partition at the current point in execution
+        and increment for the next retrieval.
+        """
+        nonlocal rank_var_partitions
+        rank_var_partition: str = f"{rank_var}{rank_var_partitions[rank_var]}"
+        rank_var_partitions[rank_var] += 1
+        return rank_var_partition
+
     while dfs_stack:
         node = dfs_stack.pop()
         heads = mapping_group_heads[node]
@@ -508,7 +522,10 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         and current_node.tile_shape != 0
                     ):
                         new_tiling: Tiling = add_new_tile_dim(
-                            old_tiling, isl_rank_idx, current_node.tile_shape, rank_var
+                            old_tiling,
+                            isl_rank_idx,
+                            current_node.tile_shape,
+                            get_rank_var_partition(rank_var),
                         )
                     else:
                         raise NotImplementedError(
@@ -530,7 +547,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                             isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
                         )
                         tiling = tiling.set_dim_name(
-                            isl.dim_type.in_, tiling.dim(isl.dim_type.in_)-1, rank_var
+                            isl.dim_type.in_,
+                            tiling.dim(isl.dim_type.in_) - 1,
+                            get_rank_var_partition(rank_var),
                         )
                         tiling = tiling.intersect_domain(iteration_set)
                         tiling_info[node][einsum] = tiling
@@ -542,12 +561,13 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     # TODO: Check this is correct too.
                     for tensor in current_node.tensors:
                         # Check second term
-                        if tensor not in tensor_to_reuse_level and current_node._must_keep_tensors:
+                        if (
+                            tensor not in tensor_to_reuse_level
+                            and current_node._must_keep_tensors
+                        ):
                             random_einsum: EinsumName = next(iter(mapping_groups[node]))
                             tiling: Tiling = tiling_info[node][random_einsum]
-                            tensor_to_reuse_level[tensor] = tiling.dim(
-                                isl.dim_type.in_
-                            )
+                            tensor_to_reuse_level[tensor] = tiling.dim(isl.dim_type.in_)
                     # TODO: Check accuracy of not using nodes.
                     current_node = dfs_stack.pop()
                 # If we are at the Mapping root, just go to the actual Nodes.
@@ -607,7 +627,6 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         dfs_stack.append(child)
 
                     is_tiling = False
-                # TODO: Verify this handling of Nested as it is, effectively, `List[List[MappingNode]]`
                 case Nested():
                     dfs_stack.extend(reversed(current_node.nodes))
                     current_node = dfs_stack.pop()
