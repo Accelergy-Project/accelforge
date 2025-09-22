@@ -48,11 +48,11 @@ arch:
         keep: input | output
       spatial:
         - name: Z
-          min_utilization: 1
-          loop_bounds:
-          - expression: weight.rank_variables()
-            operator: ==
-            value: 1
+          # min_utilization: 1
+          # loop_bounds:
+          # - expression: weight.rank_variables()
+          #   operator: ==
+          #   value: 1
 
   - !Compute
     name: scalar_unit
@@ -78,13 +78,13 @@ arch:
         bypass: ~weight | GlobalBuffer.tensors()
       spatial:
       - name: X # Parallel rank
-        min_utilization: 1
+        # min_utilization: 1
         loop_bounds:
         - expression: input.rank_variables() | ~output.rank_variables()
           operator: ==
           value: 1
       - name: Y # Reduced rank. No iteration over outputs
-        min_utilization: 1
+        # min_utilization: 1
         loop_bounds:
         - expression: output.rank_variables() | ~input.rank_variables()
           operator: ==

@@ -449,14 +449,6 @@ def generate_pmappings_new(
         )
         sim = SIM(compatibility, partial_mappings)
         sims.append(sim)
-        
-    # compatibilities = set(s.compatibility for s in sims)
-    # # assert len(compatibilities) == len(sims), "Duplicate compatibilities"
-    # seen_compatibilities = set()
-    # for s in sims:
-    #     if s.compatibility in seen_compatibilities:
-    #         raise ValueError(f"Duplicate compatibility: {s.compatibility}")
-    #     seen_compatibilities.add(s.compatibility)
 
     return einsum_name, sims, pmapping_objects, jobs_with_similar_compatibilities
 
@@ -466,4 +458,4 @@ def generate_pmappings(
 ) -> tuple[EinsumName, list[SIM], dict[UUID, Mapping], SameCompatibilityJobs]:
     if EXPERIMENTAL_TILE_SHAPE_EXPLORATION:
         return generate_pmappings_new(jobs_with_similar_compatibilities)
-    # return generate_pmappings_old(jobs_with_similar_compatibilities)
+    return generate_pmappings_old(jobs_with_similar_compatibilities)

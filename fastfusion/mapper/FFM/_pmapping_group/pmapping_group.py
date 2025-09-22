@@ -471,10 +471,6 @@ class PmappingGroup:
         result.max_right_to_left()
         result.make_pareto()
         result._check_reservations()
-        # if any(len(x) > 1e6 for x in [sd, rd, df, result.data]):
-        #     print(f'{len(sd)} * {len(rd)} -> {len(df)} -> {len(result.data)}')
-        #     if len(result.data) > 1e5:
-        #         print(f'Columns: {sorted(result.data.columns)}')
 
         return result
 
@@ -696,13 +692,13 @@ class PmappingGroup:
     #     all_tensors = TensorReservation.get_backing_tensors(all_tensors)
     #     for t in sorted(all_tensors):
     #         print(f"{t.__repr__()},")
-    
+
     # def _draw_index(self, index: int, live_tensors, to_file: str = "test.png"):
     #     from fastfusion.visualization.reservationtree import mappings2reservationtree
     #     import pydot
     #     looptree = mappings2reservationtree(
     #         self.data.iloc[index][MAPPING_COLUMN],
-    #         self.data.iloc[index].get(STATS, None),s
+    #         self.data.iloc[index].get(STATS, None),
     #         still_live_tensors=live_tensors,
     #     )
     #     graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")

@@ -66,7 +66,7 @@ def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings) -> Pmap
     joined = join_sims(
         compressed,
         spec,
-        pmappings.resource2capacity
+        pmappings.resource2capacity,
     )
     joined = decompress_pmappings(joined, decompress_data)
 

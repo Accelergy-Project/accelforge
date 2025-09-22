@@ -49,11 +49,6 @@ class SIM:
             right.compatibility.tensor_names | live_tensors
         )
         next_shared_loop_index = compatibility_joined.shared_loop_index(live_tensors)
-        
-        # print(f'Merging:')
-        # print(f'\t{self.compatibility}')
-        # print(f'\t{right.compatibility}')
-        # print(f'\t-> {compatibility}')
 
         still_live_reservations = [
             r
@@ -234,11 +229,6 @@ class SIM:
         groups_with_one = [g[0] for g in groups if len(g) == 1]
         if len(groups_with_one) == len(groups):
             return groups_with_one + no_combine
-        
-        # for g in groups:
-        #     if len(g) > 1:
-        #         print(f"Group {g} has {len(g)} SIMs")
-        #         print(f'\t{g[0].compatibility}')
         
         others = parallel(
             [

@@ -1849,23 +1849,3 @@ def _explore_tile_shapes(job: "Job"):
     if EXPERIMENTAL_TILE_SHAPE_EXPLORATION:
         return _explore_tile_shapes_new(job)
     return _explore_tile_shapes_old(job)
-
-
-# def calculate_n_iterations(df: pd.DataFrame, jobs_with_similar_compatibilities: SameCompatibilityJobs):
-#     compatibility = jobs_with_similar_compatibilities.compatibility
-#     shape = jobs_with_similar_compatibilities.rank_variable_bounds
-#     for c in compatibility.tensors:
-#         for l in c.loops:
-#             tp = l.tile_pattern
-#             assert tp.initial_tile_shape is None, "Can't handle initial tile shape"
-            
-#     def get_outer(i: int, t: TensorReservation) -> Loop:
-#         found = shape[t.loops[i].rank_name]
-#         for l in t.loops:
-#             if l.rank_variable == i:
-#                 found = l
-#         return found.tile_pattern.stride
-            
-#     for i in range(compatibility.n_loops):
-#         outer = 
-

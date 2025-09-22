@@ -121,13 +121,11 @@ def add_to_col(df, target, source):
 def max_to_col(df, target, source):
     df.loc[:, target] = df[[target, source]].max(axis=1) if target in df else df[source]
 
-
-def is_special_col(c):
-    return c in RESERVED_COLUMNS or col2nameloop(c) is not None
-
+def is_objective_col(c):
+    return partition_col(c, "Total") is not None
 
 def col_used_in_pareto(c):
-    return col2nameloop(c) is not None or partition_col(c, "Total") is not None
+    return col2nameloop(c) is not None or is_objective_col(c)
 
 
 # Pipeline:

@@ -6,103 +6,149 @@
 # Peak TF32 Tensor TFLOPS 494.7
 # Peak FP64 Tensor TFLOPS 66.9
 # Peak INT8 Tensor TOPS 1978.9
-# pJ/MAC = 700 / 1978.9 * 2 = 0.354
+# pJ/MAC = 700 / 1978.9 * 2 = 0.707
 # https://resources.nvidia.com/en-us-tensor-core
+variables:
+  tech_node: 5e-9
+  cell_node: "vInf.1"
+  cooling_overhead: 1
 
 arch:
-  # ============================================================
-  # Architecture Description
-  # ============================================================
   version: "0.5"
   global_cycle_period: 1e-9
-  nodes: # Top-level is hierarchical
+  nodes:
   - !Memory
     name: MainMemory
+    component_class: DRAM
     attributes:
-      _size: inf
+      _size: 9999999999999
+      _bandwidth_reads_plus_writes_per_cycle: 614e9 / width * global_cycle_period * 8 # 614 GB/s, got this from TPU
       _datawidth: 8
+      width: 8192
+      depth: size / width
     actions:
-    - {name: read, arguments: {energy: 7.03}}
-    - {name: write, arguments: {energy: 7.03}}
-    - {name: leak, arguments: {energy: 0}}
-
-  - !Memory
-    name: L2_cache
-    attributes:
-      _size: 50*1024*1024*8
-      _datawidth: 8
+    - {name: read, arguments: {bits_per_action: width}}
+    - {name: write, arguments: {bits_per_action: width}}
+    - {name: leak, arguments: {energy_scale: 1}}
     constraints:
       tensors:
-        keep: ~MainMemory.tensors() | input | output
-    actions:
-    - {name: read, arguments: {energy: 1.88}}
-    - {name: write, arguments: {energy: 2.36}}
-    - {name: leak, arguments: {energy: 0}}
+        keep: ~Intermediates()
 
   - !Memory
-    name: RF
-    spatial: {fanout: {X: 132}}
+    name: GlobalBuffer
+    component_class: SRAM
     attributes:
-      _size: (256*1024*8) # 256 kB
+      _size: 60 * (1024*1024*8) # 60 MB
       _datawidth: 8
+      _bandwidth_reads_plus_writes_per_cycle: 1 / clock_derate
+      width: 16384
+      depth: size / width
+      clock_derate: 1
+      cell_bit_depth: 8
+      array_w: width
+      array_h: depth
+    actions:
+    - {name: read, arguments: {bits_per_action: width}}
+    - {name: write, arguments: {bits_per_action: width}}
+    - {name: leak, arguments: {energy_scale: cooling_overhead}}
     constraints:
       tensors:
         keep: All()
-    actions:
-    - {name: read, arguments: {energy:  0.249}}
-    - {name: write, arguments: {energy:  0.293}}
-    - {name: leak, arguments: {energy: 0}}
-
-  # - !Container
-  #   name: tensor_core
-  #   spatial: {meshX: 4}
-
-  # - !Container # Calculated by GPU boost clock * # tensor cores / peak FP8 TOPs
-  #              # Divide by 2 for FP16, divide by 4 for FP32
-  #   name: macs_in_tensor_core
-  #   spatial: {meshX: 512}
+        # If we're fusing, we better not be re-fetching things from off-chip memory.
+        # Capture all intra-layer reuse before we fuse.
+        no_refetch_from_above: All() if len(MainMemory.tensors()) < len(Tensors()) else Outputs()
+      dataflow:
+        tensor_order_options: 
+        # Output-stationary for unfused tensors
+        - - output & MainMemory.tensors()
+          - weight & MainMemory.tensors()
+          - input & MainMemory.tensors()
+          - ~MainMemory.tensors()
 
   - !Memory
-    name: Register
-    spatial: {fanout: {X: 128, Y: 256}}
-    attributes:
-      _size: 8 # 8b
-      _datawidth: 8
-    constraints:
-      tensors:
-        keep: weight
-        bypass: ~weight
-        # tile_shape:
-        # - expression: weight.rank_variables()
-        #   operator: ==
-        #   value: 1
-      dataflow:
-        tensor_order_options:
-        - [All()] # Outputs more stationary than inputs
-      spatial:
-      - name: X # Parallel rank
-        loop_bounds:
-        - expression: ~parallel_rank
-          operator: ==
-          value: 1
-        # - expression: parallel_rank
-        #   operator: ==
-        #   value: 128
-      - name: Y # Reduced rank. No iteration over outputs
-        loop_bounds:
-        - expression: ~reduced_rank
-          operator: ==
-          value: 1
-        # - expression: reduced_rank
-        #   operator: ==
+    name: SM
+    component_class: dummy_storage
+    spatial: 
+    - {name: X, fanout: 9}
+    - {name: CGA, fanout: 16} # NO MULTICAST IN THE 16 DIMENSION!
+    attributes: {_size: 0}
     actions:
-    - {name: read, arguments: {energy: 0}}
-    - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: read, arguments: {bits_per_action: 1}}
+    - {name: write, arguments: {bits_per_action: 1}}
+    - {name: leak, arguments: {energy_scale: cooling_overhead}}
+    constraints: 
+      tensors: 
+        bypass: All()
+      spatial:
+      - name: X
+        min_utilization: 1 if len(All()) > 2 else 0
+        loop_bounds: [{expression: ~output.rank_variables(), operator: ==, value: 1}]
+      - name: CGA
+        min_utilization: 1 if len(All()) > 2 else 0
+        loop_bounds: [{expression: ~output.rank_variables(), operator: ==, value: 1}]
 
+  - !Memory
+    name: shared_memory
+    component_class: SRAM
+    attributes:
+      _size: 64 * (1024*8) # 64 kB
+      _datawidth: 8
+      _bandwidth_reads_plus_writes_per_cycle: 1 / clock_derate
+      width: 1024
+      depth: size / width
+      clock_derate: 1
+      cell_bit_depth: 8
+      array_w: width
+      array_h: depth
+    actions:
+    - {name: read, arguments: {bits_per_action: width}}
+    - {name: write, arguments: {bits_per_action: width}}
+    - {name: leak, arguments: {energy_scale: cooling_overhead}}
+    constraints:
+      tensors: 
+        keep: All() - Outputs()
+        no_refetch_from_above: Outputs()
+      dataflow:
+        tensor_order_options: 
+        - [output, weight, input] # Output-stationary
 
   - !Compute
-    name: mac
+    name: scalar_unit
+    component_class: dummy_compute
+    attributes: {area: 0, _computes_per_cycle: 128}
     actions:
-    - {name: compute, arguments: {energy: 0}} #0.84}}
+    - {name: compute, arguments: {energy: 0}}
     - {name: leak, arguments: {energy: 0}}
+    constraints: {misc: {enabled: len(All()) == 2}}
+
+  - !Memory
+    name: tensor_core_dummy
+    component_class: dummy_storage
+    attributes: {_size: 8, datawidth: 8}
+    spatial:
+    - {name: reuse_input, fanout: 128 // 8} # 8 is the datawidth
+    - {name: reuse_output, fanout: 4}
+    - {name: reuse_weight, fanout: 8}
+    constraints:
+      tensors: {bypass: All()} #{keep: Outputs(), bypass: ~Outputs()}
+      spatial:
+      - name: reuse_input
+        min_utilization: 1
+        loop_bounds: [{expression: input.rank_variables(), operator: ==, value: 1}]
+      - name: reuse_output
+        min_utilization: 1
+        loop_bounds: [{expression: output.rank_variables(), operator: ==, value: 1}]
+      - name: reuse_weight
+        min_utilization: 1
+        loop_bounds: [{expression: weight.rank_variables(), operator: ==, value: 1}]
+
+  - !Compute
+    name: MAC
+    component_class: intmac
+    attributes: {multiplier_width: 8, adder_width: 16}
+    actions:
+    # This energy scale makes the plug-in return give the same value as a MAC from
+    # "Ten Lessons From Three Generations Shaped Google’s TPUv4i"
+    - {name: compute, arguments: {energy_scale: 0.21}}
+    - {name: leak, arguments: {energy_scale: cooling_overhead}}
+    constraints: {misc: {enabled: len(All()) == 3}}
