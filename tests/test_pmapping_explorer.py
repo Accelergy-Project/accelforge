@@ -3,11 +3,12 @@ import unittest
 
 from fastfusion.frontend import Specification, Workload
 
-from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum import get_initial_delta_choices
+from fastfusion.mapper import Metrics
+from fastfusion.mapper.FFM import make_pmappings
 from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_sims
 from fastfusion.mapper.FFM._pmapping_group import nameloop2col
 
-from simcache import make_sim_pickle_cache
+from .simcache import make_sim_pickle_cache
 
 
 PARENT_DIR = Path(__file__).parent
@@ -20,7 +21,8 @@ class TestPmappingExploration(unittest.TestCase):
             PARENT_DIR / "mha.workload.yaml",
             PARENT_DIR / "mha.renames.yaml",
         )
-        sims, decompress_data = get_sims(spec)
+        spec.mapper.ffm.metrics = Metrics.ENERGY | Metrics.LATENCY
+        pmappings = make_pmappings(spec)
 
     def test_mha_full(self):
         config_names = [
