@@ -744,17 +744,21 @@ def get_tile_shape_choices(
                         choices_enumerated,
                         minimize_formula=objective.formula,
                     )
+                    complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
                     valid = result <= objective.max_value
                     if not isinstance(valid, np.ndarray):
                         valid = (
                             np.zeros(choices_enumerated.shape[0], dtype=bool) + valid
                         )
-                    if objective.min_value is not None and valid.sum():
-                        past_min = valid & (result >= objective.min_value)
-                        if past_min.sum() == 0:
-                            best = (result[valid]).max()
-                            past_min = valid & (result == best)
-                        valid = valid & past_min
+                    if objective.min_value is not None and valid.any() and complete:
+                        above_min = valid & (result >= objective.min_value)
+                        if not above_min.any():
+                            best = result[valid].max()
+                            above_min = valid & (result == best)
+                        valid = valid & above_min
+                        if not valid.any():
+                            prev = result <= objective.max_value
+                            print(f'No valid pmappings. Previous: {prev.sum()}. Best: {result[valid].max()}')
 
                     porp = sum(valid) / max(1, choices_enumerated.shape[0])
                     job.log_porp_pmappings_kept(
@@ -763,7 +767,7 @@ def get_tile_shape_choices(
                     )
                     choices_enumerated = choices_enumerated[valid]
                     log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
-                    if objective.formula.free_symbols.issubset(sym_enumerated_set):
+                    if complete:
                         objective.max_value = None  # We don't care anymore
                         if objective.only_care_if_valid:
                             objectives.remove(objective)

@@ -241,7 +241,7 @@ def get_sims(
     tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
-    fail_if_no_pmappings_for_einsum: bool = True,
+    fail_if_no_pmappings_for_einsum: bool | None = None,
 ) -> tuple[
     dict[EinsumName, list[SIM]],
     dict[EinsumName, dict[uuid.UUID, Mapping]],
@@ -252,6 +252,9 @@ def get_sims(
     """
     if einsum_names is None:
         einsum_names = spec.workload.einsum_names
+
+    if fail_if_no_pmappings_for_einsum is None:
+        fail_if_no_pmappings_for_einsum = not can_combine_multiple_runs
 
     einsum2jobs = {}
     new_einsum2jobs = get_jobs(
