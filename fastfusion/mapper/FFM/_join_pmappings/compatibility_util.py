@@ -14,21 +14,6 @@ def myprint(*args, **kwargs):
         print(*args, **kwargs)
 
 
-def remove_unimportant_sims(
-    einsum2sims: dict[EinsumName, Iterable[SIM]],
-    einsum2important_compats: dict[EinsumName, Iterable[Compatibility]],
-) -> dict[EinsumName, list[SIM]]:
-    einsum2pruned_sims: dict[EinsumName, list[SIM]] = {}
-    for einsum, sims in einsum2sims.items():
-        important_compats = einsum2important_compats[einsum]
-        pruned_sims = [
-            sim for sim in sims
-            if sim.compatibility.clear_loop_bounds() in important_compats
-        ]
-        einsum2pruned_sims[einsum] = pruned_sims
-    return einsum2pruned_sims
-
-
 def sims2untiled_compats(
     einsum2sims: dict[EinsumName, Iterable[SIM]]
 ) -> dict[EinsumName, set[Compatibility]]:

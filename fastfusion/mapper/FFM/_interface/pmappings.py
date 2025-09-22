@@ -12,14 +12,21 @@ class MultiEinsumPmappings:
         einsum2pmappings: dict[EinsumName, list[SIM]],
         pmapping_objects: dict[EinsumName, dict[UUID, Mapping]],
         resource2capacity: dict[str, int],
-        einsum2jobs: dict[EinsumName, list[Job]]
+        einsum2jobs: dict[EinsumName, list[Job]],
+        can_combine_multiple_runs: bool,
     ):
         self.einsum2pmappings: dict[EinsumName, list[SIM]] = einsum2pmappings
         self.pmapping_objects: dict[EinsumName, dict[UUID, Mapping]] = pmapping_objects
         self.resource2capacity = resource2capacity
         self.mapper_jobs = einsum2jobs
+        self.can_combine_multiple_runs = can_combine_multiple_runs
 
     def __or__(self, other: "MultiEinsumPmappings"):
+        if not self.can_combine_multiple_runs or not other.can_combine_multiple_runs:
+            raise ValueError(
+                "Must call make_pmappings with can_combine_multiple_runs=True to combine pmappings "
+                "from multiple runs."
+            )
         for einsum_name, pmappings in other.einsum2pmappings.items():
             self.einsum2pmappings.setdefault(einsum_name, []).extend(pmappings)
         for resource, capacity in other.resource2capacity.items():

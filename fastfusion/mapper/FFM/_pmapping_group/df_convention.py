@@ -29,8 +29,8 @@ def dict_cached(func):
     return wrapper
 
 
-def partition_col(col, prefix, expected_len=None):
-    col = col.split("\0")
+def partition_col(col, prefix, expected_len=None) -> list[str] | None:
+    col = col.split("<SEP>")
     if col[0] != prefix:
         return None
     if expected_len is not None and len(col) != expected_len:
@@ -42,7 +42,7 @@ def partition_col(col, prefix, expected_len=None):
 
 
 @dict_cached
-def col2nameloop(x):
+def col2nameloop(x: str) -> tuple[str, int] | None:
     """ Format: reservation name level left """
     x = partition_col(x, "reservation", 4)
     if x is None:
@@ -51,27 +51,32 @@ def col2nameloop(x):
 
 
 @dict_cached
-def nameloop2col(name, nloops, left: bool = False):
+def nameloop2col(name: str, nloops: int, left: bool = False) -> str:
     """ Format: reservation name level left """
-    return f"reservation\0{name}\0{nloops}\0left" if left else "right"
+    return f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
+
 
 @dict_cached
-def tensor2col(tensor):
+def tensor2col(tensor: str) -> str:
     """ Format: tensor tensor_name """
-    return f"tensor\0{tensor}"
+    return f"tensor<SEP>{tensor}"
 
 
 @dict_cached
-def col2nametensor(col):
+def col2nametensor(col: str) -> str | None:
     """ Format: tensor tensor_name """
     x = partition_col(col, "tensor", 2)
     if x is None:
         return None
     return x[1]
 
+@dict_cached
+def is_tensor_col(c: str) -> bool:
+    return c.startswith("tensor<SEP>")
+
 
 @dict_cached
-def col2nameloopleft(x):
+def col2nameloopleft(x: str) -> tuple[str, int, bool] | None:
     """ Format: reservation name level left """
     x = partition_col(x, "reservation", 4)
     if x is None:
@@ -79,17 +84,28 @@ def col2nameloopleft(x):
     return x[0], x[1], x[2] == "left"
 
 
-def is_reservation_col(x):
+def is_reservation_col(x: str) -> bool:
     return col2nameloop(x) is not None
 
 
 @dict_cached
-def is_left_col(x):
+def is_left_col(x: str) -> bool:
     """ Format: reservation name level left """
     x = partition_col(x, "reservation", 4)
     if x is None:
         return False
     return x[2] == "left"
+
+
+def make_fused_loop_col(s: str) -> str:
+    return f"fused_loop<SEP>{s}"
+
+
+def is_fused_loop_col(c: str) -> bool:
+    return c.startswith("fused_loop<SEP>")
+
+def is_n_iterations_col(c: str) -> bool:
+    return c.startswith("fused_loop<SEP>n_iterations")
 
 
 def add_to_col(df, target, source):
@@ -105,13 +121,11 @@ def add_to_col(df, target, source):
 def max_to_col(df, target, source):
     df.loc[:, target] = df[[target, source]].max(axis=1) if target in df else df[source]
 
-
-def is_special_col(c):
-    return c in RESERVED_COLUMNS or col2nameloop(c) is not None
-
+def is_objective_col(c):
+    return partition_col(c, "Total") is not None
 
 def col_used_in_pareto(c):
-    return col2nameloop(c) is not None or partition_col(c, "Total") is not None
+    return col2nameloop(c) is not None or is_objective_col(c)
 
 
 # Pipeline:
@@ -154,4 +168,3 @@ def col_used_in_pareto(c):
 
 # Shared index -1: Sum -1 resources, max everyone below
 # Shared index 0: Sum 0 resources, max everyone below
-

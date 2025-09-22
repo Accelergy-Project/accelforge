@@ -63,6 +63,7 @@ def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
 
 
 def label_fused_loops(mapping: List[MappingNode]):
+    assert_proper_fusion_labeling(mapping, check_loops=False)
     last_backer = None
     for i, node in enumerate(mapping):
         if isinstance(node, TensorHolder) and node._backing:
@@ -97,9 +98,7 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
             insert_point = i + 1
             break
 
-    temporals = [
-        Temporal(rank_variable=r, tile_shape="symbol") for r in sorted(rank_variables)
-    ]
+    temporals = [Temporal(rank_variable=r) for r in sorted(rank_variables)]
 
     if insert_point == len(mapping):
         mapping.extend(temporals)
@@ -117,7 +116,7 @@ def pad_with_bottom_loops(mapping: list[MappingNode], einsum: Einsum):
 
     for rank_var in rank_variables:
         if rank_var_to_count[rank_var] < 2:
-            mapping.append(Temporal(rank_variable=rank_var, tile_shape="symbol"))
+            mapping.append(Temporal(rank_variable=rank_var))
 
 
 def timeloop_style_even(mapping: list[MappingNode]):
@@ -171,6 +170,22 @@ def max_fused_loops(mapping: Mapping, max_fused_loops: int):
             mapping_new.pop(f)
         yield mapping_new
 
+def assert_proper_fusion_labeling(mapping: list[MappingNode], check_loops: bool = True):
+    tensors = set()
+    for i, t in enumerate(mapping):
+        if not isinstance(t, TensorHolder):
+            continue
+        
+        new = set(t.tensors) - tensors
+        
+        if new and check_loops:
+            for j in range(i):
+                if isinstance(mapping[j], Iteration):
+                    assert mapping[j]._fused, f"Node {j} is not fused in {' '.join(m.compact_str() for m in mapping)}"
+        assert t._backing == new, f"Node {i} backing missing {new - t._backing} in {' '.join(m.compact_str() for m in mapping)}"
+        tensors.update(new)
+        tensors.update(t.tensors)
+
 def iterate_mappings_no_constraints(
     spec: Specification,
     einsum_name: str,
@@ -206,15 +221,16 @@ def iterate_mappings_no_constraints(
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(mapping, einsum, arch_flattened)
             mapping = unpack_loops_to_rank_variables(mapping)
-            label_fused_loops(mapping)
             if spec.mapper.ffm.timeloop_style_even:
                 mapping = timeloop_style_even(mapping)
                 
             place_missing_temporal_loops(mapping, einsum)
+            label_fused_loops(mapping)
             for mapping2 in max_fused_loops(
                 mapping,
                 spec.mapper.ffm.max_fused_loops,
             ):
+                assert_proper_fusion_labeling(mapping2)
                 yield mapping2, symbol_table
 
 def iterate_mappings_constraints(

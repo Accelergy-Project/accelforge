@@ -200,13 +200,13 @@ class Einsum(ParsableModel):
         lhs = lhs_join.join([t.to_formatted_string() for t in self.tensor_accesses if t.output])
         rhs = rhs_join.join([t.to_formatted_string() for t in self.tensor_accesses if not t.output])
         return f"{lhs}=\n{rhs}" if compress else f"{lhs} = {rhs}"
-    
+
     def input_tensors(self) -> set[TensorName]:
         return {TensorName(t.name) for t in self.tensor_accesses if not t.output}
-    
+
     def output_tensors(self) -> set[TensorName]:
         return {TensorName(t.name) for t in self.tensor_accesses if t.output}
-    
+
     def copy_source_tensor(self) -> TensorName | None:
         if not self.is_copy_operation:
             return None
@@ -214,6 +214,15 @@ class Einsum(ParsableModel):
         if len(input_tensors) != 1:
             raise ValueError(f"Copy Einsum {self.name} has {len(input_tensors)} input tensors, expected 1")
         return input_tensors.pop()
+
+    @property
+    def rank_variable2ranks(self) -> dict[RankVariableName, set[RankName]]:
+        result: dict[RankVariableName, set[RankName]] = {}
+        for tensor_access in self.tensor_accesses:
+            new = tensor_access.rank_variable2ranks
+            for rank_var, ranks in new.items():
+                result.setdefault(rank_var, set()).update(ranks)
+        return result
 
 class Workload(ParsableModel):
     version: Annotated[str, assert_version] = __version__
@@ -421,30 +430,30 @@ class Workload(ParsableModel):
 
         return symbol_table
 
-    def get_pairwise_equivalent_rank_variables(self) -> dict[RankVariableName, set[RankVariableName]]:
-        equivalent_rank_variables: dict[RankVariableName, set[RankVariableName]] = {}
+    def get_mixable_ranks(self) -> dict[RankName, set[RankName]]:
+        rank2rankvars = {}
         for tensor in self.tensor_names:
-            accesses = self.accesses_for_tensor(tensor)
-            if not accesses:
-                raise ValueError(f"Tensor {tensor} has no accesses")
-            ranks = set(accesses[0].projection.keys())
-            assert all(ranks == set(access.projection.keys()) for access in accesses)
+            for acc in self.accesses_for_tensor(tensor):
+                for rank, rank_vars in acc.rank2rank_variables.items():
+                    rank2rankvars.setdefault(rank, set()).update(rank_vars)
 
-            for i, j in product(range(len(accesses)), repeat=2):
-                if i == j:
-                    continue
-                access_i = accesses[i]
-                access_j = accesses[j]
-                for rank, i_rank_vars in access_i.rank2rank_variables.items():
-                    for i_rank_var in i_rank_vars:
-                        rank2_rank_vars_j = access_j.rank2rank_variables
-                        if rank not in rank2_rank_vars_j:
-                            continue
-                        equiv_js = equivalent_rank_variables.setdefault(i_rank_var,
-                                                                        set())
-                        equiv_js.update(rank2_rank_vars_j[rank])
+        rank_var_to_ranks = {}
+        for rank, rank_vars in rank2rankvars.items():
+            for rank_var in rank_vars:
+                rank_var_to_ranks.setdefault(rank_var, set()).add(rank)
 
-        return equivalent_rank_variables
+        rank_to_ranks = {r: set((r,)) for r in rank2rankvars.keys()}
+        update_with = list(rank_var_to_ranks.values())
+        changed = True
+        while changed:
+            changed = False
+            for ranks in rank_to_ranks.values():
+                for u in update_with:
+                    if u & ranks:
+                        changed = changed or (u - ranks)
+                        ranks.update(u)
+
+        return rank_to_ranks
 
     def get_tensor_copies(self) -> dict[TensorName, set[TensorName]]:
         tensor_copies = {}

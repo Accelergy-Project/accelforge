@@ -30,6 +30,7 @@ def make_pmappings(
     spec: Specification, 
     einsum_names: list[EinsumName] | None = None, 
     tagger = None,
+    can_combine_multiple_runs: bool = False,
 ) -> MultiEinsumPmappings:
     parsed_spec, _ = spec.parse_expressions()
     parsed_spec.calculate_component_energy_area(area=False)
@@ -39,14 +40,15 @@ def make_pmappings(
         flattened_arches,
         tagger=tagger,
         metrics=spec.mapper.ffm.metrics,
-        einsum_names=einsum_names
+        einsum_names=einsum_names,
+        can_combine_multiple_runs=can_combine_multiple_runs,
     )
     resource2capacity = {}
     for flattened_arch in flattened_arches:
         for l in flattened_arch:
             if isinstance(l, arch.Memory):
                 resource2capacity[l.name] = l.attributes.size
-    return MultiEinsumPmappings(sims, pmapping_objects, resource2capacity, einsum2jobs)
+    return MultiEinsumPmappings(sims, pmapping_objects, resource2capacity, einsum2jobs, can_combine_multiple_runs=can_combine_multiple_runs)
 
 def row2mapping(row: pd.Series, spec: Specification, rank_variable_bounds: dict[str, dict[str, int]]) -> Mapping:
     return Mapping.from_pmappings(row2pmappings(row, spec.workload.einsum_names, rank_variable_bounds), rank_variable_bounds=rank_variable_bounds)
@@ -59,23 +61,23 @@ def join_pmappings(spec: Specification, pmappings: MultiEinsumPmappings) -> Pmap
         print(f"Einsum {einsum_name} has {total} pmappings with {n_compatibilities} compatibilities")
         if total == 0:
             raise ValueError(f"Einsum {einsum_name} has no pmappings")
-        
+
     compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
     joined = join_sims(
         compressed,
         spec,
-        pmappings.resource2capacity
+        pmappings.resource2capacity,
     )
     joined = decompress_pmappings(joined, decompress_data)
 
     for einsum_name in pmappings.einsum2pmappings:
-        col = f"{einsum_name}\0{MAPPING_COLUMN}"
+        col = f"{einsum_name}<SEP>{MAPPING_COLUMN}"
         joined.data[col] = joined.data[col].apply(
             lambda x: pmappings.pmapping_objects[einsum_name][x]
         )
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    joined.data[f"Total\0{MAPPING_COLUMN}"] = joined.data.apply(lambda row: MappingFromRow(row, spec, rank_variable_bounds), axis=1)
+    joined.data[f"Total<SEP>{MAPPING_COLUMN}"] = joined.data.apply(lambda row: MappingFromRow(row, spec, rank_variable_bounds), axis=1)
     # Fill nans with 0. We might get missing columns for some mapping entries if there
     # are energy entries for some pmappings but not others (e.g., one pmapping accesses
     # DRAM while another doesn't.)

@@ -48,11 +48,11 @@ arch:
         keep: input | output
       spatial:
         - name: Z
-          min_utilization: 1
-          loop_bounds:
-          - expression: weight.rank_variables()
-            operator: ==
-            value: 1
+          # min_utilization: 1
+          # loop_bounds:
+          # - expression: weight.rank_variables()
+          #   operator: ==
+          #   value: 1
 
   - !Compute
     name: scalar_unit
@@ -75,16 +75,17 @@ arch:
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
-        bypass: ~weight | GlobalBuffer.tensors()
+        bypass: ~weight
+        keep: weight
       spatial:
       - name: X # Parallel rank
-        min_utilization: 1
+        # min_utilization: 1
         loop_bounds:
         - expression: input.rank_variables() | ~output.rank_variables()
           operator: ==
           value: 1
       - name: Y # Reduced rank. No iteration over outputs
-        min_utilization: 1
+        # min_utilization: 1
         loop_bounds:
         - expression: output.rank_variables() | ~input.rank_variables()
           operator: ==

@@ -47,20 +47,19 @@ def get_tensor_choices(
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
 
     for choice, symbol_table in make_tensor_choices_all_levels(nodes, symbol_table, is_copy_op=is_copy_op):
-        all_tensor_holders = []
-        for v in choice.values():
-            all_tensor_holders.extend(v)
+        all_tensor_holders = [v2 for v in choice.values() for v2 in v]
 
+        # Start out the mapping with the outermost memory name
         base_mapping = []
         for node in list(all_tensor_holders[::-1]):
             if node.component == first_tensor_holder.name:
                 all_tensor_holders.remove(node)
                 base_mapping.append(node)
-                
-        required_order = get_dataflow_constraint(
-            nodes, symbol_table, tensors
-        )
 
+        # Get the dataflow constraints for the mapping
+        required_order = get_dataflow_constraint(nodes, symbol_table, tensors)
+
+        # If the compute is not enabled, then this mapping is not valid
         if not eval_enabled(compute, symbol_table):
             continue
 
@@ -123,12 +122,11 @@ def recursive_order_tensor_choices(
         check_has_tensors(mapping)
         yield mapping
         return
-    
-    # If it's a copy op and there's a node storing each tensor, then return immediately
+
+    # If it's a copy op and we have the backing storage for every tensor, return immediately
     if is_copy_op:
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
-        seen_tensors = {tensor for tensor_holder in tensor_holders for tensor in tensor_holder.tensors}
-        if seen_tensors == tensors:
+        if set().union(*[t._backing for t in tensor_holders]) == tensors:
             check_has_tensors(mapping)
             yield mapping
             return

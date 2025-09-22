@@ -5,10 +5,12 @@ in FastFusion.
 
 from abc import ABC
 import copy
+from dataclasses import dataclass, replace
 import pydot
 
 from typing import (
     # Collections
+    Any,
     Iterator,
     List,
     # Object definitions
@@ -24,7 +26,8 @@ from typing import (
     Union,
 )
 from collections.abc import Set
-from pydantic import Discriminator, Tag
+from pydantic import ConfigDict, Discriminator, Tag
+import sympy
 
 from fastfusion.util.basetypes import (
     # Parsing helpers for the input files.
@@ -205,24 +208,18 @@ class ColorMap:
 
 class MappingNode(ParsableModel, ABC):
     """
-    Represents a Node in the Mapping, which is any granular layer of data or
-    operation manipulation.
-
-    :param constraint_lambda: A series of constraints that the Node must satisfy.
-    :param must_be_here: Controls if the Mapper can move the Node in the Mapping.
-    :param required: Whether the Mapper must keep this node in exploration.
-
-    :type constraint_lambda: List[Callable[[], bool]]
-    :type must_be_here: bool
-    :type required: bool
-
-    :undoc-members:
+    Represents a Node in the Mapping, which can be a loop, a storage node, a compute
+    node, etc.
     """
 
     _constraint_lambdas: List[Callable[[], bool]] = []
-    _must_be_here: bool = False  # Can the mapper move this node?
-    _required: bool = False  # Must the mapper keep this node?
-    # children: ParsableList["MappingNode"] = ParsableList()
+    """ Constraints that apply to this node. """
+    
+    _must_be_here: bool = False
+    """ Can the mapper move this node? """
+    
+    _required: bool = False
+    """ Must the mapper keep this node? """
 
     def _render_node_name(self) -> str:
         return f"{self.__class__.__name__}_{id(self)}"
@@ -281,73 +278,104 @@ class MappingNode(ParsableModel, ABC):
         return "white"
 
 
-class Pattern(ParsableModel):
-    """
-    A pattern in tile traversal.
 
-    :param stride: The stride between applications of the pattern.
-    :type stride: ParsesTo[Literal['symbol'] | int]
-    """
+class TilePattern(ParsableModel):
+    stride: ParsesTo[Literal["symbol"] | sympy.Symbol | int | str] = "symbol"
+    """ The stride of the pattern. """
 
-    stride: ParsesTo[Literal["symbol"] | int]
-    initial_tile_shape: ParsesTo[Literal["symbol"] | int | None] = None
-    tile_shape: ParsesTo[Literal["symbol"] | int | None] = None
+    initial_tile_shape: ParsesTo[Literal["symbol"] | sympy.Symbol | int | None | str] = "symbol"
+    """ The initial tile shape. """
 
+    calculated_n_iterations: Literal["symbol"] | sympy.Symbol | int | None | str = None
+    """ The number of iterations in the pattern. Do not set this! Used internally by the
+    mapper! """
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        frozen=True,
+    )
+
+    def _symbol_attrs(self) -> tuple[str, ...]:
+        return ("stride", "initial_tile_shape", "calculated_n_iterations")
+
+    def __str__(self) -> str:
+        s = []
+        if self.calculated_n_iterations is not None:
+            s.append(f"in [0..{self.calculated_n_iterations})")
+        if self.initial_tile_shape is not None:
+            s.append(f"initial={self.initial_tile_shape}")
+        if self.stride is not None:
+            s.append(f"stride={self.stride}")
+        return " ".join(s)
+
+
+    def update(self, **kwargs) -> "TilePattern":
+        return type(self)(**{**self.model_dump(), **kwargs})
+
+
+    def symbol2str(self) -> "TilePattern":
+        def _symbol2str(x: sympy.Symbol | int | None) -> str | int | None:
+            return x.name if isinstance(x, sympy.Symbol) else x
+        return type(self)(**{
+            x: _symbol2str(getattr(self, x))
+            for x in self._symbol_attrs()
+        })
+
+    def symbols_as_strings(self) -> set[str]:
+        symbols: set[str] = set()
+        for x in self._symbol_attrs():
+            x = getattr(self, x)
+            if isinstance(x, sympy.Symbol):
+                symbols.add(x.name)
+            elif isinstance(x, str):
+                symbols.add(x)
+        return symbols
+
+    def prepend_symbols(self, prepend: str) -> "TilePattern":
+        def _prepend(x: sympy.Symbol | int | None) -> str | int | None:
+            if isinstance(x, sympy.Symbol):
+                x = x.name
+            return prepend + x if isinstance(x, str) else x
+
+        return self.update({
+            x: _prepend(getattr(self, x))
+            for x in self._symbol_attrs()
+        })
+
+    def __eq__(self, other: "TilePattern") -> bool:
+        return all(getattr(self, x) == getattr(other, x) for x in self._symbol_attrs())
+
+    def __hash__(self) -> int:
+        return hash((self.initial_tile_shape, self.stride))
 
 class Iteration(MappingNode):
     """
-    A bounded loop over a rank with a given shape and pattern.
-
-    :param rank_variable: The rank variable or set of rank variables being iterated
-    over in this MappingNode.
-    :param loop_bound: The Iteration occurs over [0..loop_bound)
-    :param tile_pattern: The pattern the Iteration occurs in.
-    :param assume_perfect_factor: Whether the Mapper assumes perfect factorization
-    is necessary to performant operation.
-    :param _fused: Whether or not this Iteration is fused with another.
-
-
-    :type rank_variable: Union[Set[RankVariableName], RankVariableName]
-    :type loop_bound: ParsesTo[Union[Literal['symbol'], int, None]]
-    :type tile_pattern: ParsesTo[Union[Literal['symbol'], Pattern, None]]
-    :type assume_perfect_factor: bool
-    :type _fused: bool
+    A bounded loop over a rank with a given shape and/or pattern.
     """
 
     rank_variable: Union[Set[RankVariableName], RankVariableName]
-    loop_bound: ParsesTo[Union[Literal["symbol"], int, None]] = None
-    tile_shape: ParsesTo[Union[Literal["symbol"], int, None]] = None
-    tile_pattern: ParsesTo[Union[Literal["symbol"], Pattern, None]] = None
-    assume_perfect_factor: bool = True
-    _fused: bool = False
+    """ The set of rank variables that are iterated over in this loop. """
 
-    # @model_validator(mode='after')
-    # def check_at_least_one_tiling_info(self):
-    #     n_non_none = sum([
-    #         self.loop_bound is not None,
-    #         self.tile_shape is not None,
-    #         self.tile_pattern is not None
-    #     ])
-    #     if n_non_none != 1:
-    #         raise ValueError('Must give exactly one of loop_bound, tile_shape, or tile_pattern')
-    #     return self
+    tile_pattern: ParsesTo[TilePattern] = TilePattern()
+    """ The tile pattern. """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    assume_perfect_factor: bool = True
+    """ Whether the Mapper assumes perfect factorization is necessary to perform an
+    operation. """
+
+    _fused: bool = False
+    """ Whether this Iteration is fused with another. """
 
     def __str__(self) -> str:
         x = []
-        if self.tile_shape is not None:
-            x.append(f"shape {self.tile_shape}")
-        if self.tile_pattern is not None:
-            x.append(f"pattern {self.tile_pattern}")
-        if self.loop_bound is not None:
-            x.append(f"in [0..{self.loop_bound})")
-        return f"for {self.rank_variable} {' '.join(x)}"
+        return f"for {self.rank_variable} {self.tile_pattern}"
 
     def __eq__(self, other: "Iteration") -> bool:
         return (
             isinstance(other, Iteration)
             and self.rank_variable == other.rank_variable
-            and self.loop_bound == other.loop_bound
-            and self.tile_shape == other.tile_shape
             and self.tile_pattern == other.tile_pattern
         )
 
@@ -361,22 +389,11 @@ class Iteration(MappingNode):
         rv = self.rank_variable
         if isinstance(rv, (set, frozenset)):
             rv = ",".join(sorted(rv))
-        if self.loop_bound is not None:
-            return f"{rv} shape {self.tile_shape}"
-        elif self.tile_pattern is not None:
-            return f"{rv} patrn {self.tile_pattern}"
-        elif self.loop_bound is not None:
-            return f"{rv} bound {self.loop_bound}"
-        else:
-            return f"{rv}"
+        return f"{rv} {self.tile_pattern}"
         
     def merge(self, other: "Iteration", **kwargs) -> "Iteration":
         if not isinstance(other, Iteration):
             raise ValueError(f"Expected Iteration, got {type(other)}")
-        if self.loop_bound != other.loop_bound:
-            raise ValueError(f"Loop bounds do not match: {self.loop_bound} != {other.loop_bound}")
-        if self.tile_shape != other.tile_shape:
-            raise ValueError(f"Tile shapes do not match: {self.tile_shape} != {other.tile_shape}")
         if self.tile_pattern != other.tile_pattern:
             raise ValueError(f"Tile patterns do not match: {self.tile_pattern} != {other.tile_pattern}")
 
@@ -385,12 +402,34 @@ class Iteration(MappingNode):
         other_rv = other_rv if isinstance(other_rv, (set, frozenset)) else set((other_rv,))
         return type(self)(
             rank_variable=my_rv | other_rv,
-            loop_bound=self.loop_bound,
-            tile_shape=self.tile_shape,
             tile_pattern=self.tile_pattern,
             assume_perfect_factor=self.assume_perfect_factor,
             **kwargs
         )
+
+    @property
+    def initial_tile_shape(self) -> Union[int, sympy.Symbol]:
+        return self.tile_pattern.initial_tile_shape
+
+    @property
+    def stride(self) -> Union[int, sympy.Symbol]:
+        return self.tile_pattern.stride
+
+    @property
+    def calculated_n_iterations(self) -> int:
+        return self.tile_pattern.calculated_n_iterations
+
+    @initial_tile_shape.setter
+    def initial_tile_shape(self, value: Union[int, sympy.Symbol]) -> None:
+        self.tile_pattern = self.tile_pattern.update(initial_tile_shape=value)
+
+    @stride.setter
+    def stride(self, value: Union[int, sympy.Symbol]) -> None:
+        self.tile_pattern = self.tile_pattern.update(stride=value)
+
+    @calculated_n_iterations.setter
+    def calculated_n_iterations(self, value: int) -> None:
+        self.tile_pattern = self.tile_pattern.update(calculated_n_iterations=value)
 
 
 class Temporal(Iteration):
@@ -411,20 +450,17 @@ class Temporal(Iteration):
 
 
 class Spatial(Iteration):
-    """
-    A Spatial :class:`~.Iteration`.
-
-    :param name: The dimension the spatial is occuring over.
-    :param component: The hardware feature name hosting the iteration.
-    :param component_object: The hardware feature hosting the Iteration.
-
-    :type name: Union[int, str]
-    :type component: str
-    :type component_object: Optional[arch.Leaf]
-    """
+    """ A spatial loop. """
 
     name: Union[int, str]
+    """ The dimension the spatial is occuring over. """
+    
     component: str
+    """ The hardware feature name hosting the iteration. """
+    
+    component_object: Optional[arch.Leaf] = None
+    """ The hardware feature hosting the Iteration. """
+    
     component_object: Optional[arch.Leaf] = None
 
     def compact_str(self) -> str:
@@ -458,35 +494,25 @@ class Spatial(Iteration):
 
 
 class TensorHolder(MappingNode):
-    """
-    A :class:`~.MappingNode` that represents a hardware Component holding a set of tensors.
-
-    :param tensors: The tensors, by name, being held in this Node.
-    :param component: The component type holding the tensors.
-    :param component_object: The specific FastFusion object representing the
-    component holding the tensors.
-    :param _must_keep_sensors: Which tensor(s) the Mapper must keep here.
-    :param _backing: The tensor(s) backed by this node.
-    :param _lower: Whether the tensor names are compressed to lowercase.
-
-    :type tensors: ParsableList[TensorName]
-    :type component: str
-    :type component_object: Optional[arch.Component]
-    :type _must_keep_tensors: ParsableList[TensorName]
-    :type _backing: Set[TensorName]
-    :type _lower: bool
-    """
+    """ A node that represents a hardware Component holding a set of tensors. """
 
     tensors: ParsableList[TensorName]
+    """ The names of the tensors being held in this node. """
+    
     component: str
-    component_object: Optional[arch.Component] = (
-        None  # Reference to component node
-    )
-    _must_keep_tensors: ParsableList[TensorName] = (
-        ParsableList()
-    )  # Must the mapper keep these tensors here?
-    _backing: Set[TensorName] = set()  # Which tensor(s) are backed by this node?
+    """ The name of the component holding the tensors. """
+    
+    component_object: Optional[arch.Component] = None
+    """ The component object hosting the tensors. """
+    
+    _must_keep_tensors: ParsableList[TensorName] = ParsableList()
+    """ Which tensor(s) the Mapper must keep here. """
+    
+    _backing: Set[TensorName] = set()
+    """ Which tensor(s) are backed by this node. """
+    
     _lower: bool = True
+    """ Whether the tensor names are compressed to lowercase. """
 
     def compact_str(self) -> str:
         tname = ",".join(self.tensors)
@@ -553,19 +579,17 @@ class ProcessingStage(TensorHolder):
 
 
 class Compute(MappingNode):
-    """
-    Represents the einsum of a compute [type] that is occuring.
-
-    :param einsum: The string representing the einsum occuring.
-    :param compute: The string representing the type of computation occurring.
-
-    :type einsum: str
-    :type compute: str
-    """
+    """ A node that represents a compute operation. These nodes are the leaves of the
+    LoopTree."""
 
     einsum: str
-    compute: str = "MAC"
+    """ The Einsum being computed. """
+    
+    compute: str
+    """ The type of computation being performed. """
+    
     component_object: Optional[arch.Compute] = None
+    """ The compute object performing the computation. """
 
     def compact_str(self) -> str:
         return f"{self.compute} computes {self.einsum}"
@@ -583,13 +607,10 @@ class Compute(MappingNode):
 class MappingNodeWithChildren(MappingNode):
     """
     A :class:`~.MappingNode` that also contains children.
-
-    :param nodes: The child nodes.
-
-    :type nodes: NodeList
     """
 
     nodes: NodeList = ParsableList()
+    """ The child nodes. """
 
     def _parent2child(
         self, parent: MappingNode
@@ -1005,33 +1026,38 @@ class Nested(MappingNodeWithChildren):
                 node2 = self.nodes[j]
                 if not isinstance(node2, Iteration):
                     continue
-                if node2.tile_shape is None:
+                if node2.stride is None:
                     continue
                 if node2.rank_variable != node.rank_variable:
                     continue
-                prev_tile_shape = node2.tile_shape
+                prev_tile_shape = node2.stride
                 break
             if prev_tile_shape is None:
                 prev_tile_shape = rank_variable_bounds.get(node.rank_variable, None)
             if prev_tile_shape is not None:
-                if node.tile_shape == prev_tile_shape:
+                if node.stride == prev_tile_shape:
                     to_remove.append(i)
                     continue
-                elif node.tile_shape is not None and prev_tile_shape is not None:
-                    node.loop_bound = prev_tile_shape / node.tile_shape
+                elif node.stride is not None and prev_tile_shape is not None:
+                    node.tile_pattern = node.tile_pattern.update(
+                        calculated_n_iterations=prev_tile_shape / node.stride,
+                    )
 
         def safe_int_cast(x: int | float | None) -> int | float | None:
             try:
                 int_x = int(x)
+                return int_x if int_x == x else x
             except:
-                return x
-            return int_x if int_x == x else x
+                pass    
+            return x
 
         for i, node in enumerate(self.nodes):
             if not isinstance(node, Iteration):
                 continue
-            node.loop_bound = safe_int_cast(node.loop_bound)
-            node.tile_shape = safe_int_cast(node.tile_shape)
+            node.tile_pattern = node.tile_pattern.update(
+                initial_tile_shape=safe_int_cast(node.tile_pattern.initial_tile_shape),
+                stride=safe_int_cast(node.tile_pattern.stride),
+            )
 
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
 
@@ -1074,18 +1100,13 @@ class Sequential(Split):
 
 
 class Reservation(MappingNode):
-    """
-    Reserving a hardware resource for a specific task.
-
-    :param purposes: The reasons for reserving the resource.
-    :param resource: The resource being reserved.
-
-    :type purposes: ParsableList[str]
-    :type resource: str
-    """
+    """ A node that reserves a hardware resource for a specific task. """
 
     purposes: ParsableList[str]
+    """ The reasons for reserving the resource. """
+    
     resource: str
+    """ The resource being reserved. """
 
     def compact_str(self) -> str:
         return f'{",".join(self.purposes)} reserves {self.resource}'
@@ -1116,24 +1137,6 @@ class Reservation(MappingNode):
         return "#E8E8E8"  # Light gray
 
 
-# class Fill(MappingNode, ModelOnlyNode):
-#     """
-#     The operation of moving data into a storage component.
-
-#     :param tensor: The tensor being moved.
-#     :param memory: The storage component being filled.
-
-#     :type tensor: str
-#     :type memory: str
-#     """
-
-#     tensor: str
-#     memory: str
-
-#     def compact_str(self) -> str:
-#         return f"F {self.tensor} in {self.component}"
-
-
 # =============================================================================
 # Top-level Mapping
 # =============================================================================
@@ -1153,13 +1156,7 @@ MappingNodeTypes: TypeAlias = Union[
 
 
 class Mapping(Nested):
-    """
-    A Mapping of tensors and einsums to hardware actions.
-
-    :param version: The version of the FastFusion specification used.
-
-    :type version: Annotated[str, assert_version]
-    """
+    """ A Mapping of a workload onto a hardware architecture. """
 
     version: Annotated[str, assert_version] = __version__
 

@@ -5,8 +5,18 @@ import itertools
 from numbers import Number
 from typing import Any, Generator, NamedTuple, Union, TypeVar
 
-from fastfusion.frontend.workload.workload import RankName
+from fastfusion.frontend.mapping import (
+    Iteration, 
+    Mapping,
+    Spatial, 
+    TensorHolder, 
+    Reservation as MappingReservation,
+    Split as MappingSplit,
+    TilePattern,
+)
+from fastfusion.frontend.renames import RankName, RankVariableName, TensorName
 from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
+from fastfusion.mapper.FFM._pmapping_group.df_convention import make_fused_loop_col
 
 from fastfusion.util import expfmt, fzs
 
@@ -22,36 +32,44 @@ class Updatable:
         return replace(self, **kwargs)
 
 
-class TilePattern(NamedTuple):
-    stride: int
-    initial: int
-    def __str__(self) -> str:
-        return f'<{self.stride}, {self.initial}>'
+# class TilePattern(NamedTuple):
+#     stride: int
+#     initial: int
+#     def __str__(self) -> str:
+#         return f'<{self.stride}, {self.initial}>'
 
 
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
     rank_name: RankName
-    bound: Union[Number, TilePattern] | None
+    tile_pattern: TilePattern | None
     is_spatial: bool
 
     def __post_init__(self):
         assert isinstance(self.rank_name, RankName)
-        assert isinstance(self.bound, Number | TilePattern | None)
+        assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
+        assert isinstance(
+            self.tile_pattern.initial_tile_shape,
+            Number | str | None,
+        )
+        assert isinstance(
+            self.tile_pattern.stride,
+            Number | str | None,
+        )
 
     def __repr__(self):
-        return f"Loop({self.rank_name.__repr__()}, {self.bound}, {self.is_spatial})"
+        return f"Loop({self.rank_name.__repr__()}, {self.tile_pattern}, {self.is_spatial})"
 
     def __str__(self):
         return (
             "S-" if self.is_spatial else ""
-        ) + f"{self.rank_name}-{self.bound}"
+        ) + f"{self.rank_name}-{self.tile_pattern}"
 
     def pydot_str(self):
         if self.is_spatial:
-            return f"S-for R{self.rank_name} size {expfmt(self.bound)}"
-        return f"for {self.rank_name} size {expfmt(self.bound)}"
+            return f"S-for R{self.rank_name} size {expfmt(self.tile_pattern)}"
+        return f"for {self.rank_name} size {expfmt(self.tile_pattern)}"
 
     def rename(self, rank_renaming: dict[str, str]) -> "Loop":
         return replace(
@@ -63,57 +81,68 @@ class Loop(Updatable):
         return {"type": "loop", **self.__dict__}
 
     def merge_next(self, right: "Loop") -> "Loop":
-        self_bound = self.bound if isinstance(self.bound, Number) else self.bound.stride
-        right_bound = right.bound if isinstance(right.bound, Number) else right.bound.stride
-        assert self_bound == right_bound
-        assert self.is_spatial == right.is_spatial
+        assert self.tile_pattern == right.tile_pattern
         return Loop(
             self.rank_name | right.rank_name,
-            right.bound,
+            right.tile_pattern,
             self.is_spatial,
         )
 
     def clear_loop_bound(self, value=0):
-        return self.update(bound=value)
+        return self.update(tile_pattern=value)
+
+    def populate(self, loop: Iteration) -> "Loop":
+        return self.update(tile_pattern=loop.tile_pattern.symbol2str())
+
+    def prepend_symbols(self, prepend: str) -> "Loop":
+        return self.update(tile_pattern=self.tile_pattern.prepend_symbols(prepend))
+
+    def clear_tile_patterns(self) -> "Loop":
+        return self.update(tile_pattern=TilePattern())
+    
+    def make_fused_loop_symbols(self) -> tuple[dict[str, str], "Loop"]:
+        r = {}
+        new = self
+        def replace(attr, new):
+            g = getattr(self.tile_pattern, attr)
+            if not isinstance(g, str):
+                return new
+            g2 = make_fused_loop_col(g)
+            r[g] = g2
+            return new.update(tile_pattern=new.tile_pattern.update(**{attr: g2}))
+        new = replace('initial_tile_shape', new)
+        new = replace('stride', new)
+        new = replace('calculated_n_iterations', new)
+        return r, new
+    
+    def add_n_iteration_symbols(self) -> "Loop":
+        return self.update(tile_pattern=self.tile_pattern.add_n_iteration_symbols())
 
 
-@dataclass(frozen=True)
-class Reservation(Updatable):
+@dataclass(frozen=True, eq=True, order=True)
+class TensorReservation(Updatable):
     # This order is important. Above loop index should be before resource name
     # so when we sort reservations for tensors then the backing tensor holder comes
     # first.
     # Size is not included in hash or equality functions. This is because there
     # may be floating point rounding errors in reservation sizes. The other
     # attributes are sufficient to determine equality.
-    name: str
-    loops: tuple["Loop"]
+    loops: tuple[Loop]
+    name: TensorName
     resource_name: str
-    size: float
-
+    
     @property
     def above_loop_index(self) -> int:
         return len(self.loops)
 
-    def __hash__(self):
-        return hash((self.name, self.resource_name, self.above_loop_index))
-
     def __str__(self):
-        return f"[{self.resource_name}] {self.name} sz {expfmt(self.size)} above {self.above_loop_index}"
+        return f"[{self.resource_name}] {self.name} below {self.loops}"
 
     def __repr__(self):
-        return f"Reservation({repr(self.name)}, {self.above_loop_index}, {repr(self.resource_name)}, {self.size})"
+        return f"Reservation({repr(self.name)}, {repr(self.loops)}, {repr(self.resource_name)})"
 
     def pydot_str(self):
-        return f"[{self.resource_name}] {self.name} size {expfmt(self.size)}"
-
-    def __eq__(self, value):
-        if not isinstance(value, Reservation):
-            return False
-        for k in self.__dict__:
-            a, b = getattr(self, k), getattr(value, k)
-            if k != "size" and a != "*" and b != "*" and a != b:
-                return False
-        return True
+        return f"[{self.resource_name}] {self.name}"
 
     def permute(self, permutation) -> "Reservation":
         new_loops = [self.loops[permutation[i]] for i in range(len(self.loops))]
@@ -123,9 +152,10 @@ class Reservation(Updatable):
         return self.update(loops=tuple(loop.clear_loop_bound()
                                        for loop in self.loops))
 
+    def populate_loops(self, loops: list[Iteration]) -> "TensorReservation":
+        assert len(self.loops) <= len(loops)
+        return self.update(loops=tuple(l.populate(loop) for l, loop in zip(self.loops, loops)))
 
-@dataclass(frozen=True)
-class TensorReservation(Reservation):
     def rename(self,
                rank_renaming: dict[str, str],
                tensor_renaming: dict[str, str]) -> "TensorReservation":
@@ -140,54 +170,67 @@ class TensorReservation(Reservation):
             id2tensor[t.name].append(t)
         return sorted(sorted(v)[0] for v in id2tensor.values())
     
-    def __eq__(self, other):
-        return super().__eq__(other)
-    
-    def __hash__(self):
-        return super().__hash__()
+    def drop_loop_indices(self, loop_indices: set[int]) -> "TensorReservation":
+        loops = tuple(l for i, l in enumerate(self.loops) if i not in loop_indices)
+        return self.update(loops=loops)
+
+    def prepend_symbols(self, prepend: str) -> "TensorReservation":
+        return self.update(
+            loops=tuple(l.prepend_symbols(prepend) for l in self.loops),
+        )
+
+    def clear_tile_patterns(self) -> "TensorReservation":
+        return self.update(
+            loops=tuple(l.clear_tile_patterns() for l in self.loops),
+        )
+        
+    def make_fused_loop_symbols(self) -> tuple[dict[str, str], "TensorReservation"]:
+        result = {}
+        loops = []
+        for l in self.loops:
+            r, l = l.make_fused_loop_symbols()
+            result.update(r)
+            loops.append(l)
+        return result, self.update(loops=tuple(loops))
+
+    def add_n_iteration_symbols(self) -> "TensorReservation":
+        return self.update(
+            loops=tuple(l.add_n_iteration_symbols() for l in self.loops),
+        )
 
 class SplitKind(Enum):
     SEQUENTIAL = 0
     PIPELINE = 1
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True, order=True, eq=True)
 class Split:
-    kind: SplitKind
-    n_loops: int
-    
-MHA_PATCH = True
+    split: MappingSplit
+    above_loop_index: int
+
 
 @dataclass(frozen=True)
 class Compatibility(Updatable):
     tensors: fzs[TensorReservation]
     splits: fzs[Split] = fzs()
     tags: Tags = Tags(fzs())
-    _n_loops_override: int | None = None
-    _loops_override: tuple[Loop, ...] | None = None
-    
+    reservation_indices: fzs[int] = fzs()
+    check_reservation_indices: bool = True
+
     @property
     def n_loops(self) -> int:
-        if self._n_loops_override is not None:
-            return self._n_loops_override
-        return max((len(s.loops) for s in self.tensors), default=0)
+        return max([len(s.loops) for s in self.tensors], default=0)
 
     @property
     def loops(self) -> tuple[Loop, ...]:
-        if self._loops_override is not None:
-            return self._loops_override
-        if self.tensors:
-            return max((t.loops for t in self.tensors), key=len)
-        return tuple()
-    
+        return max([t.loops for t in self.tensors], key=len) if self.tensors else ()
+
     def _get_hash_tuple(self):
-        if MHA_PATCH:
-            return self.n_loops, self.tensors, self.tags, self.loops
-        return self.n_loops, self.tensors, self.tags
-    
+        return self.n_loops, self.tensors, self.tags, self.reservation_indices
+
     def __hash__(self):
         return hash(self._get_hash_tuple())
-    
+
     def __eq__(self, other):
         return self._get_hash_tuple() == other._get_hash_tuple()
 
@@ -196,6 +239,17 @@ class Compatibility(Updatable):
         assert isinstance(self.tensors, fzs)
         assert isinstance(self.splits, fzs)
         assert isinstance(self.tags, Tags)
+        assert isinstance(self.reservation_indices, fzs)
+        assert max(self.reservation_indices, default=-1) <= self.n_loops, \
+            f"Extra reservation indices {self.reservation_indices} are greater than n_loops {self.n_loops}"
+        if self.check_reservation_indices:
+            p = f"are not in reservation indices {self.reservation_indices}"
+            assert all(i >= 0 for i in self.reservation_indices), \
+                f"Reservation indices {self.reservation_indices} are not all >= 0"
+            assert all(s.above_loop_index in self.reservation_indices for s in self.splits), \
+                f"Split above loop indices {self.splits} {p}"
+            assert all(len(s.loops) in self.reservation_indices for s in self.tensors), \
+                f"Tensor loops {self.tensors} {p}"
 
     def get_backing_levels(self) -> dict[str, int]:
         backings = {}
@@ -236,17 +290,21 @@ class Compatibility(Updatable):
         If `keep_tensors` is a set, tensors in the set are kept.
         """
         remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
-        new_n_loops = max((len(s.loops) for s in self.tensors), default=0)
-        new_splits = fzs(split for split in self.splits if split.n_loops <= new_n_loops)
+        new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
+        new_splits = fzs(split for split in self.splits if split.above_loop_index < new_n_loops)
+        reservation_indices = fzs({min(i, new_n_loops) for i in self.reservation_indices})
+        reservation_indices = fzs(x for x in reservation_indices if x >= 0)
+
         tags = self.tags if not drop_tags else Tags(fzs())
-        kwargs = dict(tensors=remaining_tensors, splits=new_splits, tags=tags)
-        if keep_loops:
-            kwargs["_n_loops_override"] = new_n_loops
-            kwargs["_loops_override"] = self.loops
-        return Compatibility(**kwargs)
+        return self.update(
+            tensors=remaining_tensors,
+            splits=new_splits,
+            tags=tags,
+            reservation_indices=reservation_indices,
+        )
 
     def __lt__(self, other):
-        return (self.loops, self.tensors) < (other.loops, other.tensors)
+        return self._get_hash_tuple() < other._get_hash_tuple()
 
     def __str__(self):
         return self.__repr__()
@@ -254,48 +312,76 @@ class Compatibility(Updatable):
     def __repr__(self):
         return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}), splits={repr(self.splits)}, tags={repr(self.tags)}"
 
-    def merge_next(
-        self, right: "Compatibility", live_tensors: set[str]
-    ) -> "Compatibility":
-        return Compatibility(
-            tensors=fzs(s for s in (self.tensors | right.tensors) if s.name in live_tensors),
-            tags=right.tags,
-        )
+    def _and_tensors_with_names(self, names: set[str]) -> "Compatibility":
+        return fzs(s for s in self.tensors if s.name in names)
 
-    def rename(
-        self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
+    def merge_next(
+        self, 
+        right: "Compatibility", 
+        live_tensors: set[str], 
+        mixable_ranks: dict[RankName, set[RankName]] = None
     ) -> "Compatibility":
-        raise NotImplementedError()
-        return replace(
-            self,
-            tensors=fzs(t.rename(rank_renaming, tensor_renaming)
-                        for t in self.tensors),
-            tags=self.tags,
+        self_freed = self.clear_dead_tensors(live_tensors)
+        right_freed = right.clear_dead_tensors(live_tensors)
+        if self_freed.n_loops > right_freed.n_loops:
+            # This can be relaxed if we have a way to do order-independent joining
+            # and/or non-looptree mappings.
+            raise ValueError(
+                f"Can't merge. I have more loops than the next, so my dataflow can't "
+                f"be carried through a LoopTree to where it's needed."
+            )
+
+        live_minus_mine = live_tensors - {s.name for s in self.tensors}
+        tensors_a = self._and_tensors_with_names(live_tensors)
+        tensors_b = right._and_tensors_with_names(live_minus_mine)
+        
+        # TODO: tag and split handling?
+        joined = Compatibility(
+            tensors=tensors_a | tensors_b,
+            tags=right.tags,
+            reservation_indices=self_freed.reservation_indices | right_freed.reservation_indices,
         )
+        
+        if mixable_ranks is not None and not joined._is_valid(mixable_ranks):
+            raise ValueError(f"Invalid rank mixing.")
+        
+        return joined
 
     def has_tensor(self, *tensors: TensorReservation) -> bool:
         return all(any(s == t for s in self.tensors) for t in tensors)
 
-    def all_n_loops(self) -> list["Compatibility"]:
-        min_n_loops = max((len(s.loops) for s in self.tensors), default=0)
-        return [Compatibility(_n_loops_override=n_loops, tensors=self.tensors, tags=self.tags)
-                for n_loops in range(min_n_loops, self.n_loops+1)]
+    def _permute_stops(self):
+        stops = set(len(s.loops) for s in self.tensors)
+        stops |= self.reservation_indices
+        stops |= set(s.above_loop_index for s in self.splits)
+        return stops
 
-    def _permute(
+    def permute(
         self,
-        loop_changes: list[int]
+        loop_changes: list[int],
     ) -> "Compatibility":
-        assert len(loop_changes) == self.n_loops
+        assert len(loop_changes) <= self.n_loops
+        assert set(loop_changes) == set(range(len(loop_changes))), \
+            f"Loop changes {loop_changes} are not a permutation of {range(len(loop_changes))}"
+        if len(loop_changes) < len(self.loops):
+            loop_changes = loop_changes + list(range(len(loop_changes), len(self.loops)))
+        
+        permute_stops = self._permute_stops()
+        for i, c in enumerate(loop_changes):
+            for r in permute_stops:
+                assert (i < r) == (c < r), \
+                    f"Loop changes {loop_changes} cross reservation {r}"
         new_tensors = fzs(s.permute(loop_changes) for s in self.tensors)
         return self.update(tensors=new_tensors)
 
-    def make_equivalent_permutations(self, reservation_levels: set[int]) -> list["Compatibility"]:
+    def make_equivalent_permutations(self) -> list[tuple["Compatibility", list[int]]]:
         # Get contiguous blocks of loops with no tensor reservation between them
         blocks = []
         current_block = []
+        permute_stops = self._permute_stops()
         for i in range(self.n_loops):
             # Can't permute loops if there's a reservation between them
-            if any(s.above_loop_index == i for s in self.tensors) or i in reservation_levels:
+            if i in permute_stops:
                 blocks.append(current_block)
                 current_block = []
             current_block.append(i)
@@ -307,10 +393,13 @@ class Compatibility(Updatable):
             for block in blocks
         ]
         all_permutations = list(itertools.product(*per_block_permutations))
-        result = [self._permute(list(itertools.chain(*loop_changes))) for loop_changes in all_permutations]
-        return result
+        all_permutations = [
+            list(itertools.chain(*loop_changes))
+            for loop_changes in all_permutations
+        ]
+        return [(self.permute(p), p) for p in all_permutations]
 
-    def get_tensors_by_name(self, tensor: str) -> TensorReservation:
+    def get_tensor_by_name(self, tensor: str) -> TensorReservation:
         for s in self.tensors:
             if s.name == tensor:
                 return s
@@ -324,18 +413,161 @@ class Compatibility(Updatable):
 
     def clear_tags(self) -> "Compatibility":
         return self.update(tags=Tags(fzs()))
-    
+
     def clear_loop_bounds(self) -> "Compatibility":
-        return self.update(tensors=fzs(tensor.clear_loop_bounds()
-                                       for tensor in self.tensors))
+        return self.update(tensors=fzs(t.clear_loop_bounds() for t in self.tensors))
 
     def compatible_with(self, other: "Compatibility") -> bool:
-        if not MHA_PATCH:
-            return True
-        for a in self.tensors:
-            a = a.loops
-            for b in other.tensors:
-                b = b.loops
-                if a[:len(b)] != b[:len(a)]:
+        return True
+        # for a in self.tensors:
+        #     a = a.loops
+        #     for b in other.tensors:
+        #         b = b.loops
+        #         if a[:len(b)] != b[:len(a)]:
+        #             return False
+        # return True
+
+    def populate_loops(self, mapping: Mapping):
+        loops = [n for n in mapping.nodes if isinstance(n, Iteration)]
+        return self.update(
+            tensors=fzs(t.populate_loops(loops) for t in self.tensors),
+        )
+
+    @classmethod
+    def from_mapping(
+            cls, 
+            mapping: Mapping,
+            tensors: set[TensorName],
+            rank_variable_to_ranks: dict[TensorName, dict[RankVariableName, RankName]]
+        ) -> "Compatibility":
+
+        tensor_indices = []
+        split_above_loop_indices = []
+        reservation_indices = []
+        backing_remaining = set(tensors)
+        n_seen_loops = 0
+        n_fused_loops = 0
+        for i, n in enumerate(mapping.nodes):
+            if isinstance(n, MappingReservation):
+                reservation_indices.append(n_seen_loops)
+                if not (backing := set(n.purposes) & backing_remaining):
+                    continue
+                backing_remaining -= backing
+                assert len(n.purposes) == 1, \
+                    "Backing reservations should have only one purpose"
+                tensor_indices.append(i)
+            elif isinstance(n, MappingSplit):
+                split_above_loop_indices.append(n_seen_loops)
+            elif isinstance(n, Iteration):
+                n_seen_loops += 1
+                n_fused_loops += bool(backing_remaining)
+            elif isinstance(n, TensorHolder):
+                reservation_indices.append(n_seen_loops)
+
+        reservation_indices = fzs(min(n, n_fused_loops) for n in reservation_indices)
+        reservation_indices = fzs(x for x in reservation_indices if x >= 0)
+
+        assert not backing_remaining, f"Tensors {backing_remaining} not found in mapping"
+
+        def get_rank(rank_variable, tensor):
+            rv = rank_variable_to_ranks[tensor][rank_variable]
+            assert len(rv) == 1, f"Rank variable {rank_variable} indexes into multiple ranks {rv} for tensor {tensor} "
+            return next(iter(rv))
+
+        def make_loops(above_index: int, tensor_name: TensorName) -> list[Iteration]:
+            loops = [n for n in mapping.nodes[:above_index] if isinstance(n, Iteration)]
+            loops = [
+                Loop(
+                    rank_name=get_rank(n.rank_variable, tensor_name),
+                    tile_pattern=n.tile_pattern.symbol2str(),
+                    is_spatial=isinstance(n, Spatial)
+                    ) for n in loops]
+            return tuple(loops)
+
+        return cls(
+            tensors=fzs(
+                TensorReservation(
+                    name=mapping.nodes[i].purpose,
+                    loops=make_loops(i, mapping.nodes[i].purpose),
+                    resource_name=mapping.nodes[i].resource,
+                )
+                for i in tensor_indices
+            ),
+            splits=fzs(
+                Split(split=n, above_loop_index=i)
+                for i in split_above_loop_indices
+            ),
+            reservation_indices=fzs(reservation_indices),
+        )
+
+    def symbols(self) -> list[str]:
+        symbols = []
+        def add(x: str):
+            if isinstance(x, str) and x not in symbols:
+                symbols.append(x)
+        for t in self.tensors:
+            for l in t.loops:
+                add(l.tile_pattern.initial_tile_shape)
+                add(l.tile_pattern.stride)
+                add(l.tile_pattern.calculated_n_iterations)
+        return symbols
+    
+    
+    def drop_loop_indices(self, loop_indices: set[int]) -> "Compatibility":
+        loop_indices = set(loop_indices)
+        tensors = fzs(t.drop_loop_indices(loop_indices) for t in self.tensors)
+        splits = fzs(s for s in self.splits if s.above_loop_index not in loop_indices)
+        
+        def adjust(i: int) -> int:
+            return i - sum(x < i for x in loop_indices)
+
+        reservation_indices = fzs(adjust(i) for i in self.reservation_indices)
+        reservation_indices = fzs(x for x in reservation_indices if x >= 0)
+
+        splits = fzs(s.update(above_loop_index=adjust(s.above_loop_index)) for s in self.splits)
+        return Compatibility(
+            tensors=tensors,
+            splits=splits,
+            reservation_indices=reservation_indices,
+        )
+
+    def prepend_symbols(self, prepend: str) -> "Compatibility":
+        return self.update(tensors=fzs(t.prepend_symbols(prepend) for t in self.tensors))
+
+    def clear_tile_patterns_and_reservation_indices(self) -> "Compatibility":
+        return self.update(
+            tensors=fzs(t.clear_tile_patterns() for t in self.tensors),
+            reservation_indices=fzs(),
+            check_reservation_indices=False,
+        )
+
+    def make_fused_loop_symbols(self) -> tuple[dict[str, str], "Compatibility"]:
+        result = {}
+        tensors = []
+        for t in self.tensors:
+            r, t = t.make_fused_loop_symbols()
+            tensors.append(t)
+            result.update(r)
+
+        return result, self.update(tensors=fzs(tensors))
+        
+    def add_n_iteration_symbols(self) -> "Compatibility":
+        return self.update(tensors=fzs(t.add_n_iteration_symbols() for t in self.tensors))
+    
+    def _is_valid(self, 
+                 mixable_ranks: dict[RankName, set[RankName]]
+        ) -> bool:
+        # Mixable ranks: Ranks that may be co-iterated by a single loop.
+        ranks_at_each_loop_index = []
+        for i in range(self.n_loops):
+            ranks_at_each_loop_index.append(set(
+                t.loops[i].rank_name
+                for t in self.tensors
+                if i < len(t.loops)
+            ))
+
+        for ranks in ranks_at_each_loop_index:
+            for r1, r2 in itertools.combinations(ranks, 2):
+                if r1 not in mixable_ranks[r2]:
                     return False
         return True

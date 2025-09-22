@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from pydantic import BaseModel, ConfigDict, Tag, ValidationError
 from pydantic_core.core_schema import CoreSchema, chain_schema, list_schema, union_schema, no_info_plain_validator_function, str_schema, dict_schema, tagged_union_schema
-from typing import Iterator, List, TypeVar, Generic, Any, Callable, TypeVarTuple, Union, Dict, Optional, Type, TypeAlias, get_args, get_origin
+from typing import Iterator, List, TypeVar, Generic, Any, Callable, TypeVarTuple, Union, Dict, Optional, Type, TypeAlias, get_args, get_origin, TYPE_CHECKING
 
 from fastfusion.util import yaml
 from fastfusion.util.parse_expressions import parse_expression, ParseError, RawString, is_raw_string
@@ -163,13 +163,14 @@ class ParsesTo(Generic[T]):
         def validate_raw_string(value):
             if isinstance(value, str) and is_raw_string(value):
                 return RawString(value)
-            raise ValueError("Not a raw string")
+            # raise ValueError("Not a raw string")
             
         # Create a union schema that either validates as raw string or normal validation
         return union_schema([
             # First option: validate as raw string
             chain_schema([
                 no_info_plain_validator_function(validate_raw_string),
+                str_schema(),
                 # target_schema
             ]),
             # Second option: normal validation (string then target type)
@@ -180,6 +181,15 @@ class ParsesTo(Generic[T]):
             # Third option: direct target type validation
             target_schema
         ])
+
+if TYPE_CHECKING:
+    try:
+        from typing_extensions import TypeAliasType
+        _T_alias = TypeVar('_T_alias')
+        ParsesTo = TypeAliasType('ParsesTo', _T_alias, type_params=(_T_alias,))
+    except Exception:
+        # Best-effort fallback for type checkers that don't support TypeAliasType
+        pass
 
 class PostCall(Generic[T]):
     def __call__(self, field: str, value: T, symbol_table: dict[str, Any]) -> T:

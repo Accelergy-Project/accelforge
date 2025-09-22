@@ -160,10 +160,17 @@ def get_memories_to_track(
     flattened_arches: list[list[arch.Leaf]],
     jobs: list[Job],
     metrics: Metrics,
+    can_combine_multiple_runs: bool,
 ) -> tuple[list[str], list[str]]:
+    
     memory_to_size = get_memory_to_size(flattened_arches)
     memories_track_all = list(memory_to_size.keys())
     memories_track_pmappings_only = []
+
+    # If we're combining the pmappings from multiple runs, we can't conclude anything
+    # about the metrics to track
+    if can_combine_multiple_runs:
+        return memories_track_all, memories_track_pmappings_only
 
     if metrics.RESOURCE_USAGE in metrics:
         return memories_track_all, memories_track_pmappings_only
@@ -207,10 +214,11 @@ def get_memories_to_track(
 def get_sims(
     spec: Specification,
     flattened_arches: list[list[arch.Leaf]],
+    can_combine_multiple_runs: bool,
     tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
-    fail_if_no_pmappings_for_einsum: bool = True
+    fail_if_no_pmappings_for_einsum: bool = True,
 ) -> tuple[dict[EinsumName, list[SIM]], dict[EinsumName, dict[uuid.UUID, Mapping]], dict[EinsumName, list[Job]]]:
     """
     Explores pmapspace of `einsum_names` (default: all Einsums in workload).
@@ -226,7 +234,7 @@ def get_sims(
                         metrics,
                         einsum_names,
                         fail_if_no_pmappings_for_einsum)
-    _fill_jobs_with_memories_to_track(new_einsum2jobs, spec, flattened_arches, metrics)
+    _fill_jobs_with_memories_to_track(new_einsum2jobs, spec, flattened_arches, metrics, can_combine_multiple_runs)
     for einsum_name, jobs in new_einsum2jobs.items():
         einsum2jobs.setdefault(einsum_name, {})
         for compatibility, job_list in jobs.items():
@@ -297,6 +305,7 @@ def _fill_jobs_with_memories_to_track(
     spec,
     flattened_arches,
     metrics,
+    can_combine_multiple_runs,
 ):
     jobs_flattened = [
         j for compatibility2joblist in einsum2jobs.values() 
@@ -307,7 +316,8 @@ def _fill_jobs_with_memories_to_track(
         spec,
         flattened_arches,
         jobs_flattened, 
-        metrics
+        metrics,
+        can_combine_multiple_runs,
     )
     for j in jobs_flattened:
         j.memories_track_all = memories_track_all

@@ -59,7 +59,7 @@ class Mappings:
         found_index = None
         found = []
         for col in self.data.columns:
-            col = col.split("\0")
+            col = col.split("<SEP>")
             if key not in col:
                 continue
 
@@ -75,7 +75,7 @@ class Mappings:
                     f"Columns: \"{col}\" and \"{found}\""
                 )
             found_index = col.index(key)
-            found.append("\0".join(col))
+            found.append("<SEP>".join(col))
         return found
 
     def access(self, *keys: str) -> "Mappings":
@@ -90,7 +90,7 @@ class Mappings:
         key = keys[0]
         col_renames = {}
         for col in self._get_cols(key):
-            col_renames[col] = "\0".join(c for c in col.split("\0") if c != key)
+            col_renames[col] = "<SEP>".join(c for c in col.split("<SEP>") if c != key)
 
         return Mappings(
             self.spec,
@@ -125,22 +125,22 @@ class Mappings:
 
         columns = list(self.data.columns)
         for col in self.data.columns:
-            if len(col.split("\0")) != len(columns[0].split("\0")):
+            if len(col.split("<SEP>")) != len(columns[0].split("<SEP>")):
                 raise ValueError(
                     f"Can only sum columns with same-length keys. Try first calling "
                     f"access(\"key\") or drop(\"key\") to make all columns "
                     f"have the same number of keys."
                 )
 
-        if any(k < 0 or k >= len(columns[0].split("\0")) for k in keep_key_index):
+        if any(k < 0 or k >= len(columns[0].split("<SEP>")) for k in keep_key_index):
             raise ValueError(
-                f"Keep indices must be in the range [0, {len(columns[0].split('\0'))})"
+                f"Keep indices must be in the range [0, {len(columns[0].split('<SEP>'))})"
             )
 
         target2sources = {}
         for col in columns:
-            target = col.split("\0")
-            target = "\0".join(target[i] for i in keep_key_index)
+            target = col.split("<SEP>")
+            target = "<SEP>".join(target[i] for i in keep_key_index)
             target2sources.setdefault(target, []).append(col)
 
         new_data = pd.DataFrame(index=self.data.index)
@@ -169,7 +169,7 @@ class Mappings:
         for col in new_df.columns:
             n_computes = total_computes
             if per_einsum:
-                einsum_name = col.split("\0")[0]
+                einsum_name = col.split("<SEP>")[0]
                 if einsum_name not in self.einsum_names and einsum_name != "Total":
                     raise ValueError(
                         f"Einsum name {einsum_name} not found. Ensure that all "
@@ -198,4 +198,4 @@ class Mappings:
                 f"Can only render a single mapping, but got {len(self)}. Try calling "
                 f"mappings[i].render() instead, for some integer 0 <= i < {len(self)}."
             )
-        return self.data.iloc[0][f"Total\0mapping"].render()
+        return self.data.iloc[0][f"Total<SEP>mapping"].render()

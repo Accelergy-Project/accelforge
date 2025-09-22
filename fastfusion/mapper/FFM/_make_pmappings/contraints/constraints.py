@@ -145,9 +145,6 @@ def constrained_loops(
                 remaining_rank_variables.discard(m.rank_variable)
     for r in remaining_rank_variables:
         assert component is None, "There should be a spatial loop for every rank variable"
-        node = Temporal(rank_variable=r, tile_shape='symbol')
-        mapping.insert(start_index, node)
-        nodes.append(node)
     return nodes
 
 def get_constraints(

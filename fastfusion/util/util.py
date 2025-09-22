@@ -1,8 +1,8 @@
 import itertools
 from numbers import Number
+from typing import Generic, TypeVar
 
-# import joblib.externals.loky
-# joblib.externals.loky.process_executor._MAX_MEMORY_LEAK_SIZE = int(3e9)  # 3GB
+import sympy
 
 from joblib import Parallel, delayed
 import sys
@@ -16,37 +16,44 @@ N_PARALLEL_PROCESSES = 24
 def using_parallel_processing():
     return PARALLELIZE and N_PARALLEL_PROCESSES > 1
 
+T = TypeVar('T')
 
-class fzs(frozenset):
+class fzs(frozenset[T], Generic[T]):
     def __repr__(self):
         return f"{{{', '.join(sorted(x.__repr__() for x in self))}}}"
 
     def __str__(self):
         return self.__repr__()
 
-    def __or__(self, other):
+    def __or__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__or__(other))
 
-    def __and__(self, other):
+    def __and__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__and__(other))
 
-    def __sub__(self, other):
+    def __sub__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__sub__(other))
 
-    def __xor__(self, other):
+    def __xor__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__xor__(other))
 
-    def __lt__(self, other):
+    def __lt__(self, other: "fzs[T]") -> bool:
         return sorted(self) < sorted(other)
 
-    def __le__(self, other):
+    def __le__(self, other: "fzs[T]") -> bool:
         return sorted(self) <= sorted(other)
 
-    def __gt__(self, other):
+    def __gt__(self, other: "fzs[T]") -> bool:
         return sorted(self) > sorted(other)
 
-    def __ge__(self, other):
+    def __ge__(self, other: "fzs[T]") -> bool:
         return sorted(self) >= sorted(other)
+
+
+class UnorderedTuple(tuple[T], Generic[T]):
+    def __new__(cls, *args: T) -> "UnorderedTuple[T]":
+        return super().__new__(cls, sorted(args))
+
 
 def defaultintersection(*args) -> set:
     allargs = []
@@ -140,3 +147,7 @@ def parallel(
         return yield_results()
     
     return list(yield_results())
+
+def symbol2str(x: str | sympy.Symbol) -> str:
+    return x.name if isinstance(x, sympy.Symbol) else x
+
