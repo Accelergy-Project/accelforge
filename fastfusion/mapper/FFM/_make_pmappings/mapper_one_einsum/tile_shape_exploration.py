@@ -599,7 +599,7 @@ def get_tile_shape_choices(
     objectives = objectives.copy()
 
     symbols_enumerated: list[Symbol] = []
-    choices_enumerated: np.ndarray = None
+    choices_enumerated: np.ndarray = np.array([])
 
     symbols_remaining = list(symbols)
 
