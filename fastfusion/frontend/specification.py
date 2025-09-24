@@ -186,3 +186,6 @@ class Specification(ParsableModel):
                 raise ParseError(f"Compute node {c} not found in architecture")
 
         return found if compute_node is None else [found[0]]
+
+
+Spec = Specification
