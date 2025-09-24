@@ -1,3 +1,5 @@
+# Energy from ten_lessons using 7nm
+
 arch:
   version: "0.5"
   global_cycle_period: 1e-9
@@ -6,12 +8,13 @@ arch:
     name: MainMemory
     attributes:
       _size: inf
-      _bandwidth_reads_plus_writes_per_cycle: 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      _bandwidth_reads_plus_writes_per_cycle: 32 # 32 GB/s
+      # width: 256
       _datawidth: 8
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 8}}
+    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 8}} # 56.24 pJ/8b
     - {name: write, arguments: {energy: 7.03e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
     constraints:
@@ -21,12 +24,12 @@ arch:
   - !Memory
     name: GlobalBuffer
     attributes:
-      _size: 1024*1024*128*8 # 128MB
+      _size: 1024*1024*1*8 # 1 MiB
       _datawidth: 8
-      width: 8192
+      width: 512
     actions:
-    - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}}
-    - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}}
+    - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}} # 15.04pJ/8b-read
+    - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}} # 18.88pJ/8b-read
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
@@ -36,12 +39,12 @@ arch:
     name: LocalBuffer
     spatial: [{name: Z, fanout: 4}]
     attributes:
-      _size: 1024*1024*4*8 # 4MB
-      width: 2048
+      _size: 1024*128*8 # 128 KiB
+      width: 1024
       _datawidth: 8
     actions:
-    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}}
-    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}}
+    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}} # 2.00 pJ/8b
+    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}} # 2.32 pJ/8b
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
@@ -96,6 +99,6 @@ arch:
   - !Compute
     name: MAC
     actions:
-    - {name: compute, arguments: {energy: 0.84e-12}}
+    - {name: compute, arguments: {energy: 0.07e-12}}
     - {name: leak, arguments: {energy: 0}}
     constraints: {misc: {enabled: len(All()) == 3}}

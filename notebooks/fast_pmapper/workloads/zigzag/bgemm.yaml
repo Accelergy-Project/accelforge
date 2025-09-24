@@ -1,6 +1,6 @@
 # BGEMM equivalent to EinsumQK in GPT-3 7B
 - id: 0
-  operator_type: Bgemm
+  operator_type: Gemm
   equation: O[b][d][k] = I[b][d][c] * W[b][c][k]
   loop_dims: [B, D, K, C]
   loop_sizes: [32, 4096, 4096, 128]
