@@ -1,7 +1,9 @@
 from fastfusion.frontend.mapping import Reservation, Iteration, Mapping
 
 
-def get_fused_loops_per_tensor(pmapping: Mapping, intermediate_tensors, non_fused_memory):
+def get_fused_loops_per_tensor(
+    pmapping: Mapping, intermediate_tensors, non_fused_memory
+):
     """
     Returns a dictionary mapping tensor to number of fused loops or None
     if unfused (backed in non_fused_memory).
@@ -11,10 +13,7 @@ def get_fused_loops_per_tensor(pmapping: Mapping, intermediate_tensors, non_fuse
     for node in pmapping.nodes:
         if isinstance(node, Reservation):
             tensor = node.tensor
-            if (
-                tensor not in intermediate_tensors
-                or tensor in tensor_to_n_fused_loops
-            ):
+            if tensor not in intermediate_tensors or tensor in tensor_to_n_fused_loops:
                 continue
             if node.component == non_fused_memory:
                 tensor_to_n_fused_loops[tensor] = None

@@ -4,7 +4,7 @@ import itertools
 from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
 from fastfusion.mapper.FFM._join_pmappings.join_pmappings import SIM
-from fastfusion.mapper.FFM._join_pmappings.mappinginfo import Loop, Compatibility
+from fastfusion.mapper.FFM._join_pmappings.compatibility import Loop, Compatibility
 from fastfusion.util import fzs
 from fastfusion.mapper.FFM._join_pmappings.join_pmappings import make_full_equivalent_rank_variables
 
@@ -182,7 +182,7 @@ class MapspaceGlobals:
                 if t not in sim_list[0].tensor_names:
                     continue
                 for sim in sim_list:
-                    tensor = sim.compatibility.get_tensors_by_name(t)
+                    tensor = sim.compatibility.get_tensor_by_name(t)
                     cur_memories.add(tensor)
                 possible_memories.append(cur_memories)
             if possible_memories:

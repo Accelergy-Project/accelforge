@@ -4,29 +4,16 @@ from collections.abc import Iterable, Set
 
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload import EinsumName, TensorName
-from fastfusion.mapper.FFM._join_pmappings.mappinginfo import Compatibility
+from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.sim import SIM
 
 
 DO_PRINT = False
+
+
 def myprint(*args, **kwargs):
     if DO_PRINT:
         print(*args, **kwargs)
-
-
-def remove_unimportant_sims(
-    einsum2sims: dict[EinsumName, Iterable[SIM]],
-    einsum2important_compats: dict[EinsumName, Iterable[Compatibility]],
-) -> dict[EinsumName, list[SIM]]:
-    einsum2pruned_sims: dict[EinsumName, list[SIM]] = {}
-    for einsum, sims in einsum2sims.items():
-        important_compats = einsum2important_compats[einsum]
-        pruned_sims = [
-            sim for sim in sims
-            if sim.compatibility.clear_loop_bounds() in important_compats
-        ]
-        einsum2pruned_sims[einsum] = pruned_sims
-    return einsum2pruned_sims
 
 
 def sims2untiled_compats(
@@ -59,8 +46,9 @@ def join_compatibilities(
         if not per_einsum_compats:
             raise ValueError(f"No compatibility for {einsum_name}")
 
-    compat2einsum2original\
-        : dict[Compatibility, dict[EinsumName, set[Compatibility]]] = {}
+    compat2einsum2original: dict[
+        Compatibility, dict[EinsumName, set[Compatibility]]
+    ] = {}
     for einsum_name, per_einsum_compats in einsum2compatibilities.items():
         for compat in per_einsum_compats:
             einsum2original = compat2einsum2original.setdefault(compat, {})
@@ -86,8 +74,7 @@ def join_compatibilities(
 
         right_tensors = einsum2tensor_names[right_einsum]
         live_tensors = set.union(
-            set(),
-            *(einsum2tensor_names[e] for e, _ in compatibilities)
+            set(), *(einsum2tensor_names[e] for e, _ in compatibilities)
         )
 
         grouped_left_compats = group_left(all_left_compats, right_tensors)
@@ -114,8 +101,9 @@ def join_compatibilities(
     einsum2important_compatibilities: dict[EinsumName, set[Compatibility]] = {}
     for compat in combined:
         for einsum, original in compat2einsum2original[compat].items():
-            important_compats = \
-                einsum2important_compatibilities.setdefault(einsum, set())
+            important_compats = einsum2important_compatibilities.setdefault(
+                einsum, set()
+            )
             important_compats.update(original)
     return einsum2important_compatibilities
 
@@ -128,7 +116,7 @@ def combine_left_and_right_compats(
 ):
     combined: list[Compatibility] = []
     for left_key, left_compats in grouped_left_compats.items():
-        myprint(f'Left key {left_key}')
+        myprint(f"Left key {left_key}")
 
         compatible_right_compats = grouped_right_compats.get(left_key, [])
 
@@ -152,8 +140,7 @@ def combine_left_and_right_compats(
                 for einsum in einsums:
                     einsum2original.setdefault(einsum, set()).update(
                         left_einsum2original.get(einsum, set())
-                        |
-                        right_einsum2original.get(einsum, set())
+                        | right_einsum2original.get(einsum, set())
                     )
 
                 myprint(f"\t{l}\n\t<-->\n\t{r}")
@@ -177,12 +164,9 @@ def group_left(
 ) -> dict[Compatibility, set[Compatibility]]:
     grouped_compats = {}
     for compat in left_compatibilities:
-        key = compat.clear_dead_tensors(right_tensors,
-                                        keep_loops=True,
-                                        drop_tags=True)
+        key = compat.clear_dead_tensors(right_tensors, keep_loops=True, drop_tags=True)
         grouped_compats.setdefault(key, set()).add(compat)
     return grouped_compats
-
 
 
 def group_right(
@@ -191,9 +175,7 @@ def group_right(
 ) -> dict[Compatibility, set[Compatibility]]:
     grouped_compats = {}
     for compat in right_compatibilities:
-        key = compat.clear_dead_tensors(left_tensors,
-                                        keep_loops=True,
-                                        drop_tags=True)
+        key = compat.clear_dead_tensors(left_tensors, keep_loops=True, drop_tags=True)
         for per_loop_key in key.all_n_loops():
             grouped_compats.setdefault(per_loop_key, set()).add(compat)
     return grouped_compats

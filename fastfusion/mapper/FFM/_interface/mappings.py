@@ -3,11 +3,19 @@ from fastfusion.frontend.workload import EinsumName
 from fastfusion.accelerated_imports import pd
 from typing import Union
 from fastfusion.frontend.workload.workload import TensorName
-from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_num_computes, get_per_tensor_size
+from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import (
+    get_num_computes,
+    get_per_tensor_size,
+)
 
 
 class Mappings:
-    def __init__(self, spec: Specification, einsum_names: list[EinsumName] | None = None, data: pd.DataFrame | None = None):
+    def __init__(
+        self,
+        spec: Specification,
+        einsum_names: list[EinsumName] | None = None,
+        data: pd.DataFrame | None = None,
+    ):
         self.spec = spec
         self.einsum_names = einsum_names
         self.data = data
@@ -20,7 +28,9 @@ class Mappings:
 
     def __getitem__(self, key: str | int) -> Union[pd.Series, "Mappings"]:
         if isinstance(key, int):
-            return Mappings(self.spec, self.einsum_names, pd.DataFrame(self.data.iloc[key]).T)
+            return Mappings(
+                self.spec, self.einsum_names, pd.DataFrame(self.data.iloc[key]).T
+            )
         if len(self) == 1:
             return self.data[key].iloc[0]
         return self.data[key]
@@ -30,7 +40,7 @@ class Mappings:
 
     def __iter__(self):
         return iter(self.data)
-    
+
     def per_component_energy(self) -> dict[tuple[EinsumName, str, str], float]:
         """
         Returns a dictionary of:
@@ -40,7 +50,7 @@ class Mappings:
         for col in self.data.columns:
             if col.endswith("component_energy"):
                 einsum_name, component, action, *_ = col.split("_")
-                per_component_energy[(einsum_name,component, action)] = self.data[col]
+                per_component_energy[(einsum_name, component, action)] = self.data[col]
         return self.data
 
     def per_component_latency(self) -> dict[tuple[EinsumName, str], float]:
@@ -59,99 +69,96 @@ class Mappings:
         found_index = None
         found = []
         for col in self.data.columns:
-            col = col.split("\0")
+            col = col.split("<SEP>")
             if key not in col:
                 continue
 
             if sum(c == key for c in col) > 1:
                 raise ValueError(
                     f"Key {key} found multiple times in the column names. "
-                    f"Columns: \"{col}\""
+                    f'Columns: "{col}"'
                 )
 
             if found_index is not None and col.index(key) != found_index:
                 raise ValueError(
                     f"Key {key} found at varying indexes in the column names. "
-                    f"Columns: \"{col}\" and \"{found}\""
+                    f'Columns: "{col}" and "{found}"'
                 )
             found_index = col.index(key)
-            found.append("\0".join(col))
+            found.append("<SEP>".join(col))
         return found
 
     def access(self, *keys: str) -> "Mappings":
-        assert len(set(self.data.columns)) == len(self.data.columns), \
-            "Columns must be unique"
+        assert len(set(self.data.columns)) == len(
+            self.data.columns
+        ), "Columns must be unique"
 
         if len(keys) != 1:
             for k in keys:
                 self = self.access(k)
             return self
-        
+
         key = keys[0]
         col_renames = {}
         for col in self._get_cols(key):
-            col_renames[col] = "\0".join(c for c in col.split("\0") if c != key)
+            col_renames[col] = "<SEP>".join(c for c in col.split("<SEP>") if c != key)
 
         return Mappings(
             self.spec,
             self.einsum_names,
-            self.data[list(col_renames.keys())].rename(columns=col_renames)
+            self.data[list(col_renames.keys())].rename(columns=col_renames),
         )
 
     def drop(self, *keys: str) -> "Mappings":
-        assert len(set(self.data.columns)) == len(self.data.columns), \
-            "Columns must be unique"
+        assert len(set(self.data.columns)) == len(
+            self.data.columns
+        ), "Columns must be unique"
 
         if len(keys) != 1:
             for k in keys:
                 self = self.drop(k)
             return self
-        
+
         return Mappings(
             self.spec,
             self.einsum_names,
-            self.data.drop(columns=self._get_cols(keys[0]))
+            self.data.drop(columns=self._get_cols(keys[0])),
         )
 
     def sum(self, keep_key_index: list[int] | int | None = None) -> "Mappings":
         if len(self.data.columns) == 1:
             return self
-        
+
         if isinstance(keep_key_index, int):
             keep_key_index = [keep_key_index]
         elif keep_key_index is None:
             keep_key_index = []
-        
 
         columns = list(self.data.columns)
         for col in self.data.columns:
-            if len(col.split("\0")) != len(columns[0].split("\0")):
+            if len(col.split("<SEP>")) != len(columns[0].split("<SEP>")):
                 raise ValueError(
                     f"Can only sum columns with same-length keys. Try first calling "
-                    f"access(\"key\") or drop(\"key\") to make all columns "
+                    f'access("key") or drop("key") to make all columns '
                     f"have the same number of keys."
                 )
 
-        if any(k < 0 or k >= len(columns[0].split("\0")) for k in keep_key_index):
+        if any(k < 0 or k >= len(columns[0].split("<SEP>")) for k in keep_key_index):
             raise ValueError(
-                f"Keep indices must be in the range [0, {len(columns[0].split('\0'))})"
+                f"Keep indices must be in the range [0, {len(columns[0].split('<SEP>'))})"
             )
 
         target2sources = {}
         for col in columns:
-            target = col.split("\0")
-            target = "\0".join(target[i] for i in keep_key_index)
+            target = col.split("<SEP>")
+            target = "<SEP>".join(target[i] for i in keep_key_index)
             target2sources.setdefault(target, []).append(col)
 
         new_data = pd.DataFrame(index=self.data.index)
         for target, sources in target2sources.items():
             new_data[target] = self.data[sources].sum(axis=1)
 
-        return Mappings(
-            self.spec,
-            self.einsum_names,
-            new_data
-        )
+        return Mappings(self.spec, self.einsum_names, new_data)
 
     @property
     def columns(self) -> list[str]:
@@ -169,7 +176,7 @@ class Mappings:
         for col in new_df.columns:
             n_computes = total_computes
             if per_einsum:
-                einsum_name = col.split("\0")[0]
+                einsum_name = col.split("<SEP>")[0]
                 if einsum_name not in self.einsum_names and einsum_name != "Total":
                     raise ValueError(
                         f"Einsum name {einsum_name} not found. Ensure that all "
@@ -180,7 +187,7 @@ class Mappings:
                     n_computes = self.num_computes(einsum_name)
             # Check if the column can be converted to numeric
             try:
-                pd.to_numeric(new_df[col], errors='raise')
+                pd.to_numeric(new_df[col], errors="raise")
                 new_df[col] /= n_computes
             except (ValueError, TypeError):
                 # Skip columns that can't be converted to numeric
@@ -198,4 +205,4 @@ class Mappings:
                 f"Can only render a single mapping, but got {len(self)}. Try calling "
                 f"mappings[i].render() instead, for some integer 0 <= i < {len(self)}."
             )
-        return self.data.iloc[0][f"Total\0mapping"].render()
+        return self.data.iloc[0][f"Total<SEP>mapping"].render()

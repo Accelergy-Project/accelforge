@@ -65,7 +65,6 @@ def make_tensor_choices_one_level(
     if is_copy_op:
         may_keep -= tensors.to_my_space(seen_tensors)
 
-
     for subset in powerset(sorted(may_keep, key=str)):
         # Make keep choice & update symbol table
         subset = tensors.to_my_space(set(subset))

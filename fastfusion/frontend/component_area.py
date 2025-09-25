@@ -1,8 +1,15 @@
 import copy
 from typing import Annotated, Any, Callable, Optional, Union
 from fastfusion.version import assert_version, __version__
-from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel, ParsesTo, ParsableDict
+from fastfusion.util.basetypes import (
+    ParsableDict,
+    ParsableList,
+    ParsableModel,
+    ParsesTo,
+    ParsableDict,
+)
 from hwcomponents import get_area
+
 
 class AreaSubcomponent(ParsableModel):
     name: str
@@ -10,6 +17,7 @@ class AreaSubcomponent(ParsableModel):
     model_name: Optional[str] = None
     messages: list[str] = []
     attributes: ParsableDict[str, ParsesTo[Any]]
+
 
 class AreaEntry(ParsableModel):
     name: str
@@ -28,8 +36,9 @@ class AreaEntry(ParsableModel):
         attributes = copy.copy(attributes)
         entries = []
         definition = None
-        
+
         from fastfusion import Specification
+
         spec: Specification = spec
 
         if attributes.area is not None:
@@ -50,7 +59,9 @@ class AreaEntry(ParsableModel):
 
             if definition is not None:
                 for component in definition.subcomponents:
-                    component_attributes = component.attributes.parse_expressions(attributes.model_dump())[0]
+                    component_attributes = component.attributes.parse_expressions(
+                        attributes.model_dump()
+                    )[0]
                     entries.extend(
                         AreaEntry.from_models(
                             component.get_component_class(),
@@ -84,6 +95,7 @@ class AreaEntry(ParsableModel):
         assert name is not None, f"Name is required for AreaEntry"
         return AreaEntry(name=name, area=area, subcomponents=entries)
 
+
 class ComponentArea(ParsableModel):
-    version:  Annotated[str, assert_version] = __version__
+    version: Annotated[str, assert_version] = __version__
     entries: ParsableList[AreaEntry] = ParsableList()

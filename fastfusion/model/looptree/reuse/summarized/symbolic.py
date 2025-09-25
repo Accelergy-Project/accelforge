@@ -5,7 +5,7 @@ from typing import Any
 from fastfusion.frontend import arch
 import fastfusion.frontend.mapping as mapping_spec
 from fastfusion.frontend.arch import ProcessingStage
-from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Iteration, Pattern, TensorHolder# NOFILL: Fill
+from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Iteration, TensorHolder# NOFILL: Fill
 from fastfusion.frontend.workload import (
     Workload,
     TensorName,
@@ -65,6 +65,14 @@ def min_nonzero(a: Any, b: Any) -> Any:
     if b == 0:
         return a
     return Min(a, b)
+
+
+def max_dict(a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
+    new = {**a}
+    for key, value in b.items():
+        new[key] = Max(new[key], value) if key in new else value
+    assert isinstance(new, dict)
+    return new
 
 
 @dataclass
@@ -193,7 +201,7 @@ class ComputeStats:
         new.max_latency += other.max_latency
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
-        new.max_first_latency = Max(self.max_first_latency, other.max_first_latency)
+        new.max_first_latency = max_dict(self.max_first_latency, other.max_first_latency) # FIRST LATENCY
         return new
 
     def combine_temporal(self, other: "ComputeStats"):
@@ -202,7 +210,7 @@ class ComputeStats:
         self.max_latency += other.max_latency
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
-        self.max_first_latency = Max(self.max_first_latency, other.max_first_latency)
+        self.max_first_latency = max_dict(self.max_first_latency, other.max_first_latency) # FIRST LATENCY
 
     def combine_spatial(self, other: "ComputeStats"):
         self.total_ops += other.total_ops
@@ -210,7 +218,7 @@ class ComputeStats:
         self.max_latency = Max(self.max_latency, other.max_latency)
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
-        self.max_first_latency = Max(self.max_first_latency, other.max_first_latency)
+        self.max_first_latency = max_dict(self.max_first_latency, other.max_first_latency) # FIRST LATENCY
 
 
 @dataclass
@@ -281,11 +289,20 @@ class AnalysisInfo:
     tensor_to_backer_id: dict[TensorName, int]
 
     is_copy_operation: TensorName | None
-    
+
     job: Job
 
+    tensor_to_reservation_backer_id: dict[TensorName, int] = field(default_factory=dict)
+
     # We track first latency for these nodes (should be Temporal)
-    ids_to_track_first_latency: set[int] = field(default_factory=set)
+    last_temporal_node_idx: int = None
+    """
+    node idx of the last (above) temporal node
+    """
+    idxs_to_track_first_latency: set[int] = field(default_factory=set)
+    """
+    node idxs for which we track first latency
+    """
 
 def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
     mapping = list(job.mapping.nodes)
@@ -341,7 +358,6 @@ def convert_to_copy(mapping: list[MappingNode], workload: Workload) -> tuple[lis
     mapping = [node for node in mapping if node not in to_remove]
     
     return mapping, tensor_to_backer_id
-
     
     
 def analyze_reuse_and_add_reservations_to_mapping(
@@ -351,7 +367,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
     workload = job.spec.workload
     einsum_name = mapping[-1].einsum
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
-    symbols = insert_sympy_symbols(mapping)
+    symbols = insert_sympy_symbols(mapping, job)
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
     if is_copy_operation:
@@ -373,7 +389,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
         tensor: get_rank_variable_relevancy(einsum, tensor)
         for tensor in all_tensors
     }
-    
+
     info = AnalysisInfo(
         mapping=mapping,
         workload=workload,
@@ -533,6 +549,13 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
             tracker = trackers.pop(tracker_idx)
             buffet = tracker.buffet
             node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
+
+            if (
+                buffet.tensor not in info.tensor_to_reservation_backer_id
+                and buffet.tensor in info.workload.intermediate_tensor_names
+            ):
+                info.tensor_to_reservation_backer_id[buffet.tensor] = id(node)
+
             if tracker.insert_reservation_under:
                 reservation_insert_below.append(node)
             else:
@@ -610,11 +633,7 @@ def analyze_temporal(node_idx,
             compute_stats += child_result.compute_stats[key].repeat_temporal(shape_repeats)
             result_accumulator.compute_stats[key] = compute_stats
 
-    if node_idx in info.ids_to_track_first_latency:
-        for compute_stat in result_accumulator.compute_stats.values():
-            # Should be the first time we store this value
-            assert node_idx not in compute_stat.max_first_latency
-            compute_stat.max_first_latency[node_idx] = first_latency
+    info.last_temporal_node_idx = node_idx
 
     shape = stride_and_shape.shape
     if isinstance(shape, SequenceOfRepatedvalues):
@@ -623,6 +642,12 @@ def analyze_temporal(node_idx,
             handle_repeated_value(repeated_shape)
     elif isinstance(shape, RepeatedValue):
         handle_repeated_value(shape)
+
+    if node_idx in info.idxs_to_track_first_latency:
+        for compute_stat in result_accumulator.compute_stats.values():
+            # Should be the first time we store this value
+            assert node_idx not in compute_stat.max_first_latency
+            compute_stat.max_first_latency[node_idx] = first_latency
 
     return result_accumulator
 
@@ -696,6 +721,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         fanout[node_dim] += target_fanout * shape_repeats
 
         for key in child_result.compute_stats:
+            # TODO: ensure that `ComputeStats()`, which is initialized ONCE, is okay to use here
             compute_stats = result_accumulator.compute_stats.setdefault(key, ComputeStats())
             # TODO: If check omitted. This was in the original code, check history if needed.
             compute_stats.combine_spatial(child_result.compute_stats[key].repeat_spatial(shape_repeats))
@@ -848,11 +874,16 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
+    tensor = TensorName(node.purpose)
+
+    if (
+        info.last_temporal_node_idx is not None
+        and id(node) == info.tensor_to_reservation_backer_id.get(node.purpose, None)
+    ):
+        info.idxs_to_track_first_latency.add(info.last_temporal_node_idx)
 
     child_result = analyze_node(node_idx+1, current_shape, info)
 
-    tensor = TensorName(node.purpose)
-    
     buffet = Buffet(tensor, einsum_name, node.resource)
 
     # Reservation nodes are the first to produce stats for a buffet
@@ -913,7 +944,6 @@ def analyze_compute(node_idx,
         computes,
         computes,
         1 / compute_node.attributes.computes_per_cycle,
-        1 / compute_node.attributes.computes_per_cycle
     )
     
     if info.is_copy_operation:
@@ -956,65 +986,68 @@ def get_stride_and_tile_shape(node: Iteration, full_shape, n: int):
     rank = node.rank_variable
     rank_shape = full_shape[rank]
 
-    if node.tile_shape is not None:
-        tile_shape = node.tile_shape
+    stride = node.stride
+    initial_tile_shape = node.initial_tile_shape
 
-        if node.assume_perfect_factor or known_perfect_factor(tile_shape, rank_shape):
-            factor = rank_shape / tile_shape
-            return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
+    if initial_tile_shape is None:
+        if node.assume_perfect_factor or known_perfect_factor(stride, rank_shape):
+            factor = rank_shape / stride
+            return StrideAndShape(stride, RepeatedValue(stride, factor))
         else:
-            factor = sympy.ceiling(rank_shape / sympy.Min(tile_shape, rank_shape))
-            return make_possibly_different_last(tile_shape, factor, rank_shape)
-    elif node.loop_bound is not None:
-        factor = node.loop_bound
+            factor = sympy.ceiling(rank_shape / sympy.Min(stride, rank_shape))
+            return make_possibly_different_last(stride, factor, rank_shape)
+        
+    middle_shape_factor = sympy.ceiling((rank_shape - initial_tile_shape)/stride)
+    # TODO: sometimes last_shape is 0, causing numerical instability
+    # Currently, we are sometimes rounding up last shape.
+    # last_shape = rank_shape - initial_tile_shape - stride*middle_shape_factor
+    # has_last_shape = sympy.ceiling(last_shape/(last_shape+1))
+    return StrideAndShape(
+        stride,
+        SequenceOfRepatedvalues([
+            RepeatedValue(initial_tile_shape, 1),
+            RepeatedValue(stride, middle_shape_factor),
+            # RepeatedValue(last_shape+0.01, has_last_shape)
+        ])
+    )
+    # if node.tile_shape is not None:
+    #     tile_shape = node.tile_shape
 
-        if node.assume_perfect_factor or known_perfect_factor(factor, rank_shape):
-            tile_shape = rank_shape / factor
-            return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
-        else:
-            tile_shape = sympy.ceiling(rank_shape / sympy.Min(rank_shape, factor))
-            return make_possibly_different_last(tile_shape, factor, rank_shape)
+    #     if node.assume_perfect_factor or known_perfect_factor(tile_shape, rank_shape):
+    #         factor = rank_shape / tile_shape
+    #         return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
+    #     else:
+    #         factor = sympy.ceiling(rank_shape / sympy.Min(tile_shape, rank_shape))
+    #         return make_possibly_different_last(tile_shape, factor, rank_shape)
+    # elif node.loop_bound is not None:
+    #     factor = node.loop_bound
+
+    #     if node.assume_perfect_factor or known_perfect_factor(factor, rank_shape):
+    #         tile_shape = rank_shape / factor
+    #         return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
+    #     else:
+    #         tile_shape = sympy.ceiling(rank_shape / sympy.Min(rank_shape, factor))
+    #         return make_possibly_different_last(tile_shape, factor, rank_shape)
     
-    elif node.tile_pattern is not None:
-        stride = node.tile_pattern.stride
-        initial_tile_shape = node.tile_pattern.initial_tile_shape
-        tile_shape = node.tile_pattern.tile_shape
+    # elif node.tile_pattern is not None:
+    #     stride = node.tile_pattern.stride
+    #     initial_tile_shape = node.tile_pattern.initial_tile_shape
+    #     tile_shape = node.tile_pattern.tile_shape
 
-        if initial_tile_shape is not None:
-            middle_shape_factor = sympy.ceiling((rank_shape - initial_tile_shape)/stride)
-            # TODO: sometimes last_shape is 0, causing numerical instability
-            # Currently, we are sometimes rounding up last shape.
-            # last_shape = rank_shape - initial_tile_shape - stride*middle_shape_factor
-            # has_last_shape = sympy.ceiling(last_shape/(last_shape+1))
-            return StrideAndShape(
-                stride,
-                SequenceOfRepatedvalues([
-                    RepeatedValue(initial_tile_shape, 1),
-                    RepeatedValue(stride, middle_shape_factor),
-                    # RepeatedValue(last_shape+0.01, has_last_shape)
-                ])
-            )
-        elif tile_shape is not None:
-            raise ValueError('Recomputation not yet supported')
-            # shape = node["tile_pattern"]["shape"]
-
-            # factor = sympy.ceiling(rank_shape / stride)
-
-            # common_case_factor = sympy.floor((rank_shape - shape)/stride)
-
-            # iterationvar = sympy.symbols(f"iteration{n}")
-            # last_shapes = rank_shape - iterationvar*stride
-            # last_case_factor = factor - common_case_factor
-
-            # return StrideAndShape(
-            #     stride,
-            #     SequenceOfRepatedvalues([
-            #         RepeatedValue(shape, common_case_factor),
-            #         RepeatedValue(last_shapes, last_case_factor)
-            #     ])
-            # )
-    else:
-        raise ValueError(f"Neither tile_shape, factor, nor tile_pattern found")
+    #     if initial_tile_shape is not None:
+    #         middle_shape_factor = sympy.ceiling((rank_shape - initial_tile_shape)/stride)
+    #         # TODO: sometimes last_shape is 0, causing numerical instability
+    #         # Currently, we are sometimes rounding up last shape.
+    #         # last_shape = rank_shape - initial_tile_shape - stride*middle_shape_factor
+    #         # has_last_shape = sympy.ceiling(last_shape/(last_shape+1))
+    #         return StrideAndShape(
+    #             stride,
+    #             SequenceOfRepatedvalues([
+    #                 RepeatedValue(initial_tile_shape, 1),
+    #                 RepeatedValue(stride, middle_shape_factor),
+    #                 # RepeatedValue(last_shape+0.01, has_last_shape)
+    #             ])
+    #         )
 
 
 def known_perfect_factor(divisor, full_shape):
@@ -1033,25 +1066,38 @@ def make_possibly_different_last(common_tile_shape, factor, full_shape):
     return StrideAndShape(common_tile_shape, all_shapes)
 
 
-def insert_sympy_symbols(mapping):
-    # TODO: Integer constraint may not work with the solving for == zero
+def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
     loop_idx = 0
     symbols = []
-    for node in mapping:
-        if isinstance(node, Spatial) or isinstance(node, Temporal):
-            if node.tile_shape == SYMBOL:
-                node.tile_shape = sympy.symbols(f'tile_shape{loop_idx}', positive=True, integer=True)
-                symbols.append(node.tile_shape)
-            elif node.loop_bound == SYMBOL:
-                # TODO: This won't work with mapping visualization
-                node.loop_bound = sympy.symbols(f'loop_bound{loop_idx}', positive=True, integer=True)
-                symbols.append(node.loop_bound)
-            elif node.tile_pattern == SYMBOL:
-                # TODO: This won't work with mapping visualization
-                node.tile_pattern = Pattern(stride=0)
-                node.tile_pattern.stride = sympy.symbols(f'stride{loop_idx}', positive=True, integer=True)
-                node.tile_pattern.initial_tile_shape = sympy.symbols(f'initial{loop_idx}', positive=True, integer=True)
-                symbols.append(node.tile_pattern.stride)
-                symbols.append(node.tile_pattern.initial_tile_shape)
-            loop_idx += 1
+    for i, node in enumerate(mapping):
+        if not isinstance(node, Iteration):
+            continue
+
+        stride_halos = set()
+        for t in job.spec.workload.einsums[job.einsum_name].tensors:
+            for (rank, rank_variable), (stride, halo) in job.stride_and_halo[t].items():
+                if rank_variable == node.rank_variable:
+                    stride_halos.add((stride, halo))
+
+        simple = len(stride_halos) <= 1 and next(iter(stride_halos)) == (1, 0)
+
+        # TODO: Check for 0 < shape < 1 for loop bound target
+        if node.stride == SYMBOL:
+            stride = sympy.symbols(f'stride{loop_idx}', positive=True, integer=True)
+            symbols.append(stride)
+            node.stride = stride
+        if simple: # Just use the stride!
+            node.initial_tile_shape = None
+        else:
+            if node.initial_tile_shape == SYMBOL:
+                initial_tile_shape = sympy.symbols(f'initial{loop_idx}', positive=True, integer=True)
+                symbols.append(initial_tile_shape)
+                node.initial_tile_shape = initial_tile_shape
+
+        assert node.calculated_n_iterations is None, \
+            "Number of iterations is derived from the model. Do not set it!"
+        node.calculated_n_iterations = sympy.symbols(f'n_iterations{loop_idx}', positive=True, integer=True)
+
+        loop_idx += 1
+
     return symbols

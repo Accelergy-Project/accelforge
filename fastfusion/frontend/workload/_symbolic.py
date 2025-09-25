@@ -27,17 +27,18 @@ def get_projection_expr(einsum: Einsum, tensor: TensorName) -> dict[str, sympy.E
 class Irrelevant:
     pass
 
+
 @dataclass
 class Relevant:
     rank: Any
+
 
 @dataclass
 class PartiallyRelevant:
     rank: Any
 
 
-def get_rank_variable_relevancy(einsum: Einsum,
-                                tensor: TensorName):
+def get_rank_variable_relevancy(einsum: Einsum, tensor: TensorName):
     relevancy = {}
     projection = einsum.tensor_accesses[tensor].projection
     for rank_variable in einsum.rank_variables:
@@ -45,7 +46,9 @@ def get_rank_variable_relevancy(einsum: Einsum,
         for rank_name, projection_str in projection.items():
             projection_expr = sympy.parsing.sympy_parser.parse_expr(projection_str)
             is_simple = len(sympy.Add.make_args(projection_expr)) == 1
-            is_relevant = sympy.symbols(f'{rank_variable}') in projection_expr.free_symbols
+            is_relevant = (
+                sympy.symbols(f"{rank_variable}") in projection_expr.free_symbols
+            )
 
             if not is_relevant:
                 continue
@@ -60,8 +63,7 @@ def get_rank_variable_relevancy(einsum: Einsum,
 
 
 def compute_dense_tile_occupancy(
-    projection_expr: dict[str, sympy.Expr],
-    rank_variable_shapes: dict
+    projection_expr: dict[str, sympy.Expr], rank_variable_shapes: dict
 ):
     substitutions = [
         (rank_variable, rank_variable_shape - 1)
@@ -69,17 +71,11 @@ def compute_dense_tile_occupancy(
     ]
     return reduce(
         mul,
-        [
-            index_expr.subs(substitutions) + 1
-            for index_expr in projection_expr.values()
-        ]
+        [index_expr.subs(substitutions) + 1 for index_expr in projection_expr.values()],
     )
 
 
-def compute_rank_occupancy(
-    projection_expr: sympy.Expr,
-    rank_variable_shapes: dict
-):
+def compute_rank_occupancy(projection_expr: sympy.Expr, rank_variable_shapes: dict):
     substitutions = [
         (rank_variable, rank_variable_shape - 1)
         for rank_variable, rank_variable_shape in rank_variable_shapes.items()
@@ -118,10 +114,7 @@ def get_stride_and_halo_of_einsum(
                 # Careful: in-place mutation of cons_shape
                 original_shape = shape[rank_var]
                 shape[rank_var] = 1
-                halo = (
-                    compute_rank_occupancy(rank_projection, shape)
-                    - 1
-                )
+                halo = compute_rank_occupancy(rank_projection, shape) - 1
                 shape[rank_var] = original_shape
 
                 tensor_stride_and_halo[(rank, rank_var)] = (stride, halo)
@@ -129,8 +122,11 @@ def get_stride_and_halo_of_einsum(
 
 
 def get_stride_and_halo(
-    workload: Workload
-) -> dict[tuple[EinsumName, TensorName], dict[tuple[RankName, RankVariableName], tuple[int, int]]]:
+    workload: Workload,
+) -> dict[
+    tuple[EinsumName, TensorName],
+    dict[tuple[RankName, RankVariableName], tuple[int, int]],
+]:
     """
     Get stride and halo (initial delta) for Einsums in workload.
 
@@ -139,8 +135,7 @@ def get_stride_and_halo(
     """
     stride_and_halo = {}
     for einsum in workload.einsums:
-        stride_and_halo_of_einsum = get_stride_and_halo_of_einsum(einsum.name,
-                                                                  workload)
+        stride_and_halo_of_einsum = get_stride_and_halo_of_einsum(einsum.name, workload)
         for tensor, ranks2stride_and_halo in stride_and_halo_of_einsum.items():
             stride_and_halo[(einsum.name, tensor)] = ranks2stride_and_halo
     return stride_and_halo

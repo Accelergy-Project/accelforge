@@ -30,11 +30,11 @@ arch:
     constraints:
       tensors:
         keep: ~MainMemory.tensors() | input | output
-        no_refetch_from_above: All() if ~MainMemory.tensors() else Nothing()
+        # no_refetch_from_above: All() if ~MainMemory.tensors() else Nothing()
 
   - !Memory
     name: LocalBuffer
-    spatial: [{name: Z, fanout: 4}]
+    spatial: [{name: Z, fanout: 1}]
     attributes:
       _size: 1024*1024*4*8 # 4MB
       _datawidth: 8
@@ -46,13 +46,13 @@ arch:
       tensors:
         bypass: weight
         keep: input | output
-      spatial:
-        - name: Z
-          min_utilization: 1
-          loop_bounds:
-          - expression: weight.rank_variables()
-            operator: ==
-            value: 1
+      # spatial:
+      #   - name: Z
+      #     min_utilization: 1
+      #     loop_bounds:
+      #     - expression: weight.rank_variables()
+      #       operator: ==
+      #       value: 1
 
   - !Compute
     name: scalar_unit
@@ -75,20 +75,21 @@ arch:
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
-        bypass: ~weight | GlobalBuffer.tensors()
-      spatial:
-      - name: X # Parallel rank
-        min_utilization: 1
-        loop_bounds:
-        - expression: input.rank_variables() | ~output.rank_variables()
-          operator: ==
-          value: 1
-      - name: Y # Reduced rank. No iteration over outputs
-        min_utilization: 1
-        loop_bounds:
-        - expression: output.rank_variables() | ~input.rank_variables()
-          operator: ==
-          value: 1
+        bypass: ~weight
+        keep: weight
+      # spatial:
+      # - name: X # Parallel rank
+      #   min_utilization: 1
+      #   loop_bounds:
+      #   - expression: input.rank_variables() | ~output.rank_variables()
+      #     operator: ==
+      #     value: 1
+      # - name: Y # Reduced rank. No iteration over outputs
+      #   min_utilization: 1
+      #   loop_bounds:
+      #   - expression: output.rank_variables() | ~input.rank_variables()
+      #     operator: ==
+      #     value: 1
 
   - !Compute
     name: MAC

@@ -1,16 +1,16 @@
-from typing import List, Dict, Annotated, Optional
+from typing import Annotated, Optional
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion.version import assert_version, __version__
 from platformdirs import user_config_dir
 import logging
 import os
 import sys
-from pathlib import Path
 
 
 USER_CUSTOM_CONFIG_PATH_VAR = "FASTFUSION_CONFIG_PATH"
 
-def get_config():
+
+def get_config() -> "Config":
     if USER_CUSTOM_CONFIG_PATH_VAR in os.environ:
         f = os.environ[USER_CUSTOM_CONFIG_PATH_VAR]
     elif hasattr(sys, "real_prefix") or (
@@ -42,5 +42,6 @@ class Config(ParsableModel):
     @classmethod
     def from_yaml(cls, f: str) -> "Config":
         from fastfusion.util import yaml
+
         data = yaml.load_yaml(f)
         return cls(**data)

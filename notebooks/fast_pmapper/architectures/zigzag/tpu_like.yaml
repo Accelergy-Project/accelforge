@@ -3,8 +3,8 @@ name: tpu_like
 memories:
   rf_W:
     size: 16
-    r_cost: 0.095
-    w_cost: 0.095
+    r_cost: 0
+    w_cost: 0
     area: 0
     latency: 1
     operands: [I2]
@@ -25,8 +25,8 @@ memories:
 
   rf_O:
     size: 16
-    r_cost: 0.021
-    w_cost: 0.021
+    r_cost: 0
+    w_cost: 0
     area: 0
     latency: 1
     operands: [O]
@@ -59,8 +59,8 @@ memories:
 
   LLB:
     size: 1048576  # 128 KiB
-    r_cost: 416.16
-    w_cost: 378.4
+    r_cost: 256   # 2 pJ/8b
+    w_cost: 297   # 2.32 pJ/8b
     area: 0
     latency: 1
     operands: [I1, O]
@@ -96,9 +96,9 @@ memories:
     served_dimensions: [D1, D2]
 
   GLB:
-    size: 41943040 # 5 MiB
-    r_cost: 416.16
-    w_cost: 378.4
+    size: 8388608 # 1 MiB
+    r_cost: 962.5  # 15.04 pJ/8b
+    w_cost: 1208   # 18.88 pJ/8b
     area: 0
     latency: 1
     operands: [I1, O]
@@ -126,12 +126,12 @@ memories:
           - I1, fh
           - O, fh
           - O, fl
-    served_dimensions: [D1, D2]
+    served_dimensions: [D0, D1, D2]
 
   DRAM:
-    size: 100000000000
-    r_cost: 700
-    w_cost: 750
+    size: 1000000000000000
+    r_cost: 1800 # 56.25 pJ/8b but the input must be per-width (width is bandwidth_min == bandwidth_max
+    w_cost: 1800
     area: 0
     latency: 1
     operands: [I1, I2, O]
@@ -149,10 +149,10 @@ memories:
           - O, tl
           - O, fl
           - O, th
-    served_dimensions: [D1, D2]
+    served_dimensions: [D0, D1, D2]
 
 operational_array:
-  unit_energy: 0.04 # pJ
+  unit_energy: 0.07 # pJ
   unit_area: 1 # unit
-  dimensions: [D1, D2]
-  sizes: [128, 128]
+  dimensions: [D0, D1, D2]
+  sizes: [4, 128, 128]

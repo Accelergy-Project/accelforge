@@ -1,8 +1,9 @@
 import itertools
 from numbers import Number
+from typing import Generic, TypeVar
 
-# import joblib.externals.loky
-# joblib.externals.loky.process_executor._MAX_MEMORY_LEAK_SIZE = int(3e9)  # 3GB
+import pydot
+import sympy
 
 from joblib import Parallel, delayed
 import sys
@@ -10,43 +11,60 @@ import sys
 from tqdm import tqdm
 
 PARALLELIZE = True
-N_PARALLEL_PROCESSES = 24
+N_PARALLEL_PROCESSES = 32
+
+def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
+    global N_PARALLEL_PROCESSES
+    N_PARALLEL_PROCESSES = n_jobs
+    global PARALLELIZE
+    PARALLELIZE = n_jobs > 1
+    if print_message:
+        print(f"Using {n_jobs} parallel jobs")
 
 
 def using_parallel_processing():
     return PARALLELIZE and N_PARALLEL_PROCESSES > 1
 
 
-class fzs(frozenset):
+T = TypeVar("T")
+
+
+class fzs(frozenset[T], Generic[T]):
     def __repr__(self):
         return f"{{{', '.join(sorted(x.__repr__() for x in self))}}}"
 
     def __str__(self):
         return self.__repr__()
 
-    def __or__(self, other):
+    def __or__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__or__(other))
 
-    def __and__(self, other):
+    def __and__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__and__(other))
 
-    def __sub__(self, other):
+    def __sub__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__sub__(other))
 
-    def __xor__(self, other):
+    def __xor__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__xor__(other))
 
-    def __lt__(self, other):
+    def __lt__(self, other: "fzs[T]") -> bool:
         return sorted(self) < sorted(other)
 
-    def __le__(self, other):
+    def __le__(self, other: "fzs[T]") -> bool:
         return sorted(self) <= sorted(other)
 
-    def __gt__(self, other):
+    def __gt__(self, other: "fzs[T]") -> bool:
         return sorted(self) > sorted(other)
 
-    def __ge__(self, other):
+    def __ge__(self, other: "fzs[T]") -> bool:
         return sorted(self) >= sorted(other)
+
+
+class UnorderedTuple(tuple[T], Generic[T]):
+    def __new__(cls, *args: T) -> "UnorderedTuple[T]":
+        return super().__new__(cls, sorted(args))
+
 
 def defaultintersection(*args) -> set:
     allargs = []
@@ -60,7 +78,7 @@ def defaultintersection(*args) -> set:
 
 def debugger_active():
     return not PARALLELIZE
-    return 'pydevd' in sys.modules or sys.gettrace() is not None
+    return "pydevd" in sys.modules or sys.gettrace() is not None
 
 
 def expfmt(x):
@@ -100,7 +118,7 @@ def parallel(
     return_as: str = None,
 ):
     jobs = list(jobs)
-    
+
     args = {}
     if return_as is not None:
         args["return_as"] = return_as
@@ -110,7 +128,7 @@ def parallel(
 
     if one_job_if_debugging and debugger_active():
         n_jobs = 1
-        
+
     if isinstance(jobs, dict):
         assert return_as == None, "return_as is not supported for dict jobs"
         r = zip(
@@ -127,8 +145,9 @@ def parallel(
         return [j[0](*j[1], **j[2]) for j in jobs]
 
     total_jobs = len(jobs)
-    
+
     pbar = tqdm(total=total_jobs, desc=pbar, leave=True) if pbar else None
+
     def yield_results():
         for result in Parallel(n_jobs=n_jobs, **args)(jobs):
             if pbar:
@@ -136,7 +155,19 @@ def parallel(
             yield result
         if pbar:
             pbar.close()
+
     if return_as in ["generator", "generator_unordered"]:
         return yield_results()
-    
+
     return list(yield_results())
+
+
+def symbol2str(x: str | sympy.Symbol) -> str:
+    return x.name if isinstance(x, sympy.Symbol) else x
+
+
+def pydot_graph() -> pydot.Dot:
+    graph = pydot.Dot(graph_type="digraph", rankdir="TD", ranksep=0.2)
+    graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
+    graph.set_edge_defaults(fontname="Arial", fontsize="10")
+    return graph

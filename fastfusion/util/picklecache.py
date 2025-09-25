@@ -17,16 +17,16 @@ class PickleCache:
         """
         print(self.fname)
         if self.fname.exists():
-            with open(self.fname, 'rb') as f:
+            with open(self.fname, "rb") as f:
                 return pickle.load(f)
         else:
             result = cache_miss_thunk()
-            with open(self.fname, 'wb') as f:
+            with open(self.fname, "wb") as f:
                 pickle.dump(result, f)
             return result
 
     def set(self, data: T) -> None:
         """Set data at `self.fname`."""
-        with open(self.fname, 'wb') as f:
+        with open(self.fname, "wb") as f:
             pickle.dump(data, f)
         return data

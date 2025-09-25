@@ -12,6 +12,7 @@ from fastfusion.util.parse_expressions import MATH_FUNCS
 from .bypass_keep_generator import make_tensor_choices_all_levels
 from fastfusion.frontend.workload.workload import EinsumName
 
+
 def eval_enabled(component: arch.Component, symbol_table: SymbolTable) -> bool:
     enabled = component.constraints.misc.enabled
     if isinstance(enabled, str):
@@ -22,6 +23,7 @@ def eval_enabled(component: arch.Component, symbol_table: SymbolTable) -> bool:
         f"enabled for {component.name} must be a bool or evaluate to a bool, "
         f"got {type(enabled)}: {enabled}"
     )
+
 
 def get_tensor_choices(
     einsum_name: EinsumName,
@@ -46,26 +48,34 @@ def get_tensor_choices(
     tensors = spec.workload.einsums[einsum_name].tensor_names
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
 
-    for choice, symbol_table in make_tensor_choices_all_levels(nodes, symbol_table, is_copy_op=is_copy_op):
-        all_tensor_holders = []
-        for v in choice.values():
-            all_tensor_holders.extend(v)
+    for choice, symbol_table in make_tensor_choices_all_levels(
+        nodes, symbol_table, is_copy_op=is_copy_op
+    ):
+        all_tensor_holders = [v2 for v in choice.values() for v2 in v]
 
+        # Start out the mapping with the outermost memory name
         base_mapping = []
         for node in list(all_tensor_holders[::-1]):
             if node.component == first_tensor_holder.name:
                 all_tensor_holders.remove(node)
                 base_mapping.append(node)
-                
-        required_order = get_dataflow_constraint(
-            nodes, symbol_table, tensors
-        )
 
+        # Get the dataflow constraints for the mapping
+        required_order = get_dataflow_constraint(nodes, symbol_table, tensors)
+
+        # If the compute is not enabled, then this mapping is not valid
         if not eval_enabled(compute, symbol_table):
             continue
 
         for mapping in recursive_order_tensor_choices(
-            einsum_name, tensors, base_mapping, nodes, all_tensor_holders, required_order, spec, is_copy_op
+            einsum_name,
+            tensors,
+            base_mapping,
+            nodes,
+            all_tensor_holders,
+            required_order,
+            spec,
+            is_copy_op,
         ):
             yield mapping, symbol_table
 
@@ -81,9 +91,7 @@ def get_dataflow_constraint(nodes, symbol_table, tensors):
                 order = Order()
                 for together_tensors in order_constraint:
                     in_mapping_together_tensors = [
-                        tensor
-                        for tensor in together_tensors
-                        if tensor in tensors
+                        tensor for tensor in together_tensors if tensor in tensors
                     ]
                     if len(in_mapping_together_tensors) == 1:
                         only_tensor = in_mapping_together_tensors[0]
@@ -105,30 +113,31 @@ def recursive_order_tensor_choices(
     spec: Specification,
     is_copy_op: bool = False,
 ) -> Generator[list[MappingNode], None, None]:
-    
     def check_has_tensors(mapping: list[MappingNode]):
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
-        tensors_in_mapping = {tensor for tensor_holder in tensor_holders for tensor in tensor_holder.tensors}
+        tensors_in_mapping = {
+            tensor
+            for tensor_holder in tensor_holders
+            for tensor in tensor_holder.tensors
+        }
         if tensors_in_mapping != tensors:
             raise ValueError(
                 f"Einsum {einsum_name} has a mapping that is missing tensors. Ensure that "
                 f"there is a node storing each tensor in the Einsum. Missing tensors: "
-                f"{tensors - tensors_in_mapping}. Mapping:\n\t" + "\n\t".join(
-                    m.compact_str() for m in mapping
-                )
+                f"{tensors - tensors_in_mapping}. Mapping:\n\t"
+                + "\n\t".join(m.compact_str() for m in mapping)
             )
-    
+
     mapping = list(mapping)
     if not remaining_choices:
         check_has_tensors(mapping)
         yield mapping
         return
-    
-    # If it's a copy op and there's a node storing each tensor, then return immediately
+
+    # If it's a copy op and we have the backing storage for every tensor, return immediately
     if is_copy_op:
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
-        seen_tensors = {tensor for tensor_holder in tensor_holders for tensor in tensor_holder.tensors}
-        if seen_tensors == tensors:
+        if set().union(*[t._backing for t in tensor_holders]) == tensors:
             check_has_tensors(mapping)
             yield mapping
             return
@@ -136,9 +145,18 @@ def recursive_order_tensor_choices(
     for choice in sorted(remaining_choices, key=lambda x: x.compact_str()):
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
-        if valid_tensor_holder_order(mapping, [n.name for n in nodes], required_order, spec):
+        if valid_tensor_holder_order(
+            mapping, [n.name for n in nodes], required_order, spec
+        ):
             yield from recursive_order_tensor_choices(
-                einsum_name, tensors, mapping, nodes, new_remaining, required_order, spec, is_copy_op,
+                einsum_name,
+                tensors,
+                mapping,
+                nodes,
+                new_remaining,
+                required_order,
+                spec,
+                is_copy_op,
             )
         mapping.pop()
 

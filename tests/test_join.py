@@ -4,7 +4,7 @@ import unittest
 
 from fastfusion.frontend import Specification
 from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_sims
-from fastfusion.mapper.FFM._join_pmappings.compatibility_util import join_compatibilities, sims2untiled_compats, remove_unimportant_sims
+from fastfusion.mapper.FFM._join_pmappings.compatibility_util import join_compatibilities, sims2untiled_compats
 from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_sims
 
 from simcache import make_sim_pickle_cache
@@ -29,7 +29,6 @@ class TestPreJoin(unittest.TestCase):
 
         untiled_compats = sims2untiled_compats(sims)
         einsum2important_compats = join_compatibilities(untiled_compats, spec)
-        einsum2pruned_sims = remove_unimportant_sims(sims, einsum2important_compats)
 
         for einsum, compats in untiled_compats.items():
             before_size = sum(len(sim.mappings.data.index) for sim in sims[einsum])
@@ -82,7 +81,6 @@ class TestJoin(unittest.TestCase):
 
         untiled_compats = sims2untiled_compats(sims)
         einsum2important_compats = join_compatibilities(untiled_compats, spec)
-        einsum2pruned_sims = remove_unimportant_sims(sims, einsum2important_compats)
 
         mappings = join_sims(einsum2pruned_sims, spec, flattened_arch)
 

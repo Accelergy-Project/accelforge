@@ -6,28 +6,64 @@ import os
 from pathlib import Path
 import re
 from pydantic import BaseModel, ConfigDict, Tag, ValidationError
-from pydantic_core.core_schema import CoreSchema, chain_schema, list_schema, union_schema, no_info_plain_validator_function, str_schema, dict_schema, tagged_union_schema
-from typing import Iterator, List, TypeVar, Generic, Any, Callable, TypeVarTuple, Union, Dict, Optional, Type, TypeAlias, get_args, get_origin
+from pydantic_core.core_schema import (
+    CoreSchema,
+    chain_schema,
+    list_schema,
+    union_schema,
+    no_info_plain_validator_function,
+    str_schema,
+    dict_schema,
+    tagged_union_schema,
+)
+from typing import (
+    Iterator,
+    List,
+    TypeVar,
+    Generic,
+    Any,
+    Callable,
+    TypeVarTuple,
+    Union,
+    Dict,
+    Optional,
+    Type,
+    TypeAlias,
+    get_args,
+    get_origin,
+    TYPE_CHECKING,
+    Self,
+)
 
 from fastfusion.util import yaml
-from fastfusion.util.parse_expressions import parse_expression, ParseError, RawString, is_raw_string
+from fastfusion.util.parse_expressions import (
+    parse_expression,
+    ParseError,
+    RawString,
+    is_raw_string,
+)
 from fastfusion.util import yaml
 
-T = TypeVar('T')
-M = TypeVar('M', bound=BaseModel)
-K = TypeVar('K')
-V = TypeVar('V')
+T = TypeVar("T")
+M = TypeVar("M", bound=BaseModel)
+K = TypeVar("K")
+V = TypeVar("V")
+PM = TypeVar("PM", bound="ParsableModel")
+PL = TypeVar("PL", bound="ParsableList[Any]")
 
-Ts = TypeVarTuple('Ts')
+Ts = TypeVarTuple("Ts")
+
 
 def get_tag(value: Any) -> str:
     if not isinstance(value, dict):
         return value.__class__.__name__
     tag = None
+
     def try_get_tag(attr: str) -> str:
         if hasattr(value, attr) and getattr(value, attr) is not None:
             return getattr(value, attr)
         return None
+
     def try_index(attr: str) -> str:
         try:
             return value[attr]
@@ -42,21 +78,25 @@ def get_tag(value: Any) -> str:
             break
     if tag is None:
         raise ValueError(
-            f"No tag found for {value}. Either set the type field "
-            "or use a YAML tag."
+            f"No tag found for {value}. Either set the type field " "or use a YAML tag."
         )
     tag = str(tag)
     if tag.startswith("!"):
         tag = tag[1:]
     return tag
 
+
 class InferFromTag(Generic[*Ts]):
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Callable) -> CoreSchema:          
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: Callable
+    ) -> CoreSchema:
         type_args = get_args(source_type)
         if not type_args:
-            raise TypeError(f"InferFromTag must be used with a type parameter, e.g. InferFromTag[int]")
-        
+            raise TypeError(
+                f"InferFromTag must be used with a type parameter, e.g. InferFromTag[int]"
+            )
+
         # type_args contains all the possible types: (Compute, Memory, "Hierarchical")
         target_types = []
         for arg in type_args:
@@ -67,19 +107,19 @@ class InferFromTag(Generic[*Ts]):
                 target_types.append(arg)
             else:
                 target_types.append(arg)
-                
+
         # Create tag to class mapping
         tag2class = {}
         for target_type in target_types:
             if isinstance(target_type, str):
                 # For string types, use the string as both key and placeholder
                 tag2class[target_type] = target_type
-            elif hasattr(target_type, '__name__'):
+            elif hasattr(target_type, "__name__"):
                 tag2class[target_type.__name__] = target_type
             else:
                 # Fallback for other types
                 tag2class[str(target_type)] = target_type
-        
+
         def validate(value: Any) -> T:
             if hasattr(value, "_yaml_tag"):
                 tag = value._yaml_tag
@@ -101,13 +141,15 @@ class InferFromTag(Generic[*Ts]):
             if tag.startswith("!"):
                 tag = tag[1:]
             value._type = tag
-                
-            print(f'Tag found! {tag}')
+
+            print(f"Tag found! {tag}")
             if tag in tag2class:
-               return tag2class[tag](**value)
+                return tag2class[tag](**value)
             else:
-                raise ValueError(f"Unknown tag: {tag}. Supported tags are: {sorted(tag2class.keys())}")
-        
+                raise ValueError(
+                    f"Unknown tag: {tag}. Supported tags are: {sorted(tag2class.keys())}"
+                )
+
         # target_schema = handler.generate_schema(target_types)
         schemas = []
         for t in target_types:
@@ -117,26 +159,29 @@ class InferFromTag(Generic[*Ts]):
         #     no_info_plain_validator_function(validate),
         #     target_schema
         # ])
-        return chain_schema([
-            no_info_plain_validator_function(validate),
-            tagged_union_schema(tag2class, discriminator="_type")
-        ])
-        
+        return chain_schema(
+            [
+                no_info_plain_validator_function(validate),
+                tagged_union_schema(tag2class, discriminator="_type"),
+            ]
+        )
+
 
 class ParsesTo(Generic[T]):
     """A type that parses to the specified type T.
-    
+
     Example:
         class Example(ParsableModel):
             a: ParsesTo[int]  # Will parse string expressions to integers
             b: ParsesTo[str]  # Will parse string expressions to strings
             c: str  # Regular string, no parsing
     """
+
     def __init__(self, value: str):
         self._value = value
         self._is_raw_string = is_raw_string(value)
         self._type = T
-        
+
         assert self._type != str, (
             f"ParsesTo[str] is not allowed. Use str directly instead."
             f"If something should just be a string, no expressions are allowed. "
@@ -150,52 +195,80 @@ class ParsesTo(Generic[T]):
         return f"ParsesTo({repr(self._value)})"
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Callable) -> CoreSchema:
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: Callable
+    ) -> CoreSchema:
         # Get the type parameter T from ParsesTo[T]
         type_args = get_args(source_type)
         if not type_args:
-            raise TypeError(f"ParsesTo must be used with a type parameter, e.g. ParsesTo[int]")
+            raise TypeError(
+                f"ParsesTo must be used with a type parameter, e.g. ParsesTo[int]"
+            )
         target_type = type_args[0]
 
         # Get the schema for the target type
         target_schema = handler(target_type)
-        
+
         def validate_raw_string(value):
             if isinstance(value, str) and is_raw_string(value):
                 return RawString(value)
-            raise ValueError("Not a raw string")
-            
+            # raise ValueError("Not a raw string")
+
         # Create a union schema that either validates as raw string or normal validation
-        return union_schema([
-            # First option: validate as raw string
-            chain_schema([
-                no_info_plain_validator_function(validate_raw_string),
-                # target_schema
-            ]),
-            # Second option: normal validation (string then target type)
-            chain_schema([
-                str_schema(),
-                # target_schema
-            ]),
-            # Third option: direct target type validation
-            target_schema
-        ])
+        return union_schema(
+            [
+                # First option: validate as raw string
+                chain_schema(
+                    [
+                        no_info_plain_validator_function(validate_raw_string),
+                        str_schema(),
+                        # target_schema
+                    ]
+                ),
+                # Second option: normal validation (string then target type)
+                chain_schema(
+                    [
+                        str_schema(),
+                        # target_schema
+                    ]
+                ),
+                # Third option: direct target type validation
+                target_schema,
+            ]
+        )
+
+
+if TYPE_CHECKING:
+    try:
+        from typing_extensions import TypeAliasType
+
+        _T_alias = TypeVar("_T_alias")
+        ParsesTo = TypeAliasType("ParsesTo", _T_alias, type_params=(_T_alias,))
+    except Exception:
+        # Best-effort fallback for type checkers that don't support TypeAliasType
+        pass
+
 
 class PostCall(Generic[T]):
     def __call__(self, field: str, value: T, symbol_table: dict[str, Any]) -> T:
         return value
 
+
 class Parsable(ABC, Generic[M]):
-    def parse_expressions(self, symbol_table: dict[str, Any] = None, **kwargs) -> tuple[M, dict[str, Any]]:
+    def parse_expressions(
+        self, symbol_table: dict[str, Any] = None, **kwargs
+    ) -> tuple[M, dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement this method")
-    
+
     def get_fields(self) -> list[str]:
         raise NotImplementedError("Subclasses must implement this method")
-    
+
     def get_validator(self, field: str) -> type:
         raise NotImplementedError("Subclasses must implement this method")
-    
-    def get_instances_of_type(self, type: Type[T], _first_call: bool = True) -> Iterator[T]:
+
+    def get_instances_of_type(
+        self, type: Type[T], _first_call: bool = True
+    ) -> Iterator[T]:
         if not _first_call:
             if self.__class__.__name__ == "Specification":
                 return
@@ -217,17 +290,31 @@ class Parsable(ABC, Generic[M]):
         elif isinstance(self, ParsableModel):
             for field in self.get_fields():
                 if isinstance(getattr(self, field), Parsable):
-                    yield from getattr(self, field).get_instances_of_type(type, _first_call=False)
+                    yield from getattr(self, field).get_instances_of_type(
+                        type, _first_call=False
+                    )
                 elif isinstance(getattr(self, field), type):
                     yield getattr(self, field)
 
-
-    def _parse_expressions(self, symbol_table: dict[str, Any], order: tuple[str, ...], post_calls: tuple[PostCall[T], ...], use_setattr: bool = True, **kwargs) -> tuple["Parsable", dict[str, Any]]:
+    def _parse_expressions(
+        self,
+        symbol_table: dict[str, Any],
+        order: tuple[str, ...],
+        post_calls: tuple[PostCall[T], ...],
+        use_setattr: bool = True,
+        **kwargs,
+    ) -> tuple["Parsable", dict[str, Any]]:
         self._parsed = True
         field_order = get_parsable_field_order(
             order,
-            [(field, getattr(self, field) if use_setattr else self[field], self.get_validator(field))
-                for field in self.get_fields()]
+            [
+                (
+                    field,
+                    getattr(self, field) if use_setattr else self[field],
+                    self.get_validator(field),
+                )
+                for field in self.get_fields()
+            ],
         )
         prev_symbol_table = symbol_table.copy()
         for k, v in symbol_table.items():
@@ -251,7 +338,11 @@ class Parsable(ABC, Generic[M]):
             symbol_table[field] = parsed
 
         for k, v in prev_symbol_table.items():
-            if isinstance(k, str) and k.startswith("global_") and symbol_table.get(k, None) != v:
+            if (
+                isinstance(k, str)
+                and k.startswith("global_")
+                and symbol_table.get(k, None) != v
+            ):
                 raise ParseError(
                     f"Global variable {k} is already set to {v} in the outer scope. "
                     f"It cannot be changed to {symbol_table[k]}."
@@ -340,7 +431,7 @@ class FromYAMLAble:
                     logging.info("Found top key %s in %s", k, f)
                     key2file[k] = f
                     rval[k] = v
-                    
+
         if top_key is not None:
             if top_key not in rval:
                 raise KeyError(f"Top key {top_key} not found in {files}")
@@ -365,8 +456,7 @@ class FromYAMLAble:
                 c = cls(**rval_first, **kwargs)
             except Exception as e:
                 logging.warning(
-                    f"Error parsing {files} with top key {top_key}. "
-                    f"Error: {e}"
+                    f"Error parsing {files} with top key {top_key}. " f"Error: {e}"
                 )
         if c is None:
             c = cls(**rval, **kwargs)
@@ -377,6 +467,7 @@ class FromYAMLAble:
             )
         c._yaml_source = ",".join(files)
         return c
+
 
 def parse_field(field, value, validator, symbol_table, parent, **kwargs):
     try:
@@ -398,10 +489,14 @@ def parse_field(field, value, validator, symbol_table, parent, **kwargs):
 
             # Get the target type from the validator
             target_type = get_args(validator)[0]
-            target_any = target_type is Any or isinstance(target_type, tuple) and Any in target_type
+            target_any = (
+                target_type is Any
+                or isinstance(target_type, tuple)
+                and Any in target_type
+            )
             if not target_any and not isinstance(parsed, target_type):
                 raise ParseError(
-                    f"{value} parsed to \"{parsed}\" with type {type(parsed).__name__}."
+                    f'{value} parsed to "{parsed}" with type {type(parsed).__name__}.'
                     f" Expected {target_type}.",
                 )
             return parsed
@@ -419,9 +514,13 @@ def parse_field(field, value, validator, symbol_table, parent, **kwargs):
             e.add_field(field)
         raise e
 
+
 # python_name_regex = re.compile(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b')
 
-def get_parsable_field_order(order: tuple[str, ...], field_value_validator_triples: list[tuple[str, Any, type]]) -> list[str]:
+
+def get_parsable_field_order(
+    order: tuple[str, ...], field_value_validator_triples: list[tuple[str, Any, type]]
+) -> list[str]:
     order = list(order)
     to_sort = []
     for field, value, validator in field_value_validator_triples:
@@ -434,12 +533,12 @@ def get_parsable_field_order(order: tuple[str, ...], field_value_validator_tripl
             order.append(field)
             continue
         to_sort.append((field, value))
-        
+
     dependencies = {field: set() for field, _ in to_sort}
     for field, value in to_sort:
         for other_field, other_value in to_sort:
             if field != other_field:
-                if re.findall(r'\b' + re.escape(field) + r'\b', other_value):
+                if re.findall(r"\b" + re.escape(field) + r"\b", other_value):
                     dependencies[other_field].add(field)
 
     while to_sort:
@@ -461,16 +560,18 @@ class ModelWithUnderscoreFields(BaseModel):
     def __init__(self, **kwargs):
         new_kwargs = {}
         for field, value in kwargs.items():
-            if field.startswith("_") and \
-                field not in self.__class__.model_fields and \
-                field[1:] in self.__class__.model_fields:
+            if (
+                field.startswith("_")
+                and field not in self.__class__.model_fields
+                and field[1:] in self.__class__.model_fields
+            ):
                 new_kwargs[field[1:]] = value
             else:
                 new_kwargs[field] = value
         super().__init__(**new_kwargs)
 
 
-class ParsableModel(ModelWithUnderscoreFields, Parsable['ParsableModel'], FromYAMLAble):
+class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"], FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
     type: Optional[str] = None
 
@@ -478,7 +579,7 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable['ParsableModel'], FromYA
         if self.type is not None:
             if not isinstance(self, self.type):
                 raise TypeError(
-                    f"type field {self.type} does not match" 
+                    f"type field {self.type} does not match"
                     f"{self.__class__.__name__}"
                 )
 
@@ -489,17 +590,26 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable['ParsableModel'], FromYA
 
     def get_fields(self) -> list[str]:
         fields = set(self.__class__.model_fields.keys())
-        if getattr(self, '__pydantic_extra__', None) is not None:
+        if getattr(self, "__pydantic_extra__", None) is not None:
             fields.update(self.__pydantic_extra__.keys())
         return sorted(fields)
 
-    def parse_expressions(self, symbol_table: dict[str, Any] = None, order: tuple[str, ...] = (), post_calls: tuple[PostCall[T], ...] = (), **kwargs) -> tuple['ParsableModel', dict[str, Any]]:
+    def parse_expressions(
+        self,
+        symbol_table: dict[str, Any] = None,
+        order: tuple[str, ...] = (),
+        post_calls: tuple[PostCall[T], ...] = (),
+        **kwargs,
+    ) -> tuple[Self, dict[str, Any]]:
         new = self.model_copy()
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
-        return new._parse_expressions(symbol_table, order, post_calls, use_setattr=True, **kwargs)
+        return new._parse_expressions(
+            symbol_table, order, post_calls, use_setattr=True, **kwargs
+        )
 
     def to_yaml(self, f: str = None) -> str:
         dump = self.model_dump()
+
         def _to_str(value: Any):
             if isinstance(value, list):
                 return [_to_str(x) for x in value]
@@ -523,6 +633,7 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable['ParsableModel'], FromYA
     def model_dump_non_none(self, **kwargs):
         return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
 
+
 class NonParsableModel(ModelWithUnderscoreFields, FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
     type: Optional[str] = None
@@ -530,40 +641,55 @@ class NonParsableModel(ModelWithUnderscoreFields, FromYAMLAble):
     def get_validator(self, field: str) -> Type:
         return Any
 
-class ParsableList(list[T], Parsable['ParsableList[T]'], Generic[T]):
+
+class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
     def get_validator(self, field: str) -> Type:
         return T
 
-    def parse_expressions(self, symbol_table: dict[str, Any] = None, order: tuple[str, ...] = (), post_calls: tuple[PostCall[T], ...] = (), **kwargs) -> tuple['ParsableModel', dict[str, Any]]:
+    def parse_expressions(
+        self,
+        symbol_table: dict[str, Any] = None,
+        order: tuple[str, ...] = (),
+        post_calls: tuple[PostCall[T], ...] = (),
+        **kwargs,
+    ) -> tuple["ParsableList[T]", dict[str, Any]]:
         new = ParsableList[T](x for x in self)
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
         order = order + tuple(x for x in range(len(new)) if x not in order)
-        return new._parse_expressions(symbol_table, order, post_calls, use_setattr=False, **kwargs)
-    
+        return new._parse_expressions(
+            symbol_table, order, post_calls, use_setattr=False, **kwargs
+        )
+
     def get_fields(self) -> list[str]:
         return sorted(range(len(self)))
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Callable) -> CoreSchema:
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: Callable
+    ) -> CoreSchema:
         # Get the type parameter T from ParsableList[T]
         type_args = get_args(source_type)
         if not type_args:
-            raise TypeError(f"ParsableList must be used with a type parameter, e.g. ParsableList[int]")
+            raise TypeError(
+                f"ParsableList must be used with a type parameter, e.g. ParsableList[int]"
+            )
         item_type = type_args[0]
 
         # Get the schema for the item type
         item_schema = handler(item_type)
 
         # Create a schema that validates lists of the item type
-        return chain_schema([
-            list_schema(item_schema),
-            no_info_plain_validator_function(lambda x: cls(x))
-        ])
+        return chain_schema(
+            [
+                list_schema(item_schema),
+                no_info_plain_validator_function(lambda x: cls(x)),
+            ]
+        )
 
     def __getitem__(self, key: Union[str, int, slice]) -> T:
         if isinstance(key, int):
             return super().__getitem__(key)  # type: ignore
-        
+
         elif isinstance(key, slice):
             return ParsableList[T](super().__getitem__(key))
 
@@ -577,12 +703,12 @@ class ParsableList(list[T], Parsable['ParsableList[T]'], Generic[T]):
                     name = elem.name
                 if name is not None and name == key:
                     if found is not None:
-                        raise ValueError(f"Multiple elements with name \"{key}\" found.")
+                        raise ValueError(f'Multiple elements with name "{key}" found.')
                     found = elem
             if found is not None:
                 return found
-        raise KeyError(f"No element with name \"{key}\" found.")
-    
+        raise KeyError(f'No element with name "{key}" found.')
+
     def __contains__(self, item: Any) -> bool:
         try:
             self[item]
@@ -590,26 +716,40 @@ class ParsableList(list[T], Parsable['ParsableList[T]'], Generic[T]):
         except KeyError:
             return super().__contains__(item)
 
-class ParsableDict(dict[K, V], Parsable['ParsableDict[K, V]'], Generic[K, V], FromYAMLAble):
-    
+
+class ParsableDict(
+    dict[K, V], Parsable["ParsableDict[K, V]"], Generic[K, V], FromYAMLAble
+):
+
     def get_validator(self, field: str) -> type:
         return V
-    
+
     def get_fields(self) -> list[str]:
         return sorted(self.keys())
-    
-    
-    def parse_expressions(self, symbol_table: dict[str, Any] = None, order: tuple[str, ...] = (), post_calls: tuple[PostCall[V], ...] = (), **kwargs) -> tuple['ParsableDict[K, V]', dict[str, Any]]:
+
+    def parse_expressions(
+        self,
+        symbol_table: dict[str, Any] = None,
+        order: tuple[str, ...] = (),
+        post_calls: tuple[PostCall[V], ...] = (),
+        **kwargs,
+    ) -> tuple["ParsableDict[K, V]", dict[str, Any]]:
         new = ParsableDict[K, V](self)
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
-        return new._parse_expressions(symbol_table, order, post_calls, use_setattr=False, **kwargs)
+        return new._parse_expressions(
+            symbol_table, order, post_calls, use_setattr=False, **kwargs
+        )
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Callable) -> CoreSchema:
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: Callable
+    ) -> CoreSchema:
         # Get the type parameters K and V from ParsableDict[K, V]
         type_args = get_args(source_type)
         if len(type_args) != 2:
-            raise TypeError(f"ParsableDict must be used with two type parameters, e.g. ParsableDict[str, int]")
+            raise TypeError(
+                f"ParsableDict must be used with two type parameters, e.g. ParsableDict[str, int]"
+            )
         key_type, value_type = type_args
 
         # Get the schemas for the key and value types
@@ -617,17 +757,19 @@ class ParsableDict(dict[K, V], Parsable['ParsableDict[K, V]'], Generic[K, V], Fr
         value_schema = handler.generate_schema(value_type)
 
         # Create a schema that validates dictionaries with the specified key and value types
-        return chain_schema([
-            dict_schema(key_schema, value_schema),
-            no_info_plain_validator_function(lambda x: cls(x))
-        ])
+        return chain_schema(
+            [
+                dict_schema(key_schema, value_schema),
+                no_info_plain_validator_function(lambda x: cls(x)),
+            ]
+        )
+
 
 class ParseExtras(ParsableModel):
     def get_validator(self, field: str) -> type:
         if field not in self.__class__.model_fields:
             return ParsesTo[Any]
         return self.__class__.model_fields[field].annotation
-
 
     def __init__(self, **kwargs):
         new_kwargs = {}
