@@ -232,7 +232,8 @@ def occupancies_from_mapping(
             print(f"Skew: {skew.map_}")
             print(f"Aligned Skew: {aligned_skew}")
             print(f"Tiling: {tiling}")
-            print(f"project dim after: {skew.map_.dim(isl.dim_type.out)}")
+            print(f"{tiling.apply_range(accesses)}")
+            print(f"{skew.map_.dim(isl.dim_type.out)}")
         occupancy: isl.Map = aligned_skew.apply_range(
             project_dim_in_after(
                 tiling.apply_range(accesses), skew.map_.dim(isl.dim_type.out)
