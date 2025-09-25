@@ -6,6 +6,7 @@ in FastFusion.
 from abc import ABC
 import copy
 from dataclasses import dataclass, replace
+import inspect
 import pydot
 
 from typing import (
