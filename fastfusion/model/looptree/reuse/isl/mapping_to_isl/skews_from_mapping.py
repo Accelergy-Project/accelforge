@@ -29,6 +29,7 @@ from fastfusion.model.looptree.reuse.isl.isl_functions import (
     dim_projector_mask,
     insert_equal_dims_map,
 )
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
 
 from .types import (
     # Bookkeeping objects
@@ -51,6 +52,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
     Given a mapping ...
     TODO: Fill this in
     """
+    print("here!!")
     compute_einsum_to_skew: dict[ComputeEinsum, Skew] = defaultdict()
     buffer_tensor_einsum_to_skew: dict[BufferTensorEinsum, Skew] = defaultdict()
 
@@ -76,11 +78,11 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                     buffer_to_last_storage_node[compute] = node
                     buffer_node.append((compute, node))
 
-        node_to_current_buffer: dict[MappingNode, ComponentName] = {}
+        node_to_current_buffer: dict[MappingNode, MappingNode] = {}
         buffer_idx: int = 0
         for node in path:
-            cur_buf, cur_buf_last_node = buffer_node[buffer_idx]
-            node_to_current_buffer[node] = cur_buf
+            _, cur_buf_last_node = buffer_node[buffer_idx]
+            node_to_current_buffer[node] = cur_buf_last_node
 
             if node == cur_buf_last_node:
                 buffer_idx += 1
@@ -92,7 +94,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                 isl.Space.alloc(isl.DEFAULT_CONTEXT, 0, 0, 0).domain()
             )
         )
-        buffer_storage_past: set[tuple[ComponentName, TensorName]] = set()
+        buffer_storage_past: set[Tuple[ComponentName, TensorName]] = set()
         buffer_fully_complete: set[ComponentName] = set()
         buffer_to_dim_removal_mask: defaultdict[
             Tuple[ComponentName, TensorName], List[bool]
@@ -100,8 +102,8 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
 
         def add_tag(
             tag: Tag,
-            mask_condition: Callable[[ComponentName], bool] = (
-                lambda buffer: buffer in buffer_fully_complete
+            mask_condition: Callable[[ComponentName, TensorName], bool] = (
+                lambda b, t: b in buffer_fully_complete
             ),
         ) -> None:
             """
@@ -127,13 +129,15 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                 removal_map.dim(isl.dim_type.out),
                 1,
             )
+            if DUMP_ISL_IR:
+                print(f"skew removal_map: {removal_map}")
+                print(f"tag: {tag}")
 
             nonlocal all_buffer_tensors
             nonlocal buffer_to_dim_removal_mask
             for buffer_tensor in all_buffer_tensors:
                 removal_mask = buffer_to_dim_removal_mask[buffer_tensor]
-                buffer = buffer_tensor[0]
-                removal_mask.append(mask_condition(buffer))
+                removal_mask.append(mask_condition(*buffer_tensor))
 
         for node in path:
             match node:
@@ -156,11 +160,11 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                     # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L660-L671
                     add_tag(
                         tag,
-                        lambda buffer: (
-                            (buffer in buffer_fully_complete)
+                        lambda b, t: (
+                            (b in buffer_fully_complete)
                             or (
-                                isinstance(node, Temporal)
-                                and (buffer in buffer_storage_past)
+                                (b, t) in buffer_storage_past
+                                and isinstance(node, Temporal)
                             )
                         ),
                     )
@@ -175,7 +179,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
             projector: isl.Map = dim_projector_mask(domain.get_space(), mask)
             removal_projection: isl.Map = projector.apply_range(removal_map)
 
-            buffer_tags: List[Tag] = [tags[i] for i in range(len(tags)) if mask[i]]
+            buffer_tags: List[Tag] = [tag for i, tag in enumerate(tags) if not mask[i]]
 
             # TODO: This buffet structure makes no sense in this context:
             # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L740-L743

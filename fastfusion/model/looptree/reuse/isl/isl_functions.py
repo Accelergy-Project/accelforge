@@ -22,7 +22,7 @@ def project_dim_in_after(map_: isl.Map, start: int) -> isl.Map:
     :rtype:     isl.Map
     """
     n_dim_in: int = map_.dim(isl.dim_type.in_)
-    return map_.project_out(isl.dim_type.in_, start, n_dim_in - start)
+    return map_.project_out(isl.dim_type.in_, start, n_dim_in - start) if start <= n_dim_in else map_
 
 
 def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:

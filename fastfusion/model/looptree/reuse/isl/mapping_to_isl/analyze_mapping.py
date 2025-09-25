@@ -25,6 +25,7 @@ Relevant Name Changes:
 """
 
 from collections import defaultdict, deque
+from pprint import pformat
 from typing import List, Optional
 
 import islpy as isl
@@ -209,6 +210,8 @@ def occupancies_from_mapping(
 
     occupancies: defaultdict[BufferTensorEinsum, Occupancy] = defaultdict()
     skews: SkewsInfo = skews_from_mapping(mapping, workload)
+    if DUMP_ISL_IR:
+        print(f"skews: {pformat(skews)}")
 
     for bte, skew in skews.bte_to_skew.items():
         if DUMP_ISL_IR:
@@ -225,6 +228,11 @@ def occupancies_from_mapping(
             continue
         
         aligned_skew: isl.Map = align_dim_names(skew.map_, tiling)
+        if DUMP_ISL_IR:
+            print(f"Skew: {skew.map_}")
+            print(f"Aligned Skew: {aligned_skew}")
+            print(f"Tiling: {tiling}")
+            print(f"project dim after: {skew.map_.dim(isl.dim_type.out)}")
         occupancy: isl.Map = aligned_skew.apply_range(
             project_dim_in_after(
                 tiling.apply_range(accesses), skew.map_.dim(isl.dim_type.out)
