@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import logging
 from numbers import Number
 from typing import Any, Callable, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
@@ -40,7 +40,6 @@ from fastfusion.frontend.mapping import Reservation as ReservationNode
 
 def make_compatibility(
     mapping: Mapping,
-    tagger,
     intermediate_tensors: set[TensorName],
     workload: Workload,
     rank_variable_bounds: dict[RankVariableName, int],
@@ -199,10 +198,11 @@ def make_compatibility(
 @dataclass
 class Job:
     spec: Specification
-    tagger: Callable[[Mapping], Tags]
     metrics: Metrics
-    job_id: UUID
     rank_variable_bounds: dict[RankVariableName, int]
+
+    job_id: UUID = field(default_factory=uuid4)
+
     stride_and_halo: dict[
         TensorName, dict[tuple[RankName, RankVariableName], tuple[int, int]]
     ] | None = None
@@ -210,10 +210,10 @@ class Job:
     constraints: MappingConstraints | None = None
     intermediate_tensors: set[TensorName] | None = None
     flattened_arch: list[arch.Leaf] | None = None
+
     einsum_name: EinsumName | None = None
-    tensor2compatibilties: dict[TensorName, set[Compatibility]] | None = None
-    tensor2boundless_compatibilities: dict[TensorName, set[Compatibility]] | None = None
-    except_from_imperfect: set = frozenset()
+    """If the Job is for a single einsum, this is the einsum name."""
+
     _compatibility: Compatibility | None = None
     memories_track_all: list[str] | None = None
     memories_track_pmappings_only: list[str] | None = None
@@ -261,7 +261,6 @@ class Job:
         with_reservations = quick_insert_reservation_nodes(self)
         self._compatibility = make_compatibility(
             with_reservations,
-            self.tagger,
             self.intermediate_tensors,
             self.spec.workload,
             self.rank_variable_bounds,
@@ -279,7 +278,6 @@ class Job:
     ) -> "Job":
         defaults = {
             "spec": None,
-            "tagger": None,
             "mapping": None,
             "workload": None,
             "architecture": None,
@@ -361,10 +359,6 @@ class SameSpecJobs(list[Job]):
     @property
     def rank_variable_bounds(self) -> dict[RankVariableName, int]:
         return first(self).rank_variable_bounds
-
-    @property
-    def tagger(self) -> Callable[[Mapping], Tags]:
-        return first(self).tagger
 
     @property
     def metrics(self) -> Metrics:
