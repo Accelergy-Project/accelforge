@@ -99,7 +99,8 @@ def get_mapping_group_einsums(
             # Assumed no children, log as a folded result.
             case Compute():
                 result[last_non_branch].add(node.einsum)
-            # TODO: I'm pretty sure these all had children at some point in Timeloop.
+            # These had children in Timeloop we had to add to the DFS, but because
+            # of our extension of dfs_stack we can just skip this node.
             case Spatial() | Temporal() | Storage():
                 continue
             case _:
@@ -562,7 +563,6 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                 # Notes what reuse level the tensor is on.
                 case Storage():
                     # See current_node is the highest level of Storage to determine reuse level.
-                    # TODO: Check this is correct too.
                     for tensor in current_node.tensors:
                         # Check second term
                         if (
@@ -572,7 +572,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                             random_einsum: EinsumName = next(iter(mapping_groups[node]))
                             tiling: Tiling = tiling_info[node][random_einsum]
                             tensor_to_reuse_level[tensor] = tiling.dim(isl.dim_type.in_)
-                    # TODO: Check accuracy of not using nodes.
+
                     current_node = dfs_stack.pop()
                 # If we are at the Mapping root, just go to the actual Nodes.
                 case Mapping():
