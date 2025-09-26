@@ -224,7 +224,6 @@ def iterate_mappings_no_constraints(
     einsum_name: str,
     arch_flattened: list[arch.Leaf],
     rank_variable_bounds: dict[RankVariableName, int],
-    except_from_imperfect: set,
 ):
     first_memory = None
     for node in arch_flattened:
@@ -249,7 +248,6 @@ def iterate_mappings_no_constraints(
             rank_variable_bounds,
             ranks_with_tile_pattern,
             spec.workload,
-            except_from_imperfect,
         ):
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(mapping, einsum, arch_flattened)
@@ -271,7 +269,6 @@ def iterate_mappings_constraints(
     einsum_names: list[str] | str | None = None,
     arch_flattened: list[arch.Leaf] | None = None,
     rank_variable_bounds: dict[RankVariableName, int] | None = None,
-    except_from_imperfect: set = set(),
 ) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
     if arch_flattened is None:
         arch_flattened = spec.get_flattened_architecture()
@@ -291,7 +288,6 @@ def iterate_mappings_constraints(
             einsum_name,
             arch_flattened,
             rank_variable_bounds,
-            except_from_imperfect,
         ):
             # MAPPING MUST NOT BE MODIFIED AFTER THIS POINT
             mapping, constraints = get_constraints(
@@ -377,7 +373,6 @@ def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
             job.einsum_name,
             job.flattened_arch,
             job.rank_variable_bounds,
-            job.except_from_imperfect,
         ),
         desc=f"Generating pmapping templates for compute {compute_name} Einsum {job.einsum_name}",
     )
