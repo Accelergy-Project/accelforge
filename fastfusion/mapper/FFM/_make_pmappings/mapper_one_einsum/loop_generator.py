@@ -1,12 +1,7 @@
 import itertools
 
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.mapping import (
-    MappingNode,
-    Temporal,
-    Spatial,
-    TensorHolder
-)
+from fastfusion.frontend.mapping import MappingNode, Temporal, Spatial, TensorHolder
 from fastfusion.frontend.workload.workload import (
     Einsum,
     RankVariableName,
@@ -27,7 +22,6 @@ def insert_temporal_loops(
     rank_variable_bounds: dict[RankVariableName, int],
     ranks_with_tile_pattern: set,
     workload: Workload,
-    except_from_imperfect: set,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -91,12 +85,17 @@ def insert_temporal_loops(
 
         # Optimality-preserving optimization: We can trivially raise TensorHolder nodes
         # through irrelevant unfused loops. Can't do this if the loops are fused because
-        # that'd increase the lifetime of the TensorHolder node.
+        # that'd increase the lifetime of the TensorHolder node. Can't do this if the
+        # irrelevant rank variables partially-relevant to the previous tensors, since
+        # that affects the permutation.
         if not is_fused_loops:
             for s in next_tensor_holders:
                 if not s._must_be_here:
                     for t in s.tensors:
-                        rank_variables -= tensor2irrelevant_rank_vars[t]
+                        rvs = tensor2irrelevant_rank_vars[t]
+                        for t2 in prev_tensors:
+                            rvs -= tensor2partially_relevant_rank_vars[t2]
+                        rank_variables -= rvs
 
         # Test permutations of partially-relevant rank variables because we'll be
         # lowering through them. Don't permute fully-relevant rank variables because
@@ -148,10 +147,10 @@ def insert_temporal_loops(
         full_mapping = []
         for prev_tensor_holders, loop_order in zip(split_mapping, loop_orders):
             full_mapping.extend(prev_tensor_holders)
-            full_mapping.extend(
-                Temporal(rank_variable=r, tile_shape="symbol") for r in loop_order
-            )
-        tensor_holders = [node for node in full_mapping if isinstance(node, TensorHolder)]
+            full_mapping.extend(Temporal(rank_variable=r) for r in loop_order)
+        tensor_holders = [
+            node for node in full_mapping if isinstance(node, TensorHolder)
+        ]
         assert len(lowering_choices) == len(tensor_holders)
         for lowering_choice in itertools.product(*lowering_choices):
             for lower, node in zip(lowering_choice, tensor_holders):
@@ -168,27 +167,30 @@ def insert_spatial_loops(
     nodes_with_fanout = [n for n in arch_flattened if n.get_fanout() > 1]
     arch_node_names = [n.name for n in arch_flattened]
 
-    # Place spatials above the last instance of the first memory ABOVE each fanout
+    # Place spatials above the first instance of the first memory BELOW each fanout
     for node in nodes_with_fanout:
         insertion_point = 0
         for i in range(len(mapping)):
             if not isinstance(mapping[i], TensorHolder):
                 continue
-            component = mapping[i].component
-            if arch_node_names.index(component) < arch_node_names.index(node.name):
-                insertion_point = i + 1
+            if arch_node_names.index(mapping[i].component) >= arch_node_names.index(
+                node.name
+            ):
+                insertion_point = i
+                break
+        else:
+            insertion_point = len(mapping)
 
         rv = einsum.rank_variables
         for fanout_dim in node.spatial:
             for r in rv:
-                mapping.insert(
-                    insertion_point,
-                    Spatial(
-                        rank_variable=r,
-                        name=fanout_dim.name,
-                        component_object=node,
-                        component=node.name,
-                        tile_shape="symbol",
-                    ),
+                s = Spatial(
+                    rank_variable=r,
+                    name=fanout_dim.name,
+                    component_object=node,
+                    component=node.name,
                 )
-                
+                if insertion_point == len(mapping):
+                    mapping.append(s)
+                else:
+                    mapping.insert(insertion_point, s)

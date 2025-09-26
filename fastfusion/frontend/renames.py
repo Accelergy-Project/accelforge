@@ -15,13 +15,15 @@ class Rename(ParsableModel):
     expected_count: int | None = None
 
 
-def rename_list_factory(rename_list: list | dict):
+def rename_list_factory(rename_list: list | dict) -> "RenameList":
     if isinstance(rename_list, list):
         return RenameList(rename_list)
-    
+
     if not isinstance(rename_list, dict):
-        raise TypeError(f"Expected a list or dict, got {type(rename_list)}: {rename_list}")
-    
+        raise TypeError(
+            f"Expected a list or dict, got {type(rename_list)}: {rename_list}"
+        )
+
     return RenameList(
         Rename(name=k, source=v, expected_count=None) for k, v in rename_list.items()
     )
@@ -35,8 +37,8 @@ class EinsumRename(ParsableModel):
     name: EinsumName
     tensor_accesses: ParsableList[Rename] = ParsableList()
     rank_variables: ParsableList[Rename] = ParsableList()
-    
-    def __init__(self, *args, **kwargs):
+
+    def __init__(self, *args, **kwargs) -> None:
         if "tensor_accesses" in kwargs:
             kwargs["tensor_accesses"] = rename_list_factory(kwargs["tensor_accesses"])
         if "rank_variables" in kwargs:
@@ -45,11 +47,10 @@ class EinsumRename(ParsableModel):
 
 
 class Renames(ParsableModel):
-    version:  Annotated[str, assert_version] = __version__
+    version: Annotated[str, assert_version] = __version__
     einsums: ParsableList[EinsumRename] = ParsableList()
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    def model_post_init(self, __context__=None) -> None:
         assert_version(self.version)
 
     def get_renames_for_einsum(self, einsum_name: EinsumName) -> EinsumRename:

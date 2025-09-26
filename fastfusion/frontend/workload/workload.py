@@ -4,14 +4,25 @@ All the objects used for a Workload description in FastFusion.
 
 import re
 from itertools import product
-
 from typing import Annotated, TypeAlias, Union
+import pydot
+
+from fastfusion.util.util import pydot_graph
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
-from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.version import assert_version, __version__
+from fastfusion.frontend.renames import (
+    EinsumName,
+    RankVariableName,
+    Rename,
+    RenameList,
+    Renames,
+    TensorName,
+    RankName,
+    rename_list_factory,
+)
 
 
 CLIST_OPERATORS = [
@@ -58,14 +69,12 @@ class TensorAccess(ParsableModel):
     """
 
     name: TensorName
-    projection: dict[str, str]
+    projection: dict[str, str] | list[str]
     output: bool = False
     factors: list = []
 
-    def __init__(self, **data):
-        if "projection" in data:
-            data["projection"] = projection_factory(data["projection"])
-        super().__init__(**data)
+    def model_post_init(self, __context__=None) -> None:
+        self.projection = projection_factory(self.projection)
 
         projection = list(self.projection.values())
         while projection:
@@ -172,12 +181,11 @@ def shape_factory(shape: list | str):
     return Shape(shape)
 
 
-class Shape(ParsableList[str]):
+class Shape(ParsableList):
     """
     A space description in the space Z^{len(self)} where the list contains specifications
     of valid values for each of the specified rank variables.
     """
-
     @property
     def rank_variables(self) -> set[str]:
         if not self:
@@ -205,7 +213,7 @@ class Einsum(ParsableModel):
     shape: Shape[str] = Shape() # NOTE: Type checker knows Shape is a ParsableList[str], Pydantic does not.
     is_copy_operation: bool = False
     renames: RenameList[Rename] = RenameList()
-    
+
     def __init__(self, *args, **kwargs):
         if "renames" in kwargs:
             kwargs["renames"] = rename_list_factory(kwargs["renames"])
@@ -264,7 +272,7 @@ class Einsum(ParsableModel):
 
     def to_formatted_string(self, compress: bool = False) -> str:
         lhs_join = ",\n" if compress else " , "
-        rhs_join = "#215;\n" if compress else " #215; "
+        rhs_join = "  × " if compress else "  × "
         lhs = lhs_join.join(
             [t.to_formatted_string() for t in self.tensor_accesses if t.output]
         )
@@ -289,6 +297,15 @@ class Einsum(ParsableModel):
             )
         return input_tensors.pop()
 
+    @property
+    def rank_variable2ranks(self) -> dict[RankVariableName, set[RankName]]:
+        result: dict[RankVariableName, set[RankName]] = {}
+        for tensor_access in self.tensor_accesses:
+            new = tensor_access.rank_variable2ranks
+            for rank_var, ranks in new.items():
+                result.setdefault(rank_var, set()).update(ranks)
+        return result
+
 
 class Workload(ParsableModel):
     """
@@ -308,8 +325,7 @@ class Workload(ParsableModel):
     einsums: ParsableList[Einsum] = ParsableList()
     shape: ParsableDict[RankVariableName, str] = ParsableDict()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         self._validate()
 
     def _validate(self):
@@ -378,7 +394,7 @@ class Workload(ParsableModel):
     #         "graph LR",
     #         "linkStyle default interpolate basis"
     #     ]
-        
+
     #     # Add all tensors as nodes (circles)
     #     tensors = []
     #     seen_tensor_names = set()
@@ -389,7 +405,7 @@ class Workload(ParsableModel):
     #                 tensors.append(tensor)
     #                 seen_tensor_names.add(tensor_access.name)
     #                 lines.append(f"\tTensor_{tensor_access.name}{{{{\"<b>{tensor_access.name}</b>\n\"}}}}")
-        
+
     #     # Add all einsums as nodes (rectangles)
     #     for einsum in self.einsums:
     #         # Add edges from tensors to einsums
@@ -400,16 +416,46 @@ class Workload(ParsableModel):
     #             else:
     #                 # Input tensor: tensor -> einsum
     #                 lines.append(f"\tTensor_{tensor_access.name} --> Einsum_{einsum.name}")
-        
+
     #     # Create the graph with the flowchart script
     #     flowchart_script = "\n".join(lines)
     #     graph = Graph('Flowchart', flowchart_script)
-        
+
     #     # Set the configuration to ignore node order
     #     config = md.Config()
     #     graph.config = config
 
     #     return md.Mermaid(graph)
+    
+    def render(self) -> str: # Render as Pydot
+        graph = pydot_graph()
+        
+        # Add all tensors as nodes (circles)
+        tensors = []
+        seen_tensor_names = set()
+        for einsum in self.einsums:
+            node = pydot.Node(f"Einsum_{einsum.name}", shape="box", label=f"<{einsum.to_formatted_string(compress=True)}>")
+            graph.add_node(node)
+            for tensor_access in einsum.tensor_accesses:
+                if tensor_access.name not in seen_tensor_names:
+                    tensors.append(tensor_access.name)
+                    seen_tensor_names.add(tensor_access.name)
+                    node = pydot.Node(f"Tensor_{tensor_access.name}", shape="oval", label=f"<{tensor_access.to_formatted_string()}>")
+                    graph.add_node(node)
+
+        # Add all einsums as nodes (rectangles)
+        for einsum in self.einsums:
+            # Add edges from tensors to einsums
+            for tensor_access in einsum.tensor_accesses:
+                if tensor_access.output:
+                    # Output tensor: einsum -> tensor
+                    edge = pydot.Edge(f"Einsum_{einsum.name}", f"Tensor_{tensor_access.name}")
+                    graph.add_edge(edge)
+                else:
+                    # Input tensor: tensor -> einsum
+                    edge = pydot.Edge(f"Tensor_{tensor_access.name}", f"Einsum_{einsum.name}")
+                    graph.add_edge(edge)
+        return graph.create_svg(prog="dot")
 
     def get_constraint_symbol_table(
         self,
@@ -478,7 +524,7 @@ class Workload(ParsableModel):
             "Einsum": einsum_name,
             "Einsum_Object": einsum,
         }
-        
+
         taken_renames = set()
         for rename in self.einsums[einsum_name].renames:
             symbol_table[rename.name] = eval_set_expression(
@@ -544,33 +590,32 @@ class Workload(ParsableModel):
 
         return symbol_table
 
-    def get_pairwise_equivalent_rank_variables(
-        self,
-    ) -> dict[RankVariableName, set[RankVariableName]]:
-        equivalent_rank_variables: dict[RankVariableName, set[RankVariableName]] = {}
+    
+    def get_mixable_ranks(self) -> dict[RankName, set[RankName]]:
+        rank2rankvars = {}
         for tensor in self.tensor_names:
-            accesses = self.accesses_for_tensor(tensor)
-            if not accesses:
-                raise ValueError(f"Tensor {tensor} has no accesses")
-            ranks = set(accesses[0].projection.keys())
-            assert all(ranks == set(access.projection.keys()) for access in accesses)
+            for acc in self.accesses_for_tensor(tensor):
+                for rank, rank_vars in acc.rank2rank_variables.items():
+                    rank2rankvars.setdefault(rank, set()).update(rank_vars)
 
-            for i, j in product(range(len(accesses)), repeat=2):
-                if i == j:
-                    continue
-                access_i = accesses[i]
-                access_j = accesses[j]
-                for rank, i_rank_vars in access_i.rank2rank_variables.items():
-                    for i_rank_var in i_rank_vars:
-                        rank2_rank_vars_j = access_j.rank2rank_variables
-                        if rank not in rank2_rank_vars_j:
-                            continue
-                        equiv_js = equivalent_rank_variables.setdefault(
-                            i_rank_var, set()
-                        )
-                        equiv_js.update(rank2_rank_vars_j[rank])
+        rank_var_to_ranks = {}
+        for rank, rank_vars in rank2rankvars.items():
+            for rank_var in rank_vars:
+                rank_var_to_ranks.setdefault(rank_var, set()).add(rank)
 
-        return equivalent_rank_variables
+        rank_to_ranks = {r: set((r,)) for r in rank2rankvars.keys()}
+        update_with = list(rank_var_to_ranks.values())
+        changed = True
+        while changed:
+            changed = False
+            for ranks in rank_to_ranks.values():
+                for u in update_with:
+                    if u & ranks:
+                        changed = changed or (u - ranks)
+                        ranks.update(u)
+
+        return rank_to_ranks
+
 
     def get_tensor_copies(self) -> dict[TensorName, set[TensorName]]:
         tensor_copies = {}

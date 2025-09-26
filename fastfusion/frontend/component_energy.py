@@ -1,9 +1,10 @@
 import copy
-from typing import Callable, Union, Annotated
+from typing import Callable, Union, Annotated, Optional, Dict, Any
 from fastfusion.frontend.components import ComponentAttributes
 from fastfusion.version import assert_version, __version__
 from fastfusion.util.basetypes import ParsableModel, ParsableList, ParsesTo
 from hwcomponents import get_energy
+
 
 class Subaction(ParsableModel):
     name: str
@@ -13,11 +14,12 @@ class Subaction(ParsableModel):
     model_name: Union[str, None] = None
     messages: list[str] = []
 
+
 class Action(ParsableModel):
     name: str
     arguments: ComponentAttributes = ComponentAttributes()
     energy: ParsesTo[Union[int, float]]
-    subactions: ParsableList['Subaction']
+    subactions: ParsableList["Subaction"]
 
     @staticmethod
     def from_models(
@@ -37,7 +39,7 @@ class Action(ParsableModel):
             definition = spec.components.components[class_name]
         except KeyError:
             pass
-                
+
         if arguments.energy is not None:
             entries = [
                 Subaction(
@@ -102,7 +104,9 @@ class Action(ParsableModel):
                         name=class_name,
                         attributes=attributes,
                         arguments=arguments,
-                        energy=energy * attributes.energy_scale * arguments.energy_scale,
+                        energy=energy
+                        * attributes.energy_scale
+                        * arguments.energy_scale,
                         model_name=estimation.model_name,
                         messages=estimation.messages,
                     )
@@ -118,15 +122,17 @@ class Action(ParsableModel):
             energy=energy,
         )
 
+
 class EnergyEntry(ParsableModel):
     name: str
     attributes: ComponentAttributes = ComponentAttributes()
     actions: ParsableList[Action]
 
-    def find_action(self, name: str):
+    def find_action(self, name: str) -> Optional[Action]:
         for action in self.actions:
             if name == action.name:
                 return action
+        return None
 
     def __hash__(self) -> int:
         return id(self)
@@ -140,7 +146,7 @@ class EnergyEntry(ParsableModel):
         spec: "Specification",
         models: list,
         name: str,
-    ):
+    ) -> "EnergyEntry":
         actions = []
         for action_name, action_arguments in zip(action_names, arguments):
             actions.append(
@@ -155,6 +161,7 @@ class EnergyEntry(ParsableModel):
             )
         return EnergyEntry(name=name, actions=actions, attributes=attributes)
 
+
 class ComponentEnergy(ParsableModel):
     version: Annotated[str, assert_version] = __version__
     entries: ParsableList[EnergyEntry] = ParsableList()
@@ -162,7 +169,7 @@ class ComponentEnergy(ParsableModel):
     def isempty(self) -> bool:
         return len(self.entries) == 0
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[tuple[str, str], float]:
         r = {}
         for t in self.entries:
             r[t.name] = {}
@@ -170,7 +177,7 @@ class ComponentEnergy(ParsableModel):
                 r[(t.name, a.name)] = a.energy
         return r
 
-    def find_action(self, component: str, action: str):
+    def find_action(self, component: str, action: str) -> Action:
         try:
             return self.entries[component].find_action(action)
         except KeyError:

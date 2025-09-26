@@ -48,7 +48,7 @@ class TagMatch:
         self.tags = tags
 
     def __str__(self):
-        return f'TagMatch({repr(self.tags)})'
+        return f"TagMatch({repr(self.tags)})"
 
     def __hash__(self):
         return hash(self.tags)

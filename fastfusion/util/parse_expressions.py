@@ -11,8 +11,9 @@ from ruamel.yaml.scalarstring import DoubleQuotedScalarString, SingleQuotedScala
 import os
 import keyword
 
+
 class ParseError(Exception):
-    def __init__(self, *args, source_field: Any=None, message: str=None, **kwargs):
+    def __init__(self, *args, source_field: Any = None, message: str = None, **kwargs):
         self._fields = [source_field] if source_field is not None else []
         if message is None and len(args) > 0:
             message = args[0]
@@ -28,11 +29,16 @@ class ParseError(Exception):
             s += f": {self.message}"
         return s
 
+
 class RawString(str):
     pass
 
+
 def is_raw_string(value: Any) -> bool:
-    return isinstance(value, (DoubleQuotedScalarString, SingleQuotedScalarString, RawString))
+    return isinstance(
+        value, (DoubleQuotedScalarString, SingleQuotedScalarString, RawString)
+    )
+
 
 MATH_FUNCS = {
     "ceil": math.ceil,
@@ -166,6 +172,7 @@ def cast_to_numeric(x: Any) -> Union[int, float, bool]:
         return int(x)
     return float(x)
 
+
 def get_callable_lambda(func, expression):
     l = lambda *args, **kwargs: func(*args, **kwargs)
     l.__name__ = func.__name__
@@ -174,11 +181,15 @@ def get_callable_lambda(func, expression):
     l._func = func
     return l
 
+
 @functools.lru_cache(maxsize=1000)
 def infostr_log_cache(infostr: str):
     logging.info(infostr)
 
-def parse_expression(expression, symbol_table, attr_name: str=None, location: str=None):
+
+def parse_expression(
+    expression, symbol_table, attr_name: str = None, location: str = None
+):
     try:
         return cast_to_numeric(expression)
     except:
@@ -186,7 +197,7 @@ def parse_expression(expression, symbol_table, attr_name: str=None, location: st
 
     if not isinstance(expression, str):
         return expression
-    
+
     if expression in symbol_table:
         result = symbol_table[expression]
         if isinstance(result, str):

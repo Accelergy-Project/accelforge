@@ -1,0 +1,40 @@
+renames:
+  version: "0.5"
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs() & Intermediates()
+      expected_count: 1
+    - name: output
+      source: Outputs()
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1
+    rank_variables:
+    - name: parallel_rank
+      source: output.rank_variables() & weight.rank_variables()
+      expected_count: 1
+    - name: reduced_rank
+      source: input.rank_variables() & weight.rank_variables() - output.rank_variables()
+      expected_count: 1
+
+  - name: Matmul
+    tensor_accesses:
+    - name: input
+      source: I
+
+workload:
+  version: "0.5"
+  shape:
+    m:  0 <= m  < 16384
+    ni: 0 <= ni < 16384
+    na: 0 <= na < 16384
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: I, projection: [m, ni]}
+    - {name: WA, projection: [ni, na]}
+    - {name: A, projection: [m, na], output: True}

@@ -6,11 +6,11 @@ from .workload import Workload, TensorName, Einsum
 def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:
     """Return isl.Set of all operations in an einsum."""
     einsum_shape = workload.get_shape_isl_string(einsum_name)
-    rank_variable_names = ','.join(
+    rank_variable_names = ",".join(
         map(str, workload.einsums[einsum_name].rank_variables)
     )
     try:
-        return isl.Set(f'{{ [{rank_variable_names}] : {einsum_shape} }}')
+        return isl.Set(f"{{ [{rank_variable_names}] : {einsum_shape} }}")
     except:
         raise Exception(f"Error creating isl.Set for {einsum_name}: {einsum_shape}")
 
@@ -25,23 +25,21 @@ def get_dim_bounds(isl_set: isl.Set) -> list[int]:
             bounds.append(shape.to_python())
         except:
             raise Exception(
-                f'Shape is not an integer. Are all rank variables bounded? '
+                f"Shape is not an integer. Are all rank variables bounded? "
                 f"Shape {shape} for rank variable {i} in {isl_set}"
             )
     return bounds
 
 
-def get_rank_variable_bounds(
-    workload: Workload,
-    einsum_name: str
-) -> dict[str, int]:
+def get_rank_variable_bounds(workload: Workload, einsum_name: str) -> dict[str, int]:
     """Return dictionary mapping rank variable name to bound."""
     operation_space = get_einsum_operation_space(workload, einsum_name)
     dim_shapes = get_dim_bounds(operation_space)
     return {
         rank_var: shape
-        for rank_var, shape in zip(workload.einsums[einsum_name].rank_variables,
-                                   dim_shapes)
+        for rank_var, shape in zip(
+            workload.einsums[einsum_name].rank_variables, dim_shapes
+        )
     }
 
 
@@ -50,13 +48,14 @@ def get_projection_multi_aff(einsum: Einsum, tensor: TensorName) -> isl.MultiAff
     rank_variables = einsum.rank_variables
     projection = einsum.tensor_accesses[tensor].projection
 
-    rank_variables_str = ','.join(map(str, rank_variables))
+    rank_variables_str = ",".join(map(str, rank_variables))
 
-    projection_str = ', '.join(f'{rank_name}={rank_projection}'
-                               for rank_name, rank_projection
-                               in projection.items())
+    projection_str = ", ".join(
+        f"{rank_name}={rank_projection}"
+        for rank_name, rank_projection in projection.items()
+    )
 
-    return isl.MultiAff(f'{{ [{rank_variables_str}] -> [{projection_str}] }}')
+    return isl.MultiAff(f"{{ [{rank_variables_str}] -> [{projection_str}] }}")
 
 
 def get_projection_map(einsum: Einsum, tensor: TensorName) -> isl.Map:

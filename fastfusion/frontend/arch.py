@@ -1,24 +1,16 @@
 from abc import ABC
-from logging import Logger
 import math
 from numbers import Number
 from typing import (
     Any,
-    Dict,
-    List,
     Optional,
-    Tuple,
     Union,
     Annotated,
-    TypeVar,
-    TypeAlias,
 )
-from pydantic import ConfigDict, RootModel, BaseModel, Tag
+from pydantic import Tag
 import pydantic
 
 from fastfusion.util.basetypes import (
-    InferFromTag,
-    ParsableDict,
     ParsableModel,
     ParsableList,
     ParsesTo,
@@ -36,9 +28,7 @@ from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
 
 
 class ArchNode(ParsableModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def model_post_init(self, __context__=None) -> None:
         # Make sure all leaf names are unique
         leaves = {}
         for l in self.get_instances_of_type(Leaf):
@@ -128,6 +118,7 @@ class Component(Leaf, ABC):
             )
         return self.component_class
 
+
 class Actions(ParsableList[SubcomponentAction]):
     pass
 
@@ -138,9 +129,6 @@ class Container(Leaf, ABC):
 
 class ArchMemoryActionArguments(ComponentAttributes):
     bits_per_action: ParsesTo[Union[int, float]] = 1
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 
 class ArchMemoryAction(SubcomponentAction):
@@ -190,8 +178,7 @@ class TensorHolderAttributes(Attributes):
     bandwidth_reads_per_cycle: ParsesTo[Union[int, float]] = float("inf")
     bandwidth_writes_per_cycle: ParsesTo[Union[int, float]] = float("inf")
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         if not isinstance(self.datawidth, dict):
             self.datawidth = {"All()": self.datawidth}
 
@@ -213,10 +200,11 @@ class MemoryAttributes(TensorHolderAttributes):
 
 class TensorHolder(Component):
     actions: ParsableList[ArchMemoryAction] = MEMORY_ACTIONS
-    attributes: TensorHolderAttributes = pydantic.Field(default_factory=TensorHolderAttributes)
+    attributes: TensorHolderAttributes = pydantic.Field(
+        default_factory=TensorHolderAttributes
+    )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         self._update_actions(MEMORY_ACTIONS)
 
 
@@ -237,8 +225,7 @@ class Compute(Component):
     attributes: ComputeAttributes = pydantic.Field(default_factory=ComputeAttributes)
     constraints: MiscOnlyConstraints = MiscOnlyConstraints()
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
 
 
@@ -257,13 +244,17 @@ class Branch(ArchNode, ABC):
         ]
     ] = ArchNodes()
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
+
 class Parallel(Branch):
-    def _flatten(self, attributes: dict, compute_node: str, fanout: int = 1, return_fanout: bool = False):
+    def _flatten(
+        self,
+        attributes: dict,
+        compute_node: str,
+        fanout: int = 1,
+        return_fanout: bool = False,
+    ):
         nodes = []
-        
+
         def _parse_node(node: Leaf, fanout: int):
             fanout *= node.get_fanout()
             node2 = node.model_copy()
@@ -273,7 +264,7 @@ class Parallel(Branch):
             node2.attributes.n_instances *= fanout
             nodes.append(node2)
             return fanout
-        
+
         for node in self.nodes:
             if isinstance(node, Compute) and node.name == compute_node:
                 fanout = _parse_node(node, fanout)
@@ -281,19 +272,28 @@ class Parallel(Branch):
             if isinstance(node, Branch):
                 computes = node.get_instances_of_type(Compute)
                 if compute_node in [c.name for c in computes]:
-                    new_nodes, new_fanout = node._flatten(attributes, compute_node, fanout, return_fanout=True)
+                    new_nodes, new_fanout = node._flatten(
+                        attributes, compute_node, fanout, return_fanout=True
+                    )
                     nodes.extend(new_nodes)
                     fanout *= new_fanout
                     break
         else:
             raise ParseError(f"Compute node {compute_node} not found in parallel node")
-        
+
         return nodes, fanout if return_fanout else nodes
 
+
 class Hierarchical(Branch):
-    def _flatten(self, attributes: dict, compute_node: str, fanout: int = 1, return_fanout: bool = False):
+    def _flatten(
+        self,
+        attributes: dict,
+        compute_node: str,
+        fanout: int = 1,
+        return_fanout: bool = False,
+    ):
         nodes = []
-        
+
         def _parse_node(node: Leaf, fanout: int):
             fanout *= node.get_fanout()
             node2 = node.model_copy()
@@ -303,18 +303,23 @@ class Hierarchical(Branch):
             node2.attributes.n_instances *= fanout
             nodes.append(node2)
             return fanout
-        
+
         for i, node in enumerate(self.nodes):
             try:
                 if isinstance(node, (Hierarchical, Parallel)):
                     if isinstance(node, Parallel) and i < len(self.nodes) - 1:
-                        raise ParseError(f"Parallel node {node.name} must be the last node in a hierarchical node")
+                        raise ParseError(
+                            f"Parallel node {node.name} must be the last node in a hierarchical node"
+                        )
                     new_nodes, new_fanout = node._flatten(
                         attributes, compute_node, fanout, return_fanout=True
                     )
                     nodes.extend(new_nodes)
                     fanout *= new_fanout
-                    if any(isinstance(n, Compute) and n.name == compute_node for n in new_nodes):
+                    if any(
+                        isinstance(n, Compute) and n.name == compute_node
+                        for n in new_nodes
+                    ):
                         break
                 elif isinstance(node, Compute):
                     if node.name == compute_node:
@@ -337,9 +342,10 @@ class Hierarchical(Branch):
 
 class Arch(Hierarchical):
     version: Annotated[str, assert_version] = __version__
-    global_cycle_period: ParsesTo[Union[int, float]] = \
+    global_cycle_period: ParsesTo[Union[int, float]] = (
         '"Set me with Specification().arch.global_cycle_period = [value]"'
-        
+    )
+
     def parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         # Parse global_cycle_period
         global_cycle_period = parse_expression(

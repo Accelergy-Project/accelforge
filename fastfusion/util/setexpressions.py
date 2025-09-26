@@ -126,11 +126,11 @@ class InvertibleSet(BaseModel, Generic[T]):
 
     def __getitem__(self, item):
         return self.instance[item]
-    
+
     def iter_one_element_sets(self) -> Iterator["InvertibleSet[T]"]:
         for item in self.instance:
             yield InvertibleSet(
-                instance=set((item, )),
+                instance=set((item,)),
                 full_space=self.full_space,
                 space_name=self.space_name,
                 child_access_name=self.child_access_name,
@@ -157,10 +157,10 @@ def eval_set_expression(
                 result = symbol_table[expression[:-2]]()
             except:
                 pass
-            
+
         if id(result) == id(prev_result):
             result = eval(expression, {"__builtins__": MATH_FUNCS}, symbol_table)
-        
+
         if not isinstance(result, InvertibleSet):
             raise TypeError(
                 f"Returned a non-InvertibleSet with type {type(result)}: {result}"

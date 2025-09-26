@@ -8,7 +8,7 @@ from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.simanneal.evalmapping import quick_join
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
 from fastfusion.mapper.FFM._join_pmappings.join_pmappings import SIM
-from fastfusion.mapper.FFM._join_pmappings.mappinginfo import TensorReservation, Compatibility
+from fastfusion.mapper.FFM._join_pmappings.compatibility import TensorReservation, Compatibility
 from fastfusion.mapper.FFM._pmapping_group import MAPPING_COLUMN, PmappingGroup
 from fastfusion.util import fzs
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals

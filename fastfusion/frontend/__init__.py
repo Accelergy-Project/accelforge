@@ -1,4 +1,4 @@
-"""Timeloop Specification. Each piece below (minus processors) corresponds to a top key in the Timeloop specification. """
+"""Timeloop Specification. Each piece below (minus processors) corresponds to a top key in the Timeloop specification."""
 
 from .specification import *
 import fastfusion.frontend.arch as arch

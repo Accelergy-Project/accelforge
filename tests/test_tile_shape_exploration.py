@@ -6,7 +6,7 @@ import time
 from fastfusion.frontend.specification import Specification, Mapping
 from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import MappingConstraints
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import Job
-from fastfusion.mapper.FFM._make_pmappings.tile_shape_exploration import *
+from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum import *
 from fastfusion.frontend.mapper.metrics import Metrics
 from fastfusion.frontend import arch
 
@@ -18,7 +18,7 @@ class TestTileShapeExploration(unittest.TestCase):
             PARENT_DIR / 'conv.workload.yaml',
             PARENT_DIR / 'four_level.arch.yaml'
         )
-        specification.calculate_component_energy_area()
+        specification.calculate_component_energy_area(area=False)
 
         mapping = Mapping.from_yaml(PARENT_DIR / 'conv_sym.mapping.yaml')
         
