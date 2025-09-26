@@ -470,7 +470,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
     # in tiling goes down the partition.
     rank_var_partitions: defaultdict[str, int] = defaultdict(lambda: 0)
 
-    def get_rank_var_partition(rank_var: str) -> str:
+    def _get_rank_var_partition(rank_var: str) -> str:
         """
         Given a rank_var, get the partition at the current point in execution
         and increment for the next retrieval.
@@ -480,17 +480,29 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
         rank_var_partitions[rank_var] += 1
         return rank_var_partition
 
-    while dfs_stack:
-        fusing_node = dfs_stack.pop()
-        heads = mapping_group_heads[fusing_node]
+    def _tile_branch(heads: set[EinsumName], fusing_node: MappingNode):
+        """
+        Given a set of `heads` to fuse at `fusing_node`, fuse as much as possible
+        in this branch.
+
+        Parameters
+        ----------
+        heads: set[EinsumName]
+            The heads being fused.
+        fusing_node: MappingNode
+            The node node in the mapping at which the fusing is happening.
+
+        Preconditions
+        -------------
+        `dfs_stack`: initialized with tiles to proceed to explore.
+        `
+
+        """
+        nonlocal dfs_stack
+        nonlocal tiling_info
 
         current_node: MappingNode = fusing_node
-        is_tiling: bool = True
-
-        if DUMP_ISL_IR:
-            print(f"New Tiling Root: {pformat(fusing_node)}")
-
-        while is_tiling:
+        while True:
             if DUMP_ISL_IR:
                 print(f"Current Tiling Node: {pformat(current_node)}")
             # Fuses current_node to one of the heads.
@@ -500,35 +512,31 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     if len(heads) != 1:
                         raise ValueError(
                             f"Cannot fuse tiled set with {len(heads)} heads.\n"
-                            f"---\n"
-                            f"mapping_group_heads={pformat(mapping_group_heads)}"
                         )
 
-                    # Grabs rank_var to tile and the head to tile it from.
-                    rank_var = current_node.rank_variable
+                    # Tiles `current_node.rank_variable` at `head`
                     head = next(iter(heads))
-
-                    old_tiling: Tiling = tiling_info[fusing_node][head]
+                    tiling: Tiling = tiling_info[fusing_node][head]
                     # set, not AbstractSet, iteration in python is the same.
                     # Downstreams of "heads" is also constaint.
-                    isl_rank_idx: int = tuple(
+                    idx: int = tuple(
                         workload.einsums[head].rank_variables
-                    ).index(rank_var)
+                    ).index(current_node.rank_variable)
 
                     # Adds a new tile_dim to the old tiling.
                     # TODO: Handle stride.
                     if (
                         isinstance(
-                            ts := current_node.tile_pattern.initial_tile_shape, int
+                            _ := current_node.tile_pattern.initial_tile_shape, int
                         )
-                        and (ts != 0)
-                        and (ts == current_node.tile_pattern.stride)
+                        and (_ != 0)
+                        and (_ == current_node.tile_pattern.stride)
                     ):
-                        new_tiling: Tiling = add_new_tile_dim(
-                            old_tiling,
-                            isl_rank_idx,
+                        tiling: Tiling = add_new_tile_dim(
+                            tiling,
+                            idx,
                             current_node.tile_pattern.initial_tile_shape,
-                            get_rank_var_partition(rank_var),
+                            _get_rank_var_partition(current_node.rank_variable),
                         )
                     else:
                         raise NotImplementedError(
@@ -537,22 +545,20 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         )
 
                     # Saves the fused tiling.
-                    tiling_info[fusing_node][head] = new_tiling
+                    tiling_info[fusing_node][head] = tiling
 
                     # Adds the ranks to the tiling isl.Map.
-                    iteration_set: isl.Set = new_tiling.domain()
-                    for einsum in mapping_groups[fusing_node]:
-                        if einsum == head:
-                            continue
-
+                    iteration_set: isl.Set = tiling.domain()
+                    for einsum in mapping_groups[fusing_node] - {head}:
                         tiling = tiling_info[fusing_node][einsum]
+                        # Index variables for the branch.
                         tiling = tiling.insert_dims(
                             isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
                         )
                         tiling = tiling.set_dim_name(
                             isl.dim_type.in_,
                             tiling.dim(isl.dim_type.in_) - 1,
-                            get_rank_var_partition(rank_var),
+                            _get_rank_var_partition(current_node.rank_variable),
                         )
                         tiling = tiling.intersect_domain(iteration_set)
                         tiling_info[fusing_node][einsum] = tiling
@@ -567,7 +573,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                             tensor not in tensor_to_reuse_level
                             and current_node._must_keep_tensors
                         ):
-                            random_einsum: EinsumName = next(iter(mapping_groups[fusing_node]))
+                            random_einsum: EinsumName = next(
+                                iter(mapping_groups[fusing_node])
+                            )
                             tiling: Tiling = tiling_info[fusing_node][random_einsum]
                             tensor_to_reuse_level[tensor] = tiling.dim(isl.dim_type.in_)
 
@@ -579,7 +587,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                 # If we hit the compute node, we've finished tiling, end!
                 case Compute():
                     result[current_node] = tiling_info[fusing_node][current_node.einsum]
-                    is_tiling = False
+                    return
                 case Split():
                     fused_set: set[EinsumName] = mapping_groups[fusing_node]
                     if len(heads) != 1:
@@ -629,7 +637,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         # DFS tile on the child.
                         dfs_stack.append(child)
 
-                    is_tiling = False
+                    return
                 case Nested():
                     dfs_stack.extend(reversed(current_node.nodes))
                     current_node = dfs_stack.pop()
@@ -639,5 +647,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         f"---\n"
                         f"node={pformat(fusing_node)}"
                     )
+
+    while dfs_stack:
+        fusing_node = dfs_stack.pop()
+        if DUMP_ISL_IR:
+            print(f"New Tiling Root: {pformat(fusing_node)}")
+        _tile_branch(mapping_group_heads[fusing_node], fusing_node)
 
     return result
