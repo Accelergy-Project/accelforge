@@ -77,19 +77,11 @@ def shift_reservations_by_null_loop_indices(
     return mappings
 
 
-def get_equivalent_sims(
-    sim: SIM, tagger: Callable[[Mapping], Tags], reservation_levels: set[int]
-) -> list[SIM]:
+def get_equivalent_sims(sim: SIM, reservation_levels: set[int]) -> list[SIM]:
     equivalent_permutations = sim.compatibility.make_equivalent_permutations(
         reservation_levels
     )
-    result = []
-    for c in equivalent_permutations:
-        try:
-            tags = Tags() if tagger is None else tagger(c)
-            result.append(SIM(c.update(tags=tags), None))
-        except ValueError:
-            pass
+    result = [SIM(c, None) for c in equivalent_permutations]
     return result
 
 
@@ -142,7 +134,6 @@ def generate_pmappings_old(
     compatibility = jobs_with_similar_compatibilities.compatibility
     intermediate_tensors = jobs_with_similar_compatibilities.intermediate_tensors
     einsum_name = jobs_with_similar_compatibilities.einsum_name
-    tagger = jobs_with_similar_compatibilities.tagger
     compatibility_updater = (
         jobs_with_similar_compatibilities.update_compatibility_with_tile_shapes
     )
@@ -236,7 +227,7 @@ def generate_pmappings_old(
         reservation_levels = partial_mappings.all_reservation_levels()
         sim = SIM(compatibility, partial_mappings)
 
-        sim._equivalent_sims = get_equivalent_sims(sim, tagger, reservation_levels)
+        sim._equivalent_sims = get_equivalent_sims(sim, reservation_levels)
         sim._equivalent_sims = [
             e
             for e in sim._equivalent_sims

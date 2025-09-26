@@ -22,7 +22,6 @@ def insert_temporal_loops(
     rank_variable_bounds: dict[RankVariableName, int],
     ranks_with_tile_pattern: set,
     workload: Workload,
-    except_from_imperfect: set,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory

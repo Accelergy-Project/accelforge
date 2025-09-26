@@ -97,8 +97,8 @@ memories:
 
   GLB:
     size: 8388608 # 1 MiB
-    r_cost: 962.5  # 15.04 pJ/8b
-    w_cost: 1208   # 18.88 pJ/8b
+    r_cost: 128  # 15.04 pJ/8b
+    w_cost: 148.5   # 18.88 pJ/8b
     area: 0
     latency: 1
     operands: [I1, O]
@@ -112,16 +112,16 @@ memories:
     ports:
       - name: r_port_1
         type: read
-        bandwidth_min: 512
-        bandwidth_max: 512
+        bandwidth_min: 1024
+        bandwidth_max: 1024
         allocation: 
           - I1, tl
           - O, tl
           - O, th
       - name: w_port_1
         type: write
-        bandwidth_min: 512
-        bandwidth_max: 512
+        bandwidth_min: 1024
+        bandwidth_max: 1024
         allocation: 
           - I1, fh
           - O, fh
@@ -138,8 +138,8 @@ memories:
     ports:
       - name: rw_port_1
         type: read_write
-        bandwidth_min: 256
-        bandwidth_max: 256
+        bandwidth_min: 1024  # 256 GiB/s = 2048 Gib/s
+        bandwidth_max: 1024
         allocation: 
           - I1, fh
           - I1, tl

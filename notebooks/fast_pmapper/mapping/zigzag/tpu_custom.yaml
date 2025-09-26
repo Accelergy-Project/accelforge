@@ -1,28 +1,6 @@
 - name: default
-  spatial_mapping:
+  spatial_mapping_hint:
     D1:
-      - C, 128
+      - C
     D2:
-      - K, 128
-
-- name: Add
-  spatial_mapping:
-    D1:
-      - G, 32
-    D2:
-      - C, 1
-  memory_operand_links:
-    O: O
-    W: I2
-    I: I1
-
-- name: Pooling
-  spatial_mapping:
-    D1:
-      - G, 32
-    D2:
-      - C, 1
-  memory_operand_links:
-    O: O
-    W: I2
-    I: I1
+      - K

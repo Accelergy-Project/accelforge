@@ -80,10 +80,8 @@ def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
 def get_jobs(
     spec: Specification,
     flattened_arches: list[list[arch.Leaf]],
-    tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
-    except_from_imperfect: set = set(),
     fail_if_no_pmappings_for_einsum: bool = False,
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
@@ -101,11 +99,7 @@ def get_jobs(
             metrics=metrics,
             rank_variable_bounds=rank_variable_bounds,
             flattened_arch=flattened_arch,
-            tensor2compatibilties={},  # tensor2compatibilties
-            tensor2boundless_compatibilities={},  # tensor2boundless_compatibilities
-            tagger=tagger,
             job_id=uuid.uuid4(),
-            except_from_imperfect=except_from_imperfect,
             intermediate_tensors=intermediate_tensors & workload_einsum.tensor_names,
         )
         for j in get_single_einsum_jobs(job):
@@ -238,7 +232,6 @@ def get_sims(
     spec: Specification,
     flattened_arches: list[list[arch.Leaf]],
     can_combine_multiple_runs: bool,
-    tagger: Callable[[Mapping], Tags] | None = None,
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     fail_if_no_pmappings_for_einsum: bool | None = None,
@@ -260,7 +253,6 @@ def get_sims(
     new_einsum2jobs = get_jobs(
         spec,
         flattened_arches,
-        tagger,
         metrics,
         einsum_names,
         fail_if_no_pmappings_for_einsum,

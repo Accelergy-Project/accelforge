@@ -1,0 +1,145 @@
+ERT:
+    version: '0.4'
+    tables:
+      - name: top_level.MainMemory[1..1]
+        actions:
+          - name: read
+            arguments:
+                global_cycle_seconds: 1e-09
+                action_latency_cycles: 1
+            energy: 1800.0
+          - name: update
+            arguments:
+                global_cycle_seconds: 1e-09
+                action_latency_cycles: 1
+            energy: 1800.0
+          - name: leak
+            arguments:
+                global_cycle_seconds: 1e-09
+                action_latency_cycles: 1
+            energy: 0.0
+          - name: write
+            arguments:
+                global_cycle_seconds: 1e-09
+                action_latency_cycles: 1
+            energy: 1800.0
+      - name: top_level.GlobalBuffer[1..1]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 300.0
+          - name: read
+            arguments: {}
+            energy: 256.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 300.0
+      - name: top_level.inter_LocalBuffer_spatial[1..1]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 0.0
+          - name: read
+            arguments: {}
+            energy: 0.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 0.0
+      - name: top_level.LocalBuffer[1..4]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 300.0
+          - name: read
+            arguments: {}
+            energy: 256.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 300.0
+      - name: top_level.inter_fanout_dummy_1_spatial[1..4]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 0.0
+          - name: read
+            arguments: {}
+            energy: 0.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 0.0
+      - name: top_level.fanout_dummy_1[1..512]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 0.0
+          - name: read
+            arguments: {}
+            energy: 0.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 0.0
+      - name: top_level.inter_fanout_dummy_2_spatial[1..512]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 0.0
+          - name: read
+            arguments: {}
+            energy: 0.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 0.0
+      - name: top_level.fanout_dummy_2[1..65536]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 0.0
+          - name: read
+            arguments: {}
+            energy: 0.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 0.0
+      - name: top_level.Register[1..65536]
+        actions:
+          - name: write
+            arguments: {}
+            energy: 0.0
+          - name: read
+            arguments: {}
+            energy: 0.0
+          - name: leak
+            arguments: {}
+            energy: 0.0
+          - name: update
+            arguments: {}
+            energy: 0.0
+      - name: top_level.MAC[1..65536]
+        actions:
+          - name: compute
+            arguments: {}
+            energy: 0.07
+          - name: leak
+            arguments: {}
+            energy: 0.0

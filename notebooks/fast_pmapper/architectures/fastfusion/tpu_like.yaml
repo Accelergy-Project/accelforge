@@ -8,7 +8,7 @@ arch:
     name: MainMemory
     attributes:
       _size: inf
-      _bandwidth_reads_plus_writes_per_cycle: 32 # 32 GB/s
+      _bandwidth_reads_plus_writes_per_cycle: 256 # 256 GB/s
       # width: 256
       _datawidth: 8
     actions:
@@ -26,10 +26,10 @@ arch:
     attributes:
       _size: 1024*1024*1*8 # 1 MiB
       _datawidth: 8
-      width: 512
+      _bandwidth_reads_plus_writes_per_cycle: 512 # 512 GB/s
     actions:
-    - {name: read, arguments: {energy: 1.88e-12, bits_per_action: 8}} # 15.04pJ/8b-read
-    - {name: write, arguments: {energy: 2.36e-12, bits_per_action: 8}} # 18.88pJ/8b-read
+    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}} # 15.04pJ/8b-read
+    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}} # 18.88pJ/8b-read
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
@@ -40,7 +40,7 @@ arch:
     spatial: [{name: Z, fanout: 4}]
     attributes:
       _size: 1024*128*8 # 128 KiB
-      width: 1024
+      _bandwidth_reads_plus_writes_per_cycle: 1024 # 1024 GB/s
       _datawidth: 8
     actions:
     - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}} # 2.00 pJ/8b
