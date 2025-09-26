@@ -578,7 +578,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     current_node = dfs_stack.pop()
                 # If we hit the compute node, we've finished tiling, end!
                 case Compute():
-                    result[current_node] = tiling_info[root][current_node.einsum]
+                    result[current_node] = tiling_info[node][current_node.einsum]
                     is_tiling = False
                 case Split():
                     fused_set: set[EinsumName] = mapping_groups[node]

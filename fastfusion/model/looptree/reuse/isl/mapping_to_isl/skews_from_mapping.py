@@ -52,7 +52,6 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
     Given a mapping ...
     TODO: Fill this in
     """
-    print("here!!")
     compute_einsum_to_skew: dict[ComputeEinsum, Skew] = defaultdict()
     buffer_tensor_einsum_to_skew: dict[BufferTensorEinsum, Skew] = defaultdict()
 
