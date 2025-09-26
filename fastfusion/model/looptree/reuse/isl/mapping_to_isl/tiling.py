@@ -449,22 +449,18 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
     )
 
     tensor_to_reuse_level: defaultdict[TensorName, int] = defaultdict()
-    dfs_stack: deque[MappingNode] = deque()
+    dfs_stack: deque[MappingNode] = deque([mapping])  # DFS starts at mapping root.
 
     # Maps last non-branch to tiling of each in the group.
     tiling_info: defaultdict[MappingNode, defaultdict[EinsumName, Tiling]] = (
         defaultdict(defaultdict)
     )
 
-    # Initiates the DFS at the mapping root and appends its info.
-    dfs_stack.append(mapping)
+    # Appends info for the root.
     for einsum_name in workload.einsum_names:
-        tiling: Tiling = isl.Map.from_range(
+        tiling_info[mapping][einsum_name] = isl.Map.from_range(
             get_einsum_operation_space(workload, einsum_name)
         )
-        if DUMP_ISL_IR:
-            print(f"Tiling: {tiling}")
-        tiling_info[mapping][einsum_name] = tiling
 
     # Tracks rank_var specified to partitioned_rank_var index, as traversal
     # in tiling goes down the partition.
@@ -494,17 +490,23 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
 
         Preconditions
         -------------
-        `dfs_stack`: initialized with tiles to proceed to explore.
-        `
+        1. `dfs_stack`: initialized with tiles to proceed to explore.
+        2. `tiling_info`: prima facie populated.
+        3. `tensor_to_reuse_level`: initialized and unmutated from last time this
+            function was run.
 
+        Postconditions
+        --------------
+        1. `dfs_stack`: progressed to the next node to tile at.
+        2. `tiling_info`: updated to include the fusing and tiling.
+        3. `tensor_to_reuse_level`: populated if information has changed from tiling.
         """
         nonlocal dfs_stack
         nonlocal tiling_info
+        nonlocal tensor_to_reuse_level
 
         current_node: MappingNode = fusing_node
         while True:
-            if DUMP_ISL_IR:
-                print(f"Current Tiling Node: {pformat(current_node)}")
             # Fuses current_node to one of the heads.
             match current_node:
                 # For or Par-For loop handling.
@@ -517,11 +519,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     # Tiles `current_node.rank_variable` at `head`
                     head = next(iter(heads))
                     tiling: Tiling = tiling_info[fusing_node][head]
-                    # set, not AbstractSet, iteration in python is the same.
-                    # Downstreams of "heads" is also constaint.
-                    idx: int = tuple(
-                        workload.einsums[head].rank_variables
-                    ).index(current_node.rank_variable)
+                    # Downstreams of "heads" is also constant as it is a set, not
+                    # AbstractSet.
+                    idx: int = tuple(workload.einsums[head].rank_variables).index(
+                        current_node.rank_variable
+                    )
 
                     # Adds a new tile_dim to the old tiling.
                     # TODO: Handle stride.
@@ -593,17 +595,14 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     if len(heads) != 1:
                         # There can't be a tiling, so no inference to be done.
                         break
-                    shared_input_tensor: List[TensorName] = detect_shared_input_tensor(
-                        fused_set, workload
-                    )
 
                     random_head = next(iter(heads))
-                    if len(shared_input_tensor) == 1:
+                    if len(_ := detect_shared_input_tensor(fused_set, workload)) == 1:
                         shared_input_based_tile_shape_inference(
                             workload,
                             tiling_info[fusing_node],
                             fused_set,
-                            shared_input_tensor[0],
+                            _[0],
                             random_head,
                         )
                     else:
