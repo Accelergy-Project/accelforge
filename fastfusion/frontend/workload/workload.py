@@ -44,6 +44,20 @@ SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 
 class TensorAccess(ParsableModel):
+    """
+    Information about how an Einsum accesses a tensor.
+    :param name:        The tensor being accessed.
+    :param projection:  The subscript expressions of the tensor.
+                        This can be a list of rank variables (must be single
+                        rank variables and the rank name is the uppercase of the
+                        rank variable) or a dictionary mapping rank names to
+                        subscript expressions.
+    :param output:      Whether the tensor is an output.
+    :type name:         TensorName
+    :type projection:   dict[str, str]
+    :type output:       bool
+    :type factors:      list
+    """
     name: TensorName
     projection: dict[str, str] | list[str]
     output: bool = False
@@ -158,6 +172,9 @@ def shape_factory(shape: list | str):
 
 
 class Shape(ParsableList):
+    """
+    Specifies valid values for the rank variables.
+    """
     @property
     def rank_variables(self) -> set[str]:
         if not self:
@@ -166,6 +183,17 @@ class Shape(ParsableList):
 
 
 class Einsum(ParsableModel):
+    """
+    Represents a computation step in the workload as an Einsum.
+    :param name:                The name of the einsum.
+    :param tensor_accesses:     The tensors accessed by the einsum.
+    :param shape:               Bounds of valid rank variable values.
+    :param is_copy_operation:   Whether the einsum is a copy operation.
+    :type name:                 EinsumName
+    :type tensor_accesses:      ParsableList[TensorAccess]
+    :type shape:                Shape[str]
+    :type is_copy_operation:    bool
+    """
     name: EinsumName
     tensor_accesses: ParsableList[TensorAccess]
     shape: Shape[str] = Shape()
@@ -266,9 +294,19 @@ class Einsum(ParsableModel):
 
 
 class Workload(ParsableModel):
+    """
+    The workload specification as a cascade of Einsums.
+    :param version: The FastFusion version the input is compliant with.
+    :param einsums: Computation stepsin the workload expressed as einsums.
+    :param shape:   Mapping from rank variable name to bounds of valid rank
+                    variable values.
+    :type version:  Annotated[str, assert_version]
+    :type einsums:  ParsableList[Einsum]
+    :type shape:    ParsableDict[RankVariableName, str]
+    """
     version: Annotated[str, assert_version] = __version__
-    einsums: ParsableList[Einsum] = []
-    shape: ParsableDict[RankVariableName, str] = {}
+    einsums: ParsableList[Einsum] = ParsableList()
+    shape: ParsableDict[RankVariableName, str] = ParsableDict()
 
     def model_post_init(self, __context__=None) -> None:
         self._validate()
