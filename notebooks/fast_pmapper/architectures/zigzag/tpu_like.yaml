@@ -112,16 +112,16 @@ memories:
     ports:
       - name: r_port_1
         type: read
-        bandwidth_min: 1024
-        bandwidth_max: 1024
+        bandwidth_min: 8096  # 2048 GiB/s = 8096 Gib/s
+        bandwidth_max: 8096
         allocation: 
           - I1, tl
           - O, tl
           - O, th
       - name: w_port_1
         type: write
-        bandwidth_min: 1024
-        bandwidth_max: 1024
+        bandwidth_min: 2048  # 256 GiB/s = 2048 Gib/s
+        bandwidth_max: 2048
         allocation: 
           - I1, fh
           - O, fh
@@ -138,8 +138,8 @@ memories:
     ports:
       - name: rw_port_1
         type: read_write
-        bandwidth_min: 1024  # 256 GiB/s = 2048 Gib/s
-        bandwidth_max: 1024
+        bandwidth_min: 2048  # 256 GiB/s = 2048 Gib/s
+        bandwidth_max: 2048
         allocation: 
           - I1, fh
           - I1, tl

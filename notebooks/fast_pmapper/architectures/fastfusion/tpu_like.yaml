@@ -26,7 +26,8 @@ arch:
     attributes:
       _size: 1024*1024*1*8 # 1 MiB
       _datawidth: 8
-      _bandwidth_reads_plus_writes_per_cycle: 512 # 512 GB/s
+      _bandwidth_reads_per_cycle: 1024 # 1024 GB/s
+      _bandwidth_writes_per_cycle: 256 # 256 GB/s
     actions:
     - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}} # 15.04pJ/8b-read
     - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}} # 18.88pJ/8b-read
