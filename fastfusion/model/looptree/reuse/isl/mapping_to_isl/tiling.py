@@ -65,8 +65,7 @@ def get_mapping_group_einsums(
     result: defaultdict[MappingNode, set[EinsumName]] = defaultdict(set)
 
     # Start DFS hierarchical search from the root.
-    root: MappingNode = mapping
-    dfs_stack.append((root, root))
+    dfs_stack.append((mapping, mapping))
 
     # Exhaustive DFS search.
     while dfs_stack:
@@ -458,15 +457,14 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
     )
 
     # Initiates the DFS at the mapping root and appends its info.
-    root: MappingNode = mapping
-    dfs_stack.append(root)
+    dfs_stack.append(mapping)
     for einsum_name in workload.einsum_names:
         tiling: Tiling = isl.Map.from_range(
             get_einsum_operation_space(workload, einsum_name)
         )
         if DUMP_ISL_IR:
             print(f"Tiling: {tiling}")
-        tiling_info[root][einsum_name] = tiling
+        tiling_info[mapping][einsum_name] = tiling
 
     # Tracks rank_var specified to partitioned_rank_var index, as traversal
     # in tiling goes down the partition.
