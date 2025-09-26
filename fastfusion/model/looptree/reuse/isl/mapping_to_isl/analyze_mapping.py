@@ -94,9 +94,8 @@ def buffet_direct_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool
                     # Note: Buffet seems to have changed a lot?
                     # https://github.com/NVlabs/timeloop/blob/master/include/loop-analysis/isl-ir.hpp#L96
                     last_bufs.extend(
-                        Buffet(
-                            tensor=tensor, einsum=leaf.einsum, level=node.component
-                        ) for tensor in node.tensors
+                        Buffet(tensor=tensor, einsum=leaf.einsum, level=node.component)
+                        for tensor in node.tensors
                     )
                 # TODO: Check that all buffets are unique, because right now
                 # it seems it's dependent on the last leaf in traversal?
@@ -158,16 +157,17 @@ def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
 
 
 def align_dim_names(
-    map_: isl.Map, reference: isl.Map, 
-    map_align_dim_type: isl.dim_type = isl.dim_type.in_, 
-    reference_dim_type: Optional[isl.dim_type] = None
+    map_: isl.Map,
+    reference: isl.Map,
+    map_align_dim_type: isl.dim_type = isl.dim_type.in_,
+    reference_dim_type: Optional[isl.dim_type] = None,
 ) -> isl.Map:
     """
     Given an `isl.Map` and a reference `isl.Map`, align as many of the names as
     possible in the first map with the reference map.
 
     e.g. `map_ = [i] -> [o]` with `reference = [x] -> [y]` becomes `[x] -> [o]`
-        with map_ 
+        with map_
 
     :param map_:        The map whose input is being aligned.
     :param reference:   The map whose input names are used as reference for aligning `map`.
@@ -177,7 +177,9 @@ def align_dim_names(
     if reference_dim_type is None:
         reference_dim_type = map_align_dim_type
 
-    for dim_idx in range(min(map_.dim(map_align_dim_type), reference.dim(reference_dim_type))):
+    for dim_idx in range(
+        min(map_.dim(map_align_dim_type), reference.dim(reference_dim_type))
+    ):
         dim_name: Optional[str] = reference.get_dim_name(reference_dim_type, dim_idx)
         if dim_name is not None:
             map_ = map_.set_dim_name(map_align_dim_type, dim_idx, dim_name)
@@ -201,7 +203,7 @@ def occupancies_from_mapping(
     :rtype:     MappingAnalysisResult
     """
     branch_tiling: BranchTiling = tiling_from_mapping(mapping, workload)
-    #tiling: [tile_iteration_space] -> [iteration_space]
+    # tiling: [tile_iteration_space] -> [iteration_space]
     if DUMP_ISL_IR:
         for node, tiling in branch_tiling.items():
             print(f"[Tiling]Node({node}): {tiling}")
@@ -221,14 +223,20 @@ def occupancies_from_mapping(
         tiling = branch_tiling[bte.einsum]
 
         accesses: Optional[isl.Map] = None
-        read_tensors: set[TensorName] = workload.tensors_read_by_einsum(bte.einsum.einsum)
-        write_tensors: set[TensorName] = workload.tensors_written_by_einsum(bte.einsum.einsum)
+        read_tensors: set[TensorName] = workload.tensors_read_by_einsum(
+            bte.einsum.einsum
+        )
+        write_tensors: set[TensorName] = workload.tensors_written_by_einsum(
+            bte.einsum.einsum
+        )
 
         if bte.tensor in read_tensors or bte.tensor in write_tensors:
-            accesses = get_projection_map(workload.einsums[bte.einsum.einsum], bte.tensor)
+            accesses = get_projection_map(
+                workload.einsums[bte.einsum.einsum], bte.tensor
+            )
         else:
             continue
-        
+
         aligned_skew: isl.Map = align_dim_names(skew.map_, tiling)
         if DUMP_ISL_IR:
             print(f"Skew: {skew.map_}")

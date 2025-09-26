@@ -519,7 +519,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     # Adds a new tile_dim to the old tiling.
                     # TODO: Handle stride.
                     if (
-                        isinstance(ts := current_node.tile_pattern.initial_tile_shape, int)
+                        isinstance(
+                            ts := current_node.tile_pattern.initial_tile_shape, int
+                        )
                         and (ts != 0)
                         and (ts == current_node.tile_pattern.stride)
                     ):

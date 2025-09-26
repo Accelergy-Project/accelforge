@@ -39,15 +39,15 @@ BuffetTiling: TypeAlias = defaultdict[Buffet, Tiling]
 
 
 @dataclass(frozen=True, slots=True)
-class Tag(ABC): # pylint: disable=too-few-public-methods
+class Tag(ABC):  # pylint: disable=too-few-public-methods
     """Associating an element with its type metadata without introspection?"""
 
 
-class TemporalTag(Tag): # pylint: disable=too-few-public-methods
+class TemporalTag(Tag):  # pylint: disable=too-few-public-methods
     """The associated element is temporally spreading?"""
 
-@dataclass(frozen=True, slots=True)
 
+@dataclass(frozen=True, slots=True)
 class SpatialTag(Tag):  # pylint: disable=too-few-public-methods
     """The associated element is spatially spreading?"""
 
@@ -57,11 +57,11 @@ class SpatialTag(Tag):  # pylint: disable=too-few-public-methods
     "The buffer the spatial dim is across?"
 
 
-class PipelineTag(Tag): # pylint: disable=too-few-public-methods
+class PipelineTag(Tag):  # pylint: disable=too-few-public-methods
     """The associated element is pipelined?"""
 
 
-class SequentialTag(Tag): # pylint: disable=too-few-public-methods
+class SequentialTag(Tag):  # pylint: disable=too-few-public-methods
     """The associated element is serialized?"""
 
 
@@ -71,7 +71,7 @@ LOOP_TAGS = [TemporalTag, SpatialTag]
 
 
 @dataclass(frozen=True, slots=True)
-class TaggedMap: # pylint: disable=too-few-public-methods
+class TaggedMap:  # pylint: disable=too-few-public-methods
     """A :class:`isl.Map` with its dimensions tagged."""
 
     tags: List[Any]
@@ -81,15 +81,15 @@ class TaggedMap: # pylint: disable=too-few-public-methods
         return f"{type(self)}({self.tags}, {self.map_})"
 
 
-class Occupancy(TaggedMap): # pylint: disable=too-few-public-methods
+class Occupancy(TaggedMap):  # pylint: disable=too-few-public-methods
     """Location of data in [logical?] hardware elements."""
 
 
-class OperationOccupancy(TaggedMap): # pylint: disable=too-few-public-methods
+class OperationOccupancy(TaggedMap):  # pylint: disable=too-few-public-methods
     """Location of operations in [logical?] hardware elements."""
 
 
-class Skew(TaggedMap): # pylint: disable=too-few-public-methods
+class Skew(TaggedMap):  # pylint: disable=too-few-public-methods
     """TODO: Figure out what this is."""
 
 
@@ -124,7 +124,7 @@ class ComputeEinsum:
 
 # Output classes.
 @dataclass(frozen=True, slots=True)
-class SkewsInfo: # pylint: disable=too-few-public-methods
+class SkewsInfo:  # pylint: disable=too-few-public-methods
     """TODO: Figure out what this does."""
 
     bte_to_skew: defaultdict[BufferTensorEinsum, Skew]
@@ -134,7 +134,7 @@ class SkewsInfo: # pylint: disable=too-few-public-methods
 
 
 @dataclass(frozen=True, slots=True)
-class MappingAnalysisResult: # pylint: disable=too-few-public-methods
+class MappingAnalysisResult:  # pylint: disable=too-few-public-methods
     """
     Results of mapping analysis that will become input into reuse
     analysis.

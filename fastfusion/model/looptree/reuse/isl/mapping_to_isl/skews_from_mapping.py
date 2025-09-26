@@ -71,7 +71,9 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                     buffer_to_last_storage_node[buffer] = node
                     buffer_node.append((buffer, node))
                     # TODO: Check this is correct
-                    all_buffer_tensors.extend((buffer, tensor) for tensor in node.tensors)
+                    all_buffer_tensors.extend(
+                        (buffer, tensor) for tensor in node.tensors
+                    )
                 case Compute():
                     compute: ComponentName = node.compute
                     buffer_to_last_storage_node[compute] = node
@@ -141,7 +143,9 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
         for node in path:
             match node:
                 case Storage():
-                    buffer_storage_past.update((node.component, tensor) for tensor in node.tensors)
+                    buffer_storage_past.update(
+                        (node.component, tensor) for tensor in node.tensors
+                    )
                     if node == buffer_to_last_storage_node[node.component]:
                         buffer_fully_complete.add(node.component)
                 case Iteration():
@@ -182,9 +186,9 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
 
             # TODO: This buffet structure makes no sense in this context:
             # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L740-L743
-            buffer_tensor_einsum_to_skew[
-                BufferTensorEinsum(*buffer_tensor, leaf)
-            ] = Skew(buffer_tags, removal_projection)
+            buffer_tensor_einsum_to_skew[BufferTensorEinsum(*buffer_tensor, leaf)] = (
+                Skew(buffer_tags, removal_projection)
+            )
 
         # TODO: Figure out what is actually:
         # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L746
