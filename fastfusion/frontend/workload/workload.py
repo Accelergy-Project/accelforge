@@ -54,13 +54,15 @@ SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 class TensorAccess(ParsableModel):
     """
-    Information about how a given einsum accesses a tensor.
+    Information about how an Einsum accesses a tensor.
 
     :param name:        The tensor being accessed.
-    :param projection:  The data projection of the tensor with irrelevant ranks
-                        removed.
-    :param output:      Whether the tensor access is a write.
-    :param factors:     The terms of the einsum.
+    :param projection:  The subscript expressions of the tensor.
+                        This can be a list of rank variables (must be single
+                        rank variables and the rank name is the uppercase of the
+                        rank variable) or a dictionary mapping rank names to
+                        subscript expressions.
+    :param output:      Whether the tensor is an output.
 
     :type name:         TensorName
     :type projection:   dict[str, str]
@@ -71,7 +73,6 @@ class TensorAccess(ParsableModel):
     name: TensorName
     projection: dict[str, str] | list[str]
     output: bool = False
-    factors: list = []
 
     def model_post_init(self, __context__=None) -> None:
         self.projection = projection_factory(self.projection)
@@ -183,8 +184,7 @@ def shape_factory(shape: list | str):
 
 class Shape(ParsableList):
     """
-    A space description in the space Z^{len(self)} where the list contains specifications
-    of valid values for each of the specified rank variables.
+    Specifies valid values for the rank variables.
     """
     @property
     def rank_variables(self) -> set[str]:
@@ -195,12 +195,12 @@ class Shape(ParsableList):
 
 class Einsum(ParsableModel):
     """
-    Represents an einsum operation.
+    Represents a computation step in the workload as an Einsum.
 
     :param name:                The name of the einsum.
     :param tensor_accesses:     The tensors accessed by the einsum.
-    :param shape:               The space which the einsum operates.
-    :param is_copy_operation:   Whether the einsum is just mirroring data.
+    :param shape:               Bounds of valid rank variable values.
+    :param is_copy_operation:   Whether the einsum is a copy operation.
 
     :type name:                 EinsumName
     :type tensor_accesses:      ParsableList[TensorAccess]
@@ -309,12 +309,12 @@ class Einsum(ParsableModel):
 
 class Workload(ParsableModel):
     """
-    An operation occurring on-chip.
+    The workload specification as a cascade of Einsums.
 
     :param version: The FastFusion version the input is compliant with.
-    :param einsums: The operations occurring in the workload expressed as einsums.
-    :param shape:   A relation between a RankVariableName and the allowable values
-                    of that RankVariable.
+    :param einsums: Computation stepsin the workload expressed as einsums.
+    :param shape:   Mapping from rank variable name to bounds of valid rank
+                    variable values.
 
     :type version:  Annotated[str, assert_version]
     :type einsums:  ParsableList[Einsum]
