@@ -517,20 +517,22 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     ).index(rank_var)
 
                     # Adds a new tile_dim to the old tiling.
+                    # TODO: Handle stride.
                     if (
-                        isinstance(current_node.tile_shape, int)
-                        and current_node.tile_shape != 0
+                        isinstance(ts := current_node.tile_pattern.initial_tile_shape, int)
+                        and (ts != 0)
+                        and (ts == current_node.tile_pattern.stride)
                     ):
                         new_tiling: Tiling = add_new_tile_dim(
                             old_tiling,
                             isl_rank_idx,
-                            current_node.tile_shape,
+                            current_node.tile_pattern.initial_tile_shape,
                             get_rank_var_partition(rank_var),
                         )
                     else:
                         raise NotImplementedError(
                             f"Tile size analysis not implemented for type {type(node)} "
-                            f"with tile shape {current_node.tile_shape}"
+                            f"with tile shape {current_node.tile_pattern.initial_tile_shape}"
                         )
 
                     # Saves the fused tiling.
@@ -615,6 +617,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         # For all einsums the child is involved in, update their tilings.
                         for einsum in group:
                             tiling: Tiling = tiling_info[node][einsum]
+                            # Add dimension that iterates over branches.
                             new_tiling: Tiling = tiling.add_dims(isl.dim_type.in_, 1)
 
                             tilings[einsum] = new_tiling.fix_input_si(

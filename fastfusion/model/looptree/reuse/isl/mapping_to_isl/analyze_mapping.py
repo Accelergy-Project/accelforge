@@ -201,6 +201,7 @@ def occupancies_from_mapping(
     :rtype:     MappingAnalysisResult
     """
     branch_tiling: BranchTiling = tiling_from_mapping(mapping, workload)
+    #tiling: [tile_iteration_space] -> [iteration_space]
     if DUMP_ISL_IR:
         for node, tiling in branch_tiling.items():
             print(f"[Tiling]Node({node}): {tiling}")
@@ -210,6 +211,7 @@ def occupancies_from_mapping(
 
     occupancies: defaultdict[BufferTensorEinsum, Occupancy] = defaultdict()
     skews: SkewsInfo = skews_from_mapping(mapping, workload)
+    # skew [Spacetime] -> [tile_iteration_space]
     if DUMP_ISL_IR:
         print(f"skews: {pformat(skews)}")
 

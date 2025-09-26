@@ -6,16 +6,25 @@ mapping:
     component: MainMemory
   - !Temporal
     rank_variable: p
-    tile_shape: 8 # bound is 2
+    # bound is 2
+    tile_pattern:
+      initial_tile_shape: 8
+      stride: 8
   - !Storage
     tensors: [I, W, O]
     component: LocalBuffer
   - !Temporal
     rank_variable: p
-    tile_shape: 1 # bound is 8
+    # bound is 8
+    tile_pattern:
+      initial_tile_shape: 1
+      stride: 1    
   - !Spatial
     rank_variable: r
-    tile_shape: 1 # bound is 3
+    # bound is 3
+    tile_pattern:
+      initial_tile_shape: 1
+      stride: 1
     component: MAC
     name: X
   - !Compute
