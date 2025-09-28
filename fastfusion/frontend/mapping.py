@@ -47,7 +47,7 @@ from fastfusion.frontend import arch
 T = TypeVar("T", bound="MappingNode")
 """TypeVar T: Restricts the allowable types to types of MappingNodes."""
 
-AnnotatedMappingNode: TypeAlias = ParsableList[
+NodeList: TypeAlias = ParsableList[
     Annotated[
         Union[
             Annotated["Split", Tag("Split")],
@@ -67,7 +67,7 @@ AnnotatedMappingNode: TypeAlias = ParsableList[
     ]
 ]
 """
-TypeAlias AnnotatedMappingNode: ParsableList that can contain and discriminate between
+TypeAlias NodeList: ParsableList that can contain and discriminate between
 MappingNodes of different types.
 """
 
@@ -636,7 +636,7 @@ class MappingNodeWithChildren(MappingNode):
     A :class:`~.MappingNode` that also contains children.
     """
 
-    nodes: AnnotatedMappingNode = ParsableList()
+    nodes: NodeList = ParsableList()
     """ The child nodes. """
 
     def _parent2child(
