@@ -7,7 +7,7 @@ arch:
     attributes:
       # _underscore_prefixed --> Strict type check. If the model doesn't recognize the
       # field, it will throw an error.
-      _size: 1e6
+      _size: inf
       _datawidth: 1
     constraints: {tensors: {keep: ~Intermediates()}}
     actions:
