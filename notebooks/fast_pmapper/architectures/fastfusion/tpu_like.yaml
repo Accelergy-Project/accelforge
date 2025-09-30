@@ -14,8 +14,8 @@ arch:
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, arguments: {energy: 7.03e-12, bits_per_action: 8}} # 56.24 pJ/8b
-    - {name: write, arguments: {energy: 7.03e-12, bits_per_action: 8}}
+    - {name: read, arguments: {energy: 56.24e-12, bits_per_action: 8}} # 56.24 pJ/8b
+    - {name: write, arguments: {energy: 56.24e-12, bits_per_action: 8}}
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
@@ -27,10 +27,10 @@ arch:
       _size: 1024*1024*1*8 # 1 MiB
       _datawidth: 8
       _bandwidth_reads_per_cycle: 1024 # 1024 GB/s
-      _bandwidth_writes_per_cycle: 256 # 256 GB/s
+      _bandwidth_writes_per_cycle: 512 # 512 GB/s
     actions:
-    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}} # 15.04pJ/8b-read
-    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}} # 18.88pJ/8b-read
+    - {name: read, arguments: {energy: 2.00e-12, bits_per_action: 8}} # 2.00 pJ/8b
+    - {name: write, arguments: {energy: 2.32e-12, bits_per_action: 8}} # 2.32 pJ/8b
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
@@ -41,11 +41,13 @@ arch:
     spatial: [{name: Z, fanout: 4}]
     attributes:
       _size: 1024*128*8 # 128 KiB
-      _bandwidth_reads_plus_writes_per_cycle: 1024 # 1024 GB/s
+      _bandwidth_reads_plus_writes_per_cycle: 1024
+      _bandwidth_reads_per_cycle: 1024 # 1024 GB/s
+      _bandwidth_writes_per_cycle: 1024 # 1024 GB/s for writing psums and (rarely) inputs
       _datawidth: 8
     actions:
-    - {name: read, arguments: {energy: 0.249e-12, bits_per_action: 8}} # 2.00 pJ/8b
-    - {name: write, arguments: {energy: 0.293e-12, bits_per_action: 8}} # 2.32 pJ/8b
+    - {name: read, arguments: {energy: 2.00e-12, bits_per_action: 8}} # 2.00 pJ/8b
+    - {name: write, arguments: {energy: 2.32e-12, bits_per_action: 8}} # 2.32 pJ/8b
     - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:

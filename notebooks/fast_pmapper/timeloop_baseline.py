@@ -4,9 +4,6 @@ import csv
 
 NUM_THREADS = 12
 
-
-SEARCH_SIZE = [1000, 2000, 4000, 8000, 16000, 32000]
-
 def evaluate(result_fname, config_fname, search_sizes):
     spec = tl.Specification.from_yaml_files(
         config_fname,
@@ -24,9 +21,11 @@ def evaluate(result_fname, config_fname, search_sizes):
             mapper_time = end - start
             writer.writerow([search_size, NUM_THREADS, mapper_time, output.energy, output.latency])
 
+# Without hint, finding valid mappings is easier and takes faster so search size should be larger here
 evaluate('timeloop_gemm_16k.csv',
          'configs/timeloop_gemm_tpu.yaml',
-         [4000, 8000, 16000, 32000, 64000])
+         [4000, 8000, 16000, 32000, 64000, 128000])
+
 evaluate('timeloop_gemm_16k_hint.csv',
          'configs/timeloop_gemm_tpu_hint.yaml',
-         [500, 1000, 2000, 4000, 8000, 16000, 32000])
+         [500, 1000, 2000, 4000, 8000])

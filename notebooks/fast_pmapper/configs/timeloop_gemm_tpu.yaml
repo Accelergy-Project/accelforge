@@ -19,20 +19,21 @@ architecture:
     class: DRAM
     subclass: dummy_storage
     attributes:
-      width: 256
-      depth: 81920000
+      width: 2048
+      depth: 4194304  # Just something really big. Equivalent to 1 GiB
       datawidth: 8
-      shared_bandwidth: 32
+      shared_bandwidth: 256
 
   - !Component
     name: GlobalBuffer
     class: SRAM
     subclass: dummy_storage
     attributes:
-      width: 512
-      depth: 16384  # 1 MiB = 8 Mib
+      width: 4096
+      depth: 2048  # 1 MiB = 8 Mib  (Kind of a wide SRAM, probably heavily banked)
       datawidth: 8
-      shared_bandwidth: 64
+      read_bandwidth: 1024
+      write_bandwidth: 512
 
   - !Component
     name: LocalBuffer
@@ -43,7 +44,9 @@ architecture:
       width: 1024
       depth: 1024  # 128 KiB = 1 Mib
       datawidth: 8
-      shared_bandwidth: 128
+      shared_bandwidth: 1024
+      read_bandwidth: 1024
+      write_bandwidth: 1024
     constraints:
       # dataspace: {bypass: [weight], keep: [input, output]}
       spatial: {split: 999, factors: [C<=4, M<=4, Q<=4]}
