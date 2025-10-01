@@ -1,3 +1,5 @@
+import inspect
+import os
 from fastfusion import arch
 from fastfusion import Specification
 from fastfusion.mapper.FFM._interface.pmappings import MultiEinsumPmappings
@@ -19,6 +21,7 @@ from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import (
     get_rank_variable_bounds_for_all_einsums,
 )
 from fastfusion.accelerated_imports import pd
+import joblib
 
 
 class MappingFromRow:
@@ -38,27 +41,11 @@ class MappingFromRow:
     def render(self) -> str:
         return self().render()
 
-
-def make_pmappings(
+def _make_pmappings(
     spec: Specification,
     einsum_names: list[EinsumName] | None = None,
     can_combine_multiple_runs: bool = False,
 ) -> MultiEinsumPmappings:
-    """
-    Creates pmappings for a specification. Pmappings must be joined together using
-    `join_pmappings` to create a full mapping.
-
-    Args:
-        spec: The Specification to generate pmappings for.
-        einsum_names: The einsum names to generate pmappings for. If None, all einsums will be included.
-        can_combine_multiple_runs: Whether we would like to be able to combine multiple
-        make_pmappings runs. Haivng this as True allows you to do things like
-            `pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)`
-        but slows down execution.
-
-    Returns:
-        A MultiEinsumPmappings object.
-    """
     parsed_spec, _ = spec.parse_expressions()
     parsed_spec.calculate_component_energy_area(area=False)
     flattened_arches = parsed_spec.get_flattened_architecture()
@@ -81,6 +68,47 @@ def make_pmappings(
         einsum2jobs,
         can_combine_multiple_runs=can_combine_multiple_runs,
     )
+
+
+def make_pmappings(
+    spec: Specification,
+    einsum_names: list[EinsumName] | None = None,
+    can_combine_multiple_runs: bool = False,
+    cache_dir: str | None = None,
+) -> MultiEinsumPmappings:
+    """
+    Creates pmappings for a specification. Pmappings must be joined together using
+    `join_pmappings` to create a full mapping.
+
+    Args:
+        spec: The Specification to generate pmappings for.
+        einsum_names: The einsum names to generate pmappings for. If None, all einsums will be included.
+        can_combine_multiple_runs: Whether we would like to be able to combine multiple
+        make_pmappings runs. Haivng this as True allows you to do things like
+            `pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)`
+        but slows down execution.
+        cache_dir: The directory to cache pmappings in. If None, no caching will be done.
+
+    Returns:
+        A MultiEinsumPmappings object.
+    """
+
+    kwargs = dict(
+        spec=spec,
+        einsum_names=einsum_names,
+        can_combine_multiple_runs=can_combine_multiple_runs,
+    )
+    assert len(kwargs) == len(inspect.signature(_make_pmappings).parameters)
+
+    if cache_dir is None:
+        return _make_pmappings(**kwargs)
+
+    @joblib.Memory(location=os.path.join(cache_dir), compress=True).cache
+    def _make_pmappings_cached(**kwargs) -> MultiEinsumPmappings:
+        return _make_pmappings(**kwargs)
+
+    return _make_pmappings_cached(**kwargs)
+
 
 
 def row2mapping(
@@ -117,13 +145,13 @@ def join_pmappings(
         joined.data[col] = joined.data[col].apply(
             lambda x: pmappings.pmapping_objects[einsum_name][x]
         )
+    joined._data = joined.data.fillna(0).reset_index(drop=True)
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    joined.data[f"Total<SEP>{MAPPING_COLUMN}"] = joined.data.apply(
-        lambda row: MappingFromRow(row, spec, rank_variable_bounds), axis=1
-    )
+    joined.data[f"Total<SEP>{MAPPING_COLUMN}"] = [
+        MappingFromRow(r, spec, rank_variable_bounds) for _, r in joined.data.iterrows()
+    ]
     # Fill nans with 0. We might get missing columns for some mapping entries if there
     # are energy entries for some pmappings but not others (e.g., one pmapping accesses
     # DRAM while another doesn't.)
-    joined._data = joined.data.fillna(0)
     return Mappings(spec, list(pmappings.einsum2pmappings.keys()), joined.data)
