@@ -243,7 +243,7 @@ def add_new_tile_dim_strided(
     old_tiling: Tiling,
     dim_idx: int,
     tile_size: int,
-    stride: int,
+    tile_stride: int,
     rank_var: Optional[str] = None,
 ) -> Tiling:
     """
@@ -257,7 +257,7 @@ def add_new_tile_dim_strided(
         The index of the dimension being tiled.
     tile_size:
         The size of the tiling on `dim_idx`.
-    stride:
+    tile_stride:
         The stride on the `dim_idx`.
     rank_var:
         The name of the new `dim_idx`.
@@ -266,61 +266,53 @@ def add_new_tile_dim_strided(
     -------
     `Tiling`: The new Tiling with tiled dimension at `dim_idx`.
     """
-
+    # Checks that the input values are as expected before proceeding.
     if not (isinstance(tile_size, int) and tile_size > 0):
-        raise ValueError(f"Tile size {tile_size} must be a positive integer.")
-    if not (isinstance(stride, int) and stride > 0):
-        raise ValueError(f"Stride {stride} must be a positive integer.")
+        raise ValueError(f"`tile_size` {tile_size} must be a positive integer.")
+    if not (isinstance(tile_stride, int) and tile_stride > 0):
+        raise ValueError(f"`tile_stride` {tile_stride} must be a positive integer.")
 
-    # new_tiling has one extra dimension at the end compared to old_tiling.
+    # `new_tiling` has one extra dimension at the end compared to old_tiling.
     new_tiling = old_tiling.insert_dims(
         isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), 1
     )
+    # Names the new dimension if one is provided.
     if rank_var:
         new_tiling = new_tiling.set_dim_name(
             isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), rank_var
         )
 
-    # Min and max of dim_idx. dimension being tiled as function of tiled dimensions.
+    # Minimum and maximum values possible for dimension `dim_idx` to take.
     dim_min: isl.PwAff = new_tiling.dim_min(dim_idx)
     dim_max: isl.PwAff = new_tiling.dim_max(dim_idx)
-
     # Aff from tiled dimensions space to value of newest dim.
-    new_dim_id: isl.Aff = isl.Aff.var_on_domain(
+    new_iter_id: isl.Aff = isl.Aff.var_on_domain(
         dim_min.get_domain_space().to_local_space(),
         isl.dim_type.set,
         dim_min.dim(isl.dim_type.in_) - 1,
     )
+    print(new_iter_id)
 
-    # Aff from tiled dimensions space to tile tile size constant.
-    tile_size_aff: isl.Aff = isl.Aff.val_on_domain_space(
-        dim_min.get_domain_space(), isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_size)
+    # Aff from tiled dimensions space to tile `tile_size` and `stride` constant.
+    tile_stride_aff: isl.Aff = isl.Aff.val_on_domain_space(
+        dim_min.get_domain_space(), isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_stride)
     )
 
     # PwAff from tiled dimension space to tile_size * newest_dim.
-    tile_translate: isl.PwAff = isl.PwAff.from_aff(new_dim_id.mul(tile_size_aff))
-
-    # What dim_min should be given new tiling.
-    new_dim_min: isl.PwAff = dim_min.add(tile_translate)
-
-    # What dim_max should be given new tiling.
-    new_dim_max: isl.PwAff = new_dim_min.add(
-        isl.PwAff.from_aff(tile_size_aff.add_constant_val(-1))
+    tile_translate_strided: isl.PwAff = isl.PwAff.from_aff(
+        new_iter_id.mul(tile_stride_aff)
     )
 
-    # TODO: Might be logically equivalent to new_dim_id:
-    # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/tiling.cpp#L52-L59
-    new_iter_id: isl.PwAff = isl.PwAff.from_aff(
-        isl.Aff.var_on_domain(
-            new_tiling.get_space().domain(),
-            isl.dim_type.set,
-            old_tiling.dim(isl.dim_type.in_),
-        )
+    # What dim_min should be given new tiling.
+    new_dim_min: isl.PwAff = dim_min.add(tile_translate_strided)
+    # What dim_max should be given new tiling.
+    new_dim_max: isl.PwAff = new_dim_min.add(
+        isl.PwAff.from_aff(tile_stride_aff.add_constant_val(-1))
     )
 
     # The set of valid values of the new tiled dimensions.
     iter_set: isl.Set = new_tiling.domain()
-    iter_set = iter_set.intersect(new_iter_id.le_set(dim_max.div(tile_size_aff).ceil()))
+    iter_set = iter_set.intersect(new_iter_id.le_set(dim_max.div(tile_stride_aff).ceil()))
     iter_set = iter_set.intersect(new_dim_min.ge_set(dim_min))
 
     # The value of iter dims cannot exceed what was available before tiling.
