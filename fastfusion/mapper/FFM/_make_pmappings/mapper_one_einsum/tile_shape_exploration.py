@@ -617,7 +617,7 @@ def get_tile_shape_choices(
         times[s] += cur_time - prev_time
         prev_time = cur_time
 
-    log = []
+    log = job.messages
 
     def log_message(message: str, *args: str):
         log.append(f"{time.time() - prev_time:.2f}s: {message} {' '.join(args)}")
