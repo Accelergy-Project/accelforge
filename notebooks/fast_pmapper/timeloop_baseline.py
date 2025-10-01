@@ -2,9 +2,12 @@ import pytimeloop.timeloopfe.v4 as tl
 import time
 import csv
 
+from .paths import DATA_DIR
+
 NUM_THREADS = 12
 
 def evaluate(result_fname, config_fname, search_sizes):
+    result_fname = DATA_DIR / result_fname
     spec = tl.Specification.from_yaml_files(
         config_fname,
         "ert/tpu_like.yaml"

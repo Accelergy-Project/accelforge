@@ -7,6 +7,8 @@ from datetime import datetime
 import time
 import csv
 
+from .paths import DATA_DIR
+
 from zigzag import api
 
 workload_path = "workloads/zigzag/gemm_16k.yaml"
@@ -17,6 +19,7 @@ dump_folder = f"outputs/zigzag/{experiment_id}"
 pickle_filename = f"outputs/zigzag/{experiment_id}/cmes.pickle"
 
 def run_experiment(result_fname, accelerator_fname):
+    result_fname = DATA_DIR / result_fname
     with open(result_fname, 'w') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         writer.writerow(['lfp', 'mapper_time', 'energy', 'latency'])
