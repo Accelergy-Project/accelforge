@@ -32,9 +32,6 @@ arch:
     - {name: read, arguments: {energy: 2.00e-12, bits_per_action: 8}} # 2.00 pJ/8b
     - {name: write, arguments: {energy: 2.32e-12, bits_per_action: 8}} # 2.32 pJ/8b
     - {name: leak, arguments: {energy: 0}}
-    constraints:
-      tensors:
-        keep: ~MainMemory.tensors() | input | output
 
   - !Memory
     name: LocalBuffer
@@ -50,9 +47,6 @@ arch:
     - {name: write, arguments: {energy: 2.32e-12, bits_per_action: 8}} # 2.32 pJ/8b
     - {name: leak, arguments: {energy: 0}}
     constraints:
-      tensors:
-        keep: (Intermediates() - weight) - GlobalBuffer.tensors()
-        bypass: weight | GlobalBuffer.tensors()
       spatial:
       - name: Z
         min_utilization: 1 if len(All()) > 2 else 0
