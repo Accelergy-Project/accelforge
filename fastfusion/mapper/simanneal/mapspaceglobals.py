@@ -24,13 +24,13 @@ class MapspaceGlobals:
         self.intermediate_tensor_names = spec.workload.intermediate_tensor_names
         self.pairwise_equivalent_ranks = spec.workload.get_pairwise_equivalent_rank_variables()
         self.full_equivalent_ranks = make_full_equivalent_rank_variables(self.pairwise_equivalent_ranks)
-        
+
         self.resource2capacity = {}
         flattened_architecture = flattened_architecture or spec.get_flattened_architecture()
         for l in flattened_architecture:
             if isinstance(l, arch.Memory):
                 self.resource2capacity[l.name] = l.attributes.size
-        
+
         self.objective_function_cols = objective_function_cols
         self.rank_translations = self._create_rank_translations(self.einsum2ranks)
 
@@ -38,17 +38,16 @@ class MapspaceGlobals:
             for j, (right_id, right_sims) in enumerate(sims.items()):
                 if i >= j:
                     continue
-                
+
                 left_live = self.get_live_tensors(*self.einsum_names[:i+1])
                 right_live = self.get_live_tensors(*self.einsum_names[j:])
                 left_tensors = self.get_tensors(self.einsum_names[i])
                 right_tensors = self.get_tensors(self.einsum_names[j])
-                
-                
+
                 if not (left_live & right_live):
                     continue
                 print(f"Checking {left_id} {right_id}")
-                
+
                 right_tilings = {
                     s.compatibility.clear_dead_tensors(live_tensors=left_live).clear_dead_tensors(left_tensors, keep_loops=True)
                     for s in right_sims
@@ -63,7 +62,7 @@ class MapspaceGlobals:
                     else:
                         left_sims.remove(s)
                 assert left_sims, f"Removed all of left {left_id} while checking right {right_id}"
-                        
+
                 left_tilings = {
                     s.compatibility.clear_dead_tensors(live_tensors=right_live).clear_dead_tensors(right_tensors, keep_loops=True)
                     for s in left_sims
@@ -78,7 +77,7 @@ class MapspaceGlobals:
                     else:
                         right_sims.remove(s)
                 assert right_sims, f"Removed all of right {right_id} while checking left {left_id}"
-        
+
         self.tensor2possible_loops_above = self._create_tensor2possible_loops_above()
         self.tensor2possible_loops_above_set = {
             k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.tensor2possible_loops_above.items()
@@ -101,10 +100,9 @@ class MapspaceGlobals:
         self.find_pmapping_scale = n_pmappings / n_optimal
         self.aliased_tensors = spec.workload.get_tensor_copies()
 
-        
     def get_live_tensors(self, *einsums: str):
         return set.union(*(self.einsum2tensors[e] for e in einsums))
-        
+
     def _create_compatibility(self):
         tiling2leftcompatibility = {}
         tiling2rightcompatibility = {}
@@ -113,7 +111,7 @@ class MapspaceGlobals:
                 t: t.clear_dead_tensors(live_tensors=live_tensors)
                 for t in tilings
             }
-            
+
         for i, (einsum_name, sim_list) in enumerate(self.sims.items()):
             if i > 0:
                 prev_live = self.get_live_tensors(*self.einsum_names[:i])
@@ -127,7 +125,7 @@ class MapspaceGlobals:
                     [s.compatibility for s in sim_list],
                     next_live,
                 )
-        
+
         leftcompatibility2tiling = {}
         rightcompatibility2tiling = {}
         for einsum_name in self.einsum_names:
@@ -254,4 +252,3 @@ class MapspaceGlobals:
                 yield Loop(fzs((n,)), l.bound, l.is_spatial)
         for loops in itertools.product(*map(translate_loop, t.loops)):
             yield Compatibility(loops, t.tensors, t.tags)
-

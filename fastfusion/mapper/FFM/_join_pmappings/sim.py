@@ -1,7 +1,7 @@
 from collections import defaultdict
 from functools import cached_property
-from typing import Any, Iterable
-
+from typing import Any, Callable, Iterable
+import pandas as pd
 from joblib import delayed
 
 from fastfusion.mapper.FFM._pmapping_group import PmappingGroup
@@ -37,13 +37,12 @@ class SIM:
         live_tensors: set[str],
         live_tensors_with_right: set[str],
         aliased_tensors: dict[str, set[str]],
-        compatibility_left: Compatibility,
-        compatibility_right: Compatibility,
         compatibility_joined: Compatibility,
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
         ignore_reservations: set[str] = set(),
         delay: bool = False,
+        pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None,
     ) -> "SIM":
         shared_loop_index = self.compatibility.shared_loop_index(
             right.compatibility.tensor_names | live_tensors
@@ -71,12 +70,13 @@ class SIM:
             live_tensors_with_right,
             still_live_reservations,
             duplicated_aliased_tensors,
-            compatibility_left=compatibility_left,
-            compatibility_right=compatibility_right,
+            compatibility_left=self.compatibility,
+            compatibility_right=right.compatibility,
             compatibility_joined=compatibility_joined,
             resource2capacity=resource2capacity,
             drop_valid_reservations=drop_valid_reservations,
             ignore_reservations=ignore_reservations,
+            pmapping_row_filter_lambda=pmapping_row_filter_lambda,
         )
 
         if not delay:
