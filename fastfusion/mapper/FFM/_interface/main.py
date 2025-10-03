@@ -1,5 +1,6 @@
 import inspect
 import os
+from typing import Callable
 from fastfusion import arch
 from fastfusion import Specification
 from fastfusion.mapper.FFM._interface.pmappings import MultiEinsumPmappings
@@ -121,7 +122,9 @@ def row2mapping(
 
 
 def join_pmappings(
-    spec: Specification, pmappings: MultiEinsumPmappings
+    spec: Specification,
+    pmappings: MultiEinsumPmappings, 
+    pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None
 ) -> Mappings:
     for einsum_name, einsum_pmappings in pmappings.einsum2pmappings.items():
         total = sum(len(p.mappings.data) for p in einsum_pmappings)
@@ -137,6 +140,7 @@ def join_pmappings(
         compressed,
         spec,
         pmappings.resource2capacity,
+        pmapping_row_filter_lambda=pmapping_row_filter_lambda,
     )
     joined = decompress_pmappings(joined, decompress_data)
 

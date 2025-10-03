@@ -674,6 +674,9 @@ def get_tile_shape_choices(
                 return choice
         except ValueError:
             pass
+        
+        # TODO: Maybe start with a symbol that would result in more pruning up front?
+        # Maximize the # of choices that can be resolved easily
         return symbols_remaining.pop()
 
     symbol = None

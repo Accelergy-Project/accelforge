@@ -3,7 +3,7 @@ import copy
 import functools
 import itertools
 
-from typing import Iterable, Optional, Tuple, Union
+from typing import Callable, Iterable, Optional, Tuple, Union
 
 import sympy
 
@@ -351,6 +351,7 @@ class PmappingGroup:
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
         ignore_reservations: set[str] = set(),
+        pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None,
     ) -> "PmappingGroup":
         """
            A  B            A2
@@ -545,6 +546,7 @@ class PmappingGroup:
                 resource2capacity, next_shared_loop_index, drop_valid_reservations
             )
         result.max_right_to_left()
+        result.filter_rows(pmapping_row_filter_lambda)
         result.make_pareto()
         result._check_reservations()
 
@@ -730,6 +732,11 @@ class PmappingGroup:
                 """
                 self.fail(first_failing_index, live_tensors)
                 raise ValueError(error)
+
+    def filter_rows(self, pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None):
+        if pmapping_row_filter_lambda is None:
+            return
+        self._data = self._data[pmapping_row_filter_lambda(self._data)]
 
     # @error_check_wrapper
     # def check_reservations(self, live_tensors: set[int]):

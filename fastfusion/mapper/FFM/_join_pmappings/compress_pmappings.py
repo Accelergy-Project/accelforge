@@ -67,7 +67,7 @@ def _compress_pmapping_list(
 
 def compress_einsum2pmappings(
     einsum2pmappings: dict[EinsumName, list[SIM]],
-) -> tuple[dict[EinsumName, list[PmappingGroup]], DecompressData]:
+) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
     decompress_data = {}
     compressed_einsum2pmappings = {}
 
