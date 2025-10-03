@@ -633,14 +633,6 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"], FromYA
     def model_dump_non_none(self, **kwargs):
         return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
 
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, self.__class__):
-            return False
-        return self.model_dump_non_none() == other.model_dump_non_none()
-    
-    def __hash__(self):
-        return hash(self.model_dump_non_none())
-
 
 class NonParsableModel(ModelWithUnderscoreFields, FromYAMLAble):
     model_config = ConfigDict(extra="forbid")
