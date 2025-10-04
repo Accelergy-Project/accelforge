@@ -34,7 +34,7 @@ arch:
 
   - !Memory
     name: LocalBuffer
-    spatial: [{name: Z, fanout: 1}]
+    spatial: [{name: Z, fanout: 4}]
     attributes:
       _size: 1024*1024*4*8 # 4MB
       _datawidth: 8
