@@ -184,7 +184,7 @@ def pareto_front_cupy_blockwise_sorted_recursive(X, block_size=2000):
 #         return mappings[mask]
 
 
-TOLERANCE = 0.01
+TOLERANCE = 0.00
 
 
 def logify(x: pd.Series) -> pd.Series:
@@ -204,31 +204,9 @@ def logify(x: pd.Series) -> pd.Series:
     return np.round(logged / TOLERANCE) * TOLERANCE
 
 
-# def makepareto(
-#     mappings: pd.DataFrame,
-#     columns: list[str] = None,
-#     parallelize: bool = False,
-#     split_by_cols: list[str] = (),
-# ) -> pd.DataFrame:
-#     # return makepareto_time_compare(mappings)
-#     if columns is None:
-#         columns = [c for c in mappings.columns if col_used_in_pareto(c)]
-
-#     # Number of iterations is derived from the tile shapes, so we don't need to use it,
-#     # since any row with the same tile shapes will have the same number of iterations.
-#     split_by_cols = list(split_by_cols) + [
-#         c
-#         for c in mappings.columns
-#         if is_fused_loop_col(c) and not is_n_iterations_col(c)
-#     ]
-
-#     return makepareto_merge(
-#         mappings, columns, parallelize=parallelize, split_by_cols=split_by_cols
-#     )
-
-
 
 def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False, split_by_cols: list[str] = ()) -> pd.DataFrame:
+    assert False
     # return makepareto_time_compare(mappings)
     if columns is None:
         columns = [c for c in mappings.columns if col_used_in_pareto(c)]
@@ -239,21 +217,29 @@ def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: b
 
     goals = []
     to_pareto = []
+    pareto_cols = []
     for c in mappings.columns:
         if mappings[c].nunique() <= 1:
             continue
 
         if c in columns and is_objective_col(c):# or col_used_in_pareto(c)):
             to_pareto.append(logify(mappings[c]))
+            pareto_cols.append(c)
             goals += ["min"]
         elif c in split_by_cols:
             to_pareto.append(mappings[c])
+            pareto_cols.append(c)
             goals.append("diff")
         elif c in columns:
             to_pareto.append(mappings[c])
+            pareto_cols.append(c)
             goals.append("min")
 
     if not to_pareto:
         return mappings.iloc[0:1]
 
     return mappings[paretoset(pd.concat(to_pareto, axis=1), sense=goals)]
+
+    f = pd.concat(to_pareto, axis=1)
+    x = list(f.groupby([c for c, d in zip(pareto_cols, goals) if d == "diff"]))
+    print(x)

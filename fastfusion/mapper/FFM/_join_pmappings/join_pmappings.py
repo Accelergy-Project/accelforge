@@ -152,7 +152,7 @@ def join_sims(
     combine_reservations: bool = True,
     lookahead_filter: bool = True,
     metrics: Metrics = None,
-    pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None,
+    pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -171,10 +171,18 @@ def join_sims(
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignore_reservations = set()
     
-    if pmapping_row_filter_lambda is not None:
-        for s in sims.values():
-            for sim in s:
-                sim.mappings.data = sim.mappings.data[pmapping_row_filter_lambda(sim.mappings.data)]
+    
+    if pmapping_row_filter_function is not None:
+        n = sum(len(s.mappings.data) for sg in sims.values() for s in sg)
+        sims = {e: [
+            SIM(
+                s.compatibility,
+                s.mappings.filter_rows(pmapping_row_filter_function)
+            )
+            for s in sims[e]
+        ] for e in sims}
+        new_n = sum(len(s.mappings.data) for sg in sims.values() for s in sg)
+        print(f'Filtered {n} -> {new_n} ({new_n / n:.2%} kept) pmappings')
     
     if drop_valid_reservations:
         sims, ignore_reservations = get_memories_to_track(sims, resource2capacity)
@@ -239,10 +247,6 @@ def join_sims(
                 s.compatibility = s.compatibility.clear_dead_tensors(
                     right_tensors | left_tensors
                 )
-
-        if pmapping_row_filter_lambda is not None:
-            for s in sim_holder.sims:
-                s.mappings.filter_rows(pmapping_row_filter_lambda)
 
         sim_holder.sims = sorted(
             sim_holder.sims, key=lambda x: len(x.mappings.data), reverse=True
@@ -384,7 +388,7 @@ def join_sims(
                         drop_valid_reservations=drop_valid_reservations,
                         ignore_reservations=ignore_reservations,
                         delay=DELAY,
-                        pmapping_row_filter_lambda=pmapping_row_filter_lambda,
+                        pmapping_row_filter_function=pmapping_row_filter_function,
                     )
                 )
                 t1 = time.time()

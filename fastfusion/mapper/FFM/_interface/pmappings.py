@@ -48,12 +48,21 @@ class MultiEinsumPmappings:
         filter_lambda: Callable[[SIM], bool],
         einsum_names: list[EinsumName] | None = None,
     ):
+        new_einsum2pmappings = {}
         if einsum_names is None:
             einsum_names = list(self.einsum2pmappings.keys())
         for einsum_name in einsum_names:
-            self.einsum2pmappings[einsum_name] = [
+            new_einsum2pmappings[einsum_name] = [
                 pm for pm in self.einsum2pmappings[einsum_name] if filter_lambda(pm)
             ]
+
+        return MultiEinsumPmappings(
+            einsum2pmappings=new_einsum2pmappings,
+            pmapping_objects=self.pmapping_objects,
+            resource2capacity=self.resource2capacity,
+            einsum2jobs=self.mapper_jobs,
+            can_combine_multiple_runs=self.can_combine_multiple_runs,
+        )
 
     def drop_einsums(self, *einsum_names: EinsumName):
         for einsum_name in einsum_names:

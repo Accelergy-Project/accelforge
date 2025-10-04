@@ -33,6 +33,9 @@ from enum import Enum
 from numbers import Number
 
 
+PARETO_PRUNE_DURING_PMAPPING_GENERATION = False
+
+
 def run_model(
     job: Job,
 ) -> tuple[list[Symbol], dict[str, float], dict[str, float], dict[str, float]]:
@@ -835,6 +838,9 @@ def get_tile_shape_choices(
         )
 
         log_message("coalesce symbols", f"{symbol2goal}")
+        
+        if not PARETO_PRUNE_DURING_PMAPPING_GENERATION:
+            continue
 
         paretoed_by_key = fzs((f, g.goal) for f, g in symbol2goal.items())
         if any(p.issubset(paretoed_by_key) for p in paretoed_by):

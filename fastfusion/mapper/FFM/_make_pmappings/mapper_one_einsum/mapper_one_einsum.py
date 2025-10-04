@@ -13,6 +13,7 @@ from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     TensorReservation,
 )
+from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum import tile_shape_exploration
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.tile_shape_exploration import (
     EXPERIMENTAL_TILE_SHAPE_EXPLORATION,
 )
@@ -221,7 +222,7 @@ def generate_pmappings_old(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
             n_pmappings=pmappings_per_group,
-            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
+            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index or not tile_shape_exploration.PARETO_PRUNE_DURING_PMAPPING_GENERATION,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
         )
         reservation_levels = partial_mappings.all_reservation_levels()
@@ -382,7 +383,10 @@ def generate_pmappings_new(
 
     # Pareto prune
     try:
-        df = makepareto(df, split_by_cols=fused_loop_cols)
+        if tile_shape_exploration.PARETO_PRUNE_DURING_PMAPPING_GENERATION:
+            df = makepareto(df, split_by_cols=fused_loop_cols)
+        else:
+            df = df.copy()
     except:
         for job in prev_jobs:
             result = explore_tile_shapes(job)
@@ -473,7 +477,7 @@ def generate_pmappings_new(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
             n_pmappings=pmappings_per_group,
-            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
+            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index or not tile_shape_exploration.PARETO_PRUNE_DURING_PMAPPING_GENERATION,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
         )
         sim = SIM(compatibility, partial_mappings)

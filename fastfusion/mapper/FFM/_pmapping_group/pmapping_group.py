@@ -351,7 +351,7 @@ class PmappingGroup:
         resource2capacity: dict[str, int] = None,
         drop_valid_reservations: bool = True,
         ignore_reservations: set[str] = set(),
-        pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None,
+        pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> "PmappingGroup":
         """
            A  B            A2
@@ -546,7 +546,8 @@ class PmappingGroup:
                 resource2capacity, next_shared_loop_index, drop_valid_reservations
             )
         result.max_right_to_left()
-        result.filter_rows(pmapping_row_filter_lambda)
+        if pmapping_row_filter_function is not None:
+            result = result.filter_rows(pmapping_row_filter_function)
         result.make_pareto()
         result._check_reservations()
 
@@ -733,10 +734,18 @@ class PmappingGroup:
                 self.fail(first_failing_index, live_tensors)
                 raise ValueError(error)
 
-    def filter_rows(self, pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None):
-        if pmapping_row_filter_lambda is None:
-            return
-        self._data = self._data[pmapping_row_filter_lambda(self._data)]
+    def filter_rows(self, pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None) -> "PmappingGroup":
+        if pmapping_row_filter_function is None:
+            return PmappingGroup(skip_pareto=True)
+        
+        # s = pmapping_row_filter_function(self._data)
+        # if s.sum() > 0:
+        #     print(f"Filter rate: {s.sum() / len(s):.2%}")
+        return PmappingGroup(
+            self._data[pmapping_row_filter_function(self._data)].copy(),
+            skip_pareto=True,
+            n_pmappings=self.n_pmappings,
+        )
 
     # @error_check_wrapper
     # def check_reservations(self, live_tensors: set[int]):

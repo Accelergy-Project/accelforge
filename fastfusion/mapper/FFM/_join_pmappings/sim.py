@@ -42,7 +42,7 @@ class SIM:
         drop_valid_reservations: bool = True,
         ignore_reservations: set[str] = set(),
         delay: bool = False,
-        pmapping_row_filter_lambda: Callable[[pd.Series], bool] | None = None,
+        pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> "SIM":
         shared_loop_index = self.compatibility.shared_loop_index(
             right.compatibility.tensor_names | live_tensors
@@ -76,7 +76,7 @@ class SIM:
             resource2capacity=resource2capacity,
             drop_valid_reservations=drop_valid_reservations,
             ignore_reservations=ignore_reservations,
-            pmapping_row_filter_lambda=pmapping_row_filter_lambda,
+            pmapping_row_filter_function=pmapping_row_filter_function,
         )
 
         if not delay:

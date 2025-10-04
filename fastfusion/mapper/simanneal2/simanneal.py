@@ -14,7 +14,7 @@ from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.mapper.FFM._join_pmappings.sim import SIM
-from fastfusion.mapper.FFM._pmapping_group.df_convention import MAPPING_COLUMN
+from fastfusion.mapper.FFM._pmapping_group.df_convention import MAPPING_COLUMN, col2nameloop
 from fastfusion.mapper.FFM._pmapping_group.pmapping_group import (
     PmappingGroup,
     row2pmappings,
@@ -210,6 +210,7 @@ class SimAnnealMapping:
             joined_new = _merge_next(joined, self._access_index(e))
             if len(joined_new.mappings.data) == 1:
                 joined = joined_new
+                print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2nameloop(k)))
                 continue
             if len(joined_new.mappings.data) > 1:
                 raise ValueError(f"Got {len(joined_new.mappings.data)} pmappings for {e}")
@@ -228,7 +229,6 @@ class SimAnnealMapping:
                 i = random.choice(list(set(joined_new.mappings.data["_INDEX"])))
             except IndexError:
                 raise FailedMutation(f"No valid pmappings for {e}")
-            joined_new.mappings._data = joined_new.mappings._data.drop(columns=["_INDEX"])
 
             # Now that we've picked, merge with the index we just set
             joined_new = _merge_next(joined, self._access_index(e, i))
@@ -237,7 +237,9 @@ class SimAnnealMapping:
                 # If it worked, set the index
                 self.einsum2index[e] = i
                 joined = joined_new
+                print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2nameloop(k)))
                 continue
+            
             if len(joined_new.mappings.data) > 1:
                 raise ValueError(f"Got {len(joined_new.mappings.data)} pmappings for {e}")
             
@@ -269,7 +271,7 @@ def join_sims(
         objective_function = lambda x: x["Total<SEP>energy"] * x["Total<SEP>latency"]
     else:
         raise ValueError(f"Unknown objective {objective}")
-    
+    print(f'Resource2capacity: {resource2capacity}')
     mapspace_globals = MapspaceGlobals(
         einsum2sims=sims,
         resource2capacity=resource2capacity,
@@ -290,8 +292,18 @@ def join_sims(
             simanneal_mapping.mutate()
             prev_score = prev.get_score()
             new_score = simanneal_mapping.get_score()
-            if new_score > prev_score:
+            if new_score >= prev_score:
                 simanneal_mapping = prev
+            else:
+                for einsum_name, sim in simanneal_mapping.einsum2sim.items():
+                    print(f"Einsum {einsum_name}, index {simanneal_mapping.einsum2index[einsum_name]}")
+                    for c in sim.compatibility.tensors:
+                        print(f'\t{c}')
+                        
+                    df = sim.mappings.data.iloc[simanneal_mapping.einsum2index[einsum_name] % len(sim.mappings.data)]
+                    for s in sim.compatibility.symbols():
+                        print(f'\t{s} = {df[s]}')
+                        
             print(f"Iteration {i}: Score {new_score} (prev {prev_score})")
         except FailedMutation:
             simanneal_mapping = prev
