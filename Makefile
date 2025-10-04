@@ -21,7 +21,7 @@ run_docker: check_platform
 	sudo chmod -R 777 .dependencies
 	DOCKER_ARCH=$$DOCKER_ARCH docker-compose up
 	
-install-submodules:
+install-dependencies:
 	git clone --recurse-submodules https://github.com/Accelergy-Project/hwcomponents.git
-	cd hwcomponents && make install-dependencies
+	cd hwcomponents && make install-submodules
 	cd hwcomponents && pip3 install .
