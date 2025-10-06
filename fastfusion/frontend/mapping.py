@@ -465,8 +465,6 @@ class Spatial(Iteration):
     component_object: Optional[arch.Leaf] = None
     """ The hardware feature hosting the Iteration. """
 
-    component_object: Optional[arch.Leaf] = None
-
     def compact_str(self) -> str:
         return f"S-{self.name}-{super().compact_str()}"
 

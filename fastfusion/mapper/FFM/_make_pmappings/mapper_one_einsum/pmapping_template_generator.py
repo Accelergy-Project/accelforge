@@ -39,6 +39,7 @@ from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import (
     Job,
     SameEinsumJobs
 )
+from fastfusion.util.basetypes import ParsableList
 from fastfusion.util.setexpressions import eval_set_expression
 
 
@@ -137,26 +138,6 @@ def timeloop_style_even(mapping: list[MappingNode]):
             mapping.insert(seen[-1] + 1, mapping.pop(i))
         i += 1
     return mapping
-
-
-def max_fused_loops(mapping: Mapping, max_fused_loops: int):
-    fused_loops = [
-        i
-        for i, node in enumerate(mapping)
-        if isinstance(node, Iteration)
-        and node._fused
-    ]
-
-    if len(fused_loops) <= max_fused_loops:
-        yield mapping
-        return
-
-    for choice in itertools.combinations(fused_loops, max_fused_loops):
-        to_remove = set(fused_loops) - set(choice)
-        mapping_new = list(mapping)
-        for f in sorted(to_remove, reverse=True):
-            mapping_new.pop(f)
-        yield mapping_new
 
 def assert_proper_fusion_labeling(mapping: list[MappingNode], check_loops: bool = True):
     tensors = set()
@@ -257,12 +238,8 @@ def iterate_mappings_no_constraints(
                 
             place_missing_temporal_loops(mapping, einsum)
             label_fused_loops(mapping)
-            for mapping2 in max_fused_loops(
-                mapping,
-                spec.mapper.ffm.max_fused_loops,
-            ):
-                assert_proper_fusion_labeling(mapping2)
-                yield mapping2, symbol_table
+            assert_proper_fusion_labeling(mapping)
+            yield mapping, symbol_table
 
 def iterate_mappings_constraints(
     spec: Specification,
@@ -353,7 +330,12 @@ def parse_flattened_arch(
             location=f"datawidth of {node.name} for Einsum {job.einsum_name}",
             symbol_table=symbol_table
         )
-            
+        node.spatial = ParsableList(
+            s._parse(
+                symbol_table=symbol_table,
+                location=f"Einsum {job.einsum_name} arch {node.name}.spatial.{s.name}"
+            ) for s in node.spatial
+        )
     return flattened_arch
 
 # =================================================================================================

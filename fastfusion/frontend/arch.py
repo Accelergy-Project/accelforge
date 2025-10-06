@@ -18,6 +18,8 @@ from fastfusion.util.basetypes import (
     get_tag,
 )
 from fastfusion.util.parse_expressions import ParseError, parse_expression
+from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
+from fastfusion.frontend.renames import TensorName
 
 from .components import ComponentAttributes, SubcomponentAction
 from . import constraints
@@ -72,6 +74,19 @@ class ArchNodes(ParsableList):
 class Spatial(ParsableModel):
     name: str
     fanout: ParsesTo[int]
+    reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All()"
+
+    def _parse(self, symbol_table: dict[str, Any], location: str):
+        return type(self)(
+            name=self.name,
+            fanout=self.fanout,
+            reuse=eval_set_expression(
+                self.reuse,
+                symbol_table,
+                expected_space_name="tensors",
+                location=location + ".reuse",
+            ),
+        )
 
 
 class Leaf(ArchNode, ABC):

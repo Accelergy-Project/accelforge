@@ -206,7 +206,6 @@ def logify(x: pd.Series) -> pd.Series:
 
 
 def makepareto(mappings: pd.DataFrame, columns: list[str] = None, parallelize: bool = False, split_by_cols: list[str] = ()) -> pd.DataFrame:
-    # assert False
     # return makepareto_time_compare(mappings)
     if columns is None:
         columns = [c for c in mappings.columns if col_used_in_pareto(c)]

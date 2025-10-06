@@ -662,7 +662,7 @@ def analyze_temporal(node_idx,
 def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
-    node = mapping[node_idx]
+    node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
@@ -677,6 +677,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         child_shape[node.rank_variable] = shape_value
 
         child_result = analyze_node(node_idx+1, child_shape, info)
+        
+        component_object = find_component_object(node.component, info.job.flattened_arch)
+        spatial_reuse = component_object.spatial[node.name].reuse
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
         child_stats = list(child_result.buffet_stats.items())
@@ -694,7 +697,12 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 if other_buffet.tensor == buffet.tensor:
                     last_buffet = False
                     break
-            reuse_parent_accesses = last_buffet and isinstance(relevancy, Irrelevant)
+
+            reuse_parent_accesses = (
+                last_buffet and 
+                isinstance(relevancy, Irrelevant)
+                and buffet.tensor in spatial_reuse
+            )
 
             accumulated_stats += stats.repeat_spatial(
                 shape_repeats,
