@@ -19,7 +19,7 @@ from fastfusion.frontend.workload._symbolic import (
     Relevant,
     PartiallyRelevant
 )
-from fastfusion.model.looptree.reuse import Buffet
+from fastfusion.model.looptree.types import Buffet
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import Job
 from fastfusion.util.sympy.broadcast_max import Min, Max
 

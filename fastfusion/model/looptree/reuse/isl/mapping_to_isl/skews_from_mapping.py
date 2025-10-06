@@ -24,7 +24,7 @@ from fastfusion.frontend.mapping import (
 from fastfusion.frontend.workload.workload import TensorName, Workload
 
 from fastfusion.model.looptree.mapping_utilities import get_paths
-from fastfusion.model.looptree.reuse import ComponentName
+from fastfusion.model.looptree.types import ComponentName
 from fastfusion.model.looptree.reuse.isl.isl_functions import (
     dim_projector_mask,
     insert_equal_dims_map,

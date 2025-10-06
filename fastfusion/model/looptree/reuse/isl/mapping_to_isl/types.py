@@ -15,7 +15,7 @@ import islpy as isl
 
 from fastfusion.frontend.mapping import Compute, MappingNode
 from fastfusion.frontend.workload.workload import TensorName
-from fastfusion.model.looptree.reuse import Buffet
+from fastfusion.model.looptree.types import Buffet
 
 
 # Mapper intermediates.

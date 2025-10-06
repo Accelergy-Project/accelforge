@@ -43,7 +43,7 @@ from fastfusion.frontend.workload._isl import get_projection_map
 from fastfusion.frontend.workload.workload import TensorName
 
 from fastfusion.model.looptree.mapping_utilities import get_paths
-from fastfusion.model.looptree.reuse import Buffet
+from fastfusion.model.looptree.types import Buffet
 from fastfusion.model.looptree.reuse.isl.isl_functions import project_dim_in_after
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.skews_from_mapping import (
     skews_from_mapping,
