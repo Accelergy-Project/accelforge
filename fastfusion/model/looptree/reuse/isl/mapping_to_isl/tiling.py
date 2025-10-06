@@ -26,6 +26,7 @@ from fastfusion.frontend.mapping import (
     Spatial,
     Temporal,
     Split,
+    TilePattern,
 )
 from fastfusion.frontend.workload.workload import (
     # Workload class for all of FastFusion.
@@ -154,96 +155,9 @@ def get_head_among_einsums(
 
 
 def add_new_tile_dim(
-    old_tiling: Tiling, dim_idx: int, tile_size: int, rank_var: Optional[str] = None
-) -> Tiling:
-    """
-    Given a tiling, add a new dimension to the tiling.
-
-    Parameters
-    ----------
-    old_tiling:
-        The previous tiling the mapper proposed.
-    dim_idx:
-        The index of the dimension being tiled.
-    tile_size:
-        The size of the tiling on `dim_idx`.
-    rank_var:
-        The name of the new `dim_idx`.
-
-    Returns
-    -------
-    The new :class:`~.Tiling` with tiled dimension at `dim_idx`.
-    """
-
-    # new_tiling has one extra dimension at the end compared to old_tiling.
-    new_tiling = old_tiling.insert_dims(
-        isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), 1
-    )
-    if rank_var:
-        new_tiling = new_tiling.set_dim_name(
-            isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), rank_var
-        )
-
-    # Min and max of dim_idx. dimension being tiled as function of tiled dimensions.
-    dim_min: isl.PwAff = new_tiling.dim_min(dim_idx)
-    dim_max: isl.PwAff = new_tiling.dim_max(dim_idx)
-
-    # Aff from tiled dimensions space to value of newest dim.
-    new_dim_id: isl.Aff = isl.Aff.var_on_domain(
-        dim_min.get_domain_space().to_local_space(),
-        isl.dim_type.set,
-        dim_min.dim(isl.dim_type.in_) - 1,
-    )
-
-    # Aff from tiled dimensions space to tile tile size constant.
-    tile_size_aff: isl.Aff = isl.Aff.val_on_domain_space(
-        dim_min.get_domain_space(), isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_size)
-    )
-
-    # PwAff from tiled dimension space to tile_size * newest_dim.
-    tile_translate: isl.PwAff = isl.PwAff.from_aff(new_dim_id.mul(tile_size_aff))
-
-    # What dim_min should be given new tiling.
-    new_dim_min: isl.PwAff = dim_min.add(tile_translate)
-
-    # What dim_max should be given new tiling.
-    new_dim_max: isl.PwAff = new_dim_min.add(
-        isl.PwAff.from_aff(tile_size_aff.add_constant_val(-1))
-    )
-
-    # TODO: Might be logically equivalent to new_dim_id:
-    # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/tiling.cpp#L52-L59
-    new_iter_id: isl.PwAff = isl.PwAff.from_aff(
-        isl.Aff.var_on_domain(
-            new_tiling.get_space().domain(),
-            isl.dim_type.set,
-            old_tiling.dim(isl.dim_type.in_),
-        )
-    )
-
-    # The set of valid values of the new tiled dimensions.
-    iter_set: isl.Set = new_tiling.domain()
-    iter_set = iter_set.intersect(new_iter_id.le_set(dim_max.div(tile_size_aff).ceil()))
-    iter_set = iter_set.intersect(new_dim_min.ge_set(dim_min))
-
-    # The value of iter dims cannot exceed what was available before tiling.
-    new_tiling = new_tiling.intersect_domain(iter_set)
-
-    # The set of operations need to to follow the new tile bounds.
-    identity: isl.PwAff = isl.PwAff.from_aff(
-        isl.Aff.var_on_domain(new_tiling.get_space().range(), isl.dim_type.set, dim_idx)
-    )
-    new_tiling = new_tiling.intersect(new_dim_min.le_map(identity))
-    new_tiling = new_tiling.intersect(new_dim_max.ge_map(identity))
-
-    return new_tiling
-
-
-def add_new_tile_dim_strided(
     old_tiling: Tiling,
     dim_idx: int,
-    tile_size: int,
-    tile_stride: int,
+    tile_pattern: TilePattern,
     rank_var: Optional[str] = None,
 ) -> Tiling:
     """
@@ -255,10 +169,8 @@ def add_new_tile_dim_strided(
         The previous tiling the mapper proposed.
     dim_idx:
         The index of the dimension being tiled.
-    tile_size:
-        The size of the tiling on `dim_idx`.
-    tile_stride:
-        The stride on the `dim_idx`.
+    tile_pattern:
+        The pattenr of the tiling.
     rank_var:
         The name of the new `dim_idx`.
 
@@ -267,10 +179,17 @@ def add_new_tile_dim_strided(
     `Tiling`: The new Tiling with tiled dimension at `dim_idx`.
     """
     # Checks that the input values are as expected before proceeding.
-    if not (isinstance(tile_size, int) and tile_size > 0):
-        raise ValueError(f"`tile_size` {tile_size} must be a positive integer.")
-    if not (isinstance(tile_stride, int) and tile_stride > 0):
-        raise ValueError(f"`tile_stride` {tile_stride} must be a positive integer.")
+    if not (
+        isinstance(tile_pattern.initial_tile_shape, int)
+        and tile_pattern.initial_tile_shape > 0
+    ):
+        raise ValueError(
+            f"Tile size {tile_pattern.initial_tile_shape} must be a positive integer."
+        )
+    if not (isinstance(tile_pattern.stride, int) and tile_pattern.stride > 0):
+        raise ValueError(
+            f"Tile stride {tile_pattern.stride} must be a positive integer."
+        )
 
     # `new_tiling` has one extra dimension at the end compared to old_tiling.
     new_tiling = old_tiling.insert_dims(
@@ -291,11 +210,11 @@ def add_new_tile_dim_strided(
         isl.dim_type.set,
         dim_min.dim(isl.dim_type.in_) - 1,
     )
-    print(new_iter_id)
 
     # Aff from tiled dimensions space to tile `tile_size` and `stride` constant.
     tile_stride_aff: isl.Aff = isl.Aff.val_on_domain_space(
-        dim_min.get_domain_space(), isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_stride)
+        dim_min.get_domain_space(),
+        isl.Val.int_from_ui(isl.DEFAULT_CONTEXT, tile_pattern.stride),
     )
 
     # PwAff from tiled dimension space to tile_size * newest_dim.
@@ -312,7 +231,9 @@ def add_new_tile_dim_strided(
 
     # The set of valid values of the new tiled dimensions.
     iter_set: isl.Set = new_tiling.domain()
-    iter_set = iter_set.intersect(new_iter_id.le_set(dim_max.div(tile_stride_aff).ceil()))
+    iter_set = iter_set.intersect(
+        new_iter_id.le_set(dim_max.div(tile_stride_aff).ceil())
+    )
     iter_set = iter_set.intersect(new_dim_min.ge_set(dim_min))
 
     # The value of iter dims cannot exceed what was available before tiling.
@@ -625,33 +546,12 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     )
 
                     # Adds a new tile_dim to the old tiling.
-                    # TODO: Handle stride.
-                    if isinstance(
-                        tile_shape := current_node.tile_pattern.initial_tile_shape, int
-                    ) and (tile_shape != 0):
-
-                        if tile_shape == current_node.tile_pattern.stride:
-                            # Adds the new dimension to tile along for this dimension.
-                            tiling: Tiling = add_new_tile_dim(
-                                tiling,
-                                idx,
-                                tile_shape,
-                                _get_rank_var_partition(current_node.rank_variable),
-                            )
-                        else:
-                            tiling: Tiling = add_new_tile_dim_strided(
-                                tiling,
-                                idx,
-                                ceil(tile_shape / tile_shape),
-                                current_node.tile_pattern.stride,
-                                _get_rank_var_partition(current_node.rank_variable),
-                            )
-
-                    else:
-                        raise NotImplementedError(
-                            f"Tile size analysis not implemented for type {type(fusing_node)} "
-                            f"with tile shape {current_node.tile_pattern.initial_tile_shape}"
-                        )
+                    tiling: Tiling = add_new_tile_dim(
+                        tiling,
+                        idx,
+                        current_node.tile_pattern,
+                        _get_rank_var_partition(current_node.rank_variable),
+                    )
 
                     # Saves the fused tiling.
                     tiling_info[fusing_node][head] = tiling
