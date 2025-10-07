@@ -240,21 +240,6 @@ def generate_pmappings_old(
     return einsum_name, sims, pmapping_objects, jobs_with_similar_compatibilities
 
 
-def get_n_permutations(job: Job) -> int:
-    n_loops: list[int] = []
-    cur_n_loops = 0
-    for node in job.mapping.nodes:
-        if isinstance(node, Iteration):
-            cur_n_loops += 1
-        elif isinstance(node, TensorHolder):
-            if cur_n_loops > 1:
-                n_loops.append(cur_n_loops)
-            cur_n_loops = 0
-    if cur_n_loops > 1:
-        n_loops.append(cur_n_loops)
-    return math.prod(math.factorial(n) for n in n_loops)
-
-
 def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
     cols = []
     for loop in [l for l in mapping.nodes if isinstance(l, Iteration) and l._fused]:
@@ -300,6 +285,75 @@ def get_fused_loop_indices(
         return r2
 
 
+def scale_n_pmappings_by_permutations(job: Job, n_pmappings: int) -> int:
+    return n_pmappings
+    from fastfusion.frontend.mapping import Reservation
+    # This changes the pmapping count to include permutations
+    n_loops = []
+    cur_n_loops = 0
+    for node in job.mapping.nodes:
+        if isinstance(node, Iteration):
+            cur_n_loops += 1
+        elif isinstance(node, Reservation):
+            if cur_n_loops >= 1:
+                n_loops.append(cur_n_loops)
+            cur_n_loops = 0
+    if cur_n_loops != 0:
+        n_loops.append(cur_n_loops)
+
+    rv = {k: v for k, v in job.rank_variable_bounds.items() if v != 1}
+
+
+    # Count dataplacement choices
+    # return 1
+
+    # Count dataplacement choices * permutations, assuming that the permutation engine
+    # knows about irrelevant/relevant rank variables.
+    #
+    # return math.prod(math.factorial(n) for n in n_loops)
+
+    # Count dataplacement choices * permutations, assuming that the permutation engine
+    # does not know about irrelevant/relevant rank variables.
+    #
+    # return math.prod(math.factorial(n) for n in n_loops)
+
+    # Count dataplacement choices * permutations, assuming that
+    # the permutation engine knows about irrelevant/relevant rank variables.
+    n_pmappings = math.factorial(len(rv)) ** len(n_loops)
+    return math.factorial(len(rv)) ** len(n_loops)
+
+    # Count dataplacement choices * index factorization choices, assuming that the permutation engine does not
+    # know about irrelevant/relevant rank variables.
+
+    from functools import lru_cache
+    from math import comb
+    from collections import Counter
+    def prime_factorization(M):
+        f = []
+        i = 2
+        while M > 1:
+            if M % i == 0:
+                f.append(i)
+                M //= i
+            else:
+                i += 1
+        return f
+
+    def count_factorizations(M, N):
+        f = prime_factorization(M)
+        factors = {f2: f.count(f2) for f2 in set(f)}
+        total = 1
+        for exp in factors.values():
+            total *= comb(exp + N - 1, N - 1) # n choose k
+        return total
+
+    if len(n_loops) > 1:
+        for b in rv.values():
+            n_pmappings *= count_factorizations(b, len(n_loops) - 1)
+
+    return n_pmappings
+
+
 def generate_pmappings_new(
     jobs_with_similar_compatibilities: SameCompatibilityJobs,
 ) -> tuple[EinsumName, list[SIM], dict[UUID, Mapping], SameCompatibilityJobs]:
@@ -334,7 +388,7 @@ def generate_pmappings_new(
         # This changes the pmapping count to include superfluous permutations
         # TODO: Add a multiplier for the permutations that we include in the fusion
         # piece, which are NOT known to be superfluous
-        # job.total_pmappings *= get_n_permutations(job)
+        job.total_pmappings = scale_n_pmappings_by_permutations(job, job.total_pmappings)
 
         result[MAPPING_COLUMN] = job.job_id
         cols_to_drop = []
@@ -392,6 +446,7 @@ def generate_pmappings_new(
             # TODO: Add a multiplier for the permutations that we include in the fusion
             # piece, which are NOT known to be superfluous
             # job.total_pmappings *= get_n_permutations(job)
+            job.total_pmappings = scale_n_pmappings_by_permutations(job, job.total_pmappings)
 
             result[MAPPING_COLUMN] = job.job_id
             cols_to_drop = []
