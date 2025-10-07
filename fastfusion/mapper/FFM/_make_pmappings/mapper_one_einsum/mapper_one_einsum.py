@@ -222,7 +222,7 @@ def generate_pmappings_old(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
             n_pmappings=pmappings_per_group,
-            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index or not tile_shape_exploration.PARETO_PRUNE_DURING_PMAPPING_GENERATION,
+            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
         )
         reservation_levels = partial_mappings.all_reservation_levels()
@@ -383,10 +383,7 @@ def generate_pmappings_new(
 
     # Pareto prune
     try:
-        if tile_shape_exploration.PARETO_PRUNE_DURING_PMAPPING_GENERATION:
-            df = makepareto(df, split_by_cols=fused_loop_cols)
-        else:
-            df = df.copy()
+        df = makepareto(df, split_by_cols=fused_loop_cols)
     except:
         for job in prev_jobs:
             result = explore_tile_shapes(job)
@@ -477,7 +474,7 @@ def generate_pmappings_new(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
             n_pmappings=pmappings_per_group,
-            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index or not tile_shape_exploration.PARETO_PRUNE_DURING_PMAPPING_GENERATION,
+            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
         )
         sim = SIM(compatibility, partial_mappings)

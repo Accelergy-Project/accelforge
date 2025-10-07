@@ -228,7 +228,6 @@ class Job:
     total_pmappings: int = 1
     valid_pmappings: int = 1
     evaluated_pmappings: int = 0
-    _evaluated_pmappings_for_simanneal_baseline_compare: int = 0
 
     _update_compatibility_with_tile_shapes_args: dict[str, Any] | None = None
 

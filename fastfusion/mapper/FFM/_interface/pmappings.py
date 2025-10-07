@@ -136,14 +136,3 @@ class MultiEinsumPmappings:
         if per_einsum:
             return result
         return sum(result.values())
-
-    def _evaluated_pmappings_for_simanneal_baseline_compare(
-        self, per_einsum: bool = False
-    ) -> int | dict[EinsumName, int]:
-        result = {
-            einsum_name: sum(job._evaluated_pmappings_for_simanneal_baseline_compare for job in jobs)
-            for einsum_name, jobs in self.mapper_jobs.items()
-        }
-        if per_einsum:
-            return result
-        return sum(result.values())

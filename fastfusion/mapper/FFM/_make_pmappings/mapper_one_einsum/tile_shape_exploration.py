@@ -33,10 +33,6 @@ from enum import Enum
 from numbers import Number
 
 
-PARETO_PRUNE_DURING_PMAPPING_GENERATION = True
-PARETO_PRUNE_FORCE_THRESHOLD = 1e5
-
-
 def run_model(
     job: Job,
 ) -> tuple[list[Symbol], dict[str, float], dict[str, float], dict[str, float]]:
@@ -873,51 +869,14 @@ def get_tile_shape_choices(
             for symbol, goal in goals.items():
                 update_symbol2goal(symbol, goal)
 
+        job.evaluated_pmappings += choices_enumerated.shape[0]
+        if not choices_enumerated.shape[0]:
+            return np.array([]).reshape(-1, len(symbols))
+
         # ==============================================================================
         # Coalesce symbols. This simplifies our tracked goals. It also breaks down
         # partially-unknown goals into fully-known and/or fully-unknown goals.
         # ==============================================================================
-        n = 1
-        for s in symbols_remaining:
-            # Grab the outermost loops for each rank variable
-            tiles = get_tiles(s, what_tiles_symbol, none_if_fail=True)
-            tiled_by = get_tiled_by(s, what_tiles_symbol, none_if_fail=True)
-
-            # Only look at the outermost loop for each rank variable.
-            if not isinstance(tiles, int):
-                continue
-
-            for _, c in max_fused_loop_check_groups:
-                if s in c:
-                    break
-            else:
-                continue
-            
-            # Scale by the number of fused loops we have to enumerate divided by the
-            # ones already enumerated. Assuming one fused loop per rank variable, number
-            # of choices should increase linearly by the number of fused loops we have
-            # for this rank variable. This is because if we've already enumerated one
-            # of the fused loops, enumerating a second one will approximately double the
-            # number of pmappings instead of multiplying by all the possible values.
-            # This is because instead of (all A) x (all B) we'll get (all A) x (null B)
-            # + (null A) x (all B).
-            if set(c) & set(symbols_enumerated):
-                s = 1 + len(set(c) & set(symbols_remaining)) / len(set(c) & set(symbols_enumerated))
-            
-            # If we haven't enumerated any fused loops for this rank variable, then we
-            # can multiply by all the possible values. Otherwise we've already multiplied
-            # by all possible values for the fused loop.
-            else:
-                s = len(get_possible_factor_sizes(tiles, imperfect))
-
-            n *= s
-
-        job.evaluated_pmappings += choices_enumerated.shape[0]
-        job._evaluated_pmappings_for_simanneal_baseline_compare += choices_enumerated.shape[0] * n
-
-        if not choices_enumerated.shape[0]:
-            return np.array([]).reshape(-1, len(symbols))
-
         symbol2goal = coalesce_symbols(
             symbols=symbols,
             symbols_enumerated=symbols_enumerated,
@@ -927,9 +886,6 @@ def get_tile_shape_choices(
         )
 
         log_message("coalesce symbols", f"{symbol2goal}")
-
-        if not PARETO_PRUNE_DURING_PMAPPING_GENERATION and choices_enumerated.shape[0] < PARETO_PRUNE_FORCE_THRESHOLD:
-            continue
 
         paretoed_by_key = fzs((f, g.goal) for f, g in symbol2goal.items())
         if any(p.issubset(paretoed_by_key) for p in paretoed_by):
@@ -969,15 +925,8 @@ def get_tile_shape_choices(
                 :, [i for i in range(to_pareto.shape[1]) if i not in drop_cols]
             ]
             keep = paretoset.paretoset(to_pareto, pareto_goals)
-            if not PARETO_PRUNE_DURING_PMAPPING_GENERATION:
-                while sum(keep) < PARETO_PRUNE_FORCE_THRESHOLD:
-                    diff = math.ceil(PARETO_PRUNE_FORCE_THRESHOLD - sum(keep))
-                    keep2 = np.zeros(len(keep), dtype=bool)
-                    keep2[np.random.choice(len(keep), size=min(diff, len(keep)), replace=False)] = True
-                    keep |= keep2
             prev_size = choices_enumerated.shape[0]
             choices_enumerated = choices_enumerated[keep]
-            paretoed_by.append(paretoed_by_key)
             job.log_porp_pmappings_kept(
                 f"Pareto", sum(keep) / choices_enumerated.shape[0]
             )
