@@ -296,7 +296,7 @@ class Parsable(ABC, Generic[M]):
                 elif isinstance(getattr(self, field), type):
                     yield getattr(self, field)
 
-    def _parse_expressions(
+    def _parse_expressions_final(
         self,
         symbol_table: dict[str, Any],
         order: tuple[str, ...],
@@ -603,7 +603,8 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"], FromYA
     ) -> tuple[Self, dict[str, Any]]:
         new = self.model_copy()
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
-        return new._parse_expressions(
+        kwargs = dict(kwargs)
+        return new._parse_expressions_final(
             symbol_table, order, post_calls, use_setattr=True, **kwargs
         )
 
@@ -656,7 +657,7 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
         new = ParsableList[T](x for x in self)
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
         order = order + tuple(x for x in range(len(new)) if x not in order)
-        return new._parse_expressions(
+        return new._parse_expressions_final(
             symbol_table, order, post_calls, use_setattr=False, **kwargs
         )
 
@@ -736,7 +737,7 @@ class ParsableDict(
     ) -> tuple["ParsableDict[K, V]", dict[str, Any]]:
         new = ParsableDict[K, V](self)
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
-        return new._parse_expressions(
+        return new._parse_expressions_final(
             symbol_table, order, post_calls, use_setattr=False, **kwargs
         )
 

@@ -228,9 +228,11 @@ COMPUTE_ACTIONS = ParsableList(
 def _parse_tensor2bits(
     to_parse: dict[str, Any], location: str, symbol_table: dict[str, Any]
 ) -> dict[str, Any]:
-    result = {} for key, value in to_parse.items():
+    result = {} 
+    for key, value in to_parse.items():
         if isinstance(value, Number):
-            result[key] = value continue
+            result[key] = value 
+            continue
         result[key] = parse_expression(
             expression=value, symbol_table=symbol_table, attr_name=key,
             location=location,
@@ -342,9 +344,14 @@ class ComputeAttributes(ComponentAttributes):
 
 
 class Compute(Component):
-    actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS attributes:
-    ComputeAttributes = pydantic.Field(default_factory=ComputeAttributes) constraints:
-    MiscOnlyConstraints = MiscOnlyConstraints()
+    actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS 
+    """ The actions that this `Compute` can perform. """
+    
+    attributes: ComputeAttributes = pydantic.Field(default_factory=ComputeAttributes)
+    """ The attributes of this `Compute`. """
+    
+    constraints: MiscOnlyConstraints = MiscOnlyConstraints()
+    """ Mapping constraints applied to this `Compute`. """
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
@@ -372,20 +379,28 @@ class Parallel(Branch):
         nodes = []
 
         def _parse_node(node: Leaf, fanout: int):
-            fanout *= node.get_fanout() node2 = node.model_copy() node2.attributes =
-            type(node.attributes)(
+            fanout *= node.get_fanout() 
+            node2 = node.model_copy() 
+            node2.attributes = type(node.attributes)(
                 **{**attributes.model_dump(), **node.attributes.model_dump()}
-            ) node2.attributes.n_instances *= fanout nodes.append(node2) return fanout
+            ) 
+            node2.attributes.n_instances *= fanout 
+            nodes.append(node2) 
+            return fanout
 
         for node in self.nodes:
             if isinstance(node, Compute) and node.name == compute_node:
-                fanout = _parse_node(node, fanout) break
+                fanout = _parse_node(node, fanout)
+                break
             if isinstance(node, Branch):
-                computes = node.get_instances_of_type(Compute) if compute_node in
-                [c.name for c in computes]:
+                computes = node.get_instances_of_type(Compute) 
+                if compute_node in [c.name for c in computes]:
                     new_nodes, new_fanout = node._flatten(
                         attributes, compute_node, fanout, return_fanout=True
-                    ) nodes.extend(new_nodes) fanout *= new_fanout break
+                    ) 
+                    nodes.extend(new_nodes) 
+                    fanout *= new_fanout 
+                    break
         else:
             raise ParseError(f"Compute node {compute_node} not found in parallel node")
 
@@ -400,29 +415,37 @@ class Hierarchical(Branch):
         nodes = []
 
         def _parse_node(node: Leaf, fanout: int):
-            fanout *= node.get_fanout() node2 = node.model_copy() node2.attributes =
-            type(node.attributes)(
+            fanout *= node.get_fanout() 
+            node2 = node.model_copy() 
+            node2.attributes = type(node.attributes)(
                 **{**attributes.model_dump(), **node.attributes.model_dump()}
-            ) node2.attributes.n_instances *= fanout nodes.append(node2) return fanout
+            ) 
+            node2.attributes.n_instances *= fanout 
+            nodes.append(node2) 
+            return fanout
 
         for i, node in enumerate(self.nodes):
             try:
                 if isinstance(node, (Hierarchical, Parallel)):
                     if isinstance(node, Parallel) and i < len(self.nodes) - 1:
                         raise ParseError(
-                            f"Parallel node {node.name} must be the last node in a
-                            hierarchical node"
+                            f"Parallel node {node.name} must be the last node in a "
+                            "hierarchical node"
                         )
                     new_nodes, new_fanout = node._flatten(
                         attributes, compute_node, fanout, return_fanout=True
-                    ) nodes.extend(new_nodes) fanout *= new_fanout if any(
-                        isinstance(n, Compute) and n.name == compute_node for n in
-                        new_nodes
+                    ) 
+                    nodes.extend(new_nodes) 
+                    fanout *= new_fanout 
+                    if any(
+                        isinstance(n, Compute) and n.name == compute_node
+                        for n in new_nodes
                     ):
                         break
                 elif isinstance(node, Compute):
                     if node.name == compute_node:
-                        fanout = _parse_node(node, fanout) break
+                        fanout = _parse_node(node, fanout) 
+                        break
                 elif isinstance(node, Leaf) and not isinstance(node, Container):
                     fanout = _parse_node(node, fanout)
                 elif isinstance(node, Container):
@@ -430,7 +453,8 @@ class Hierarchical(Branch):
                 else:
                     raise TypeError(f"Can't flatten {node}")
             except ParseError as e:
-                e.add_field(node) raise e
+                e.add_field(node) 
+                raise e
 
         if return_fanout:
             return nodes, fanout
@@ -438,18 +462,27 @@ class Hierarchical(Branch):
 
 
 class Arch(Hierarchical):
-    version: Annotated[str, assert_version] = __version__ global_cycle_period:
-    ParsesTo[Union[int, float]] = (
+    version: Annotated[str, assert_version] = __version__
+    """ The version of the architecture specification. """
+
+    global_cycle_period: ParsesTo[Union[int, float]] = (
         '"Set me with Specification().arch.global_cycle_period = [value]"'
     )
+    """ 
+    The global clock frequency of the system. All cycle counts are multiplied by this
+    value to get the actual time.
+    """
 
     def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
-        # Parse global_cycle_period global_cycle_period = parse_expression(
+        # Parse global_cycle_period 
+        global_cycle_period = parse_expression(
             expression=self.global_cycle_period, symbol_table=symbol_table,
             attr_name="global_cycle_period", location="global_cycle_period",
-        ) symbol_table["global_cycle_period"] = global_cycle_period new, symbol_table =
-        super()._parse_expressions(symbol_table, *args, **kwargs)
-        new.global_cycle_period = global_cycle_period return new, symbol_table
+        ) 
+        symbol_table["global_cycle_period"] = global_cycle_period 
+        new, symbol_table = super()._parse_expressions(symbol_table, *args, **kwargs)
+        new.global_cycle_period = global_cycle_period 
+        return new, symbol_table
 
 
 # We had to reference Hierarchical before it was defined Branch.model_rebuild()
