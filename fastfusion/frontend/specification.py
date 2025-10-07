@@ -58,7 +58,7 @@ class Specification(ParsableModel):
     mapper: Mapper = Mapper()
     """ Configures the mapper used to map the workload onto the architecture. """
 
-    def parse_expressions(
+    def _parse_expressions(
         self,
         symbol_table: Optional[Dict[str, Any]] = None,
         **kwargs,
@@ -69,7 +69,7 @@ class Specification(ParsableModel):
         :param symbol_table: Optional pre-populated symbols to seed parsing; a
             shallow copy is made and augmented with ``spec`` and ``variables``.
         :param kwargs: Additional keyword arguments forwarded to the base
-            ``ParsableModel.parse_expressions``.
+            ``ParsableModel._parse_expressions``.
         :returns: A tuple of ``(parsed_specification, final_symbol_table)``.
         :raises ParseError: If any field fails to parse; the error is annotated
             with the field path.
@@ -78,7 +78,7 @@ class Specification(ParsableModel):
         symbol_table["spec"] = self
         with ParseExpressionsContext(self):
             try:
-                parsed_variables, _ = self.variables.parse_expressions(
+                parsed_variables, _ = self.variables._parse_expressions(
                     symbol_table, **kwargs
                 )
             except ParseError as e:
@@ -86,7 +86,7 @@ class Specification(ParsableModel):
                 raise e
             symbol_table.update(parsed_variables)
             symbol_table["variables"] = parsed_variables
-            return super().parse_expressions(symbol_table, **kwargs)
+            return super()._parse_expressions(symbol_table, **kwargs)
 
     def calculate_component_energy_area(
         self, energy: bool = True, area: bool = True
@@ -113,7 +113,7 @@ class Specification(ParsableModel):
 
         components = set()
         if not getattr(self, "_parsed", False):
-            self, _ = self.parse_expressions()
+            self, _ = self._parse_expressions()
         for arch in self.get_flattened_architecture():
             for component in arch:
                 if component.name in components:

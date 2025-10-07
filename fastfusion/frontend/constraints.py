@@ -164,16 +164,6 @@ class Spatial(Iteration):
     min_utilization: Union[float, str] = 0.0
     reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
 
-    def combine(self, other: "Spatial"):
-        if self.reuse != other.reuse:
-            raise ValueError(
-                f"Cannot combine iterations with different reuse constraints. Got {self.reuse} and {other.reuse}."
-            )
-        return type(self)(
-            loop_bounds=self.loop_bounds + other.loop_bounds,
-            reuse=self.reuse,
-        )
-
     @property
     def name(self):
         return self.name
@@ -198,17 +188,6 @@ class Temporal(Iteration):
             self.rmw_first_update, symbol_table, "tensors", location
         )
         return new_temporal
-
-    def combine(self, other: "Temporal"):
-        if self.rmw_first_update != other.rmw_first_update:
-            raise ValueError(
-                f"Cannot combine iterations with different rmw_first_update constraints. Got {self.rmw_first_update} and {other.rmw_first_update}."
-            )
-        return type(self)(
-            loop_bounds=self.loop_bounds + other.loop_bounds,
-            rmw_first_update=self.rmw_first_update + other.rmw_first_update,
-            reuse=self.reuse,
-        )
 
 
 class Dataflow(ParsableModel):

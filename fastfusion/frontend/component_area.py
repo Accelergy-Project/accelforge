@@ -59,7 +59,7 @@ class AreaEntry(ParsableModel):
 
             if definition is not None:
                 for component in definition.subcomponents:
-                    component_attributes = component.attributes.parse_expressions(
+                    component_attributes = component.attributes._parse_expressions(
                         attributes.model_dump()
                     )[0]
                     entries.extend(

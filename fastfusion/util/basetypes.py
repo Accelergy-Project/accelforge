@@ -255,7 +255,7 @@ class PostCall(Generic[T]):
 
 
 class Parsable(ABC, Generic[M]):
-    def parse_expressions(
+    def _parse_expressions(
         self, symbol_table: dict[str, Any] = None, **kwargs
     ) -> tuple[M, dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement this method")
@@ -501,7 +501,7 @@ def parse_field(field, value, validator, symbol_table, parent, **kwargs):
                 )
             return parsed
         elif isinstance(value, Parsable):
-            parsed, _ = value.parse_expressions(symbol_table, **kwargs)
+            parsed, _ = value._parse_expressions(symbol_table, **kwargs)
             return parsed
         elif isinstance(value, str):
             return RawString(value)
@@ -594,7 +594,7 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"], FromYA
             fields.update(self.__pydantic_extra__.keys())
         return sorted(fields)
 
-    def parse_expressions(
+    def _parse_expressions(
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
@@ -646,7 +646,7 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
     def get_validator(self, field: str) -> Type:
         return T
 
-    def parse_expressions(
+    def _parse_expressions(
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
@@ -727,7 +727,7 @@ class ParsableDict(
     def get_fields(self) -> list[str]:
         return sorted(self.keys())
 
-    def parse_expressions(
+    def _parse_expressions(
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
