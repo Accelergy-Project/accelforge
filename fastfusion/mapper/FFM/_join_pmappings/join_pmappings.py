@@ -273,7 +273,7 @@ def join_sims(
         n_mappings["Post Intra-Layer"] += sum(
             len(s.mappings.data) for s in sim_holder.sims
         )
-        sim_holder.sims = SIM.group(sim_holder.sims, left_tensors, drop_tags=True)
+        sim_holder.sims = SIM.group(sim_holder.sims, left_tensors)
         einsum, prev_einsum = sim_holder.einsum_name, simgroups[i - 1].einsum_name
         runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
         t0 = time.time()
@@ -323,7 +323,7 @@ def join_sims(
 
         # print_time(f"Combining")
         # Group left and right into buckets
-        left = SIM.group(left, right_tensors, drop_tags=True)
+        left = SIM.group(left, right_tensors)
         # print_time("Grouping")
 
         # ======================================================================
@@ -439,7 +439,7 @@ def join_sims(
                 if not next_right_tensors & cur_tensors:
                     continue
                 prev_combined = combined
-                combined = SIM.group(combined, next_right_tensors, drop_tags=True)
+                combined = SIM.group(combined, next_right_tensors)
                 next_keys = {
                     c.clear_dead_tensors(
                         cur_tensors
@@ -458,7 +458,7 @@ def join_sims(
                                 )
                         del combined[k]
                 if not combined:
-                    SIM.group(prev_combined, next_right_tensors, drop_tags=True)
+                    SIM.group(prev_combined, next_right_tensors)
                     raise_no_match_error()
 
                 combined = list(itertools.chain.from_iterable(combined.values()))
@@ -539,7 +539,7 @@ def join_sims(
     # ======================================================================
     t0 = time.time()
     left = SIM.left_consolidate(left, None, pbar="Final consolidate")
-    s_final = SIM.combine_combineable(left, set(), drop_tags=True)
+    s_final = SIM.combine_combineable(left, set())
     assert len(s_final) == 1
     mappings = s_final[0].mappings
 

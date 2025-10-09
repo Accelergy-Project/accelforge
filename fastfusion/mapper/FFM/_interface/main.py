@@ -62,7 +62,7 @@ def _make_pmappings(
         for l in flattened_arch:
             if isinstance(l, arch.Memory):
                 resource2capacity[l.name] = l.attributes.size
-                
+
     m = MultiEinsumPmappings(
         sims,
         pmapping_objects,

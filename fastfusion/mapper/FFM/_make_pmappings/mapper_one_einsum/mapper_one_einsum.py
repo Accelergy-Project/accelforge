@@ -39,7 +39,6 @@ from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import (
     SameCompatibilityJobs,
 )
 from fastfusion.mapper.FFM._pmapping_group.df_convention import is_fused_loop_col, is_n_iterations_col
-from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 
 
 def shift_reservations_by_null_loop_indices(

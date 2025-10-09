@@ -25,7 +25,6 @@ from fastfusion.mapper.FFM._join_pmappings.sim import SIM
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.tile_shape_exploration import (
     EXPERIMENTAL_TILE_SHAPE_EXPLORATION,
 )
-from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.util.util import parallel
 from fastfusion.util import util
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import (

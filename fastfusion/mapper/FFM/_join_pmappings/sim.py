@@ -188,7 +188,6 @@ class SIM:
     def _group(
         sims: list["SIM"],
         live_tensors: set[str] | Literal["All"],
-        drop_tags: bool = False,
         clear_tile_patterns_and_reservation_indices: bool = False,
         include_permutations: bool = False,
         clear_symbolic_tile_patterns: bool = False,
@@ -211,10 +210,7 @@ class SIM:
             return c
 
         for s in sims:
-            compatibility = s.compatibility.clear_dead_tensors(
-                live_tensors,
-                drop_tags=drop_tags,
-            )
+            compatibility = s.compatibility.clear_dead_tensors(live_tensors)
 
             if include_permutations or try_permute_into_equivalent:
                 keys = compatibility.make_equivalent_permutations()
@@ -258,7 +254,6 @@ class SIM:
         sims: list["SIM"],
         live_tensors: set[str] | Literal["All"],
         allow_different_compatibilies: bool = False,
-        drop_tags: bool = False,
         combine_reservations: bool = True,
         pbar_postfix: str = "",
     ) -> list["SIM"]:
@@ -272,7 +267,6 @@ class SIM:
             SIM._group(
                 sims,
                 live_tensors,
-                drop_tags=drop_tags,
                 clear_symbolic_tile_patterns=True,
                 try_permute_into_equivalent=True,
             ).values()
@@ -311,12 +305,11 @@ class SIM:
 
     @staticmethod
     def group(
-        sims: list["SIM"], live_tensors: set[str], drop_tags: bool = False
+        sims: list["SIM"], live_tensors: set[str]
     ) -> dict[tuple[Compatibility, ...], list[tuple["SIM", list[int]]]]:
         x = SIM._group(
             sims,
             live_tensors,
-            drop_tags=drop_tags,
             clear_tile_patterns_and_reservation_indices=True,
             include_permutations=True,
         )
@@ -328,10 +321,3 @@ class SIM:
             for t in list(s.tensors):
                 if t not in live_tensors:
                     del s.tensors[t]
-
-    def set_tags(self, *tags: Any) -> "SIM":
-        self.compatibility = self.compatibility.set_tags(*tags)
-
-    @property
-    def tags(self) -> fzs[Any]:
-        return self.compatibility.tags

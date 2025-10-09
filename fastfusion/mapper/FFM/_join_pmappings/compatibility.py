@@ -15,7 +15,6 @@ from fastfusion.frontend.mapping import (
     TilePattern,
 )
 from fastfusion.frontend.renames import RankName, RankVariableName, TensorName
-from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.mapper.FFM._pmapping_group.df_convention import make_fused_loop_col
 
 from fastfusion.util import expfmt, fzs
@@ -233,7 +232,6 @@ class Split:
 class Compatibility(Updatable):
     tensors: fzs[TensorReservation]
     splits: fzs[Split] = fzs()
-    tags: Tags = Tags(fzs())
     reservation_indices: fzs[int] = fzs()
     check_reservation_indices: bool = True
 
@@ -246,7 +244,7 @@ class Compatibility(Updatable):
         return max([t.loops for t in self.tensors], key=len) if self.tensors else ()
 
     def _get_hash_tuple(self):
-        return self.n_loops, self.tensors, self.tags, self.reservation_indices
+        return self.n_loops, self.tensors, self.reservation_indices
 
     def __hash__(self):
         return hash(self._get_hash_tuple())
@@ -258,7 +256,6 @@ class Compatibility(Updatable):
         assert isinstance(self.n_loops, int)
         assert isinstance(self.tensors, fzs)
         assert isinstance(self.splits, fzs)
-        assert isinstance(self.tags, Tags)
         assert isinstance(self.reservation_indices, fzs)
         assert (
             max(self.reservation_indices, default=-1) <= self.n_loops
@@ -313,14 +310,12 @@ class Compatibility(Updatable):
         return Compatibility(
             tensors=fzs(tensors),
             splits=self.splits,
-            tags=self.tags,
             reservation_indices=self.reservation_indices,
         ), renames
 
     def clear_dead_tensors(
         self,
         live_tensors: set[str] | Literal["All"],
-        drop_tags: bool = False,
     ) -> "Compatibility":
         """
         Return a new compatibility with "dead" tensors removed by:
@@ -343,11 +338,9 @@ class Compatibility(Updatable):
         )
         reservation_indices = fzs(x for x in reservation_indices if x >= 0)
 
-        tags = self.tags if not drop_tags else Tags(fzs())
         return self.update(
             tensors=remaining_tensors,
             splits=new_splits,
-            tags=tags,
             reservation_indices=reservation_indices,
         )
 
@@ -358,7 +351,7 @@ class Compatibility(Updatable):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}), splits={repr(self.splits)}, tags={repr(self.tags)}"
+        return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}), splits={repr(self.splits)}"
 
     def _and_tensors_with_names(self, names: set[str]) -> "Compatibility":
         return fzs(s for s in self.tensors if s.name in names)
@@ -383,10 +376,9 @@ class Compatibility(Updatable):
         tensors_a = self._and_tensors_with_names(live_tensors)
         tensors_b = right._and_tensors_with_names(live_minus_mine)
 
-        # TODO: tag and split handling?
+        # TODO: split handling?
         joined = Compatibility(
             tensors=tensors_a | tensors_b,
-            tags=right.tags,
             reservation_indices=self_freed.reservation_indices
             | right_freed.reservation_indices,
         )
@@ -461,9 +453,6 @@ class Compatibility(Updatable):
         for s in self.tensors:
             result[s.name] = self.clear_dead_tensors(set([s.name]))
         return result
-
-    def clear_tags(self) -> "Compatibility":
-        return self.update(tags=Tags(fzs()))
 
     def clear_loop_bounds(self) -> "Compatibility":
         return self.update(tensors=fzs(t.clear_loop_bounds() for t in self.tensors))
