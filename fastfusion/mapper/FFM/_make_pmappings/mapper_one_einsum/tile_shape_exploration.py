@@ -29,8 +29,9 @@ import math
 import sympy
 import numpy as np
 import paretoset
-from enum import Enum
 from numbers import Number
+
+from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.symbol_value_relations import SymbolValueRelations
 
 
 def run_model(
@@ -371,7 +372,7 @@ def get_padded_choices(
     symbols_enumerated: list[Symbol],
     symbols_non_enumerated_set: set[Symbol],
     choices_enumerated: np.ndarray,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
+    what_tiles_symbol: SymbolValueRelations,
     minimize_formula: Expr = None,
 ):
     choices_padded = {}
@@ -382,7 +383,7 @@ def get_padded_choices(
         choices_padded[symbol] = ones
         if minimize_formula is not None:
             if sympy.diff(minimize_formula, symbol) < 0:
-                choices_padded[symbol] = ones * get_max_size(symbol, what_tiles_symbol)
+                choices_padded[symbol] = ones * what_tiles_symbol.get_max_size(symbol)
             elif sympy.diff(minimize_formula, symbol) > 0:
                 pass
             elif sympy.diff(minimize_formula, symbol) == 0:
@@ -391,41 +392,6 @@ def get_padded_choices(
                 raise ValueError(f"Can't tell if {symbol} is increasing or decreasing")
 
     return choices_padded
-
-
-def get_tiled_by(
-    symbol: Symbol,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
-    none_if_fail: bool = False,
-):
-    for tiled_by, what_tiles in what_tiles_symbol:
-        if tiled_by == symbol:
-            return what_tiles
-    if none_if_fail:
-        return None
-    raise ValueError(f"Symbol {symbol} not found in what_tiles_symbol")
-
-
-def get_tiles(
-    symbol: Symbol,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
-    none_if_fail: bool = False,
-):
-    for tiled_by, what_tiles in what_tiles_symbol:
-        if what_tiles == symbol:
-            return tiled_by
-    if none_if_fail:
-        return None
-    raise ValueError(f"Symbol {symbol} not found in what_tiles_symbol")
-
-
-def get_max_size(
-    symbol: Symbol,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
-):
-    while not isinstance(symbol, Number):
-        symbol = get_tiles(symbol, what_tiles_symbol)
-    return symbol
 
 
 def check_max_fused_loops_per_rank(
@@ -438,19 +404,19 @@ def check_max_fused_loops_per_rank(
         if isinstance(x, Symbol) and x in symbols_enumerated:
             return choices_enumerated[:, symbols_enumerated.index(x)]
         elif isinstance(x, Symbol):
-            return get_max_size(x, what_tiles_symbol)
+            return what_tiles_symbol.get_max_size(x)
         else:
             return x
     
     def has_fanout(x: Union[Symbol, int]):
-        outer = get_size(get_tiles(x, what_tiles_symbol))
+        outer = get_size(what_tiles_symbol.get_tiled_by(x))
         inner = get_size(x)
         return outer != inner
 
     def can_check(x: Union[Symbol, int]):
         if isinstance(x, Symbol) and x not in symbols_enumerated:
             return False
-        # tiles = get_tiles(x, what_tiles_symbol, none_if_fail=True)
+        # tiles = what_tiles_symbol.get_tiles(x, none_if_fail=True)
         # if tiles is not None and isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
         #     return False
         return True
@@ -621,7 +587,7 @@ def coalesce_symbols(
 def get_tile_shape_choices(
     objectives: list[Objective],
     symbols: list[Symbol],
-    what_tiles_symbol: list[tuple[Symbol, Symbol]],
+    what_tiles_symbol: SymbolValueRelations,
     job: "Job",
     keep_symbols: list[Symbol] = (),
     max_fused_loop_check_groups: list[tuple[Number, list[Symbol]]] = (),
@@ -680,8 +646,10 @@ def get_tile_shape_choices(
         )
 
     def grab_symbol(prev_symbol: Symbol = None):
+        # Continue with a symbol representing the parent tile of the last symbol
+        # if possible. Otherwise (see return), just grab any symbol.
         try:
-            choice = get_tiles(prev_symbol, what_tiles_symbol)
+            choice = what_tiles_symbol.get_tiles(prev_symbol)
             if choice in symbols_remaining:
                 symbols_remaining.remove(choice)
                 return choice
@@ -700,8 +668,8 @@ def get_tile_shape_choices(
         symbol = grab_symbol(symbol)
 
         choices = []
-        tiled_by = get_tiled_by(symbol, what_tiles_symbol, none_if_fail=True)
-        tiles = get_tiles(symbol, what_tiles_symbol, none_if_fail=True)
+        tiled_by = what_tiles_symbol.get_tiled_by(symbol, none_if_fail=True)
+        tiles = what_tiles_symbol.get_tiles(symbol, none_if_fail=True)
         check_tiled_by = tiled_by in symbols_enumerated or isinstance(tiled_by, int)
         check_tiles = tiles in symbols_enumerated or isinstance(tiles, int)
         
@@ -711,7 +679,7 @@ def get_tile_shape_choices(
                 outer_size = tiles
                 check_tiles = False
             else:
-                outer_size = get_max_size(symbol, what_tiles_symbol)
+                outer_size = what_tiles_symbol.get_max_size(symbol)
         if check_tiles:
             if check_tiled_by and isinstance(tiled_by, int):
                 inner_size = tiles
@@ -751,7 +719,7 @@ def get_tile_shape_choices(
             try:
                 shapes = makeshapes(v)
             except TypeError:
-                print(f'{v}, {get_max_size(symbol, what_tiles_symbol)}')
+                print(f'{v}, {what_tiles_symbol.get_max_size(symbol)}')
                 raise
             # print(f'\tFor {s} with value {v}, the possible shapes are {shapes}')
             choices.append(append_vector(partition, shapes))
@@ -798,13 +766,13 @@ def get_tile_shape_choices(
         # choices possible), or diff if we're perfect (since perfect constrains choices
         # so we can't just min).
         for s in symbols_enumerated:
-            tiles = get_tiles(s, what_tiles_symbol, none_if_fail=True)
+            tiles = what_tiles_symbol.get_tiles(s, none_if_fail=True)
             if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
                 update_symbol2goal(s, Goal("min" if imperfect else "diff"))
 
         # Same for inner loops depending on us, but maximize if we're imperfect
         for s in symbols_enumerated:
-            tiled_by = get_tiled_by(s, what_tiles_symbol, none_if_fail=True)
+            tiled_by = what_tiles_symbol.get_tiled_by(s, none_if_fail=True)
             if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
                 update_symbol2goal(tiled_by, Goal("max" if imperfect else "diff"))
 
@@ -957,27 +925,6 @@ def makesymbol(name: str):
     return Symbol(name, positive=True, integer=True)
 
 
-def make_what_tiles_symbol(
-    pmapping: Mapping, shape: dict[str, int]
-) -> list[tuple[Union[Symbol, int], Union[Symbol, int]]]:
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]] = []
-    last_seen_loop_per_rank_var: dict[str, Union[Symbol, int]] = dict(shape)
-    for node in pmapping.nodes:
-        if not isinstance(node, Iteration):
-            continue
-        prev = last_seen_loop_per_rank_var.get(node.rank_variable, None)
-        # If we're a symbol and we've seen an outer loop with the same rank variable,
-        # then we tile that one.
-        if prev is not None:
-            what_tiles_symbol.append((prev, node.stride))
-        last_seen_loop_per_rank_var[node.rank_variable] = node.stride
-
-    for r, s in last_seen_loop_per_rank_var.items():
-        if isinstance(s, Symbol):
-            what_tiles_symbol.append((s, 1))
-    return what_tiles_symbol
-
-
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
     keep_symbols = set()
     for node in pmapping.nodes:
@@ -1019,7 +966,7 @@ def _explore_tile_shapes_new(job: "Job"):
     set_last_tile_shape_to_one(pmapping)
     symbols, symbolic_df, per_memory_usage_df, utilization_df = run_model(job)
     shape = get_rank_variable_bounds(job.spec.workload, pmapping.nodes[-1].einsum)
-    what_tiles_symbol = make_what_tiles_symbol(pmapping, shape)
+    what_tiles_symbol = SymbolValueRelations.from_pmapping_and_shape(pmapping, shape)
     keep_symbols = make_keep_symbols(pmapping)
     rank_var_to_fused_loops = get_rank_var_to_fused_loops(pmapping, shape)
     all_fused_loops = set(sum(rank_var_to_fused_loops.values(), []))
@@ -1114,7 +1061,7 @@ def _explore_tile_shapes_new(job: "Job"):
         n_iterations = str(n.tile_pattern.calculated_n_iterations)
         if n_iterations in df:
             continue
-        outer = get_tiles(stride, what_tiles_symbol)
+        outer = what_tiles_symbol.get_tiles(stride)
         a = df[outer.name] if isinstance(outer, Symbol) else outer
         b = df[stride.name] if isinstance(stride, Symbol) else stride
         df[n_iterations] = np.round(a / b)
