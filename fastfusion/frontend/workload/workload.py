@@ -44,36 +44,39 @@ SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 
 class TensorAccess(ParsableModel):
-    """
-    Information about how an Einsum accesses a tensor.
-    :param name:        The tensor being accessed.
-    :param projection:  The subscript expressions of the tensor.
-                        This can be a list of rank variables (must be single
-                        rank variables and the rank name is the uppercase of the
-                        rank variable) or a dictionary mapping rank names to
-                        subscript expressions.
-    :param output:      Whether the tensor is an output.
-    :type name:         TensorName
-    :type projection:   dict[str, str]
-    :type output:       bool
-    :type factors:      list
-    """
+    """ Information about how an Einsum accesses a tensor. """
 
     name: TensorName
+    """ The name of the tensor. """
+
     projection: dict[str, str] | list[str]
-    output: bool = False
-    factors: list = []
+    """
+    How the rank variables of the Einsum project into the tensor. If this is a list,
+    then it is assumed that each of the elements of the list is a single rank variable
+    and they index into the tensor in ranks that equal the uppercase of the rank
+    variable. For example:
+
+    name: X, projection: [a, b, c] means X[A=a, B=b, C=c]
+
+    If this is a dictionary, it is a mapping from rank names to rank variable
+    expressions. This can be used to either project into a non-matching rank name or to
+    project into a tensor using an expression. For example:
+
+    name: X, projection: {A: a, B2: b, C: a+b} means X[A=a, B2=b, C=a+b]
+    """
+
+    output: bool = False 
+    """ Whether the tensor is an output. """
+
+    persistent: bool = False
+    """ If True, then a copy of this tensor must remain in backing storage for the full
+    duration of the workload's execution. """
+
+    backing_storage_size_scale: float = 1.0
+    """ If != 1, then the backing storage size will be scaled by this factor. """
 
     def model_post_init(self, __context__=None) -> None:
-        self.projection = projection_factory(self.projection)
-
-        projection = [x for x in self.projection.values()]
-        while projection:
-            factor = projection.pop(0)
-            if isinstance(factor, list):
-                projection += factor
-            else:
-                self.factors.append(factor)
+        self.projection: ImpliedProjection = projection_factory(self.projection)
 
     def to_formatted_string(self) -> str:
         subscript = ",".join(self.projection.values())
@@ -185,24 +188,18 @@ class Shape(ParsableList):
 
 
 class Einsum(ParsableModel):
-    """
-    Represents a computation step in the workload as an Einsum.
-
-    :param name:                The name of the einsum.
-    :param tensor_accesses:     The tensors accessed by the einsum.
-    :param shape:               Bounds of valid rank variable values.
-    :param is_copy_operation:   Whether the einsum is a copy operation.
-    :type name:                 EinsumName
-    :type tensor_accesses:      ParsableList[TensorAccess]
-    :type shape:                Shape[str]
-    :type is_copy_operation:    bool
-    """
+    """ Represents a computation step in the workload as an Einsum. """
 
     name: EinsumName
+    """ The name of the einsum. """
     tensor_accesses: ParsableList[TensorAccess]
+    """ The tensors accessed by the einsum. """
     shape: Shape[str] = Shape()
+    """ Bounds of valid rank variable values. """
     is_copy_operation: bool = False
+    """ Whether the einsum is a copy operation. """
     renames: RenameList[Rename] = RenameList()
+    """ Renames of the einsum. """
 
     def model_post_init(self, __context__=None) -> None:
         if self.name == "Total":
