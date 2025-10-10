@@ -90,7 +90,7 @@ class Specification(ParsableModel):
 
     def calculate_component_energy_area(
         self, energy: bool = True, area: bool = True
-    ) -> None:
+    ) -> "Specification":
         """
         Populate per-component area and/or energy entries using installed
         component models.
@@ -104,8 +104,6 @@ class Specification(ParsableModel):
         :raises ParseError: If parsing fails or evaluation detects invalid
             component references while flattening the architecture.
         """
-        self.component_energy = ComponentEnergy() if energy else self.component_energy
-        self.component_area = ComponentArea() if area else self.component_area
         models = hwcomponents.get_models(
             self.config.component_models,
             include_installed=self.config.use_installed_component_models,
@@ -114,6 +112,10 @@ class Specification(ParsableModel):
         components = set()
         if not getattr(self, "_parsed", False):
             self, _ = self._parse_expressions()
+        else:
+            self = self.copy()
+        self.component_energy = ComponentEnergy() if energy else self.component_energy
+        self.component_area = ComponentArea() if area else self.component_area
         for arch in self.get_flattened_architecture():
             for component in arch:
                 if component.name in components:
@@ -142,6 +144,7 @@ class Specification(ParsableModel):
                             name=component.name,
                         )
                     )
+        return self
 
     def get_flattened_architecture(
         self, compute_node: Union[str, Compute] = None
