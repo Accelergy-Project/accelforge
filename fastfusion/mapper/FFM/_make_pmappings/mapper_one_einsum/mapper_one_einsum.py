@@ -395,7 +395,7 @@ def generate_pmappings_new(
 
     for job in jobs_with_similar_compatibilities:
         result = explore_tile_shapes(job)
-        job.compatibility = job.compatibility.populate_loops(job.mapping)
+        job.compatibility = job.compatibility.populate_loops(job.mapping, job.spec.workload)
         # This changes the pmapping count to include superfluous permutations
         # TODO: Add a multiplier for the permutations that we include in the fusion
         # piece, which are NOT known to be superfluous

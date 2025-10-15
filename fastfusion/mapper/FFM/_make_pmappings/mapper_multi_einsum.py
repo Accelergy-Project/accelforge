@@ -58,21 +58,10 @@ def get_num_computes(spec: Specification, einsum_name: EinsumName | None = None)
 
 
 def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
-    rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    sizes = {}
-    for t in spec.workload.tensor_names:
-        einsum = next(iter(spec.workload.einsums_with_tensor(t)))
-        size = 1
-        access = einsum.tensor_accesses[t]
-        for r in access.fully_relevant_rank_variables:
-            size *= rank_variable_bounds[r]
-        if access.partially_relevant_rank_variables:
-            raise ValueError(
-                f"Tensor {t} has partially relevant rank variables."
-                f"This function only works for fully-relevant rank variables."
-            )
-        sizes[t] = size
-    return sizes
+    return {
+        tensor: get_tensor_size(spec.workload, tensor)
+        for tensor in spec.workload.tensor_names
+    }
 
 def get_jobs(
     spec: Specification,
