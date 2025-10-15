@@ -180,3 +180,6 @@ cython_debug/
 
 # MacOS system files
 .DS_Store
+
+libraries/*
+!libraries/.gitkeep
