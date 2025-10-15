@@ -71,8 +71,10 @@ def run_model(
 
     total_occupancy = {}
     compute_unit = pmapping.nodes[-1].compute
-    max_n_loops = 0
 
+    n_repetitions = workload.n_repetitions * workload.einsums[job.einsum_name].n_repetitions
+
+    n_loop_options = set()
     for buffet, stats in reuse.buffet_stats.items():
         if buffet.level == compute_unit:
             continue
@@ -81,46 +83,41 @@ def run_model(
 
         if occupancy == 0:
             continue
+        if stats.persistent:
+            occupancy *= n_repetitions
 
         for tensor, backing in tensor_to_backing.items():
             if (is_copy_op or buffet.tensor == tensor) and buffet.level == backing:
                 df[tensor2col(tensor)] = occupancy
-
-        if buffet.level not in total_occupancy:
-            total_occupancy[buffet.level] = {stats.n_loops_above: occupancy}
-        else:
-            occupancy_per_level = total_occupancy[buffet.level]
-            if stats.n_loops_above not in occupancy_per_level:
-                occupancy_per_level[stats.n_loops_above] = occupancy
-            else:
-                occupancy_per_level[stats.n_loops_above] += occupancy
-
-        max_n_loops = max(max_n_loops, stats.n_loops_above + 1)
+                
+        total_occupancy.setdefault(buffet.level, {}).setdefault(stats.n_loops_above, 0)
+        total_occupancy[buffet.level][stats.n_loops_above] += occupancy
+        n_loop_options.add(stats.n_loops_above)
 
     for memory, occupancies in total_occupancy.items():
         if memory not in job.memories_track_all:
             continue
         running_total = 0
-        for n_loop in range(max_n_loops):
+        for n_loop in n_loop_options:
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
                 df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
-        df[f"Total<SEP>latency"] = overall_latency * spec.arch.global_cycle_period
-        df[f"latency<SEP>compute"] = comp_latency * spec.arch.global_cycle_period
+        df[f"Total<SEP>latency"] = overall_latency * spec.arch.global_cycle_period * n_repetitions
+        df[f"latency<SEP>compute"] = comp_latency * spec.arch.global_cycle_period * n_repetitions
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
         for compute_level, stats in reuse.compute_stats.items(): # FIRST LATENCY
             for idx, max_first_latency in stats.max_first_latency.items():
-                df[firstlatency2col(compute_level.level, idx)] = max_first_latency
+                df[firstlatency2col(compute_level.level, idx)] = max_first_latency * n_repetitions
         for component, latency in mem_latency.items():
-            df[f"latency<SEP>{component}"] = latency * spec.arch.global_cycle_period
+            df[f"latency<SEP>{component}"] = latency * spec.arch.global_cycle_period * n_repetitions
 
     if metrics & Metrics.ENERGY:
-        df[f"Total<SEP>energy"] = sum(energy.values())
+        df[f"Total<SEP>energy"] = sum(energy.values()) * n_repetitions
         for (component, action), energy in energy.items():
-            df[f"energy<SEP>{component}<SEP>{action}"] = energy
+            df[f"energy<SEP>{component}<SEP>{action}"] = energy * n_repetitions
 
     # if metrics & Metrics.RESERVATIONS:
     #     for memory, occupancies in total_occupancy.items():

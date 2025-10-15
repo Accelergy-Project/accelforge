@@ -33,7 +33,9 @@ def _compress(
     compressed_data = data[keep_cols].copy()
     decompress_data = data[compress_cols].copy()
     compressed_data[f"{einsum_name}<SEP>{COMPRESSED_INDEX}"] = data.index
-    return PmappingGroup(compressed_data, skip_pareto=True), decompress_data
+    return pmappings.mappings.update(
+        data=compressed_data, skip_pareto=True
+    ), decompress_data
 
 
 def _compress_pmapping_list(
@@ -134,4 +136,4 @@ def decompress_pmappings(
     compressed_index_cols = [col for col in data.columns if COMPRESSED_INDEX in col]
     if compressed_index_cols:
         data = data.drop(columns=compressed_index_cols)
-    return PmappingGroup(data, skip_pareto=True)
+    return pmappings.update(data=data, skip_pareto=True)

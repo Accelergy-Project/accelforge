@@ -58,11 +58,21 @@ def get_num_computes(spec: Specification, einsum_name: EinsumName | None = None)
 
 
 def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
-    return {
-        tensor: get_tensor_size(spec.workload, tensor)
-        for tensor in spec.workload.tensor_names
-    }
-
+    rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
+    sizes = {}
+    for t in spec.workload.tensor_names:
+        einsum = next(iter(spec.workload.einsums_with_tensor(t)))
+        size = 1
+        access = einsum.tensor_accesses[t]
+        for r in access.fully_relevant_rank_variables:
+            size *= rank_variable_bounds[r]
+        if access.partially_relevant_rank_variables:
+            raise ValueError(
+                f"Tensor {t} has partially relevant rank variables."
+                f"This function only works for fully-relevant rank variables."
+            )
+        sizes[t] = size
+    return sizes
 
 def get_jobs(
     spec: Specification,
@@ -170,14 +180,17 @@ def get_memories_to_track(
     memory_to_size = get_memory_to_size(flattened_arches)
     memories_track_all = list(memory_to_size.keys())
     memories_track_pmappings_only = []
+    no_drop_reservations_for = set()
 
     # If we're combining the pmappings from multiple runs, we can't conclude anything
     # about the metrics to track
     if can_combine_multiple_runs:
-        return memories_track_all, memories_track_pmappings_only
+        no_drop_reservations_for = set(memory_to_size.keys())
+        return memories_track_all, memories_track_pmappings_only, no_drop_reservations_for
 
     if metrics.RESOURCE_USAGE in metrics:
-        return memories_track_all, memories_track_pmappings_only
+        no_drop_reservations_for = set(memory_to_size.keys())
+        return memories_track_all, memories_track_pmappings_only, no_drop_reservations_for
 
     total_tensor_sizes = sum(get_per_tensor_size(spec).values())
 
@@ -201,6 +214,8 @@ def get_memories_to_track(
             for node in job.mapping.nodes:
                 if isinstance(node, TensorHolder) and node.component == m:
                     seen = True
+                    if node._persistent:
+                        no_drop_reservations_for.add(m)
                 if isinstance(node, Iteration) and node._fused and seen:
                     must_track = True
 
@@ -212,7 +227,7 @@ def get_memories_to_track(
                 f"reserved across fused loop iterations."
             )
 
-    return memories_track_all, memories_track_pmappings_only
+    return memories_track_all, memories_track_pmappings_only, no_drop_reservations_for
 
 
 def get_sims(
@@ -342,7 +357,7 @@ def _fill_jobs_with_memories_to_track(
         for job_list in compatibility2joblist.values()
         for j in job_list
     ]
-    memories_track_all, memories_track_pmappings_only = get_memories_to_track(
+    memories_track_all, memories_track_pmappings_only, no_drop_reservations_for = get_memories_to_track(
         spec,
         flattened_arches,
         jobs_flattened,
@@ -352,3 +367,4 @@ def _fill_jobs_with_memories_to_track(
     for j in jobs_flattened:
         j.memories_track_all = memories_track_all
         j.memories_track_pmappings_only = memories_track_pmappings_only
+        j.no_drop_reservations_for = no_drop_reservations_for

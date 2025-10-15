@@ -147,6 +147,7 @@ def generate_pmappings_old(
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
                 limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+                no_drop_reservations_for=job.no_drop_reservations_for,
             )
             for r in results
         ],
@@ -220,6 +221,7 @@ def generate_pmappings_old(
             n_pmappings=pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+            no_drop_reservations_for=job.no_drop_reservations_for,
         )
         reservation_levels = partial_mappings.all_reservation_levels()
         sim = SIM(compatibility, partial_mappings)
@@ -397,7 +399,7 @@ def generate_pmappings_new(
         # This changes the pmapping count to include superfluous permutations
         # TODO: Add a multiplier for the permutations that we include in the fusion
         # piece, which are NOT known to be superfluous
-        job.total_pmappings = scale_n_pmappings_by_permutations(job, job.total_pmappings)
+        # job.total_pmappings = scale_n_pmappings_by_permutations(job, job.total_pmappings)
 
         result[MAPPING_COLUMN] = job.job_id
         cols_to_drop = []
@@ -426,6 +428,9 @@ def generate_pmappings_new(
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
                 limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+                total_pmappings=1, # Unused for now, just making an initial Pareto
+                valid_pmappings=1, # Unused for now, just making an initial Pareto
+                no_drop_reservations_for=job.no_drop_reservations_for,
             )
             for r in results
         ],
@@ -464,8 +469,11 @@ def generate_pmappings_new(
         df, job0.compatibility, einsum_name, return_as_int=True
     )
     groups = list(df.groupby(["fused_loop_indices"]))
-    pmappings_per_group = sum(
+    total_pmappings_per_group = sum(
         j.total_pmappings for j in jobs_with_similar_compatibilities
+    ) / len(groups)
+    valid_pmappings_per_group = sum(
+        j.valid_pmappings for j in jobs_with_similar_compatibilities
     ) / len(groups)
 
     sims = []
@@ -509,9 +517,11 @@ def generate_pmappings_new(
         partial_mappings = PmappingGroup(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
-            n_pmappings=pmappings_per_group,
+            total_pmappings=total_pmappings_per_group,
+            valid_pmappings=valid_pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+            no_drop_reservations_for=job.no_drop_reservations_for,
         )
         sim = SIM(compatibility, partial_mappings)
         sims.append(sim)

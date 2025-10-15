@@ -15,10 +15,6 @@ def mapping2sims(einsum_to_result: Compatibility):
     return list(r.values())
 
 
-def paretofy(k, v):
-    return SIM(k, PmappingGroup(pd.DataFrame(v).fillna(0)))
-
-
 def get_possible_translations(
     t: Compatibility,
     pairwise_equivalent_rank_variables: dict[str, set[str]],

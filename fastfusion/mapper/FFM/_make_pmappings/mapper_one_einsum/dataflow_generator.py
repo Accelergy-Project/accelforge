@@ -47,9 +47,16 @@ def get_tensor_choices(
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
+    persistent_tensors = {
+        t.name for t in spec.workload.einsums[einsum_name].tensor_accesses if t.persistent
+    }
 
     for choice, symbol_table in make_tensor_choices_all_levels(
-        nodes, symbol_table, is_copy_op=is_copy_op
+        nodes=nodes,
+        symbol_table=symbol_table,
+        is_copy_op=is_copy_op,
+        persistent_tensors=persistent_tensors,
+        seen_tensors=set()
     ):
         all_tensor_holders = [v2 for v in choice.values() for v2 in v]
 
@@ -168,18 +175,29 @@ def valid_tensor_holder_order(
     spec: Specification,
 ):
     memory_to_satisfied_constraints: dict[str, set] = {}
-    for i in range(len(mapping)):
-        for j in range(i, len(mapping)):
+    for i, m0 in enumerate(mapping):
+        for j, m1 in enumerate(mapping[i:]):
+            j += i
 
-            s1, s2 = mapping[i].component, mapping[j].component
+            s1, s2 = m0.component, m1.component
             s1_idx, s2_idx = node_names.index(s1), node_names.index(s2)
+            s1_persistent, s2_persistent = m0._persistent, m1._persistent
+            either_persistent = s1_persistent or s2_persistent
 
-            assert len(mapping[i].tensors) == 1
-            assert len(mapping[j].tensors) == 1
+            assert len(m0.tensors) == 1
+            assert len(m1.tensors) == 1
 
-            if spec.mapper.ffm.force_memory_hierarchy_order:
+            if spec.mapper.ffm.force_memory_hierarchy_order and not either_persistent:
                 if i < j and s2_idx < s1_idx:
                     return False
+
+            # Persistent tensors must be at the top of the hierarchy
+            if s2_persistent and not s1_persistent and s1_idx < s2_idx:
+                return False
+
+            # Persistent tensors must be at the top of the hierarchy
+            if s1_persistent and not s2_persistent and s2_idx < s1_idx:
+                return False
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:
@@ -209,7 +227,7 @@ def valid_tensor_holder_order(
                 if len(memory_to_satisfied_constraints[s1]) == 0:
                     return False
 
-            if not (set(mapping[i].tensors) & set(mapping[j].tensors)):
+            if not (set(m0.tensors) & set(m1.tensors)):
                 continue
 
             if i < j and s2_idx < s1_idx:
@@ -217,22 +235,22 @@ def valid_tensor_holder_order(
 
             # If a tensor is stored in two levels back-to-back, then we should have
             # bypassed the outer TensorHolder if possible.
-            either_backing = mapping[i]._backing & mapping[j]._backing
+            either_backing = m0._backing & m1._backing
             if i == j or i == j - 1:
                 if s1_idx < s2_idx and not (
-                    (set(mapping[i]._must_keep_tensors) & set(mapping[j].tensors))
+                    (set(m0._must_keep_tensors) & set(m1.tensors))
                     or either_backing
                 ):
                     return False
                 if s2_idx < s1_idx and not (
-                    (set(mapping[j]._must_keep_tensors) & set(mapping[i].tensors))
+                    (set(m1._must_keep_tensors) & set(m0.tensors))
                     or either_backing
                 ):
                     return False
 
-    for i in range(len(mapping)):
-        for j in range(i, len(mapping)):
-            s1, s2 = mapping[i].component, mapping[j].component
+    for i, m0 in enumerate(mapping):
+        for j, m1 in enumerate(mapping[i:]):
+            s1, s2 = m0.component, m1.component
             if s1 != s2 or s1 not in memory_to_satisfied_constraints or i == j:
                 continue
 
@@ -241,8 +259,8 @@ def valid_tensor_holder_order(
 
             for order_idx in satisfied_orders:
                 order = required_orders[s1][order_idx]
-                for tensor_i in mapping[i].tensors:
-                    for tensor_j in mapping[j].tensors:
+                for tensor_i in m0.tensors:
+                    for tensor_j in m1.tensors:
                         if order.index(tensor_i) != order.index(tensor_j):
                             continue
                 break

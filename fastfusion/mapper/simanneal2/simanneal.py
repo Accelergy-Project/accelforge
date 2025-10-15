@@ -205,7 +205,6 @@ class SimAnnealMapping:
                         compatibility_joined=joined.compatibility.merge_next(s.compatibility, live_tensors),
                         resource2capacity=self.mapspace_globals.resource2capacity if apply_resource_limit else None,
                         drop_valid_reservations=True,
-                        ignore_reservations=set(),
                         delay=False,
                     )
                 except ValueError as err:

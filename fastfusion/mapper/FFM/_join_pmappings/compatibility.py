@@ -360,7 +360,7 @@ class Compatibility(Updatable):
         self,
         right: "Compatibility",
         live_tensors: set[str],
-        mixable_ranks: dict[RankName, set[RankName]] = None,
+        mixable_ranks: dict[RankName, set[RankName]],
     ) -> "Compatibility":
         self_freed = self.clear_dead_tensors(live_tensors)
         right_freed = right.clear_dead_tensors(live_tensors)

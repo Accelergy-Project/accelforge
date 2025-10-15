@@ -101,7 +101,7 @@ class BuffetStats:
     min_per_unit_skipped_first_writes_to_peer: Any = field(default=0)
 
     max_occupancy: Any = field(default=0)
-    n_loops_above: int = field(default=0)
+    _n_loops_above: int = field(default=0)
 
     # These are used to calculate energy and latency
     total_write_actions: Any = field(default=0)
@@ -113,6 +113,18 @@ class BuffetStats:
     min_per_unit_skipped_first_write_actions: Any = field(default=0)
     total_skipped_first_read_actions: Any = field(default=0)
     min_per_unit_skipped_first_read_actions: Any = field(default=0)
+
+    persistent: bool = field(default=False)
+    
+    @property
+    def n_loops_above(self) -> int:
+        if self.persistent:
+            return -1
+        return self._n_loops_above
+    
+    @n_loops_above.setter
+    def n_loops_above(self, value: int):
+        self._n_loops_above = value
     
     def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
         new = copy.copy(self)
@@ -556,6 +568,7 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
             tracker = trackers.pop(tracker_idx)
             buffet = tracker.buffet
             node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
+            node._persistent = tracker.node._persistent
             node._backing = tracker.node._backing
 
             if (
@@ -809,9 +822,13 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
         tensor = TensorName(tensor)
         buffet = Buffet(tensor, einsum_name, node.component)
 
-        stats = child_result.buffet_stats.setdefault(buffet, BuffetStats())
+        # Reservations make these, and they go below the storage node, so the buffet
+        # stats are already made at this point
+        stats = child_result.buffet_stats[buffet] 
         backer_id = info.tensor_to_backer_id[tensor]
         is_backing = backer_id == id(node)
+        if node._persistent:
+            stats.persistent = True
         below_backing = backer_id in [id(m) for m in mapping[:node_idx]]
 
         projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]

@@ -191,15 +191,17 @@ class Einsum(ParsableModel):
     """ Represents a computation step in the workload as an Einsum. """
 
     name: EinsumName
-    """ The name of the einsum. """
+    """ The name of the Einsum. """
     tensor_accesses: ParsableList[TensorAccess]
-    """ The tensors accessed by the einsum. """
+    """ The tensors accessed by the Einsum. """
     shape: Shape[str] = Shape()
     """ Bounds of valid rank variable values. """
     is_copy_operation: bool = False
-    """ Whether the einsum is a copy operation. """
+    """ Whether the Einsum is a copy operation. """
     renames: RenameList[Rename] = RenameList()
-    """ Renames of the einsum. """
+    """ Renames of the Einsum. """
+    n_repetitions: int = 1
+    """ Number of times to repeat the Einsum. """
 
     def model_post_init(self, __context__=None) -> None:
         if self.name == "Total":
@@ -316,6 +318,7 @@ class Workload(ParsableModel):
     version: Annotated[str, assert_version] = __version__
     einsums: ParsableList[Einsum] = ParsableList()
     shape: ParsableDict[RankVariableName, str] = ParsableDict()
+    n_repetitions: int = 1
 
     def model_post_init(self, __context__=None) -> None:
         self._validate()

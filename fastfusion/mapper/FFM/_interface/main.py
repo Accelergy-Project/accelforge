@@ -166,4 +166,10 @@ def join_pmappings(
     # Fill nans with 0. We might get missing columns for some mapping entries if there
     # are energy entries for some pmappings but not others (e.g., one pmapping accesses
     # DRAM while another doesn't.)
-    return Mappings(spec, list(pmappings.einsum2pmappings.keys()), joined.data)
+    return Mappings(
+        spec,
+        list(pmappings.einsum2pmappings.keys()), 
+        joined.data,
+        total_mappings=joined.total_pmappings,
+        valid_mappings=joined.valid_pmappings,
+    )

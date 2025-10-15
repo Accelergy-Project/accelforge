@@ -12,11 +12,6 @@ from fastfusion.mapper.FFM._pmapping_group import PmappingGroup
 from fastfusion.mapper.FFM._pmapping_group.df_convention import col2nameloop
 from fastfusion.util import parallel, delayed
 
-
-def paretofy(k, v):
-    return SIM(k, PmappingGroup(pd.DataFrame(v).fillna(0)))
-
-
 prev_time = 0
 total_time = defaultdict(int)
 
@@ -77,10 +72,11 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
 def get_memories_to_track(
     sims: dict[str, list[SIM]],
     resource2capacity: dict[str, int],
-) -> dict[str, list[SIM]]:
+) -> tuple[dict[str, list[SIM]], set[str], set[str]]:
 
     always_below = set(resource2capacity.keys())
     total_sizes = {}
+    no_drop_reservations_for = set()
 
     for _, einsum_sims in sims.items():
         max_sizes = {}
@@ -96,6 +92,10 @@ def get_memories_to_track(
                     always_below.remove(name)
                 size = s.mappings.data[col].max()
                 max_sizes[name] = max(max_sizes.get(name, 0), size)
+                
+                # nloops < 0 means that the reservation will live through all Einsums
+                if nloops < 0:
+                    no_drop_reservations_for.add(name)
 
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
@@ -118,7 +118,7 @@ def get_memories_to_track(
         run_pareto = len(keep_cols) < len(data.columns)
         return SIM(
             s.compatibility,
-            PmappingGroup(data[keep_cols], skip_pareto=not run_pareto),
+            s.mappings.update(data=data[keep_cols], skip_pareto=not run_pareto),
         )
 
     for a in sorted(always_below):
@@ -169,7 +169,7 @@ def join_sims(
     metrics = spec.mapper.ffm.metrics
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
-    ignore_reservations = set()
+    no_drop_reservations_for = set()
 
     for e, e_sims in sims.items():
         for s in e_sims:
@@ -191,7 +191,7 @@ def join_sims(
         print(f'Filtered {n} -> {new_n} ({new_n / n:.2%} kept) pmappings')
 
     if drop_valid_reservations:
-        sims, ignore_reservations = get_memories_to_track(sims, resource2capacity)
+        sims, no_drop_reservations_for = get_memories_to_track(sims, resource2capacity)
 
     mixable_ranks = spec.workload.get_mixable_ranks()
 
@@ -392,9 +392,9 @@ def join_sims(
                         compatibility_joined=compatibility_joined,
                         resource2capacity=resource2capacity,
                         drop_valid_reservations=drop_valid_reservations,
-                        ignore_reservations=ignore_reservations,
                         delay=DELAY,
                         pmapping_row_filter_function=pmapping_row_filter_function,
+                        no_drop_reservations_for=no_drop_reservations_for,
                     )
                 )
                 t1 = time.time()

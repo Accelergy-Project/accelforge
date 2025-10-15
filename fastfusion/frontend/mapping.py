@@ -537,8 +537,8 @@ class TensorHolder(MappingNode):
     """ Whether this tensor holder can be lowered. """
 
     _persistent: bool = False
-    """ 
-    Whether this tensor holder is persistent. If persistent, can't be tiled and must
+    """
+    Whether this tensor holder is persistent. Persistent tensors can't be tiled and must
     be kept in backing storage for the full duration of the workload's execution.
     """
 
@@ -583,9 +583,6 @@ class TensorHolder(MappingNode):
             component=self.component,
             component_object=self.component_object,
         )
-        new._must_keep_tensors = self._must_keep_tensors + other._must_keep_tensors
-        new._backing = self._backing | other._backing
-        new._lower = self._lower
         return new
 
 
@@ -732,7 +729,19 @@ class MappingNodeWithChildren(MappingNode):
                 node._consolidate_reservations()
         assert new_nodes, "BUG"
         self.nodes = ParsableList(new_nodes)
-
+        
+    def _elevate_persistent_nodes_above_splits(self) -> None:
+        new_nodes: list[MappingNode] = []
+        for node in self.nodes:
+            if isinstance(node, Split):
+                persistent_nodes = node._get_persistent_nodes()
+                new_nodes.extend(persistent_nodes)
+                node.clear_nodes(*persistent_nodes)
+            if isinstance(node, MappingNodeWithChildren):
+                node._elevate_persistent_nodes_above_splits()
+            new_nodes.append(node)
+        self.nodes = ParsableList(new_nodes)
+        
     def _elevate_tensor_holders_above_splits(self) -> None:
         new_nodes: list[MappingNode] = []
         for node in self.nodes:
@@ -810,6 +819,13 @@ class Split(MappingNodeWithChildren):
 
     def _render_node_shape(self) -> str:
         return "hexagon"
+    
+    def _get_persistent_nodes(self) -> list[MappingNode]:
+        nodes = []
+        for n in self.nodes:
+            nodes.extend(n.get_nodes_of_type(TensorHolder))
+            nodes.extend(n.get_nodes_of_type(Reservation))
+        return [n for n in nodes if n._persistent]
 
     def _get_shared_tensor_holders(self) -> list[TensorHolder]:
         tensor_holders = [n.get_nodes_of_type(TensorHolder) for n in self.nodes]
@@ -1150,6 +1166,8 @@ class Reservation(MappingNode):
 
     _backing: Set[str] = set()
     """The set of purposes for which this reservation is backing."""
+    
+    _persistent: bool = False
 
     def compact_str(self) -> str:
         return f'{",".join(self.purposes)} reserves {self.resource}'
@@ -1321,6 +1339,7 @@ class Mapping(Nested):
             )
 
         mapping: Mapping = cls(nodes=pmappings)
+        mapping._elevate_persistent_nodes_above_splits()
         mapping._elevate_tensor_holders_above_splits()
         mapping._propagate_reservations_between_splits()
         mapping._consolidate_tensor_holders()

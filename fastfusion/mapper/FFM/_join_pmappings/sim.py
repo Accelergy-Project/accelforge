@@ -41,9 +41,9 @@ class SIM:
         live_tensors_with_right: set[str],
         aliased_tensors: dict[str, set[str]],
         compatibility_joined: Compatibility,
-        resource2capacity: dict[str, int] = None,
+        no_drop_reservations_for: set[str],
+        resource2capacity: dict[str, int],
         drop_valid_reservations: bool = True,
-        ignore_reservations: set[str] = set(),
         delay: bool = False,
         pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> "SIM":
@@ -78,8 +78,8 @@ class SIM:
             compatibility_joined=compatibility_joined,
             resource2capacity=resource2capacity,
             drop_valid_reservations=drop_valid_reservations,
-            ignore_reservations=ignore_reservations,
             pmapping_row_filter_function=pmapping_row_filter_function,
+            no_drop_reservations_for=no_drop_reservations_for,
         )
 
         if not delay:
