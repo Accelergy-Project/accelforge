@@ -7,7 +7,7 @@ import random
 import re
 import resource
 from typing import Callable, Optional, Union
-from combinatorics.integer import integer_factorizations_to_n_parts
+# from combinatorics.integer import integer_factorizations_to_n_parts
 from dataclasses import dataclass, field
 
 from fastfusion import util
