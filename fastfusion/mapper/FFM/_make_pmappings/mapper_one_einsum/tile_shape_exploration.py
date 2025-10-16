@@ -943,6 +943,9 @@ def get_tile_shape_choices(
         if not choices_enumerated.shape[0]:
             return np.array([]).reshape(-1, len(symbols))
 
+        if choices_enumerated.shape[0] < 100:
+            continue
+
         # ==============================================================================
         # Coalesce symbols. This simplifies our tracked goals. It also breaks down
         # partially-unknown goals into fully-known and/or fully-unknown goals.
