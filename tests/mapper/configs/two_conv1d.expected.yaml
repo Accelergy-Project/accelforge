@@ -1,0 +1,29 @@
+two_conv1d.mapping.yaml:
+  BufferTensorEinsum(buffer='MainMemory', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='MainMemory', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='MAC', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='MAC', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
+    null
+  BufferTensorEinsum(buffer='MainMemory', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+    { [] -> [RB] : 0 <= RB <= 2 }
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+    { [pb0] -> [PA] : 0 <= pb0 <= 1 and 8pb0 <= PA <= 9 + 8pb0 }
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+    { [pb0] -> [RB] : 0 <= pb0 <= 1 and 0 <= RB <= 2 }
+  BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+    { [pb0, 1, pb2, rb0] -> [PA = 8pb0 + pb2 + rb0] : 0 <= pb0 <= 1 and 0 <= pb2 <= 7 and 0 <= rb0 <= 2 }
+  BufferTensorEinsum(buffer='MAC', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+    { [pb0, 1, pb2, rb0] -> [RB = rb0] : 0 <= pb0 <= 1 and 0 <= pb2 <= 7 and 0 <= rb0 <= 2 }
+  BufferTensorEinsum(buffer='MAC', tensor='B', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+    { [pb0, 1, pb2, rb0] -> [PB = 8pb0 + pb2] : 0 <= pb0 <= 1 and 0 <= pb2 <= 7 and 0 <= rb0 <= 2 }

@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 from pprint import pformat
 import unittest
 
+from ruamel.yaml import YAML
 import islpy as isl
 
 from fastfusion.frontend.workload import Workload
@@ -16,6 +18,18 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
 
 TEST_CONFIG_PATH: Path = Path(__file__).parent / "configs"
 
+
+def to_isl_maps(obj) -> dict:
+    def _to_isl_maps(obj):
+        """Recursively convert string ISL maps to isl.Map; leave others alone."""
+        if isinstance(obj, str):
+            return isl.Map.read_from_str(isl.DEFAULT_CONTEXT, obj)
+        if isinstance(obj, dict):
+            return {k: _to_isl_maps(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_to_isl_maps(v) for v in obj]
+        return obj
+    return _to_isl_maps(obj) # type: ignore
 
 class TestMappingToIsl(unittest.TestCase):
 
@@ -53,16 +67,14 @@ class TestMappingToIsl(unittest.TestCase):
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
+        # Load expected solutions (YAML file with string ISL maps)
+        expected_path: Path = CONV1D_CONFIG_PATH / "two_conv1d.expected.yaml"
+        yaml: YAML = YAML(typ='safe')
+
+        with open(expected_path, 'r') as f:
+            solns: dict = to_isl_maps(yaml.load(f))
 
         for buffer, occupancy in occupancies.buffet_to_occupancy.items():
-            print(buffer)
-            print(occupancy.map_)
-            if buffer == list(occupancies.buffet_to_occupancy.keys())[-1]:
-                soln: isl.Map = isl.Map.read_from_str(
-                    isl.DEFAULT_CONTEXT,
-                    "{ [P1, P0, R] -> [P=8*P1 + P0] : "
-                    "0 <= R < 3 and 0 <= P1 < 2 and 0 <= P0 < 8}",
-                )
-                print(buffer)
-                print(occupancy.map_)
-                # assert occupancy.map_ == soln
+            soln = solns[repr(buffer)] if repr(buffer) in solns else None
+            if soln is not None:
+                assert occupancy.map_ == soln
