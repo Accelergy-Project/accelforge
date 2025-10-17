@@ -52,7 +52,7 @@ RUN make install-ntl
 RUN make install-barvinok
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN make install-islpy
-RUN make install-dependencies
+RUN make install-hwcomponents
 
 # Install jupyterlab and ipywidgets
 RUN pip install jupyterlab ipywidgets

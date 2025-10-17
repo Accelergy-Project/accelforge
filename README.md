@@ -19,9 +19,10 @@ git clone https://github.com/Accelergy-Project/fastfusion.git
 cd fastfusion
 
 sudo make install-ntl      # Install NTL (ISL dependency)
+sudo make install-barvinok # Install Barvinok (ISL dependency)
 make install-islpy         # Install ISL
-make install-dependencies  # Install hwcomponents
-pip3 install -e .          # Install Fast & Fusiest
+make install-hwcomponents  # Install hwcomponents
+pip3 install -e .          # Install this package
 ```
 
 ### Docker
