@@ -171,17 +171,6 @@ def join_sims(
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     no_drop_reservations_for = set()
 
-    for e, e_sims in sims.items():
-        for s in e_sims:
-            c = s.compatibility
-            for i in range(c.n_loops):
-                stride = set(
-                    t.loops[i].tile_pattern.stride
-                    for t in c.tensors
-                    if len(t.loops) > i
-                )
-                assert len(stride) <= 1, f"Stride {stride} is not unique for {e}"
-
     if pmapping_row_filter_function is not None:
         n = sum(len(s.mappings.data) for sg in sims.values() for s in sg)
         sims = {

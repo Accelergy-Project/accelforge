@@ -471,6 +471,7 @@ def generate_pmappings_new(
         if job.job_id in jobs_passed_pareto
     }
 
+
     assert_all_jobs_have_same_symbols(jobs_with_similar_compatibilities)
     # Otherwise, following logic fails
 
@@ -519,6 +520,18 @@ def generate_pmappings_new(
             c for c in mappings.columns if is_fused_loop_col(c) and c not in symbols
         ]
         mappings = mappings.drop(columns=dropcols)
+
+        energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
+        if (mappings[energy_cols] < 0).any(axis=None):
+            mapping_with_negative_energy = mappings[(mappings[energy_cols] < 0).any(axis=1)]
+            msg = ''
+            for _, row in mapping_with_negative_energy.iterrows():
+                for k, v in row.items():
+                    msg += f"{k}: {v}\n"
+                msg += '\n'
+            raise RuntimeError(
+                f'negative energy:\n{msg}'
+            )
 
         # TODO: Redundant capacity checks because limit_capacity is called. We want it
         # so we can drop dead reservations though.

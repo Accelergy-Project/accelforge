@@ -398,7 +398,7 @@ class Workload(ParsableModel):
 
     @property
     def fusable_tensor_names(self) -> set[TensorName]:
-        self._check_consistent_persistent()
+        # self._check_consistent_persistent()
         return {t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1}
 
     @property

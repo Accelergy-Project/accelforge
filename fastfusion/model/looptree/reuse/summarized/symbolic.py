@@ -386,7 +386,6 @@ def analyze_reuse_and_add_reservations_to_mapping(
     workload = job.spec.workload
     einsum_name = mapping[-1].einsum
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
-    symbols = insert_sympy_symbols(mapping, job)
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
     if is_copy_operation:
@@ -423,6 +422,8 @@ def analyze_reuse_and_add_reservations_to_mapping(
     )
 
     insert_reservation_nodes(mapping, info)
+
+    symbols = insert_sympy_symbols(mapping, job)
 
     result = analyze_node(0, einsum_shape, info)
 
@@ -1120,6 +1121,7 @@ def make_possibly_different_last(common_tile_shape, factor, full_shape):
 def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
     loop_idx = 0
     symbols = []
+    rank_var_with_initial = set()
     for i, node in enumerate(mapping):
         if not isinstance(node, Iteration):
             continue
@@ -1130,7 +1132,12 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
                 if rank_variable == node.rank_variable:
                     stride_halos.add((stride, halo))
 
-        simple = len(stride_halos) <= 1 and next(iter(stride_halos)) == (1, 0)
+        # We only explore imperfect for the outermost fused loops
+        simple = (
+            (len(stride_halos) <= 1 and next(iter(stride_halos)) == (1, 0))
+            or node.rank_variable in rank_var_with_initial
+            or not node._fused
+        )
 
         # NOTE: initial_tile_shape must be inserted into `symbols` before `stride`
         # because of the order of tile shape exploration.
@@ -1138,6 +1145,7 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
         if simple: # Just use the stride!
             node.initial_tile_shape = None
         elif node.initial_tile_shape == SYMBOL:
+            rank_var_with_initial.add(node.rank_variable)
             initial_tile_shape = sympy.symbols(f'initial{loop_idx}', positive=True, integer=True)
             symbols.append(initial_tile_shape)
             node.initial_tile_shape = initial_tile_shape

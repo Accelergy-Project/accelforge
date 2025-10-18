@@ -788,6 +788,13 @@ def get_tile_shape_choices(
             stride = what_tiles_symbol.get_stride(symbol)
             delta_choices = np.array(list(what_tiles_symbol.get_delta_choices(symbol)))
 
+            outer_stride = what_tiles_symbol.get_outer_tiles(stride, none_if_fail=True)
+            assert outer_stride is None or isinstance(outer_stride, int), f"outer stride is symbol {outer_stride}"
+            if outer_stride is None:
+                outer_size = what_tiles_symbol.get_max_size(stride)
+            else:
+                outer_size = outer_stride
+
             if not stride in symbols_enumerated and not isinstance(stride, int):
                 raise RuntimeError(
                     f"BUG: stride {stride} of initial tile shape "
@@ -795,8 +802,10 @@ def get_tile_shape_choices(
                 )
 
             if isinstance(stride, int):
+                initial_choices = delta_choices + stride
+                initial_choices = initial_choices[initial_choices <= outer_size]
                 choices.append(
-                    append_vector(choices_enumerated, delta_choices + stride)
+                    append_vector(choices_enumerated, initial_choices)
                 )
             else:
                 i = symbols_enumerated.index(stride)
@@ -804,8 +813,10 @@ def get_tile_shape_choices(
                     partition = choices_enumerated[
                         np.where(choices_enumerated[:, i] == stride_choice)
                     ]
+                    initial_choices = delta_choices + stride_choice
+                    initial_choices = initial_choices[initial_choices <= outer_size]
                     choices.append(
-                        append_vector(partition, delta_choices + stride_choice)
+                        append_vector(partition, initial_choices)
                     )
         else:
             raise RuntimeError(
@@ -1174,9 +1185,17 @@ def _explore_tile_shapes_new(job: "Job"):
         outer_stride = what_tiles_symbol.get_outer_tiles(stride)
         outer_initial = what_tiles_symbol.get_initial(outer_stride, none_if_fail=True)
         outer_stride = df[outer_stride.name] if isinstance(outer_stride, Symbol) else outer_stride
-        outer_initial = df[outer_initial.name] if isinstance(outer_initial, Symbol) else None
+
+        outer_initial = df[outer_initial.name] if isinstance(outer_initial, Symbol) else outer_stride
+
         rank_var_stride = df[stride.name] if isinstance(stride, Symbol) else stride
         rank_var_initial = df[initial.name] if isinstance(initial, Symbol) else initial
+
+        # NOTE: The concept of having one "n_iterations" is precarious when imperfect factorization in involved
+        df[iterations2col(nloops)] = np.ceil(
+            (outer_initial - rank_var_initial) / rank_var_stride + 1
+        )
+        df[f"lower_iterations<SEP>{nloops}"] = outer_stride - rank_var_initial
 
         # Generate rank columns
         einsum: Einsum = job.spec.workload.einsums[job.einsum_name]
@@ -1184,9 +1203,13 @@ def _explore_tile_shapes_new(job: "Job"):
             tensor = tensor_access.name
             projections = get_projection_expr(einsum, tensor)
             for rank, expr in projections.items():
+                free_symbols = tuple(expr.free_symbols)
+                free_symbols_str = tuple(symbol.name for symbol in free_symbols)
+                if n.rank_variable not in free_symbols_str:
+                    continue
+
                 rank_stride = expr.coeff(n.rank_variable)*rank_var_stride
 
-                free_symbols = tuple(expr.free_symbols)
                 args = []
                 for free_rank_var in free_symbols:
                     if free_rank_var.name == n.rank_variable:
@@ -1197,9 +1220,6 @@ def _explore_tile_shapes_new(job: "Job"):
 
                 df[stride2col(rank, nloops)] = rank_stride
                 df[initial2col(rank, nloops)] = rank_initial
-                df[iterations2col(nloops)] = np.ceil(
-                    (outer_stride - rank_initial) / rank_var_stride + 1
-                )
 
     try:
         df = pd.DataFrame(df, columns=df.keys())
@@ -1207,8 +1227,18 @@ def _explore_tile_shapes_new(job: "Job"):
         df = pd.DataFrame(df, columns=df.keys(), index=[0])
     assert not df.isna().any().any()
 
-    iteration_cols = [c for c in df.columns if 'n_iterations' in c]
-    df = df[(df[iteration_cols] >= 0).all(axis=1)]
+    energy_cols = [c for c in df.columns if "Total<SEP>energy" in c]
+    if (df[energy_cols] < 0).any(axis=None):
+        mapping_with_negative_energy = df[(df[energy_cols] < 0).any(axis=1)]
+        print(df.columns)
+        msg = ''
+        for _, row in mapping_with_negative_energy.iterrows():
+            for k, v in row.items():
+                msg += f"{k}: {v}\n"
+            msg += '\n'
+        raise RuntimeError(
+            f'negative energy:\n{msg}'
+        )
 
     job.valid_pmappings = job.total_pmappings * prod(job.pmapping_keep_rates.values())
     return df
