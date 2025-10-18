@@ -1,3 +1,38 @@
+renames:
+  version: "0.5"
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs() & Intermediates()
+      expected_count: 1
+    - name: output
+      source: Outputs()
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1
+    rank_variables:
+    - name: output_channel
+      source: output.rank_variables() & weight.rank_variables()
+      expected_count: 1
+    - name: input_channel
+      source: (input.rank_variables() & weight.rank_variables()) - output_channel
+
+  - name: PwiseA0
+    tensor_accesses:
+    - name: input
+      source: T0
+
+  - name: Dwise0
+    rank_variables:
+    - name: input_channel
+      source: Nothing().rank_variables()
+  - name: Dwise1
+    rank_variables:
+    - name: input_channel
+      source: Nothing().rank_variables()
+
 workload:
   version: "0.5"
   shape:
