@@ -7,11 +7,11 @@ import sympy
 
 from joblib import Parallel, delayed
 import sys
-
+import os
 from tqdm import tqdm
 
 PARALLELIZE = True
-N_PARALLEL_PROCESSES = 32
+N_PARALLEL_PROCESSES = os.cpu_count()
 
 def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
     global N_PARALLEL_PROCESSES
