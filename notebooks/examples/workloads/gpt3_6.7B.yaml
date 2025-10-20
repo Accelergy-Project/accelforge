@@ -16,6 +16,7 @@
 
 workload:
   version: "0.5"
+
   shape:
     {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
     b: 0 <= b < {{BATCH_SIZE}}
@@ -55,19 +56,19 @@ workload:
   - name: V
     tensor_accesses:
     - {name: I, projection: [b, m, d]}
-    - {name: WV, projection: [h, e, d]} # , persistent: True, backing_size_scale: 12}
+    - {name: WV, projection: [h, e, d], persistent: True}
     - {name: V, projection: [b, m, h, e], output: True}
 
   - name: K
     tensor_accesses:
     - {name: I, projection: [b, m, d]}
-    - {name: WK, projection: [h, e, d]} # , persistent: True, backing_size_scale: 12}
+    - {name: WK, projection: [h, e, d], persistent: True}
     - {name: K, projection: [b, m, h, e], output: True}
 
   - name: Q
     tensor_accesses:
     - {name: I, projection: [b, m, d]}
-    - {name: WQ, projection: [h, e, d]} # , persistent: True, backing_size_scale: 12}
+    - {name: WQ, projection: [h, e, d], persistent: True}
     - {name: Q, projection: [b, m, h, e], output: True}
 
   - name: QK
@@ -93,19 +94,19 @@ workload:
   - name: Z
     tensor_accesses:
     - {name: AV, projection: [b, m, h, f]}  
-    - {name: WZ, projection: [h, f, g]} # , persistent: True, backing_size_scale: 12}
+    - {name: WZ, projection: [h, f, g], persistent: True}
     - {name: Z, projection: [b, m, g], output: True}
 
   - name: FFA
     tensor_accesses:
     - {name: Z, projection: [b, m, g]}
-    - {name: WFFA, projection: [g, c]} # , persistent: True, backing_size_scale: 12}
+    - {name: WFFA, projection: [g, c], persistent: True}
     - {name: FFA, projection: [b, m, c], output: True}
 
   - name: FFB
     tensor_accesses:
     - {name: FFA, projection: [b, m, c]}
-    - {name: WFFB, projection: [c, j]} # , persistent: True, backing_size_scale: 12}
+    - {name: WFFB, projection: [c, j], persistent: True}
     - {name: FFB, projection: [b, m, j], output: True}
 
 # Inputs(): Inputs to this Einsum
