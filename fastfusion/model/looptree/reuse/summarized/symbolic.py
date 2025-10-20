@@ -388,6 +388,8 @@ def analyze_reuse_and_add_reservations_to_mapping(
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
+    symbols = insert_sympy_symbols(job.mapping.nodes, job)
+
     if is_copy_operation:
         mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
         # We're working with a new mapping at this point, so we need to add reservations
@@ -423,10 +425,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
 
     insert_reservation_nodes(mapping, info)
 
-    symbols = insert_sympy_symbols(mapping, job)
-
     result = analyze_node(0, einsum_shape, info)
-
     result.symbols = symbols
 
     return result
