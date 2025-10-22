@@ -47,11 +47,13 @@ class ArchNode(ParsableModel):
         """
         if isinstance(self, Leaf) and getattr(self, "name", None) == name:
             return self
-        for element in self if isinstance(self, list) else self.values():
-            try:
-                return element.name2leaf(name)
-            except (AttributeError, ValueError):
-                pass
+        
+        if isinstance(self, Branch):
+            for element in self.nodes:
+                try:
+                    return element.name2leaf(name)
+                except (AttributeError, ValueError):
+                    pass
         raise ValueError(f"Leaf {name} not found in {self}")
 
     def find(self, *args, **kwargs) -> "Leaf":
@@ -110,6 +112,20 @@ class Spatial(ParsableModel):
         )
 
 
+class LeafAttributes(ComponentAttributes):
+    latency: Union[str, int, float] = 0
+    """
+    The latency of this component in seconds. This is used to calculate the latency of a
+    given Einsum. Latency, when given as a string, is parsed. Special variables
+    available are:
+    
+    - min
+    - max
+    - X_actions, which counts the number of times action "X" is performed. For example,
+      read_actions is the number of times the read action is performed.
+    """
+
+
 class Leaf(ArchNode, ABC):
     """A leaf node in the architecture. This is an abstract class that represents any
     node that is not a `Branch`."""
@@ -117,7 +133,7 @@ class Leaf(ArchNode, ABC):
     name: str
     """ The name of this `Leaf`. """
 
-    attributes: ComponentAttributes = ComponentAttributes()
+    attributes: LeafAttributes = LeafAttributes()
     """ The attributes of this `Leaf`. """
 
     spatial: ParsableList[Spatial] = ParsableList()
@@ -218,14 +234,12 @@ MEMORY_ACTIONS = ParsableList(
     [
         ArchMemoryAction(name="read", arguments={"bits_per_action": 1}),
         ArchMemoryAction(name="write", arguments={"bits_per_action": 1}),
-        SubcomponentAction(name="leak"),
     ]
 )
 
 COMPUTE_ACTIONS = ParsableList(
     [
         SubcomponentAction(name="compute"),
-        SubcomponentAction(name="leak"),
     ]
 )
 
@@ -247,47 +261,16 @@ def _parse_tensor2bits(
     return result
 
 
-class Attributes(ComponentAttributes):
-    """Attributes for any `Component`."""
-
-    pass
-
-
-class TensorHolderAttributes(Attributes):
+class TensorHolderAttributes(LeafAttributes):
     """Attributes for a `TensorHolder`. `TensorHolder`s are components that hold tensors
     (usually `Memory`s). When specifying these attributes, it is recommended to
-    underscore-prefix attribute names. See `UNDERSCORE_PREFIX_DISCUSSION`.
-
-    Number of accesses calculation is as follows. These bullets are written for "read",
-    and the same applies for "write".
-
-    - (# Values Read) comes from the mapping
-    - (# Bits Read) = (datawidth) * (# Values Read). If datawidth is a dictionary, this
-      calculation is done for each tensor.
-    - (# Reads) = (# Bits Read) / bits_per_action of the read action. By default,
-      bits_per_action is 1.
-    - (Read Energy) = (# Reads) * (Energy specified in the read action)
-    - (Read Latency) = (# Reads) / bandwidth_reads_per_cycle
-    - ...
-    - (Read+Write Latency) = ((# Reads) + (# Writes)) /
-      (bandwidth_reads_plus_writes_per_cycle)
-    - (Total Latency) = max((Read Latency), (Write Latency), (Read+Write Latency))
-
+    underscore-prefix attribute names. See `TODO: UNDERSCORE_PREFIX_DISCUSSION`.
     """
 
     datawidth: ParsesTo[Union[dict, int, float]] = 1
     """ Number of bits per value stored in this `TensorHolder`. If this is a dictionary,
     keys in the dictionary are parsed as expressions and may reference one or more
     `Tensor`s. """
-
-    bandwidth_reads_plus_writes_per_cycle: ParsesTo[Union[int, float]] = float("inf")
-    """ Total bandwidth in number of reads + number of writes per cycle. """
-
-    bandwidth_reads_per_cycle: ParsesTo[Union[int, float]] = float("inf")
-    """ Total bandwidth in number of reads per cycle. """
-
-    bandwidth_writes_per_cycle: ParsesTo[Union[int, float]] = float("inf")
-    """ Total bandwidth in number of writes per cycle. """
 
     def model_post_init(self, __context__=None) -> None:
         if not isinstance(self.datawidth, dict):
@@ -347,8 +330,9 @@ class ProcessingStage(TensorHolder):
     depending on where the write came from), and same for reads."""
 
 
-class ComputeAttributes(ComponentAttributes):
-    computes_per_cycle: ParsesTo[int] = 1
+class ComputeAttributes(LeafAttributes):
+    """Attributes for a `Compute`."""
+    pass
 
 
 class Compute(Component):
@@ -481,26 +465,5 @@ class Arch(Hierarchical):
     version: Annotated[str, assert_version] = __version__
     """ The version of the architecture specification. """
 
-    global_cycle_period: ParsesTo[Union[int, float]] = (
-        '"Set me with Specification().arch.global_cycle_period = [value]"'
-    )
-    """ 
-    The global clock frequency of the system. All cycle counts are multiplied by this
-    value to get the actual time.
-    """
-
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
-        # Parse global_cycle_period
-        global_cycle_period = parse_expression(
-            expression=self.global_cycle_period,
-            symbol_table=symbol_table,
-            attr_name="global_cycle_period",
-            location="global_cycle_period",
-        )
-        symbol_table["global_cycle_period"] = global_cycle_period
-        new, symbol_table = super()._parse_expressions(symbol_table, *args, **kwargs)
-        new.global_cycle_period = global_cycle_period
-        return new, symbol_table
-
-
-# We had to reference Hierarchical before it was defined Branch.model_rebuild()
+# We had to reference Hierarchical before it was defined 
+Branch.model_rebuild()

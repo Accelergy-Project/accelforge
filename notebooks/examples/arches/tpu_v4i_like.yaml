@@ -1,19 +1,18 @@
 arch:
   version: "0.5"
-  global_cycle_period: 1/1.05e9
   nodes:
   - !Memory
     name: MainMemory
     attributes:
       _size: inf
-      _bandwidth_reads_plus_writes_per_cycle: 8 * 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
       _datawidth: 8
+      _latency: (read_actions + write_actions) / (8 * 614e9) # 614 GB/s
+      _leak_power: 0
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
     - {name: read, arguments: {energy: 7.03e-12}}
     - {name: write, arguments: {energy: 7.03e-12}}
-    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
         keep: ~Intermediates()
@@ -23,12 +22,12 @@ arch:
     attributes:
       _size: 1024*1024*128*8 # 128MB
       _datawidth: 8
-      _bandwidth_reads_per_cycle: 8 * 2000e9 / 1.05e9 # 2000 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
-      _bandwidth_writes_per_cycle: 8 * 1000e9 / 1.05e9 # 1000 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      # 2000 GB/s for reads, 1000 GB/s for writes. Scales with cycle period.
+      _latency: max(read_actions / 8 * 2000e9, write_actions / 8 * 1000e9)
+      _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 1.88e-12}}
     - {name: write, arguments: {energy: 2.36e-12}}
-    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
         keep: ~MainMemory.tensors()
@@ -40,20 +39,18 @@ arch:
     attributes:
       _size: 1024*1024*4*8 # 4MB
       _datawidth: 8
+      _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 0.249e-12}}
     - {name: write, arguments: {energy: 0.293e-12}}
-    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors: {bypass: weight, keep: input | output}
 
   - !Compute
     name: scalar_unit
-    attributes:
-      _computes_per_cycle: 128
+    attributes: {_latency: compute_actions / 128e9, _leak_power: 0}
     actions:
     - {name: compute, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
     constraints: {misc: {enabled: len(All()) == 2}}
 
   - !Memory
@@ -64,10 +61,10 @@ arch:
     attributes:
       _size: 8 # 8b
       _datawidth: 8
+      _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors: {bypass: ~weight, keep: weight}
       spatial:
@@ -86,7 +83,7 @@ arch:
 
   - !Compute
     name: MAC
+    attributes: {_latency: compute_actions, _leak_power: 0}
     actions:
     - {name: compute, arguments: {energy: 0.084e-12}}
-    - {name: leak, arguments: {energy: 0}}
     constraints: {misc: {enabled: len(All()) == 3}}

@@ -123,15 +123,15 @@ def run_model(job: Job):
                     df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
-        df[f"Total<SEP>latency"] = overall_latency * spec.arch.global_cycle_period
-        df[f"latency<SEP>compute"] = comp_latency * spec.arch.global_cycle_period
+        df[f"Total<SEP>latency"] = overall_latency
+        df[f"latency<SEP>compute"] = comp_latency
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
         for compute_level, stats in reuse.compute_stats.items():  # FIRST LATENCY
             for idx, max_first_latency in stats.max_first_latency.items():
                 df[firstlatency2col(compute_level, idx)] = max_first_latency
         for component, latency in mem_latency.items():
-            df[f"latency<SEP>{component}"] = latency * spec.arch.global_cycle_period
+            df[f"latency<SEP>{component}"] = latency
 
     if metrics & Metrics.ENERGY:
         df[f"Total<SEP>energy"] = sum(energy.values())

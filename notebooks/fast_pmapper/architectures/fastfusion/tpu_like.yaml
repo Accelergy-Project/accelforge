@@ -2,15 +2,15 @@
 
 arch:
   version: "0.5"
-  global_cycle_period: 1e-9
   nodes:
   - !Memory
     name: MainMemory
     attributes:
       _size: inf
-      _bandwidth_reads_plus_writes_per_cycle: 256 # 256 GB/s
+      _latency: (read_actions + write_actions) / 256e9 # 256 GB/s
       # width: 256
       _datawidth: 8
+      _leak_power: 0
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
@@ -26,8 +26,8 @@ arch:
     attributes:
       _size: 1024*1024*1*8 # 1 MiB
       _datawidth: 8
-      _bandwidth_reads_per_cycle: 1024 # 1024 GB/s
-      _bandwidth_writes_per_cycle: 512 # 512 GB/s
+      _latency: max(read_actions / 1024e9, write_actions / 512e9)
+      _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 2.00e-12, bits_per_action: 8}} # 2.00 pJ/8b
     - {name: write, arguments: {energy: 2.32e-12, bits_per_action: 8}} # 2.32 pJ/8b
@@ -38,10 +38,9 @@ arch:
     spatial: [{name: Z, fanout: 4}]
     attributes:
       _size: 1024*128*8 # 128 KiB
-      _bandwidth_reads_plus_writes_per_cycle: 1024
-      _bandwidth_reads_per_cycle: 1024 # 1024 GB/s
-      _bandwidth_writes_per_cycle: 1024 # 1024 GB/s for writing psums and (rarely) inputs
+      _latency: max(read_actions / 1024e9, write_actions / 1024e9)
       _datawidth: 8
+      _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 2.00e-12, bits_per_action: 8}} # 2.00 pJ/8b
     - {name: write, arguments: {energy: 2.32e-12, bits_per_action: 8}} # 2.32 pJ/8b

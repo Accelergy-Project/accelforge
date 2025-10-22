@@ -1,12 +1,11 @@
 arch:
   version: "0.5"
-  global_cycle_period: 1/1.05e9
   nodes:
   - !Memory
     name: MainMemory
     attributes: 
       _size: inf
-      _bandwidth_reads_plus_writes_per_cycle: 8 * 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      _latency: 8 * 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
       _datawidth: 8
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
@@ -23,8 +22,7 @@ arch:
     attributes:
       _size: 1024*1024*128*8 # 128MB
       _datawidth: 8
-      _bandwidth_reads_per_cycle: 8 * 2000e9 / 1.05e9 # 2000 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
-      _bandwidth_writes_per_cycle: 8 * 1000e9 / 1.05e9 # 1000 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      _latency: max(read_actions * 8 * 2048e9, write_actions * 8 * 1024e9) # 2GB/s read, 1GB/s write
     actions:
     - {name: read, arguments: {energy: 1.88e-12}}
     - {name: write, arguments: {energy: 2.36e-12}}

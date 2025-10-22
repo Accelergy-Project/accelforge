@@ -4,9 +4,10 @@ arch:
   nodes:
   - !Memory
     name: MainMemory
-    attributes:
+    attributes: 
       _size: inf
-      _bandwidth_reads_plus_writes_per_cycle: 8 * 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
+      # https://www.jedec.org/news/pressreleases/jedec-updates-standard-low-power-memory-devices-lpddr5
+      _latency: (read_actions + write_actions) / (8 * 38.4e9) # 38.4 GB/s. DDR5-4800. Chip runs at at 1GHz, so divide to get per-cycle bwidth
       _datawidth: 8
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
@@ -21,41 +22,25 @@ arch:
   - !Memory
     name: GlobalBuffer
     attributes:
-      _size: 1024*1024*128*8 # 128MB
+      _size: 1024*64*8 # 64 kB
       _datawidth: 8
-      _bandwidth_reads_per_cycle: 8 * 2000e9 / 1.05e9 # 2000 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
-      _bandwidth_writes_per_cycle: 8 * 1000e9 / 1.05e9 # 1000 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
-    actions:
-    - {name: read, arguments: {energy: 1.88e-12}}
-    - {name: write, arguments: {energy: 2.36e-12}}
-    - {name: leak, arguments: {energy: 0}}
-    constraints:
-      tensors:
-        keep: ~MainMemory.tensors()
-
-  - !Memory
-    name: LocalBuffer
-    spatial: [{name: Z, fanout: 4}]
-    attributes:
-      _size: 1024*1024*4*8 # 4MB
-      _datawidth: 8
+      _latency: max(read_actions * 512e9, write_actions * 128e9) # 512 GB/s read, 128 GB/s write
+      # _bandwidth_reads_per_cycle: 512 * 8e9 / 1e9 # 512 GB/s. Chip runs at at 1GHz, so divide to get per-cycle bandwidth
+      # _bandwidth_writes_per_cycle: 256 * 4e9 / 1e9 # 128 GB/s. Chip runs at at 1GHz, so divide to get per-cycle bandwidth
     actions:
     - {name: read, arguments: {energy: 0.249e-12}}
     - {name: write, arguments: {energy: 0.293e-12}}
     - {name: leak, arguments: {energy: 0}}
-
-  - !Compute
-    name: scalar_unit
-    attributes:
-      _computes_per_cycle: 128
-    actions:
-    - {name: compute, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
-    constraints: {misc: {enabled: len(All()) == 2}}
+    constraints:
+      tensors:
+        keep: All()
+      dataflow:
+        tensor_order_options:
+        - [~weight, weight]
 
   - !Memory
     name: Register
-    spatial: [{name: X, fanout: 128}, {name: Y, fanout: 128}]
+    spatial: [{name: X, fanout: 32}, {name: Y, fanout: 192}]
     attributes:
       _size: 8 # 8b
       _datawidth: 8
@@ -66,16 +51,17 @@ arch:
     constraints:
       tensors:
         bypass: ~weight
-        keep: weight
       spatial:
       - name: X # Parallel rank
+        # min_utilization: 1
         loop_bounds:
-        - expression: input.rank_variables() | ~output.rank_variables()
+        - expression: ~output_channel
           operator: ==
           value: 1
       - name: Y # Reduced rank. No iteration over outputs
+        # min_utilization: 1
         loop_bounds:
-        - expression: output.rank_variables() | ~input.rank_variables()
+        - expression: ~input_channel
           operator: ==
           value: 1
 

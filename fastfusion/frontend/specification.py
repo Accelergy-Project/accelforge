@@ -1,3 +1,4 @@
+from fastfusion.frontend.component_leak import ComponentLeak, LeakEntry
 from fastfusion.frontend.mapper.mapper import Mapper
 from fastfusion.frontend.renames import Renames
 from fastfusion.util.parse_expressions import ParseError, ParseExpressionsContext
@@ -45,10 +46,16 @@ class Specification(ParsableModel):
     """ Top-level configuration settings. """
 
     component_energy: ComponentEnergy = ComponentEnergy()
-    """ To be deprecated. """
+    """ Stores energy values for each component and logging information for energy
+    models. """
 
     component_area: ComponentArea = ComponentArea()
-    """ To be deprecated. """
+    """ Stores area values for each component and logging information for area
+    models. """
+
+    component_leak: ComponentLeak = ComponentLeak()
+    """ Stores leak power values for each component and logging information for leak
+    power models. """
 
     renames: Renames = Renames()
     """ Aliases for tensors in the workload so that they can be called
@@ -116,34 +123,47 @@ class Specification(ParsableModel):
             self = self.copy()
         self.component_energy = ComponentEnergy() if energy else self.component_energy
         self.component_area = ComponentArea() if area else self.component_area
+
         for arch in self.get_flattened_architecture():
             for component in arch:
                 if component.name in components:
                     continue
                 assert isinstance(component, Component)
                 components.add(component.name)
+                orig: Component = self.arch.find(component.name)
                 if area:
-                    self.component_area.entries.append(
-                        AreaEntry.from_models(
-                            component.get_component_class,
-                            component.attributes,
-                            self,
-                            models,
-                            name=component.name,
-                        )
+                    entry = AreaEntry.from_models(
+                        component.get_component_class,
+                        component.attributes,
+                        self,
+                        models,
+                        name=component.name,
                     )
+                    self.component_area.entries.append(entry)
+                    orig.attributes.area = entry.area
                 if energy:
-                    self.component_energy.entries.append(
-                        EnergyEntry.from_models(
-                            component.get_component_class,
-                            component.attributes,
-                            [action.arguments for action in component.actions],
-                            [action.name for action in component.actions],
-                            self,
-                            models,
-                            name=component.name,
-                        )
+                    entry = EnergyEntry.from_models(
+                        component.get_component_class,
+                        component.attributes,
+                        [action.arguments for action in component.actions],
+                        [action.name for action in component.actions],
+                        self,
+                        models,
+                        name=component.name,
                     )
+                    self.component_energy.entries.append(entry)
+                    for a in entry.actions:
+                        orig.actions[a.name].arguments.energy = a.energy
+                    entry = LeakEntry.from_models(
+                        component.get_component_class,
+                        component.attributes,
+                        self,
+                        models,
+                        name=component.name,
+                    )
+                    self.component_leak.entries.append(entry)
+                    orig.attributes.leak_power = entry.leak_power
+
         return self
 
     def get_flattened_architecture(

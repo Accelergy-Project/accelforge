@@ -994,7 +994,7 @@ def analyze_compute(node_idx,
     result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(
         computes,
         computes,
-        1 / compute_node.attributes.computes_per_cycle,
+        1,
     )
     
     if info.is_copy_operation:

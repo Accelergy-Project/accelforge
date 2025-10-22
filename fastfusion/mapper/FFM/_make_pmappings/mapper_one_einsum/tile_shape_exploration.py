@@ -25,6 +25,7 @@ from fastfusion.model.looptree.reuse.summarized.symbolic import (
 )
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
 from fastfusion.model.looptree.latency import get_latency
+from fastfusion.model.looptree.latency.memory import component_latency
 from fastfusion.mapper.FFM._pmapping_group import (
     nameloop2col,
     tensor2col,
@@ -41,6 +42,7 @@ from numbers import Number
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.symbol_value_relations import (
     SymbolValueRelations,
 )
+from fastfusion.util.sympy.broadcast_max import Max
 
 
 def run_model(
@@ -64,9 +66,13 @@ def run_model(
     df = {}
 
     reuse = analyze_reuse_and_add_reservations_to_mapping(job)
-    overall_latency, comp_latency, mem_latency = get_latency(
-        reuse, pmapping, workload, job.flattened_arch
-    )
+    # overall_latency, comp_latency, mem_latency = get_latency(
+    #     reuse, pmapping, workload, job.flattened_arch
+    # )
+
+    latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
+    overall_latency = Max(*latency.values()) if latency else 0
+
     actions = gather_actions(reuse, None, use_name=True)
     energy = compute_energy_from_actions(actions, ert, overall_latency)
 
@@ -113,12 +119,8 @@ def run_model(
                 df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
-        df[f"Total<SEP>latency"] = (
-            overall_latency * spec.arch.global_cycle_period * n_instances
-        )
-        df[f"latency<SEP>compute"] = (
-            comp_latency * spec.arch.global_cycle_period * n_instances
-        )
+        df[f"Total<SEP>latency"] = overall_latency * n_instances
+        # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
         for compute_level, stats in reuse.compute_stats.items():  # FIRST LATENCY
@@ -126,10 +128,8 @@ def run_model(
                 df[firstlatency2col(compute_level.level, idx)] = (
                     max_first_latency * n_instances
                 )
-        for component, latency in mem_latency.items():
-            df[f"latency<SEP>{component}"] = (
-                latency * spec.arch.global_cycle_period * n_instances
-            )
+        for component, latency in latency.items():
+            df[f"latency<SEP>{component}"] = latency * n_instances
 
     if metrics & Metrics.ENERGY:
         df[f"Total<SEP>energy"] = sum(energy.values()) * n_instances

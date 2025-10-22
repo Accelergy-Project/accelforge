@@ -15,14 +15,13 @@ variables:
 
 arch:
   version: "0.5"
-  global_cycle_period: 1e-9
   nodes:
   - !Memory
     name: MainMemory
     component_class: DRAM
     attributes:
       _size: 9999999999999
-      _bandwidth_reads_plus_writes_per_cycle: 614e9 / width * global_cycle_period * 8 # 614 GB/s, got this from TPU
+      _latency: (read_actions + write_actions) / (8 * 614e9) # 614 GB/s
       _datawidth: 8
       width: 8192
       depth: size / width
@@ -40,7 +39,7 @@ arch:
     attributes:
       _size: 60 * (1024*1024*8) # 60 MB
       _datawidth: 8
-      _bandwidth_reads_plus_writes_per_cycle: 1 / clock_derate
+      _latency: width * 1e9 / clock_derate
       width: 16384
       depth: size / width
       clock_derate: 1
@@ -93,7 +92,7 @@ arch:
     attributes:
       _size: 64 * (1024*8) # 64 kB
       _datawidth: 8
-      _bandwidth_reads_plus_writes_per_cycle: 1 / clock_derate
+      _latency: width * 1e9 / clock_derate
       width: 1024
       depth: size / width
       clock_derate: 1

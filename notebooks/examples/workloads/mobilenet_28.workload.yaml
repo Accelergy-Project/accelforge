@@ -1,0 +1,65 @@
+workload:
+  version: "0.5"
+  shape:
+    {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
+    b: 0 <= b < {{BATCH_SIZE}}
+    p0: 0 <= p0 < 28
+    q0: 0 <= q0 < 28
+    n0: 0 <= n0 < 24
+    t0: 0 <= t0 < 192
+    n1: 0 <= n1 < 24
+    p1: 0 <= p1 < 28
+    q1: 0 <= q1 < 28
+    p2: 0 <= p2 < 28
+    q2: 0 <= q2 < 28
+    t1: 0 <= t1 < 192
+    n2: 0 <= n2 < 24
+
+  einsums:
+  - name: PwiseA0
+    tensor_accesses:
+    - {name: T0, projection: [p0, q0, n0, b]}
+    - {name: WA0, projection: [n0, t0]}
+    - {name: TA0, projection: [p0, q0, t0, b], output: True}
+
+  - name: Dwise0
+    tensor_accesses:
+    - name: TA0
+      projection:
+        P0: p1 + r0
+        Q0: q1 + s0
+        T0: t0
+        B: b
+    - {name: WAB0, projection: [r0, s0, t0]}
+    - {name: TB0, projection: [p1, q1, t0, b], output: True}
+    shape: [0 <= r0 < 3, 0 <= s0 < 3]
+
+  - name: PwiseB0
+    tensor_accesses:
+    - {name: TB0, projection: [p1, q1, t0, b]}
+    - {name: WB0, projection: [t0, n1]}
+    - {name: T1, projection: [p1, q1, n1, b], output: True}
+
+  - name: PwiseA1
+    tensor_accesses:
+    - {name: T1, projection: [p1, q1, n1, b]}
+    - {name: WA1, projection: [n1, t1]}
+    - {name: TA1, projection: [p1, q1, t1, b], output: True}
+
+  - name: Dwise1
+    tensor_accesses:
+    - name: TA1
+      projection:
+        P1: p2 + r1
+        Q1: q2 + s1
+        T1: t1
+        B: b
+    - {name: WAB1, projection: [r1, s1, t1]}
+    - {name: TB1, projection: [p2, q2, t1, b], output: True}
+    shape: [1 <= r1 < 3, 1 <= s1 < 3]
+
+  - name: PwiseB2
+    tensor_accesses:
+    - {name: TB1, projection: [p2, q2, t1, b]}
+    - {name: WB1, projection: [t1, n2]}
+    - {name: T2, projection: [p2, q2, n2, b], output: True}

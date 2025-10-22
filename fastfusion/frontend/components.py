@@ -12,12 +12,13 @@ from fastfusion.version import assert_version, __version__
 
 
 class ComponentAttributes(ParseExtras):
-    global_cycle_period: ParsesTo[Union[int, float]] = "REQUIRED"
     n_instances: ParsesTo[Union[int, float]] = 1
     energy_scale: ParsesTo[Union[int, float]] = 1
     area_scale: ParsesTo[Union[int, float]] = 1
     energy: ParsesTo[Union[int, float, None]] = None
     area: ParsesTo[Union[int, float, None]] = None
+    leak_power: ParsesTo[Union[int, float, None]] = None
+    leak_power_scale: ParsesTo[Union[int, float]] = 1
     model_config = ConfigDict(extra="allow")
 
     def _parse_expressions(

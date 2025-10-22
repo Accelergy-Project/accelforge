@@ -8,21 +8,21 @@ from fastfusion.util.basetypes import (
     ParsesTo,
     ParsableDict,
 )
-from hwcomponents import get_area
+from hwcomponents import get_leak_power
 
 
-class AreaSubcomponent(ParsableModel):
+class LeakSubcomponent(ParsableModel):
     name: str
-    area: ParsesTo[Union[int, float]]
+    leak_power: ParsesTo[Union[int, float]]
     model_name: Optional[str] = None
     messages: list[str] = []
     attributes: ParsableDict[str, ParsesTo[Any]]
 
 
-class AreaEntry(ParsableModel):
+class LeakEntry(ParsableModel):
     name: str
-    area: ParsesTo[Union[int, float]]
-    subcomponents: ParsableList[AreaSubcomponent]
+    leak_power: ParsesTo[Union[int, float]]
+    subcomponents: ParsableList[LeakSubcomponent]
 
     @staticmethod
     def from_models(
@@ -32,9 +32,9 @@ class AreaEntry(ParsableModel):
         models: list,
         return_subcomponents: bool = False,
         name: str = None,
-    ) -> Union["AreaEntry", list["AreaSubcomponent"]]:
+    ) -> Union["LeakEntry", list["LeakSubcomponent"]]:
         try:
-            return AreaEntry._from_models(
+            return LeakEntry._from_models(
                 class_name,
                 attributes,
                 spec,
@@ -44,8 +44,9 @@ class AreaEntry(ParsableModel):
             )
         except Exception as e:
             raise ValueError(
-                f"Error calculating area for {name}. If you'd like to use a "
-                f"predefined area value, set the \"area\" attribute of the component."
+                f"Error calculating leak power for {name}. If you'd like to use a "
+                f"predefined leak power value, set the \"leak_power\" attribute of "
+                f"the component."
             ) from e
 
     @staticmethod
@@ -65,13 +66,13 @@ class AreaEntry(ParsableModel):
 
         spec: Specification = spec
 
-        if attributes.area is not None:
+        if attributes.leak_power is not None:
             entries = [
-                AreaSubcomponent(
+                LeakSubcomponent(
                     name=name,
                     attributes=attributes.model_dump(),
-                    area=attributes.area * attributes.area_scale,
-                    messages=["Using predefined area value"],
+                    leak_power=attributes.leak_power * attributes.leak_power_scale,
+                    messages=["Using predefined leak power value"],
                 )
             ]
         else:
@@ -87,7 +88,7 @@ class AreaEntry(ParsableModel):
                         attributes.model_dump()
                     )[0]
                     entries.extend(
-                        AreaEntry.from_models(
+                        LeakEntry.from_models(
                             component.get_component_class(),
                             component_attributes,
                             spec,
@@ -96,17 +97,17 @@ class AreaEntry(ParsableModel):
                         )
                     )
             else:
-                estimation = get_area(
+                estimation = get_leak_power(
                     component_name=class_name,
                     component_attributes=attributes.model_dump(),
                     models=models,
                 )
-                area = estimation.value
+                leak_power = estimation.value
                 entries.append(
-                    AreaSubcomponent(
+                    LeakSubcomponent(
                         name=class_name,
                         attributes=attributes.model_dump(),
-                        area=area * attributes.area_scale,
+                        leak_power=leak_power * attributes.leak_power_scale,
                         model_name=estimation.model_name,
                         messages=estimation.messages,
                     )
@@ -115,11 +116,11 @@ class AreaEntry(ParsableModel):
         if return_subcomponents:
             return entries
 
-        area = sum(subcomponent.area for subcomponent in entries)
-        assert name is not None, f"Name is required for AreaEntry"
-        return AreaEntry(name=name, area=area, subcomponents=entries)
+        leak_power = sum(subcomponent.leak_power for subcomponent in entries)
+        assert name is not None, f"Name is required for LeakEntry"
+        return LeakEntry(name=name, leak_power=leak_power, subcomponents=entries)
 
 
-class ComponentArea(ParsableModel):
+class ComponentLeak(ParsableModel):
     version: Annotated[str, assert_version] = __version__
-    entries: ParsableList[AreaEntry] = ParsableList()
+    entries: ParsableList[LeakEntry] = ParsableList()
