@@ -8,6 +8,7 @@ arch:
       _datawidth: 8
       _latency: (read_actions + write_actions) / (8 * 614e9) # 614 GB/s
       _leak_power: 0
+      _area: 0
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
@@ -24,6 +25,7 @@ arch:
       _datawidth: 8
       _latency: max(read_actions / 8 * 2048e9, write_actions / 8 * 1024e9) # 2GB/s read, 1GB/s write
       _leak_power: 0
+      _area: 0
     actions:
     - {name: read, arguments: {energy: 1.88e-12}}
     - {name: write, arguments: {energy: 2.36e-12}}
@@ -39,6 +41,7 @@ arch:
       _size: 1024*1024*4*8 # 4MB
       _datawidth: 8
       _leak_power: 0
+      _area: 0
     actions:
     - {name: read, arguments: {energy: 0.249e-12}}
     - {name: write, arguments: {energy: 0.293e-12}}
@@ -47,7 +50,10 @@ arch:
 
   - !Compute
     name: scalar_unit
-    attributes: {_latency: compute_actions / 128e9, _leak_power: 0}
+    attributes:
+      _latency: compute_actions / 128e9,
+      _leak_power: 0
+      _area: 0
     actions:
     - {name: compute, arguments: {energy: 0}}
     constraints: {misc: {enabled: len(All()) == 2}}
@@ -61,6 +67,7 @@ arch:
       _size: 8 # 8b
       _datawidth: 8
       _leak_power: 0
+      _area: 0
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
@@ -82,7 +89,10 @@ arch:
 
   - !Compute
     name: MAC
-    attributes: {_latency: compute_actions, _leak_power: 0}
+    attributes:
+      _latency: compute_actions,
+      _leak_power: 0
+      _area: 0
     actions:
     - {name: compute, arguments: {energy: 0.084e-12}}
     constraints: {misc: {enabled: len(All()) == 3}}
