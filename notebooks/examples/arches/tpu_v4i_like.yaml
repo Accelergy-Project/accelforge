@@ -22,8 +22,7 @@ arch:
     attributes:
       _size: 1024*1024*128*8 # 128MB
       _datawidth: 8
-      # 2000 GB/s for reads, 1000 GB/s for writes. Scales with cycle period.
-      _latency: max(read_actions / 8 * 2000e9, write_actions / 8 * 1000e9)
+      _latency: max(read_actions / 8 * 2048e9, write_actions / 8 * 1024e9) # 2GB/s read, 1GB/s write
       _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 1.88e-12}}

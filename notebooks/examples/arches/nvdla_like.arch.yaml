@@ -9,12 +9,12 @@ arch:
       # https://www.jedec.org/news/pressreleases/jedec-updates-standard-low-power-memory-devices-lpddr5
       _latency: (read_actions + write_actions) / (8 * 38.4e9) # 38.4 GB/s. DDR5-4800. Chip runs at at 1GHz, so divide to get per-cycle bwidth
       _datawidth: 8
+      _leak_power: 0
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
     - {name: read, arguments: {energy: 7.03e-12}}
     - {name: write, arguments: {energy: 7.03e-12}}
-    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
         keep: ~Intermediates()
@@ -25,12 +25,10 @@ arch:
       _size: 1024*64*8 # 64 kB
       _datawidth: 8
       _latency: max(read_actions * 512e9, write_actions * 128e9) # 512 GB/s read, 128 GB/s write
-      # _bandwidth_reads_per_cycle: 512 * 8e9 / 1e9 # 512 GB/s. Chip runs at at 1GHz, so divide to get per-cycle bandwidth
-      # _bandwidth_writes_per_cycle: 256 * 4e9 / 1e9 # 128 GB/s. Chip runs at at 1GHz, so divide to get per-cycle bandwidth
+      _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 0.249e-12}}
     - {name: write, arguments: {energy: 0.293e-12}}
-    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
         keep: All()
@@ -44,10 +42,10 @@ arch:
     attributes:
       _size: 8 # 8b
       _datawidth: 8
+      _leak_power: 0
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
     constraints:
       tensors:
         bypass: ~weight
@@ -67,7 +65,7 @@ arch:
 
   - !Compute
     name: MAC
+    attributes: {_latency: compute_actions, _leak_power: 0}
     actions:
     - {name: compute, arguments: {energy: 0.084e-12}}
-    - {name: leak, arguments: {energy: 0}}
     constraints: {misc: {enabled: len(All()) == 3}}

@@ -27,5 +27,6 @@ arch:
 
   - !Compute
     name: MAC
+    attributes: {_latency: compute_actions, _leak_power: 0}
     actions:
     - {name: compute, arguments: {energy: 0}}
