@@ -57,17 +57,25 @@ class InvertibleSet(BaseModel, Generic[T]):
             element_to_child_space=self.element_to_child_space,
         )
 
+    @staticmethod
+    def _make_set(x) -> set:
+        return x.instance if isinstance(x, InvertibleSet) else x
+
     def __and__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance & other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a & b)
 
     def __or__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance | other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a | b)
 
     def __sub__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance - other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a - b)
 
     def __xor__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance ^ other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a ^ b)
 
     def __call__(self):
         return self

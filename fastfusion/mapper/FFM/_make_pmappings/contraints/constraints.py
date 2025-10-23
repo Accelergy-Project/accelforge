@@ -221,7 +221,7 @@ def get_constraints(
                 constraints.tile_shape_constraints.append(constraint)
 
         # No refetch from above constraints
-        exp = tensor_constraints.no_refetch_from_above & symbol_table[m.name]
+        exp = symbol_table[m.name] & tensor_constraints.no_refetch_from_above
         result = set()
         for no_refetch in exp.iter_one_element_sets():
             result.update(~no_refetch.rank_variables())
