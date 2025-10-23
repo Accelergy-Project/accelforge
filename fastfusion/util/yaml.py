@@ -95,7 +95,7 @@ class MultiIncludeWrapper:
 def append_path(p: str, cur_path: str, include_dirs: List[str]):
     new_paths = find_paths(p, cur_path, include_dirs)
     include_dirs += new_paths
-    logger.info(f"YAML Adding {new_paths} to include paths")
+    logging.info(f"YAML Adding {new_paths} to include paths")
     return ""
 
 
@@ -181,7 +181,7 @@ def load_file_and_includes(
         )
         include_name = re.sub(r"\W+", "", include_name)
         for np in find_paths(p, path, include_dirs):
-            logger.info(
+            logging.info(
                 f"YAML Adding {np} to document with !include{'_all' if not single else ''}"
             )
             to_include.append(load_yaml(np, data, include_dirs))
