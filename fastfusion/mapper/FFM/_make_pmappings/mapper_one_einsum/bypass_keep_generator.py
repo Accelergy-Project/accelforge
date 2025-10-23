@@ -3,8 +3,7 @@ from collections.abc import Generator
 from itertools import chain, combinations
 
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.arch import ProcessingStage
-from fastfusion.frontend.mapping import Storage, TensorHolder
+from fastfusion.frontend.mapping import Storage, TensorHolder, ProcessingStage
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
 from fastfusion.util.setexpressions import InvertibleSet
