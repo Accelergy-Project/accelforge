@@ -3,9 +3,13 @@ import math
 from numbers import Number
 from typing import (
     Any,
+    Iterator,
+    Literal,
     Optional,
+    TypeVar,
     Union,
     Annotated,
+    Type,
 )
 from pydantic import Tag
 import pydantic
@@ -31,14 +35,6 @@ from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
 
 class ArchNode(ParsableModel):
     """A node in the architecture."""
-
-    def model_post_init(self, __context__=None) -> None:
-        # Make sure all leaf names are unique
-        leaves = {}
-        for l in self.get_instances_of_type(Leaf):
-            n = l.name
-            leaves.setdefault(n, l)
-            assert l is leaves[n], f"Duplicate name {n} found in architecture"
 
     def name2leaf(self, name: str) -> "Leaf":
         """
@@ -157,9 +153,11 @@ class Leaf(ArchNode, ABC):
                     symbol_table.update(parsed.model_dump())
                 return parsed
 
-        return super()._parse_expressions(
+        parsed, symbol_table = super()._parse_expressions(
             *args, **kwargs, post_calls=(PostCallLeaf(),), order=("attributes",)
         )
+        symbol_table[self.name] = self
+        return parsed, symbol_table
 
     def get_fanout(self) -> int:
         """The spatial fanout of this node."""
@@ -226,7 +224,7 @@ class ArchMemoryActionArguments(ComponentAttributes):
 class ArchMemoryAction(SubcomponentAction):
     """An action that a `Memory` can perform."""
 
-    arguments: ArchMemoryActionArguments
+    arguments: ArchMemoryActionArguments = ArchMemoryActionArguments()
     """ The arguments for this `ArchMemoryAction`. """
 
 
@@ -319,6 +317,17 @@ class Memory(TensorHolder):
     """ The attributes of this `Memory`. """
 
 
+class ProcessingStageAttributes(TensorHolderAttributes):
+    """Attributes for a `ProcessingStage`."""
+
+    direction: Literal["up", "down", "up_and_down"]
+    """
+    The direction in which data flows through this `ProcessingStage`. If "up", then data
+    flows from below `TensorHolder`, through this `ProcessingStage` (plus paying
+    associated costs), and then to the next `TensorHolder` above it. Other data
+    movements are assumed to avoid this ProcessingStage.
+    """
+
 class ProcessingStage(TensorHolder):
     """A `ProcessingStage` is a `TensorHolder` that does not store data over time, and
     therefore does not allow for temporal reuse. Use this as a toll that charges reads
@@ -328,6 +337,9 @@ class ProcessingStage(TensorHolder):
     in how they affect the access counts of other components. Every write to a
     `ProcessingStage` is written to the next `Memory` (which may be above or below
     depending on where the write came from), and same for reads."""
+    
+    attributes: ProcessingStageAttributes = pydantic.Field(default_factory=ProcessingStageAttributes)
+    """ The attributes of this `ProcessingStage`. """
 
 
 class ComputeAttributes(LeafAttributes):
@@ -348,6 +360,7 @@ class Compute(Component):
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
 
+T = TypeVar("T")
 
 class Branch(ArchNode, ABC):
     # nodes: ArchNodes[InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
@@ -363,7 +376,13 @@ class Branch(ArchNode, ABC):
             Discriminator(get_tag),
         ]
     ] = ArchNodes()
-
+    
+    def find_nodes_of_type(self, node_type: Type[T]) -> Iterator[T]:
+        for node in self.nodes:
+            if isinstance(node, node_type):
+                yield node
+            elif isinstance(node, Branch):
+                yield from node.find_nodes_of_type(node_type)
 
 class Parallel(Branch):
     def _flatten(
@@ -390,7 +409,7 @@ class Parallel(Branch):
                 fanout = _parse_node(node, fanout)
                 break
             if isinstance(node, Branch):
-                computes = node.get_instances_of_type(Compute)
+                computes = node.find_nodes_of_type(Compute)
                 if compute_node in [c.name for c in computes]:
                     new_nodes, new_fanout = node._flatten(
                         attributes, compute_node, fanout, return_fanout=True
@@ -464,6 +483,23 @@ class Hierarchical(Branch):
 class Arch(Hierarchical):
     version: Annotated[str, assert_version] = __version__
     """ The version of the architecture specification. """
+
+    def _parse_expressions(self, *args, **kwargs):
+        symbol_table = kwargs["symbol_table"]
+        for node in self.find_nodes_of_type(Leaf):
+            symbol_table[node.name] = node
+        return super()._parse_expressions(*args, **kwargs)
+    
+    def __getitem__(self, name: str) -> Leaf:
+        return self.name2leaf(name)
+
+    def model_post_init(self, __context__=None) -> None:
+        # Make sure all leaf names are unique
+        leaves = {}
+        for l in self.find_nodes_of_type(Leaf):
+            n = l.name
+            leaves.setdefault(n, l)
+            assert l is leaves[n], f"Duplicate name {n} found in architecture"
 
 # We had to reference Hierarchical before it was defined 
 Branch.model_rebuild()

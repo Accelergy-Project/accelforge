@@ -266,35 +266,46 @@ class Parsable(ABC, Generic[M]):
     def get_validator(self, field: str) -> type:
         raise NotImplementedError("Subclasses must implement this method")
 
-    def get_instances_of_type(
-        self, type: Type[T], _first_call: bool = True
-    ) -> Iterator[T]:
-        if not _first_call:
-            if self.__class__.__name__ == "Specification":
-                return
+    # def get_instances_of_type(
+    #     self,
+    #     type: Type[T],
+    #     _first_call: bool = True,
+    #     _seen: set[int] = None,
+    # ) -> Iterator[T]:
+    #     _seen = set() if _seen is None else _seen
+    #     if not _first_call:
+    #         if self.__class__.__name__ == "Specification":
+    #             return
 
-        if isinstance(self, type):
-            yield self
-        elif isinstance(self, list):
-            for item in self:
-                if isinstance(item, Parsable):
-                    yield from item.get_instances_of_type(type, _first_call=False)
-                elif isinstance(item, type):
-                    yield item
-        elif isinstance(self, dict):
-            for item in self.values():
-                if isinstance(item, Parsable):
-                    yield from item.get_instances_of_type(type, _first_call=False)
-                elif isinstance(item, type):
-                    yield item
-        elif isinstance(self, ParsableModel):
-            for field in self.get_fields():
-                if isinstance(getattr(self, field), Parsable):
-                    yield from getattr(self, field).get_instances_of_type(
-                        type, _first_call=False
-                    )
-                elif isinstance(getattr(self, field), type):
-                    yield getattr(self, field)
+    #     def _recurse(item: Parsable):
+    #         prev_seen = _seen.copy()
+    #         if id(item) in _seen:
+    #             return
+    #         _seen.add(id(item))
+
+    #         if isinstance(item, type):
+    #             yield item
+
+    #         if isinstance(item, Parsable):
+    #             yield from item.get_instances_of_type(
+    #                 type,
+    #                 _first_call=False,
+    #                 _seen=_seen,
+    #             )
+
+    #     if isinstance(self, list):
+    #         items = self
+    #     elif isinstance(self, dict):
+    #         items = [v for k, v in self.items()]
+    #     elif isinstance(self, ParsableModel):
+    #         items = [getattr(self, field) for field in self.get_fields()]
+    #     else:
+    #         items = []
+
+    #     for item in items:
+    #         for x in _recurse(item):
+    #             print(f'Yielding {x.name} from {str(item)[:100]}')
+    #             yield x
 
     def _parse_expressions_final(
         self,
@@ -501,7 +512,7 @@ def parse_field(field, value, validator, symbol_table, parent, **kwargs):
                 )
             return parsed
         elif isinstance(value, Parsable):
-            parsed, _ = value._parse_expressions(symbol_table, **kwargs)
+            parsed, _ = value._parse_expressions(symbol_table=symbol_table, **kwargs)
             return parsed
         elif isinstance(value, str):
             return RawString(value)
