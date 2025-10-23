@@ -811,7 +811,14 @@ def find_component_object(component: str, flattened_arch: list[arch.Leaf]) -> ar
             return node
     raise ValueError(f"Component {component} not found in flattened arch")
 
-def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_child_results: bool = False):
+def analyze_storage(
+    node_idx: int, 
+    current_shape: dict[str, int], 
+    info: AnalysisInfo,
+    _propagate_child_results: bool = False,
+    _count_parent_accesses: bool = True,
+    _count_child_accesses: bool = True,
+):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
@@ -878,16 +885,17 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
 
         # ==========================
         # Data exchanges with parent
-        stats.total_write_actions += stats.total_reads_to_parent * write_scale
-        stats.max_per_unit_write_actions += stats.total_reads_to_parent * write_scale
+        if _count_parent_accesses:
+            stats.total_write_actions += stats.total_reads_to_parent * write_scale
+            stats.max_per_unit_write_actions += stats.total_reads_to_parent * write_scale
 
-        # Comment this to have the final writeback to a buffer hit both that buffer and
-        # go directly to the parent without incurring another read from the buffer.
-        stats.total_read_actions += stats.total_writes_to_parent * read_scale
-        stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
+            # Comment this to have the final writeback to a buffer hit both that buffer and
+            # go directly to the parent without incurring another read from the buffer.
+            stats.total_read_actions += stats.total_writes_to_parent * read_scale
+            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
 
-        stats.total_skipped_first_write_actions += stats.total_skipped_first_reads_to_parent * write_scale
-        stats.min_per_unit_skipped_first_write_actions += stats.min_per_parent_skipped_first_reads_to_parent * write_scale
+            stats.total_skipped_first_write_actions += stats.total_skipped_first_reads_to_parent * write_scale
+            stats.min_per_unit_skipped_first_write_actions += stats.min_per_parent_skipped_first_reads_to_parent * write_scale
 
         # ========================
         # Data exchanges with peer
@@ -896,7 +904,7 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
 
         # =========================
         # Data exchanges with child
-        if child is not None:
+        if child is not None and _count_child_accesses:
             stats.total_read_actions += child.total_reads_to_parent * read_scale
             stats.max_per_unit_read_actions += child.max_per_parent_reads_to_parent * read_scale
 
@@ -914,7 +922,15 @@ def analyze_processing_stage(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
-    storage_result = analyze_storage(node_idx, current_shape, info, _propagate_child_results=True)
+    component_object = find_component_object(node.component, info.job.flattened_arch)
+    storage_result = analyze_storage(
+        node_idx,
+        current_shape,
+        info,
+        _propagate_child_results=True,
+        _count_parent_accesses=component_object.attributes.direction != "down",
+        _count_child_accesses=component_object.attributes.direction != "up",
+    )
     for tensor in node.tensors:
         buffet = Buffet(tensor, einsum_name, node.component)
         stats = storage_result.buffet_stats[buffet]
