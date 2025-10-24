@@ -345,10 +345,10 @@ def consumer_based_tile_shape_inference(
             if not producer_einsums:
                 continue
 
-            # Collates all the producer einsum read accesses.
+            # Collates all the consumer einsum read accesses.
             producer_einsum: EinsumName = next(iter(producer_einsums))
             read_accesses: isl.Map = get_projection_map(
-                workload.einsums[producer_einsum], tensor
+                workload.einsums[einsum], tensor
             )
             # Required data of the tiling as a mapping of read accesses.
             required_data: isl.Map = tiling.apply_range(read_accesses)

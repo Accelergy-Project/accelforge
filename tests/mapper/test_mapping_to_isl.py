@@ -63,7 +63,7 @@ class TestMappingToIsl(unittest.TestCase):
 
         mapping: Mapping = Mapping.from_yaml(
             CONV1D_CONFIG_PATH / "two_conv1d.mapping.yaml"
-        )
+    )
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
@@ -78,3 +78,5 @@ class TestMappingToIsl(unittest.TestCase):
             soln = solns[repr(buffer)] if repr(buffer) in solns else None
             if soln is not None:
                 assert occupancy.map_ == soln
+            else:
+                print(occupancy.map_)
