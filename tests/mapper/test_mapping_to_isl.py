@@ -72,11 +72,17 @@ class TestMappingToIsl(unittest.TestCase):
         yaml: YAML = YAML(typ='safe')
 
         with open(expected_path, 'r') as f:
-            solns: dict = to_isl_maps(yaml.load(f))
+            solns: dict = to_isl_maps(yaml.load(f))['two_conv1d.mapping.yaml']
+        # pprint(solns)
 
-        for buffer, occupancy in occupancies.buffet_to_occupancy.items():
-            soln = solns[repr(buffer)] if repr(buffer) in solns else None
-            if soln is not None:
-                assert occupancy.map_ == soln
-            else:
-                print(occupancy.map_)
+        errors: list = []
+        try:
+            for buffer, occupancy in occupancies.buffet_to_occupancy.items():
+                soln = solns[repr(buffer)]
+                assert occupancy.map_ == soln, (
+                    f"{buffer} should hold:\n{soln}\ninstead holds:\n{occupancy.map_}"
+                )
+        except AssertionError as e:
+            errors.append(e)
+        
+        assert len(errors) == 0, pformat(errors)
