@@ -217,6 +217,7 @@ def occupancies_from_mapping(
     if DUMP_ISL_IR:
         print(f"skews: {pformat(skews)}")
 
+    ### Somewhere, call the domain space of the returned tilings {einsum}_iterations
     for bte, skew in skews.bte_to_skew.items():
         if DUMP_ISL_IR:
             print(f"{bte} has skew: {skew}")
