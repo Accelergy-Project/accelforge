@@ -24,8 +24,8 @@ class FFM(ParsableModel):
         tensors, and the storage nodes for the same tensor always obey this ordering.
         """
 
-    max_fused_loops_per_rank: int = 1
-    """ The maximum number of fused loops in a pmapping for a given rank. """
+    max_fused_loops_per_rank_variable: int = 1
+    """ The maximum number of fused loops in a pmapping for a given rank variable. """
 
     max_fused_loops: float | int = float("inf")
     """ The maximum total number of fused loops in a pmapping. """
@@ -36,6 +36,9 @@ class FFM(ParsableModel):
     max_loops_minus_ranks: float | int = float("inf")
     """ The maximum total loops in a pmapping minus the number of ranks. For example,
         3 means that the number of loops can be up to (the number of ranks + 3). """
+
+    can_lower_first_memory: bool = False
+    """Whether the storage node of first memory can be lowered."""
 
     memory_limit: float | int = float("inf")
     """ The maximum memory limit for the mapper. """
@@ -48,3 +51,10 @@ class FFM(ParsableModel):
 
     time_limit_per_pmapping_template: float | int = float("inf")
     """ The maximum time limit per pmapping template. """
+
+    max_pmapping_templates_per_einsum: float | int = float("inf")
+    """ 
+    The maximum number of pmapping templates per Einsum. Once this many templates are
+    generated, the mapper will stop generating more. This is useful for debugging (why
+    are so many templates being generated?).
+    """

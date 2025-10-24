@@ -206,7 +206,7 @@ def get_constraints(
         if (index := first_tensor_holder_index(mapping, m.name)) is None:
             continue
 
-        tensor_constraints = m.constraints.tensors._parse_non_keep_bypass(
+        tensor_constraints = m.constraints.tensors._parse_non_keep(
             symbol_table, f"{m.name}.constraints.tensors"
         )
 
@@ -219,24 +219,35 @@ def get_constraints(
                 new_nodes = [n for n in nodes if n.rank_variable in exp]
                 constraint = TileShapeConstraintLambda(c, new_nodes, exp)
                 constraints.tile_shape_constraints.append(constraint)
-
-        # No refetch from above constraints
-        exp = tensor_constraints.no_refetch_from_above & symbol_table[m.name]
-        result = set()
+        exp = symbol_table[m.name] & tensor_constraints.no_refetch_from_above
+        nodes = []
         for no_refetch in exp.iter_one_element_sets():
-            result.update(~no_refetch.rank_variables())
-        nodes = constrained_loops(
-            mapping,
-            result,
-            index - 1,
-            look_behind=True,
-            one_loop_per_rank_variable=False,
-        )
-        constraints.loop_bounds_constraints.append(
-            LoopBoundsConstraintLambda(
-                Comparison(expression=exp, operator="==", value=1), nodes, exp
+            # Start from the first index of the tensor holder, stop at index - 1
+            start_index = 0
+            n = next(iter(no_refetch))
+            while start_index < len(mapping):
+                if isinstance(mapping[start_index], TensorHolder) and n in mapping[start_index].tensors:
+                    break
+                start_index += 1
+                
+            end_index = start_index
+            while end_index < len(mapping):
+                if isinstance(mapping[end_index], TensorHolder) and n in mapping[end_index].tensors and mapping[end_index].component == m.name:
+                    break
+                end_index += 1
+                
+            rv = no_refetch.rank_variables
+            for i in range(start_index, end_index):
+                if isinstance(mapping[i], Iteration) and mapping[i].rank_variable in rv:
+                    if mapping[i] not in nodes:
+                        nodes.append(mapping[i])
+
+        if nodes:
+            constraints.loop_bounds_constraints.append(
+                LoopBoundsConstraintLambda(
+                    Comparison(expression=exp, operator="==", value=1), nodes, exp
+                )
             )
-        )
 
     # Temporal loop bounds constraints
     # TODO: Implement
@@ -259,9 +270,17 @@ def get_constraints(
                 symbol_table, f"{m.name}.constraints.spatial"
             )
 
+            loop_bounds = list(spatial_constraint.loop_bounds)
+            if spatial_constraint.must_reuse:
+                loop_bounds.append(Comparison(
+                    expression=spatial_constraint.must_reuse.rank_variables,
+                    operator="==",
+                    value=1,
+                ))
+
             # Loop bounds constraints
-            if spatial_constraint.loop_bounds:
-                for c in spatial_constraint.loop_bounds:
+            if loop_bounds:
+                for c in loop_bounds:
                     nodes = constrained_loops(loops, c.expression, component=m.name)
                     for exp in c.split_expression():
                         new_nodes = [l for l in loops if l.rank_variable in exp]

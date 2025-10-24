@@ -149,16 +149,23 @@ class EnergyEntry(ParsableModel):
     ) -> "EnergyEntry":
         actions = []
         for action_name, action_arguments in zip(action_names, arguments):
-            actions.append(
-                Action.from_models(
-                    class_name,
-                    attributes,
-                    action_arguments,
-                    action_name,
-                    spec,
-                    models,
+            try:
+                actions.append(
+                    Action.from_models(
+                        class_name,
+                        attributes,
+                        action_arguments,
+                        action_name,
+                        spec,
+                        models,
+                    )
                 )
-            )
+            except Exception as e:
+                raise ValueError(
+                    f"Error calculating energy for {name} action {action_name}. If "
+                    f"you'd like to use a predefined energy value, set the "
+                    f"\"energy\" argument of the action."
+                ) from e
         return EnergyEntry(name=name, actions=actions, attributes=attributes)
 
 

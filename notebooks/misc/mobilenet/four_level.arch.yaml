@@ -1,6 +1,5 @@
 variables:
-  global_cycle_period: 1e-9
-  tech_node: 7e-9
+tech_node: 7e-9
 
 arch:
   version: "0.5"
@@ -153,7 +152,6 @@ components:
       tech_node: REQUIRED
       multiplier_width: REQUIRED
       adder_width: REQUIRED
-      global_cycle_period: REQUIRED
     subcomponents:
     - name: intadder
       component_class: aladdin_adder

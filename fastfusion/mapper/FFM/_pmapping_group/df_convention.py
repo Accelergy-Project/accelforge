@@ -2,6 +2,7 @@ import functools
 import re
 
 from fastfusion.util import fzs
+from fastfusion.frontend.workload import RankName
 
 
 MAPPING_COLUMN = "mapping"
@@ -54,6 +55,45 @@ def col2nameloop(x: str) -> tuple[str, int] | None:
 def nameloop2col(name: str, nloops: int, left: bool = False) -> str:
     """Format: reservation name level left"""
     return f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
+
+
+@dict_cached
+def stride2col(rank_name: RankName, nloops: int) -> str:
+    """Format: stride rank_name nloops"""
+    return f"stride<SEP>{rank_name}<SEP>{nloops}"
+
+
+@dict_cached
+def col2stride(col: str) -> tuple[RankName, int] | None:
+    """Format: stride rank_name nloops"""
+    x = partition_col(col, "stride", 3)
+    return x[0], int(x[1])
+
+
+@dict_cached
+def initial2col(rank_name: RankName, nloops: int) -> str:
+    """Format: initial rank_name nloops"""
+    return f"initial<SEP>{rank_name}<SEP>{nloops}"
+
+
+@dict_cached
+def col2initial(col: str) -> tuple[RankName, int] | None:
+    """Format: initial rank_name nloops"""
+    x = partition_col(col, "initial", 3)
+    return x[0], int(x[1])
+
+
+@dict_cached
+def iterations2col(nloops: int) -> str:
+    """Format: n_iterations nloops"""
+    return f"n_iterations<SEP>{nloops}"
+
+
+@dict_cached
+def col2iterations(col: str) -> int | None:
+    """Format: n_iterations nloops"""
+    x = partition_col(col, "n_iterations", 2)
+    return x[0]
 
 
 @dict_cached

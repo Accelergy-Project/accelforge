@@ -22,55 +22,64 @@ LABEL org.label-schema.vendor="Author Here"
 LABEL org.label-schema.version=$BUILD_VERSION
 LABEL org.label-schema.docker.cmd="docker run -it --rm -v ~/workspace:/home/workspace fastfusion/fastfusion-infrastructure"
 
-# Install essential dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip graphviz make git
+# Install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+            # Python
+            python3 \
+            git \
+            python3-pip \
+            python3-dev \
+            graphviz \
+            # Build tools
+            make \
+            wget \
+            curl \
+            gcc \
+            g++ \
+            libgmp-dev \
+            libntl-dev \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            make \
+            && rm -rf /var/lib/apt/lists/*
 
-# Create user and group
-RUN echo "**** create container user and make folders ****" && \
-    userdel user || true && \
-    useradd -u 911 -U -d /home/user -s /bin/bash user && \
-    usermod -G users user
+# Update certificates (needed for downloading)
+RUN apt-get upgrade -y ca-certificates && \
+    update-ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-# Build and install islpy
-WORKDIR /usr/local/src
-RUN git clone https://github.com/inducer/islpy.git /usr/local/src/islpy && \
-    cd /usr/local/src/islpy && \
-    git submodule update --init --recursive
-WORKDIR /usr/local/src/islpy/isl
-RUN apt-get update && apt-get install -y --no-install-recommends autoconf automake libtool pkg-config libgmp-dev
-RUN ./autogen.sh && \
-    ./configure --prefix=/usr/local && \
-    make -j$(nproc) && \
-    make install
-RUN apt-get update && apt-get install -y --no-install-recommends cmake gcc g++ python3-dev
-RUN pip3 install scikit-build-core nanobind typing_extensions pcpp --break-system-packages
-RUN pip3 install /usr/local/src/islpy --no-build-isolation --break-system-packages
-    
-# # Install essential Python build dependencies
-# RUN update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.12 1
-# RUN ln -s /usr/local/bin/pip3.12 /usr/local/bin/pip3
-# RUN ln -s /usr/local/bin/python3.12 /usr/local/bin/python3
+WORKDIR /home/build
+COPY Makefile ./
+# ADD https://libntl.org/ntl-11.5.1.tar.gz /home/build/sources/ntl-11.5.1.tar.gz
+# ADD https://barvinok.sourceforge.io/barvinok-0.41.8.tar.gz /home/build/sources/barvinok-0.41.8.tar.gz
+# ADD https://github.com/inducer/islpy/archive/refs/tags/v2024.2.tar.gz /home/build/sources/islpy-2024.2.tar.gz
 
-# RUN git clone https://github.com/gilbertmike/combinatorics.git
-# RUN pip3 install ./combinatorics
-# RUN git clone https://github.com/Accelergy-Project/fastfusion.git
-# RUN pip3 install ./fastfusion
-# RUN git clone --recurse-submodules https://github.com/Accelergy-Project/hwcomponents.git
+# --- build + install all ---
+# RUN make install-ntl 
+# RUN make install-barvinok
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+# RUN apt-get update && apt-get install -y python-is-python3
+# RUN git clone --recurse-submodules https://github.com/inducer/islpy.git
+# RUN cd islpy && LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH ./build-with-barvinok.sh /usr/local
+
+# RUN make install-islpy
+RUN make install-hwcomponents
 
 # Install jupyterlab and ipywidgets
-RUN pip3 install --break-system-packages jupyterlab ipywidgets
+RUN pip install jupyterlab ipywidgets
 
-USER user
-WORKDIR /home/user/
+# WORKDIR /home/workspace
 
-# Copy first_install.sh from host
-COPY .dependencies/first_install.sh /.first_install.sh
-
-# Add first_install.sh to user's .bashrc. 
-# RUN echo "source /.first_install.sh" >> ~/.bashrc
-
-# Set up entrypoint
+# ENTRYPOINT ["/bin/bash"]
 
 EXPOSE 8888
-# , "-c", "source /home/workspace/first_install.sh && /bin/bash"]
-CMD bash -c "bash /.first_install.sh && jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.notebook_dir=/home/workspace"
+
+CMD bash -c "if ! pip list | grep -q 'fastfusion'; then cd /home/workspace && pip install -e .; fi && \
+    jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root \
+    --NotebookApp.token='' --NotebookApp.notebook_dir=/home/workspace/notebooks"
+
+# One-liner to docker container rm -f the container that has 8888 port
+# docker ps | grep 8888 | awk '{print $1}' | xargs docker rm -f

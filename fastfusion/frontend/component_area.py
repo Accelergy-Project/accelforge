@@ -33,6 +33,30 @@ class AreaEntry(ParsableModel):
         return_subcomponents: bool = False,
         name: str = None,
     ) -> Union["AreaEntry", list["AreaSubcomponent"]]:
+        try:
+            return AreaEntry._from_models(
+                class_name,
+                attributes,
+                spec,
+                models,
+                return_subcomponents,
+                name,
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Error calculating area for {name}. If you'd like to use a "
+                f"predefined area value, set the \"area\" attribute of the component."
+            ) from e
+
+    @staticmethod
+    def _from_models(
+        class_name: str | Callable[[], str],
+        attributes: dict,
+        spec: "Specification",
+        models: list,
+        return_subcomponents: bool = False,
+        name: str = None,
+    ) -> Union["AreaEntry", list["AreaSubcomponent"]]:
         attributes = copy.copy(attributes)
         entries = []
         definition = None
@@ -59,7 +83,7 @@ class AreaEntry(ParsableModel):
 
             if definition is not None:
                 for component in definition.subcomponents:
-                    component_attributes = component.attributes.parse_expressions(
+                    component_attributes = component.attributes._parse_expressions(
                         attributes.model_dump()
                     )[0]
                     entries.extend(

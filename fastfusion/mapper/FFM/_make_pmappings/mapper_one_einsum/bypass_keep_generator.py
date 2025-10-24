@@ -3,8 +3,7 @@ from collections.abc import Generator
 from itertools import chain, combinations
 
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.arch import ProcessingStage
-from fastfusion.frontend.mapping import Storage, TensorHolder
+from fastfusion.frontend.mapping import Storage, TensorHolder, ProcessingStage
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 
 from fastfusion.util.setexpressions import InvertibleSet
@@ -13,6 +12,7 @@ from fastfusion.util.setexpressions import InvertibleSet
 def make_tensor_choices_one_level(
     node: arch.Leaf,
     symbol_table: dict[str, InvertibleSet],
+    persistent_tensors: set[TensorName],
     seen_tensors: set[TensorName] = (),
     is_copy_op: bool = False,
 ) -> Generator[tuple[list[TensorHolder], SymbolTable, set[TensorName]], None, None]:
@@ -37,29 +37,23 @@ def make_tensor_choices_one_level(
         raise ValueError(f"Unexpected tensor holder type: {type(node)}")
 
     new_symbol_table = copy.copy(symbol_table)
-    tensor_constraints = node.constraints.tensors._parse_keep_bypass(
+    tensor_constraints = node.constraints.tensors._parse_keep(
         symbol_table, f"{node.name}.constraints.tensors"
     )
     must_keep = tensors.to_my_space(tensor_constraints.keep)
-    must_bypass = tensors.to_my_space(tensor_constraints.bypass)
+    may_keep = tensors.to_my_space(tensor_constraints.may_keep)
+    may_keep -= must_keep
 
     if must_keep - tensors:
         raise KeyError(
             f"Keep constraint for {node.name} includes tensors that are "
             f"not in the workload: {must_keep - new_symbol_table['All']}"
         )
-    if must_bypass - tensors:
+    if may_keep - tensors:
         raise KeyError(
             f"Bypass constraint for {node.name} includes tensors that are "
-            f"not in the workload: {must_bypass - tensors.full_space}"
+            f"not in the workload: {may_keep - tensors.full_space}"
         )
-    if must_keep & must_bypass:
-        raise KeyError(
-            f"Keep and bypass constraints for {node.name} intersect: "
-            f"{must_keep & must_bypass}"
-        )
-
-    may_keep = tensors - must_bypass - must_keep
 
     # No reuse in copy operations, so no need to keep tensors in more places
     if is_copy_op:
@@ -69,10 +63,10 @@ def make_tensor_choices_one_level(
         # Make keep choice & update symbol table
         subset = tensors.to_my_space(set(subset))
         keep_choice = tensors.to_my_space(subset | must_keep)
-        keep_choice.tensors = (
-            lambda: keep_choice
-        )  # So users can do MainMemory().tensors(). Optional.
+        # Below line is so users can do MainMemory().tensors() or MainMemory.tensors
+        keep_choice.tensors = keep_choice
         new_symbol_table[node.name] = keep_choice
+        new_symbol_table["Above"] |= keep_choice
         new_seen_tensors = seen_tensors | set(keep_choice)
 
         # Make sure they're all tensors
@@ -87,6 +81,7 @@ def make_tensor_choices_one_level(
             if t not in seen_tensors:
                 nodes[-1]._backing.add(t)
                 nodes[-1]._must_keep_tensors = [t]
+                nodes[-1].persistent = t in persistent_tensors
             elif t in must_keep:
                 nodes[-1]._must_keep_tensors = [t]
 
@@ -96,6 +91,7 @@ def make_tensor_choices_one_level(
 def make_tensor_choices_all_levels(
     nodes: list[TensorHolder],
     symbol_table: dict[str, InvertibleSet],
+    persistent_tensors: set[TensorName],
     seen_tensors: set[TensorName] = None,
     is_copy_op: bool = False,
 ) -> Generator[tuple[dict[str, list[TensorHolder]], SymbolTable], None, None]:
@@ -111,10 +107,18 @@ def make_tensor_choices_all_levels(
         yield dict(), symbol_table
         return
     for choice, symbol_table, new_seen_tensors in make_tensor_choices_one_level(
-        nodes[0], symbol_table, seen_tensors, is_copy_op
+        node=nodes[0],
+        symbol_table=symbol_table,
+        persistent_tensors=persistent_tensors,
+        seen_tensors=seen_tensors,
+        is_copy_op=is_copy_op,
     ):
         for subchoices, symbol_table in make_tensor_choices_all_levels(
-            nodes[1:], symbol_table, new_seen_tensors, is_copy_op
+            nodes=nodes[1:],
+            symbol_table=symbol_table,
+            persistent_tensors=persistent_tensors,
+            seen_tensors=new_seen_tensors,
+            is_copy_op=is_copy_op,
         ):
             yield {**subchoices, nodes[0].name: choice}, symbol_table
 

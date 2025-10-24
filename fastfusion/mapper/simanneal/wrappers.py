@@ -42,11 +42,15 @@ def get_possible_translations(
     # each possible rank.
     def translate_loop(l: Loop):
         compatible_rank_variables = (
-            set.union(*(full_equivalent_rank_variables[n] for n in l.rank_variable_names))
+            set.union(
+                *(full_equivalent_rank_variables[n] for n in l.rank_variable_names)
+            )
             & right_rank_variables
         )
         pairwise_compatible_rank_variables = (
-            set.union(*(pairwise_equivalent_rank_variables[n] for n in l.rank_variable_names))
+            set.union(
+                *(pairwise_equivalent_rank_variables[n] for n in l.rank_variable_names)
+            )
             & right_rank_variables
         )
         if len(pairwise_compatible_rank_variables) > 1:
@@ -115,7 +119,6 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
     return full_equivalent_rank_variables
 
 
-
 def get_sims_data(
     sims: dict[str, list[SIM]],
     evaluations_tracker,
@@ -168,8 +171,12 @@ def join_sims(
             for col in objective_function_cols:
                 if col not in sim.mappings.data.columns:
                     sim.mappings.data[col] = 0
-            reservations = [c for c in sim.mappings.data.columns if is_reservation_col(c)]
-            sim.mappings._data = sim.mappings.data[objective_function_cols + keepcols + reservations]
+            reservations = [
+                c for c in sim.mappings.data.columns if is_reservation_col(c)
+            ]
+            sim.mappings._data = sim.mappings.data[
+                objective_function_cols + keepcols + reservations
+            ]
 
     mapspace_globals = MapspaceGlobals(
         sims,
@@ -181,20 +188,28 @@ def join_sims(
     n_threads = util.N_PARALLEL_PROCESSES
     while n_threads >= 1:
         try:
-            results_and_trackers = parallel([delayed(_fuse_sims)(
-                mapspace_globals,
-                n_threads=n_threads,
-                evaluations_tracker=copy.deepcopy(evaluations_tracker),
-                algorithm=algorithm,
-            ) for _ in range(n_threads)], n_jobs=n_threads if util.PARALLELIZE else 1)
+            results_and_trackers = parallel(
+                [
+                    delayed(_fuse_sims)(
+                        mapspace_globals,
+                        n_threads=n_threads,
+                        evaluations_tracker=copy.deepcopy(evaluations_tracker),
+                        algorithm=algorithm,
+                    )
+                    for _ in range(n_threads)
+                ],
+                n_jobs=n_threads if util.PARALLELIZE else 1,
+            )
             results = pd.concat([r[0] for r in results_and_trackers])
             break
         except OSError as e:
             if n_threads == 1:
                 raise OSError("Failed to fuse sims with 1 thread") from e
-            print(f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}")
+            print(
+                f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}"
+            )
             n_threads //= 2
-            
+
     for t in results_and_trackers:
         evaluations_tracker.merge_with(t[1])
     return results

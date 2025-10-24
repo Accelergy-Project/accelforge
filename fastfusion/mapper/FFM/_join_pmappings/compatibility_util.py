@@ -17,7 +17,7 @@ def myprint(*args, **kwargs):
 
 
 def sims2untiled_compats(
-    einsum2sims: dict[EinsumName, Iterable[SIM]]
+    einsum2sims: dict[EinsumName, Iterable[SIM]],
 ) -> dict[EinsumName, set[Compatibility]]:
     return {
         einsum_name: {sim.compatibility.clear_loop_bounds() for sim in sims}

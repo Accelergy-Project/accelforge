@@ -55,35 +55,39 @@ SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 
 class TensorAccess(ParsableModel):
-    """
-    Information about how an Einsum accesses a tensor.
-    :param name:        The tensor being accessed.
-    :param projection:  The subscript expressions of the tensor.
-                        This can be a list of rank variables (must be single
-                        rank variables and the rank name is the uppercase of the
-                        rank variable) or a dictionary mapping rank names to
-                        subscript expressions.
-    :param output:      Whether the tensor is an output.
-    :type name:         TensorName
-    :type projection:   dict[str, str]
-    :type output:       bool
-    :type factors:      list
-    """
+    """Information about how an Einsum accesses a tensor."""
+
     name: TensorName
+    """ The name of the tensor. """
+
     projection: dict[str, str] | list[str]
+    """
+    How the rank variables of the Einsum project into the tensor. If this is a list,
+    then it is assumed that each of the elements of the list is a single rank variable
+    and they index into the tensor in ranks that equal the uppercase of the rank
+    variable. For example:
+
+    name: X, projection: [a, b, c] means X[A=a, B=b, C=c]
+
+    If this is a dictionary, it is a mapping from rank names to rank variable
+    expressions. This can be used to either project into a non-matching rank name or to
+    project into a tensor using an expression. For example:
+
+    name: X, projection: {A: a, B2: b, C: a+b} means X[A=a, B2=b, C=a+b]
+    """
+
     output: bool = False
-    factors: list = []
+    """ Whether the tensor is an output. """
+
+    persistent: bool = False
+    """ If True, then a copy of this tensor must remain in backing storage for the full
+    duration of the workload's execution. """
+
+    backing_storage_size_scale: float = 1.0
+    """ If != 1, then the backing storage size will be scaled by this factor. """
 
     def model_post_init(self, __context__=None) -> None:
-        self.projection = projection_factory(self.projection)
-
-        projection = list(self.projection.values())
-        while projection:
-            factor = projection.pop(0)
-            if isinstance(factor, list):
-                projection += factor
-            else:
-                self.factors.append(factor)
+        self.projection: ImpliedProjection = projection_factory(self.projection)
 
     def to_formatted_string(self) -> str:
         subscript = ",".join(self.projection.values())
@@ -186,6 +190,7 @@ class Shape(ParsableList):
     """
     Specifies valid values for the rank variables.
     """
+
     @property
     def rank_variables(self) -> set[str]:
         if not self:
@@ -194,23 +199,33 @@ class Shape(ParsableList):
 
 
 class Einsum(ParsableModel):
-    """
-    Represents a computation step in the workload as an Einsum.
-    :param name:                The name of the einsum.
-    :param tensor_accesses:     The tensors accessed by the einsum.
-    :param shape:               Bounds of valid rank variable values.
-    :param is_copy_operation:   Whether the einsum is a copy operation.
+    """Represents a computation step in the workload as an Einsum."""
 
-    :type name:                 EinsumName
-    :type tensor_accesses:      ParsableList[TensorAccess]
-    :type shape:                Shape[str]
-    :type is_copy_operation:    bool
-    """
     name: EinsumName
+    """ The name of the Einsum. """
     tensor_accesses: ParsableList[TensorAccess]
-    shape: Shape[str] = Shape() # NOTE: Type checker knows Shape is a ParsableList[str], Pydantic does not.
+    """ The tensors accessed by the Einsum. """
+    shape: Shape[str] = Shape()
+    """ Bounds of valid rank variable values. """
     is_copy_operation: bool = False
+    """ Whether the Einsum is a copy operation. """
     renames: RenameList[Rename] = RenameList()
+    """ Renames of the Einsum. """
+    n_instances: int = 1
+    """
+    Number of times to repeat the Einsum. Multiplied by `Workload.n_instances` to get
+    the total number of Einsum instances. Energy, latency, and other summable metrics
+    are multiplied by this value. Persistent reservations are also multiplied by this
+    value, but non-persistent reservations are not, as they are assumed to be freed
+    between each instance.
+    """
+
+    def model_post_init(self, __context__=None) -> None:
+        if self.name == "Total":
+            raise ValueError(
+                f'Einsum name "Total" is reserved for totaling across Einsums.'
+                f"Use a different name for the Einsum."
+            )
 
     def __init__(self, *args, **kwargs):
         if "renames" in kwargs:
@@ -306,20 +321,30 @@ class Einsum(ParsableModel):
 
 
 class Workload(ParsableModel):
-    """
-    The workload specification as a cascade of Einsums.
-    :param version: The FastFusion version the input is compliant with.
-    :param einsums: Computation stepsin the workload expressed as einsums.
-    :param shape:   Mapping from rank variable name to bounds of valid rank
-                    variable values.
+    """The workload specification as a cascade of Einsums."""
 
-    :type version:  Annotated[str, assert_version]
-    :type einsums:  ParsableList[Einsum]
-    :type shape:    ParsableDict[RankVariableName, str]
-    """
     version: Annotated[str, assert_version] = __version__
+    """ The version of the workload specification. """
+
     einsums: ParsableList[Einsum] = ParsableList()
+    """ Einsums in the workload. """
+
     shape: ParsableDict[RankVariableName, str] = ParsableDict()
+    """ Bounds of valid rank variable values. This is a dictionary of rank variable
+    names to bounds of valid rank variable values. The bounds are specified as a string
+    in the ISL format. For example, "0 <= a < 10" means that the rank variable `a` must
+    be between 0 and 10, including 0 but not 10. Bounds are included for all Einsums
+    that include that rank variable.
+    """
+
+    n_instances: int = 1
+    """
+    Number of times to repeat the workload. Multiplied by `Einsum.n_instances` to get
+    the total number of Einsum instances. Energy, latency, and other summable metrics
+    are multiplied by this value. Persistent reservations are also multiplied by this
+    value, but non-persistent reservations are not, as they are assumed to be freed
+    between each instance.
+    """
 
     def model_post_init(self, __context__=None) -> None:
         self._validate()
@@ -371,13 +396,23 @@ class Workload(ParsableModel):
         global_shape = [self.shape[r] for r in einsum.rank_variables if r in self.shape]
         return " and ".join(term for term in einsum_shape + global_shape)
 
+    def _check_consistent_persistent(self):
+        for tensor in self.tensor_names:
+            persistents = {
+                e.tensor_accesses[tensor].persistent
+                for e in self.einsums_with_tensor(tensor)
+            }
+            if len(persistents) > 1:
+                raise ValueError(
+                    f"Tensor {tensor} is used in multiple Einsums with different "
+                    f"persistent values. Persistent values must be consistent across "
+                    f"all Einsums that use the tensor."
+                )
+
     @property
-    def intermediate_tensor_names(self) -> set[TensorName]:
-        return {
-            t
-            for t in self.tensor_names
-            if self.einsums_that_read_tensor(t) and self.einsums_that_write_tensor(t)
-        }
+    def fusable_tensor_names(self) -> set[TensorName]:
+        self._check_consistent_persistent()
+        return {t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1}
 
     @property
     def tensor_names(self) -> set[TensorName]:
@@ -422,21 +457,29 @@ class Workload(ParsableModel):
     #     graph.config = config
 
     #     return md.Mermaid(graph)
-    
-    def render(self) -> str: # Render as Pydot
+
+    def render(self) -> str:  # Render as Pydot
         graph = pydot_graph()
-        
+
         # Add all tensors as nodes (circles)
         tensors = []
         seen_tensor_names = set()
         for einsum in self.einsums:
-            node = pydot.Node(f"Einsum_{einsum.name}", shape="box", label=f"<{einsum.to_formatted_string(compress=True)}>")
+            node = pydot.Node(
+                f"Einsum_{einsum.name}",
+                shape="box",
+                label=f"<{einsum.to_formatted_string(compress=True)}>",
+            )
             graph.add_node(node)
             for tensor_access in einsum.tensor_accesses:
                 if tensor_access.name not in seen_tensor_names:
                     tensors.append(tensor_access.name)
                     seen_tensor_names.add(tensor_access.name)
-                    node = pydot.Node(f"Tensor_{tensor_access.name}", shape="oval", label=f"<{tensor_access.to_formatted_string()}>")
+                    node = pydot.Node(
+                        f"Tensor_{tensor_access.name}",
+                        shape="oval",
+                        label=f"<{tensor_access.to_formatted_string()}>",
+                    )
                     graph.add_node(node)
 
         # Add all einsums as nodes (rectangles)
@@ -445,11 +488,15 @@ class Workload(ParsableModel):
             for tensor_access in einsum.tensor_accesses:
                 if tensor_access.output:
                     # Output tensor: einsum -> tensor
-                    edge = pydot.Edge(f"Einsum_{einsum.name}", f"Tensor_{tensor_access.name}")
+                    edge = pydot.Edge(
+                        f"Einsum_{einsum.name}", f"Tensor_{tensor_access.name}"
+                    )
                     graph.add_edge(edge)
                 else:
                     # Input tensor: tensor -> einsum
-                    edge = pydot.Edge(f"Tensor_{tensor_access.name}", f"Einsum_{einsum.name}")
+                    edge = pydot.Edge(
+                        f"Tensor_{tensor_access.name}", f"Einsum_{einsum.name}"
+                    )
                     graph.add_edge(edge)
         return graph.create_svg(prog="dot")
 
@@ -479,6 +526,9 @@ class Workload(ParsableModel):
                 | set(e.name for e in self.einsums_that_write_tensor(t))
             )
             > 1
+        }
+        persistent = {
+            t for t in all_ if self.einsums[einsum_name].tensor_accesses[t].persistent
         }
 
         element_to_child_space = {}
@@ -516,20 +566,22 @@ class Workload(ParsableModel):
             "space_name": "rank_variables",
         }
         symbol_table = {
-            "Nothing": InvertibleSet(instance=(), **kwargs_tensors),
-            "Tensors": InvertibleSet(instance=all_, **kwargs_tensors),
             "All": InvertibleSet(instance=all_, **kwargs_tensors),
+            "Tensors": InvertibleSet(instance=all_, **kwargs_tensors),
+            "Nothing": InvertibleSet(instance=(), **kwargs_tensors),
             "Inputs": InvertibleSet(instance=inputs, **kwargs_tensors),
             "Outputs": InvertibleSet(instance=outputs, **kwargs_tensors),
             "Intermediates": InvertibleSet(instance=intermediates, **kwargs_tensors),
             "Shared": InvertibleSet(instance=shared, **kwargs_tensors),
+            "Persistent": InvertibleSet(instance=persistent, **kwargs_tensors),
             **{t: InvertibleSet(instance=(t,), **kwargs_tensors) for t in all_},
             **{
                 r: InvertibleSet(instance=(r,), **kwargs_rank_variables)
                 for r in all_rank_variables
             },
             "Einsum": einsum_name,
-            "Einsum_Object": einsum,
+            "EinsumObject": einsum,
+            "Above": InvertibleSet(instance=(), **kwargs_tensors),
         }
 
         taken_renames = set()

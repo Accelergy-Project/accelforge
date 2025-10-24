@@ -3,7 +3,7 @@ import copy
 import functools
 import itertools
 
-from typing import Iterable, Optional, Tuple, Union
+from typing import Callable, Iterable, Optional, Tuple, Union
 
 import sympy
 
@@ -57,30 +57,36 @@ class PmappingGroup:
     def __init__(
         self,
         data: pd.DataFrame,
+        total_pmappings: float,
+        valid_pmappings: float,
         skip_pareto: bool = False,
         fill_reservation_cols: set | str = fzs(),
         check_above_subset_below: bool = CHECK_CORRECTNESS,
         max_right_to_left: bool = False,
         next_shared_loop_index: int = None,
         parallelize_pareto: bool = False,
-        n_pmappings: int = None,
         limit_capacity_drop_valid_reservations: bool = True,
+        no_drop_reservations_for: set[str] = None,
     ):
         self._data: pd.DataFrame = data
         self.right_reservations: dict[set] = None
         self.left_reservations: dict[set] = None
-        self.parents = []
         self._prev_free_to_loop_index = None
         self._parallelize_pareto = parallelize_pareto
         self._make_reservations()
-        self.n_pmappings = n_pmappings if n_pmappings is not None else len(self.data)
+        self.total_pmappings: float = total_pmappings
+        self.valid_pmappings: float = valid_pmappings
 
         if next_shared_loop_index is not None:
+            assert (
+                no_drop_reservations_for is not None
+            ), "no_drop_reservations_for must be set if next_shared_loop_index is set"
             self.free_to_loop_index(loop_index=next_shared_loop_index)
             self.limit_capacity(
                 resource2capacity={},
                 next_shared_loop_index=next_shared_loop_index,
                 drop_valid_reservations=limit_capacity_drop_valid_reservations,
+                no_drop_reservations_for=no_drop_reservations_for,
             )
             self._check_reservations()
 
@@ -101,12 +107,21 @@ class PmappingGroup:
 
         self._check_reservations()
 
+        assert len(self.data.columns) == len(
+            set(self.data.columns)
+        ), f"Duplicate columns: {self.data.columns}"
+
     def all_reservation_levels(self):
         return set().union(
             set(),
             *self.left_reservations.values(),
             *self.right_reservations.values(),
         )
+
+    def rename(self, renames: dict[str, str]) -> "PmappingGroup":
+        new = self.copy()
+        new.data.rename(columns=renames, inplace=True)
+        return new
 
     @error_check_wrapper
     def fill_reservation_cols(self, columns: set | str):
@@ -181,7 +196,7 @@ class PmappingGroup:
                     else self.right_reservations
                 )
                 target.setdefault(name, set()).add(nloops)
-                assert nloops >= 0
+                assert nloops >= -1
 
     def _check_reservations(self):
         prev_left, prev_right = self.left_reservations, self.right_reservations
@@ -272,7 +287,7 @@ class PmappingGroup:
     ) -> Optional[Union[str, Tuple[str, int, bool]]]:
         reservations = self.left_reservations if left else self.right_reservations
         if (reservations := reservations.get(name, None)) is not None:
-            while level >= 0:
+            while level >= -1:
                 if level in reservations:
                     if return_name_level_left:
                         return name, level, left
@@ -336,6 +351,18 @@ class PmappingGroup:
             ),
         )
 
+    def get_min_loop_index(self):
+        return min(
+            min(
+                (min(r, default=1000000) for r in self.right_reservations.values()),
+                default=1000000,
+            ),
+            min(
+                (min(r, default=1000000) for r in self.left_reservations.values()),
+                default=1000000,
+            ),
+        )
+
     @error_check_wrapper
     def merge_next(
         self,
@@ -348,9 +375,10 @@ class PmappingGroup:
         compatibility_left: Compatibility,
         compatibility_right: Compatibility,
         compatibility_joined: Compatibility,
-        resource2capacity: dict[str, int] = None,
+        no_drop_reservations_for: set[str],
+        resource2capacity: dict[str, int],
         drop_valid_reservations: bool = True,
-        ignore_reservations: set[str] = set(),
+        pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> "PmappingGroup":
         """
            A  B            A2
@@ -422,6 +450,7 @@ class PmappingGroup:
         max_nloops = max(
             shared_loop_index, self.get_max_loop_index(), right.get_max_loop_index()
         )
+        min_nloops = min(self.get_min_loop_index(), right.get_min_loop_index())
 
         sd, rd = self.data, right.data
         if make_empty_result:
@@ -447,9 +476,16 @@ class PmappingGroup:
         ]
         df = df.drop(columns=dropcols)
 
+        # Number of combinations
+        total_pmappings = self.total_pmappings * right.total_pmappings
+        valid_pmappings = self.valid_pmappings * right.valid_pmappings
+        scale_by = len(df) / max(1, len(self.data) * len(right.data))
+        total_pmappings *= scale_by
+        valid_pmappings *= scale_by
+
         # Make sure everything is done in increasing loop order so we don't have
         # read-after-write hazards
-        for nloops in range(max_nloops, -1, -1):
+        for nloops in range(max_nloops, min_nloops - 1, -1):
 
             def iter_reservations(reservations_dict):
                 for resource in reservations_dict:
@@ -513,12 +549,12 @@ class PmappingGroup:
                 add_to_col(df, target, source)
 
         df = df.drop(columns=dropcols)
-        n_pmappings = self.n_pmappings * right.n_pmappings
         result = PmappingGroup(
             df,
             skip_pareto=True,
             check_above_subset_below=False,
-            n_pmappings=n_pmappings,
+            total_pmappings=total_pmappings,
+            valid_pmappings=valid_pmappings,
         )
         # Remove tensors that were allocated in both branches and got added
         # together.
@@ -531,20 +567,23 @@ class PmappingGroup:
         result.adjust_reservations(
             alloc=live_to_alloc,
             free=list(itertools.chain(shared_to_free, duplicated_aliased_tensors)),
-            ignore_reservations=ignore_reservations,
         )
 
         if CHECK_CORRECTNESS:
             result.check_above_subset_below(live_tensors)
             result.check_reservations(live_tensors)
 
-
         result.free_to_loop_index(next_shared_loop_index, live_tensors=live_tensors)
         if not CHECK_CORRECTNESS:
             result.limit_capacity(
-                resource2capacity, next_shared_loop_index, drop_valid_reservations
+                resource2capacity,
+                next_shared_loop_index,
+                drop_valid_reservations,
+                no_drop_reservations_for=no_drop_reservations_for,
             )
         result.max_right_to_left()
+        if pmapping_row_filter_function is not None:
+            result = result.filter_rows(pmapping_row_filter_function)
         result.make_pareto()
         result._check_reservations()
 
@@ -600,11 +639,8 @@ class PmappingGroup:
         self,
         alloc: Iterable[TensorReservation],
         free: Iterable[TensorReservation],
-        ignore_reservations: set[str] = set(),
     ):
         alloc, free = list(alloc), list(free)
-        alloc = [t for t in alloc if t.resource_name not in ignore_reservations]
-        free = [t for t in free if t.resource_name not in ignore_reservations]
         all_resources = {t.resource_name for t in alloc} | {
             t.resource_name for t in free
         }
@@ -635,17 +671,32 @@ class PmappingGroup:
             concatenated.fillna(0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
             fill_reservation_cols=fill_cols,
-            n_pmappings=sum(p.n_pmappings for p in paretos),
+            total_pmappings=sum(p.total_pmappings for p in paretos),
+            valid_pmappings=sum(p.valid_pmappings for p in paretos),
         )
-
-        p.parents = paretos[0].parents
         return p
 
-    def copy(self) -> "PmappingGroup":
-        p = PmappingGroup(
-            self.data.copy(), skip_pareto=True, check_above_subset_below=False
+    def update(
+        self,
+        skip_pareto: bool,
+        **kwargs,
+    ) -> "PmappingGroup":
+        args = dict(
+            data=self.data,
+            skip_pareto=skip_pareto,
+            check_above_subset_below=False,
+            total_pmappings=self.total_pmappings,
+            valid_pmappings=self.valid_pmappings,
         )
-        p.parents = copy.deepcopy(self.parents)
+        args.update(kwargs)
+        return PmappingGroup(**args)
+
+    def copy(self) -> "PmappingGroup":
+        return self.update(
+            data=self.data.copy(),
+            skip_pareto=True,
+            check_above_subset_below=False,
+        )
         return p
 
     def limit_capacity(
@@ -653,6 +704,7 @@ class PmappingGroup:
         resource2capacity: dict[str, Optional[int]],
         next_shared_loop_index: int = None,
         drop_valid_reservations: bool = True,
+        no_drop_reservations_for: set[str] = set(),
     ):
         resource2capacity = resource2capacity or {}
         dropcols = []
@@ -673,7 +725,12 @@ class PmappingGroup:
                     else self.data
                 )
             for l in list(right_loops):
-                if l == 0 and next_shared_loop_index == -1 and drop_valid_reservations:
+                if (
+                    l == 0
+                    and next_shared_loop_index == -1
+                    and drop_valid_reservations
+                    and resource not in no_drop_reservations_for
+                ):
                     right_loops.discard(l)
                     dropcols.append(col)
 
@@ -687,7 +744,11 @@ class PmappingGroup:
                     if capacity is not None
                     else self.data
                 )
-                if l == 0 and drop_valid_reservations:
+                if (
+                    l == 0
+                    and drop_valid_reservations
+                    and resource not in no_drop_reservations_for
+                ):
                     left_loops.discard(l)
                     dropcols.append(col)
 
@@ -730,6 +791,23 @@ class PmappingGroup:
                 """
                 self.fail(first_failing_index, live_tensors)
                 raise ValueError(error)
+
+    def filter_rows(
+        self, pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None
+    ) -> "PmappingGroup":
+        if pmapping_row_filter_function is None:
+            return self.copy()
+
+        # s = pmapping_row_filter_function(self._data)
+        # if s.sum() > 0:
+        #     print(f"Filter rate: {s.sum() / len(s):.2%}")
+        return self.update(
+            data=self._data[pmapping_row_filter_function(self._data)].copy(),
+            skip_pareto=True,
+        )
+
+    def __len__(self) -> int:
+        return len(self._data)
 
     # @error_check_wrapper
     # def check_reservations(self, live_tensors: set[int]):

@@ -11,5 +11,6 @@ from fastfusion.frontend import variables
 from fastfusion.frontend import workload
 from fastfusion.frontend import specification
 from fastfusion.frontend.specification import Specification, Spec
-import fastfusion.mapper as mapper
+from fastfusion.mapper.FFM import Metrics
 from fastfusion.util import set_n_parallel_jobs
+import fastfusion.mapper as mapper

@@ -1,7 +1,8 @@
 import itertools
+from enum import Enum
 
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.mapping import MappingNode, Temporal, Spatial, TensorHolder
+from fastfusion.frontend.mapping import MappingNode, ProcessingStage, Temporal, Spatial, TensorHolder
 from fastfusion.frontend.workload.workload import (
     Einsum,
     RankVariableName,
@@ -12,7 +13,12 @@ from fastfusion.frontend.workload.workload import (
 # =================================================================================================
 # Insert loops
 # =================================================================================================
-import itertools
+
+
+class LowerChoice(Enum):
+    YES = 0
+    NO = 1
+    OPTIONAL = 2
 
 
 def insert_temporal_loops(
@@ -22,18 +28,24 @@ def insert_temporal_loops(
     rank_variable_bounds: dict[RankVariableName, int],
     ranks_with_tile_pattern: set,
     workload: Workload,
+    can_lower_first_memory: bool,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
     # - Between any two TensorHolder nodes
     # - After the last TensorHolder node
 
+    # TODO: When deciding to break up first memory into multiple split mapping indices,
+    # make sure to check persistence. Idk if it'll be important or not
+    # TODO: This only works if all the splits are on top
     split_mapping: list[list[TensorHolder]] = [[]]
     for m in mapping:
         split_mapping.append([m])
         if m.component == first_memory.name:
             while len(split_mapping) > 1:
                 split_mapping[0].extend(split_mapping.pop(1))
+                
+    split_mapping = [m for m in split_mapping if m]
 
     # These Einsum properties are recalculated since Einsum is mutable
     # We're pre-computing and reusing for efficiency
@@ -44,27 +56,50 @@ def insert_temporal_loops(
     tensor2irrelevant_rank_vars = einsum.tensor2irrelevant_rank_variables
     tensor2rank_vars = einsum.tensor2rank_variables
 
-    intermediate_tensors = einsum.tensor_names & workload.intermediate_tensor_names
+    fusable_tensors = einsum.tensor_names & workload.fusable_tensor_names
     is_fused_loops = True
     seen_tensors = set()
     choices = []
-    lowering_choices = []
+    lowering_choices: list[tuple[bool, ...]] = []
+    
+    def _get_next_storages(i: int) -> list[TensorHolder]:
+        for j in range(i + 1, len(split_mapping)):
+            assert len(split_mapping[j]) <= 1
+            if isinstance(split_mapping[j][0], ProcessingStage):
+                continue
+            return split_mapping[j]
+        return []
 
-    for i, prev_tensor_holders in enumerate(split_mapping):
+    for i, prev_storages in enumerate(split_mapping):
         # =============================================================================
-        # Choose what temporal loops to insert between prev_tensor_holders and the next
+        # Choose what temporal loops to insert between prev_storages and the next
         # TensorHolder node(s).
         # =============================================================================
 
-        next_tensor_holders = split_mapping[i + 1] if i < len(split_mapping) - 1 else []
-        assert sum(len(set(s.tensors) - s._backing) for s in prev_tensor_holders) <= 1
-        assert sum(len(s.tensors) for s in next_tensor_holders) <= 1
+        next_storages = _get_next_storages(i)
+
+        for s in prev_storages:
+            # No tensor holders must mix backing/non-backing tensors.
+            assert not s._backing or all(t in s._backing for t in s.tensors)
+            # One tensor per holder
+            assert len(s.tensors) == 1
 
         rank_variables = einsum.rank_variables
         # rank_variables = {r for r in rank_variables if rank_variable_bounds[r] > 1}
-        seen_tensors |= set.union(*(set(t.tensors) for t in prev_tensor_holders), set())
-        is_fused_loops = is_fused_loops and len(intermediate_tensors - seen_tensors) > 0
-        prev_tensors = set.union(set(), *(set(t.tensors) for t in prev_tensor_holders))
+        seen_tensors |= set.union(*(set(t.tensors) for t in prev_storages), set())
+        is_fused_loops = is_fused_loops and len(fusable_tensors - seen_tensors) > 0
+        prev_tensors = set.union(set(), *(set(t.tensors) for t in prev_storages))
+        next_persistent = set.union(
+            set(), *(set(t.tensors) for t in next_storages if t.persistent)
+        )
+
+        # Can't have loops above persistent tensor holders
+        if next_persistent:
+            rank_variables &= set()
+            
+        # Loops below processing stages aren't helpful becauase there is no storage
+        if isinstance(prev_storages[0], ProcessingStage):
+            rank_variables &= set()
 
         # Generally we want to only use rank variables that are irrelevant to the
         # previous tensors, else we'd just lower those tensors. However, we can't lower
@@ -72,13 +107,13 @@ def insert_temporal_loops(
 
         # No recomputation: If we haven't seen a tensor yet, must only iterate over
         # fully-relevant rank variables.
-        for t in intermediate_tensors - seen_tensors:
+        for t in fusable_tensors - seen_tensors:
             rank_variables &= tensor2fully_relevant_rank_vars[t]
 
         # Optimality-preserving optimizations: We can trivially lower non-backing
         # TensorHolder nodes through fully-relevant loops. Can't do this if the loops
         # are fused because that'd add loops to the compatibility.
-        for s in prev_tensor_holders:
+        for s in prev_storages:
             for t in s.tensors:
                 if t not in s._backing and not s._must_be_here:
                     rank_variables -= tensor2fully_relevant_rank_vars[t]
@@ -89,7 +124,7 @@ def insert_temporal_loops(
         # irrelevant rank variables partially-relevant to the previous tensors, since
         # that affects the permutation.
         if not is_fused_loops:
-            for s in next_tensor_holders:
+            for s in next_storages:
                 if not s._must_be_here:
                     for t in s.tensors:
                         rvs = tensor2irrelevant_rank_vars[t]
@@ -97,63 +132,78 @@ def insert_temporal_loops(
                             rvs -= tensor2partially_relevant_rank_vars[t2]
                         rank_variables -= rvs
 
-        # Test permutations of partially-relevant rank variables because we'll be
-        # lowering through them. Don't permute fully-relevant rank variables because
-        # we won't lower through them.
         partially_relevant_to_previous = set.union(
             set(), *(tensor2partially_relevant_rank_vars[t] for t in prev_tensors)
         )
-        partially_relevant_choices = list(
-            itertools.permutations(rank_variables & partially_relevant_to_previous)
-        )
-        irrelevant_choices = tuple(
-            sorted(rank_variables - partially_relevant_to_previous)
-        )
-        choices.append([x + irrelevant_choices for x in partially_relevant_choices])
+        partially_relevant_to_previous &= rank_variables
+
+        permutable_partially_relevant = set()
 
         # =============================================================================
-        # Choose whether to lower TensorHolder nodes through partially-relevant loops.
+        # Determine whether to lower TensorHolder nodes through partially-relevant loops.
+        # =============================================================================
+        for s in prev_storages:
+            partially_relevant_to_previous = set.union(
+                set(), *(tensor2partially_relevant_rank_vars[t] for t in s.tensors)
+            )
+            partially_relevant_to_previous &= rank_variables
+            lowerable_backing = (
+                can_lower_first_memory or s.component != first_memory.name
+            )
+
+            # Persistent. Must be at the top of the mapping.
+            if s.persistent:
+                lowering_choices.append((False,))
+            # Previous is backing and there's partially-relevant rank variables. May
+            # want to lower to reduce memory footprint, or raise to reduce number of
+            # fused loops.
+            elif s._backing and lowerable_backing and partially_relevant_to_previous:
+                lowering_choices.append((False, True))
+                permutable_partially_relevant |= partially_relevant_to_previous
+            # No backing in previous. No cost to lowering. Lower all
+            elif not s._backing:
+                lowering_choices.append((True,))
+                permutable_partially_relevant |= partially_relevant_to_previous
+            # Previous TensorHolder is backing but not lowerable or there are no
+            # partially relevant rank vars.
+            else:
+                lowering_choices.append((False,))
+
+        # =============================================================================
+        # Create loop order and lowering choices
         # =============================================================================
 
-        # Option 1: Previous TensorHolder is backing and the loop(s) are
-        # partially-relevant. We want to explore both lowering and non-lowering.
-        # Partially-relevant loop becomes fused if we lower.
-        prev_has_backing = any(s._backing for s in prev_tensor_holders)
-        if prev_has_backing and partially_relevant_to_previous:
-            lowering_choices.extend([[True, False]] * len(prev_tensor_holders))
+        can_lower = any(any(c) for c in lowering_choices)
 
-        # Option 2: No backing in previous. Lower all. No cost to lowering. Conditioned
-        # on option 1 being false.
-        elif not prev_has_backing:
-            lowering_choices.extend([[True]] * len(prev_tensor_holders))
-
-        # Option 3: Fused, but all previous TensorHolder are for the first memory. Don't
-        # lower. We don't need to reduce memory usage for DRAM.
-        elif all(s.component == first_memory.name for s in prev_tensor_holders):
-            lowering_choices.extend([[False]] * len(prev_tensor_holders))
-
-        # Option 4: Previous TensorHolder is backing. Don't lower this; needs to be
-        # alive for the other Einsum(s).
-        elif prev_has_backing:
-            lowering_choices.extend([[False]] * len(prev_tensor_holders))
-
-        else:
-            raise RuntimeError("BUG")
+        # Create canonical loop orders that avoids repeating reuse patterns.
+        choices.append(
+            list(
+                canonical_loop_orders(
+                    rank_variables, permutable_partially_relevant, can_lower
+                )
+            )
+        )
 
     # ==================================================================================
     # Iterate over all possible mappings
     # ==================================================================================
+
+    # TODO: Optimization: If we can optionally lower a tensor & the loop below it is
+    # not something through which we can lower for a given permutation, skip options
+    # that lower that tensor because they get the same result as not lowering the
+    # tensor.
     for loop_orders in itertools.product(*choices):
         full_mapping = []
-        for prev_tensor_holders, loop_order in zip(split_mapping, loop_orders):
-            full_mapping.extend(prev_tensor_holders)
+        for prev_storages, loop_order in zip(split_mapping, loop_orders):
+            full_mapping.extend(prev_storages)
             full_mapping.extend(Temporal(rank_variable=r) for r in loop_order)
-        tensor_holders = [
+
+        storages = [
             node for node in full_mapping if isinstance(node, TensorHolder)
         ]
-        assert len(lowering_choices) == len(tensor_holders)
+        assert len(lowering_choices) == len(storages)
         for lowering_choice in itertools.product(*lowering_choices):
-            for lower, node in zip(lowering_choice, tensor_holders):
+            for lower, node in zip(lowering_choice, storages):
                 node._lower = lower
 
             yield list(full_mapping)
@@ -194,3 +244,26 @@ def insert_spatial_loops(
                     mapping.append(s)
                 else:
                     mapping.insert(insertion_point, s)
+
+
+def canonical_loop_orders(
+    rank_variables: set[RankVariableName],
+    partially_relevant_to_previous: set[RankVariableName],
+    can_lower: bool,
+):
+    """Generate loop orders that result in unique reuse patterns."""
+    # Only the first partially-relevant rank variable matters is a meaningful
+    # choice because lowering only happens through at most one rank var.
+    if not partially_relevant_to_previous or not can_lower:
+        yield tuple(sorted(rank_variables))
+        return
+
+    for first_rank_var in partially_relevant_to_previous:
+        rest_of_partially_relevant = partially_relevant_to_previous - {first_rank_var}
+        rest_rank_vars = rank_variables - partially_relevant_to_previous
+        # Since order does not matter, we choose alphabetical order as canonical.
+        yield (
+            (first_rank_var,)
+            + tuple(sorted(rest_of_partially_relevant))
+            + tuple(sorted(rest_rank_vars))
+        )

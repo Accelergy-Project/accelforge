@@ -48,12 +48,21 @@ class MultiEinsumPmappings:
         filter_lambda: Callable[[SIM], bool],
         einsum_names: list[EinsumName] | None = None,
     ):
+        new_einsum2pmappings = {}
         if einsum_names is None:
             einsum_names = list(self.einsum2pmappings.keys())
         for einsum_name in einsum_names:
-            self.einsum2pmappings[einsum_name] = [
+            new_einsum2pmappings[einsum_name] = [
                 pm for pm in self.einsum2pmappings[einsum_name] if filter_lambda(pm)
             ]
+
+        return MultiEinsumPmappings(
+            einsum2pmappings=new_einsum2pmappings,
+            pmapping_objects=self.pmapping_objects,
+            resource2capacity=self.resource2capacity,
+            einsum2jobs=self.mapper_jobs,
+            can_combine_multiple_runs=self.can_combine_multiple_runs,
+        )
 
     def drop_einsums(self, *einsum_names: EinsumName):
         for einsum_name in einsum_names:
@@ -110,7 +119,7 @@ class MultiEinsumPmappings:
         self, per_einsum: bool = False
     ) -> int | dict[EinsumName, int]:
         result = {
-            einsum_name: sum(len(p.mappings.data) for p in pmappings)
+            einsum_name: sum(len(p) for p in pmappings)
             for einsum_name, pmappings in self.einsum2pmappings.items()
         }
         if per_einsum:
@@ -127,3 +136,46 @@ class MultiEinsumPmappings:
         if per_einsum:
             return result
         return sum(result.values())
+
+    def n_pmapping_string(self) -> str:
+        if "Total" in self.einsum2pmappings:
+            raise ValueError(
+                f"Cannot print stats for a MultiEinsumPmappings object that has "
+                f"an Einsum named 'Total'. Use a different name for the Einsum."
+            )
+
+        total_pmappings = self.total_pmappings(per_einsum=True)
+        valid_pmappings = self.valid_pmappings(per_einsum=True)
+        evaluated_pmappings = self.evaluated_pmappings(per_einsum=True)
+        pareto_optimal_pmappings = self.pareto_optimal_pmappings(per_einsum=True)
+
+        for x in (
+            total_pmappings,
+            valid_pmappings,
+            evaluated_pmappings,
+            pareto_optimal_pmappings,
+        ):
+            x["Total"] = sum(x.values())
+
+        s = []
+        for e in total_pmappings:
+            t = total_pmappings[e]
+            v = valid_pmappings[e]
+            ev = evaluated_pmappings[e]
+            p = pareto_optimal_pmappings[e]
+
+            def fmt(x, total: bool = True):
+                x = round(x)
+
+                def _f(y):
+                    y = round(y)
+                    return str(y) if y < 1000 else f"{y:.2e}".replace("e+", "e")
+
+                divved = _f(round(t) / x) if x != 0 else "inf"
+                return f"{_f(x)} (1/{divved})" if total else _f(x)
+
+            s.append(
+                f"{e}: {fmt(t, False)} total, {fmt(v)} valid, {fmt(ev)} evaluated, "
+                f"{fmt(p)} Pareto-Optimal"
+            )
+        return "\n".join(s)

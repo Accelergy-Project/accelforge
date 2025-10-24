@@ -59,7 +59,6 @@ NodeList: TypeAlias = ParsableList[
             Annotated["Pipeline", Tag("Pipeline")],
             Annotated["Nested", Tag("Nested")],
             Annotated["Reservation", Tag("Reservation")],
-            # NOFILL: Annotated["Fill", Tag("Fill")],
             Annotated["Mapping", Tag("Mapping")],
             Annotated["ProcessingStage", Tag("ProcessingStage")],
         ],
@@ -299,7 +298,7 @@ class MappingNode(ParsableModel, ABC):
 
 
 class TilePattern(ParsableModel):
-    stride: ParsesTo[Literal["symbol"] | sympy.Symbol | int | str] = "symbol"
+    stride: ParsesTo[Literal["symbol"] | sympy.Symbol | int | str | None] = "symbol"
     """ The stride of the pattern. """
 
     initial_tile_shape: ParsesTo[
@@ -321,11 +320,11 @@ class TilePattern(ParsableModel):
 
     def __str__(self) -> str:
         s = []
-        if self.calculated_n_iterations is not None:
+        if self.calculated_n_iterations not in (None, "symbol"):
             s.append(f"in [0..{self.calculated_n_iterations})")
-        if self.initial_tile_shape is not None:
+        if self.initial_tile_shape not in (None, "symbol"):
             s.append(f"initial={self.initial_tile_shape}")
-        if self.stride is not None:
+        if self.stride not in (None, "symbol"):
             s.append(f"stride={self.stride}")
         return " ".join(s)
 
@@ -366,6 +365,27 @@ class TilePattern(ParsableModel):
     def __hash__(self) -> int:
         return hash((self.initial_tile_shape, self.stride))
 
+    def rename_to_match(
+        self, other: "TilePattern"
+    ) -> tuple["TilePattern", dict[str, str]]:
+        renames = {}
+        setattrs = {}
+        for x in self._symbol_attrs():
+            if getattr(self, x) != getattr(other, x):
+                renames[getattr(self, x)] = getattr(other, x)
+                setattrs[x] = getattr(other, x)
+        return self.update(**setattrs), renames
+
+    def clear_symbols(self) -> "TilePattern":
+        def desymbol(x: str | sympy.Symbol | int | None) -> str | int | None:
+            if isinstance(x, (str, sympy.Symbol)):
+                return None
+            return x
+
+        return self.update(
+            **{x: desymbol(getattr(self, x)) for x in self._symbol_attrs()}
+        )
+
 
 class Iteration(MappingNode):
     """
@@ -384,7 +404,7 @@ class Iteration(MappingNode):
     """ Whether the Mapper assumes perfect factorization is necessary to perform an
     operation. """
 
-    _fused: bool = False
+    _fused: bool = None
     """ Whether this Iteration is fused with another. """
 
     def __str__(self) -> str:
@@ -484,8 +504,6 @@ class Spatial(Iteration):
     component_object: Optional[arch.Leaf] = None
     """ The hardware feature hosting the Iteration. """
 
-    component_object: Optional[arch.Leaf] = None
-
     def compact_str(self) -> str:
         return f"S-{self.name}-{super().compact_str()}"
 
@@ -537,7 +555,13 @@ class TensorHolder(MappingNode):
     """ Which tensor(s) are backed by this node. """
 
     _lower: bool = True
-    """ Whether the tensor names are compressed to lowercase. """
+    """ Whether this tensor holder can be lowered. """
+
+    persistent: bool = False
+    """
+    Whether this tensor holder is persistent. Persistent tensors can't be tiled and must
+    be kept in backing storage for the full duration of the workload's execution.
+    """
 
     def compact_str(self) -> str:
         tname = ",".join(self.tensors)
@@ -580,9 +604,6 @@ class TensorHolder(MappingNode):
             component=self.component,
             component_object=self.component_object,
         )
-        new._must_keep_tensors = self._must_keep_tensors + other._must_keep_tensors
-        new._backing = self._backing | other._backing
-        new._lower = self._lower
         return new
 
 
@@ -730,6 +751,18 @@ class MappingNodeWithChildren(MappingNode):
         assert new_nodes, "BUG"
         self.nodes = ParsableList(new_nodes)
 
+    def _elevate_persistent_nodes_above_splits(self) -> None:
+        new_nodes: list[MappingNode] = []
+        for node in self.nodes:
+            if isinstance(node, Split):
+                persistent_nodes = node._get_persistent_nodes()
+                new_nodes.extend(persistent_nodes)
+                node.clear_nodes(*persistent_nodes)
+            if isinstance(node, MappingNodeWithChildren):
+                node._elevate_persistent_nodes_above_splits()
+            new_nodes.append(node)
+        self.nodes = ParsableList(new_nodes)
+
     def _elevate_tensor_holders_above_splits(self) -> None:
         new_nodes: list[MappingNode] = []
         for node in self.nodes:
@@ -807,6 +840,13 @@ class Split(MappingNodeWithChildren):
 
     def _render_node_shape(self) -> str:
         return "hexagon"
+
+    def _get_persistent_nodes(self) -> list[MappingNode]:
+        nodes = []
+        for n in self.nodes:
+            nodes.extend(n.get_nodes_of_type(TensorHolder))
+            nodes.extend(n.get_nodes_of_type(Reservation))
+        return [n for n in nodes if n.persistent]
 
     def _get_shared_tensor_holders(self) -> list[TensorHolder]:
         tensor_holders = [n.get_nodes_of_type(TensorHolder) for n in self.nodes]
@@ -1002,9 +1042,15 @@ class Nested(MappingNodeWithChildren):
 
             if to_add is None:
                 if len(my_loop_group) == 1 and len(other_loop_group) == 1:
-                    print(f'Warning. Matching loops {my_loop_group[0]} and {other_loop_group[0]}. Need rank variable translation here.')
+                    print(
+                        f"Warning. Matching loops {my_loop_group[0]} and {other_loop_group[0]}. Need rank variable translation here."
+                    )
                     l = copy.deepcopy(my_loop_group.pop(0))
-                    l.rank_variable = l.rank_variable if isinstance(l.rank_variable, set) else set([l.rank_variable])
+                    l.rank_variable = (
+                        l.rank_variable
+                        if isinstance(l.rank_variable, set)
+                        else set([l.rank_variable])
+                    )
                     rv2 = other_loop_group.pop(0).rank_variable
                     rv2 = rv2 if isinstance(rv2, set) else set([rv2])
                     l.rank_variable = l.rank_variable | rv2
@@ -1145,6 +1191,11 @@ class Reservation(MappingNode):
     resource: str
     """ The resource being reserved. """
 
+    _backing: Set[str] = set()
+    """The set of purposes for which this reservation is backing."""
+
+    persistent: bool = False
+
     def compact_str(self) -> str:
         return f'{",".join(self.purposes)} reserves {self.resource}'
 
@@ -1201,18 +1252,18 @@ class Mapping(Nested):
 
     version: Annotated[str, assert_version] = __version__
 
-    def get_fused_slice(self, intermediate_tensors: set[TensorName]) -> "Mapping":
+    def get_fused_slice(self, fusable_tensors: set[TensorName]) -> "Mapping":
         """
         Return a mapping with:
         - All backing reservation nodes for intermediate tensors
         - Loop nodes above any backing reservation nodes
         """
         # All intermediate tensors that can be found in this mapping
-        # Note: `intermediate_tensors` may be for **whole workload**.
+        # Note: `fusable_tensors` may be for **whole workload**.
         relevant_intermediate_tensors = set()
         for node in self.nodes:
             if isinstance(node, Reservation):
-                if node.purpose in intermediate_tensors:
+                if node.purpose in fusable_tensors:
                     relevant_intermediate_tensors.add(node.purpose)
 
         fused_slice = Mapping(nodes=[])
@@ -1315,6 +1366,7 @@ class Mapping(Nested):
             )
 
         mapping: Mapping = cls(nodes=pmappings)
+        mapping._elevate_persistent_nodes_above_splits()
         mapping._elevate_tensor_holders_above_splits()
         mapping._propagate_reservations_between_splits()
         mapping._consolidate_tensor_holders()

@@ -236,7 +236,7 @@ def parse_expression(
             extra = f" while parsing {location}"
         errstr += f"Problem encountered{extra}: {e.__class__.__name__}: {e}\n"
         err = errstr
-        errstr += f"Available bindings: "
+        errstr += f"Symbol table: "
         bindings = {}
         bindings.update(symbol_table)
         bindings.update(parse_expressions_local.script_funcs)

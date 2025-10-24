@@ -7,11 +7,11 @@ import sympy
 
 from joblib import Parallel, delayed
 import sys
-
+import os
 from tqdm import tqdm
 
 PARALLELIZE = True
-N_PARALLEL_PROCESSES = 32
+N_PARALLEL_PROCESSES = os.cpu_count()
 
 def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
     global N_PARALLEL_PROCESSES
@@ -61,11 +61,6 @@ class fzs(frozenset[T], Generic[T]):
         return sorted(self) >= sorted(other)
 
 
-class UnorderedTuple(tuple[T], Generic[T]):
-    def __new__(cls, *args: T) -> "UnorderedTuple[T]":
-        return super().__new__(cls, sorted(args))
-
-
 def defaultintersection(*args) -> set:
     allargs = []
     for arg in args:
@@ -74,11 +69,6 @@ def defaultintersection(*args) -> set:
         else:
             allargs.extend(arg)
     return set.intersection(*allargs) if allargs else set()
-
-
-def debugger_active():
-    return not PARALLELIZE
-    return "pydevd" in sys.modules or sys.gettrace() is not None
 
 
 def expfmt(x):
@@ -113,7 +103,6 @@ def fakeparallel(**kwargs):
 def parallel(
     jobs,
     n_jobs: int = None,
-    one_job_if_debugging: bool = True,
     pbar: str = None,
     return_as: str = None,
 ):
@@ -126,15 +115,12 @@ def parallel(
     if n_jobs is None:
         n_jobs = N_PARALLEL_PROCESSES
 
-    if one_job_if_debugging and debugger_active():
-        n_jobs = 1
-
     if isinstance(jobs, dict):
         assert return_as == None, "return_as is not supported for dict jobs"
         r = zip(
             jobs.keys(),
             parallel(
-                jobs.values(), pbar=pbar, one_job_if_debugging=one_job_if_debugging
+                jobs.values(), pbar=pbar,
             ),
         )
         return {k: v for k, v in r}
@@ -171,3 +157,26 @@ def pydot_graph() -> pydot.Dot:
     graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
     graph.set_edge_defaults(fontname="Arial", fontsize="10")
     return graph
+
+import cProfile
+import io
+import pstats
+
+class ProfilePrint:
+    def __init__(self):
+        self.profiler = cProfile.Profile()
+
+    def __enter__(self):
+        self.profiler.enable()
+        self.n_jobs = N_PARALLEL_PROCESSES
+        set_n_parallel_jobs(1)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.profiler.disable()
+        s = io.StringIO()
+        stats = pstats.Stats(self.profiler, stream=s).sort_stats("cumulative")
+        stats.print_stats(20)
+        print("\n===== Profiling Results (sorted by total time) =====")
+        print(s.getvalue())
+        # set_n_parallel_jobs(self.n_jobs)

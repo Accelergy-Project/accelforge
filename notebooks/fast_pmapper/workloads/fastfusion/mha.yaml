@@ -1,0 +1,54 @@
+renames:
+  version: "0.5"
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs() & Intermediates()
+      expected_count: 1
+    - name: output
+      source: Outputs()
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1
+    rank_variables:
+    - name: parallel_rank
+      source: output.rank_variables() & weight.rank_variables()
+      expected_count: 1
+    - name: reduced_rank
+      source: input.rank_variables() & weight.rank_variables() - output.rank_variables()
+      expected_count: 1
+
+  - name: Matmul
+    tensor_accesses:
+    - name: input
+      source: I
+
+  - name: QK
+    tensor_accesses:
+    - name: input
+      source: Q
+    - name: weight
+      source: K
+    rank_variables:
+    - name: parallel_rank
+      source: p
+    - name: reduced_rank
+      source: e
+
+workload:
+  version: "0.5"
+  shape:
+    b:  0 <= b < 16
+    h:  0 <= h < 32
+    m:  0 <= m < 16384
+    p:  0 <= p < 16384
+    e:  0 <= e < 128
+
+  einsums:
+  - name: QK
+    tensor_accesses:
+    - {name: Q, projection: [b, h, m, e]}
+    - {name: K, projection: [b, h, p, e]}
+    - {name: QK, projection: [b, h, m, p], output: True}

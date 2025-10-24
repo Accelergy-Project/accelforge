@@ -15,10 +15,6 @@ def mapping2sims(einsum_to_result: Compatibility):
     return list(r.values())
 
 
-def paretofy(k, v):
-    return SIM(k, PmappingGroup(pd.DataFrame(v).fillna(0)))
-
-
 def get_possible_translations(
     t: Compatibility,
     pairwise_equivalent_rank_variables: dict[str, set[str]],
@@ -36,11 +32,15 @@ def get_possible_translations(
     # each possible rank.
     def translate_loop(l: Loop):
         compatible_rank_variables = (
-            set.union(*(full_equivalent_rank_variables[n] for n in l.rank_variable_names))
+            set.union(
+                *(full_equivalent_rank_variables[n] for n in l.rank_variable_names)
+            )
             & right_rank_variables
         )
         pairwise_compatible_rank_variables = (
-            set.union(*(pairwise_equivalent_rank_variables[n] for n in l.rank_variable_names))
+            set.union(
+                *(pairwise_equivalent_rank_variables[n] for n in l.rank_variable_names)
+            )
             & right_rank_variables
         )
         if len(pairwise_compatible_rank_variables) > 1:
@@ -107,7 +107,6 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
                     changed = True
                     full_equivalent_rank_variables[r].add(r3)
     return full_equivalent_rank_variables
-
 
 
 def quick_join(
@@ -234,9 +233,7 @@ def quick_join(
                 right_rank_variables,
             ):
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
-                    if (
-                        a.compatibility.tags.are_compatible_with(b.compatibility.tags)
-                    ):
+                    if a.compatibility.tags.are_compatible_with(b.compatibility.tags):
                         combined.append(
                             a.merge_next(
                                 b,
@@ -250,7 +247,6 @@ def quick_join(
 
         if not combined:
             raise ValueError("No match found for any group")
-
 
         # ======================================================================
         # Update left for the next iteration.

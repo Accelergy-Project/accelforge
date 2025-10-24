@@ -1,9 +1,8 @@
 arch:
   version: "0.5"
-  global_cycle_period: 1e-9
   nodes:
   - !Memory
-    name: MainMemory
+    name: main_memory
     attributes:
       _size: 1e9
       _datawidth: 8
@@ -18,6 +17,7 @@ arch:
     name: ProcessingStage
     attributes:
       _datawidth: 8
+      _direction: up_and_down
     constraints:
       tensors: {keep: All()}
     actions:
@@ -38,7 +38,7 @@ arch:
     - {name: leak, arguments: {energy: 0}}
 
   - !Compute
-    name: MAC
+    name: mac
     actions:
     - {name: compute, arguments: {energy: 0.0}}
     - {name: leak, arguments: {energy: 0}}

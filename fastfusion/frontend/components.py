@@ -12,22 +12,23 @@ from fastfusion.version import assert_version, __version__
 
 
 class ComponentAttributes(ParseExtras):
-    global_cycle_period: ParsesTo[Union[int, float]] = "REQUIRED"
     n_instances: ParsesTo[Union[int, float]] = 1
     energy_scale: ParsesTo[Union[int, float]] = 1
     area_scale: ParsesTo[Union[int, float]] = 1
     energy: ParsesTo[Union[int, float, None]] = None
     area: ParsesTo[Union[int, float, None]] = None
+    leak_power: ParsesTo[Union[int, float, None]] = None
+    leak_power_scale: ParsesTo[Union[int, float]] = 1
     model_config = ConfigDict(extra="allow")
 
-    def parse_expressions(
+    def _parse_expressions(
         self,
         symbol_table: Optional[Dict[str, Any]] = None,
         inherit_all: bool = False,
         multiply_multipliers: bool = False,
         **kwargs,
     ) -> tuple[Any, dict[str, Any]]:
-        new_self, new_symbol_table = super().parse_expressions(
+        new_self, new_symbol_table = super()._parse_expressions(
             symbol_table, **kwargs, multiply_multipliers=multiply_multipliers
         )
 
@@ -96,14 +97,14 @@ class CompoundComponent(ParsableModel):
                 raise KeyError(
                     f"Subcomponent {subcomponent.name} referenced in action {action_name} of {self.name} not found"
                 ) from None
-            component_attributes = component.attributes.parse_expressions(
+            component_attributes = component.attributes._parse_expressions(
                 attributes.model_dump_non_none(), multiply_multipliers=True
             )[0]
-            arguments = arguments.parse_expressions(
+            arguments = arguments._parse_expressions(
                 component_attributes.model_dump_non_none(), multiply_multipliers=False
             )[0]
             for subaction in subcomponent.actions:
-                subaction_args = subaction.arguments.parse_expressions(
+                subaction_args = subaction.arguments._parse_expressions(
                     arguments.model_dump_non_none(), multiply_multipliers=True
                 )[0]
                 yield (

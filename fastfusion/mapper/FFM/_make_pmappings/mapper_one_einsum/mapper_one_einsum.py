@@ -5,18 +5,27 @@ import pandas as pd
 from uuid import UUID
 
 import sympy
-from fastfusion.frontend.arch import TensorHolder
-from fastfusion.frontend.mapping import Iteration, Mapping, TilePattern
-from fastfusion.frontend.renames import RankVariableName, TensorName
+from fastfusion.frontend.mapping import Iteration, Mapping
+from fastfusion.frontend.renames import RankVariableName
 from fastfusion.frontend.workload.workload import EinsumName
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     TensorReservation,
 )
+from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum import (
+    tile_shape_exploration,
+)
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.tile_shape_exploration import (
     EXPERIMENTAL_TILE_SHAPE_EXPLORATION,
 )
 from fastfusion.mapper.FFM._pmapping_group import (
+    MAPPING_COLUMN,
+    PmappingGroup,
+    col2nameloop,
+    col_used_in_pareto,
+    is_reservation_col,
+    makepareto,
+    tensor2col,
     col2nameloop,
     is_reservation_col,
     nameloop2col,
@@ -27,21 +36,14 @@ from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.tile_shape_explorat
     explore_tile_shapes,
 )
 from fastfusion.mapper.FFM._join_pmappings.sim import SIM
-from fastfusion.mapper.FFM._pmapping_group import (
-    MAPPING_COLUMN,
-    PmappingGroup,
-    col2nameloop,
-    col_used_in_pareto,
-    is_reservation_col,
-    makepareto,
-    tensor2col,
-)
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import (
     Job,
     SameCompatibilityJobs,
 )
-from fastfusion.mapper.FFM._pmapping_group.df_convention import is_fused_loop_col
-from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
+from fastfusion.mapper.FFM._pmapping_group.df_convention import (
+    is_fused_loop_col,
+    is_n_iterations_col,
+)
 
 
 def shift_reservations_by_null_loop_indices(
@@ -132,7 +134,7 @@ def generate_pmappings_old(
         results.append(result)
 
     compatibility = jobs_with_similar_compatibilities.compatibility
-    intermediate_tensors = jobs_with_similar_compatibilities.intermediate_tensors
+    fusable_tensors = jobs_with_similar_compatibilities.fusable_tensors
     einsum_name = jobs_with_similar_compatibilities.einsum_name
     compatibility_updater = (
         jobs_with_similar_compatibilities.update_compatibility_with_tile_shapes
@@ -150,6 +152,7 @@ def generate_pmappings_old(
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
                 limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+                no_drop_reservations_for=job.no_drop_reservations_for,
             )
             for r in results
         ],
@@ -163,7 +166,7 @@ def generate_pmappings_old(
         f"{einsum_name}<SEP>tile_shape{i}" for i in range(compatibility.n_loops)
     ]  # TODO: Make this work for extended Einsums
 
-    tensor_cols = [tensor2col(tensor) for tensor in intermediate_tensors]
+    tensor_cols = [tensor2col(tensor) for tensor in fusable_tensors]
 
     results.columns = [
         c if col_used_in_pareto(c) or c in tensor_cols else f"{einsum_name}<SEP>{c}"
@@ -201,7 +204,7 @@ def generate_pmappings_old(
         tensor2size = {}
 
         dropcols = []  # list(fused_loop_cols)
-        for tensor in intermediate_tensors:  # Sizes are all the same
+        for tensor in fusable_tensors:  # Sizes are all the same
             tensor2size[tensor] = mappings[tensor2col(tensor)].iloc[0]
             dropcols.append(tensor2col(tensor))
         mappings = mappings.drop(columns=dropcols)
@@ -223,6 +226,7 @@ def generate_pmappings_old(
             n_pmappings=pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+            no_drop_reservations_for=job.no_drop_reservations_for,
         )
         reservation_levels = partial_mappings.all_reservation_levels()
         sim = SIM(compatibility, partial_mappings)
@@ -237,21 +241,6 @@ def generate_pmappings_old(
         sims.append(sim)
 
     return einsum_name, sims, pmapping_objects, jobs_with_similar_compatibilities
-
-
-def get_n_permutations(job: Job) -> int:
-    n_loops: list[int] = []
-    cur_n_loops = 0
-    for node in job.mapping.nodes:
-        if isinstance(node, Iteration):
-            cur_n_loops += 1
-        elif isinstance(node, TensorHolder):
-            if cur_n_loops > 1:
-                n_loops.append(cur_n_loops)
-            cur_n_loops = 0
-    if cur_n_loops > 1:
-        n_loops.append(cur_n_loops)
-    return math.prod(math.factorial(n) for n in n_loops)
 
 
 def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
@@ -299,41 +288,126 @@ def get_fused_loop_indices(
         return r2
 
 
+def scale_n_pmappings_by_permutations(job: Job, n_pmappings: int) -> int:
+    return n_pmappings
+    from fastfusion.frontend.mapping import Reservation
+
+    # This changes the pmapping count to include permutations
+    n_loops = []
+    cur_n_loops = 0
+    for node in job.mapping.nodes:
+        if isinstance(node, Iteration):
+            cur_n_loops += 1
+        elif isinstance(node, Reservation):
+            if cur_n_loops >= 1:
+                n_loops.append(cur_n_loops)
+            cur_n_loops = 0
+    if cur_n_loops != 0:
+        n_loops.append(cur_n_loops)
+
+    rv = {k: v for k, v in job.rank_variable_bounds.items() if v != 1}
+
+    # Count dataplacement choices
+    # return 1
+
+    # Count dataplacement choices * permutations, assuming that the permutation engine
+    # knows about irrelevant/relevant rank variables.
+    #
+    # return math.prod(math.factorial(n) for n in n_loops)
+
+    # Count dataplacement choices * permutations, assuming that the permutation engine
+    # does not know about irrelevant/relevant rank variables.
+    #
+    # return math.prod(math.factorial(n) for n in n_loops)
+
+    # Count dataplacement choices * permutations, assuming that
+    # the permutation engine knows about irrelevant/relevant rank variables.
+    n_pmappings = math.factorial(len(rv)) ** len(n_loops)
+    return math.factorial(len(rv)) ** len(n_loops)
+
+    # Count dataplacement choices * index factorization choices, assuming that the permutation engine does not
+    # know about irrelevant/relevant rank variables.
+
+    from functools import lru_cache
+    from math import comb
+    from collections import Counter
+
+    def prime_factorization(M):
+        f = []
+        i = 2
+        while M > 1:
+            if M % i == 0:
+                f.append(i)
+                M //= i
+            else:
+                i += 1
+        return f
+
+    def count_factorizations(M, N):
+        f = prime_factorization(M)
+        factors = {f2: f.count(f2) for f2 in set(f)}
+        total = 1
+        for exp in factors.values():
+            total *= comb(exp + N - 1, N - 1)  # n choose k
+        return total
+
+    if len(n_loops) > 1:
+        for b in rv.values():
+            n_pmappings *= count_factorizations(b, len(n_loops) - 1)
+
+    return n_pmappings
+
+
+def assert_all_jobs_have_same_symbols(
+    jobs_with_similar_compatibilities: SameCompatibilityJobs,
+):
+    iteration2symbols = []
+    for j in jobs_with_similar_compatibilities:
+        for t in j.compatibility.tensors:
+            for i, l in enumerate(t.loops):
+                if len(iteration2symbols) <= i:
+                    iteration2symbols.append(set())
+                iteration2symbols[i].add(l.tile_pattern.calculated_n_iterations)
+    assert all(
+        len(s) == 1 for s in iteration2symbols
+    ), "All jobs must have the same symbols for compatibility n_iterations"
+
+
 def generate_pmappings_new(
     jobs_with_similar_compatibilities: SameCompatibilityJobs,
 ) -> tuple[EinsumName, list[SIM], dict[UUID, Mapping], SameCompatibilityJobs]:
     jwsc = jobs_with_similar_compatibilities
     prev_jobs = copy.deepcopy(jwsc)
 
-    # Ensure that all the symbols are the same
-    symbols: set[tuple[tuple[RankVariableName, tuple[str, ...]]]] = set()
-    for job in jwsc:
-        cur_symbols = []
-        for node in job.mapping.nodes:
-            if not isinstance(node, Iteration):
-                continue
-            if not node._fused:
-                break
-            cur_symbols.append(
-                (
-                    node.rank_variable,
-                    tuple(sorted(node.tile_pattern.symbols_as_strings())),
-                )
-            )
-        symbols.add(tuple(cur_symbols))
+    # # Ensure that all the symbols are the same
+    # symbols: set[tuple[tuple[RankVariableName, tuple[str, ...]]]] = set()
+    # for job in jwsc:
+    #     cur_symbols = []
+    #     for node in job.mapping.nodes:
+    #         if not isinstance(node, Iteration):
+    #             continue
+    #         if not node._fused:
+    #             break
+    #         cur_symbols.append(
+    #             (
+    #                 node.rank_variable,
+    #                 tuple(sorted(node.tile_pattern.symbols_as_strings())),
+    #             )
+    #         )
+    #     symbols.add(tuple(cur_symbols))
 
-    if len(symbols) > 1:
-        raise ValueError(f"Symbols are not the same: {symbols}")
+    # if len(symbols) > 1:
+    #     raise ValueError(f"Symbols are not the same: {symbols}")
 
     results = []
 
     for job in jobs_with_similar_compatibilities:
         result = explore_tile_shapes(job)
-        job.compatibility = job.compatibility.populate_loops(job.mapping)
+        job.compatibility = job.compatibility.populate_loops()
         # This changes the pmapping count to include superfluous permutations
         # TODO: Add a multiplier for the permutations that we include in the fusion
         # piece, which are NOT known to be superfluous
-        # job.total_pmappings *= get_n_permutations(job)
+        # job.total_pmappings = scale_n_pmappings_by_permutations(job, job.total_pmappings)
 
         result[MAPPING_COLUMN] = job.job_id
         cols_to_drop = []
@@ -346,7 +420,7 @@ def generate_pmappings_new(
         result.drop(columns=cols_to_drop, inplace=True)
         results.append(result)
 
-    intermediate_tensors = jwsc.intermediate_tensors
+    fusable_tensors = jwsc.fusable_tensors
     einsum_name = jwsc.einsum_name
     metrics = jwsc.metrics
     limit_capacity_drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
@@ -362,6 +436,9 @@ def generate_pmappings_new(
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
                 limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+                total_pmappings=1,  # Unused for now, just making an initial Pareto
+                valid_pmappings=1,  # Unused for now, just making an initial Pareto
+                no_drop_reservations_for=job.no_drop_reservations_for,
             )
             for r in results
         ],
@@ -370,38 +447,22 @@ def generate_pmappings_new(
     if df.empty:
         return einsum_name, [], {}, jobs_with_similar_compatibilities
 
-    tensor_cols = [tensor2col(tensor) for tensor in intermediate_tensors]
+    tensor_cols = [tensor2col(tensor) for tensor in fusable_tensors]
     df.columns = [
         c if col_used_in_pareto(c) or c in tensor_cols else f"{einsum_name}<SEP>{c}"
         for c in df.columns
     ]
 
-    fused_loop_cols = [f"{einsum_name}<SEP>{c}" for c in compatibility.symbols()]
+    fused_loop_cols = [
+        f"{einsum_name}<SEP>{c}"
+        for c in compatibility.symbols()
+        if not is_n_iterations_col(c)
+    ]
 
     job0 = next(iter(jobs_with_similar_compatibilities))
 
     # Pareto prune
-    try:
-        df = makepareto(df, split_by_cols=fused_loop_cols)
-    except:
-        for job in prev_jobs:
-            result = explore_tile_shapes(job)
-            job.compatibility = job.compatibility.populate_loops(job.mapping)
-            # This changes the pmapping count to include superfluous permutations
-            # TODO: Add a multiplier for the permutations that we include in the fusion
-            # piece, which are NOT known to be superfluous
-            # job.total_pmappings *= get_n_permutations(job)
-
-            result[MAPPING_COLUMN] = job.job_id
-            cols_to_drop = []
-            for col in result.columns:
-                if (
-                    is_reservation_col(col)
-                    and col2nameloop(col)[0] in job.memories_track_pmappings_only
-                ):
-                    cols_to_drop.append(col)
-            result.drop(columns=cols_to_drop, inplace=True)
-            results.append(result)
+    df = makepareto(df, split_by_cols=fused_loop_cols)
 
     jobs_passed_pareto = sorted(df[f"{einsum_name}<SEP>{MAPPING_COLUMN}"].unique())
     pmapping_objects = {
@@ -410,25 +471,19 @@ def generate_pmappings_new(
         if job.job_id in jobs_passed_pareto
     }
 
-    # Assert all jobs have the same symbols for compatibility n_iterations. If they
-    # don't, this logic will break.
-    iteration2symbols = []
-    for j in jobs_with_similar_compatibilities:
-        for t in j.compatibility.tensors:
-            for i, l in enumerate(t.loops):
-                if len(iteration2symbols) <= i:
-                    iteration2symbols.append(set())
-                iteration2symbols[i].add(l.tile_pattern.calculated_n_iterations)
-    assert all(
-        len(s) == 1 for s in iteration2symbols
-    ), "All jobs must have the same symbols for compatibility n_iterations"
+
+    assert_all_jobs_have_same_symbols(jobs_with_similar_compatibilities)
+    # Otherwise, following logic fails
 
     df["fused_loop_indices"] = get_fused_loop_indices(
         df, job0.compatibility, einsum_name, return_as_int=True
     )
     groups = list(df.groupby(["fused_loop_indices"]))
-    pmappings_per_group = sum(
+    total_pmappings_per_group = sum(
         j.total_pmappings for j in jobs_with_similar_compatibilities
+    ) / len(groups)
+    valid_pmappings_per_group = sum(
+        j.valid_pmappings for j in jobs_with_similar_compatibilities
     ) / len(groups)
 
     sims = []
@@ -453,7 +508,9 @@ def generate_pmappings_new(
 
         compatibility = compatibility.drop_loop_indices(null_loop_indices)
 
-        symbol_renames, compatibility = compatibility.make_fused_loop_symbols()
+        symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
+            einsum_name
+        )
         for k, v in symbol_renames.items():
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
@@ -464,6 +521,18 @@ def generate_pmappings_new(
         ]
         mappings = mappings.drop(columns=dropcols)
 
+        energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
+        if (mappings[energy_cols] < 0).any(axis=None):
+            mapping_with_negative_energy = mappings[(mappings[energy_cols] < 0).any(axis=1)]
+            msg = ''
+            for _, row in mapping_with_negative_energy.iterrows():
+                for k, v in row.items():
+                    msg += f"{k}: {v}\n"
+                msg += '\n'
+            raise RuntimeError(
+                f'negative energy:\n{msg}'
+            )
+
         # TODO: Redundant capacity checks because limit_capacity is called. We want it
         # so we can drop dead reservations though.
         # Skip pareto because we already did it above
@@ -472,9 +541,11 @@ def generate_pmappings_new(
         partial_mappings = PmappingGroup(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
-            n_pmappings=pmappings_per_group,
+            total_pmappings=total_pmappings_per_group,
+            valid_pmappings=valid_pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
+            no_drop_reservations_for=job.no_drop_reservations_for,
         )
         sim = SIM(compatibility, partial_mappings)
         sims.append(sim)

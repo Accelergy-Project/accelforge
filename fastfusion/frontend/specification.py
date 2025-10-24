@@ -1,3 +1,4 @@
+from fastfusion.frontend.component_leak import ComponentLeak, LeakEntry
 from fastfusion.frontend.mapper.mapper import Mapper
 from fastfusion.frontend.renames import Renames
 from fastfusion.util.parse_expressions import ParseError, ParseExpressionsContext
@@ -45,10 +46,16 @@ class Specification(ParsableModel):
     """ Top-level configuration settings. """
 
     component_energy: ComponentEnergy = ComponentEnergy()
-    """ To be deprecated. """
+    """ Stores energy values for each component and logging information for energy
+    models. """
 
     component_area: ComponentArea = ComponentArea()
-    """ To be deprecated. """
+    """ Stores area values for each component and logging information for area
+    models. """
+
+    component_leak: ComponentLeak = ComponentLeak()
+    """ Stores leak power values for each component and logging information for leak
+    power models. """
 
     renames: Renames = Renames()
     """ Aliases for tensors in the workload so that they can be called
@@ -58,7 +65,7 @@ class Specification(ParsableModel):
     mapper: Mapper = Mapper()
     """ Configures the mapper used to map the workload onto the architecture. """
 
-    def parse_expressions(
+    def _parse_expressions(
         self,
         symbol_table: Optional[Dict[str, Any]] = None,
         **kwargs,
@@ -69,7 +76,7 @@ class Specification(ParsableModel):
         :param symbol_table: Optional pre-populated symbols to seed parsing; a
             shallow copy is made and augmented with ``spec`` and ``variables``.
         :param kwargs: Additional keyword arguments forwarded to the base
-            ``ParsableModel.parse_expressions``.
+            ``ParsableModel._parse_expressions``.
         :returns: A tuple of ``(parsed_specification, final_symbol_table)``.
         :raises ParseError: If any field fails to parse; the error is annotated
             with the field path.
@@ -78,7 +85,7 @@ class Specification(ParsableModel):
         symbol_table["spec"] = self
         with ParseExpressionsContext(self):
             try:
-                parsed_variables, _ = self.variables.parse_expressions(
+                parsed_variables, _ = self.variables._parse_expressions(
                     symbol_table, **kwargs
                 )
             except ParseError as e:
@@ -86,11 +93,11 @@ class Specification(ParsableModel):
                 raise e
             symbol_table.update(parsed_variables)
             symbol_table["variables"] = parsed_variables
-            return super().parse_expressions(symbol_table, **kwargs)
+            return super()._parse_expressions(symbol_table, **kwargs)
 
     def calculate_component_energy_area(
         self, energy: bool = True, area: bool = True
-    ) -> None:
+    ) -> "Specification":
         """
         Populate per-component area and/or energy entries using installed
         component models.
@@ -104,8 +111,6 @@ class Specification(ParsableModel):
         :raises ParseError: If parsing fails or evaluation detects invalid
             component references while flattening the architecture.
         """
-        self.component_energy = ComponentEnergy() if energy else self.component_energy
-        self.component_area = ComponentArea() if area else self.component_area
         models = hwcomponents.get_models(
             self.config.component_models,
             include_installed=self.config.use_installed_component_models,
@@ -113,35 +118,53 @@ class Specification(ParsableModel):
 
         components = set()
         if not getattr(self, "_parsed", False):
-            self, _ = self.parse_expressions()
+            self, _ = self._parse_expressions()
+        else:
+            self = self.copy()
+        self.component_energy = ComponentEnergy() if energy else self.component_energy
+        self.component_area = ComponentArea() if area else self.component_area
+
         for arch in self.get_flattened_architecture():
             for component in arch:
                 if component.name in components:
                     continue
                 assert isinstance(component, Component)
                 components.add(component.name)
+                orig: Component = self.arch.find(component.name)
                 if area:
-                    self.component_area.entries.append(
-                        AreaEntry.from_models(
-                            component.get_component_class,
-                            component.attributes,
-                            self,
-                            models,
-                            name=component.name,
-                        )
+                    entry = AreaEntry.from_models(
+                        component.get_component_class,
+                        component.attributes,
+                        self,
+                        models,
+                        name=component.name,
                     )
+                    self.component_area.entries.append(entry)
+                    orig.attributes.area = entry.area
                 if energy:
-                    self.component_energy.entries.append(
-                        EnergyEntry.from_models(
-                            component.get_component_class,
-                            component.attributes,
-                            [action.arguments for action in component.actions],
-                            [action.name for action in component.actions],
-                            self,
-                            models,
-                            name=component.name,
-                        )
+                    entry = EnergyEntry.from_models(
+                        component.get_component_class,
+                        component.attributes,
+                        [action.arguments for action in component.actions],
+                        [action.name for action in component.actions],
+                        self,
+                        models,
+                        name=component.name,
                     )
+                    self.component_energy.entries.append(entry)
+                    for a in entry.actions:
+                        orig.actions[a.name].arguments.energy = a.energy
+                    entry = LeakEntry.from_models(
+                        component.get_component_class,
+                        component.attributes,
+                        self,
+                        models,
+                        name=component.name,
+                    )
+                    self.component_leak.entries.append(entry)
+                    orig.attributes.leak_power = entry.leak_power
+
+        return self
 
     def get_flattened_architecture(
         self, compute_node: Union[str, Compute] = None
@@ -165,7 +188,7 @@ class Specification(ParsableModel):
         assert getattr(
             self, "_parsed", False
         ), "Specification must be parsed before getting flattened architecture"
-        all_leaves = self.arch.get_instances_of_type(Leaf)
+        all_leaves = self.arch.find_nodes_of_type(Leaf)
         found_names = set()
         for leaf in all_leaves:
             if leaf.name in found_names:
@@ -174,7 +197,7 @@ class Specification(ParsableModel):
 
         found = []
         if compute_node is None:
-            compute_nodes = [c.name for c in self.arch.get_instances_of_type(Compute)]
+            compute_nodes = [c.name for c in self.arch.find_nodes_of_type(Compute)]
         else:
             compute_nodes = [
                 compute_node.name if isinstance(compute_node, Compute) else compute_node

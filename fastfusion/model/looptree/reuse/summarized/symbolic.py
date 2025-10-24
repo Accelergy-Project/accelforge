@@ -4,8 +4,7 @@ from typing import Any
 
 from fastfusion.frontend import arch
 import fastfusion.frontend.mapping as mapping_spec
-from fastfusion.frontend.arch import ProcessingStage
-from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Iteration, TensorHolder# NOFILL: Fill
+from fastfusion.frontend.mapping import Mapping, MappingNode, Spatial, Temporal, Storage, Reservation, Iteration, TensorHolder, ProcessingStage
 from fastfusion.frontend.workload import (
     Workload,
     TensorName,
@@ -94,7 +93,7 @@ class BuffetStats:
     min_per_unit_skipped_first_writes_to_peer: Any = field(default=0)
 
     max_occupancy: Any = field(default=0)
-    n_loops_above: int = field(default=0)
+    _n_loops_above: int = field(default=0)
 
     # These are used to calculate energy and latency
     total_write_actions: Any = field(default=0)
@@ -106,6 +105,18 @@ class BuffetStats:
     min_per_unit_skipped_first_write_actions: Any = field(default=0)
     total_skipped_first_read_actions: Any = field(default=0)
     min_per_unit_skipped_first_read_actions: Any = field(default=0)
+
+    persistent: bool = field(default=False)
+    
+    @property
+    def n_loops_above(self) -> int:
+        if self.persistent:
+            return -1
+        return self._n_loops_above
+    
+    @n_loops_above.setter
+    def n_loops_above(self, value: int):
+        self._n_loops_above = value
     
     def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
         new = copy.copy(self)
@@ -367,9 +378,10 @@ def analyze_reuse_and_add_reservations_to_mapping(
     workload = job.spec.workload
     einsum_name = mapping[-1].einsum
     einsum_shape = get_rank_variable_bounds(workload, einsum_name)
-    symbols = insert_sympy_symbols(mapping, job)
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
+    symbols = insert_sympy_symbols(job.mapping.nodes, job)
+
     if is_copy_operation:
         mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
         # We're working with a new mapping at this point, so we need to add reservations
@@ -406,7 +418,6 @@ def analyze_reuse_and_add_reservations_to_mapping(
     insert_reservation_nodes(mapping, info)
 
     result = analyze_node(0, einsum_shape, info)
-
     result.symbols = symbols
 
     return result
@@ -482,7 +493,7 @@ class ReservationAnalysisTracker:
 def insert_reservation_nodes(mapping, info: AnalysisInfo):
     trackers: list[ReservationAnalysisTracker] = []
     einsum = info.workload.einsums[mapping[-1].einsum]
-    non_intermediate_tensors = einsum.tensor_names - info.workload.intermediate_tensor_names
+    non_intermediate_tensors = einsum.tensor_names - info.workload.fusable_tensor_names
     seen_tensors = set()  # reservation for top-level buffets cannot be lowered
 
     n_nodes = len(mapping)
@@ -532,27 +543,18 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         else:
             raise NotImplementedError(f"Unknown node type {type(node)}")
 
-        # NOFILL: fill_insert_below = []
-        # NOFILL: fill_insert_above = []
-        # NOFILL: for tracker in trackers:
-        # NOFILL:     if not tracker.is_fill_level:
-        # NOFILL:         continue
-        # NOFILL:     buffet = tracker.buffet
-        # NOFILL:     if tracker.insert_fill_under:
-        # NOFILL:         fill_insert_below.append(node)
-        # NOFILL:     else:
-        # NOFILL:         fill_insert_above.append(node)
-
         reservation_insert_below = []
         reservation_insert_above = []
         for tracker_idx in reversed(to_remove):
             tracker = trackers.pop(tracker_idx)
             buffet = tracker.buffet
             node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
+            node.persistent = tracker.node.persistent
+            node._backing = tracker.node._backing
 
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
-                and buffet.tensor in info.workload.intermediate_tensor_names
+                and buffet.tensor in info.workload.fusable_tensor_names
             ):
                 info.tensor_to_reservation_backer_id[buffet.tensor] = id(node)
 
@@ -564,15 +566,29 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         # The order of these for loops is important. Reservation must be below fill.
         for node in reservation_insert_below:
             mapping.insert(i+1, node)
-        # NOFILL: for node in fill_insert_below:
-        # NOFILL:     mapping.insert(i+1, node)
         for node in reservation_insert_above:
             mapping.insert(i, node)
-        # NOFILL: for node in fill_insert_above:
-        # NOFILL:     mapping.insert(i, node)
 
         i += 1
         n_nodes = len(mapping)
+
+    label_fused_loops(mapping)
+
+
+def label_fused_loops(mapping: list[MappingNode]):
+    last_backer = None
+    for i, node in enumerate(mapping):
+        if isinstance(node, Reservation) and node._backing:
+            last_backer = i
+    if last_backer is None:
+        raise ValueError(
+            f"No backing TensorHolder found in mapping {", ".join(m.compact_str() for m in mapping)}"
+        )
+
+    for i, node in enumerate(mapping):
+        if isinstance(node, Iteration):
+            node._fused = i < last_backer
+    return mapping
 
 
 def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SummarizedAnalysisOutput:
@@ -655,7 +671,7 @@ def analyze_temporal(node_idx,
 def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
-    node = mapping[node_idx]
+    node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
@@ -670,6 +686,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         child_shape[node.rank_variable] = shape_value
 
         child_result = analyze_node(node_idx+1, child_shape, info)
+        
+        component_object = find_component_object(node.component, info.job.flattened_arch)
+        spatial_reuse = component_object.spatial[node.name].reuse
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
         child_stats = list(child_result.buffet_stats.items())
@@ -687,7 +706,12 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 if other_buffet.tensor == buffet.tensor:
                     last_buffet = False
                     break
-            reuse_parent_accesses = last_buffet and isinstance(relevancy, Irrelevant)
+
+            reuse_parent_accesses = (
+                last_buffet and 
+                isinstance(relevancy, Irrelevant)
+                and buffet.tensor in spatial_reuse
+            )
 
             accumulated_stats += stats.repeat_spatial(
                 shape_repeats,
@@ -764,7 +788,14 @@ def find_component_object(component: str, flattened_arch: list[arch.Leaf]) -> ar
             return node
     raise ValueError(f"Component {component} not found in flattened arch")
 
-def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_child_results: bool = False):
+def analyze_storage(
+    node_idx: int, 
+    current_shape: dict[str, int], 
+    info: AnalysisInfo,
+    _propagate_child_results: bool = False,
+    _count_parent_accesses: bool = True,
+    _count_child_accesses: bool = True,
+):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
@@ -775,9 +806,13 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
         tensor = TensorName(tensor)
         buffet = Buffet(tensor, einsum_name, node.component)
 
-        stats = child_result.buffet_stats.setdefault(buffet, BuffetStats())
+        # Reservations make these, and they go below the storage node, so the buffet
+        # stats are already made at this point
+        stats = child_result.buffet_stats[buffet] 
         backer_id = info.tensor_to_backer_id[tensor]
         is_backing = backer_id == id(node)
+        if node.persistent:
+            stats.persistent = True
         below_backing = backer_id in [id(m) for m in mapping[:node_idx]]
 
         projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
@@ -827,16 +862,17 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
 
         # ==========================
         # Data exchanges with parent
-        stats.total_write_actions += stats.total_reads_to_parent * write_scale
-        stats.max_per_unit_write_actions += stats.total_reads_to_parent * write_scale
+        if _count_parent_accesses:
+            stats.total_write_actions += stats.total_reads_to_parent * write_scale
+            stats.max_per_unit_write_actions += stats.total_reads_to_parent * write_scale
 
-        # Comment this to have the final writeback to a buffer hit both that buffer and
-        # go directly to the parent without incurring another read from the buffer.
-        stats.total_read_actions += stats.total_writes_to_parent * read_scale
-        stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
+            # Comment this to have the final writeback to a buffer hit both that buffer and
+            # go directly to the parent without incurring another read from the buffer.
+            stats.total_read_actions += stats.total_writes_to_parent * read_scale
+            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
 
-        stats.total_skipped_first_write_actions += stats.total_skipped_first_reads_to_parent * write_scale
-        stats.min_per_unit_skipped_first_write_actions += stats.min_per_parent_skipped_first_reads_to_parent * write_scale
+            stats.total_skipped_first_write_actions += stats.total_skipped_first_reads_to_parent * write_scale
+            stats.min_per_unit_skipped_first_write_actions += stats.min_per_parent_skipped_first_reads_to_parent * write_scale
 
         # ========================
         # Data exchanges with peer
@@ -845,7 +881,7 @@ def analyze_storage(node_idx, current_shape, info: AnalysisInfo, _propagate_chil
 
         # =========================
         # Data exchanges with child
-        if child is not None:
+        if child is not None and _count_child_accesses:
             stats.total_read_actions += child.total_reads_to_parent * read_scale
             stats.max_per_unit_read_actions += child.max_per_parent_reads_to_parent * read_scale
 
@@ -863,7 +899,15 @@ def analyze_processing_stage(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
-    storage_result = analyze_storage(node_idx, current_shape, info, _propagate_child_results=True)
+    component_object = find_component_object(node.component, info.job.flattened_arch)
+    storage_result = analyze_storage(
+        node_idx,
+        current_shape,
+        info,
+        _propagate_child_results=True,
+        _count_parent_accesses=component_object.attributes.direction != "down",
+        _count_child_accesses=component_object.attributes.direction != "up",
+    )
     for tensor in node.tensors:
         buffet = Buffet(tensor, einsum_name, node.component)
         stats = storage_result.buffet_stats[buffet]
@@ -943,7 +987,7 @@ def analyze_compute(node_idx,
     result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(
         computes,
         computes,
-        1 / compute_node.attributes.computes_per_cycle,
+        1,
     )
     
     if info.is_copy_operation:
@@ -1069,6 +1113,7 @@ def make_possibly_different_last(common_tile_shape, factor, full_shape):
 def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
     loop_idx = 0
     symbols = []
+    rank_var_with_initial = set()
     for i, node in enumerate(mapping):
         if not isinstance(node, Iteration):
             continue
@@ -1079,20 +1124,29 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
                 if rank_variable == node.rank_variable:
                     stride_halos.add((stride, halo))
 
-        simple = len(stride_halos) <= 1 and next(iter(stride_halos)) == (1, 0)
+        # We only explore imperfect for the outermost fused loops
+        simple = (
+            (len(stride_halos) <= 1 and next(iter(stride_halos)) == (1, 0))
+            or node.rank_variable in rank_var_with_initial
+            or not node._fused
+        )
+
+        # NOTE: initial_tile_shape must be inserted into `symbols` before `stride`
+        # because of the order of tile shape exploration.
+        # TODO: there has to be a better way to do this.
+        if simple: # Just use the stride!
+            node.initial_tile_shape = None
+        elif node.initial_tile_shape == SYMBOL:
+            rank_var_with_initial.add(node.rank_variable)
+            initial_tile_shape = sympy.symbols(f'initial{loop_idx}', positive=True, integer=True)
+            symbols.append(initial_tile_shape)
+            node.initial_tile_shape = initial_tile_shape
 
         # TODO: Check for 0 < shape < 1 for loop bound target
         if node.stride == SYMBOL:
             stride = sympy.symbols(f'stride{loop_idx}', positive=True, integer=True)
             symbols.append(stride)
             node.stride = stride
-        if simple: # Just use the stride!
-            node.initial_tile_shape = None
-        else:
-            if node.initial_tile_shape == SYMBOL:
-                initial_tile_shape = sympy.symbols(f'initial{loop_idx}', positive=True, integer=True)
-                symbols.append(initial_tile_shape)
-                node.initial_tile_shape = initial_tile_shape
 
         assert node.calculated_n_iterations is None, \
             "Number of iterations is derived from the model. Do not set it!"

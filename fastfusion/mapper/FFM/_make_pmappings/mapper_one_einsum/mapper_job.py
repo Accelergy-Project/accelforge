@@ -32,7 +32,6 @@ from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
     ConstraintLambda,
 )
-from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.util.util import expfmt, fzs
 from fastfusion.util.itertools import first
 from fastfusion.frontend.mapping import Reservation as ReservationNode
@@ -40,7 +39,7 @@ from fastfusion.frontend.mapping import Reservation as ReservationNode
 
 def make_compatibility(
     mapping: Mapping,
-    intermediate_tensors: set[TensorName],
+    fusable_tensors: set[TensorName],
     workload: Workload,
     rank_variable_bounds: dict[RankVariableName, int],
     stride_and_halo,
@@ -50,12 +49,10 @@ def make_compatibility(
     rank_variable_to_ranks = {
         t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
     }
-    return Compatibility.from_mapping(
-        mapping, intermediate_tensors, rank_variable_to_ranks
-    )
+    return Compatibility.from_mapping(mapping, fusable_tensors, rank_variable_to_ranks)
 
     # einsum = workload.einsums[mapping.nodes[-1].einsum]
-    # fused_slice = mapping.get_fused_slice(intermediate_tensors)
+    # fused_slice = mapping.get_fused_slice(fusable_tensors)
     # fused_loops: list[Iteration] = []
     # loop_idx2reservations: dict[int, list[ReservationNode]] = {}
     # for node in fused_slice.nodes:
@@ -203,12 +200,13 @@ class Job:
 
     job_id: UUID = field(default_factory=uuid4)
 
-    stride_and_halo: dict[
-        TensorName, dict[tuple[RankName, RankVariableName], tuple[int, int]]
-    ] | None = None
+    stride_and_halo: (
+        dict[TensorName, dict[tuple[RankName, RankVariableName], tuple[int, int]]]
+        | None
+    ) = None
     mapping: Mapping | None = None
     constraints: MappingConstraints | None = None
-    intermediate_tensors: set[TensorName] | None = None
+    fusable_tensors: set[TensorName] | None = None
     flattened_arch: list[arch.Leaf] | None = None
 
     einsum_name: EinsumName | None = None
@@ -217,13 +215,14 @@ class Job:
     _compatibility: Compatibility | None = None
     memories_track_all: list[str] | None = None
     memories_track_pmappings_only: list[str] | None = None
+    no_drop_reservations_for: set[str] | None = None
     time_limit: float | int = float("inf")
     memory_limit: float | int = float("inf")
     messages: list[str] = field(default_factory=list)
     pmapping_keep_rates: dict[str, float] = field(default_factory=dict)
-    tensor_to_relevancy: dict[
-        TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]
-    ] | None = None
+    tensor_to_relevancy: (
+        dict[TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]] | None
+    ) = None
 
     total_pmappings: int = 1
     valid_pmappings: int = 1
@@ -261,7 +260,7 @@ class Job:
         with_reservations = quick_insert_reservation_nodes(self)
         self._compatibility = make_compatibility(
             with_reservations,
-            self.intermediate_tensors,
+            self.fusable_tensors,
             self.spec.workload,
             self.rank_variable_bounds,
             self.stride_and_halo,
@@ -372,8 +371,8 @@ class SameEinsumJobs(SameSpecJobs):
             raise RuntimeError("broken invariance: not all Einsums are equal.")
 
     @property
-    def intermediate_tensors(self) -> set[TensorName]:
-        return first(self).intermediate_tensors
+    def fusable_tensors(self) -> set[TensorName]:
+        return first(self).fusable_tensors
 
     @property
     def einsum_name(self) -> set[EinsumName]:

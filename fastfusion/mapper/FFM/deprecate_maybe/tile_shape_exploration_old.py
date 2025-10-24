@@ -7,7 +7,7 @@ import random
 import re
 import resource
 from typing import Callable, Optional, Union
-from combinatorics.integer import integer_factorizations_to_n_parts
+# from combinatorics.integer import integer_factorizations_to_n_parts
 from dataclasses import dataclass, field
 
 from fastfusion import util
@@ -44,7 +44,11 @@ from fastfusion.model.looptree.reuse.summarized.symbolic import (
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
 from fastfusion.model.looptree.latency import get_latency
 
-from fastfusion.mapper.FFM._pmapping_group import nameloop2col, tensor2col, firstlatency2col
+from fastfusion.mapper.FFM._pmapping_group import (
+    nameloop2col,
+    tensor2col,
+    firstlatency2col,
+)
 from fastfusion.frontend.mapper.metrics import Metrics
 from fastfusion.util.util import fzs
 
@@ -119,15 +123,15 @@ def run_model(job: Job):
                     df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.LATENCY:
-        df[f"Total<SEP>latency"] = overall_latency * spec.arch.global_cycle_period
-        df[f"latency<SEP>compute"] = comp_latency * spec.arch.global_cycle_period
+        df[f"Total<SEP>latency"] = overall_latency
+        df[f"latency<SEP>compute"] = comp_latency
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
-        for compute_level, stats in reuse.compute_stats.items(): # FIRST LATENCY
+        for compute_level, stats in reuse.compute_stats.items():  # FIRST LATENCY
             for idx, max_first_latency in stats.max_first_latency.items():
                 df[firstlatency2col(compute_level, idx)] = max_first_latency
         for component, latency in mem_latency.items():
-            df[f"latency<SEP>{component}"] = latency * spec.arch.global_cycle_period
+            df[f"latency<SEP>{component}"] = latency
 
     if metrics & Metrics.ENERGY:
         df[f"Total<SEP>energy"] = sum(energy.values())
@@ -491,7 +495,7 @@ class Objective:
 
 def get_possible_factor_sizes(n: int, imperfect: bool = False) -> list[int]:
     factors = []
-    for i in range(1, math.ceil(n ** 0.5) + 1):
+    for i in range(1, math.ceil(n**0.5) + 1):
         if not imperfect and n % i != 0:
             continue
         factors.append(i)
@@ -576,9 +580,9 @@ def check_max_fused_loops_per_rank(
     symbols_enumerated: list[Symbol],
     choices_enumerated: np.ndarray,
     max_fused_loops_per_rank_check_groups: list[list[Symbol]],
-    max_fused_loops_per_rank: Number,
+    max_fused_loops_per_rank_variable: Number,
 ):
-    if max_fused_loops_per_rank >= len(symbols_enumerated):
+    if max_fused_loops_per_rank_variable >= len(symbols_enumerated):
         return choices_enumerated
 
     def get_size(x: Union[Symbol, int]):
@@ -590,7 +594,7 @@ def check_max_fused_loops_per_rank(
         return not isinstance(x, Symbol) or x in symbols_enumerated
 
     for group in max_fused_loops_per_rank_check_groups:
-        if len(group) <= max_fused_loops_per_rank + 1:
+        if len(group) <= max_fused_loops_per_rank_variable + 1:
             continue
 
         n = 0
@@ -600,8 +604,10 @@ def check_max_fused_loops_per_rank(
                 continue
             n += get_size(a) != get_size(b)
         if isinstance(n, np.ndarray):
-            choices_enumerated = choices_enumerated[n <= max_fused_loops_per_rank]
-        elif n > max_fused_loops_per_rank:
+            choices_enumerated = choices_enumerated[
+                n <= max_fused_loops_per_rank_variable
+            ]
+        elif n > max_fused_loops_per_rank_variable:
             choices_enumerated = choices_enumerated[0:0, :]
 
     return choices_enumerated
@@ -742,7 +748,7 @@ def get_tile_shape_choices(
     job: "Job",
     keep_symbols: list[Symbol] = (),
     max_fused_loops_per_rank_check_groups: list[list[Symbol]] = (),
-    max_fused_loops_per_rank: Number = float("inf"),
+    max_fused_loops_per_rank_variable: Number = float("inf"),
 ):
     objectives = [copy.deepcopy(o) for o in objectives]
 
@@ -847,12 +853,15 @@ def get_tile_shape_choices(
             symbols_enumerated,
             choices_enumerated,
             max_fused_loops_per_rank_check_groups,
-            max_fused_loops_per_rank,
+            max_fused_loops_per_rank_variable,
         )
         job.log_porp_pmappings_kept(
-            f"max_fused_loops_per_rank", choices_enumerated.shape[0] / prev_size
+            f"max_fused_loops_per_rank_variable",
+            choices_enumerated.shape[0] / prev_size,
         )
-        log_message("max_fused_loops_per_rank", f"size={choices_enumerated.shape[0]}")
+        log_message(
+            "max_fused_loops_per_rank_variable", f"size={choices_enumerated.shape[0]}"
+        )
 
         # ==============================================================================
         # Create initial Pareto-finding goals
@@ -1131,7 +1140,7 @@ def _explore_tile_shapes_new(job: "Job"):
         job=job,
         keep_symbols=keep_symbols,
         max_fused_loops_per_rank_check_groups=list(rank_var_to_fused_loops.values()),
-        max_fused_loops_per_rank=job.spec.mapper.ffm.max_fused_loops_per_rank,
+        max_fused_loops_per_rank_variable=job.spec.mapper.ffm.max_fused_loops_per_rank_variable,
     )
 
     try:
@@ -1901,7 +1910,7 @@ def generate_tile_shapes(
 
         return best_reduction if _recursed else best_index
 
-    if True: # not specification.mapper.ffm._greedily_maximize_reuse:
+    if True:  # not specification.mapper.ffm._greedily_maximize_reuse:
         # Start combining from the loop with the fewest choices
         _, fewest_index = min(
             ((x[-1].shape[0], i) for i, x in enumerate(rank_var_and_choices))
@@ -2018,7 +2027,8 @@ def collect_tiling_segments(
             tiling_segment = rank_var_to_tiling_segments.setdefault(
                 rank_var,
                 TilingSegment(
-                    rank_shape[rank_var], spec.mapper.ffm.max_fused_loops_per_rank
+                    rank_shape[rank_var],
+                    spec.mapper.ffm.max_fused_loops_per_rank_variable,
                 ),
             )
 

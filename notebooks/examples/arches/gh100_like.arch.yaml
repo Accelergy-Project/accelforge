@@ -1,0 +1,135 @@
+# H100 FP8 SXM5
+# 2000 TFLOPs
+# 700W
+# 814mm^2
+# https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth
+# Peak TF32 Tensor TFLOPS 494.7
+# Peak FP64 Tensor TFLOPS 66.9
+# Peak INT8 Tensor TOPS 1978.9
+# pJ/MAC = 700 / 1978.9 * 2 = 0.707
+# https://resources.nvidia.com/en-us-tensor-core
+variables:
+  global_cycle_period: 1e-9
+  tech_node: 5e-9
+  cell_node: "vInf.1"
+  cooling_overhead: 1e3
+  b_per_MB: 1024 * 1024 * 8
+  b_per_GB: 1024 * b_per_MB
+  b_per_KB: 1024 * 8
+  clock_derate: 1
+
+
+arch:
+  version: "0.5"
+  global_cycle_period: 1e-9
+  nodes:
+  - !Memory
+    name: MainMemory
+    component_class: {{"cryo_bridge_dram" if AQFP else "DRAM"}}
+    attributes:
+      _size: 4 * b_per_GB # 4GB
+      _latency: (read_actions + write_actions) * width / 8 / 614e9 # 614 GB/s
+      _datawidth: 8
+      width: 8192
+      depth: size / width
+    actions:
+    - {name: read, arguments: {bits_per_action: width}}
+    - {name: write, arguments: {bits_per_action: width}}
+    constraints: {tensors: {keep: ~Intermediates, may_keep: All}}
+
+  - !Memory
+    name: GlobalBuffer
+    component_class: {{"aqfp_reg_sr" if AQFP else "SRAM"}}
+    attributes:
+      _size: 60 * b_per_MB # 60 MB
+      _datawidth: 8
+      # 2kB/cycle read, 1kB/cycle write
+      _latency: max(read_actions / 8 * 2048, write_actions / 8 * 1024) * global_cycle_period * clock_derate
+      _leak_power_scale: cooling_overhead
+      width: 16384
+      depth: size / width
+      cell_bit_depth: 8
+      array_w: width
+      array_h: depth
+      clock_derate: {{32 if AQFP else 1}}
+    actions:
+    - {name: read, arguments: {bits_per_action: width}}
+    - {name: write, arguments: {bits_per_action: width}}
+    constraints:
+      tensors:
+        keep: All
+        no_refetch_from_above: MainMemory.tensors if ~MainMemory.tensors else Nothing
+      dataflow:
+        tensor_order_options: [[Outputs, ~Outputs]]
+
+  - !Memory
+    name: SM
+    component_class: dummy_storage
+    spatial: 
+    - {name: X, fanout: 9} # Yes multicast across SMs within a CGA
+    - {name: CGA, fanout: 16, reuse: Nothing} # No multicast across CGAs
+    attributes: {_size: 0}
+    constraints: 
+      tensors: {keep: Nothing}
+      spatial:
+      - {name: X, must_reuse: output, min_utilization: 1 if len(All) > 2 else 0}
+      - {name: CGA, must_reuse: output, min_utilization: 1 if len(All) > 2 else 0}
+
+  - !Memory
+    name: SharedMemory
+    component_class: {{"aqfp_reg_sr" if AQFP else "SRAM"}}
+    attributes:
+      _size: 64 * b_per_KB # 64 kB
+      _datawidth: 8
+      # 1 read or write per cycle
+      _latency: (read_actions + write_actions) * global_cycle_period * clock_derate
+      width: 512
+      depth: size / width
+      clock_derate: {{4 if AQFP else 1}}
+      cell_bit_depth: 8
+      array_w: width
+      array_h: depth
+      _leak_power_scale: cooling_overhead
+    actions:
+    - {name: read, arguments: {bits_per_action: width}}
+    - {name: write, arguments: {bits_per_action: width}}
+    constraints:
+      tensors: 
+        keep: All
+        no_refetch_from_above: Outputs
+      dataflow:
+        tensor_order_options: [[Outputs, ~Outputs]]
+
+  - !Compute
+    name: ScalarUnit
+    attributes: {_area: 0, _leak_power: 0, _energy: 0}
+    constraints: {misc: {enabled: len(All) == 2}}
+
+  - !Memory
+    name: TensorCoreDummy
+    attributes: {_size: 0, _area: 0, _leak_power: 0, _energy: 0}
+    spatial:
+    - {name: reuse_input, fanout: 128 / 8, reuse: input} # 8 is the datawidth
+    - {name: reuse_output, fanout: 4, reuse: output}
+    - {name: reuse_weight, fanout: 8, reuse: weight}
+    constraints:
+      tensors: {keep: Nothing}
+      spatial:
+      - {name: reuse_nothing, must_reuse: output, min_utilization: 1}
+      - {name: reuse_input, must_reuse: input, min_utilization: 1}
+      - {name: reuse_output, must_reuse: output, min_utilization: 1}
+      - {name: reuse_weight, must_reuse: weight, min_utilization: 1}
+
+  - !Compute
+    name: MAC
+    component_class: {{"aqfp_intmac" if AQFP else "intmac"}}
+    attributes: 
+      multiplier_width: 8
+      adder_width: 16
+      _leak_power_scale: cooling_overhead
+      _latency: compute_actions * global_cycle_period # 1 compute/cycle
+    actions:
+    # The 0.21 energy scale makes the plug-in return give the same value as a MAC
+    # from "Ten Lessons From Three Generations Shaped Google’s TPUv4i".
+    - {name: compute, arguments: {energy_scale: {{1 if AQFP else 0.21}} }}
+    constraints: {misc: {enabled: len(All) == 3}}

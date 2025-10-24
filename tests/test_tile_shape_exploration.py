@@ -18,7 +18,7 @@ class TestTileShapeExploration(unittest.TestCase):
             PARENT_DIR / 'conv.workload.yaml',
             PARENT_DIR / 'four_level.arch.yaml'
         )
-        specification.calculate_component_energy_area(area=False)
+        specification = specification.calculate_component_energy_area(area=False)
 
         mapping = Mapping.from_yaml(PARENT_DIR / 'conv_sym.mapping.yaml')
         
@@ -35,7 +35,6 @@ class TestTileShapeExploration(unittest.TestCase):
             rank_variable_bounds={},
             memories_track_all=memories_track_all,
             memories_track_pmappings_only=memories_track_pmappings_only,
-            tagger=None,
         )
 
         result = explore_tile_shapes(job)

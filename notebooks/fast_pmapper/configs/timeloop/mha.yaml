@@ -1,0 +1,116 @@
+# Version: 0.5 -> 0.4
+# Global_cycle_period -> global_cycle_seconds
+# tech_node --> technology, xe-9 -> "xnm"
+# Delete actions
+# component_class -> subclass
+# !Memory -> !Component and add a class "SRAM" 
+# spatial --> meshX, meshY
+# tensors --> dataspace
+
+variables:
+  global_cycle_seconds: 1e-9
+  technology: "7nm"
+
+architecture:
+  version: "0.4"
+  nodes:
+  - !Component
+    name: MainMemory
+    class: DRAM
+    subclass: dummy_storage
+    attributes:
+      width: 2048
+      depth: 1000000000  # Just something really big.
+      datawidth: 8
+      shared_bandwidth: 256
+
+  - !Component
+    name: GlobalBuffer
+    class: SRAM
+    subclass: dummy_storage
+    attributes:
+      width: 4096
+      depth: 3072  # 1.5 MiB = 12 Mib  (Kind of a wide SRAM, probably heavily banked)
+      datawidth: 8
+      read_bandwidth: 1024
+      write_bandwidth: 512
+
+  - !Component
+    name: LocalBuffer
+    class: SRAM
+    subclass: dummy_storage
+    spatial: [meshX: 4]
+    attributes:
+      width: 1024
+      depth: 1024  # 128 KiB = 1 Mib
+      datawidth: 8
+      shared_bandwidth: 1024
+      read_bandwidth: 1024
+      write_bandwidth: 1024
+    constraints:
+      # dataspace: {bypass: [weight], keep: [input, output]}
+      spatial: {split: 999, factors: [M<=4, P<=4, H<=4, N<=4]}
+
+  - !Component
+    name: fanout_dummy_1
+    class: SRAM
+    subclass: dummy_storage
+    spatial: [meshX: 128]
+    attributes:
+      width: 8
+      depth: 1
+      datawidth: 8
+    constraints: 
+      dataspace: {bypass: [input, output, weight]}
+      spatial: {split: 999, no_iteration_over_dataspaces: [output], factors: [E<=128]}
+      temporal: {factors_only: []}
+
+  - !Component
+    name: fanout_dummy_2
+    class: SRAM
+    subclass: dummy_storage
+    spatial: [meshX: 128]
+    attributes:
+      width: 8
+      depth: 1
+      datawidth: 8
+    constraints:
+      dataspace: {bypass: [input, output, weight]}
+      spatial: {split: 999, no_iteration_over_dataspaces: [input], factors: [P<=128]}
+      temporal: {factors_only: []}
+
+
+  - !Component
+    name: Register
+    class: SRAM
+    subclass: dummy_storage
+    attributes:
+      width: 8
+      depth: 1
+      datawidth: 8
+    constraints: 
+      dataspace: {bypass: [input, output], keep: [weight]}
+      temporal: {no_iteration_over_dataspaces: [weight]}
+
+  - !Component
+    name: MAC
+    class: intmac
+    subclass: dummy_compute
+    attributes:
+      multiplier_width: 8
+      adder_width: 16
+
+mapper:
+  version: 0.4
+  optimization_metrics: [ edp ]
+  live_status: False
+  num_threads: 1
+  evaluated_size: 10000
+  search_size: 1000000000          # Max valid mappings per-thread
+  victory_condition: 100000      # Exit once a mapping is better than this number of
+  #                             # valid mappings in a row
+  timeout: 100000              # Max invalid mappings in a row
+  # max_permutations_per_if_visit: -1
+  algorithm: random_pruned # linear_pruned
+  # max_temporal_loops_in_a_mapping: -1
+  diagnostics: False

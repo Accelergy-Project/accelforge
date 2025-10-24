@@ -22,7 +22,7 @@ class InvertibleSet(BaseModel, Generic[T]):
             setattr(
                 self,
                 self.child_access_name,
-                lambda *args, **kwargs: self._cast_to_child_space(*args, **kwargs),
+                self._cast_to_child_space(*args, **kwargs),
             )
 
         # Make sure there's no extra fields
@@ -37,24 +37,6 @@ class InvertibleSet(BaseModel, Generic[T]):
     def __str__(self):
         return self.__repr__()
 
-    # def __new__(
-    #         cls,
-    #         *args,
-    #         full_space: set,
-    #         space_name: str,
-    #         child_access_name: str=None,
-    #         element_to_child_space: dict[str, str]=None,
-    #         **kwargs):
-    #     # Create the frozenset instance
-    #     instance = super().__new__(cls, *args, **kwargs)
-    #     # Set our custom attributes
-    #     instance.full_space = full_space
-    #     instance.space_name = space_name
-    #     instance.child_access_name = child_access_name
-    #     instance.element_to_child_space = element_to_child_space
-    #     if child_access_name:
-    #         setattr(instance, child_access_name, instance._cast_to_child_space)
-    #     return instance
 
     def __invert__(self):
         return self.to_my_space(self.full_space - self.instance)
@@ -75,17 +57,25 @@ class InvertibleSet(BaseModel, Generic[T]):
             element_to_child_space=self.element_to_child_space,
         )
 
+    @staticmethod
+    def _make_set(x) -> set:
+        return x.instance if isinstance(x, InvertibleSet) else x
+
     def __and__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance & other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a & b)
 
     def __or__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance | other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a | b)
 
     def __sub__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance - other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a - b)
 
     def __xor__(self, other: "InvertibleSet[T]") -> "InvertibleSet[T]":
-        return self.to_my_space(self.instance ^ other.instance)
+        a, b = self._make_set(self), self._make_set(other)
+        return self.to_my_space(a ^ b)
 
     def __call__(self):
         return self
@@ -139,24 +129,28 @@ class InvertibleSet(BaseModel, Generic[T]):
 
 
 def eval_set_expression(
-    expression: str,
+    expression: str | InvertibleSet,
     symbol_table: dict[str, InvertibleSet],
     expected_space_name: str,
     location: str,
     expected_count: int | None = None,
 ) -> InvertibleSet:
     try:
-        if not isinstance(expression, str):
+        if not isinstance(expression, (InvertibleSet, str)):
             raise TypeError(f"Expected a string, got {type(expression)}: {expression}")
+
         prev_result = "NOT_FOUND"
-        result = prev_result
-        if expression in symbol_table:
-            result = symbol_table[expression]
-        elif expression[-2:] == "()" and expression[:-2] in symbol_table:
-            try:
-                result = symbol_table[expression[:-2]]()
-            except:
-                pass
+        if isinstance(expression, str):
+            result = prev_result
+            if expression in symbol_table:
+                result = symbol_table[expression]
+            elif expression[-2:] == "()" and expression[:-2] in symbol_table:
+                try:
+                    result = symbol_table[expression[:-2]]()
+                except:
+                    pass
+        else:
+            result = expression
 
         if id(result) == id(prev_result):
             result = eval(expression, {"__builtins__": MATH_FUNCS}, symbol_table)

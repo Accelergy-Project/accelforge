@@ -1,44 +1,55 @@
-# Function to check and get platform
-check_platform:
-	@if [ -z "$$DOCKER_ARCH" ]; then \
-		echo "Please set DOCKER_ARCH environment variable to amd64 or arm64"; \
-		echo "Option A: export DOCKER_ARCH=amd64 ; make build_docker"; \
-		echo "Option B: make build_docker DOCKER_ARCH=amd64"; \
-		exit 1; \
+NTL_VER := 11.5.1
+BARVINOK_VER := 0.41.8
+ISLPY_VER := 2024.2
+
+LIB_DIR := libraries
+
+
+.PHONY: install-hwcomponents install-ntl install-barvinok install-islpy
+
+install-hwcomponents:
+	mkdir -p $(LIB_DIR)
+	# install hwcomponents from GitHub (pinned commit recommended)
+	git clone --depth 1 https://github.com/Accelergy-Project/hwcomponents.git $(LIB_DIR)/hwcomponents || true
+	cd $(LIB_DIR)/hwcomponents && make install-submodules
+	cd $(LIB_DIR)/hwcomponents && pip3 install .
+
+install-ntl:
+	mkdir -p $(LIB_DIR)
+	# If the file does not exist, download it
+	if [ ! -f $(LIB_DIR)/ntl-$(NTL_VER).tar.gz ]; then \
+		wget -O $(LIB_DIR)/ntl-$(NTL_VER).tar.gz https://libntl.org/ntl-$(NTL_VER).tar.gz; \
 	fi
-	@if [ "$$DOCKER_ARCH" != "amd64" ] && [ "$$DOCKER_ARCH" != "arm64" ]; then \
-		echo "Invalid platform '$$DOCKER_ARCH'. Must be amd64 or arm64."; \
-		exit 1; \
+	tar -xvzf $(LIB_DIR)/ntl-$(NTL_VER).tar.gz -C $(LIB_DIR)
+	cd $(LIB_DIR)/ntl-$(NTL_VER)/src && ./configure NTL_GMP_LIP=on SHARED=on NATIVE=off
+	cd $(LIB_DIR)/ntl-$(NTL_VER)/src && make -j$$(nproc) && make install
+
+install-barvinok:
+	mkdir -p $(LIB_DIR)
+	if [ ! -f $(LIB_DIR)/barvinok-$(BARVINOK_VER).tar.gz ]; then \
+		wget -O $(LIB_DIR)/barvinok-$(BARVINOK_VER).tar.gz https://barvinok.sourceforge.io/barvinok-$(BARVINOK_VER).tar.gz; \
 	fi
-	@echo "Using platform: $$DOCKER_ARCH"
+	tar -xvzf $(LIB_DIR)/barvinok-$(BARVINOK_VER).tar.gz -C $(LIB_DIR)
+	cd $(LIB_DIR)/barvinok-$(BARVINOK_VER) && ./configure --enable-shared-barvinok
+	cd $(LIB_DIR)/barvinok-$(BARVINOK_VER) && make -j$$(nproc) && make install
 
-clone_dependencies:
-	mkdir -p .dependencies
-	cd .dependencies && git clone git@github.com:Accelergy-Project/fastfusion.git
-	cd .dependencies && git clone --recurse-submodules git@github.com:Accelergy-Project/hwcomponents.git
-	cd .dependencies && git clone git@github.com:gilbertmike/combinatorics.git
-	chmod -R 777 .dependencies
-
-install_dependencies:
-	if [ ! -f /.dockerenv ]; then \
-		echo "Not in a container. Please run 'make run_docker' first."; \
-		exit 1; \
+install-islpy:
+	mkdir -p $(LIB_DIR)
+	if [ ! -f $(LIB_DIR)/islpy-$(ISLPY_VER).tar.gz ]; then \
+		wget -O $(LIB_DIR)/islpy-$(ISLPY_VER).tar.gz https://github.com/inducer/islpy/archive/refs/tags/v$(ISLPY_VER).tar.gz; \
 	fi
-	pip3 install -e ./.dependencies/fastfusion --break-system-packages
-	pip3 install -e ./.dependencies/hwcomponents/models/* --break-system-packages
-	pip3 install -e ./.dependencies/combinatorics --break-system-packages
-	pip3 install -e ./.dependencies/hwcomponents --break-system-packages
+	tar -xvzf $(LIB_DIR)/islpy-$(ISLPY_VER).tar.gz -C $(LIB_DIR)
+	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && rm -f siteconf.py
+	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && ./configure.py --use-barvinok --isl-inc-dir=/usr/local/include --isl-lib-dir=/usr/local/lib --no-use-shipped-isl --no-use-shipped-imath
+	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && pip3 install .
 
-pull_dependencies:
-	cd .dependencies/fastfusion && git pull
-	cd .dependencies/hwcomponents && git pull
-	cd .dependencies/hwcomponents && git submodule update --init --recursive
-	cd .dependencies/combinatorics && git pull
+build-docker:
+	docker build -t fastfusion/fastfusion-infrastructure .
 
-build_docker: check_platform
-	sudo chmod -R 777 .dependencies
-	docker build -t fastfusion/fastfusion-infrastructure:latest-$$DOCKER_ARCH .
+run-docker:
+	docker-compose up
 
-run_docker: check_platform
-	sudo chmod -R 777 .dependencies
-	DOCKER_ARCH=$$DOCKER_ARCH docker-compose up
+generate-docs:
+    # pip install sphinx-autobuild sphinx_autodoc_typehints sphinx-rtd-theme
+    LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -o docs fastfusion
+    LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild docs docs/_build/html

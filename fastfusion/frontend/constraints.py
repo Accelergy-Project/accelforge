@@ -1,5 +1,6 @@
 import copy
 import logging
+import re
 from typing import Annotated, Any, Callable, List, Optional, Tuple, Union
 
 from fastfusion.accelerated_imports import np
@@ -112,33 +113,57 @@ class Comparison(ParsableModel):
 
 
 class Tensors(ParsableModel):
-    bypass: Union[str, InvertibleSet[TensorName], set[TensorName]] = "~All"
-    keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "~All"
+    keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "<Defaults to Nothing>"
+    """ Which tensors must be kept in this unit" """ 
+    
+    may_keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "<Nothing if keep is defined, else All>"
+    """ Which tensors may be kept in this unit, but are not required to be. The mapper
+    will explore both keeping and not keeping each tensor. """
+    
     tile_shape: ParsableList[Comparison] = []
+    """
+    The tile shape for each rank variable. This is given as a list of comparisons, where
+    each comparison must evaluate to True for a valid mapping. 
+    """
+
     no_refetch_from_above: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
         "~All"
     )
+    """
+    The tensors that are not allowed to be refetched from above. This is given as a set
+    of tensors. These tensors must be fetched at most one time from above memories.
+    """
 
-    def _parse_keep_bypass(self, symbol_table: dict[str, Any], location: str):
-        if "bypass" in self.keep and "keep" in self.bypass:
+
+    def _parse_keep(self, symbol_table: dict[str, Any], location: str):
+        keep, may_keep = self.keep, self.may_keep
+        if may_keep == "<Nothing if keep is defined, else All>":
+            may_keep = "All" if keep == "<Defaults to Nothing>" else "~All"
+        if keep == "<Defaults to Nothing>":
+            keep = "Nothing"
+
+        keep_first = isinstance(keep, str) and re.findall(r"\bmay_keep\b", keep)
+        may_keep_first = isinstance(may_keep, str) and re.findall(r"\bkeep\b", may_keep)
+        if keep_first and may_keep_first:
             raise ValueError(
-                f"Bypass and keep constraints reference each other: {self.bypass} and {self.keep}"
+                f"Keep and may_keep constraints reference each other: "
+                f"{keep} and {may_keep}"
             )
-
-        if isinstance(self.bypass, str) and "keep" in self.bypass:
-            keep = eval_set_expression(self.keep, symbol_table, "tensors", location)
+            
+        if may_keep_first:
+            may_keep = eval_set_expression(may_keep, symbol_table, "tensors", location)
+            symbol_table = copy.copy(symbol_table)
+            symbol_table["may_keep"] = may_keep
+            keep = eval_set_expression(keep, symbol_table, "tensors", location)
+            return type(self)(keep=keep, may_keep=may_keep)
+        else:
+            keep = eval_set_expression(keep, symbol_table, "tensors", location)
             symbol_table = copy.copy(symbol_table)
             symbol_table["keep"] = keep
-            bypass = eval_set_expression(self.bypass, symbol_table, "tensors", location)
-            return type(self)(bypass=bypass, keep=keep)
-        else:
-            bypass = eval_set_expression(self.bypass, symbol_table, "tensors", location)
-            symbol_table = copy.copy(symbol_table)
-            symbol_table["bypass"] = bypass
-            keep = eval_set_expression(self.keep, symbol_table, "tensors", location)
-            return type(self)(bypass=bypass, keep=keep)
+            may_keep = eval_set_expression(may_keep, symbol_table, "tensors", location)
+            return type(self)(keep=keep, may_keep=may_keep)
 
-    def _parse_non_keep_bypass(self, symbol_table: dict[str, Any], location: str):
+    def _parse_non_keep(self, symbol_table: dict[str, Any], location: str):
         return type(self)(
             tile_shape=[x._parse(symbol_table, location) for x in self.tile_shape],
             no_refetch_from_above=eval_set_expression(
@@ -162,16 +187,8 @@ class Iteration(ParsableModel):
 class Spatial(Iteration):
     name: str
     min_utilization: Union[float, str] = 0.0
-
-    def combine(self, other: "Spatial"):
-        if self.reuse != other.reuse:
-            raise ValueError(
-                f"Cannot combine iterations with different reuse constraints. Got {self.reuse} and {other.reuse}."
-            )
-        return type(self)(
-            loop_bounds=self.loop_bounds + other.loop_bounds,
-            reuse=self.reuse,
-        )
+    reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
+    must_reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "Nothing"
 
     @property
     def name(self):
@@ -185,6 +202,7 @@ class Spatial(Iteration):
             min_utilization=parse_expression(
                 self.min_utilization, symbol_table, "min_utilization", location
             ),
+            must_reuse=eval_set_expression(self.must_reuse, symbol_table, "tensors", location),
         )
 
 
@@ -197,17 +215,6 @@ class Temporal(Iteration):
             self.rmw_first_update, symbol_table, "tensors", location
         )
         return new_temporal
-
-    def combine(self, other: "Temporal"):
-        if self.rmw_first_update != other.rmw_first_update:
-            raise ValueError(
-                f"Cannot combine iterations with different rmw_first_update constraints. Got {self.rmw_first_update} and {other.rmw_first_update}."
-            )
-        return type(self)(
-            loop_bounds=self.loop_bounds + other.loop_bounds,
-            rmw_first_update=self.rmw_first_update + other.rmw_first_update,
-            reuse=self.reuse,
-        )
 
 
 class Dataflow(ParsableModel):

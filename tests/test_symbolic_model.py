@@ -19,7 +19,6 @@ PARENT_DIR = Path(__file__).parent
 def make_job(mapping: Mapping, workload: Workload) -> Job:
     return Job(
         spec=None,
-        tagger=None,
         mapping=mapping,
         workload=workload,
     )

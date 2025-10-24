@@ -16,7 +16,7 @@ from .workload import (
 from ._isl import get_rank_variable_bounds
 
 
-def get_projection_expr(einsum: Einsum, tensor: TensorName) -> dict[str, sympy.Expr]:
+def get_projection_expr(einsum: Einsum, tensor: TensorName) -> dict[RankName, sympy.Expr]:
     projection = einsum.tensor_accesses[tensor].projection
     return {
         rank_name: sympy.parsing.sympy_parser.parse_expr(proj_str)

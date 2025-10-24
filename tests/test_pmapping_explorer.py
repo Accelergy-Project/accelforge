@@ -46,17 +46,13 @@ class TestPmappingExploration(unittest.TestCase):
                         )
 
     def test_mha_with_tags(self):
-        from fastfusion.mapper.FFM.deprecate_maybe.mapping_filter_tags import get_one_split_tag
         spec = Specification.from_yaml(
             PARENT_DIR / "four_level.arch.yaml",
             PARENT_DIR / "mha.workload.yaml",
             PARENT_DIR / "mha.renames.yaml",
         )
 
-        def tagger(pmapping):
-            return get_one_split_tag(pmapping)
-
-        sims, decompress_data = get_sims(spec, einsum_names=["Q"], tagger=tagger)
+        sims, decompress_data = get_sims(spec, einsum_names=["Q"])
 
     def test_conv_with_snowcat(self):
         spec = Specification.from_yaml(

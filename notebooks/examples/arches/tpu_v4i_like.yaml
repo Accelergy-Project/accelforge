@@ -1,0 +1,84 @@
+arch:
+  version: "0.5"
+  nodes:
+  - !Memory
+    name: MainMemory
+    attributes:
+      _size: inf
+      _datawidth: 8
+      _latency: (read_actions + write_actions) / (8 * 614e9) # 614 GB/s
+      _leak_power: 0
+      _area: 0
+    actions:
+      # Upper end of the range from the TPU paper. The lower end came from their
+      # reference, and they said it left out some things.
+    - {name: read, arguments: {energy: 7.03e-12}}
+    - {name: write, arguments: {energy: 7.03e-12}}
+    constraints: {tensors: {keep: ~Intermediates, may_keep: All}}
+
+  - !Memory
+    name: GlobalBuffer
+    attributes:
+      _size: 1024*1024*128*8 # 128MB
+      _datawidth: 8
+      _latency: max(read_actions / 8 * 2048e9, write_actions / 8 * 1024e9) # 2GB/s read, 1GB/s write
+      _leak_power: 0
+      _area: 0
+    actions:
+    - {name: read, arguments: {energy: 1.88e-12}}
+    - {name: write, arguments: {energy: 2.36e-12}}
+    constraints:
+      tensors:
+        keep: ~MainMemory.tensors
+        may_keep: All
+        no_refetch_from_above: Intermediates if ~MainMemory.tensors else Nothing
+
+  - !Memory
+    name: LocalBuffer
+    spatial: [{name: Z, fanout: 4, reuse: Nothing}]
+    attributes:
+      _size: 1024*1024*4*8 # 4MB
+      _datawidth: 8
+      _leak_power: 0
+      _area: 0
+    actions:
+    - {name: read, arguments: {energy: 0.249e-12}}
+    - {name: write, arguments: {energy: 0.293e-12}}
+    constraints:
+      tensors: {keep: input | output}
+
+  - !Compute
+    name: ScalarUnit
+    attributes: 
+      _area: 0
+      _leak_power: 0
+      _energy: 0
+      _latency: compute_actions / 128 / 1.05e9
+    constraints: {misc: {enabled: len(All) == 2}}
+
+  - !Memory
+    name: ArrayDummy
+    attributes: {_size: 0, _area: 0, _leak_power: 0, _energy: 0}
+    spatial:
+    - {name: reuse_input, fanout: 128, reuse: input} # 8 is the datawidth
+    - {name: reuse_output, fanout: 128, reuse: output}
+    constraints:
+      tensors: {keep: Nothing}
+      spatial:
+      - {name: reuse_input, must_reuse: input, min_utilization: 1}
+      - {name: reuse_output, must_reuse: output, min_utilization: 1}
+
+  - !Memory
+    name: Register
+    attributes: {_size: 1, _area: 0, _leak_power: 0, _energy: 0}
+    constraints: {tensors: {keep: weight}}
+
+  - !Compute
+    name: MAC
+    attributes:
+      _latency: compute_actions
+      _leak_power: 0
+      _area: 0
+    actions:
+    - {name: compute, arguments: {energy: 0.084e-12}}
+    constraints: {misc: {enabled: len(All) == 3}}

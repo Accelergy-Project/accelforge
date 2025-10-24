@@ -59,14 +59,14 @@ memories:
 
   LLB:
     size: 1048576  # 128 KiB
-    r_cost: 256   # 2 pJ/8b
-    w_cost: 297   # 2.32 pJ/8b
+    r_cost: 2048   # 2 pJ/8b
+    w_cost: 2376   # 2.32 pJ/8b
     area: 0
     latency: 1
     operands: [I1, O]
     ports:
-      - fh: w_port_1
-        tl: r_port_1
+      - fh: rw_port_1
+        tl: rw_port_1
       - fh: w_port_2
         tl: r_port_2
         fl: w_port_2
@@ -74,34 +74,34 @@ memories:
     ports:
       - name: rw_port_1
         type: read_write
-        bandwidth_min: 1024
-        bandwidth_max: 1024
+        bandwidth_min: 8192
+        bandwidth_max: 8192
         allocation: 
           - I1, tl
           - I1, fh
       - name: r_port_2
         type: read
-        bandwidth_min: 1024
-        bandwidth_max: 1024
+        bandwidth_min: 8192
+        bandwidth_max: 8192
         allocation: 
           - O, tl
           - O, th
       - name: w_port_2
         type: write
-        bandwidth_min: 1024
-        bandwidth_max: 1024
+        bandwidth_min: 8192
+        bandwidth_max: 8192
         allocation: 
           - O, fh
           - O, fl
     served_dimensions: [D1, D2]
 
   GLB:
-    size: 8388608 # 1 MiB
-    r_cost: 128  # 15.04 pJ/8b
-    w_cost: 148.5   # 18.88 pJ/8b
+    size: 12582912 # 1.5 MiB
+    r_cost: 2048   # 2 pJ/8b
+    w_cost: 1188   # 2.32 pJ/8b
     area: 0
     latency: 1
-    operands: [I1, O]
+    operands: [I1, O, I2]
     ports:
       - fh: w_port_1
         tl: r_port_1
@@ -109,37 +109,41 @@ memories:
         tl: r_port_1
         fl: w_port_1
         th: r_port_1
+      - fh: w_port_1
+        tl: r_port_1
     ports:
       - name: r_port_1
         type: read
-        bandwidth_min: 1024
-        bandwidth_max: 1024
+        bandwidth_min: 8192  # 2048 GiB/s = 8192 Gib/s
+        bandwidth_max: 8192
         allocation: 
           - I1, tl
+          - I2, tl
           - O, tl
           - O, th
       - name: w_port_1
         type: write
-        bandwidth_min: 1024
-        bandwidth_max: 1024
+        bandwidth_min: 4096  # 512 GiB/s = 4096 Gib/s
+        bandwidth_max: 4096
         allocation: 
           - I1, fh
+          - I2, fh
           - O, fh
           - O, fl
     served_dimensions: [D0, D1, D2]
 
   DRAM:
     size: 1000000000000000
-    r_cost: 1800 # 56.25 pJ/8b but the input must be per-width (width is bandwidth_min == bandwidth_max
-    w_cost: 1800
+    r_cost: 14397 # 56.25 pJ/8b but the input must be per-width (width is bandwidth_min == bandwidth_max
+    w_cost: 14397
     area: 0
     latency: 1
     operands: [I1, I2, O]
     ports:
       - name: rw_port_1
         type: read_write
-        bandwidth_min: 1024  # 256 GiB/s = 2048 Gib/s
-        bandwidth_max: 1024
+        bandwidth_min: 2048  # 256 GiB/s = 2048 Gib/s
+        bandwidth_max: 2048
         allocation: 
           - I1, fh
           - I1, tl

@@ -10,7 +10,11 @@ from joblib import delayed
 from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.mapping import Iteration, Mapping, TensorHolder
-from fastfusion.frontend.workload._isl import get_rank_variable_bounds
+from fastfusion.frontend.workload._isl import (
+    get_rank_variable_bounds,
+    get_tensor_size,
+    get_operation_space_size,
+)
 from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_one_einsum import (
@@ -25,7 +29,6 @@ from fastfusion.mapper.FFM._join_pmappings.sim import SIM
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.tile_shape_exploration import (
     EXPERIMENTAL_TILE_SHAPE_EXPLORATION,
 )
-from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 from fastfusion.util.util import parallel
 from fastfusion.util import util
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import (
@@ -53,28 +56,16 @@ def get_rank_variable_bounds_for_all_einsums(spec: Specification):
 
 
 def get_num_computes(spec: Specification, einsum_name: EinsumName | None = None) -> int:
-    rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
     einsums = spec.workload.einsums
-    einsums = [einsums[einsum_name]] if einsum_name is not None else einsums
-    return sum(prod(rank_variable_bounds[r] for r in e.rank_variables) for e in einsums)
+    einsums = [einsum_name] if einsum_name is not None else spec.workload.einsum_names
+    return sum(get_operation_space_size(spec.workload, e) for e in einsums)
 
 
 def get_per_tensor_size(spec: Specification) -> dict[TensorName, int]:
-    rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
-    sizes = {}
-    for t in spec.workload.tensor_names:
-        einsum = next(iter(spec.workload.einsums_with_tensor(t)))
-        size = 1
-        access = einsum.tensor_accesses[t]
-        for r in access.fully_relevant_rank_variables:
-            size *= rank_variable_bounds[r]
-        if access.partially_relevant_rank_variables:
-            raise ValueError(
-                f"Tensor {t} has partially relevant rank variables."
-                f"This function only works for fully-relevant rank variables."
-            )
-        sizes[t] = size
-    return sizes
+    return {
+        tensor: get_tensor_size(spec.workload, tensor)
+        for tensor in spec.workload.tensor_names
+    }
 
 
 def get_jobs(
@@ -86,7 +77,7 @@ def get_jobs(
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
     einsum2jobs = {}
-    intermediate_tensors = spec.workload.intermediate_tensor_names
+    fusable_tensors = spec.workload.fusable_tensor_names
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     def make_jobs_for_einsum(einsum_name: EinsumName, flattened_arch: list[arch.Leaf]):
@@ -100,7 +91,7 @@ def get_jobs(
             rank_variable_bounds=rank_variable_bounds,
             flattened_arch=flattened_arch,
             job_id=uuid.uuid4(),
-            intermediate_tensors=intermediate_tensors & workload_einsum.tensor_names,
+            fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
         )
         for j in get_single_einsum_jobs(job):
             jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
@@ -183,16 +174,36 @@ def get_memories_to_track(
     memory_to_size = get_memory_to_size(flattened_arches)
     memories_track_all = list(memory_to_size.keys())
     memories_track_pmappings_only = []
+    no_drop_reservations_for = set()
 
     # If we're combining the pmappings from multiple runs, we can't conclude anything
     # about the metrics to track
     if can_combine_multiple_runs:
-        return memories_track_all, memories_track_pmappings_only
+        no_drop_reservations_for = set(memory_to_size.keys())
+        return (
+            memories_track_all,
+            memories_track_pmappings_only,
+            no_drop_reservations_for,
+        )
 
     if metrics.RESOURCE_USAGE in metrics:
-        return memories_track_all, memories_track_pmappings_only
+        no_drop_reservations_for = set(memory_to_size.keys())
+        return (
+            memories_track_all,
+            memories_track_pmappings_only,
+            no_drop_reservations_for,
+        )
 
-    total_tensor_sizes = sum(get_per_tensor_size(spec).values())
+    def _get_scale(tensor_name: TensorName) -> int:
+        scale = 1
+        for einsum in spec.workload.einsums_with_tensor(tensor_name):
+            if einsum.tensor_accesses[tensor_name].persistent:
+                scale = max(scale, spec.workload.n_instances * einsum.n_instances)
+        return scale
+
+    total_tensor_sizes = sum(
+        s * _get_scale(t) for t, s in get_per_tensor_size(spec).items()
+    )
 
     # If the memory is big enough to hold all the tensors then we don't need to consider
     # it
@@ -214,6 +225,8 @@ def get_memories_to_track(
             for node in job.mapping.nodes:
                 if isinstance(node, TensorHolder) and node.component == m:
                     seen = True
+                    if node.persistent:
+                        no_drop_reservations_for.add(m)
                 if isinstance(node, Iteration) and node._fused and seen:
                     must_track = True
 
@@ -225,7 +238,7 @@ def get_memories_to_track(
                 f"reserved across fused loop iterations."
             )
 
-    return memories_track_all, memories_track_pmappings_only
+    return memories_track_all, memories_track_pmappings_only, no_drop_reservations_for
 
 
 def get_sims(
@@ -292,6 +305,14 @@ def get_sims(
         return_jobs.setdefault(einsum_name, []).extend(
             jobs_with_similar_compatibilities
         )
+
+    for einsum_name in list(sims.keys()):
+        sims[einsum_name] = SIM.combine_combineable(
+            sims[einsum_name],
+            "All",
+            pbar_postfix=f" for {einsum_name}",
+        )
+
     return sims, pmapping_objects, return_jobs
 
 
@@ -347,13 +368,16 @@ def _fill_jobs_with_memories_to_track(
         for job_list in compatibility2joblist.values()
         for j in job_list
     ]
-    memories_track_all, memories_track_pmappings_only = get_memories_to_track(
-        spec,
-        flattened_arches,
-        jobs_flattened,
-        metrics,
-        can_combine_multiple_runs,
+    memories_track_all, memories_track_pmappings_only, no_drop_reservations_for = (
+        get_memories_to_track(
+            spec,
+            flattened_arches,
+            jobs_flattened,
+            metrics,
+            can_combine_multiple_runs,
+        )
     )
     for j in jobs_flattened:
         j.memories_track_all = memories_track_all
         j.memories_track_pmappings_only = memories_track_pmappings_only
+        j.no_drop_reservations_for = no_drop_reservations_for

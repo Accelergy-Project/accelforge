@@ -13,24 +13,38 @@ class Mappings:
     def __init__(
         self,
         spec: Specification,
-        einsum_names: list[EinsumName] | None = None,
-        data: pd.DataFrame | None = None,
+        einsum_names: list[EinsumName],
+        data: pd.DataFrame,
+        total_mappings: int,
+        valid_mappings: int,
     ):
         self.spec = spec
         self.einsum_names = einsum_names
         self.data = data
+        self.total_mappings = total_mappings
+        self.valid_mappings = valid_mappings
 
     def num_computes(self, einsum_name: EinsumName | None = None) -> int:
+        # TODO: this is not correct if there are recomputation.
         return get_num_computes(self.spec, einsum_name)
 
     def per_tensor_size(self) -> dict[TensorName, int]:
         return get_per_tensor_size(self.spec)
 
+    def _update(self, **kwargs):
+        data = dict(
+            spec=self.spec,
+            einsum_names=self.einsum_names,
+            data=self.data,
+            total_mappings=self.total_mappings,
+            valid_mappings=self.valid_mappings,
+        )
+        data.update(kwargs)
+        return Mappings(**data)
+
     def __getitem__(self, key: str | int) -> Union[pd.Series, "Mappings"]:
         if isinstance(key, int):
-            return Mappings(
-                self.spec, self.einsum_names, pd.DataFrame(self.data.iloc[key]).T
-            )
+            return self._update(data=pd.DataFrame(self.data.iloc[key]).T)
         if len(self) == 1:
             return self.data[key].iloc[0]
         return self.data[key]
@@ -103,10 +117,8 @@ class Mappings:
         for col in self._get_cols(key):
             col_renames[col] = "<SEP>".join(c for c in col.split("<SEP>") if c != key)
 
-        return Mappings(
-            self.spec,
-            self.einsum_names,
-            self.data[list(col_renames.keys())].rename(columns=col_renames),
+        return self._update(
+            data=self.data[list(col_renames.keys())].rename(columns=col_renames)
         )
 
     def drop(self, *keys: str) -> "Mappings":
@@ -119,11 +131,7 @@ class Mappings:
                 self = self.drop(k)
             return self
 
-        return Mappings(
-            self.spec,
-            self.einsum_names,
-            self.data.drop(columns=self._get_cols(keys[0])),
-        )
+        return self._update(data=self.data.drop(columns=self._get_cols(keys[0])))
 
     def sum(self, keep_key_index: list[int] | int | None = None) -> "Mappings":
         if len(self.data.columns) == 1:
@@ -158,7 +166,7 @@ class Mappings:
         for target, sources in target2sources.items():
             new_data[target] = self.data[sources].sum(axis=1)
 
-        return Mappings(self.spec, self.einsum_names, new_data)
+        return self._update(data=new_data)
 
     @property
     def columns(self) -> list[str]:
@@ -192,12 +200,12 @@ class Mappings:
             except (ValueError, TypeError):
                 # Skip columns that can't be converted to numeric
                 continue
-        return Mappings(self.spec, self.einsum_names, new_df)
+        return self._update(data=new_df)
 
     def drop_zeros(self) -> "Mappings":
         new_df = self.data.copy()
         new_df = new_df[(c for c in new_df.columns if (new_df[c] != 0).any())]
-        return Mappings(self.spec, self.einsum_names, new_df)
+        return self._update(data=new_df)
 
     def render(self) -> str:
         if len(self) != 1:

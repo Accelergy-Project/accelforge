@@ -10,6 +10,7 @@ Moreover, we may want to use either "compatibility" or "matching" as comparison
 for creating a dictionary. For convenience, one can use TagMatch and
 TagCompatibility as classes for the keys.
 """
+
 from fastfusion.util import fzs
 
 

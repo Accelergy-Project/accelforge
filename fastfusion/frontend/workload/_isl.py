@@ -1,3 +1,4 @@
+import math
 import islpy as isl
 
 from .workload import Workload, TensorName, Einsum
@@ -93,9 +94,49 @@ def get_tensor_data_space(workload: Workload, tensor: TensorName) -> isl.Set:
 
     return tensor_data_space
 
+def _card_box(data_space: isl.Set) -> int:
+    dims = []
+    for i in range(data_space.dim(isl.dim_type.set)):
+        dim_min = data_space.dim_min(i)
+        dim_max = data_space.dim_max(i)
+
+        if dim_min.is_cst() and dim_max.is_cst():
+            min_val = dim_min.as_aff().get_constant_val().to_python()
+            max_val = dim_max.as_aff().get_constant_val().to_python()
+        else:
+            raise ValueError(f"Data space is not rectangular: {data_space}")
+
+        dims.append(max_val - min_val + 1)
+
+    return math.prod(dims)
+
+
+ERRMSG = \
+""" Non-box-shaped sets are not supported. This happens if ISL is installed without
+Barvinok support. Please install ISL with Barvinok support, or use workloads with
+rectangular data spaces and operation spaces. Non-rectangular spaces occur when the
+workload contains complex expressions involving the rank variables, such as
+multi-rank-variable inequalities.
+Offending space: {space}.
+"""
+
 
 def get_tensor_size(workload: Workload, tensor: TensorName):
     """Get the size (num. of elements) of a tensor."""
     data_space = get_tensor_data_space(workload, tensor)
-    card_pwqp = data_space.card()
+    if data_space.is_box():
+        return _card_box(data_space)
+    if not hasattr(data_space, "card"):
+        raise RuntimeError(ERRMSG.format(space=str(data_space)))
+    card_pwqp = isl.PwQPolynomial.card(data_space)
+    return card_pwqp.eval(card_pwqp.domain().sample_point()).to_python()
+
+
+def get_operation_space_size(workload: Workload, einsum_name: str):
+    operation_space = get_einsum_operation_space(workload, einsum_name)
+    if operation_space.is_box():
+        return _card_box(operation_space)
+    if not hasattr(operation_space, "card"):
+        raise RuntimeError(ERRMSG.format(space=str(operation_space)))
+    card_pwqp = isl.PwQPolynomial.card(operation_space)
     return card_pwqp.eval(card_pwqp.domain().sample_point()).to_python()
