@@ -2,7 +2,7 @@ mapping:
   version: "0.5"
   nodes:
   - !Storage
-    tensors: [I, WA, WB, O]
+    tensors: [I, WA, WB, B]
     component: MainMemory
   - !Temporal
     rank_variable: pb
@@ -11,7 +11,7 @@ mapping:
       initial_tile_shape: 8
       stride: 8
   - !Storage
-    tensors: [I, WA, A, WB, O]
+    tensors: [I, WA, A, WB, B]
     component: LocalBuffer
   - !Sequential
     nodes:
