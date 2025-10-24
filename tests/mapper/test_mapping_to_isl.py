@@ -49,7 +49,7 @@ class TestMappingToIsl(unittest.TestCase):
             if buffer == list(occupancies.buffet_to_occupancy.keys())[-1]:
                 soln: isl.Map = isl.Map.read_from_str(
                     isl.DEFAULT_CONTEXT,
-                    "{ [P1, P0, R] -> [P=8*P1 + P0] : "
+                    "{ [P1, P0, R] -> O[P=8*P1 + P0] : "
                     "0 <= R < 3 and 0 <= P1 < 2 and 0 <= P0 < 8}",
                 )
                 assert occupancy.map_ == soln
