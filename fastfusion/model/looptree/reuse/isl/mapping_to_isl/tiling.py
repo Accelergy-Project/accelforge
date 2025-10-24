@@ -460,7 +460,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
     for einsum_name in workload.einsum_names:
         tiling_info[mapping][einsum_name] = isl.Map.from_range(
             get_einsum_operation_space(workload, einsum_name)
-        )
+        ).set_tuple_name(isl.dim_type.in_, f"{einsum_name}_tiled_iteration")
 
     # Tracks rank_var specified to partitioned_rank_var index, as traversal
     # in tiling goes down the partition.

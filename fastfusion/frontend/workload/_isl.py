@@ -10,7 +10,7 @@ def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:
         map(str, workload.einsums[einsum_name].rank_variables)
     )
     try:
-        return isl.Set(f"{{ [{rank_variable_names}] : {einsum_shape} }}")
+        return isl.Set(f"{{ {einsum_name}_operation_space[{rank_variable_names}] : {einsum_shape} }}")
     except:
         raise Exception(f"Error creating isl.Set for {einsum_name}: {einsum_shape}")
 
@@ -55,7 +55,8 @@ def get_projection_multi_aff(einsum: Einsum, tensor: TensorName) -> isl.MultiAff
         for rank_name, rank_projection in projection.items()
     )
 
-    return isl.MultiAff(f"{{ [{rank_variables_str}] -> [{projection_str}] }}")
+    return isl.MultiAff(f"{{ {einsum.name}_operation_space[{rank_variables_str}] -> "
+                        f"{tensor}[{projection_str}] }}")
 
 
 def get_projection_map(einsum: Einsum, tensor: TensorName) -> isl.Map:
