@@ -1,20 +1,20 @@
 two_conv1d.mapping.yaml:
   BufferTensorEinsum(buffer='MainMemory', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [] -> [PI] : 0 <= PI < 18 }
   BufferTensorEinsum(buffer='MainMemory', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [] -> [RA] : 0 <= RA < 3 }
   BufferTensorEinsum(buffer='LocalBuffer', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [pb0=0] -> [PI] : 0 <= PI < 12; [pb0=1] -> [PI] : 10 <= PI < 18 }
   BufferTensorEinsum(buffer='LocalBuffer', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [pb0] -> [RA] : 0 <= RA <= 2 and 0 <= pb0 < 2 }
   BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [pb0=0] -> [PA] : 0 <= PA < 10; [pb0=1] -> [PA] : 10 <= PA < 16 }
   BufferTensorEinsum(buffer='MAC', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [pb0=0, 0, pa1, ra0] -> [PI = pa1 + ra0] : 0 <= pa1 < 10 and 0 <= ra0 <= 3; [pb0=1, 0, pa1, ra0] -> [PA = pa1 + ra0] : 10 <= pa1 < 16 and 0 <= ra0 <= 3 }
   BufferTensorEinsum(buffer='MAC', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [pb0=0, 0, pa1, ra0] -> [RA=ra0] : 0 <= pa1 < 10 and 0 <= ra0 <= 3; [pb0=1, 0, pa1, ra0] -> [RA=ra0] : 10 <= pa1 < 16 and 0 <= ra0 <= 3 }
   BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)):
-    null
+    { [pb0=0, 0, pa1, ra0] -> [PA=pa1] : 0 <= pa1 < 10 and 0 <= ra0 <= 3; [pb0=1, 0, pa1, ra0] -> [PA=pa1] : 10 <= pa1 < 16 and 0 <= ra0 <= 3 }
   BufferTensorEinsum(buffer='MainMemory', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
     { [] -> [RB] : 0 <= RB <= 2 }
   BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
