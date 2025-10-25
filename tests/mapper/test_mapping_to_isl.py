@@ -2,7 +2,6 @@ from pathlib import Path
 from pprint import pformat
 import unittest
 
-from ruamel.yaml import YAML
 import islpy as isl
 
 from fastfusion.frontend.workload import Workload
@@ -13,7 +12,7 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     MappingAnalysisResult,
 )
 
-from .util import TEST_CONFIG_PATH, to_isl_maps
+from .util import TEST_CONFIG_PATH, load_solutions
 
 class TestMappingToIsl(unittest.TestCase):
 
@@ -51,13 +50,8 @@ class TestMappingToIsl(unittest.TestCase):
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
-        # Load expected solutions (YAML file with string ISL maps)
-        expected_path: Path = TWO_CONV1D_CONFIG_PATH / "two_conv1d.expected.yaml"
-        yaml: YAML = YAML(typ='safe')
-
-        with open(expected_path, 'r') as f:
-            solns: dict = to_isl_maps(yaml.load(f))['two_conv1d.mapping.yaml']
-        # pprint(solns)
+        soln_path: Path = TWO_CONV1D_CONFIG_PATH / "two_conv1d.expected.yaml"
+        solns: dict = load_solutions(soln_path)["mapping_to_isl"]
 
         errors: list = []
         try:
