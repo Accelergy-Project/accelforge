@@ -58,7 +58,7 @@ def fill_from_occupancy(
     occupancy: Occupancy, multiple_loop_reuse: bool
 ) -> TemporalReuse:
     # Iterates through each dimension in reverse order (i.e., deepest loop first)
-    occ = occupancy.map_
+    occ = occupancy.map_.copy()
     tags = occupancy.tags.copy()
     for dim_idx, tag in reversed(list(enumerate(occupancy.tags))):
         # Skips non-temporal dimensions as this is temporal analysis.
@@ -72,7 +72,7 @@ def fill_from_occupancy(
         print(proj_occ)
         print(reinserted_occ)
         
-        if occ == reinserted_occ:
+        if occ.plain_is_equal(reinserted_occ) or occ.is_equal(reinserted_occ):
             occ = proj_occ
             tags.pop(dim_idx)
             continue
@@ -80,7 +80,7 @@ def fill_from_occupancy(
         # Nontrivial analysis
         time_shift: isl.Map
         if not multiple_loop_reuse:
-            time_shift = map_to_shifted(occ.get_space(), dim_idx, -1)
+            time_shift = map_to_shifted(occ.domain().get_space(), dim_idx, -1)
         # Calculates the 
         else:
             # TODO: this is a better way of getting time_shift. Use method to

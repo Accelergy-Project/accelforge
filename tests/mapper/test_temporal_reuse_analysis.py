@@ -36,7 +36,7 @@ class TestTemporalReuseAnalysis(unittest.TestCase):
                     "{ [t1, x, t0] -> [d] : "
                     "t0 <= d < t0+3 and 0 <= t1 < 2 and 0 <= x < 2 and 0 <= t0 < 2 }"
                 ),
-            ),
+            ).coalesce(),
         )
 
         result: TemporalReuse = analyze_temporal_reuse(occ, True, True)
@@ -49,6 +49,6 @@ class TestTemporalReuseAnalysis(unittest.TestCase):
             " ((t1 = 1) and (t0 = 0) and (d = 0)) or "
             " ((t1 = 1) and (t0 = 1) and (d = 3))"
             ")}",
-        )
+        ).coalesce()
         eff_occ: isl.Map = result.effective_occupancy.map_
-        assert eff_occ == soln, f"Expected:\n{soln}\nReceived:\n{eff_occ}"
+        assert soln.is_equal(eff_occ), f"Expected:\n{soln}\nReceived:\n{eff_occ}"
