@@ -1,4 +1,4 @@
-two_conv1d.mapping.yaml:
+mapping_to_isl:
   BufferTensorEinsum(buffer='MainMemory', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
     { [] -> I[PI] : 0 <= PI < 18 }
   BufferTensorEinsum(buffer='MainMemory', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
