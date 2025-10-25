@@ -1,3 +1,8 @@
+"""
+Some non-exhaustive tests to make sure core functionality of the non-fusing and
+fusing portions of ISL tiling is not violated under changes.
+"""
+
 from pathlib import Path
 from pprint import pformat
 import unittest
@@ -14,16 +19,22 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
 
 from .util import TEST_CONFIG_PATH, load_solutions
 
+
 class TestMappingToIsl(unittest.TestCase):
+    """
+    Tests taking a `Mapping` and `Workload` and converting it into relevant isl
+    objects.
+    """
 
     def test_conv1d(self):
+        """
+        Non-fusing one 1-dimensional convolution test.
+        """
         # Loads in the CONV1D Config
-        CONV1D_CONFIG_PATH: Path = TEST_CONFIG_PATH / "conv1d"
-        workload: Workload = Workload.from_yaml(
-            CONV1D_CONFIG_PATH / "conv1d.workload.yaml"
-        )
+        config_path: Path = TEST_CONFIG_PATH / "conv1d"
+        workload: Workload = Workload.from_yaml(config_path / "conv1d.workload.yaml")
 
-        mapping: Mapping = Mapping.from_yaml(CONV1D_CONFIG_PATH / "conv1d.mapping.yaml")
+        mapping: Mapping = Mapping.from_yaml(config_path / "conv1d.mapping.yaml")
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
@@ -38,29 +49,31 @@ class TestMappingToIsl(unittest.TestCase):
                 assert occupancy.map_ == soln
 
     def test_two_conv1d(self):
+        """
+        Fusing two 1-dimensional convolutions test.
+        """
         # Loads in the CONV1D Config
-        TWO_CONV1D_CONFIG_PATH: Path = TEST_CONFIG_PATH / "two_conv1d"
+        config_path: Path = TEST_CONFIG_PATH / "two_conv1d"
         workload: Workload = Workload.from_yaml(
-            TWO_CONV1D_CONFIG_PATH / "two_conv1d.workload.yaml"
+            config_path / "two_conv1d.workload.yaml"
         )
 
-        mapping: Mapping = Mapping.from_yaml(
-            TWO_CONV1D_CONFIG_PATH / "two_conv1d.mapping.yaml"
-    )
+        mapping: Mapping = Mapping.from_yaml(config_path / "two_conv1d.mapping.yaml")
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
-        soln_path: Path = TWO_CONV1D_CONFIG_PATH / "two_conv1d.expected.yaml"
-        solns: dict = load_solutions(soln_path)["mapping_to_isl"]
+        solns: dict = load_solutions(config_path / "two_conv1d.expected.yaml")[
+            "mapping_to_isl"
+        ]
 
         errors: list = []
         try:
             for buffer, occupancy in occupancies.buffet_to_occupancy.items():
                 soln = solns[repr(buffer)]
-                assert occupancy.map_ == soln, (
-                    f"{buffer} should hold:\n{soln}\ninstead holds:\n{occupancy.map_}"
-                )
+                assert (
+                    occupancy.map_ == soln
+                ), f"{buffer} should hold:\n{soln}\ninstead holds:\n{occupancy.map_}"
         except AssertionError as e:
             errors.append(e)
-        
+
         assert len(errors) == 0, pformat(errors)
