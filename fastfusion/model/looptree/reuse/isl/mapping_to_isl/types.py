@@ -89,6 +89,10 @@ class OperationOccupancy(TaggedMap):  # pylint: disable=too-few-public-methods
     """Location of operations in [logical?] hardware elements."""
 
 
+class Fill(TaggedMap):
+    """Spacetime -> fill of a logical buffer"""
+
+
 class Skew(TaggedMap):  # pylint: disable=too-few-public-methods
     """TODO: Figure out what this is."""
 

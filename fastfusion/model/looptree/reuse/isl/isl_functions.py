@@ -202,3 +202,27 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
         map_ = map_.union(tmp_map)
 
     return map_
+
+
+def map_to_shifted(domain_space: isl.Space, pos: int, shift: int) -> isl.Map:
+    """
+    Given a `domain_space`, return a map from a point in the `domain_space` to
+    a point in that dimension `shift` ahead in the dimension at `pos`.
+
+    Parameters
+    ----------
+    domain_space:
+        The space on which to construct the shift on.
+    pos:
+        The dimension to construct the shift on.
+    shift:
+        The amount of shift 
+    
+    Returns
+    -------
+    A mapping from `[x_0, x_1, ..., x_n] -> [x_0, ..., x_{pos} + shift, ..., x_n]`
+    on `domain_space`.
+    """
+    maff: isl.MultiAff = domain_space.identity_multi_aff_on_domain()
+    maff = maff.set_at(pos, maff.get_at(pos).set_constant_val(shift))
+    return maff.as_map()
