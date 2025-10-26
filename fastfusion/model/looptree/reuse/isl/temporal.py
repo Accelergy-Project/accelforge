@@ -104,7 +104,7 @@ def fill_from_occupancy(
         if not multiple_loop_reuse:
             # TODO: Verify space names are preserved and/or replace.
             time_shift = map_to_shifted(occ.domain().get_space(), dim_idx, -1)
-        # Calculates the
+        # Calculates the time_shift assuming no cache flushing for loops.
         else:
             # TODO: this is a better way of getting time_shift. Use method to
             # replace the other branch (!multi_loop_reuse)
