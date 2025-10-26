@@ -74,7 +74,7 @@ LOOP_TAGS = (TemporalTag, SpatialTag)
 class TaggedMap:  # pylint: disable=too-few-public-methods
     """A :class:`isl.Map` with its dimensions tagged."""
 
-    tags: List[Any]
+    tags: List[Tag]
     map_: isl.Map
 
     def __repr__(self):
@@ -83,6 +83,14 @@ class TaggedMap:  # pylint: disable=too-few-public-methods
 
 class Occupancy(TaggedMap):  # pylint: disable=too-few-public-methods
     """Location of data in [logical?] hardware elements."""
+    def __init__(self, tags: list[Tag], map_: isl.Map):
+        assert len(tags) == map_.dim(isl.dim_type.in_), (
+            "Occupancy labels input dims with tags\n"
+            "-------------------------------------\n"
+            f"tags: {tags}\n"
+            f"map: {map_}\n"
+        )
+        super().__init__(tags, map_)
 
 
 class OperationOccupancy(TaggedMap):  # pylint: disable=too-few-public-methods
@@ -91,6 +99,14 @@ class OperationOccupancy(TaggedMap):  # pylint: disable=too-few-public-methods
 
 class Fill(TaggedMap):
     """Spacetime -> fill of a logical buffer"""
+    def __init__(self, tags: list[Tag], map_: isl.Map):
+        assert len(tags) == map_.dim(isl.dim_type.in_), (
+            "Fill labels input dims with tags\n"
+            "--------------------------------\n"
+            f"tags: {tags}\n"
+            f"map: {map_}\n"
+        )
+        super().__init__(tags, map_)
 
 
 class Skew(TaggedMap):  # pylint: disable=too-few-public-methods
