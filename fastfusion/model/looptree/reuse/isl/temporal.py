@@ -82,12 +82,15 @@ def fill_from_occupancy(
         if not isinstance(tag, TEMPORAL_TAGS):
             continue
         # Check if temporal dimension is "trivial," i.e., equals a singular value
-        proj_occ: isl.Map = occ.project_out(isl.dim_type.in_, dim_idx, 1).set_tuple_name(
+        proj_occ: isl.Map = occ.project_out(
+            isl.dim_type.in_, dim_idx, 1
+        ).set_tuple_name(
             isl.dim_type.in_, f"{occ.get_tuple_name(isl.dim_type.in_)}_abridged"
         )
         reinserted_occ: isl.Map = (
             proj_occ.insert_dims(isl.dim_type.in_, dim_idx, 1).set_tuple_name(
-                isl.dim_type.in_, occ.get_tuple_name(isl.dim_type.in_).removesuffix("_abridged")
+                isl.dim_type.in_,
+                occ.get_tuple_name(isl.dim_type.in_).removesuffix("_abridged"),
             )
         ).intersect_domain(occ.domain())
 
@@ -153,7 +156,7 @@ def construct_time_shift(occ: isl.Map, tags: list[Tag]):
     spacetime_to_space = spacetime_to_space.set_tuple_name(
         isl.dim_type.out, f"{spacetime.get_tuple_name()}_space"
     )
-    
+
     # Properly constrains the spacetime_to_time's domain.
     spacetime_to_time = spacetime_to_time.intersect_domain(spacetime)
     time_: isl.Set = spacetime_to_time.range()
