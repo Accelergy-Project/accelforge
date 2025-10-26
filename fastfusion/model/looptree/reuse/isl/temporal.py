@@ -99,20 +99,20 @@ def fill_from_occupancy(
         else:
             # TODO: this is a better way of getting time_shift. Use method to
             # replace the other branch (!multi_loop_reuse)
-            spacetime_domain: isl.Set = occ.domain()
-            spacetime_domain_to_time_domain: isl.Map = isl.Map.identity(
-                spacetime_domain.get_space().map_from_set()
+            spacetime: isl.Set = occ.domain()
+            spacetime_to_time: isl.Map = isl.Map.identity(
+                spacetime.get_space().map_from_set()
             )
             spacetime_domain_to_space_domain: isl.Map = isl.Map.identity(
-                spacetime_domain.get_space().map_from_set()
+                spacetime.get_space().map_from_set()
             )
 
             # Prunes out the output dimensions that do not correspond to the
             # correct mapping into a generic space-to-space relation.
             for idx, t in reversed(list(enumerate(tags))):
                 if not isinstance(t, TEMPORAL_TAGS):
-                    spacetime_domain_to_time_domain = (
-                        spacetime_domain_to_time_domain.project_out(
+                    spacetime_to_time = (
+                        spacetime_to_time.project_out(
                             isl.dim_type.out, idx, 1
                         )
                     )
@@ -123,23 +123,23 @@ def fill_from_occupancy(
                         )
                     )
 
-            # Properly constrains the spacetime_domain_to_time_domain's domain.
-            spacetime_domain_to_time_domain = (
-                spacetime_domain_to_time_domain.intersect_domain(spacetime_domain)
+            # Properly constrains the spacetime_to_time's domain.
+            spacetime_to_time = (
+                spacetime_to_time.intersect_domain(spacetime)
             )
-            time_domain: isl.Set = spacetime_domain_to_time_domain.range()
-            # Creates a map of the time_domain to previous regions of the time_domain.
+            time_: isl.Set = spacetime_to_time.range()
+            # Creates a map of time_ to previous regions of time_.
             time_domain_to_past: isl.Map = (
-                isl.Map.lex_gt(spacetime_domain_to_time_domain.range().get_space())
-                .intersect_domain(time_domain)
-                .intersect_range(time_domain)
+                isl.Map.lex_gt(spacetime_to_time.range().get_space())
+                .intersect_domain(time_)
+                .intersect_range(time_)
             )
-            # Restricts the relation to only the most recent previous region of time_domain.
+            # Restricts the relation to only the most recent previous region of time_.
             time_domain_to_most_recent_past = time_domain_to_past.lexmax()
-            # Relates the current spacetime domain to its direct predecessor in time.
-            time_shift: isl.Map = spacetime_domain_to_time_domain.apply_range(
+            # Relates the current spacetime to its direct predecessor in time.
+            time_shift: isl.Map = spacetime_to_time.apply_range(
                 time_domain_to_most_recent_past.apply_range(
-                    spacetime_domain_to_time_domain.reverse()
+                    spacetime_to_time.reverse()
                 )
             )
 
