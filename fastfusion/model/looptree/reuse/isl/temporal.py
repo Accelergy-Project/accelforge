@@ -109,8 +109,8 @@ def fill_from_occupancy(
 
             # Prunes out the output dimensions that do not correspond to the
             # correct mapping into a generic space-to-space relation.
-            for idx, tag in reversed(list(enumerate(tags))):
-                if not isinstance(tag, TEMPORAL_TAGS):
+            for idx, t in reversed(list(enumerate(tags))):
+                if not isinstance(t, TEMPORAL_TAGS):
                     spacetime_domain_to_time_domain = (
                         spacetime_domain_to_time_domain.project_out(
                             isl.dim_type.out, idx, 1
