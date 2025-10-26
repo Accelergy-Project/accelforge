@@ -103,7 +103,7 @@ def fill_from_occupancy(
             spacetime_to_time: isl.Map = isl.Map.identity(
                 spacetime.get_space().map_from_set()
             )
-            spacetime_domain_to_space_domain: isl.Map = isl.Map.identity(
+            spacetime_to_space: isl.Map = isl.Map.identity(
                 spacetime.get_space().map_from_set()
             )
 
@@ -117,8 +117,8 @@ def fill_from_occupancy(
                         )
                     )
                 else:
-                    spacetime_domain_to_space_domain = (
-                        spacetime_domain_to_space_domain.project_out(
+                    spacetime_to_space = (
+                        spacetime_to_space.project_out(
                             isl.dim_type.out, idx, 1
                         )
                     )
@@ -129,27 +129,27 @@ def fill_from_occupancy(
             )
             time_: isl.Set = spacetime_to_time.range()
             # Creates a map of time_ to previous regions of time_.
-            time_domain_to_past: isl.Map = (
+            time_to_past: isl.Map = (
                 isl.Map.lex_gt(spacetime_to_time.range().get_space())
                 .intersect_domain(time_)
                 .intersect_range(time_)
             )
             # Restricts the relation to only the most recent previous region of time_.
-            time_domain_to_most_recent_past = time_domain_to_past.lexmax()
+            time_to_most_recent_past = time_to_past.lexmax()
             # Relates the current spacetime to its direct predecessor in time.
             time_shift: isl.Map = spacetime_to_time.apply_range(
-                time_domain_to_most_recent_past.apply_range(
+                time_to_most_recent_past.apply_range(
                     spacetime_to_time.reverse()
                 )
             )
 
             # Prunes spatial relations to only ones that are valid.
-            spacetime_domain_space_preserver: isl.Map = (
-                spacetime_domain_to_space_domain.apply_range(
-                    spacetime_domain_to_space_domain.reverse()
+            spacetime_space_preserver: isl.Map = (
+                spacetime_to_space.apply_range(
+                    spacetime_to_space.reverse()
                 )
             )
-            time_shift = time_shift.intersect(spacetime_domain_space_preserver)
+            time_shift = time_shift.intersect(spacetime_space_preserver)
 
         # Gets the fill (i.e., feeds data not currently in buffer).
         occ_before: isl.Map = time_shift.apply_range(occ)
