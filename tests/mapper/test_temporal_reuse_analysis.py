@@ -51,4 +51,5 @@ class TestTemporalReuseAnalysis(unittest.TestCase):
             ")}",
         ).coalesce()
         fill: isl.Map = result.fill.map_
+        eff_occ: isl.Map = result.effective_occupancy.map_
         assert soln.is_equal(fill), f"Expected:\n{soln}\nReceived:\n{fill}"

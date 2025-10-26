@@ -65,9 +65,9 @@ class SequentialTag(Tag):  # pylint: disable=too-few-public-methods
     """The associated element is serialized?"""
 
 
-TEMPORAL_TAGS = [TemporalTag, SequentialTag]
-BRANCH_TAGS = [PipelineTag, SequentialTag]
-LOOP_TAGS = [TemporalTag, SpatialTag]
+TEMPORAL_TAGS = (TemporalTag, SequentialTag)
+BRANCH_TAGS = (PipelineTag, SequentialTag)
+LOOP_TAGS = (TemporalTag, SpatialTag)
 
 
 @dataclass(frozen=True, slots=True)

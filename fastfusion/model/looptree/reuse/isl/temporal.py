@@ -61,16 +61,12 @@ def fill_from_occupancy(
     occ = occupancy.map_.copy()
     tags = occupancy.tags.copy()
     for dim_idx, tag in reversed(list(enumerate(occupancy.tags))):
-        # Skips non-temporal dimensions as this is temporal analysis.
-        if tag not in TEMPORAL_TAGS:
+        if not isinstance(tag, TEMPORAL_TAGS):
             continue
         # Check if temporal dimension is "trivial," i.e., equals a singular value
         proj_occ: isl.Map = occ.project_out(isl.dim_type.in_, dim_idx, 1)
         reinserted_occ: isl.Map = (proj_occ.insert_dims(isl.dim_type.in_, dim_idx, 1)
                                    ).intersect_domain(occ.domain())
-        print("CHECK SPACE NAMES")
-        print(proj_occ)
-        print(reinserted_occ)
         
         if occ.plain_is_equal(reinserted_occ) or occ.is_equal(reinserted_occ):
             occ = proj_occ
@@ -85,8 +81,6 @@ def fill_from_occupancy(
         else:
             # TODO: this is a better way of getting time_shift. Use method to
             # replace the other branch (!multi_loop_reuse)
-            print("CHECK SPACE NAMES")
-            print(occ)
             spacetime_domain: isl.Set = occ.domain()
             spacetime_domain_to_time_domain: isl.Map = isl.Map.identity(
                 spacetime_domain.get_space().map_from_set()
@@ -98,7 +92,7 @@ def fill_from_occupancy(
             # Prunes out the output dimensions that do not correspond to the
             # correct mapping into a generic space-to-space relation.
             for idx, tag in reversed(list(enumerate(tags))):
-                if tag not in TEMPORAL_TAGS:
+                if not isinstance(tag, TEMPORAL_TAGS):
                     spacetime_domain_to_time_domain = (
                         spacetime_domain_to_time_domain.project_out(
                             isl.dim_type.out, idx, 1
@@ -110,9 +104,6 @@ def fill_from_occupancy(
                             isl.dim_type.out, idx, 1
                         )
                     )
-            print(spacetime_domain)
-            print(spacetime_domain_to_time_domain)
-            print(spacetime_domain_to_space_domain)
 
             # Properly constrains the spacetime_domain_to_time_domain's domain.
             spacetime_domain_to_time_domain = spacetime_domain_to_time_domain.intersect_domain(
