@@ -82,9 +82,13 @@ def fill_from_occupancy(
         if not isinstance(tag, TEMPORAL_TAGS):
             continue
         # Check if temporal dimension is "trivial," i.e., equals a singular value
-        proj_occ: isl.Map = occ.project_out(isl.dim_type.in_, dim_idx, 1)
+        proj_occ: isl.Map = occ.project_out(isl.dim_type.in_, dim_idx, 1).set_tuple_name(
+            isl.dim_type.in_, f"{occ.get_tuple_name(isl.dim_type.in_)}_abridged"
+        )
         reinserted_occ: isl.Map = (
-            proj_occ.insert_dims(isl.dim_type.in_, dim_idx, 1)
+            proj_occ.insert_dims(isl.dim_type.in_, dim_idx, 1).set_tuple_name(
+                isl.dim_type.in_, occ.get_tuple_name(isl.dim_type.in_).removesuffix("_abridged")
+            )
         ).intersect_domain(occ.domain())
 
         if occ.plain_is_equal(reinserted_occ) or occ.is_equal(reinserted_occ):
@@ -95,6 +99,7 @@ def fill_from_occupancy(
         # Nontrivial analysis
         time_shift: isl.Map
         if not multiple_loop_reuse:
+            # TODO: Verify space names are preserved and/or replace.
             time_shift = map_to_shifted(occ.domain().get_space(), dim_idx, -1)
         # Calculates the
         else:

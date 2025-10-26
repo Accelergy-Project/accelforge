@@ -33,7 +33,7 @@ class TestTemporalReuseAnalysis(unittest.TestCase):
             isl.Map.read_from_str(
                 isl.DEFAULT_CONTEXT,
                 (
-                    "{ [t1, x, t0] -> [d] : "
+                    "{ generic_iteration[t1, x, t0] -> tensor[d] : "
                     "t0 <= d < t0+3 and 0 <= t1 < 2 and 0 <= x < 2 and 0 <= t0 < 2 }"
                 ),
             ).coalesce(),
@@ -42,7 +42,7 @@ class TestTemporalReuseAnalysis(unittest.TestCase):
         result: TemporalReuse = analyze_temporal_reuse(occ, True, True)
         soln: isl.Map = isl.Map.read_from_str(
             isl.DEFAULT_CONTEXT,
-            "{ [t1, x, t0] -> [d] : "
+            "{ generic_iteration[t1, x, t0] -> tensor[d] : "
             "0 <= x < 2 and "
             "(((t1 = 0) and (t0 = 0) and (0 <= d < 3)) or "
             " ((t1 = 0) and (t0 = 1) and (d = 3)) or "
