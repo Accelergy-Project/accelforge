@@ -50,5 +50,5 @@ class TestTemporalReuseAnalysis(unittest.TestCase):
             " ((t1 = 1) and (t0 = 1) and (d = 3))"
             ")}",
         ).coalesce()
-        eff_occ: isl.Map = result.effective_occupancy.map_
-        assert soln.is_equal(eff_occ), f"Expected:\n{soln}\nReceived:\n{eff_occ}"
+        fill: isl.Map = result.fill.map_
+        assert soln.is_equal(fill), f"Expected:\n{soln}\nReceived:\n{fill}"

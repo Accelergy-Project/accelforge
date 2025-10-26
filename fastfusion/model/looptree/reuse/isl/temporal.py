@@ -21,7 +21,7 @@ class TemporalReuse:
     fill: Fill
 
 def analyze_temporal_reuse(
-    occ: Occupancy, exploit_reuse: bool = True, multiple_loop_reuse: bool = True
+    occ: Occupancy, exploit_reuse: bool = True, multi_loop_reuse: bool = True
 ) -> TemporalReuse:
     """
     Computes the required fill to satisfy the buffer occupancy.
@@ -35,7 +35,7 @@ def analyze_temporal_reuse(
     exploit_reuse:
         Temporally exploits reuse through persisting data currently in buffer
         to the next time step.
-    multiple_loop_reuse:
+    multi_loop_reuse:
         Whether when this loop, or one above it in the memory hierarchy, loops,
         does the buffer flush.
     
@@ -49,7 +49,7 @@ def analyze_temporal_reuse(
     TODO: Make sure spaces are named properly
     """
     if exploit_reuse:
-        return fill_from_occupancy(occ, multiple_loop_reuse)
+        return fill_from_occupancy(occ, multi_loop_reuse)
     else:
         return TemporalReuse(occ, Fill(occ.tags, occ.map_))
 
