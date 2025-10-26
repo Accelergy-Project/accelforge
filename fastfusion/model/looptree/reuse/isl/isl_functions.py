@@ -22,7 +22,11 @@ def project_dim_in_after(map_: isl.Map, start: int) -> isl.Map:
     :rtype:     isl.Map
     """
     n_dim_in: int = map_.dim(isl.dim_type.in_)
-    return map_.project_out(isl.dim_type.in_, start, n_dim_in - start) if start <= n_dim_in else map_
+    return (
+        map_.project_out(isl.dim_type.in_, start, n_dim_in - start)
+        if start <= n_dim_in
+        else map_
+    )
 
 
 def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:
@@ -216,8 +220,8 @@ def map_to_shifted(domain_space: isl.Space, pos: int, shift: int) -> isl.Map:
     pos:
         The dimension to construct the shift on.
     shift:
-        The amount of shift 
-    
+        The amount of shift
+
     Returns
     -------
     A mapping from `[x_0, x_1, ..., x_n] -> [x_0, ..., x_{pos} + shift, ..., x_n]`
