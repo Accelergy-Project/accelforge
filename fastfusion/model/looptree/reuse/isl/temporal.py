@@ -146,10 +146,17 @@ def construct_time_shift(occ: isl.Map, tags: list[Tag]):
             spacetime_to_space = spacetime_to_space.project_out(
                 isl.dim_type.out, idx, 1
             )
+    # Gets the names correct after transformations.
+    spacetime_to_time = spacetime_to_time.set_tuple_name(
+        isl.dim_type.out, f"{spacetime.get_tuple_name()}_time"
+    )
+    spacetime_to_space = spacetime_to_space.set_tuple_name(
+        isl.dim_type.out, f"{spacetime.get_tuple_name()}_space"
+    )
+    
     # Properly constrains the spacetime_to_time's domain.
     spacetime_to_time = spacetime_to_time.intersect_domain(spacetime)
     time_: isl.Set = spacetime_to_time.range()
-
     # Creates a map of time_ to previous regions of time_.
     time_to_past: isl.Map = (
         isl.Map.lex_gt(time_.get_space()).intersect_domain(time_).intersect_range(time_)
@@ -165,6 +172,6 @@ def construct_time_shift(occ: isl.Map, tags: list[Tag]):
     spacetime_space_preserver: isl.Map = spacetime_to_space.apply_range(
         spacetime_to_space.reverse()
     )
-    time_shift = time_shift.intersect(spacetime_space_preserver)
-
-    return time_shift
+    # Intersects with time_shift as space information is lost with the compression of
+    # spacetime to time_ and then rexpansion to past time_.
+    return time_shift.intersect(spacetime_space_preserver)
