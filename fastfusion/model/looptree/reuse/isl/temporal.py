@@ -18,9 +18,10 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
 @dataclass(frozen=True)
 class TemporalReuse:
     """Results for an temporal reuse analysis."""
-
     effective_occupancy: Occupancy
+    """TODO: Figure this out."""
     fill: Fill
+    """Data deliveries to locations in spacetime that need to be made."""
 
 
 def analyze_temporal_reuse(
