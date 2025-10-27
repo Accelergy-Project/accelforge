@@ -78,6 +78,7 @@ def insert_dims_preserve_name_map(
         return map_
     return map_.set_tuple_name(dim_type, name)
 
+
 def insert_equal_dims_maff(
     maff: isl.MultiAff, in_pos: int, out_pos: int, n: int
 ) -> isl.MultiAff:
@@ -130,8 +131,8 @@ def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> i
         The number of dimensions to insert.
 
     Returns
-    -------       
-    A new maff which is equivalent to `map_` except it has `n` new input and 
+    -------
+    A new maff which is equivalent to `map_` except it has `n` new input and
     output dimensions starting at `in_pos` and `out_pos` respectively.
     """
     # Inserts the new input and output dimensions.

@@ -40,22 +40,26 @@ class TestSimpleLinkTransferModel(unittest.TestCase):
         link_transfer_model: SimpleLinkTransferModel = SimpleLinkTransferModel()
         info: TransferInfo = link_transfer_model.apply(buffer, fill, occ)
 
-        assert info.fulfilled_fill.map_ == (fulfilled_soln := isl.Map.read_from_str(
-            isl.DEFAULT_CONTEXT,
-            "{ spacetime[t = 1, x, y = 0] -> data[1 + x] : 0 <= x <= 1; "
-            "  spacetime[t = 1, x = 0, y] -> data[1 + y] : 0 <= y <= 1 }",
-        )), (
+        assert info.fulfilled_fill.map_ == (
+            fulfilled_soln := isl.Map.read_from_str(
+                isl.DEFAULT_CONTEXT,
+                "{ spacetime[t = 1, x, y = 0] -> data[1 + x] : 0 <= x <= 1; "
+                "  spacetime[t = 1, x = 0, y] -> data[1 + y] : 0 <= y <= 1 }",
+            )
+        ), (
             "`fulfilled_fill` and solution mismatch\n"
             "--------------------------------------\n"
             f"solution:\n{fulfilled_soln}\n"
             f"received:\n{info.fulfilled_fill.map_}\n"
         )
 
-        assert info.unfulfilled_fill.map_ == (unfulfilled_soln := isl.Map.read_from_str(
-            isl.DEFAULT_CONTEXT,
-            "{ spacetime[t = 0, x, y] -> data[x + y] : 0 <= x <= 1 and 0 <= y <= 1; "
-            "  spacetime[t = 1, x = 1, y = 1] -> data[3] }",
-        )), (
+        assert info.unfulfilled_fill.map_ == (
+            unfulfilled_soln := isl.Map.read_from_str(
+                isl.DEFAULT_CONTEXT,
+                "{ spacetime[t = 0, x, y] -> data[x + y] : 0 <= x <= 1 and 0 <= y <= 1; "
+                "  spacetime[t = 1, x = 1, y = 1] -> data[3] }",
+            )
+        ), (
             "`unfulfilled_fill` and solution mismatch\n"
             "----------------------------------------\n"
             f"solution:\n{unfulfilled_soln}\n"
