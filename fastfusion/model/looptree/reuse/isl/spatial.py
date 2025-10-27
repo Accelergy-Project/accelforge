@@ -22,6 +22,7 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     TaggedMap,
 )
 
+
 class Transfers(TaggedMap):
     """Transfers between regions in spacetime."""
 
@@ -32,6 +33,8 @@ class Reads(TaggedMap):
 
 @dataclass(frozen=True, slots=True)
 class TransferInfo:
+    """Data transfer information about a certain [subset] of the chip."""
+
     # Crucial information to transfer info.
     fulfilled_fill: Transfers
     """Fills done by peer-to-peer transfers."""
@@ -50,6 +53,7 @@ class TransferModel(ABC):
     """
     A peer-to-peer/multicast transfer model for spatial analysis.
     """
+
     @abstractmethod
     def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
         """
@@ -64,7 +68,7 @@ class TransferModel(ABC):
             The fill of `buffer` across time from parents.
         occs:
             The occupancy of `buffer` across time.
-        
+
         Returns
         -------
         Fills that were fulfilled, Fills that were unfilled, and parent reads per
@@ -74,11 +78,16 @@ class TransferModel(ABC):
             f"{type(self)} has not implemented `apply(self, MappingNode, Fill, Occupancy)`"
         )
 
+    def __repr__(self):
+        """Returns what transfer model it is."""
+        return f"{type(self)}"
+
 
 class SimpleLinkTransferModel(TransferModel):
     """
     Basic link transfer model.
     """
+
     def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
         # Sanity check the fill is for the same occupancy. Necessary but insufficient proof.
         assert fills.tags == occs.tags, (
@@ -97,13 +106,17 @@ class SimpleLinkTransferModel(TransferModel):
         # so no transfers occurring.
         if not last_temporal or len(spatial_dims) == 0:
             return TransferInfo(
-                fulfilled_fill=Transfers(fills.tags, fills.map_.subtract(fills.map_)), # Empty map
-                unfulfilled_fill=fills, # No fulfilled_fills, so only unfulfilled_fills
-                parent_reads=Reads(occs.tags, occs.map_.subtract(occs.map_)), # Empty map
+                fulfilled_fill=Transfers(
+                    fills.tags, fills.map_.subtract(fills.map_)
+                ),  # Empty map
+                unfulfilled_fill=fills,  # No fulfilled_fills, so only unfulfilled_fills
+                parent_reads=Reads(
+                    occs.tags, occs.map_.subtract(occs.map_)
+                ),  # Empty map
                 hops=isl.PwQPolynomial.from_qpolynomial(
                     isl.QPolynomial.zero_on_domain(fills.map_.domain().get_space())
                 ),
-                link_transfer=True
+                link_transfer=True,
             )
         # Gets the connectivity between points in space.
         connectivity: isl.Map = make_mesh_connectivity(
@@ -112,14 +125,13 @@ class SimpleLinkTransferModel(TransferModel):
         padded_connectivity: isl.Map = insert_equal_dims_map(
             connectivity, 0, 0, n - len(spatial_dims) - 1
         )
-        permutation: list[int] = make_connectivity_permutation(
-            spatial_dims, n
-        )
+        permutation: list[int] = make_connectivity_permutation(spatial_dims, n)
         reorder_map: isl.Map = reorder_projector(
             permutation, occs.map_.get_tuple_name(isl.dim_type.in_)
         )
         complete_connectivity: isl.Map = reorder_map.apply_range(
-            padded_connectivity).apply_range(reorder_map.reverse())
+            padded_connectivity
+        ).apply_range(reorder_map.reverse())
 
         # Gets data available from neighbors at each point in space per time.
         available_from_neighbors: isl.Map = complete_connectivity.apply_range(occs.map_)
@@ -134,7 +146,7 @@ class SimpleLinkTransferModel(TransferModel):
             hops=isl.PwQPolynomial.from_qpolynomial(
                 isl.QPolynomial.one_on_domain(neighbor_filled.get_space())
             ).intersect_domain(neighbor_filled.wrap()),
-            link_transfer=True
+            link_transfer=True,
         )
 
 
@@ -160,13 +172,12 @@ def make_mesh_connectivity(n: int, spacetime: str) -> isl.Map:
                 isl.DEFAULT_CONTEXT,
                 "{ [t, x, y] -> [t-1, x', y'] : "
                 " (y'=y and x'=x-1) or (y'=y and x'=x+1) "
-                " or (x'=x and y'=y-1) or (x'=x and y'=y+1) }"
+                " or (x'=x and y'=y-1) or (x'=x and y'=y+1) }",
             )
         case 1:
             mesh = isl.Map.read_from_str(
                 isl.DEFAULT_CONTEXT,
-                "{ [t, x] -> [t-1, x'] : "
-                " (x'=x-1) or (x'=x+1) }"
+                "{ [t, x] -> [t-1, x'] : (x'=x-1) or (x'=x+1) }",
             )
         case _:
             raise ValueError(f"Cannot make mesh with {n} spatial dims")
@@ -176,7 +187,7 @@ def make_mesh_connectivity(n: int, spacetime: str) -> isl.Map:
     )
 
     return mesh
-        
+
 
 def make_connectivity_permutation(spatial_idxs: list[int], dims: int) -> list[int]:
     """TODO: Figure out what this is doing."""
@@ -188,10 +199,10 @@ def make_connectivity_permutation(spatial_idxs: list[int], dims: int) -> list[in
             cur_spatial_idx += 1
         else:
             permutation.append(i)
-    
+
     for spatial_idx in spatial_idxs:
         permutation.append(spatial_idx)
-    
+
     return permutation
 
 
@@ -206,16 +217,17 @@ def get_spatial_tags_idxs(tags: list[Tag], buffer: MappingNode) -> list[int]:
     buffer:
         The `MappingNode` which is the logical-memory we're looking for spatial
         dims over.
-    
+
     Returns
     -------
     A list of the spatial_dim_idxs in order.
     """
     spatial_dim_idxs: list[int] = [
-        i for i, tag in enumerate(tags)
+        i
+        for i, tag in enumerate(tags)
         if isinstance(tag, SpatialTag) and tag.buffer == buffer
     ]
-    
+
     return spatial_dim_idxs
 
 
@@ -227,7 +239,7 @@ def get_last_temporal_tag_idx(tags: list[Tag]) -> Optional[int]:
     ----------
     tags:
         A list of `Tags`.
-    
+
     Returns
     -------
     The index of the last tag that is a `TEMPORAL_TAGS`.
