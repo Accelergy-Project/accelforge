@@ -140,12 +140,18 @@ class SimpleLinkTransferModel(TransferModel):
 
         return TransferInfo(
             fulfilled_fill=Transfers(fills.tags, neighbor_filled.coalesce()),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(neighbor_filled).coalesce()),
+            unfulfilled_fill=Fill(
+                fills.tags, fills.map_.subtract(neighbor_filled).coalesce()
+            ),
             # Empty, since only p2p analyzed.
-            parent_reads=Reads(fills.tags, neighbor_filled.subtract(neighbor_filled).coalesce()),
+            parent_reads=Reads(
+                fills.tags, neighbor_filled.subtract(neighbor_filled).coalesce()
+            ),
             hops=isl.PwQPolynomial.from_qpolynomial(
                 isl.QPolynomial.one_on_domain(neighbor_filled.wrap().get_space())
-            ).intersect_domain(neighbor_filled.wrap()).coalesce(),
+            )
+            .intersect_domain(neighbor_filled.wrap())
+            .coalesce(),
             link_transfer=True,
         )
 
