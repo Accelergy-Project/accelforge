@@ -118,7 +118,7 @@ def fill_from_occupancy(
 
         return TemporalReuse(Occupancy(tags, occ), Fill(tags, fill))
 
-    return TemporalReuse(Occupancy(tags, occ), Fill(tags, occ))
+    return TemporalReuse(Occupancy(tags, occ.coalesce()), Fill(tags, occ.coalesce()))
 
 
 def construct_time_shift(occ: isl.Map, tags: list[Tag]):
