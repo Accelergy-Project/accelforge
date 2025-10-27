@@ -104,7 +104,7 @@ class SimpleLinkTransferModel(TransferModel):
 
         # No temporal or no spatial dims, you're just not moving data across time
         # so no transfers occurring.
-        if not last_temporal or len(spatial_dims) == 0:
+        if last_temporal is None or len(spatial_dims) == 0:
             return TransferInfo(
                 fulfilled_fill=Transfers(
                     fills.tags, fills.map_.subtract(fills.map_)
@@ -139,13 +139,13 @@ class SimpleLinkTransferModel(TransferModel):
         neighbor_filled: isl.Map = fills.map_.intersect(available_from_neighbors)
 
         return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, neighbor_filled),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(neighbor_filled)),
+            fulfilled_fill=Transfers(fills.tags, neighbor_filled.coalesce()),
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(neighbor_filled).coalesce()),
             # Empty, since only p2p analyzed.
-            parent_reads=Reads(fills.tags, neighbor_filled.subtract(neighbor_filled)),
+            parent_reads=Reads(fills.tags, neighbor_filled.subtract(neighbor_filled).coalesce()),
             hops=isl.PwQPolynomial.from_qpolynomial(
-                isl.QPolynomial.one_on_domain(neighbor_filled.get_space())
-            ).intersect_domain(neighbor_filled.wrap()),
+                isl.QPolynomial.one_on_domain(neighbor_filled.wrap().get_space())
+            ).intersect_domain(neighbor_filled.wrap()).coalesce(),
             link_transfer=True,
         )
 
@@ -195,7 +195,7 @@ def make_connectivity_permutation(spatial_idxs: list[int], dims: int) -> list[in
 
     cur_spatial_idx: int = 0
     for i in range(dims):
-        if cur_spatial_idx < len(spatial_idxs) and i == spatial_idxs[i]:
+        if cur_spatial_idx < len(spatial_idxs) and i == spatial_idxs[cur_spatial_idx]:
             cur_spatial_idx += 1
         else:
             permutation.append(i)

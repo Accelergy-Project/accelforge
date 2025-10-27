@@ -64,6 +64,20 @@ def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
     return projector
 
 
+def insert_dims_preserve_name_map(
+    map_: isl.Map, dim_type: isl.dim_type, pos: int, n: int
+) -> isl.Map:
+    """
+    Wrapper of `isl.Map.insert_dims` that preserves the space name post
+    insertion.
+    """
+    name: str = map_.get_tuple_name(dim_type)
+    map_ = map_.insert_dims(dim_type, pos, n)
+    if name is None:
+        print("Warning: unnamed space")
+        return map_
+    return map_.set_tuple_name(dim_type, name)
+
 def insert_equal_dims_maff(
     maff: isl.MultiAff, in_pos: int, out_pos: int, n: int
 ) -> isl.MultiAff:
@@ -104,24 +118,25 @@ def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> i
     Given a map, insert equal numbers of input and output dimensions and enforce
     equality between the values of the two dims.
 
-    :param map_:    The map base to insert dims into.
-    :param in_pos:  The index to start inserting input dimensions at in `map_`.
-    :param out_pos: The index to start inserting output dimensions at in `map_`.
-    :param n:       The number of dimensions to insert.
+    Parameters
+    ----------
+    map_:
+        The map base to insert dims into.
+    in_pos:
+        The index to start inserting input dimensions at in `map_`.
+    out_pos:
+        The index to start inserting output dimensions at in `map_`.
+    n:
+        The number of dimensions to insert.
 
-    :type map_:     isl.Map
-    :type in_pos:   int
-    :type out_pos:  int
-    :type n:        int
-
-    :returns:       A new maff which is equivalent to `map_` except it has `n` new
-                    input and output dimensions starting at `in_pos` and `out_pos`
-                    respectively.
-    :rtype:         isl.Map
+    Returns
+    -------       
+    A new maff which is equivalent to `map_` except it has `n` new input and 
+    output dimensions starting at `in_pos` and `out_pos` respectively.
     """
     # Inserts the new input and output dimensions.
-    map_ = map_.insert_dims(isl.dim_type.in_, in_pos, n)
-    map_ = map_.insert_dims(isl.dim_type.out, out_pos, n)
+    map_ = insert_dims_preserve_name_map(map_, isl.dim_type.in_, in_pos, n)
+    map_ = insert_dims_preserve_name_map(map_, isl.dim_type.out, out_pos, n)
 
     # Adds constraints for conservation between the new input and output dimensions
     # in the map.
