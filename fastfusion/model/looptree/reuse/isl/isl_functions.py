@@ -230,3 +230,47 @@ def map_to_shifted(domain_space: isl.Space, pos: int, shift: int) -> isl.Map:
     maff: isl.MultiAff = domain_space.identity_multi_aff_on_domain()
     maff = maff.set_at(pos, maff.get_at(pos).set_constant_val(shift))
     return maff.as_map()
+
+
+def reorder_projector(
+    permutation: list[int], space: str, ctx: isl.Context = isl.DEFAULT_CONTEXT
+) -> isl.Map:
+    """
+    A projection to reorder a space from [i_2, i_0, ..., i_n, ...] -> [i_0, i_1, ..., i_n]
+
+    Parameters
+    ----------
+    permutation:
+        A list where the elements correspond to indices of the space's dimensions
+        and the ordering of the indices the reconstruction.
+    space:
+        The name of the space being permuted.
+    
+    Returns
+    -------
+    A map that reorders an arbitrary list of input dimensions into an enforced ordering.
+    """
+    # Constructs the permutation in the form of a string, because it's easier
+    # and less operations than explicit construction via objects.
+    pattern: str
+    if len(permutation) == 0:
+        pattern = "{ [] -> [] }"
+    else:
+        pattern = "{ [ "
+        for i in range(len(permutation) - 1):
+            dim_idx = permutation[i]
+            pattern += f"i{dim_idx}, "
+        pattern += f"i{permutation[-1]}] -> [ "
+
+        for i in range(len(permutation) - 1):
+            pattern += f"i{i}, "
+        
+        pattern += f"i{permutation[-1]} ] }}"
+
+    # Creates the actual map.
+    reorder_proj: isl.Map = isl.Map.read_from_str(ctx, pattern)
+    reorder_proj = reorder_proj.set_tuple_name(isl.dim_type.in_, space).set_tuple_name(
+        isl.dim_type.out, space
+    )
+
+    return reorder_proj
