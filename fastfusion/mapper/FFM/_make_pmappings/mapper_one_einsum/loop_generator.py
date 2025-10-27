@@ -96,7 +96,7 @@ def insert_temporal_loops(
         # Can't have loops above persistent tensor holders
         if next_persistent:
             rank_variables &= set()
-            
+
         # Loops below processing stages aren't helpful becauase there is no storage
         if isinstance(prev_storages[0], ProcessingStage):
             rank_variables &= set()
@@ -154,6 +154,10 @@ def insert_temporal_loops(
             # Persistent. Must be at the top of the mapping.
             if s.persistent:
                 lowering_choices.append((False,))
+            # Processing stage. Lowering doesn't matter. Don't lower.
+            if isinstance(s, ProcessingStage):
+                lowering_choices.append((False,))
+                continue
             # Previous is backing and there's partially-relevant rank variables. May
             # want to lower to reduce memory footprint, or raise to reduce number of
             # fused loops.
