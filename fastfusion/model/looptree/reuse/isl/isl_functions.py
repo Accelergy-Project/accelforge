@@ -12,14 +12,16 @@ def project_dim_in_after(map_: isl.Map, start: int) -> isl.Map:
     """
     Projects out the input dims of idx [start, end] in map_.
 
-    :param map_:    The map to project out dims from.
-    :param start:   The dim idx to start projecting dims out from.
+    Parameters
+    ----------
+    map_:
+        The map to project out dims from.
+    start:
+        The dim idx to start projecting dims out from.
 
-    :type map_:     isl.Map
-    :type start:    int
-
-    :returns:   map_ without the input dims [start:].
-    :rtype:     isl.Map
+    Returns
+    -------
+    map_ without the input dims [start:].
     """
     n_dim_in: int = map_.dim(isl.dim_type.in_)
     return (
@@ -33,12 +35,18 @@ def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:
     """
     Given a space, create a map that projects out the dims [start: start+n).
 
-    :param space:   The space to create the dim projector in.
-    :param start:   The index to start the projection.
-    :param n:       The number of dims from `start` to project out.
+    Parameters
+    ----------
+    space:
+        The space to create the dim projector in.
+    start:
+        The index to start the projection.
+    n:
+        The number of dims from `start` to project out.
 
-    :returns:   A `isl.Map` in `space` that projects out dims [start:start+n].
-    :rtype:     isl.Map
+    Returns
+    -------
+    A `isl.Map` in `space` that projects out dims [start:start+n].
     """
     return isl.Map.project_out(
         isl.Map.identity(isl.Space.map_from_set(space)), isl.dim_type.in_, start, n
@@ -49,11 +57,17 @@ def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
     """
     Given a space, create a map that projects out the dims marked `True` in the mask.
 
-    :param space:   The space the projector is created on.
-    :param mask:    The mask of the list of dims to be projected out.
+    Parameters
+    ----------
+    space:
+        The space the projector is created on.
+    mask:
+        The mask of the list of dims to be projected out.
 
-    :type space:    isl.Space
-    :type mask:     List[bool]
+    Returns
+    -------
+    A projection from space in[x_0, ..., x_n] -> out[x_1, ..., x_i, ... x_{n-1}]
+    where `x_i ∉ out => mask[i]`.
     """
     projector: isl.Map = isl.Map.identity(isl.Space.map_from_set(space))
 
@@ -70,6 +84,26 @@ def insert_dims_preserve_name_map(
     """
     Wrapper of `isl.Map.insert_dims` that preserves the space name post
     insertion.
+
+    Parameters
+    ----------
+    map_:
+        The inserting map.
+    dim_type:
+        The dimension tuple we're inserting into.
+    pos:
+        The position to start inserting into, inclusive.
+    n:
+        The number of dimensions to insert.
+
+    Returns
+    -------
+    Dimension-inserted maps with preservation.
+
+    Postcondition
+    -------------
+    The entirety of dependencies with a given space name in the given context
+    we're operating under
     """
     name: str = map_.get_tuple_name(dim_type)
     map_ = map_.insert_dims(dim_type, pos, n)
@@ -86,20 +120,21 @@ def insert_equal_dims_maff(
     Given a multi affine, insert equal numbers of input and output dimensions and
     enforce equality between the values of the two dims.
 
-    :param maff:    The multi affine base to insert dims into.
-    :param in_pos:  The index to start inserting input dimensions at in `maff`.
-    :param out_pos: The index to start inserting output dimensions at in `maff`.
-    :param n:       The number of dimensions to insert.
+    Parameters
+    ----------
+    maff:
+        The multi affine base to insert dims into.
+    in_pos:
+        The index to start inserting input dimensions at in `maff`.
+    out_pos:
+        The index to start inserting output dimensions at in `maff`.
+    n:
+        The number of dimensions to insert.
 
-    :type maff:     isl.MultiAff
-    :type in_pos:   int
-    :type out_pos:  int
-    :type n:        int
-
-    :returns:       A new maff which is equivalent to `maff` except it has `n` new
-                    input and output dimensions starting at `in_pos` and `out_pos`
-                    respectively.
-    :rtype:         isl.MultiAff
+    Returns
+    -------
+    A new maff which is equivalent to `maff` except it has `n` new input and
+    output dimensions starting at `in_pos` and `out_pos` respectively.
     """
     # Inserts the `n` dimensions into a new maff base.
     maff = maff.insert_dims(isl.dim_type.in_, in_pos, n)
@@ -160,15 +195,17 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
     Goal: { [i0,...,i{n_in_dims-1}] ->
             [i0, ..., i{shifted_idx}-1, i{shifted_idx+1}, ..., i{n_in_dims-1}] }
 
-    :param n_in_dims:   The number of input/output dims of the dataspace.
-    :param shifted_idx: The coordinate being shifted.
+    Parameters
+    ----------
+    n_in_dims:
+        The number of input/output dims of the dataspace.
+    shifted_idx:
+        The coordinate being shifted.
 
-    :type n_in_dims:    int
-    :type shifted_idx:  int
-
-    :returns:   A map relating a current index vector to a previous index
-                to a previous index vector by shifting the coordinate at shifted_idx
-                back by 1.
+    Returns
+    -------
+    A map relating a current index vector to a previous index to a previous
+    index vector by shifting the coordinate at `shifted_idx` back by 1.
 
 
     Preconditions
