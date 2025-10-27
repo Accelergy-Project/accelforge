@@ -209,7 +209,7 @@ def get_memories_to_track(
     # it
     for m in list(memories_track_all):
         memory, size = memory_to_size[m]
-        if size >= total_tensor_sizes * max(memory.attributes.datawidth.values()):
+        if size >= total_tensor_sizes * max(memory.attributes.datawidth.values(), default=0):
             memories_track_all.remove(m)
             logging.info(
                 f"Not tracking memory {m}. It is big enough to hold "

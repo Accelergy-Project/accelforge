@@ -5,6 +5,7 @@ from numbers import Real
 
 from fastfusion.frontend import arch
 from fastfusion.frontend.component_energy import ComponentEnergy
+from fastfusion.frontend.specification import Specification
 from fastfusion.model.looptree.reuse.summarized.symbolic import SummarizedAnalysisOutput
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.mapping import Mapping
@@ -57,14 +58,16 @@ def gather_actions(looptree_results: SummarizedAnalysisOutput, bindings: dict[st
     return actions
 
 
-def compute_energy_from_actions(action_counts: MappingABC[(str, str), Real],
-                                ert: ComponentEnergy,
-                                overall_latency: float):
+def compute_energy_from_actions(
+    spec: Specification,
+    action_counts: MappingABC[(str, str), Real],
+    overall_latency: float
+):
     energy_result = {}
     for (component, action), counts in action_counts.items():
         if counts == 0:
             continue
-        action_table = ert.find_action(component, action)
+        action_table = spec.component_energy.find_action(component, action)
         if action_table is None:
             raise RuntimeError(
                 f'Could not find action {action} for component {component}'
@@ -72,11 +75,7 @@ def compute_energy_from_actions(action_counts: MappingABC[(str, str), Real],
         energy_per_ac = action_table.energy
         energy_result[(component, action)] = counts.total * energy_per_ac
 
-    for action_table in ert.entries:
-        try:
-            leak_energy = overall_latency * action_table.actions["leak"].energy
-        except KeyError:
-            leak_energy = 0
-        energy_result[(action_table.name, 'leak')] = leak_energy
+    for leak_entry in spec.component_leak.entries:
+        energy_result[(leak_entry.name, 'leak')] = leak_entry.leak_power * overall_latency
 
     return energy_result

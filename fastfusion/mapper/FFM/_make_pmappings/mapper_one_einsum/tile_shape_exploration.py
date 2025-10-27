@@ -53,7 +53,6 @@ def run_model(
     metrics = job.metrics
     is_copy_op = job.is_copy_operation
     workload = spec.workload
-    ert = spec.component_energy
 
     component_to_max_fanout = {}
     memory_to_size = {}
@@ -88,7 +87,11 @@ def run_model(
         )
 
     actions = gather_actions(reuse, None, use_name=True)
-    energy = compute_energy_from_actions(actions, ert, overall_latency)
+    energy = compute_energy_from_actions(
+        spec,
+        actions, 
+        overall_latency
+    )
 
     fusable_tensors = workload.fusable_tensor_names
     tensor_to_backing = {}
