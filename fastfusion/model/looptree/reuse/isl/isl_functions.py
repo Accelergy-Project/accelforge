@@ -245,7 +245,7 @@ def reorder_projector(
         and the ordering of the indices the reconstruction.
     space:
         The name of the space being permuted.
-    
+
     Returns
     -------
     A map that reorders an arbitrary list of input dimensions into an enforced ordering.
@@ -264,7 +264,7 @@ def reorder_projector(
 
         for i in range(len(permutation) - 1):
             pattern += f"i{i}, "
-        
+
         pattern += f"i{permutation[-1]} ] }}"
 
     # Creates the actual map.
