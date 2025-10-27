@@ -1,3 +1,18 @@
+..
+  TODO: there is actually a syntax for defining terms, something like
+    term-name
+      definition
+
+    other-term
+      more-definition
+
+  We should use that so that the terms can be referenced using the :term: directive.
+
+..
+  I would do it myself, but I'm not sure what the :label: directives are doing, and I don't
+  want to break anything by editing it.
+
+
 Definitions
 ===========
 
