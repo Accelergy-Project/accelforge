@@ -53,6 +53,6 @@ arch:
 
   - !Compute
     name: MAC
-    attributes: {_latency: compute_actions, _leak_power: 0}
+    attributes: {_latency: compute_actions * 1e-9, _leak_power: 0}
     actions:
     - {name: compute, arguments: {energy: 0.084e-12}}
