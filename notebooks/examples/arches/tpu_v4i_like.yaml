@@ -70,7 +70,7 @@ arch:
 
   - !Memory
     name: Register
-    attributes: {_size: 1, _area: 0, _leak_power: 0, _energy: 0}
+    attributes: {_size: 1, _area: 0, _leak_power: 0, _energy: 0, _datawidth: 1}
     constraints: {tensors: {keep: weight}}
 
   - !Compute
