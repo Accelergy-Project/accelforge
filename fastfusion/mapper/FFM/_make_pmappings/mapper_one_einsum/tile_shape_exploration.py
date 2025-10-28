@@ -145,8 +145,8 @@ def run_model(
                 df[firstlatency2col(compute_level.level, idx)] = (
                     max_first_latency * n_instances
                 )
-        for component, latency in latency.items():
-            df[f"latency<SEP>{component}"] = latency * n_instances
+        for component, cur_latency in latency.items():
+            df[f"latency<SEP>{component}"] = cur_latency * n_instances
 
     if metrics & Metrics.ENERGY:
         df[f"Total<SEP>energy"] = sum(energy.values()) * n_instances
@@ -174,7 +174,6 @@ def run_model(
 def compile_dict(symbols, dictionary):
     def lambdify(key, value):
         x = sympy.lambdify(symbols, value)
-        # x._loops = [int(loop) for loop in re.findall(r'loop(\d+)_', key)]
         return x
 
     return {k: lambdify(symbols, v) for k, v in dictionary.items()}
@@ -1191,11 +1190,19 @@ def _explore_tile_shapes_new(job: "Job"):
         e.add_note("Compilation failed")
         raise
 
+    choices_float64 = choices_enumerated.astype(np.float64)
+
     df = {}
     for i, symbol in enumerate(symbols):
         df[symbol.name] = choices_enumerated[:, i]
     for key in compiled_df:
-        df[key] = compiled_df[key](*choices_enumerated.T)
+        df[key] = compiled_df[key](*choices_float64.T)
+        if 'latency' in key and 'first_latency' not in key:
+            val = [df[key]] if isinstance(df[key], Number) else df[key]
+            if any(l < 0 for l in val):
+                raise ValueError(f"Negative latency for {key}: {val}")
+        if 'energy' in key and any(l < 0 for l in df[key]):
+            raise ValueError(f"Negative energy for {key}: {df[key]}")
 
     # Some initial tile shapes are invalid
     for nloops, n in enumerate(node for node in job.mapping.nodes
