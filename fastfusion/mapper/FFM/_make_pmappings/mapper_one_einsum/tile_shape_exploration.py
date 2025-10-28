@@ -45,6 +45,8 @@ from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.symbol_value_relati
 )
 from fastfusion.util.sympy.broadcast_max import Max
 
+DUMMY_TILE_SHAPE_EXPLORATION = False
+
 
 def run_model(
     job: Job,
@@ -977,6 +979,10 @@ def get_tile_shape_choices(
             for symbol, goal in goals.items():
                 update_symbol2goal(symbol, goal)
 
+        if DUMMY_TILE_SHAPE_EXPLORATION:
+            choices_enumerated = choices_enumerated[:1, :]
+            continue
+
         job.evaluated_pmappings += choices_enumerated.shape[0]
         if not choices_enumerated.shape[0]:
             return np.array([]).reshape(-1, len(symbols))
@@ -1210,7 +1216,8 @@ def _explore_tile_shapes_new(job: "Job"):
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative latency for {key}: {val}")
         if 'energy' in key and any(l < 0 for l in df[key]):
-            raise ValueError(f"Negative energy for {key}: {df[key]}")
+            val = [df[key]] if isinstance(df[key], Number) else df[key]
+            raise ValueError(f"Negative energy for {key}: {val}")
 
     # Some initial tile shapes are invalid
     for nloops, n in enumerate(node for node in job.mapping.nodes

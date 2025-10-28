@@ -5,7 +5,7 @@ import pandas as pd
 from uuid import UUID
 
 import sympy
-from fastfusion.frontend.mapping import Iteration, Mapping
+from fastfusion.frontend.mapping import Iteration, Mapping, Reservation
 from fastfusion.frontend.renames import RankVariableName
 from fastfusion.frontend.workload.workload import EinsumName
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
@@ -44,6 +44,16 @@ from fastfusion.mapper.FFM._pmapping_group.df_convention import (
     is_fused_loop_col,
     is_n_iterations_col,
 )
+from enum import Enum
+
+
+class MappingCountingIncludes(Enum):
+    normal = 0
+    redundant_permutations = 1
+    redundant_permutations_and_irrelevant_loops = 2
+
+
+COUNT_OPTION = MappingCountingIncludes.normal
 
 
 def shift_reservations_by_null_loop_indices(
@@ -289,8 +299,8 @@ def get_fused_loop_indices(
 
 
 def scale_n_pmappings_by_permutations(job: Job, n_pmappings: int) -> int:
-    return n_pmappings
-    from fastfusion.frontend.mapping import Reservation
+    if COUNT_OPTION == MappingCountingIncludes.normal:
+        return n_pmappings
 
     # This changes the pmapping count to include permutations
     n_loops = []
@@ -312,21 +322,24 @@ def scale_n_pmappings_by_permutations(job: Job, n_pmappings: int) -> int:
 
     # Count dataplacement choices * permutations, assuming that the permutation engine
     # knows about irrelevant/relevant rank variables.
-    #
-    # return math.prod(math.factorial(n) for n in n_loops)
+    if COUNT_OPTION == MappingCountingIncludes.redundant_permutations:
+        return n_pmappings * math.prod(math.factorial(n) for n in n_loops)
 
     # Count dataplacement choices * permutations, assuming that the permutation engine
     # does not know about irrelevant/relevant rank variables.
     #
     # return math.prod(math.factorial(n) for n in n_loops)
 
-    # Count dataplacement choices * permutations, assuming that
-    # the permutation engine knows about irrelevant/relevant rank variables.
-    n_pmappings = math.factorial(len(rv)) ** len(n_loops)
-    return math.factorial(len(rv)) ** len(n_loops)
+    # Count dataplacement choices * permutations, assuming that the permutation engine
+    # knows about irrelevant/relevant rank variables.
+    if COUNT_OPTION == MappingCountingIncludes.redundant_permutations_and_irrelevant_loops:
+        n_pmappings = math.factorial(len(rv)) ** len(n_loops)
+        return math.factorial(len(rv)) ** len(n_loops)
 
-    # Count dataplacement choices * index factorization choices, assuming that the permutation engine does not
-    # know about irrelevant/relevant rank variables.
+    raise ValueError(f"Invalid COUNT_OPTION: {COUNT_OPTION}")
+
+    # Count dataplacement choices * index factorization choices, assuming that the
+    # permutation engine does not know about irrelevant/relevant rank variables.
 
     from functools import lru_cache
     from math import comb
