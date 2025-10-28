@@ -136,6 +136,7 @@ def eval_set_expression(
     expected_count: int | None = None,
 ) -> InvertibleSet:
     try:
+        err = None
         if not isinstance(expression, (InvertibleSet, str)):
             raise TypeError(f"Expected a string, got {type(expression)}: {expression}")
 
@@ -175,6 +176,6 @@ def eval_set_expression(
         )
         if location is not None:
             err.add_field(location)
-        e.add_note(err)
-        raise
+    if err:
+        raise err
     return result
