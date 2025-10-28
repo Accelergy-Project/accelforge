@@ -5,6 +5,7 @@ import re
 import resource
 from typing import Callable, Optional, Union
 from sympy import Expr, Symbol, lambdify
+from fastfusion import util
 from fastfusion.accelerated_imports import np
 from fastfusion.accelerated_imports import pd
 import fastfusion.frontend.arch as arch
@@ -173,7 +174,7 @@ def run_model(
 
 def compile_dict(symbols, dictionary):
     def lambdify(key, value):
-        x = sympy.lambdify(symbols, value)
+        x = util.lambdify_type_check(symbols, value)
         return x
 
     return {k: lambdify(symbols, v) for k, v in dictionary.items()}
@@ -408,7 +409,7 @@ def get_padded_choices(
     minimize_formula: Expr = None,
 ):
     choices_padded = {}
-    ones = np.ones(choices_enumerated.shape[0])
+    ones = np.ones(choices_enumerated.shape[0], choices_enumerated.dtype)
     for symbol in symbols_enumerated:
         choices_padded[symbol] = choices_enumerated[:, symbols_enumerated.index(symbol)]
     for symbol in symbols_non_enumerated_set:
@@ -664,7 +665,9 @@ def get_tile_shape_choices(
     log_message("init")
 
     def eval_objective(
-        formula: Expr | Objective, choices: np.ndarray, minimize_formula: Expr = None
+        formula: Expr | Objective,
+        choices: np.ndarray,
+        minimize_formula: Expr = None
     ):
         if isinstance(formula, Objective):
             formula = formula.formula
@@ -674,11 +677,11 @@ def get_tile_shape_choices(
         padded_choices = get_padded_choices(
             symbols_enumerated=symbols_enumerated,
             symbols_non_enumerated_set=symbols_non_enumerated_set,
-            choices_enumerated=choices_enumerated,
+            choices_enumerated=choices,
             what_tiles_symbol=what_tiles_symbol,
             minimize_formula=minimize_formula,
         )
-        return sympy.lambdify(symbols, formula)(
+        return util.lambdify_type_check(symbols, formula)(
             **{str(k): v for k, v in padded_choices.items()},
         )
 
@@ -903,6 +906,8 @@ def get_tile_shape_choices(
         symbols_non_enumerated_set = set(symbols) - set(symbols_enumerated)
         sym_enumerated_set = set(symbols_enumerated)
 
+        choices_enumerated_float = choices_enumerated.astype(util.NUMPY_FLOAT_TYPE)
+
         # ==============================================================================
         # Create functions to Pareto using objectives
         # ==============================================================================
@@ -918,7 +923,7 @@ def get_tile_shape_choices(
                     # symbols
                     result = eval_objective(
                         objective.formula,
-                        choices_enumerated,
+                        choices_enumerated_float,
                         minimize_formula=objective.formula,
                     )
                     complete = objective.formula.free_symbols.issubset(
@@ -929,7 +934,7 @@ def get_tile_shape_choices(
                         # print(f'No valid pmappings. Previous: {prev.sum()}. Best: {result[valid].max()}')
                         eval_objective(
                             objective.formula,
-                            choices_enumerated,
+                            choices_enumerated_float,
                             minimize_formula=objective.formula,
                         )
                     if not isinstance(valid, np.ndarray):
@@ -954,6 +959,7 @@ def get_tile_shape_choices(
                         sum(valid) / max(1, choices_enumerated.shape[0]),
                     )
                     choices_enumerated = choices_enumerated[valid]
+                    choices_enumerated_float = choices_enumerated_float[valid]
                     log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
                     if complete:
                         objective.max_value = None  # We don't care anymore
@@ -1002,13 +1008,15 @@ def get_tile_shape_choices(
 
         objective_values = {}
         for formula, goal in list(symbol2goal.items()):
-            objective_values[formula] = eval_objective(formula, choices_enumerated)
+            objective_values[formula] = eval_objective(formula, choices_enumerated_float)
             symbol2goal[formula] = goal
             log_message("eval", f"{goal.goal}", f"{formula}")
 
         if not objective_values:
             # Objective values don't depend on tile shapes
             choices_enumerated = choices_enumerated[:1, :]
+            choices_enumerated_float = choices_enumerated_float[:1, :]
+
         elif not all(
             symbol2goal.get(s, None) == Goal("diff") for s in symbols_enumerated
         ):
@@ -1190,13 +1198,13 @@ def _explore_tile_shapes_new(job: "Job"):
         e.add_note("Compilation failed")
         raise
 
-    choices_float64 = choices_enumerated.astype(np.float64)
+    choices_float = choices_enumerated.astype(util.NUMPY_FLOAT_TYPE)
 
     df = {}
     for i, symbol in enumerate(symbols):
         df[symbol.name] = choices_enumerated[:, i]
     for key in compiled_df:
-        df[key] = compiled_df[key](*choices_float64.T)
+        df[key] = compiled_df[key](*choices_float.T)
         if 'latency' in key and 'first_latency' not in key:
             val = [df[key]] if isinstance(df[key], Number) else df[key]
             if any(l < 0 for l in val):

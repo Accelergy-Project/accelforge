@@ -9,9 +9,31 @@ from joblib import Parallel, delayed
 import sys
 import os
 from tqdm import tqdm
+import numpy as np
 
 PARALLELIZE = True
 N_PARALLEL_PROCESSES = os.cpu_count()
+
+NUMPY_FLOAT_TYPE = np.float32
+
+def lambdify_type_check(*args, **kwargs):
+    f = sympy.lambdify(*args, **kwargs)
+    def f_type_checked(*args, **kwargs):
+        for a in args:
+            if isinstance(a, np.ndarray):
+                if a.dtype != NUMPY_FLOAT_TYPE:
+                    raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {a.dtype}")
+            elif not isinstance(a, Number):
+                raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {type(a)}")
+        for v in kwargs.values():
+            if isinstance(v, np.ndarray):
+                if v.dtype != NUMPY_FLOAT_TYPE:
+                    raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {v.dtype}")
+            elif not isinstance(v, Number):
+                raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {type(v)}")
+        return f(*args, **kwargs)
+    return f_type_checked
+
 
 def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
     global N_PARALLEL_PROCESSES
