@@ -235,6 +235,13 @@ MEMORY_ACTIONS = ParsableList(
     ]
 )
 
+
+PROCESSING_STAGE_ACTIONS = ParsableList(
+    [
+        ArchMemoryAction(name="read", arguments={"bits_per_action": 1}),
+    ]
+)
+
 COMPUTE_ACTIONS = ParsableList(
     [
         SubcomponentAction(name="compute"),
@@ -328,18 +335,29 @@ class ProcessingStageAttributes(TensorHolderAttributes):
     movements are assumed to avoid this ProcessingStage.
     """
 
+
 class ProcessingStage(TensorHolder):
     """A `ProcessingStage` is a `TensorHolder` that does not store data over time, and
     therefore does not allow for temporal reuse. Use this as a toll that charges reads
     and writes every time a piece of data moves through it.
 
-    The access counts of `Memory` and `ProcessingStage` classes are identical; they vary
-    in how they affect the access counts of other components. Every write to a
-    `ProcessingStage` is written to the next `Memory` (which may be above or below
-    depending on where the write came from), and same for reads."""
+    Every write to a `ProcessingStage` is immediately written to the next `Memory`
+    (which may be above or below depending on where the write came from), and same for
+    reads.
+
+    The access counts of a `ProcessingStage` are only included in the "read" action.
+    Each traversal through the `ProcessingStage` is counted as a read. Writes are always
+    zero.
+    """
 
     attributes: ProcessingStageAttributes = pydantic.Field(default_factory=ProcessingStageAttributes)
     """ The attributes of this `ProcessingStage`. """
+
+    actions: ParsableList[ArchMemoryAction] = PROCESSING_STAGE_ACTIONS
+    """ The actions that this `ProcessingStage` can perform. """
+
+    def model_post_init(self, __context__=None) -> None:
+        self._update_actions(PROCESSING_STAGE_ACTIONS)
 
 
 class ComputeAttributes(LeafAttributes):

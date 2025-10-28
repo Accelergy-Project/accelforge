@@ -799,9 +799,10 @@ def analyze_storage(
     node_idx: int,
     current_shape: dict[str, int],
     info: AnalysisInfo,
-    _propagate_child_results: bool = False,
-    _count_parent_accesses: bool = True,
-    _count_child_accesses: bool = True,
+    propagate_child_results: bool = False,
+    count_parent_accesses: bool = True,
+    count_child_accesses: bool = True,
+    ignore_writes: bool = False,
 ):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
@@ -827,7 +828,7 @@ def analyze_storage(
         fills = compute_dense_tile_occupancy(projection, current_shape)
 
         child = child_result.get_child_buffet_stats(buffet)
-        inherit_from_child = _propagate_child_results and child is not None
+        inherit_from_child = propagate_child_results and child is not None
 
         # ==============================================================================
         # Calculate the total fills and reads to parent. These propagate upward.
@@ -863,13 +864,16 @@ def analyze_storage(
         component_object = find_component_object(node.component, info.job.flattened_arch)
         datawidth = component_object.attributes.datawidth[tensor]
         bits_per_read = component_object.actions["read"].arguments.bits_per_action
-        bits_per_write = component_object.actions["write"].arguments.bits_per_action
         read_scale = datawidth / bits_per_read
-        write_scale = datawidth / bits_per_write
+        if ignore_writes:
+            write_scale = 0
+        else:
+            bits_per_write = component_object.actions["write"].arguments.bits_per_action
+            write_scale = datawidth / bits_per_write
 
         # ==========================
         # Data exchanges with parent
-        if _count_parent_accesses:
+        if count_parent_accesses:
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
             stats.max_per_unit_write_actions += stats.total_reads_to_parent * write_scale
 
@@ -888,7 +892,7 @@ def analyze_storage(
 
         # =========================
         # Data exchanges with child
-        if child is not None and _count_child_accesses:
+        if child is not None and count_child_accesses:
             stats.total_read_actions += child.total_reads_to_parent * read_scale
             stats.max_per_unit_read_actions += child.max_per_parent_reads_to_parent * read_scale
 
@@ -911,9 +915,10 @@ def analyze_processing_stage(node_idx, current_shape, info: AnalysisInfo):
         node_idx,
         current_shape,
         info,
-        _propagate_child_results=True,
-        _count_parent_accesses=component_object.attributes.direction != "down",
-        _count_child_accesses=component_object.attributes.direction != "up",
+        propagate_child_results=True,
+        count_parent_accesses=component_object.attributes.direction != "down",
+        count_child_accesses=component_object.attributes.direction != "up",
+        ignore_writes=True,
     )
     for tensor in node.tensors:
         buffet = Buffet(tensor, einsum_name, node.component)
