@@ -46,11 +46,11 @@ class LeakEntry(ParsableModel):
                 name,
             )
         except Exception as e:
-            raise ValueError(
-                f"Error calculating leak power for {name}. If you'd like to use a "
-                f"predefined leak power value, set the \"leak_power\" attribute of "
-                f"the component."
-            ) from e
+            e.add_note(
+                'If you\'d like to use a predefined leak power value, set the '
+                '"leak_power" attribute of the component.'
+            )
+            raise
 
     @staticmethod
     def _from_models(

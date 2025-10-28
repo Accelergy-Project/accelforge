@@ -46,10 +46,11 @@ class AreaEntry(ParsableModel):
                 name,
             )
         except Exception as e:
-            raise ValueError(
-                f"Error calculating area for {name}. If you'd like to use a "
-                f"predefined area value, set the \"area\" attribute of the component."
-            ) from e
+            e.add_note(
+                'If you\'d like to use a predefined area value, set the "area" '
+                'attribute of the component.'
+            )
+            raise
 
     @staticmethod
     def _from_models(

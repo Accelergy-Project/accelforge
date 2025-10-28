@@ -65,7 +65,7 @@ def compute_energy_from_actions(
 ):
     energy_result = {}
     for (component, action), counts in action_counts.items():
-        if counts == 0:
+        if counts.total == 0:
             continue
         action_table = spec.component_energy.find_action(component, action)
         if action_table is None:

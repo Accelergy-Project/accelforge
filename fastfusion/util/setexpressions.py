@@ -175,5 +175,6 @@ def eval_set_expression(
         )
         if location is not None:
             err.add_field(location)
-        raise err from e
+        e.add_note(err)
+        raise
     return result

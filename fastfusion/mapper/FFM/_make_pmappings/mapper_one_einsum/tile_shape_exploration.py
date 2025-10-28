@@ -1188,7 +1188,8 @@ def _explore_tile_shapes_new(job: "Job"):
             if hasattr(node, "compact_str"):
                 print(node.compact_str())
         print(symbolic_df)
-        raise RuntimeError("Compilation failed") from e
+        e.add_note("Compilation failed")
+        raise
 
     df = {}
     for i, symbol in enumerate(symbols):
