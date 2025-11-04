@@ -1,3 +1,4 @@
+from enum import Enum
 from functools import lru_cache
 from math import ceil, log2, prod
 import copy
@@ -22,8 +23,10 @@ from fastfusion.frontend.mapping import (
 )
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import Job
 from fastfusion.mapper.FFM._pmapping_group.df_convention import stride2col, initial2col, iterations2col
+from fastfusion.mapper.FFM._pmapping_group.pareto_implementation import makepareto_numpy
 from fastfusion.model.looptree.reuse.summarized.symbolic import (
     analyze_reuse_and_add_reservations_to_mapping,
+    IMPERFECT,
 )
 from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
 from fastfusion.model.looptree.latency import get_latency
@@ -47,7 +50,53 @@ from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.symbol_value_relati
 from fastfusion.util.sympy.broadcast_max import Max
 
 
-IMPERFECT = False
+TILE_SHAPE_ORDER = "inner_to_outer"
+# TILE_SHAPE_ORDER = "outer_to_inner"
+
+# For imperfect, we make inner tile shapes, then create outer tile shapes that are
+# multiples of the non-residual part of the inner tile shape. This way, the very last
+# iteration of the outer tile shape fully contains the reisudal part of the inner tile
+# shape, and we don't have any cases where there are residuals stacking across multiple
+# loop levels.
+if IMPERFECT:
+    assert TILE_SHAPE_ORDER == "inner_to_outer"
+
+class ComparisonResult(Enum):
+    GREATER_THAN_ZERO = "greater_than_zero"
+    LESS_THAN_ZERO = "less_than_zero"
+    EQUAL_TO_ZERO = "equal_to_zero"
+    UNKNOWN = "unknown"
+
+
+@lru_cache(maxsize=10000)
+def diff_geq_leq_than_zero(f: Expr, s: Symbol):
+    # Assume ceiling won't affect the sign of the derivative. Changing from positive to
+    # zero or negative to zero is OK and does not count as changing the sign.
+    f = f.replace(
+        lambda expr: expr.is_Function and expr.func == sympy.ceiling,
+        lambda expr: expr.args[0]
+    )
+    return geq_leq_than_zero(sympy.diff(f, s))
+
+
+@lru_cache(maxsize=10000)
+def geq_leq_than_zero(f: Expr):
+    # Assume ceiling won't affect the sign. Changing from positive to zero or negative
+    # to zero is OK and does not count as changing the sign.
+    f = f.replace(
+        lambda expr: expr.is_Function and expr.func == sympy.ceiling,
+        lambda expr: expr.args[0]
+    )
+    try:
+        if f == 0:
+            return ComparisonResult.EQUAL_TO_ZERO
+        if f >= 0:
+            return ComparisonResult.GREATER_THAN_ZERO
+        if f <= 0:
+            return ComparisonResult.LESS_THAN_ZERO
+    except (TypeError, ValueError):
+        pass
+    return ComparisonResult.UNKNOWN
 
 
 def run_model(
@@ -266,12 +315,12 @@ def _try_replace_single_term(t: Expr, symbols_enumerated: fzs[Symbol]):
     if len(t.free_symbols & symbols_enumerated) == 1:
         s = next(iter(t.free_symbols & symbols_enumerated))
         try:
-            diffed = sympy.diff(t, s)
-            if diffed > 0:
+            diff_result = diff_geq_leq_than_zero(t, s)
+            if diff_result == ComparisonResult.GREATER_THAN_ZERO:
                 goal = Goal("min")
-            elif diffed < 0:
+            elif diff_result == ComparisonResult.LESS_THAN_ZERO:
                 goal = Goal("max")
-            else:
+            elif diff_result == ComparisonResult.UNKNOWN:
                 goal = Goal("diff")
             t = t.subs(s, 1)
             return s, goal
@@ -300,8 +349,9 @@ def _partition_formula(
             if s in symbols_enumerated:
                 continue
             try:
-                diffed = sympy.diff(t, s)
-                if diffed > 0 or diffed < 0 or diffed == 0:
+                diff_result = diff_geq_leq_than_zero(t, s)
+                # Won't change the derivative sign, so we can just replace it with 1.
+                if diff_result != ComparisonResult.UNKNOWN:
                     t = t.subs(s, 1)
             except (TypeError, ValueError):
                 pass
@@ -321,9 +371,7 @@ def _partition_formula(
             ).append(t)
         return [type(f)(*terms) for terms in symbols2terms.values()]
 
-    if isinstance(f, sympy.Max):
-        terms = _recombine_terms(f.args)
-    elif isinstance(f, sympy.Add):
+    if isinstance(f, (sympy.Max, sympy.Min, sympy.Add, sympy.ceiling)):
         terms = _recombine_terms(f.args)
     elif isinstance(f, sympy.Mul):
         terms = _recombine_terms(f.args)
@@ -332,11 +380,12 @@ def _partition_formula(
         # - For non-constant factors, if they're >1 then we can keep the max.
         #   Otherwise we have to drop it.
         for t in f.args:
-            try:
-                if negate is not None and t < 0:
-                    negate = not negate
-            except TypeError:
+            geq_result = geq_leq_than_zero(t)
+            if geq_result == ComparisonResult.LESS_THAN_ZERO:
+                negate = not negate
+            elif geq_result == ComparisonResult.UNKNOWN:
                 negate = None
+                break
     else:
         terms = [_try_replace_unknowns(f)]
 
@@ -419,13 +468,15 @@ def get_padded_choices(
     for symbol in symbols_non_enumerated_set:
         choices_padded[symbol] = ones
         if minimize_formula is not None:
-            if sympy.diff(minimize_formula, symbol) < 0:
+            diff_result = diff_geq_leq_than_zero(minimize_formula, symbol)
+            if diff_result == ComparisonResult.LESS_THAN_ZERO:
                 choices_padded[symbol] = ones * what_tiles_symbol.get_max_size(symbol)
-            elif sympy.diff(minimize_formula, symbol) > 0:
+            elif diff_result == ComparisonResult.GREATER_THAN_ZERO:
                 pass
-            elif sympy.diff(minimize_formula, symbol) == 0:
+            elif diff_result == ComparisonResult.EQUAL_TO_ZERO:
                 pass
             else:
+                diff_geq_leq_than_zero(minimize_formula, symbol)
                 raise ValueError(f"Can't tell if {symbol} is increasing or decreasing")
 
     return choices_padded
@@ -543,10 +594,10 @@ def coalesce_symbols(
                     goal_str = "diff"
 
                 try:
-                    diffed = sympy.diff(formula, s)
-                    # it anyway or we can't compare this symbol, we don't need to
-                    # include it here.
-                    if (diffed < 0 or diffed > 0 or diffed == 0) and goal_str == "diff":
+                    diff_result = diff_geq_leq_than_zero(formula, s)
+                    # If this symbol doesn't change the derivative sign & we can't
+                    # compare it, then don't include it here.
+                    if diff_result != ComparisonResult.UNKNOWN and goal_str == "diff":
                         log_message(
                             "coalesce symbols", f"dropping symbol {s}: {formula}"
                         )
@@ -578,19 +629,26 @@ def coalesce_symbols(
                     formula = 1 / formula
                     goal = ~goal
 
+            # If a symbol does not affect the formula, we can remove it
+            for s in formula.free_symbols:
+                diff_result = diff_geq_leq_than_zero(formula, s)
+                if diff_result == ComparisonResult.EQUAL_TO_ZERO:
+                    formula = formula.subs(s, 1)
+                    log_message("coalesce symbols", f"dropping symbol {s}: {formula}")
+                    continue
+
             # If a formula agrees entirely with other goals, then we can remove it
             disagrees = []
             for s in formula.free_symbols:
                 g = latest(s).goal if s in latest() else None
                 if g in ["min", "max"]:
                     try:
-                        diffed = sympy.diff(formula, s)
-                        if diffed < 0:
+                        diff_result = diff_geq_leq_than_zero(formula, s)
+                        if diff_result == ComparisonResult.LESS_THAN_ZERO:
                             this_goal = (~goal).goal
-
-                        elif diffed > 0:
+                        elif diff_result == ComparisonResult.GREATER_THAN_ZERO:
                             this_goal = (~goal).goal
-                        else:
+                        elif diff_result == ComparisonResult.UNKNOWN:
                             raise TypeError  # Can't tell if increasing or decreasing
 
                         if g != this_goal:
@@ -626,10 +684,16 @@ def coalesce_symbols(
     return symbol2goal
 
 
-def paretoset_dirty(choices: np.ndarray, objectives: list[Objective]):
+def paretoset_dirty(choices: np.ndarray, objectives: list[str]):
     # TODO: Play with the log2 function. Try different log bases and powers to find
     # which one is empirically fastest.
     # TODO: imperfect with this?
+
+    if all(o == "diff" for o in objectives):
+        return np.ones(choices.shape[0], dtype=bool)
+
+    return makepareto_numpy(choices, objectives)
+
     permuted = np.random.permutation(np.arange(choices.shape[0]))
     groups = np.array_split(choices[permuted], int(log2(choices.shape[0])))
     found = []
@@ -712,7 +776,12 @@ def get_tile_shape_choices(
 
         # TODO: Maybe start with a symbol that would result in more pruning up front?
         # Maximize the # of choices that can be resolved easily
-        return symbols_remaining.pop()
+        if TILE_SHAPE_ORDER == "inner_to_outer":
+            return symbols_remaining.pop()
+        elif TILE_SHAPE_ORDER == "outer_to_inner":
+            return symbols_remaining.pop(0)
+        else:
+            raise RuntimeError(f"BUG: invalid TILE_SHAPE_ORDER: {TILE_SHAPE_ORDER}")
 
     last_stride_symbol = None  # track the last stride symbol to select next symbol
     symbol = None
@@ -934,6 +1003,12 @@ def get_tile_shape_choices(
         # ==============================================================================
         for objective in list(objectives):
             goals = partition_formula(objective.formula, sym_enumerated_set)
+            if any(g.goal == "diff" for g in goals.values()):
+                goals2 = partition_formula(sympy.expand(objective.formula), sym_enumerated_set)
+                goals = min(
+                    (goals, goals2),
+                    key=lambda x: sum(g.goal == "diff" for g in x.values())
+                )
 
             # ==========================================================================
             # If there's a max value, then check for validity
@@ -990,7 +1065,7 @@ def get_tile_shape_choices(
                                 f"Removed {objective.name} because it is always valid"
                             )
                             goals.clear()
-                except TypeError:
+                except (TypeError, ValueError):
                     pass
 
             log_message(f"formula", f"{objective.formula}", f"{goals}")

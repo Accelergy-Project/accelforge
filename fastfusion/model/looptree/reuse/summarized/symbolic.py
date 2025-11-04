@@ -26,6 +26,7 @@ import sympy
 
 
 SYMBOL = 'symbol'
+IMPERFECT = False
 
 
 @dataclass(eq=True, frozen=True)
@@ -342,8 +343,9 @@ def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
         job=None,
     )
     insert_reservation_nodes(mapping, info)
-    return Mapping(nodes=mapping)
-
+    m = Mapping(nodes=mapping)
+    m._n_loop_orders = job.mapping._n_loop_orders
+    return m
 
 def convert_to_copy(mapping: list[MappingNode], workload: Workload) -> tuple[list[MappingNode], dict[TensorName, int]]:
     mapping = copy.deepcopy(mapping)
@@ -617,7 +619,7 @@ def analyze_temporal(node_idx,
                      info: AnalysisInfo) -> SummarizedAnalysisOutput:
     mapping = info.mapping
     node = mapping[node_idx]
-    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
+    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
 
     result_accumulator = SummarizedAnalysisOutput()
 
@@ -636,9 +638,9 @@ def analyze_temporal(node_idx,
         accumulated_buffet_stats = result_accumulator.buffet_stats
         for buffet, stats in child_result.buffet_stats.items():
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
-
+            is_fully_relevant = isinstance(relevancy, Relevant)
             accumulated_stats = accumulated_buffet_stats.setdefault(buffet, BuffetStats())
-            accumulated_stats += stats.repeat_temporal(shape_repeats, is_fully_relevant=isinstance(relevancy, Relevant))
+            accumulated_stats += stats.repeat_temporal(shape_repeats, is_fully_relevant=is_fully_relevant)
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
         for einsum, child_steps in child_result.temporal_steps.items():
@@ -681,7 +683,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
-    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx)
+    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
 
     result_accumulator = SummarizedAnalysisOutput()
 
@@ -1038,12 +1040,24 @@ class StrideAndShape:
     shape: any
 
 
-def get_stride_and_tile_shape(node: Iteration, full_shape, n: int):
+def get_stride_and_tile_shape(node: Iteration, full_shape, n: int, info: AnalysisInfo):
     rank = node.rank_variable
     rank_shape = full_shape[rank]
 
     stride = node.stride
     initial_tile_shape = node.initial_tile_shape
+
+    # PERFECT:
+    # - Node shape = stride
+    # - # Iterations = total shape / stride
+    # IMPERFECT:
+    # - Node shape = stride
+    # - # Iterations = ceil(total shape / stride)
+    if IMPERFECT and initial_tile_shape is None:
+        factor = sympy.ceiling(rank_shape / stride)
+        stride_avg = stride / sympy.ceiling(rank_shape / stride)
+        return StrideAndShape(stride_avg, RepeatedValue(stride, factor))
+
 
     if initial_tile_shape is None:
         if node.assume_perfect_factor or known_perfect_factor(stride, rank_shape):

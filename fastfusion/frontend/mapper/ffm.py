@@ -60,8 +60,8 @@ class FFM(ParsableModel):
     """
 
     _count_option_for_mapsapce_size_evaluation: tuple[Literal[
-        "redundant_permutations",
-        "non_helpful_loops_for_permutations",
+        "redundant_loop_orders",
+        "non_helpful_loops_for_loop_orders",
         "non_helpful_tile_shapes",
         "redundant_dataplacements",
     ]] = ()

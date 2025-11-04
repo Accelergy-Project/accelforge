@@ -237,7 +237,7 @@ def iterate_mappings_no_constraints(
         einsum_name, arch_flattened, symbol_table, spec
     ):
         mapping = copy.deepcopy(mapping)
-        for mapping in insert_temporal_loops(
+        for mapping, n_permutations in insert_temporal_loops(
             mapping,
             einsum,
             first_memory,
@@ -255,7 +255,7 @@ def iterate_mappings_no_constraints(
             place_missing_temporal_loops(mapping, einsum)
             label_fused_loops(mapping)
             assert_proper_fusion_labeling(mapping)
-            yield mapping, symbol_table
+            yield mapping, symbol_table, n_permutations
 
 
 def iterate_mappings_constraints(
@@ -279,7 +279,7 @@ def iterate_mappings_constraints(
         rank_variable_bounds = get_rank_variable_bounds(spec, einsum_names)
 
     for einsum_name in einsum_names:
-        for mapping, symbol_table in iterate_mappings_no_constraints(
+        for mapping, symbol_table, n_permutations in iterate_mappings_no_constraints(
             spec,
             einsum_name,
             arch_flattened,
@@ -297,6 +297,7 @@ def iterate_mappings_constraints(
                 )
             )
             mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
+            mapping._n_loop_orders = n_permutations
             yield mapping, constraints, symbol_table
             n_yielded += 1
             if n_yielded >= spec.mapper.ffm.max_pmapping_templates_per_einsum:

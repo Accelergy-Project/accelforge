@@ -1233,6 +1233,9 @@ class Mapping(Nested):
 
     version: Annotated[str, assert_version] = __version__
 
+    _n_loop_orders: int | None = None
+    """ Used for counting number of unique mappings. Do not touch. """
+
     def get_fused_slice(self, fusable_tensors: set[TensorName]) -> "Mapping":
         """
         Return a mapping with:

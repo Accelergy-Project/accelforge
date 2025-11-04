@@ -195,6 +195,7 @@ def insert_temporal_loops(
     # not something through which we can lower for a given permutation, skip options
     # that lower that tensor because they get the same result as not lowering the
     # tensor.
+    n_loop_orders = len(list(itertools.product(*choices)))
     for loop_orders in itertools.product(*choices):
         full_mapping = []
         for prev_storages, loop_order in zip(split_mapping, loop_orders):
@@ -209,7 +210,7 @@ def insert_temporal_loops(
             for lower, node in zip(lowering_choice, storages):
                 node._lower = lower
 
-            yield list(full_mapping)
+            yield list(full_mapping), n_loop_orders
 
 
 def insert_spatial_loops(
