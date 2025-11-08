@@ -168,7 +168,9 @@ class SimAnnealMapping:
                 continue
 
             for s in new_einsum2sim.values():
-                pmapping_groups = [s2 for s2 in pmapping_groups if _matches(s2, s.compatibility)]
+                pmapping_groups = [
+                    s2 for s2 in pmapping_groups if _matches(s2, s.compatibility)
+                ]
 
             if not pmapping_groups:
                 # print(f"No compatible PmappingGroups found for {e}")
@@ -201,7 +203,8 @@ class SimAnnealMapping:
         i = self.einsum2index[e] if index_override is None else index_override
         i %= len(data)
         return PmappingGroup(
-            compatibility=s.compatibility, mappings=PmappingDataframe(data.iloc[i : i + 1])
+            compatibility=s.compatibility,
+            mappings=PmappingDataframe(data.iloc[i : i + 1]),
         )
 
     def get_score(self) -> float:
@@ -219,7 +222,9 @@ class SimAnnealMapping:
             )
 
             def _merge_next(
-                left: PmappingGroup, right: PmappingGroup, apply_resource_limit: bool = True
+                left: PmappingGroup,
+                right: PmappingGroup,
+                apply_resource_limit: bool = True,
             ) -> PmappingGroup:
                 try:
                     return left.merge_next(
@@ -440,7 +445,11 @@ def join_pmappings(
                     )
                 )
 
-    tile_shapes = [get_n_tile_shapes(s) for pmapping_groups in compressed.values() for s in pmapping_groups]
+    tile_shapes = [
+        get_n_tile_shapes(s)
+        for pmapping_groups in compressed.values()
+        for s in pmapping_groups
+    ]
 
     # average_tile_shapes = sum(tile_shapes) / len(tile_shapes)
     # print(f"Average tile shapes: {average_tile_shapes}")

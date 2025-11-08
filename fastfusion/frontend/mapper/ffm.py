@@ -59,9 +59,11 @@ class FFM(ParsableModel):
     are so many templates being generated?).
     """
 
-    _count_option_for_mapsapce_size_evaluation: tuple[Literal[
-        "redundant_loop_orders",
-        "non_helpful_loops_for_loop_orders",
-        "non_helpful_tile_shapes",
-        "redundant_dataplacements",
-    ]] = ()
+    _count_option_for_mapsapce_size_evaluation: tuple[
+        Literal[
+            "redundant_loop_orders",
+            "non_helpful_loops_for_loop_orders",
+            "non_helpful_tile_shapes",
+            "redundant_dataplacements",
+        ]
+    ] = ()

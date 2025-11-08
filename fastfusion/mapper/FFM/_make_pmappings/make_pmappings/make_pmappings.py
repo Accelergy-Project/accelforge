@@ -73,7 +73,9 @@ def shift_reservations_by_null_loop_indices(
     return mappings
 
 
-def get_equivalent_pmappings(pmapping_group: PmappingGroup, reservation_levels: set[int]) -> list[PmappingGroup]:
+def get_equivalent_pmappings(
+    pmapping_group: PmappingGroup, reservation_levels: set[int]
+) -> list[PmappingGroup]:
     equivalent_permutations = pmapping_group.compatibility.make_equivalent_permutations(
         reservation_levels
     )
@@ -134,6 +136,7 @@ def _count_loops(job: Job) -> tuple[list[int], list[int], dict[str, int]]:
     rv_temporal_count = defaultdict(int)
     cur_n_loops = 0
     spatial_dim = None
+
     def pop_loop():
         nonlocal cur_n_loops
         if cur_n_loops >= 1:
@@ -142,6 +145,7 @@ def _count_loops(job: Job) -> tuple[list[int], list[int], dict[str, int]]:
             else:
                 temporal_n_loops.append(cur_n_loops)
         cur_n_loops = 0
+
     for node in nodes:
         cur_spatial_dim = None
         if isinstance(node, Spatial):
@@ -165,7 +169,9 @@ def multiply_n_pmappings_by_permutations(n_pmappings: int, job: Job) -> int:
     # if option == "normal":
     #     return n_pmappings
 
-    temporal_n_loops, spatial_n_loops, rv_spatial_count, rv_temporal_count = _count_loops(job)
+    temporal_n_loops, spatial_n_loops, rv_spatial_count, rv_temporal_count = (
+        _count_loops(job)
+    )
 
     rv = {k: v for k, v in job.rank_variable_bounds.items()}
 
@@ -178,7 +184,10 @@ def multiply_n_pmappings_by_permutations(n_pmappings: int, job: Job) -> int:
 
     # Count number of tile shapes
     rv2loops = {r: rv_spatial_count[r] + rv_temporal_count[r] for r in rv}
-    n_factorizations = math.prod(_count_factorizations(b, rv2loops[r], imperfect=IMPERFECT) for r, b in rv.items())
+    n_factorizations = math.prod(
+        _count_factorizations(b, rv2loops[r], imperfect=IMPERFECT)
+        for r, b in rv.items()
+    )
     n_temporal_loop_orders = math.prod(math.factorial(n) for n in temporal_n_loops)
 
     n = n_factorizations
@@ -242,7 +251,9 @@ def make_pmappings_from_templates(
         #     assert False
 
         # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = prev
-        job.total_pmappings = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        job.total_pmappings = multiply_n_pmappings_by_permutations(
+            job.total_pmappings, job
+        )
 
         result[MAPPING_COLUMN] = job.job_id
         cols_to_drop = []
@@ -306,7 +317,6 @@ def make_pmappings_from_templates(
         if job.job_id in jobs_passed_pareto
     }
 
-
     assert_all_jobs_have_same_symbols(jobs_with_similar_compatibilities)
     # Otherwise, following logic fails
 
@@ -358,15 +368,15 @@ def make_pmappings_from_templates(
 
         energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
         if (mappings[energy_cols] < 0).any(axis=None):
-            mapping_with_negative_energy = mappings[(mappings[energy_cols] < 0).any(axis=1)]
-            msg = ''
+            mapping_with_negative_energy = mappings[
+                (mappings[energy_cols] < 0).any(axis=1)
+            ]
+            msg = ""
             for _, row in mapping_with_negative_energy.iterrows():
                 for k, v in row.items():
                     msg += f"{k}: {v}\n"
-                msg += '\n'
-            raise RuntimeError(
-                f'negative energy:\n{msg}'
-            )
+                msg += "\n"
+            raise RuntimeError(f"negative energy:\n{msg}")
 
         # TODO: Redundant capacity checks because limit_capacity is called. We want it
         # so we can drop dead reservations though.
@@ -390,4 +400,9 @@ def make_pmappings_from_templates(
         job.mapping = None
         job.flattened_arch = None
 
-    return einsum_name, pmapping_groups, pmapping_objects, jobs_with_similar_compatibilities
+    return (
+        einsum_name,
+        pmapping_groups,
+        pmapping_objects,
+        jobs_with_similar_compatibilities,
+    )

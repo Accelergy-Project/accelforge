@@ -7,7 +7,10 @@ from typing import Callable
 from fastfusion.accelerated_imports import pd
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup, Compatibility
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+    PmappingGroup,
+    Compatibility,
+)
 from fastfusion.mapper.FFM._pareto_df.df_convention import col2nameloop
 from fastfusion.util import parallel, delayed
 
@@ -186,7 +189,9 @@ def join_pmappings(
         print(f"Filtered {n} -> {new_n} ({new_n / n:.2%} kept) pmappings")
 
     if drop_valid_reservations:
-        pmapping_groups, no_drop_reservations_for = get_memories_to_track(pmapping_groups, resource2capacity)
+        pmapping_groups, no_drop_reservations_for = get_memories_to_track(
+            pmapping_groups, resource2capacity
+        )
 
     mixable_ranks = spec.workload.get_mixable_ranks()
 
@@ -224,7 +229,9 @@ def join_pmappings(
         # first Einsum will have the first pmappigns that are joined from the left
         if i == 0:
             if cur_tensors - right_tensors:
-                PmappingGroup.remove_dead_tensors(einsum_pmappings.pmapping_groups, right_tensors)
+                PmappingGroup.remove_dead_tensors(
+                    einsum_pmappings.pmapping_groups, right_tensors
+                )
                 for s in einsum_pmappings.pmapping_groups:
                     s.compatibility = s.compatibility.clear_dead_tensors(right_tensors)
             einsum_pmappings.pmapping_groups = PmappingGroup.left_consolidate(
@@ -243,14 +250,18 @@ def join_pmappings(
         shared_tensors = left_tensors & einsum_pmappings.tensor_names
 
         if cur_tensors - (right_tensors | left_tensors):
-            PmappingGroup.remove_dead_tensors(einsum_pmappings.pmapping_groups, right_tensors | left_tensors)
+            PmappingGroup.remove_dead_tensors(
+                einsum_pmappings.pmapping_groups, right_tensors | left_tensors
+            )
             for s in einsum_pmappings.pmapping_groups:
                 s.compatibility = s.compatibility.clear_dead_tensors(
                     right_tensors | left_tensors
                 )
 
         einsum_pmappings.pmapping_groups = sorted(
-            einsum_pmappings.pmapping_groups, key=lambda x: len(x.mappings.data), reverse=True
+            einsum_pmappings.pmapping_groups,
+            key=lambda x: len(x.mappings.data),
+            reverse=True,
         )
         einsum_pmappings.pmapping_groups = PmappingGroup.right_consolidate(
             einsum_pmappings.pmapping_groups,
@@ -268,7 +279,9 @@ def join_pmappings(
         n_mappings["Post Intra-Layer"] += sum(
             len(s.mappings.data) for s in einsum_pmappings.pmapping_groups
         )
-        einsum_pmappings.pmapping_groups = PmappingGroup.group(einsum_pmappings.pmapping_groups, left_tensors)
+        einsum_pmappings.pmapping_groups = PmappingGroup.group(
+            einsum_pmappings.pmapping_groups, left_tensors
+        )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
         t0 = time.time()
@@ -277,7 +290,9 @@ def join_pmappings(
     n_iterations = 0
     total_iterations = len(pmgroups)
 
-    def grab_einsum_pmappings() -> tuple[dict[Compatibility, list[PmappingGroup]], str, set[str]]:
+    def grab_einsum_pmappings() -> (
+        tuple[dict[Compatibility, list[PmappingGroup]], str, set[str]]
+    ):
         nonlocal n_iterations
         n_iterations += 1
         holder = pmgroups.pop(0)
@@ -570,4 +585,6 @@ def join_pmappings_no_either(*args, **kwargs):
         args[0] = {k: v for k, v in list(args[0].items())[:11]}
     if len(args[0]) > 16:
         args[0] = {k: v for k, v in list(args[0].items())[:2]}
-    return join_pmappings(*args, skip_invalid=False, combine_reservations=False, **kwargs)
+    return join_pmappings(
+        *args, skip_invalid=False, combine_reservations=False, **kwargs
+    )

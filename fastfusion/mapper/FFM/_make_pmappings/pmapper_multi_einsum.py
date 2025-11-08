@@ -19,7 +19,9 @@ from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
 from fastfusion.mapper.FFM._make_pmappings.make_templates import get_single_einsum_jobs
 from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings import make_pmappings_from_templates
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
+    make_pmappings_from_templates,
+)
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from fastfusion.util.util import parallel
@@ -202,7 +204,9 @@ def get_memories_to_track(
     # it
     for m in list(memories_track_all):
         memory, size = memory_to_size[m]
-        if size >= total_tensor_sizes * max(memory.attributes.datawidth.values(), default=0):
+        if size >= total_tensor_sizes * max(
+            memory.attributes.datawidth.values(), default=0
+        ):
             memories_track_all.remove(m)
             logging.info(
                 f"Not tracking memory {m}. It is big enough to hold "
@@ -281,12 +285,18 @@ def make_pmappings(
     def get_longest_mapping_length(call):
         j: SameCompatibilityJobs = call[2]["jobs_with_similar_compatibilities"]
         return max([len(j2.mapping.nodes) for j2 in j])
+
     calls = sorted(calls, key=get_longest_mapping_length, reverse=True)
 
     pmapping_objects = {}
     pmapping_groups = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
     return_jobs = {}
-    for einsum_name, new_pmapping_groups, pmappings, jobs_with_similar_compatibilities in parallel(
+    for (
+        einsum_name,
+        new_pmapping_groups,
+        pmappings,
+        jobs_with_similar_compatibilities,
+    ) in parallel(
         calls,
         pbar=f"Generating pmappings",
         return_as="generator_unordered",

@@ -17,7 +17,12 @@ from fastfusion.frontend.mapping import (
     TilePattern,
 )
 from fastfusion.frontend.renames import RankName, RankVariableName, TensorName
-from fastfusion.mapper.FFM._pareto_df.df_convention import make_fused_loop_col, stride2col, initial2col, iterations2col
+from fastfusion.mapper.FFM._pareto_df.df_convention import (
+    make_fused_loop_col,
+    stride2col,
+    initial2col,
+    iterations2col,
+)
 
 from fastfusion.util import expfmt, fzs
 
@@ -106,7 +111,7 @@ class Loop(Updatable):
         tile_pattern = TilePattern(
             stride=stride2col(self.rank_name, nloop),
             initial_tile_shape=initial2col(self.rank_name, nloop),
-            calculated_n_iterations=iterations2col(nloop)
+            calculated_n_iterations=iterations2col(nloop),
         )
         return self.update(tile_pattern=tile_pattern)
 
@@ -491,7 +496,9 @@ class Compatibility(Updatable):
         # return True
 
     def populate_loops(self):
-        return self.update(tensors=fzs(t.populate_loops() for t in self.tensors),)
+        return self.update(
+            tensors=fzs(t.populate_loops() for t in self.tensors),
+        )
 
     @classmethod
     def from_mapping(

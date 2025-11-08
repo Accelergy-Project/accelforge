@@ -7,6 +7,7 @@ import random
 import re
 import resource
 from typing import Callable, Optional, Union
+
 # from combinatorics.integer import integer_factorizations_to_n_parts
 from dataclasses import dataclass, field
 
@@ -486,7 +487,9 @@ class Objective:
     @property
     def formula_compiled(self):
         if self._formula_compiled is None:
-            self._formula_compiled = util.lambdify_type_check(self._symbols, self.formula)
+            self._formula_compiled = util.lambdify_type_check(
+                self._symbols, self.formula
+            )
         return self._formula_compiled
 
     def __call__(self, values: dict[Symbol, np.array]):

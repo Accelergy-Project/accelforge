@@ -8,7 +8,10 @@ from fastfusion.accelerated_imports import pd
 from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
 from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe, is_reservation_col
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+    PmappingDataframe,
+    is_reservation_col,
+)
 from fastfusion.mapper.simanneal.simanneal import MapspaceGlobals, _fuse_sims
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
 from fastfusion.util import fzs, parallel, util

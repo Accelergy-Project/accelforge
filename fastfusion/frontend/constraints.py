@@ -113,10 +113,14 @@ class Comparison(ParsableModel):
 
 
 class Tensors(ParsableModel):
-    keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "<Defaults to Nothing>"
+    keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
+        "<Defaults to Nothing>"
+    )
     """ Which tensors must be kept in this unit" """
 
-    may_keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "<Nothing if keep is defined, else All>"
+    may_keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
+        "<Nothing if keep is defined, else All>"
+    )
     """ Which tensors may be kept in this unit, but are not required to be. The mapper
     will explore both keeping and not keeping each tensor. """
 
@@ -133,7 +137,6 @@ class Tensors(ParsableModel):
     The tensors that are not allowed to be refetched from above. This is given as a set
     of tensors. These tensors must be fetched at most one time from above memories.
     """
-
 
     def _parse_keep(self, symbol_table: dict[str, Any], location: str):
         keep, may_keep = self.keep, self.may_keep
@@ -202,7 +205,9 @@ class Spatial(Iteration):
             min_utilization=parse_expression(
                 self.min_utilization, symbol_table, "min_utilization", location
             ),
-            must_reuse=eval_set_expression(self.must_reuse, symbol_table, "tensors", location),
+            must_reuse=eval_set_expression(
+                self.must_reuse, symbol_table, "tensors", location
+            ),
         )
 
 

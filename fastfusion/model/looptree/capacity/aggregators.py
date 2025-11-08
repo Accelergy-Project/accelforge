@@ -20,7 +20,6 @@ def compute_max(child_caps, caps):
         caps[buf] += c
 
 
-
 def compute_total(child_caps, caps):
     for child_cap in child_caps:
         for buf, v in child_cap.items():
@@ -31,7 +30,7 @@ def compute_total(child_caps, caps):
 
 
 CAPACITY_AGGREGATORS = {
-    'sequential': compute_max,
-    'pipeline': compute_total,
-    'parallel': compute_total
+    "sequential": compute_max,
+    "pipeline": compute_total,
+    "parallel": compute_total,
 }

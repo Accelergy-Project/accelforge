@@ -17,19 +17,19 @@ class TestBindingMapper(unittest.TestCase):
         ISL strings.
         """
         specs_file: str = TESTS_DIR / "valid_bindings.yaml"
-        with open(specs_file, mode='r', encoding='utf-8') as f:
+        with open(specs_file, mode="r", encoding="utf-8") as f:
             specs: List = yaml.safe_load(f)
 
         spec: Dict
         for spec in specs:
-            binding: Binding = Binding.model_validate(spec['binding'])
+            binding: Binding = Binding.model_validate(spec["binding"])
 
-            soln: Dict = spec['solution']
-            assert binding.version == soln['version']
+            soln: Dict = spec["solution"]
+            assert binding.version == soln["version"]
 
             soln_node: Dict[str, str]
             binding_node: BindingNode
-            for soln_node, binding_node in zip(soln['nodes'], binding.nodes):
+            for soln_node, binding_node in zip(soln["nodes"], binding.nodes):
                 isl_relations: Dict[str, Map] = binding_node.isl_relations
                 assert soln_node.keys() == isl_relations.keys(), (
                     "Not all isl_relations read in properly. Missing \n"
@@ -44,7 +44,6 @@ class TestBindingMapper(unittest.TestCase):
                     soln_relation: Map = Map.read_from_str(
                         DEFAULT_CONTEXT, soln_node[tensor]
                     )
-                    assert soln_relation.is_equal(isl_relations[tensor]), (
-                        f"\n{soln_relation} != \n{isl_relations[tensor]}"
-                    )
-                
+                    assert soln_relation.is_equal(
+                        isl_relations[tensor]
+                    ), f"\n{soln_relation} != \n{isl_relations[tensor]}"

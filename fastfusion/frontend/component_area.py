@@ -48,7 +48,7 @@ class AreaEntry(ParsableModel):
         except Exception as e:
             e.add_note(
                 'If you\'d like to use a predefined area value, set the "area" '
-                'attribute of the component.'
+                "attribute of the component."
             )
             raise
 

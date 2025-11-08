@@ -44,7 +44,7 @@ class Occupancy(TaggedMap):
         super().__init__(tags, map)
 
     def __repr__(self):
-        return f'Occupancy({self.tags}, {self.map})'
+        return f"Occupancy({self.tags}, {self.map})"
 
 
 class Skew(TaggedMap):
@@ -52,7 +52,7 @@ class Skew(TaggedMap):
         super().__init__(tags, map)
 
     def __repr__(self):
-        return f'Skew({self.tags}, {self.map})'
+        return f"Skew({self.tags}, {self.map})"
 
 
 @dataclass

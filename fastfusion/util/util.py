@@ -19,6 +19,7 @@ NUMPY_FLOAT_TYPE = np.float32
 
 def lambdify_type_check(*args, **kwargs):
     f = sympy.lambdify(*args, **kwargs)
+
     def f_type_checked(*args, **kwargs):
         for a in args:
             if isinstance(a, np.ndarray):
@@ -33,6 +34,7 @@ def lambdify_type_check(*args, **kwargs):
             elif not isinstance(v, Number):
                 raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {type(v)}")
         return f(*args, **kwargs)
+
     return f_type_checked
 
 
@@ -143,7 +145,8 @@ def parallel(
         r = zip(
             jobs.keys(),
             parallel(
-                jobs.values(), pbar=pbar,
+                jobs.values(),
+                pbar=pbar,
             ),
         )
         return {k: v for k, v in r}
@@ -181,9 +184,11 @@ def pydot_graph() -> pydot.Dot:
     graph.set_edge_defaults(fontname="Arial", fontsize="10")
     return graph
 
+
 import cProfile
 import io
 import pstats
+
 
 class ProfilePrint:
     def __init__(self):

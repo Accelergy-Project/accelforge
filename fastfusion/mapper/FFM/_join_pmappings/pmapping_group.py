@@ -132,7 +132,10 @@ class PmappingGroup:
             return s._right_consolidate(live_tensors, shared_tensors)
 
         if not parallelize:
-            return [s._right_consolidate(live_tensors, shared_tensors) for s in pmapping_groups]
+            return [
+                s._right_consolidate(live_tensors, shared_tensors)
+                for s in pmapping_groups
+            ]
 
         return parallel([delayed(job)(s) for s in pmapping_groups], pbar=pbar)
 
@@ -156,12 +159,15 @@ class PmappingGroup:
 
     @staticmethod
     def concat(
-        pmapping_groups: Iterable["PmappingGroup"], allow_different_compatibilies: bool = False
+        pmapping_groups: Iterable["PmappingGroup"],
+        allow_different_compatibilies: bool = False,
     ) -> "PmappingGroup":
         pmapping_groups = list(pmapping_groups)
         assert len(pmapping_groups) > 0, "Cannot concat empty list of PmappingGroups"
         if not allow_different_compatibilies:
-            s = set(s.compatibility.clear_symbolic_tile_patterns() for s in pmapping_groups)
+            s = set(
+                s.compatibility.clear_symbolic_tile_patterns() for s in pmapping_groups
+            )
             if len(s) > 1:
                 a = pmapping_groups[0]
                 for b in pmapping_groups[1:]:
@@ -177,8 +183,12 @@ class PmappingGroup:
                 )
 
         c0 = pmapping_groups[0].compatibility
-        to_concat = [pmapping_groups[0]] + [s.rename_compatibility(c0) for s in pmapping_groups[1:]]
-        return PmappingGroup(c0, PmappingDataframe.concat([s.mappings for s in to_concat]))
+        to_concat = [pmapping_groups[0]] + [
+            s.rename_compatibility(c0) for s in pmapping_groups[1:]
+        ]
+        return PmappingGroup(
+            c0, PmappingDataframe.concat([s.mappings for s in to_concat])
+        )
 
     def rename_compatibility(self, new_c: Compatibility) -> Compatibility:
         c, renamed = self.compatibility.rename_to_match(new_c)
@@ -242,7 +252,8 @@ class PmappingGroup:
                 if g:
                     pmgroups_remaining -= {id(s) for s, _ in g}
                     permuted = [
-                        PmappingGroup(s.compatibility.permute(lc), s.mappings) for s, lc in g
+                        PmappingGroup(s.compatibility.permute(lc), s.mappings)
+                        for s, lc in g
                     ]
                     new_grouped[c] = permuted
             grouped = new_grouped
@@ -262,7 +273,9 @@ class PmappingGroup:
         if not combine_reservations:
             has_reservations = [s.mappings.has_reservations() for s in pmapping_groups]
             no_combine = [s for s, h in zip(pmapping_groups, has_reservations) if h]
-            pmapping_groups = [s for s, h in zip(pmapping_groups, has_reservations) if not h]
+            pmapping_groups = [
+                s for s, h in zip(pmapping_groups, has_reservations) if not h
+            ]
         groups = list(
             PmappingGroup._group(
                 pmapping_groups,
@@ -287,7 +300,8 @@ class PmappingGroup:
 
     @staticmethod
     def filter_by_tensors(
-        pmapping_groups: list["PmappingGroup"] | dict[Compatibility, Any], tensors: set[str]
+        pmapping_groups: list["PmappingGroup"] | dict[Compatibility, Any],
+        tensors: set[str],
     ) -> list["PmappingGroup"]:
         def check(tensors_to_check):
             for t in tensors_to_check:
@@ -316,7 +330,9 @@ class PmappingGroup:
         return x
 
     @staticmethod
-    def remove_dead_tensors(pmapping_groups: list["PmappingGroup"], live_tensors: set[str]):
+    def remove_dead_tensors(
+        pmapping_groups: list["PmappingGroup"], live_tensors: set[str]
+    ):
         for s in pmapping_groups:
             for t in list(s.tensors):
                 if t not in live_tensors:

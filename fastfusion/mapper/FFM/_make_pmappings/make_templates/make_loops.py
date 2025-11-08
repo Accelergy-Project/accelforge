@@ -2,7 +2,13 @@ import itertools
 from enum import Enum
 
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.mapping import MappingNode, ProcessingStage, Temporal, Spatial, TensorHolder
+from fastfusion.frontend.mapping import (
+    MappingNode,
+    ProcessingStage,
+    Temporal,
+    Spatial,
+    TensorHolder,
+)
 from fastfusion.frontend.workload.workload import (
     Einsum,
     RankVariableName,
@@ -202,9 +208,7 @@ def insert_temporal_loops(
             full_mapping.extend(prev_storages)
             full_mapping.extend(Temporal(rank_variable=r) for r in loop_order)
 
-        storages = [
-            node for node in full_mapping if isinstance(node, TensorHolder)
-        ]
+        storages = [node for node in full_mapping if isinstance(node, TensorHolder)]
         assert len(lowering_choices) == len(storages)
         for lowering_choice in itertools.product(*lowering_choices):
             for lower, node in zip(lowering_choice, storages):

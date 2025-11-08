@@ -12,4 +12,4 @@ def assert_version(version: str):
     return str(version)
 
 
-version:  Annotated[str, assert_version] = __version__
+version: Annotated[str, assert_version] = __version__

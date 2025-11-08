@@ -350,7 +350,9 @@ class ProcessingStage(TensorHolder):
     zero.
     """
 
-    attributes: ProcessingStageAttributes = pydantic.Field(default_factory=ProcessingStageAttributes)
+    attributes: ProcessingStageAttributes = pydantic.Field(
+        default_factory=ProcessingStageAttributes
+    )
     """ The attributes of this `ProcessingStage`. """
 
     actions: ParsableList[ArchMemoryAction] = PROCESSING_STAGE_ACTIONS
@@ -362,6 +364,7 @@ class ProcessingStage(TensorHolder):
 
 class ComputeAttributes(LeafAttributes):
     """Attributes for a `Compute`."""
+
     pass
 
 
@@ -378,7 +381,9 @@ class Compute(Component):
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
 
+
 T = TypeVar("T")
+
 
 class Branch(ArchNode, ABC):
     # nodes: ArchNodes[InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
@@ -401,6 +406,7 @@ class Branch(ArchNode, ABC):
                 yield node
             elif isinstance(node, Branch):
                 yield from node.find_nodes_of_type(node_type)
+
 
 class Parallel(Branch):
     def _flatten(
@@ -518,6 +524,7 @@ class Arch(Hierarchical):
             n = l.name
             leaves.setdefault(n, l)
             assert l is leaves[n], f"Duplicate name {n} found in architecture"
+
 
 # We had to reference Hierarchical before it was defined
 Branch.model_rebuild()

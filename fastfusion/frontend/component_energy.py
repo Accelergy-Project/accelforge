@@ -168,7 +168,7 @@ class EnergyEntry(ParsableModel):
             except Exception as e:
                 e.add_note(
                     'If you\'d like to use a predefined energy value, set the "energy" '
-                    'argument of the action.'
+                    "argument of the action."
                 )
                 raise
         return EnergyEntry(name=name, actions=actions, attributes=attributes)

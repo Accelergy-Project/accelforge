@@ -123,10 +123,14 @@ class MapspaceGlobals:
         ) = self._create_compatibility()
         self.size_scale = len(self.einsum2ranks)
         n_optimal = sum(
-            len(s.mappings.data) for simlist in self.pmapping_groups.values() for s in simlist
+            len(s.mappings.data)
+            for simlist in self.pmapping_groups.values()
+            for s in simlist
         )
         n_pmappings = sum(
-            s.mappings.n_pmappings for simlist in self.pmapping_groups.values() for s in simlist
+            s.mappings.n_pmappings
+            for simlist in self.pmapping_groups.values()
+            for s in simlist
         )
         self.find_pmapping_scale = n_pmappings / n_optimal
         self.aliased_tensors = spec.workload.get_tensor_copies()

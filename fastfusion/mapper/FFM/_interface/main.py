@@ -12,7 +12,9 @@ from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
 import fastfusion.mapper.FFM._make_pmappings.pmapper_multi_einsum as pmapper
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_pmappings as _join_pmappings
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import (
+    join_pmappings as _join_pmappings,
+)
 from fastfusion.mapper.FFM._pareto_df.df_convention import MAPPING_COLUMN
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
     PmappingDataframe,

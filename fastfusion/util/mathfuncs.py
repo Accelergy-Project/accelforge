@@ -13,7 +13,7 @@ def _count_factorizations_imperfect(n, into_n_parts):
     if into_n_parts <= 0:
         return 1
 
-    shapes = list(range(1, ceil(n ** 0.5) + 1))
+    shapes = list(range(1, ceil(n**0.5) + 1))
     shapes = shapes + [ceil(n / s) for s in shapes]
     shapes = sorted(set(shapes))
 

@@ -19,7 +19,9 @@ class SymbolRelations:
         self.bounds: tuple[tuple[Symbol, int, int], ...] = ()
 
     def make_bounds(self):
-        all_symbols = set(s for w in self.what_tiles_symbol for s in w if isinstance(s, Symbol))
+        all_symbols = set(
+            s for w in self.what_tiles_symbol for s in w if isinstance(s, Symbol)
+        )
         self.bounds = tuple((s, 1, self.get_max_size(s)) for s in all_symbols)
 
     def is_stride(self, symbol: Symbol) -> bool:
@@ -47,7 +49,7 @@ class SymbolRelations:
                 return stride
         raise ValueError(f"Symbol {symbol} not found as initial in {self}")
 
-    def get_initial(self, symbol: Symbol, none_if_fail: bool=False) -> Symbol | int:
+    def get_initial(self, symbol: Symbol, none_if_fail: bool = False) -> Symbol | int:
         for stride, initial in self.stride_and_initial:
             if stride == symbol:
                 return initial
@@ -167,6 +169,6 @@ def get_initial_delta_choices(einsum_name: str, workload: Workload):
                         if key not in rank_stride_and_halo:
                             continue
                         stride, halo = rank_stride_and_halo[key]
-                        choices[prod_rank_var].add(int(cons_choice*stride + halo))
+                        choices[prod_rank_var].add(int(cons_choice * stride + halo))
 
     return choices

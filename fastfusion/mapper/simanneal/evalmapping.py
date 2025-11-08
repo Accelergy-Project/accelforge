@@ -137,7 +137,9 @@ def quick_join(
     # Initial consolidate and group all PmappingGroups
     # ======================================================================
     for i, sim_holder in enumerate(pmapping_groups):
-        right_tensors = set.union(set(), *[s.tensor_names for s in pmapping_groups[i + 1 :]])
+        right_tensors = set.union(
+            set(), *[s.tensor_names for s in pmapping_groups[i + 1 :]]
+        )
         if i == 0:
             sim_holder.pmapping_groups = PmappingGroup.left_consolidate(
                 sim_holder.pmapping_groups,
@@ -171,7 +173,9 @@ def quick_join(
     n_iterations = 0
     total_iterations = len(pmapping_groups)
 
-    def grab_sim_holder() -> tuple[dict[Compatibility, list[PmappingGroup]], str, set[str]]:
+    def grab_sim_holder() -> (
+        tuple[dict[Compatibility, list[PmappingGroup]], str, set[str]]
+    ):
         nonlocal n_iterations
         n_iterations += 1
         holder = pmapping_groups.pop(0)

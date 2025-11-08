@@ -10,7 +10,12 @@ from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.FFM.deprecate_maybe.visualization import make_mapping
 from fastfusion.frontend.mapping import Mapping
 
-def mapping2svg(mapping: pd.Series, einsum_names: list[str], rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None):
+
+def mapping2svg(
+    mapping: pd.Series,
+    einsum_names: list[str],
+    rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None,
+):
     mapping: Mapping = make_mapping(mapping, einsum_names, rank_variable_bounds)
     render = mapping.render()
     return SVG(render)
@@ -139,8 +144,10 @@ def plotly_show(
     fig.update_layout(showlegend=True)
     # fig = px.scatter(data, x=x, y=y, color=category, title=title, log_x=logscales, log_y=logscales)
     if show_mapping:
-        assert einsum_names is not None, (
-            f"einsum_names must be provided if show_mapping is True"
+        assert (
+            einsum_names is not None
+        ), f"einsum_names must be provided if show_mapping is True"
+        return diplay_mappings_on_fig(
+            fig, data, mapping_svg, einsum_names, rank_variable_bounds
         )
-        return diplay_mappings_on_fig(fig, data, mapping_svg, einsum_names, rank_variable_bounds)
     return fig

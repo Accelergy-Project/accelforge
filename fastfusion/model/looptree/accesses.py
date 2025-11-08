@@ -49,22 +49,25 @@ class BufferAccesses:
         return repr(self.accesses)
 
     def __repr__(self):
-        return f'BufferAccesses({repr(self.accesses)})'
+        return f"BufferAccesses({repr(self.accesses)})"
 
 
 @overload
 def summarize_total_and_per_unit_actions(
-    reuse_analysis_result: IslReuseAnalysisOutput
-) -> dict[tuple, BuffetStats]:
-    pass
-@overload
-def summarize_total_and_per_unit_actions(
-    reuse_analysis_result: SymbolicAnalysisOutput
+    reuse_analysis_result: IslReuseAnalysisOutput,
 ) -> dict[tuple, BuffetStats]:
     pass
 
+
+@overload
 def summarize_total_and_per_unit_actions(
-    reuse_analysis_result
+    reuse_analysis_result: SymbolicAnalysisOutput,
+) -> dict[tuple, BuffetStats]:
+    pass
+
+
+def summarize_total_and_per_unit_actions(
+    reuse_analysis_result,
 ) -> dict[tuple, BuffetStats]:
     result = {}
     if isinstance(reuse_analysis_result, IslReuseAnalysisOutput):
@@ -78,16 +81,16 @@ def summarize_total_and_per_unit_actions(
             total_read_to_parent = get_sum_of_pw_qpolynomial(read_to_parent)
             total_read_to_peer = get_sum_of_pw_qpolynomial(read_to_peer)
 
-            max_per_unit_fill = \
-                _sum_over_temporal_max_over_spatial(tags, fill)
+            max_per_unit_fill = _sum_over_temporal_max_over_spatial(tags, fill)
 
             n_read_to_parent_dim = read_to_parent.dim(isl.dim_type.in_)
-            max_per_unit_read_to_parent = \
-                _sum_over_temporal_max_over_spatial(tags[:n_read_to_parent_dim],
-                                                    read_to_parent)
+            max_per_unit_read_to_parent = _sum_over_temporal_max_over_spatial(
+                tags[:n_read_to_parent_dim], read_to_parent
+            )
 
-            max_per_unit_read_to_peer = \
-                _sum_over_temporal_max_over_spatial(tags, read_to_peer)
+            max_per_unit_read_to_peer = _sum_over_temporal_max_over_spatial(
+                tags, read_to_peer
+            )
 
             buffet_stats = BuffetStats(
                 total_fills=total_fill,
@@ -95,7 +98,7 @@ def summarize_total_and_per_unit_actions(
                 total_reads_to_peer=total_read_to_peer,
                 max_per_unit_fills=max_per_unit_fill,
                 max_per_parent_reads_to_parent=max_per_unit_read_to_parent,
-                max_per_unit_reads_to_peer=max_per_unit_read_to_peer
+                max_per_unit_reads_to_peer=max_per_unit_read_to_peer,
             )
 
     elif isinstance(reuse_analysis_result, SymbolicAnalysisOutput):
@@ -108,29 +111,23 @@ def summarize_total_and_per_unit_actions(
     return result
 
 
+@overload
+def isl_buffer_accesses_from_buffet_actions(
+    reuse_analysis_result: IslReuseAnalysisOutput, mapping, workload, is_path=False
+) -> BufferAccesses:
+    pass
+
 
 @overload
 def isl_buffer_accesses_from_buffet_actions(
-    reuse_analysis_result: IslReuseAnalysisOutput,
-    mapping,
-    workload,
-    is_path=False
+    reuse_analysis_result: SymbolicAnalysisOutput, mapping, workload, is_path=False
 ) -> BufferAccesses:
     pass
-@overload
-def isl_buffer_accesses_from_buffet_actions(
-    reuse_analysis_result: SymbolicAnalysisOutput,
-    mapping,
-    workload,
-    is_path=False
-) -> BufferAccesses:
-    pass
+
+
 # TODO: is_path should be removed and we should accept only regular mappings
 def isl_buffer_accesses_from_buffet_actions(
-    reuse_analysis_result,
-    mapping,
-    workload: Workload,
-    is_path=False
+    reuse_analysis_result, mapping, workload: Workload, is_path=False
 ) -> BufferAccesses:
     mapping = mapping.nodes
 
@@ -141,26 +138,22 @@ def isl_buffer_accesses_from_buffet_actions(
         assert isinstance(compute_node, Compute)
         compute_targets.add(compute_node.compute)
 
-    summarized_actions = \
-        summarize_total_and_per_unit_actions(reuse_analysis_result)
+    summarized_actions = summarize_total_and_per_unit_actions(reuse_analysis_result)
 
     accesses_results = BufferAccesses()
     for (buffer_id, tensor, einsum), stats in summarized_actions.items():
-        fill = stats.total_fills # Writes
-        read_to_parent = stats.total_reads_to_parent # Reads to parent
-        read_to_peer = stats.total_reads_to_peer     # Reads to peer
+        fill = stats.total_fills  # Writes
+        read_to_parent = stats.total_reads_to_parent  # Reads to parent
+        read_to_peer = stats.total_reads_to_peer  # Reads to peer
         max_per_unit_fill = stats.max_per_unit_fills
         max_per_parent_read_to_parent = stats.max_per_parent_reads_to_parent
         max_per_unit_read_to_peer = stats.max_per_unit_reads_to_peer
 
         parent_buffer = parent_buffers[(buffer_id, tensor, einsum)]
         if parent_buffer is not None:
-            parent_is_backing = \
-                parent_buffers[(parent_buffer, tensor, einsum)] is None
+            parent_is_backing = parent_buffers[(parent_buffer, tensor, einsum)] is None
 
-            accesses = accesses_results.get_accesses(parent_buffer,
-                                                     tensor,
-                                                     einsum)
+            accesses = accesses_results.get_accesses(parent_buffer, tensor, einsum)
             if tensor in workload.tensors_written_by_einsum(einsum):
                 accesses.total_writes += read_to_parent
                 accesses.total_reads += read_to_parent
@@ -169,7 +162,9 @@ def isl_buffer_accesses_from_buffet_actions(
                 accesses.max_per_unit_writes += max_per_parent_read_to_parent
 
                 if read_to_parent == 0 and max_per_parent_read_to_parent != 0:
-                    raise ValueError(f"read_to_parent is 0 but max_per_parent_read_to_parent is {max_per_parent_read_to_parent}")
+                    raise ValueError(
+                        f"read_to_parent is 0 but max_per_parent_read_to_parent is {max_per_parent_read_to_parent}"
+                    )
                 if read_to_parent == 0 and max_per_unit_read_to_peer == 0:
                     per_unit_to_total = 0
                 else:
@@ -180,7 +175,7 @@ def isl_buffer_accesses_from_buffet_actions(
                 if parent_is_backing:
                     elidable_reads = reuse_analysis_result.elidable_reads.get(tensor, 0)
                     accesses.total_reads -= elidable_reads
-                    accesses.max_per_unit_reads -= per_unit_to_total*elidable_reads
+                    accesses.max_per_unit_reads -= per_unit_to_total * elidable_reads
 
             elif tensor in workload.tensors_read_by_einsum(einsum):
                 accesses.total_reads += read_to_parent
@@ -190,9 +185,7 @@ def isl_buffer_accesses_from_buffet_actions(
         # Fills will write into current buffer except for compute (which does
         # not have write action) and top-level buffer
         if buffer_id not in compute_targets and parent_buffer is not None:
-            accesses = accesses_results.get_accesses(buffer_id,
-                                                    tensor,
-                                                    einsum)
+            accesses = accesses_results.get_accesses(buffer_id, tensor, einsum)
             if tensor in workload.tensors_written_by_einsum(einsum):
                 accesses.total_writes += fill
                 accesses.max_per_unit_writes += max_per_unit_fill
@@ -245,25 +238,25 @@ def get_parent_buffers(mapping: Mapping, workload: Workload, is_path):
 
 
 def _sum_over_temporal_max_over_spatial(tags, actions):
-    return sum_with_mask(
-        [
-            (
-                isinstance(t, TemporalTag) or
-                isinstance(t, PipelineTemporalTag) or
-                isinstance(t, SequentialTag)
-            )
-            for t in tags
-        ],
-        actions
-    ).max().to_python()
-
+    return (
+        sum_with_mask(
+            [
+                (
+                    isinstance(t, TemporalTag)
+                    or isinstance(t, PipelineTemporalTag)
+                    or isinstance(t, SequentialTag)
+                )
+                for t in tags
+            ],
+            actions,
+        )
+        .max()
+        .to_python()
+    )
 
 
 def isl_buffer_accesses_from_buffet_actions(
-    reuse_analysis_result,
-    mapping,
-    workload: Workload,
-    is_path=False
+    reuse_analysis_result, mapping, workload: Workload, is_path=False
 ) -> BufferAccesses:
     mapping = mapping.nodes
 
@@ -274,27 +267,22 @@ def isl_buffer_accesses_from_buffet_actions(
         assert isinstance(compute_node, Compute)
         compute_targets.add(compute_node.compute)
 
-    summarized_actions = \
-        summarize_total_and_per_unit_actions(reuse_analysis_result)
-
+    summarized_actions = summarize_total_and_per_unit_actions(reuse_analysis_result)
 
     accesses_results = BufferAccesses()
     for (buffer_id, tensor, einsum), stats in summarized_actions.items():
-        fill = stats.total_fills # Writes
-        read_to_parent = stats.total_reads_to_parent # Reads to parent
-        read_to_peer = stats.total_reads_to_peer     # Reads to peer
+        fill = stats.total_fills  # Writes
+        read_to_parent = stats.total_reads_to_parent  # Reads to parent
+        read_to_peer = stats.total_reads_to_peer  # Reads to peer
         max_per_unit_fill = stats.max_per_unit_fills
         max_per_parent_read_to_parent = stats.max_per_parent_reads_to_parent
         max_per_unit_read_to_peer = stats.max_per_unit_reads_to_peer
 
         parent_buffer = parent_buffers[(buffer_id, tensor, einsum)]
         if parent_buffer is not None:
-            parent_is_backing = \
-                parent_buffers[(parent_buffer, tensor, einsum)] is None
+            parent_is_backing = parent_buffers[(parent_buffer, tensor, einsum)] is None
 
-            accesses = accesses_results.get_accesses(parent_buffer,
-                                                     tensor,
-                                                     einsum)
+            accesses = accesses_results.get_accesses(parent_buffer, tensor, einsum)
             if tensor in workload.tensors_written_by_einsum(einsum):
                 accesses.total_writes += read_to_parent
                 accesses.total_reads += read_to_parent
@@ -303,7 +291,9 @@ def isl_buffer_accesses_from_buffet_actions(
                 accesses.max_per_unit_writes += max_per_parent_read_to_parent
 
                 if read_to_parent == 0 and max_per_parent_read_to_parent != 0:
-                    raise ValueError(f"read_to_parent is 0 but max_per_parent_read_to_parent is {max_per_parent_read_to_parent}")
+                    raise ValueError(
+                        f"read_to_parent is 0 but max_per_parent_read_to_parent is {max_per_parent_read_to_parent}"
+                    )
                 if read_to_parent == 0 and max_per_unit_read_to_peer == 0:
                     per_unit_to_total = 0
                 else:
@@ -314,7 +304,7 @@ def isl_buffer_accesses_from_buffet_actions(
                 if parent_is_backing:
                     elidable_reads = reuse_analysis_result.elidable_reads.get(tensor, 0)
                     accesses.total_reads -= elidable_reads
-                    accesses.max_per_unit_reads -= per_unit_to_total*elidable_reads
+                    accesses.max_per_unit_reads -= per_unit_to_total * elidable_reads
 
             elif tensor in workload.tensors_read_by_einsum(einsum):
                 accesses.total_reads += read_to_parent
@@ -324,9 +314,7 @@ def isl_buffer_accesses_from_buffet_actions(
         # Fills will write into current buffer except for compute (which does
         # not have write action) and top-level buffer
         if buffer_id not in compute_targets and parent_buffer is not None:
-            accesses = accesses_results.get_accesses(buffer_id,
-                                                    tensor,
-                                                    einsum)
+            accesses = accesses_results.get_accesses(buffer_id, tensor, einsum)
             if tensor in workload.tensors_written_by_einsum(einsum):
                 accesses.total_writes += fill
                 accesses.max_per_unit_writes += max_per_unit_fill

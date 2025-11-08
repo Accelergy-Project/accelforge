@@ -47,7 +47,7 @@ class LeakEntry(ParsableModel):
             )
         except Exception as e:
             e.add_note(
-                'If you\'d like to use a predefined leak power value, set the '
+                "If you'd like to use a predefined leak power value, set the "
                 '"leak_power" attribute of the component.'
             )
             raise

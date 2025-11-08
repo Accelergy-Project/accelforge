@@ -22,14 +22,10 @@ class TestPmappingExploration(unittest.TestCase):
             PARENT_DIR / "mha.renames.yaml",
         )
         spec.mapper.ffm.metrics = Metrics.ENERGY | Metrics.LATENCY
-        pmappings = make_pmappings(spec, ['Q'])
+        pmappings = make_pmappings(spec, ["Q"])
 
     def test_mha_full(self):
-        config_names = [
-            "snowcat.arch",
-            "mha_full.workload",
-            "mha.renames"
-        ]
+        config_names = ["snowcat.arch", "mha_full.workload", "mha.renames"]
         paths = [PARENT_DIR / f"{config_name}.yaml" for config_name in config_names]
         spec = Specification.from_yaml(*paths)
 
@@ -38,11 +34,15 @@ class TestPmappingExploration(unittest.TestCase):
         pmapping_groups, decompress_data = pmapping_cache.set(make_pmappings(spec))
         for per_einsum_pmappings in pmapping_groups.values():
             for pmapping_group in per_einsum_pmappings:
-                for resource, levels in pmapping_group.mappings.right_reservations.items():
+                for (
+                    resource,
+                    levels,
+                ) in pmapping_group.mappings.right_reservations.items():
                     for level in levels:
                         self.assertTrue(
-                            nameloop2col(resource, level) in pmapping_group.mappings.data.columns,
-                            f"{resource} at {level} not in {pmapping_group.mappings.data.columns}. Compatibility: {pmapping_group.compatibility}"
+                            nameloop2col(resource, level)
+                            in pmapping_group.mappings.data.columns,
+                            f"{resource} at {level} not in {pmapping_group.mappings.data.columns}. Compatibility: {pmapping_group.compatibility}",
                         )
 
     def test_mha_with_tags(self):
@@ -76,5 +76,7 @@ class TestPmappingExploration(unittest.TestCase):
 
 class TestInitialDeltaGeneration(unittest.TestCase):
     def test_mobilenet_long(self):
-        workload = Workload.from_yaml(Path(__file__).parent / 'mobilenet_long.workload.yaml')
-        choices = get_initial_delta_choices('Dwise0', workload)
+        workload = Workload.from_yaml(
+            Path(__file__).parent / "mobilenet_long.workload.yaml"
+        )
+        choices = get_initial_delta_choices("Dwise0", workload)

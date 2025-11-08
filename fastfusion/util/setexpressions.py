@@ -37,7 +37,6 @@ class InvertibleSet(BaseModel, Generic[T]):
     def __str__(self):
         return self.__repr__()
 
-
     def __invert__(self):
         return self.to_my_space(self.full_space - self.instance)
 

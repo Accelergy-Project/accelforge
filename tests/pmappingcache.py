@@ -4,7 +4,7 @@ from pathlib import Path
 from fastfusion.util.picklecache import PickleCache
 
 
-TEST_PmappingGroup_DIR = Path(__file__).parent / 'tmp' / 'pmapping_cache'
+TEST_PmappingGroup_DIR = Path(__file__).parent / "tmp" / "pmapping_cache"
 
 
 def make_pmapping_pickle_cache(config_names: Iterable[str]) -> PickleCache:
@@ -19,6 +19,6 @@ def make_pmapping_pickle_path(config_names: Iterable[str]) -> Path:
     Creates a path to a file in `TEST_PmappingGroup_DIR` with a file name that is
     `config_names` joined using "---" as separators.
     """
-    pickle_name = '---'.join(sorted(config_names)) + '.pkl'
+    pickle_name = "---".join(sorted(config_names)) + ".pkl"
     pickle_path = TEST_PmappingGroup_DIR / pickle_name
     return pickle_path

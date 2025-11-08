@@ -22,7 +22,11 @@ from fastfusion.frontend.mapping import (
     TensorHolder,
 )
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
-from fastfusion.mapper.FFM._pareto_df.df_convention import stride2col, initial2col, iterations2col
+from fastfusion.mapper.FFM._pareto_df.df_convention import (
+    stride2col,
+    initial2col,
+    iterations2col,
+)
 from fastfusion.mapper.FFM._pareto_df.pareto import makepareto_numpy
 from fastfusion.model.looptree.reuse.symbolic import (
     analyze_reuse_and_add_reservations_to_mapping,
@@ -58,18 +62,22 @@ class ComparisonResult(Enum):
 
 
 @lru_cache(maxsize=10000)
-def diff_geq_leq_than_zero(f: Expr, s: Symbol, bounds: tuple[tuple[Symbol, int, int], ...]):
+def diff_geq_leq_than_zero(
+    f: Expr, s: Symbol, bounds: tuple[tuple[Symbol, int, int], ...]
+):
     # Assume ceiling won't affect the sign of the derivative. Changing from positive to
     # zero or negative to zero is OK and does not count as changing the sign.
     f = f.replace(
         lambda expr: expr.is_Function and expr.func == sympy.ceiling,
-        lambda expr: expr.args[0]
+        lambda expr: expr.args[0],
     )
     return geq_leq_than_zero(sympy.diff(f, s), bounds)
+
 
 @lru_cache(maxsize=10000)
 def frange(f: Expr, s: Symbol, lo: int, hi: int):
     return sympy.calculus.util.function_range(f, s, domain=sympy.Interval(lo, hi))
+
 
 @lru_cache(maxsize=10000)
 def geq_leq_than_zero(f: Expr, bounds: tuple[tuple[Symbol, int, int], ...]):
@@ -77,7 +85,7 @@ def geq_leq_than_zero(f: Expr, bounds: tuple[tuple[Symbol, int, int], ...]):
     # to zero is OK and does not count as changing the sign.
     f = f.replace(
         lambda expr: expr.is_Function and expr.func == sympy.ceiling,
-        lambda expr: expr.args[0]
+        lambda expr: expr.args[0],
     )
 
     try:
@@ -181,17 +189,14 @@ def run_model(
 
         raise ValueError(
             f"Error calculating latency for {job.einsum_name}. Could not calculate "
-            f"a symbolic max of the following latencies:\n\t" + "\n\t".join(
+            f"a symbolic max of the following latencies:\n\t"
+            + "\n\t".join(
                 [f"{k}: {type(v)} {str(v).strip()}" for k, v in latency.items()]
             )
         )
 
     actions = gather_actions(reuse, None, use_name=True)
-    energy = compute_energy_from_actions(
-        spec,
-        actions,
-        overall_latency
-    )
+    energy = compute_energy_from_actions(spec, actions, overall_latency)
 
     fusable_tensors = workload.fusable_tensor_names
     tensor_to_backing = {}
@@ -377,7 +382,11 @@ def is_constant(f: Expr) -> bool:
 
 
 @lru_cache(maxsize=10000)
-def _try_replace_single_term(t: Expr, symbols_enumerated: fzs[Symbol], bounds: tuple[tuple[Symbol, int, int], ...]):
+def _try_replace_single_term(
+    t: Expr,
+    symbols_enumerated: fzs[Symbol],
+    bounds: tuple[tuple[Symbol, int, int], ...],
+):
     goal = None
     if len(t.free_symbols & symbols_enumerated) == 1:
         s = next(iter(t.free_symbols & symbols_enumerated))
@@ -477,7 +486,9 @@ def _partition_formula(
             for symbol in term.free_symbols:
                 update_goal(symbol, "diff")
         else:
-            for subterm, subgoal in partition_formula(term, symbols_enumerated, bounds).items():
+            for subterm, subgoal in partition_formula(
+                term, symbols_enumerated, bounds
+            ).items():
                 goals[subterm] = subgoal | goals.get(subterm, Goal())
 
     for k, v in goals.items():
@@ -537,7 +548,9 @@ def get_padded_choices(
     for symbol in symbols_non_enumerated_set:
         choices_padded[symbol] = ones
         if minimize_formula is not None:
-            diff_result = diff_geq_leq_than_zero(minimize_formula, symbol, what_tiles_symbol.bounds)
+            diff_result = diff_geq_leq_than_zero(
+                minimize_formula, symbol, what_tiles_symbol.bounds
+            )
             if diff_result == ComparisonResult.LESS_THAN_ZERO:
                 choices_padded[symbol] = ones * what_tiles_symbol.get_max_size(symbol)
             elif diff_result == ComparisonResult.GREATER_THAN_ZERO:
@@ -545,7 +558,9 @@ def get_padded_choices(
             elif diff_result == ComparisonResult.EQUAL_TO_ZERO:
                 pass
             else:
-                diff_geq_leq_than_zero(minimize_formula, symbol, what_tiles_symbol.bounds)
+                diff_geq_leq_than_zero(
+                    minimize_formula, symbol, what_tiles_symbol.bounds
+                )
                 raise ValueError(f"Can't tell if {symbol} is increasing or decreasing")
 
     return choices_padded
@@ -748,6 +763,7 @@ def coalesce_symbols(
 
     return symbol2goal
 
+
 def get_tile_shape_choices(
     objectives: list[Objective],
     symbols: list[Symbol],
@@ -805,9 +821,7 @@ def get_tile_shape_choices(
     log_message("init")
 
     def eval_objective(
-        formula: Expr | Objective,
-        choices: np.ndarray,
-        minimize_formula: Expr = None
+        formula: Expr | Objective, choices: np.ndarray, minimize_formula: Expr = None
     ):
         if isinstance(formula, Objective):
             formula = formula.formula
@@ -986,7 +1000,9 @@ def get_tile_shape_choices(
             delta_choices = np.array(list(what_tiles_symbol.get_delta_choices(symbol)))
 
             outer_stride = what_tiles_symbol.get_outer_tiles(stride, none_if_fail=True)
-            assert outer_stride is None or isinstance(outer_stride, int), f"outer stride is symbol {outer_stride}"
+            assert outer_stride is None or isinstance(
+                outer_stride, int
+            ), f"outer stride is symbol {outer_stride}"
             if outer_stride is None:
                 outer_size = what_tiles_symbol.get_max_size(stride)
             else:
@@ -1001,9 +1017,7 @@ def get_tile_shape_choices(
             if isinstance(stride, int):
                 initial_choices = delta_choices + stride
                 initial_choices = initial_choices[initial_choices <= outer_size]
-                choices.append(
-                    append_vector(choices_enumerated, initial_choices)
-                )
+                choices.append(append_vector(choices_enumerated, initial_choices))
             else:
                 i = symbols_enumerated.index(stride)
                 for stride_choice in np.unique(choices_enumerated[:, i]):
@@ -1012,9 +1026,7 @@ def get_tile_shape_choices(
                     ]
                     initial_choices = delta_choices + stride_choice
                     initial_choices = initial_choices[initial_choices <= outer_size]
-                    choices.append(
-                        append_vector(partition, initial_choices)
-                    )
+                    choices.append(append_vector(partition, initial_choices))
         else:
             raise RuntimeError(
                 f"BUG: symbol {symbol} is neither stride nor initial tile shape"
@@ -1107,12 +1119,18 @@ def get_tile_shape_choices(
         # Create functions to Pareto using objectives
         # ==============================================================================
         for objective in list(objectives):
-            goals = partition_formula(objective.formula, sym_enumerated_set, what_tiles_symbol.bounds)
+            goals = partition_formula(
+                objective.formula, sym_enumerated_set, what_tiles_symbol.bounds
+            )
             if any(g.goal == "diff" for g in goals.values()):
-                goals2 = partition_formula(sympy.expand(objective.formula), sym_enumerated_set, what_tiles_symbol.bounds)
+                goals2 = partition_formula(
+                    sympy.expand(objective.formula),
+                    sym_enumerated_set,
+                    what_tiles_symbol.bounds,
+                )
                 goals = min(
                     (goals, goals2),
-                    key=lambda x: sum(g.goal == "diff" for g in x.values())
+                    key=lambda x: sum(g.goal == "diff" for g in x.values()),
                 )
 
             # ==========================================================================
@@ -1210,7 +1228,9 @@ def get_tile_shape_choices(
 
         objective_values = {}
         for formula, goal in list(symbol2goal.items()):
-            objective_values[formula] = eval_objective(formula, choices_enumerated_float)
+            objective_values[formula] = eval_objective(
+                formula, choices_enumerated_float
+            )
             symbol2goal[formula] = goal
             log_message("eval", f"{goal.goal}", f"{formula}")
 
@@ -1413,11 +1433,11 @@ def _make_tile_shapes_new(job: "Job"):
     t0 = time.time()
     for key in compiled_df:
         df[key] = compiled_df[key](*choices_float.T)
-        if 'latency' in key and 'first_latency' not in key:
+        if "latency" in key and "first_latency" not in key:
             val = [df[key]] if isinstance(df[key], Number) else df[key]
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative latency for {key}: {val}")
-        if 'energy' in key:
+        if "energy" in key:
             val = [df[key]] if isinstance(df[key], Number) else df[key]
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative energy for {key}: {val}")
@@ -1426,15 +1446,28 @@ def _make_tile_shapes_new(job: "Job"):
     # print(f"Model time: {model_time:.2f}s, ratio: {model_time * n_pmappings / df_time:.2f} for {n_pmappings} pmappings")
 
     # Some initial tile shapes are invalid
-    for nloops, n in enumerate(node for node in job.mapping.nodes
-                               if isinstance(node, Iteration) and node._fused):
+    for nloops, n in enumerate(
+        node
+        for node in job.mapping.nodes
+        if isinstance(node, Iteration) and node._fused
+    ):
         stride = n.tile_pattern.stride
-        initial = n.tile_pattern.initial_tile_shape if n.tile_pattern.initial_tile_shape is not None else stride
+        initial = (
+            n.tile_pattern.initial_tile_shape
+            if n.tile_pattern.initial_tile_shape is not None
+            else stride
+        )
         outer_stride = what_tiles_symbol.get_outer_tiles(stride)
         outer_initial = what_tiles_symbol.get_initial(outer_stride, none_if_fail=True)
-        outer_stride = df[outer_stride.name] if isinstance(outer_stride, Symbol) else outer_stride
+        outer_stride = (
+            df[outer_stride.name] if isinstance(outer_stride, Symbol) else outer_stride
+        )
 
-        outer_initial = df[outer_initial.name] if isinstance(outer_initial, Symbol) else outer_stride
+        outer_initial = (
+            df[outer_initial.name]
+            if isinstance(outer_initial, Symbol)
+            else outer_stride
+        )
 
         rank_var_stride = df[stride.name] if isinstance(stride, Symbol) else stride
         rank_var_initial = df[initial.name] if isinstance(initial, Symbol) else initial
@@ -1456,7 +1489,7 @@ def _make_tile_shapes_new(job: "Job"):
                 if n.rank_variable not in free_symbols_str:
                     continue
 
-                rank_stride = expr.coeff(n.rank_variable)*rank_var_stride
+                rank_stride = expr.coeff(n.rank_variable) * rank_var_stride
 
                 args = []
                 for free_rank_var in free_symbols:
@@ -1479,14 +1512,12 @@ def _make_tile_shapes_new(job: "Job"):
     if (df[energy_cols] < 0).any(axis=None):
         mapping_with_negative_energy = df[(df[energy_cols] < 0).any(axis=1)]
         print(df.columns)
-        msg = ''
+        msg = ""
         for _, row in mapping_with_negative_energy.iterrows():
             for k, v in row.items():
                 msg += f"{k}: {v}\n"
-            msg += '\n'
-        raise RuntimeError(
-            f'negative energy:\n{msg}'
-        )
+            msg += "\n"
+        raise RuntimeError(f"negative energy:\n{msg}")
 
     job.valid_pmappings = job.total_pmappings * prod(job.pmapping_keep_rates.values())
     return df

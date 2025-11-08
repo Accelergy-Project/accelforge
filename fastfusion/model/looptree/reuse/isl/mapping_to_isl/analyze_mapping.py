@@ -7,6 +7,7 @@ Flow of analysis:
   (buffer, tensor, einsum) tuple.
 - Run tile shape inference.
 """
+
 from dataclasses import dataclass, field
 
 import islpy as isl
@@ -23,4 +24,3 @@ class MappingInISL:
 
 def AnalyzeMapping(mapping, workload) -> dict[BufferTensorEinsum, Occupancy]:
     result: dict[BufferTensorEinsum, Occupancy] = {}
-

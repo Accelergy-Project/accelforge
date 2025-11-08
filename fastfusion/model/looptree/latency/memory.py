@@ -14,12 +14,12 @@ from fastfusion.model.looptree.reuse.symbolic import Buffet, BuffetStats
 from fastfusion.util.parse_expressions import MATH_FUNCS, parse_expression
 from fastfusion.util.sympy.broadcast_max import Max, Min
 
-def isl_to_summarized(looptree_results: IslReuseAnalysisOutput, mapping, workload) -> SymbolicAnalysisOutput:
+
+def isl_to_summarized(
+    looptree_results: IslReuseAnalysisOutput, mapping, workload
+) -> SymbolicAnalysisOutput:
     accesses_stats = isl_buffer_accesses_from_buffet_actions(
-        looptree_results,
-        mapping,
-        workload,
-        is_path=False
+        looptree_results, mapping, workload, is_path=False
     )
     buffet_stats = {
         Buffet(level=component, tensor=tensor, einsum=einsum): BuffetStats(
@@ -35,9 +35,11 @@ def component_latency(
     looptree_results: SymbolicAnalysisOutput,
     flattened_arch: list[Leaf],
     mapping: Mapping,
-    spec: Specification
+    spec: Specification,
 ):
-    component_to_actions: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(lambda: 0))
+    component_to_actions: dict[str, dict[str, float]] = defaultdict(
+        lambda: defaultdict(lambda: 0)
+    )
     name2component: dict[str, Component] = {node.name: node for node in flattened_arch}
 
     compute_obj = flattened_arch[-1]
@@ -54,14 +56,24 @@ def component_latency(
             actions[f"{action.name}_actions"] += 0
 
         if isinstance(name2component[component], TensorHolder):
-            actions["read_actions"] += buffet_stats.max_per_unit_read_actions - buffet_stats.min_per_unit_skipped_first_read_actions
-            actions["write_actions"] += buffet_stats.max_per_unit_write_actions - buffet_stats.min_per_unit_skipped_first_write_actions
+            actions["read_actions"] += (
+                buffet_stats.max_per_unit_read_actions
+                - buffet_stats.min_per_unit_skipped_first_read_actions
+            )
+            actions["write_actions"] += (
+                buffet_stats.max_per_unit_write_actions
+                - buffet_stats.min_per_unit_skipped_first_write_actions
+            )
         elif isinstance(name2component[component], arch.Compute):
             pass
         else:
-            raise NotImplementedError(f"Component {component} is not a TensorHolder or Compute")
+            raise NotImplementedError(
+                f"Component {component} is not a TensorHolder or Compute"
+            )
 
-    longest_compute_latency = Max(0, *[s.max_latency for s in looptree_results.compute_stats.values()])
+    longest_compute_latency = Max(
+        0, *[s.max_latency for s in looptree_results.compute_stats.values()]
+    )
     component_to_actions[compute_obj.name]["compute_actions"] = longest_compute_latency
 
     component_latency = {}
@@ -85,7 +97,7 @@ def component_latency(
             name2component[component].attributes.latency,
             symbol_table,
             attr_name="latency",
-            location=component
+            location=component,
         )
 
     return component_latency

@@ -12,7 +12,10 @@ from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     TensorReservation,
     Compatibility,
 )
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import MAPPING_COLUMN, PmappingDataframe
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+    MAPPING_COLUMN,
+    PmappingDataframe,
+)
 from fastfusion.util import fzs
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 

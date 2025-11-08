@@ -93,6 +93,7 @@ def get_tensor_data_space(workload: Workload, tensor: TensorName) -> isl.Set:
 
     return tensor_data_space
 
+
 def _card_box(data_space: isl.Set) -> int:
     dims = []
     for i in range(data_space.dim(isl.dim_type.set)):
@@ -110,8 +111,7 @@ def _card_box(data_space: isl.Set) -> int:
     return math.prod(dims)
 
 
-ERRMSG = \
-""" Non-box-shaped sets are not supported. This happens if ISL is installed without
+ERRMSG = """ Non-box-shaped sets are not supported. This happens if ISL is installed without
 Barvinok support. Please install ISL with Barvinok support, or use workloads with
 rectangular data spaces and operation spaces. Non-rectangular spaces occur when the
 workload contains complex expressions involving the rank variables, such as

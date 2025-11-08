@@ -1,7 +1,11 @@
 from collections import defaultdict
 import pydot
 from typing import Any, Iterable
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import Compatibility, TensorReservation, Loop
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+    Compatibility,
+    TensorReservation,
+    Loop,
+)
 from fastfusion.util import expfmt
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import col2nameloop
 
@@ -82,7 +86,9 @@ class Node:
         self, _entry: bool = True, start_at: int = 0
     ) -> list[TensorReservation]:
         if start_at <= 0:
-            tensors = set(t for t in self.this_level if isinstance(t, TensorReservation))
+            tensors = set(
+                t for t in self.this_level if isinstance(t, TensorReservation)
+            )
         else:
             tensors = set()
         for c in self.children:

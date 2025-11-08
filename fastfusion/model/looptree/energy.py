@@ -10,6 +10,7 @@ from fastfusion.model.looptree.reuse.symbolic import SymbolicAnalysisOutput
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.mapping import Mapping
 
+
 @dataclass
 class ActionCount:
     total: Any
@@ -20,7 +21,9 @@ class ActionCount:
         return ActionCount(0, 0)
 
 
-def gather_actions(looptree_results: SymbolicAnalysisOutput, bindings: dict[str, str], use_name=False):
+def gather_actions(
+    looptree_results: SymbolicAnalysisOutput, bindings: dict[str, str], use_name=False
+):
     actions: dict[tuple[str, str], ActionCount] = {}
     compute_levels = set(c.level for c in looptree_results.compute_stats)
 
@@ -35,21 +38,21 @@ def gather_actions(looptree_results: SymbolicAnalysisOutput, bindings: dict[str,
         else:
             buf = bindings[buf]
 
-        key = (buf, 'read')
+        key = (buf, "read")
 
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += accesses.net_total_read_actions()
         actions[key].max_per_unit += accesses.net_max_per_unit_read_actions()
 
-        key = (buf, 'write')
+        key = (buf, "write")
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += accesses.net_total_write_actions()
         actions[key].max_per_unit += accesses.net_max_per_unit_write_actions()
 
     for compute, ops in looptree_results.compute_stats.items():
-        key = (compute.level, 'compute')
+        key = (compute.level, "compute")
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += ops.total_ops
@@ -61,7 +64,7 @@ def gather_actions(looptree_results: SymbolicAnalysisOutput, bindings: dict[str,
 def compute_energy_from_actions(
     spec: Specification,
     action_counts: MappingABC[(str, str), Real],
-    overall_latency: float
+    overall_latency: float,
 ):
     energy_result = {}
     for (component, action), counts in action_counts.items():
@@ -70,12 +73,14 @@ def compute_energy_from_actions(
         action_table = spec.component_energy.find_action(component, action)
         if action_table is None:
             raise RuntimeError(
-                f'Could not find action {action} for component {component}'
+                f"Could not find action {action} for component {component}"
             )
         energy_per_ac = action_table.energy
         energy_result[(component, action)] = counts.total * energy_per_ac
 
     for leak_entry in spec.component_leak.entries:
-        energy_result[(leak_entry.name, 'leak')] = leak_entry.leak_power * overall_latency
+        energy_result[(leak_entry.name, "leak")] = (
+            leak_entry.leak_power * overall_latency
+        )
 
     return energy_result
