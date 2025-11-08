@@ -571,10 +571,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     # See current_node is the highest level of Storage to determine reuse level.
                     for tensor in current_node.tensors:
                         # Check second term
-                        if (
-                            tensor not in tensor_to_reuse_level
-                            and current_node._must_keep_tensors
-                        ):
+                        if (tensor not in tensor_to_reuse_level):
                             random_einsum: EinsumName = next(
                                 iter(mapping_groups[fusing_node])
                             )
