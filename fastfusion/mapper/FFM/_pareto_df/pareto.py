@@ -291,20 +291,25 @@ def makepareto_numpy(
         if len(np.unique(mappings[:, c])) <= 1:
             continue
 
-        if goals[c] in ["min", "max"]:
+        goal = goals[c]
+        if goal != "diff" and dirty and len(np.unique(mappings[:, c])) < np.log2(mappings.shape[0]):
+            # print(f"Changed {goal} to diff because there are {len(np.unique(mappings[:, c]))} unique values for {mappings.shape[0]} rows")
+            goal = "diff"
+
+        if goal in ["min", "max"]:
             l = logify(mappings[:, c].reshape((-1, 1)))
-            to_pareto.append(l if goals[c] == "min" else -l)
+            to_pareto.append(l if goal == "min" else -l)
             new_goals.append("min")
-        elif goals[c] == "diff":
+        elif goal == "diff":
             to_pareto.append(mappings[:, c].reshape((-1, 1)))
             new_goals.append("diff")
-        elif goals[c] == "min_per_prime_factor":
+        elif goal == "min_per_prime_factor":
             counts = prime_factor_counts(mappings[:, c])
             for i in range(counts.shape[1]):
                 to_pareto.append(counts[:, i].reshape((-1, 1)))
                 new_goals.append("min_per_prime_factor")
         else:
-            raise ValueError(f"Unknown goal: {goals[c]}")
+            raise ValueError(f"Unknown goal: {goal}")
 
     if not to_pareto:
         return mappings[:1]
