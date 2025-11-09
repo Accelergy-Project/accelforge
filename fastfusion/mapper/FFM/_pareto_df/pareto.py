@@ -281,6 +281,7 @@ def prime_factor_counts(arr: np.ndarray) -> np.ndarray:
 def makepareto_numpy(
     mappings: np.ndarray,
     goals: list[str],
+    dirty: bool = False,
 ) -> pd.DataFrame:
 
     to_pareto = []
@@ -291,20 +292,19 @@ def makepareto_numpy(
             continue
 
         if goals[c] in ["min", "max"]:
-            to_pareto.append(logify(mappings[:, c].reshape((-1, 1))))
+            l = logify(mappings[:, c].reshape((-1, 1)))
+            to_pareto.append(l if goals[c] == "min" else -l)
             new_goals.append("min")
         elif goals[c] == "diff":
             to_pareto.append(mappings[:, c].reshape((-1, 1)))
             new_goals.append("diff")
         elif goals[c] == "min_per_prime_factor":
-            # to_pareto.append(mappings[:, c].reshape((-1, 1)))
-            # new_goals.append("diff")
-            # continue
-
             counts = prime_factor_counts(mappings[:, c])
             for i in range(counts.shape[1]):
                 to_pareto.append(counts[:, i].reshape((-1, 1)))
-                new_goals.append("min")
+                new_goals.append("min_per_prime_factor")
+        else:
+            raise ValueError(f"Unknown goal: {goals[c]}")
 
     if not to_pareto:
         return mappings[:1]
