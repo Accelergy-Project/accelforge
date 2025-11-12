@@ -54,11 +54,33 @@ class ComparisonResult(Enum):
     EQUAL_TO_ZERO = "equal_to_zero"
     UNKNOWN = "unknown"
 
+    def __or__(self, other: "ComparisonResult"):
+        if self == other:
+            return self
+        if self == ComparisonResult.EQUAL_TO_ZERO:
+            return other
+        if other == ComparisonResult.EQUAL_TO_ZERO:
+            return self
+        return ComparisonResult.UNKNOWN
+
 
 @lru_cache(maxsize=10000)
 def diff_geq_leq_than_zero(
     f: Expr, s: Symbol, bounds: tuple[tuple[Symbol, int, int], ...]
 ):
+    # If it's a max or a min, we can just take the derivative of each arg
+    if isinstance(f, (sympy.Max, sympy.Min)):
+        r = None
+        for a in f.args:
+            new = diff_geq_leq_than_zero(a, s, bounds)
+            if r is None:
+                r = new
+            else:
+                r = r | new
+            if r == ComparisonResult.UNKNOWN:
+                return r
+        return r
+
     # Assume ceiling won't affect the sign of the derivative. Changing from positive to
     # zero or negative to zero is OK and does not count as changing the sign.
     f = f.replace(
