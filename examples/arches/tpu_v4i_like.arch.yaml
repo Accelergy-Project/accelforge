@@ -46,7 +46,6 @@ arch:
     - {name: write, arguments: {energy: 0.293e-12}}
     constraints:
       tensors: {keep: input | output}
-      spatial: [{name: Z, min_utilization: 1}]
 
   - !Compute
     name: ScalarUnit
