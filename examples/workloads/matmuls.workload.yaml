@@ -1,0 +1,18 @@
+workload:
+  version: "0.5"
+  shape:
+    {% set M = M | default(128) %}
+    {% set KN = KN | default(128) %}
+    m:  0 <= m  < {{M}}
+    n: 0 <= n < {{KN}}
+    k: 0 <= k < {{KN}}
+
+  einsums:
+  {% for i in range(N_EINSUMS) %}
+  - name: Matmul{{i}}
+    tensor_accesses:
+    - {name: T{{i}}, projection: {M: m, N: k}}
+    - {name: W{{i}}, projection: [k, n]}
+    - {name: T{{i+1}}, projection: [m, n], output: True}
+    renames: {weight: W{{i}}, input: T{{i}}, output: T{{i+1}}}
+  {% endfor %}
