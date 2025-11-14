@@ -67,13 +67,13 @@ class TestMappingToIsl(unittest.TestCase):
         ]
 
         errors: list = []
-        try:
-            for buffer, occupancy in occupancies.buffet_to_occupancy.items():
+        for buffer, occupancy in occupancies.buffet_to_occupancy.items():
+            try:
                 soln = solns[repr(buffer)]
                 assert (
                     occupancy.map_ == soln
                 ), f"{buffer} should hold:\n{soln}\ninstead holds:\n{occupancy.map_}"
-        except AssertionError as e:
-            errors.append(e)
+            except (AssertionError, KeyError) as e:
+                errors.append(e)
 
         assert len(errors) == 0, pformat(errors)
