@@ -67,6 +67,7 @@ class TestMappingToIsl(unittest.TestCase):
         ]
 
         errors: list = []
+        buffers_seen: set = set()
         for buffer, occupancy in occupancies.buffet_to_occupancy.items():
             try:
                 soln = solns[repr(buffer)]
@@ -75,5 +76,11 @@ class TestMappingToIsl(unittest.TestCase):
                 ), f"{buffer} should hold:\n{soln}\ninstead holds:\n{occupancy.map_}"
             except (AssertionError, KeyError) as e:
                 errors.append(e)
+            buffers_seen.add(repr(buffer))
 
+        
+        assert buffers_seen.issuperset(occupancies.buffet_to_occupancy.keys()), (
+            f"Buffers Missing: {pformat(buffers_seen - set(occupancies.buffet_to_occupancy.keys()))}\n"
+            f"Buffers Extra: {pformat(set(occupancies.buffet_to_occupancy.keys()) - buffers_seen)}"
+        )
         assert len(errors) == 0, pformat(errors)
