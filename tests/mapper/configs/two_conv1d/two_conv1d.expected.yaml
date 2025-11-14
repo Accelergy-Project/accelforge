@@ -10,11 +10,11 @@ mapping_to_isl:
   BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
     { [pb0=0] -> A[PA] : 0 <= PA < 10; [pb0=1] -> A[PA] : 10 <= PA < 16 }
   BufferTensorEinsum(buffer='MAC', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
-    { [pb0=0, 0, pa1, ra0] -> I[PI = pa1 + ra0] : 0 <= pa1 < 10 and 0 <= ra0 < 3; [pb0=1, 0, pa1, ra0] -> I[PA = pa1 + ra0] : 10 <= pa1 < 16 and 0 <= ra0 < 3 }
+    { [pb0=0, 0, pa1, ra0] -> I[PI = pa1 + ra0] : 0 <= pa1 < 10 and 0 <= ra0 < 3; [pb0=1, 0, pa1, ra0] -> I[PA = 10 + pa1 + ra0] : 0 <= pa1 < 6 and 0 <= ra0 < 3 }
   BufferTensorEinsum(buffer='MAC', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
-    { [pb0=0, 0, pa1, ra0] -> WA[RA=ra0] : 0 <= pa1 < 10 and 0 <= ra0 < 3; [pb0=1, 0, pa1, ra0] -> WA[RA=ra0] : 10 <= pa1 < 16 and 0 <= ra0 < 3 }
+    { [pb0=0, 0, pa1, ra0] -> WA[RA=ra0] : 0 <= pa1 < 10 and 0 <= ra0 < 3; [pb0=1, 0, pa1, ra0] -> WA[RA=ra0] : 0 <= pa1 < 6 and 0 <= ra0 < 3 }
   BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
-    { [pb0=0, 0, pa1, ra0] -> A[PA=pa1] : 0 <= pa1 < 10 and 0 <= ra0 < 3; [pb0=1, 0, pa1, ra0] -> A[PA=pa1] : 10 <= pa1 < 16 and 0 <= ra0 < 3 }
+    { [pb0=0, 0, pa1, ra0] -> A[PA=pa1] : 0 <= pa1 < 10 and 0 <= ra0 < 3; [pb0=1, 0, pa1, ra0] -> A[PA=pa1] : 0 <= pa1 < 6 and 0 <= ra0 < 3 }
   BufferTensorEinsum(buffer='MainMemory', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
     { [] -> WB[RB] : 0 <= RB <= 2 }
   BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
