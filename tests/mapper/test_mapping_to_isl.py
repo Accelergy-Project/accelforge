@@ -78,9 +78,13 @@ class TestMappingToIsl(unittest.TestCase):
                 errors.append(e)
             buffers_seen.add(repr(buffer))
 
-        
-        assert buffers_seen.issuperset(occupancies.buffet_to_occupancy.keys()), (
-            f"Buffers Missing: {pformat(buffers_seen - set(occupancies.buffet_to_occupancy.keys()))}\n"
-            f"Buffers Extra: {pformat(set(occupancies.buffet_to_occupancy.keys()) - buffers_seen)}"
-        )
+        buffers_known: set = set(solns.keys())
+        try:
+            assert buffers_seen == buffers_known, (
+                f"Buffers Missing: {pformat(buffers_seen - buffers_known)}\n"
+                f"Buffers Extra: {pformat(buffers_known - buffers_seen)}"
+            )
+        except AssertionError as e:
+            errors.append(e)
+
         assert len(errors) == 0, pformat(errors)
