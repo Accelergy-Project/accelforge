@@ -3,6 +3,8 @@ ISL functions that encapsulate more commonly used workflows in looptree for the
 sake of code concision.
 """
 
+import inspect
+import logging
 from typing import List
 
 import islpy as isl
@@ -108,7 +110,7 @@ def insert_dims_preserve_name_map(
     name: str = map_.get_tuple_name(dim_type)
     map_ = map_.insert_dims(dim_type, pos, n)
     if name is None:
-        print("Warning: unnamed space")
+        logging.warning(f"unnamed space for {map_}", stack_info=True)
         return map_
     return map_.set_tuple_name(dim_type, name)
 
