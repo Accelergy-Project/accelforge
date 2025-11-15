@@ -50,9 +50,10 @@ def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:
     -------
     A `isl.Map` in `space` that projects out dims [start:start+n].
     """
-    return isl.Map.project_out(
-        isl.Map.identity(isl.Space.map_from_set(space)), isl.dim_type.in_, start, n
-    )
+    base_map: isl.Map = isl.Map.identity(isl.Space.map_from_set(space))
+    # TODO: propagate tuple names from `space` onto `base_map` (e.g., `space.get_tuple_name(isl.dim_type.set)`)
+    #       so the projector keeps the original set label on both domain and range.
+    return isl.Map.project_out(base_map, isl.dim_type.in_, start, n)
 
 
 def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
@@ -72,6 +73,8 @@ def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
     where `x_i ∉ out => mask[i]`.
     """
     projector: isl.Map = isl.Map.identity(isl.Space.map_from_set(space))
+    # TODO: set tuple names on `projector` using the set name (e.g., `space.get_tuple_name(isl.dim_type.set)`)
+    #       so domain/range remain attributable after masking.
 
     for i in range(len(mask) - 1, -1, -1):
         if mask[i]:
@@ -218,6 +221,8 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
     # Creates the space, map, and local_space the temporal reuse data map will exist
     # in.
     space: isl.Space = isl.Space.alloc(isl.DEFAULT_CONTEXT, 0, n_in_dims, n_in_dims)
+    # TODO: set tuple names on `space` (e.g., "tile_iteration" to denote current vs. prior tile coords)
+    #       before constructing maps so both domain and range reflect the coordinate set being shifted.
     map_: isl.Map = isl.Map.empty(space)
     local_space: isl.LocalSpace = isl.LocalSpace.from_space(space)
 
@@ -257,6 +262,8 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
                 n_in_dims - shifted_idx,
             )
         )
+        # TODO: set tuple names on this `tmp_map` (matching the tile-iteration coordinates)
+        #       so the lexicographic predecessor relation is labeled consistently with `map_`.
         tmp_map = insert_equal_dims_map(tmp_map, 0, 0, shifted_idx)
         map_ = map_.union(tmp_map)
 
