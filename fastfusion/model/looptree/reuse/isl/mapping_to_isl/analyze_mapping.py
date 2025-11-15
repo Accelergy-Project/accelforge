@@ -70,12 +70,14 @@ def buffet_direct_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool
     a :class:`~.Sequential`, or has an uninterrupted path of other buffets to a
     `~.Sequential`.
 
-    :param mapping: The mapping context of the buffets to sequential elements.
+    Parameters
+    ----------
+    mapping:
+        The mapping context of the buffets to sequential elements.
 
-    :type mapping:  Mapping
-
-    :returns:   A dictionary of buffets and whether they're directly above a Sequential.
-    :rtype:     defaultdict[Buffet, bool]
+    Returns
+    -------
+    A dictionary of buffets and whether they're directly above a Sequential.
     """
     result: defaultdict[Buffet, bool] = defaultdict(lambda: False)
     # TODO: Figure out if get_paths is just for certain MappingNodesWithChildren
@@ -121,12 +123,14 @@ def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
     Given a `fastfusion.frontend.mapping.Mapping`, get the parallelism values for
     the Compute leafs.
 
-    :param mapping: The mapping to get parallelism for.
+    Parameters
+    ----------
+    mapping:
+        The mapping to get parallelism for.
 
-    :type mapping: Mapping
-
-    :returns:   A map relating Compute nodes with their parallelism.
-    :rtype:     defaultdict[MappingNode, float]
+    Returns
+    -------
+    A map relating Compute nodes with their parallelism.
     """
     result: defaultdict[MappingNode, float] = defaultdict()
 
@@ -169,10 +173,21 @@ def align_dim_names(
     e.g. `map_ = [i] -> [o]` with `reference = [x] -> [y]` becomes `[x] -> [o]`
         with map_
 
-    :param map_:        The map whose input is being aligned.
-    :param reference:   The map whose input names are used as reference for aligning `map`.
+    Parameters
+    ----------
+    map_:
+        The map whose input is being aligned.
+    reference:
+        The map whose input names are used as reference for aligning `map`.
+    map_align_dim_type:
+        Dimension tuple in `map_` to align. Defaults to `isl.dim_type.in_`.
+    reference_dim_type:
+        Dimension tuple in `reference` whose names should be copied. Defaults to
+        `map_align_dim_type`.
 
-    :returns:   A version of `map` with aligned input names.
+    Returns
+    -------
+    A version of `map_` with aligned input names.
     """
     if reference_dim_type is None:
         reference_dim_type = map_align_dim_type
@@ -193,14 +208,16 @@ def occupancies_from_mapping(
     """
     Given a Mapping and a Workload, extract the data occupancies in memory.
 
-    :param mapping: The Mapping of data to hardware.
-    :param workload:The Workload occurring on chip.
+    Parameters
+    ----------
+    mapping:
+        The Mapping of data to hardware.
+    workload:
+        The Workload occurring on chip.
 
-    :type mapping:  Mapping
-    :type workload: Workload
-
-    :return:    The occupancies as an analysis of the Workload on Mapping.
-    :rtype:     MappingAnalysisResult
+    Returns
+    -------
+    The occupancies as an analysis of the Workload on Mapping.
     """
     branch_tiling: BranchTiling = tiling_from_mapping(mapping, workload)
     # tiling: [tile_iteration_space] -> [iteration_space]

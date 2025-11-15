@@ -52,11 +52,14 @@ def get_mapping_group_einsums(
     """
     From a mapping, get the group of einsums for a given node.
 
-    :param mapping: The mapping we are getting the grouped einsums for.
-    :type mapping:  Mapping
+    Parameters
+    ----------
+    mapping:
+        The mapping we are getting the grouped einsums for.
 
-    :return:    A dictionary relating a Node to a set of einsums.
-    :rtype:     defaultdict[MappingNode, Set[EinsumName]]
+    Returns
+    -------
+    A dictionary relating a MappingNode to a set of einsums.
     """
     # Each pair is a (current_node, last_non_branch_node)
     dfs_stack: deque[Tuple[MappingNode, MappingNode]] = deque()
@@ -124,14 +127,16 @@ def get_head_among_einsums(
     """
     Gets the provider einsums that only consume data (i.e., sink einsums).
 
-    :param einsum_set:  Set of einsums to consider.
-    :param workload:    The workload context the einsums exist in.
+    Parameters
+    ----------
+    einsum_set:
+        Set of einsums to consider.
+    workload:
+        The workload context the einsums exist in.
 
-    :type einsum_set:   Set[EinsumName]
-    :type workload:     Workload
-
-    :return:    The set of all head einsums.
-    :rtype:     Set[EinsumName]
+    Returns
+    -------
+    The set of all head einsums.
     """
     # Returns set of einsums that are not data producers.
     return {
@@ -153,16 +158,20 @@ def add_new_tile_dim(
     """
     Given a tiling, add a new dimension to the tiling.
 
-    :param old_tiling:  The previous tiling the mapper proposed.
-    :param dim_idx:     The index of the dimension being tiled.
-    :param tile_size:   The size of the tiling on dim_idx.
+    Parameters
+    ----------
+    old_tiling:
+        The previous tiling the mapper proposed.
+    dim_idx:
+        The index of the dimension being tiled.
+    tile_size:
+        The size of the tiling on dim_idx.
+    rank_var:
+        Rank variable name to assign to the new input dimension, if provided.
 
-    :type old_tiling:   Tiling
-    :type dim_idx:      int
-    :type tile_size:    int
-
-    :return:    The new Tiling with tiled dimension at dim_idx.
-    :rtype:     Tiling
+    Returns
+    -------
+    The new Tiling with tiled dimension at dim_idx.
     """
 
     # new_tiling has one extra dimension at the end compared to old_tiling.
@@ -242,22 +251,24 @@ def shared_input_based_tile_shape_inference(
     is because, when tiled, data is multicast so the other einsums being tiled together
     must shared data.
 
-    :param workload:        The workload context the tiling is occuring in.
-    :param tiling_info:     Relation of `EinsumName` and its viable tiling on hardware.
-    :param einsums:         The set of all einsums.
-    :param shared_input_tensor: The singular tensor `einsums` all read from.
-    :param tiled_einsum:    The einsum being tiled.
+    Parameters
+    ----------
+    workload:
+        The workload context the tiling is occurring in.
+    tiling_info:
+        Relation of `EinsumName` and its viable tiling on hardware.
+    einsums:
+        The set of all einsums.
+    shared_input_tensor:
+        The singular tensor `einsums` all read from.
+    tiled_einsum:
+        The einsum being tiled.
 
-    :type workload:     Workload
-    :type tiling_info:  defaultdict[EinsumName, Tiling]
-    :type einsums:      set[EinsumName]
-    :type shared_input_tensor:  TensorName
-    :type tiled_einsum: EinsumName
+    Returns
+    -------
+    None
 
-    :returns: None
-    :rtype: None
-
-    Postconditions:
+    Postconditions
     --------------
     `tiling_info` is updated such that each Tiling contains only compatible tilings
     with `tiled_einsum`.
@@ -300,22 +311,24 @@ def consumer_based_tile_shape_inference(
     `tiled_einsum`. This is because, when tiled, data is multicast so the other
     einsums being tiled together must shared data.
 
-    :param workload:        The workload context the tiling is occuring in.
-    :param tiling_info:     Relation of `EinsumName` and its viable tiling on hardware.
-    :param tensor_to_reuse_level:   A relation between a tensor and the amount of reuse occuring.
-    :param einsums:         The set of all einsums.
-    :param tiled_einsum:    The einsum being tiled.
+    Parameters
+    ----------
+    workload:
+        The workload context the tiling is occurring in.
+    tiling_info:
+        Relation of `EinsumName` and its viable tiling on hardware.
+    tensor_to_reuse_level:
+        A relation between a tensor and the amount of reuse occurring.
+    einsums:
+        The set of all einsums.
+    tiled_einsum:
+        The einsum being tiled.
 
-    :type workload:     Workload
-    :type tiling_info:  defaultdict[EinsumName, Tiling]
-    :type tensor_to_reuse_level:    defaultdict[TensorName, int]
-    :type einsums:      set[EinsumName]
-    :type tiled_einsum: EinsumName
+    Returns
+    -------
+    None
 
-    :returns: None
-    :rtype: None
-
-    Postconditions:
+    Postconditions
     --------------
     `tiling_info` is updated such that each Tiling contains only compatible tilings
     with `tiled_einsum`.
@@ -390,16 +403,18 @@ def detect_shared_input_tensor(
     Given a set of fused einsums on a workload, detect the input tensor that they
     all are dependent on, if it exists.
 
-    :param fused_set:   The set of fused einsums being analyzed.
-    :param workload:    The workload context the einsums exist in.
+    Parameters
+    ----------
+    fused_set:
+        The set of fused einsums being analyzed.
+    workload:
+        The workload context the einsums exist in.
 
-    :type fused_set:    set[EinsumName]
-    :type workload:     Workload
-
-    :return:    The list of tensors shared by the inputs. Because we default to
-                consumer-based analysis if there's more than 1 shared input among
-                the tensors, we only return tuple sizes of {0, 1, 2}.
-    :rtype:     List[EinsumName]
+    Returns
+    -------
+    The list of tensors shared by the inputs. Because we default to consumer-based
+    analysis if there's more than 1 shared input among the tensors, we only return
+    tuple sizes of {0, 1, 2}.
     """
     n_einsums: int = 0
     tensor_read_counts: defaultdict[TensorName, int] = defaultdict(lambda: 0)
@@ -426,14 +441,16 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
     """
     Given a mapping and a workload generates a tiling.
 
-    :param mapping: A mapping of data to hardware.
-    :param workload:The problem being solved.
+    Parameters
+    ----------
+    mapping:
+        A mapping of data to hardware.
+    workload:
+        The problem being solved.
 
-    :type mapping:  Mapping
-    :type workload: Workload
-
-    :return:    BranchTiling associating a node's ID with its tiling.
-    :rtype:     BranchTiling
+    Returns
+    -------
+    BranchTiling associating a node's ID with its tiling.
     """
     result: BranchTiling = BranchTiling()
     # Grabs the head einsums.
@@ -483,9 +500,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
 
         Parameters
         ----------
-        heads: set[EinsumName]
+        heads:
             The heads being fused.
-        fusing_node: MappingNode
+        fusing_node:
             The node node in the mapping at which the fusing is happening.
 
         Preconditions

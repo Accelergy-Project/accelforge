@@ -49,8 +49,20 @@ from .types import (
 
 def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
     """
-    Given a mapping ...
-    TODO: Fill this in
+    Given a mapping and workload, compute the skew relationships for buffers and
+    computes. 
+    TODO: Fill this in with more accurate description.
+
+    Parameters
+    ----------
+    mapping:
+        The mapping being analyzed.
+    workload:
+        The workload being executed.
+
+    Returns
+    -------
+    Skew information for buffer-tensor-einsum and compute-einsum combinations.
     """
     compute_einsum_to_skew: dict[ComputeEinsum, Skew] = defaultdict()
     buffer_tensor_einsum_to_skew: dict[BufferTensorEinsum, Skew] = defaultdict()
@@ -109,10 +121,14 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
         ) -> None:
             """
             Performs necessary modifications to removal_map and removal_mask to
-            accomodate tagging.
+            accommodate tagging.
 
-            :param tag:             The tag to add.
-            :param mask_condition:  Boolean resolution for the removal mask.
+            Parameters
+            ----------
+            tag:
+                The tag to add.
+            mask_condition:
+                Boolean resolution for the removal mask.
 
             Postconditions
             --------------
