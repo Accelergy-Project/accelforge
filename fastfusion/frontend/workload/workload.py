@@ -556,16 +556,6 @@ class Workload(ParsableModel):
             space_name=f"rank_variables",
         )
 
-        kwargs_tensors = {
-            "full_space": all_,
-            "space_name": "tensors",
-            "child_access_name": "rank_variables",
-            "element_to_child_space": element_to_child_space,
-        }
-        kwargs_rank_variables = {
-            "full_space": all_rank_variables,
-            "space_name": "rank_variables",
-        }
         symbol_table = {
             "All": InvertibleSet(instance=all_, **kwargs_tensors),
             "Tensors": InvertibleSet(instance=all_, **kwargs_tensors),
