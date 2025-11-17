@@ -83,6 +83,7 @@ class TaggedMap:  # pylint: disable=too-few-public-methods
 
 class Occupancy(TaggedMap):  # pylint: disable=too-few-public-methods
     """Location of data in [logical?] hardware elements."""
+
     def __init__(self, tags: list[Tag], map_: isl.Map):
         assert len(tags) == map_.dim(isl.dim_type.in_), (
             "Occupancy labels input dims with tags\n"
@@ -99,6 +100,7 @@ class OperationOccupancy(TaggedMap):  # pylint: disable=too-few-public-methods
 
 class Fill(TaggedMap):
     """Spacetime -> fill of a logical buffer"""
+
     def __init__(self, tags: list[Tag], map_: isl.Map):
         assert len(tags) == map_.dim(isl.dim_type.in_), (
             "Fill labels input dims with tags\n"

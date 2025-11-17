@@ -265,9 +265,12 @@ def occupancies_from_mapping(
             print(f"{skew.map_.dim(isl.dim_type.out)}")
         occupancy: isl.Map = aligned_skew.apply_range(
             project_dim_in_after(
-                tiling.apply_range(accesses), skew.map_.dim(isl.dim_type.out)
-            # TODO: fix this unsafe mixing.
-            ).set_tuple_name(isl.dim_type.in_, aligned_skew.get_tuple_name(isl.dim_type.out))
+                tiling.apply_range(accesses),
+                skew.map_.dim(isl.dim_type.out),
+                # TODO: fix this unsafe mixing.
+            ).set_tuple_name(
+                isl.dim_type.in_, aligned_skew.get_tuple_name(isl.dim_type.out)
+            )
         )
 
         occupancies[bte] = Occupancy(skew.tags, occupancy)
@@ -280,9 +283,12 @@ def occupancies_from_mapping(
         if DUMP_ISL_IR:
             print(f"skew.map_ {skew.map_}")
         operation_occupancy: isl.Map = skew.map_.apply_range(
-            project_dim_in_after(tiling, skew.map_.dim(isl.dim_type.out)).set_tuple_name(
+            project_dim_in_after(
+                tiling, skew.map_.dim(isl.dim_type.out)
+            ).set_tuple_name(
                 # TODO: Unify the names at some point...
-                isl.dim_type.in_, skew.map_.get_tuple_name(isl.dim_type.out)
+                isl.dim_type.in_,
+                skew.map_.get_tuple_name(isl.dim_type.out),
             )
         )
         operations_occupancies[ce] = OperationOccupancy(skew.tags, operation_occupancy)

@@ -297,7 +297,7 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int, name: str) -> isl.
         )
         tmp_map = insert_equal_dims_map(tmp_map, 0, 0, shifted_idx)
         map_ = map_.union(tmp_map)
-    
+
     map_ = map_.set_tuple_name(isl.dim_type.in_, name).set_tuple_name(
         isl.dim_type.out, name
     )

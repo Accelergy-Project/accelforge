@@ -4,7 +4,9 @@ analysis.
 """
 
 from fastfusion.model.looptree.reuse.isl.isl_functions import add_dims_preserve_name_map
-from fastfusion.model.looptree.reuse.isl.isl_functions import insert_dims_preserve_name_map
+from fastfusion.model.looptree.reuse.isl.isl_functions import (
+    insert_dims_preserve_name_map,
+)
 from collections import defaultdict, deque
 from typing import List, Tuple, Optional
 
@@ -373,8 +375,9 @@ def consumer_based_tile_shape_inference(
             if tensor in tensor_to_reuse_level:
                 reuse_level: int = tensor_to_reuse_level[tensor]
                 shifter: isl.Map = map_to_prior_coordinate(
-                    tiling.dim(isl.dim_type.in_), reuse_level, 
-                    tiling.get_tuple_name(isl.dim_type.in_)
+                    tiling.dim(isl.dim_type.in_),
+                    reuse_level,
+                    tiling.get_tuple_name(isl.dim_type.in_),
                 )
                 buffered_data: isl.Map = shifter.apply_range(required_data)
                 computed_data = computed_data.subtract(buffered_data).coalesce()
@@ -395,9 +398,8 @@ def consumer_based_tile_shape_inference(
             # TODO: Deal with fusing naming better (perhaps mix the names?)
             tiling_info[producer_einsum] = tiling_info[producer_einsum].intersect(
                 required_operations.set_tuple_name(
-                    isl.dim_type.in_, tiling_info[producer_einsum].get_tuple_name(
-                        isl.dim_type.in_
-                    )
+                    isl.dim_type.in_,
+                    tiling_info[producer_einsum].get_tuple_name(isl.dim_type.in_),
                 )
             )
 
@@ -588,9 +590,11 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                             _get_rank_var_partition(current_node.rank_variable),
                         )
                         # TODO: Figure out if this intersection is correct.
-                        tiling = tiling.intersect_domain(iteration_set.set_tuple_name(
-                            tiling.get_tuple_name(isl.dim_type.in_)
-                        ))
+                        tiling = tiling.intersect_domain(
+                            iteration_set.set_tuple_name(
+                                tiling.get_tuple_name(isl.dim_type.in_)
+                            )
+                        )
                         tiling_info[fusing_node][einsum] = tiling
 
                     current_node = dfs_stack.pop()
@@ -599,7 +603,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     # See current_node is the highest level of Storage to determine reuse level.
                     for tensor in current_node.tensors:
                         # Check second term
-                        if (tensor not in tensor_to_reuse_level):
+                        if tensor not in tensor_to_reuse_level:
                             random_einsum: EinsumName = next(
                                 iter(mapping_groups[fusing_node])
                             )

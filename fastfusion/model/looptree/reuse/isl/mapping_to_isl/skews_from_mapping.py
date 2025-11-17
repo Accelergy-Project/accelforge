@@ -50,7 +50,7 @@ from .types import (
 def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
     """
     Given a mapping and workload, compute the skew relationships for buffers and
-    computes. 
+    computes.
     TODO: Fill this in with more accurate description.
 
     Parameters
@@ -103,11 +103,15 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
         # Generate tags, map, and which dims (and tags) should be removed per buffer.
         tags: List[Tag] = []
         base_space: str = f"{leaf.compute}_spacetime"
-        removal_map: isl.Map = isl.Map.from_multi_aff(
-            isl.MultiAff.identity_on_domain_space(isl.Space.alloc(
-            isl.DEFAULT_CONTEXT, 0, 0, 0).domain())
-        ).set_tuple_name(isl.dim_type.in_, base_space
-        ).set_tuple_name(isl.dim_type.out, base_space)
+        removal_map: isl.Map = (
+            isl.Map.from_multi_aff(
+                isl.MultiAff.identity_on_domain_space(
+                    isl.Space.alloc(isl.DEFAULT_CONTEXT, 0, 0, 0).domain()
+                )
+            )
+            .set_tuple_name(isl.dim_type.in_, base_space)
+            .set_tuple_name(isl.dim_type.out, base_space)
+        )
 
         buffer_storage_past: set[Tuple[ComponentName, TensorName]] = set()
         buffer_fully_complete: set[ComponentName] = set()
