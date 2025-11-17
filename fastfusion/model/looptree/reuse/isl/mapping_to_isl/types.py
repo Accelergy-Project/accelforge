@@ -9,7 +9,7 @@ from abc import ABC
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, List, TypeAlias
+from typing import List, TypeAlias
 
 import islpy as isl
 

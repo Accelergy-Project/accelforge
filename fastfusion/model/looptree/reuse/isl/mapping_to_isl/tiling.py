@@ -3,10 +3,6 @@ File for all the functions that conduct tiling analysis for the overall mapping
 analysis.
 """
 
-from fastfusion.model.looptree.reuse.isl.isl_functions import add_dims_preserve_name_map
-from fastfusion.model.looptree.reuse.isl.isl_functions import (
-    insert_dims_preserve_name_map,
-)
 from collections import defaultdict, deque
 from typing import List, Tuple, Optional
 
@@ -40,6 +36,8 @@ from fastfusion.frontend.workload._isl import (
 )
 from fastfusion.frontend.mapping import TensorName
 from fastfusion.model.looptree.reuse.isl.isl_functions import (
+    add_dims_preserve_name_map,
+    insert_dims_preserve_name_map,
     map_to_prior_coordinate,
 )
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR

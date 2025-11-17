@@ -24,7 +24,6 @@ Relevant Name Changes:
 -   [node]_id -> node (conditional on MappingNode having a valid hashing functor)
 """
 
-import logging
 from collections import defaultdict, deque
 from pprint import pformat
 from typing import List, Optional
@@ -154,9 +153,6 @@ def get_parallelism(mapping: Mapping) -> defaultdict[MappingNode, float]:
                     result[node] = 1
             case _:
                 continue
-                raise ValueError(
-                    f"Cannot compute parallelism behavior for type: {type(node)}"
-                )
 
     return result
 

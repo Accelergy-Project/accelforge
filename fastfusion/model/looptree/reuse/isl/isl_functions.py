@@ -3,7 +3,6 @@ ISL functions that encapsulate more commonly used workflows in looptree for the
 sake of code concision.
 """
 
-import inspect
 import logging
 from typing import List
 

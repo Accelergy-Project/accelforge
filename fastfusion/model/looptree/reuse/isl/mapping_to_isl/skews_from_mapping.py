@@ -258,8 +258,9 @@ def skew_from_path(
     # Make { [i0, i1, ..., iN] -> [0] } where N = len(einsum_name)-1
     iter_space_str = ", ".join(f"i{i}" for i in range(len(all_tags)))
     iter_space = isl.Space(f"{{ [{iter_space_str} ] }}")
-    # TODO: name `iter_space` (e.g., f\"{einsum_name}_path_iters\" to denote the fused path iterations)
-    #       before building projections so downstream maps carry a meaningful tuple label.
+    # TODO: name `iter_space` (e.g., f\"{einsum_name}_path_iters\" to denote the
+    # fused path iterations)  before building projections so downstream maps carry
+    # a meaningful tuple label.
 
     iteration_to_rank_variables = {
         rank_var: isl.PwAff(iter_space.zero_aff_on_domain())
@@ -271,10 +272,9 @@ def skew_from_path(
             iter_to_rank_var = iteration_to_rank_variables[node["rank"]]
             if "tile_shape" in node:
                 raise NotImplementedError()
-            elif "factor" in node:
+            if "factor" in node:
                 raise NotImplementedError()
-            else:
-                raise NotImplementedError()
+            raise NotImplementedError()
         elif node["type"] == "sequential":
             raise NotImplementedError()
         elif node["type"] == "pipeline":
@@ -286,6 +286,7 @@ def skew_from_path(
 
 
 def make_tag_from_node(node):
+    """Given a node of a certain type, make the corresponding tag objects."""
     if node["type"] == "temporal":
         return TemporalTag()
     elif node["type"] == "spatial":
