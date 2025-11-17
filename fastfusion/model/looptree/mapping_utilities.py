@@ -1,17 +1,48 @@
-from fastfusion.frontend.mapping import Compute, Mapping, Pipeline, Sequential
+from typing import Generator, List, Tuple
+
+from fastfusion.frontend.mapping import (
+    Compute,
+    Mapping,
+    MappingNode,
+    Pipeline,
+    Sequential
+)
 from fastfusion.frontend.workload import Workload
 
 
-def get_paths(mapping: Mapping):
-    cur_path = []
-    for node in mapping:
+def get_paths(root: Mapping) -> Generator[Tuple[MappingNode, Compute], None, None]:
+    """
+    Given a MappingNode, get the paths to all all leaves in post-order.
+
+    :param root:    The root of the child exploration.
+
+    :type root:     MappingNode
+
+    :returns:       A generator of all the MappingNodes to a Compute leaf.
+    :rtype:         Generator[List[MappingNode]]
+    """
+    cur_path: List[MappingNode] = []
+    for node in root.nodes:
         cur_path.append(node)
-        if isinstance(node, Pipeline) or isinstance(node, Sequential):
-            for child in node.children:
-                for subpath in get_paths(child):
-                    yield cur_path + subpath
-        elif isinstance(node, Compute):
-            yield cur_path.copy()
+        match node:
+            # Pipelines or sequentials should have their paths expanded.
+            # Mappings naturally get expanded.
+            case Mapping() | Pipeline() | Sequential():
+                for child in node.nodes:
+                    for subpath in get_paths(child):
+                        yield tuple(cur_path) + subpath
+            # Computes are leaves so should get a yield here.
+            case Compute():
+                yield tuple(cur_path)
+            # Not implemented so continue.
+            case _:
+                #TODO: Check this is correct
+                continue
+                raise NotImplementedError(
+                    f"{type(node)} does not have type elucidation.\n"
+                    f"---\n"
+                    f"node={node}"
+                )
 
 
 def get_leaves(mapping: Mapping, is_path):

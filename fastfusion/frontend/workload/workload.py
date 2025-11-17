@@ -1,15 +1,21 @@
-import re
+"""
+All the objects used for a Workload description in FastFusion.
+"""
+
 from itertools import product
+import re
+from typing import Annotated, TypeAlias, Union
 
 import pydot
 
 from fastfusion.util.util import SVGJupyterRender, pydot_graph
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.version import assert_version, __version__
-from typing import Annotated, TypeAlias, Union
+
 from fastfusion.frontend.renames import (
     EinsumName,
     RankVariableName,
@@ -38,6 +44,12 @@ CLIST_OPERATORS = [
 ISL_REGEX = re.compile(
     r"\b(?!(?:" + "|".join(CLIST_OPERATORS) + r")\b)[a-zA-Z#$@][a-zA-Z0-9_]*\b"
 )
+"""
+Pattern[AnyStr@compile] ISL_REGEX: A compiled regex pattern that matches 
+words that are not exactly in CLIST_OPERATORS (case-sensitive), start with a
+letter, `#`, `$`, or `@`, and are followed by zero or more letters, digits, 
+or underscores.
+"""
 
 
 SymbolTable: TypeAlias = dict[str, InvertibleSet]
@@ -351,8 +363,10 @@ class Workload(ParsableModel):
                     raise ValueError(
                         f"TensorName {tensor_accesses.name} has inconsistent ranks. Found "
                         f"{tensor2ranks[tensor_accesses.name]} and {tensor_accesses.ranks}. "
-                        f"TensorName is in Einsums "
-                        f"{', '.join(e.name for e in self.einsums_with_tensor(tensor_accesses.name))}"
+                        "TensorName is in Einsums "
+                        f"{', '.join(
+                            e.name for e in self.einsums_with_tensor(tensor_accesses.name)
+                        )}"
                     )
 
     @property
@@ -528,7 +542,7 @@ class Workload(ParsableModel):
             element_to_child_space[tensor] = InvertibleSet(
                 instance=rank_variables,
                 full_space=all_rank_variables,
-                space_name=f"rank_variables",
+                space_name="rank_variables",
             )
 
         kwargs_tensors = dict(

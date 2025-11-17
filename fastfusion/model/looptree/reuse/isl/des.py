@@ -1,9 +1,11 @@
+"""
+TODO:   Is this file still necessary? It is referenced elsewhere but is no longer
+        the format we are looking for.
+"""
+
 from dataclasses import dataclass, field
 
 import islpy as isl
-
-# import bindings
-
 
 @dataclass
 class IslReuseAnalysisOutput:

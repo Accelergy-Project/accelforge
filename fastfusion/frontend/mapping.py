@@ -6,6 +6,7 @@ in FastFusion.
 from abc import ABC
 import copy
 from dataclasses import dataclass, replace
+import inspect
 import pydot
 
 from typing import (
@@ -277,6 +278,24 @@ class MappingNode(ParsableModel, ABC):
     def _render_node_color(self) -> str:
         return "white"
 
+    def __hash__(self):
+        """
+        Hashing functor to create mappings of nodes to other objects.
+        """
+        return id(self)
+
+    def __eq__(self, other: Any):
+        return self is other
+    
+    def __init_subclass__(cls, **kwargs):
+        # Let Pydantic build the subclass first.
+        super().__init_subclass__(**kwargs)
+        # Read the *raw* attribute without descriptor binding,
+        h = inspect.getattr_static(cls, '__hash__', None)
+        # Replace if unhashable (None) or if it's just BaseModel’s default.
+        if h is None or h is ParsableModel.__hash__:
+            cls.__hash__ = MappingNode.__hash__
+
 
 class TilePattern(ParsableModel):
     stride: ParsesTo[Literal["symbol"] | sympy.Symbol | int | str | None] = "symbol"
@@ -392,7 +411,7 @@ class Iteration(MappingNode):
         x = []
         return f"for {self.rank_variable} {self.tile_pattern}"
 
-    def __eq__(self, other: "Iteration") -> bool:
+    def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, Iteration)
             and self.rank_variable == other.rank_variable
