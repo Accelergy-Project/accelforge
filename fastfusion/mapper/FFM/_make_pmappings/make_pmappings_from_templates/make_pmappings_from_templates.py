@@ -24,7 +24,7 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
 )
 
 from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings.make_tile_shapes import (
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
     make_tile_shapes,
     IMPERFECT,
 )

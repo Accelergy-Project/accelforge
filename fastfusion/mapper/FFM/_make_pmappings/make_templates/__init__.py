@@ -1,1 +1,0 @@
-from .make_templates import get_single_einsum_jobs

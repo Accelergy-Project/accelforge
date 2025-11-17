@@ -41,11 +41,11 @@ import sympy
 import numpy as np
 from numbers import Number
 
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings.symbol_relations import (
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
     SymbolRelations,
 )
 from fastfusion.util.sympy.broadcast_max import Max
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings.run_model import run_model
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import run_model
 
 
 class ComparisonResult(Enum):
@@ -75,10 +75,11 @@ def diff_geq_leq_zero(
 ):
     # Assume ceiling won't affect the sign of the derivative. Changing from positive to
     # zero or negative to zero is OK and does not count as changing the sign.
-    f = f.replace(
-        lambda expr: expr.is_Function and expr.func == sympy.ceiling,
-        lambda expr: expr.args[0],
-    )
+    if isinstance(f, sympy.Expr):
+        f = f.replace(
+            lambda expr: expr.is_Function and expr.func == sympy.ceiling,
+            lambda expr: expr.args[0],
+        )
     return geq_leq_zero(diff(f, s), bounds)
 
 
@@ -120,8 +121,9 @@ def _compare_to_zero(
             lambda expr: expr.is_Function and expr.func == sympy.ceiling,
             lambda expr: expr.args[0],
         )
-
-    fs = list(partition_heaviside(f))
+        fs = list(partition_heaviside(f))
+    else:
+        fs = [f]
 
     if len(fs) > 1:
         return any(_compare_to_zero(f2, bounds, check_lt_zero) for f2 in fs)

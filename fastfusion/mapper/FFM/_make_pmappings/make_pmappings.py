@@ -17,9 +17,9 @@ from fastfusion.frontend.workload._isl import (
 )
 from fastfusion.frontend.workload.workload import EinsumName, TensorName
 
-from fastfusion.mapper.FFM._make_pmappings.make_templates import get_single_einsum_jobs
+from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates import make_pmapping_templates
 from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates import (
     make_pmappings_from_templates,
 )
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
@@ -88,7 +88,7 @@ def get_jobs(
             job_id=uuid.uuid4(),
             fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
         )
-        for j in get_single_einsum_jobs(job):
+        for j in make_pmapping_templates(job):
             jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
 
         return einsum_name, jobs

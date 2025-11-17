@@ -1,0 +1,1 @@
+from .make_pmappings_from_templates import make_pmappings_from_templates

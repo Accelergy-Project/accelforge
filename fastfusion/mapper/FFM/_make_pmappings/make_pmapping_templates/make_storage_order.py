@@ -9,7 +9,7 @@ from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.workload.workload import TensorName, SymbolTable
 from fastfusion.util.parse_expressions import MATH_FUNCS
 
-from fastfusion.mapper.FFM._make_pmappings.make_templates.make_storages import (
+from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_storages import (
     make_storage_choices_all_levels,
 )
 from fastfusion.frontend.workload.workload import EinsumName

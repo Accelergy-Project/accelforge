@@ -22,7 +22,7 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_group.pmapping_group import 
     PmappingDataframe,
     row2pmappings,
 )
-from fastfusion.mapper.FFM._make_pmappings.pmapper_multi_einsum import (
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
     get_rank_variable_bounds_for_all_einsums,
 )
 from fastfusion.accelerated_imports import pd

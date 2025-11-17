@@ -28,14 +28,14 @@ from fastfusion.frontend.workload.workload import (
     RankVariableName,
     Workload,
 )
-from fastfusion.mapper.FFM._make_pmappings.make_templates.make_storage_order import (
+from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
     get_tensor_choices,
 )
 from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
     get_constraints,
 )
-from fastfusion.mapper.FFM._make_pmappings.make_templates.make_loops import (
+from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_loops import (
     insert_temporal_loops,
     insert_spatial_loops,
 )
@@ -390,7 +390,7 @@ def parse_flattened_arch(
 # =================================================================================================
 # Top level
 # =================================================================================================
-def get_single_einsum_jobs(job: Job) -> SameEinsumJobs:
+def make_pmapping_templates(job: Job) -> SameEinsumJobs:
     compute_name = job.flattened_arch[-1].name
 
     job.tensor_to_relevancy = {
