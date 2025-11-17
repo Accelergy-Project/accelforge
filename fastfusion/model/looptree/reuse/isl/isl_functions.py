@@ -50,8 +50,9 @@ def dim_projector_range(space: isl.Space, start: int, n: int) -> isl.Map:
     A `isl.Map` in `space` that projects out dims [start:start+n].
     """
     base_map: isl.Map = isl.Map.identity(isl.Space.map_from_set(space))
-    # TODO: propagate tuple names from `space` onto `base_map` (e.g., `space.get_tuple_name(isl.dim_type.set)`)
-    #       so the projector keeps the original set label on both domain and range.
+    # TODO: propagate tuple names from `space` onto `base_map` (e.g.,
+    # `space.get_tuple_name(isl.dim_type.set)`) so the projector keeps the
+    #  original set label on both domain and range.
     return isl.Map.project_out(base_map, isl.dim_type.in_, start, n)
 
 
@@ -72,8 +73,9 @@ def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
     where `x_i ∉ out => mask[i]`.
     """
     projector: isl.Map = isl.Map.identity(isl.Space.map_from_set(space))
-    # TODO: set tuple names on `projector` using the set name (e.g., `space.get_tuple_name(isl.dim_type.set)`)
-    #       so domain/range remain attributable after masking.
+    # TODO: set tuple names on `projector` using the set name (e.g.,
+    #  `space.get_tuple_name(isl.dim_type.set)`) so domain/range remain
+    # attributable after masking.
 
     for i in range(len(mask) - 1, -1, -1):
         if mask[i]:
