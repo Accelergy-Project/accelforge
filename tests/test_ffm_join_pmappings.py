@@ -3,7 +3,7 @@ import pickle
 import unittest
 
 from fastfusion.frontend import Specification
-from fastfusion.mapper.FFM._make_pmappings.pmapper_multi_einsum import make_pmappings
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings import make_pmappings
 from fastfusion.mapper.FFM._join_pmappings.compatibility_util import (
     join_compatibilities,
     pmappings2untiled_compatibilities,

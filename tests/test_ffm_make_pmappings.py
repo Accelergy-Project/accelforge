@@ -5,7 +5,7 @@ from fastfusion.frontend import Specification, Workload
 
 from fastfusion.mapper import Metrics
 from fastfusion.mapper.FFM import make_pmappings
-from fastfusion.mapper.FFM._make_pmappings.pmapper_multi_einsum import make_pmappings
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings import make_pmappings
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import nameloop2col
 
 from .pmappingcache import make_pmapping_pickle_cache
