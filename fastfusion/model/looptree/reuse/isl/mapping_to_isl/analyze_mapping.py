@@ -24,6 +24,7 @@ Relevant Name Changes:
 -   [node]_id -> node (conditional on MappingNode having a valid hashing functor)
 """
 
+import logging
 from collections import defaultdict, deque
 from pprint import pformat
 from typing import List, Optional
@@ -265,7 +266,8 @@ def occupancies_from_mapping(
         occupancy: isl.Map = aligned_skew.apply_range(
             project_dim_in_after(
                 tiling.apply_range(accesses), skew.map_.dim(isl.dim_type.out)
-            )
+            # TODO: fix this unsafe mixing.
+            ).set_tuple_name(isl.dim_type.in_, aligned_skew.get_tuple_name(isl.dim_type.out))
         )
 
         occupancies[bte] = Occupancy(skew.tags, occupancy)
@@ -275,8 +277,13 @@ def occupancies_from_mapping(
     )
     for ce, skew in skews.ce_unit_to_skew.items():
         tiling: isl.Map = branch_tiling[ce.branch_leaf_node]
+        if DUMP_ISL_IR:
+            print(f"skew.map_ {skew.map_}")
         operation_occupancy: isl.Map = skew.map_.apply_range(
-            project_dim_in_after(tiling, skew.map_.dim(isl.dim_type.out))
+            project_dim_in_after(tiling, skew.map_.dim(isl.dim_type.out)).set_tuple_name(
+                # TODO: Unify the names at some point...
+                isl.dim_type.in_, skew.map_.get_tuple_name(isl.dim_type.out)
+            )
         )
         operations_occupancies[ce] = OperationOccupancy(skew.tags, operation_occupancy)
 

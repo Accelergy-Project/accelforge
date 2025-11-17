@@ -3,6 +3,8 @@ File for all the functions that conduct tiling analysis for the overall mapping
 analysis.
 """
 
+from fastfusion.model.looptree.reuse.isl.isl_functions import add_dims_preserve_name_map
+from fastfusion.model.looptree.reuse.isl.isl_functions import insert_dims_preserve_name_map
 from collections import defaultdict, deque
 from typing import List, Tuple, Optional
 
@@ -175,8 +177,8 @@ def add_new_tile_dim(
     """
 
     # new_tiling has one extra dimension at the end compared to old_tiling.
-    new_tiling = old_tiling.insert_dims(
-        isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), 1
+    new_tiling = insert_dims_preserve_name_map(
+        old_tiling, isl.dim_type.in_, old_tiling.dim(isl.dim_type.in_), 1
     )
     if rank_var:
         new_tiling = new_tiling.set_dim_name(
@@ -371,7 +373,8 @@ def consumer_based_tile_shape_inference(
             if tensor in tensor_to_reuse_level:
                 reuse_level: int = tensor_to_reuse_level[tensor]
                 shifter: isl.Map = map_to_prior_coordinate(
-                    tiling.dim(isl.dim_type.in_), reuse_level
+                    tiling.dim(isl.dim_type.in_), reuse_level, 
+                    tiling.get_tuple_name(isl.dim_type.in_)
                 )
                 buffered_data: isl.Map = shifter.apply_range(required_data)
                 computed_data = computed_data.subtract(buffered_data).coalesce()
@@ -389,8 +392,13 @@ def consumer_based_tile_shape_inference(
             )
 
             # Mutations of the tilings of producer einsums.
+            # TODO: Deal with fusing naming better (perhaps mix the names?)
             tiling_info[producer_einsum] = tiling_info[producer_einsum].intersect(
-                required_operations
+                required_operations.set_tuple_name(
+                    isl.dim_type.in_, tiling_info[producer_einsum].get_tuple_name(
+                        isl.dim_type.in_
+                    )
+                )
             )
 
             queue.append(producer_einsum)
@@ -571,15 +579,18 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                     for einsum in mapping_groups[fusing_node] - {head}:
                         tiling = tiling_info[fusing_node][einsum]
                         # Index variables for the branch.
-                        tiling = tiling.insert_dims(
-                            isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
+                        tiling = insert_dims_preserve_name_map(
+                            tiling, isl.dim_type.in_, tiling.dim(isl.dim_type.in_), 1
                         )
                         tiling = tiling.set_dim_name(
                             isl.dim_type.in_,
                             tiling.dim(isl.dim_type.in_) - 1,
                             _get_rank_var_partition(current_node.rank_variable),
                         )
-                        tiling = tiling.intersect_domain(iteration_set)
+                        # TODO: Figure out if this intersection is correct.
+                        tiling = tiling.intersect_domain(iteration_set.set_tuple_name(
+                            tiling.get_tuple_name(isl.dim_type.in_)
+                        ))
                         tiling_info[fusing_node][einsum] = tiling
 
                     current_node = dfs_stack.pop()
@@ -639,7 +650,9 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         for einsum in group:
                             tiling: Tiling = tiling_info[fusing_node][einsum]
                             # Add dimension that iterates over branches.
-                            new_tiling: Tiling = tiling.add_dims(isl.dim_type.in_, 1)
+                            new_tiling: Tiling = add_dims_preserve_name_map(
+                                tiling, isl.dim_type.in_, 1
+                            )
 
                             tilings[einsum] = new_tiling.fix_input_si(
                                 new_tiling.dim(isl.dim_type.in_) - 1, idx

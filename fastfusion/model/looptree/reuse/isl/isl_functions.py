@@ -83,6 +83,39 @@ def dim_projector_mask(space: isl.Space, mask: List[bool]) -> isl.Map:
     return projector
 
 
+def add_dims_preserve_name_map(
+    map_: isl.Map, dim_type: isl.dim_type, n: int
+) -> isl.Map:
+    """
+    Wrapper of `isl.Map.add_dims` that preserves the space name post
+    addition.
+
+    Parameters
+    ----------
+    map_:
+        The map we're adding into.
+    dim_type:
+        The dimension tuple we're inserting into.
+    n:
+        The number of dimensions to insert.
+
+    Returns
+    -------
+    Dimension-inserted maps with preservation.
+
+    Postcondition
+    -------------
+    The entirety of dependencies with a given space name in the given context
+    we're operating under.
+    """
+    name: str = map_.get_tuple_name(dim_type)
+    map_ = map_.add_dims(dim_type, n)
+    if name is None:
+        logging.warning(f"unnamed space for {map_}", stack_info=True)
+        return map_
+    return map_.set_tuple_name(dim_type, name)
+
+
 def insert_dims_preserve_name_map(
     map_: isl.Map, dim_type: isl.dim_type, pos: int, n: int
 ) -> isl.Map:
@@ -108,7 +141,7 @@ def insert_dims_preserve_name_map(
     Postcondition
     -------------
     The entirety of dependencies with a given space name in the given context
-    we're operating under
+    we're operating under.
     """
     name: str = map_.get_tuple_name(dim_type)
     map_ = map_.insert_dims(dim_type, pos, n)
@@ -192,7 +225,7 @@ def insert_equal_dims_map(map_: isl.Map, in_pos: int, out_pos: int, n: int) -> i
     return map_
 
 
-def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
+def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int, name: str) -> isl.Map:
     """
     Create a map that relates current time index vector to a previous index vector.
     It shifts the coordinate at shifted_idx back by 1.
@@ -206,6 +239,8 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
         The number of input/output dims of the dataspace.
     shifted_idx:
         The coordinate being shifted.
+    name:
+        The name for the domain and range of the shifter.
 
     Returns
     -------
@@ -221,8 +256,6 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
     # Creates the space, map, and local_space the temporal reuse data map will exist
     # in.
     space: isl.Space = isl.Space.alloc(isl.DEFAULT_CONTEXT, 0, n_in_dims, n_in_dims)
-    # TODO: set tuple names on `space` (e.g., "tile_iteration" to denote current vs. prior tile coords)
-    #       before constructing maps so both domain and range reflect the coordinate set being shifted.
     map_: isl.Map = isl.Map.empty(space)
     local_space: isl.LocalSpace = isl.LocalSpace.from_space(space)
 
@@ -262,10 +295,12 @@ def map_to_prior_coordinate(n_in_dims: int, shifted_idx: int) -> isl.Map:
                 n_in_dims - shifted_idx,
             )
         )
-        # TODO: set tuple names on this `tmp_map` (matching the tile-iteration coordinates)
-        #       so the lexicographic predecessor relation is labeled consistently with `map_`.
         tmp_map = insert_equal_dims_map(tmp_map, 0, 0, shifted_idx)
         map_ = map_.union(tmp_map)
+    
+    map_ = map_.set_tuple_name(isl.dim_type.in_, name).set_tuple_name(
+        isl.dim_type.out, name
+    )
 
     return map_
 

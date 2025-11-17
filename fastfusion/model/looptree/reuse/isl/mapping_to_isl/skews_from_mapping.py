@@ -102,11 +102,13 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
 
         # Generate tags, map, and which dims (and tags) should be removed per buffer.
         tags: List[Tag] = []
+        base_space: str = f"{leaf.compute}_spacetime"
         removal_map: isl.Map = isl.Map.from_multi_aff(
-            isl.MultiAff.identity_on_domain_space(
-                isl.Space.alloc(isl.DEFAULT_CONTEXT, 0, 0, 0).domain()
-            )
-        )
+            isl.MultiAff.identity_on_domain_space(isl.Space.alloc(
+            isl.DEFAULT_CONTEXT, 0, 0, 0).domain())
+        ).set_tuple_name(isl.dim_type.in_, base_space
+        ).set_tuple_name(isl.dim_type.out, base_space)
+
         buffer_storage_past: set[Tuple[ComponentName, TensorName]] = set()
         buffer_fully_complete: set[ComponentName] = set()
         buffer_to_dim_removal_mask: defaultdict[
@@ -197,6 +199,11 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
             domain: isl.Set = removal_map.domain()
             projector: isl.Map = dim_projector_mask(domain.get_space(), mask)
             removal_projection: isl.Map = projector.apply_range(removal_map)
+            # Attach tuple names per-buffer so downstream occupancy maps keep the spacetime label.
+            space_name: str = f"{buffer_tensor[0]}_spacetime"
+            removal_projection = removal_projection.set_tuple_name(
+                isl.dim_type.in_, space_name
+            ).set_tuple_name(isl.dim_type.out, space_name)
 
             buffer_tags: List[Tag] = [tag for i, tag in enumerate(tags) if not mask[i]]
 
@@ -247,6 +254,8 @@ def skew_from_path(
     # Make { [i0, i1, ..., iN] -> [0] } where N = len(einsum_name)-1
     iter_space_str = ", ".join(f"i{i}" for i in range(len(all_tags)))
     iter_space = isl.Space(f"{{ [{iter_space_str} ] }}")
+    # TODO: name `iter_space` (e.g., f\"{einsum_name}_path_iters\" to denote the fused path iterations)
+    #       before building projections so downstream maps carry a meaningful tuple label.
 
     iteration_to_rank_variables = {
         rank_var: isl.PwAff(iter_space.zero_aff_on_domain())
