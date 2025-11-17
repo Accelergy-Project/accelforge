@@ -7,12 +7,15 @@ import time
 from fastfusion.accelerated_imports import pd
 from fastfusion.mapper.simanneal.evalmapping import quick_join
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import SIM
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import PmappingGroup
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     TensorReservation,
     Compatibility,
 )
-from fastfusion.mapper.FFM._pmapping_group import MAPPING_COLUMN, PmappingGroup
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+    MAPPING_COLUMN,
+    PmappingDataframe,
+)
 from fastfusion.util import fzs
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 
@@ -24,14 +27,14 @@ class FailedMutation(Exception):
 
 
 class Mapping:
-    def __init__(self, sims: dict[str, list[SIM]]):
-        self.einsum_names = list(sims.keys())
+    def __init__(self, pmapping_groups: dict[str, list[PmappingGroup]]):
+        self.einsum_names = list(pmapping_groups.keys())
         self.einsum2intra_choice = {
             einsum_name: None for einsum_name in self.einsum_names
         }
         self.einsum2tiling = {}
-        for einsum_name, sim_list in sims.items():
-            tensor_names = sim_list[0].tensor_names
+        for einsum_name, pm_group_list in pmapping_groups.items():
+            tensor_names = pm_group_list[0].tensor_names
             tensors = fzs(TensorReservation(t, 0, 0, 0) for t in tensor_names)
             self.set_einsum2tiling(einsum_name, Compatibility(tuple(), tensors))
 
@@ -326,9 +329,9 @@ class Mapping:
                     sim.mappings.data
                 )
                 new_sims[einsum_name] = [
-                    SIM(
+                    PmappingGroup(
                         compatibility=sim.compatibility,
-                        mappings=PmappingGroup(
+                        mappings=PmappingDataframe(
                             sim.mappings.data.iloc[
                                 mapping_index : mapping_index + 1
                             ].copy()
@@ -393,13 +396,13 @@ class Mapping:
 
     @staticmethod
     def create_random_mapping(mapspace_globals: MapspaceGlobals):
-        mapping = Mapping(mapspace_globals.sims)
+        mapping = Mapping(mapspace_globals.pmapping_groups)
         prev_compatibility: Compatibility = None
         einsum_names = list(mapping.einsum2tiling.keys())
         for i, einsum_name in enumerate(einsum_names):
-            sim_list = mapspace_globals.sims[einsum_name]
+            pm_group_list = mapspace_globals.pmapping_groups[einsum_name]
             if prev_compatibility is None:
-                sim = random.choice(sim_list)
+                sim = random.choice(pm_group_list)
                 mapping.set_einsum2tiling(einsum_name, sim.compatibility)
                 if len(einsum_names) == 1:
                     break

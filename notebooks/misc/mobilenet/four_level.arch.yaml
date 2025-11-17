@@ -46,7 +46,7 @@ arch:
 
   - !Memory
     name: LocalBuffer
-    component_class: SRAM 
+    component_class: SRAM
     spatial: [{name: X, fanout: 4}]
     attributes:
       size: 1024*1024*4*8 # 4MB

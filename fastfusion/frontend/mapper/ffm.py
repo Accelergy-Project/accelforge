@@ -1,4 +1,4 @@
-from typing import Any, Annotated
+from typing import Any, Annotated, Literal
 
 from fastfusion.frontend.mapper.metrics import Metrics
 from fastfusion.util.basetypes import ParsableModel
@@ -53,8 +53,17 @@ class FFM(ParsableModel):
     """ The maximum time limit per pmapping template. """
 
     max_pmapping_templates_per_einsum: float | int = float("inf")
-    """ 
+    """
     The maximum number of pmapping templates per Einsum. Once this many templates are
     generated, the mapper will stop generating more. This is useful for debugging (why
     are so many templates being generated?).
     """
+
+    _count_option_for_mapsapce_size_evaluation: tuple[
+        Literal[
+            "redundant_loop_orders",
+            "non_helpful_loops_for_loop_orders",
+            "non_helpful_tile_shapes",
+            "redundant_dataplacements",
+        ]
+    ] = ()

@@ -7,15 +7,15 @@
         -   type: Spatial
             spatial_dim: 1
             target: 0
-    dist_func: &2d_manhattan | 
+    dist_func: &2d_manhattan |
         {
-            [noc[xd, yd] -> noc[xs, ys]] -> hops[(xd - xs) + (yd - ys)] : 
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[(xd - xs) + (yd - ys)] :
                 xd >= xs and yd >= ys;
-            [noc[xd, yd] -> noc[xs, ys]] -> hops[-(xd - xs) + -(yd - ys)] : 
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[-(xd - xs) + -(yd - ys)] :
                 xd < xs and yd < ys;
-            [noc[xd, yd] -> noc[xs, ys]] -> hops[-(xd - xs) + (yd - ys)] : 
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[-(xd - xs) + (yd - ys)] :
                 xd < xs and yd >= ys;
-            [noc[xd, yd] -> noc[xs, ys]] -> hops[(xd - xs) + -(yd - ys)] : 
+            [noc[xd, yd] -> noc[xs, ys]] -> hops[(xd - xs) + -(yd - ys)] :
                 xd >= xs and yd < ys
         }
     expected: &equivalent_class_1
@@ -52,16 +52,16 @@
 # Edge to Src
 -   occ: &1x1_edge |
         {
-            noc[tm, tn, xs, ys] -> A[m, k] : 
-                0 <= tm < 1 and 0 <= tn < 1 and 
-                xs=0 and ys=0 and 
+            noc[tm, tn, xs, ys] -> A[m, k] :
+                0 <= tm < 1 and 0 <= tn < 1 and
+                xs=0 and ys=0 and
                 0 <= m < 1 and 0 <= k < 1
         }
     fill: |
-        { 
-            noc[tm, tn, xd, yd] -> A[m, k] : 
-                0 <= tm < 1 and 0 <= tn < 1 and tn = 0 and 
-                0 <= xd < 1 and 0 <= yd < 1 and 
+        {
+            noc[tm, tn, xd, yd] -> A[m, k] :
+                0 <= tm < 1 and 0 <= tn < 1 and tn = 0 and
+                0 <= xd < 1 and 0 <= yd < 1 and
                 m = (1 * tm) + xd and 0 <= k < 1
         }
     dims: &2t-dim_2s-dim
@@ -73,15 +73,15 @@
         - type: Spatial
           spatial_dim: 1
           target: 0
-    dist_func: &2t-dim_2s-dim_manhattan | 
+    dist_func: &2t-dim_2s-dim_manhattan |
         {
-            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[(xd - xs) + (yd - ys)] : 
+            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[(xd - xs) + (yd - ys)] :
                 xd >= xs and yd >= ys;
-            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[-(xd - xs) + -(yd - ys)] : 
+            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[-(xd - xs) + -(yd - ys)] :
                 xd < xs and yd < ys;
-            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[-(xd - xs) + (yd - ys)] : 
+            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[-(xd - xs) + (yd - ys)] :
                 xd < xs and yd >= ys;
-            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[(xd - xs) + -(yd - ys)] : 
+            [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[(xd - xs) + -(yd - ys)] :
                 xd >= xs and yd < ys
         }
     expected:
@@ -93,15 +93,15 @@
 # Src to Dst
 -   occ: |
         {
-            noc[tm, tn, tk, xs, ys] -> A[m, k] : 
-                0 <= tm < 1 and 0 <= tn < 1 and 0 <= tk < 1 and 
-                0 <= xs < 1 and 0 <= ys < 1 and 
+            noc[tm, tn, tk, xs, ys] -> A[m, k] :
+                0 <= tm < 1 and 0 <= tn < 1 and 0 <= tk < 1 and
+                0 <= xs < 1 and 0 <= ys < 1 and
                 m= (1 * tm) + xs and 0 <= k < 1
         }
     fill: &1x1_fill |
         {
-            noc[tm, tn, tk, xd, yd] -> A[m, k] : 
-                0 <= tm < 1 and 0 <= tn < 1 and 0 <= tk < 1 and 
+            noc[tm, tn, tk, xd, yd] -> A[m, k] :
+                0 <= tm < 1 and 0 <= tn < 1 and 0 <= tk < 1 and
                 0 <= xd < 1 and 0 <= yd < 1 and
                 m= (1 * tm) + xd and k=tk
         }
@@ -115,15 +115,15 @@
         - type: Spatial
           spatial_dim: 1
           target: 0
-    dist_func: &3t-dim_2s-dim_manhattan | 
+    dist_func: &3t-dim_2s-dim_manhattan |
         {
-            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[(xd - xs) + (yd - ys)] : 
+            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[(xd - xs) + (yd - ys)] :
                 xd >= xs and yd >= ys;
-            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[-(xd - xs) + -(yd - ys)] : 
+            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[-(xd - xs) + -(yd - ys)] :
                 xd < xs and yd < ys;
-            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[-(xd - xs) + (yd - ys)] : 
+            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[-(xd - xs) + (yd - ys)] :
                 xd < xs and yd >= ys;
-            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[(xd - xs) + -(yd - ys)] : 
+            [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[(xd - xs) + -(yd - ys)] :
                 xd >= xs and yd < ys
         }
     expected:
@@ -137,16 +137,16 @@
 # Edge to Src
 -   occ: &8x8_edge |
         {
-            noc[tm, tn, xs, ys] -> A[m, k] : 
-                0 <= tm < 8 and 0 <= tn < 8 and 
-                xs=0 and ys=0 and 
+            noc[tm, tn, xs, ys] -> A[m, k] :
+                0 <= tm < 8 and 0 <= tn < 8 and
+                xs=0 and ys=0 and
                 0 <= m < 64 and 0 <= k < 64
         }
     fill: |
         {
-            noc[tm, tn, xd, yd] -> A[m, k] : 
-                0 <= tm < 8 and 0 <= tn < 8 and tn = 0 and 
-                0 <= xd < 8 and 0 <= yd < 8 and 
+            noc[tm, tn, xd, yd] -> A[m, k] :
+                0 <= tm < 8 and 0 <= tn < 8 and tn = 0 and
+                0 <= xd < 8 and 0 <= yd < 8 and
                 m = (8 * tm) + xd and 0 <= k < 64
         }
     dims: *2t-dim_2s-dim
@@ -160,17 +160,17 @@
 # Src to Dst
 -   occ: |
         {
-            noc[tm, tn, tk, xs, ys] -> A[m, k] : 
-                0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and 
-                0 <= xs < 8 and 0 <= ys < 8  and 
+            noc[tm, tn, tk, xs, ys] -> A[m, k] :
+                0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and
+                0 <= xs < 8 and 0 <= ys < 8  and
                 m = (8 * tm) + xs and 0 <= k < 64
         }
     fill: &8x8_pe |
         {
-            noc[tm, tn, tk, xd, yd] -> A[m, k] : 
-                0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and 
+            noc[tm, tn, tk, xd, yd] -> A[m, k] :
+                0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and
                 0 <= xd < 8 and 0 <= yd < 8 and
-                0 <= m < 64 and m = (8 * tm) + xd and 
+                0 <= m < 64 and m = (8 * tm) + xd and
                 0 <= k < 64 and k=tk
         }
     dims: *3t-dim_2s-dim
@@ -186,10 +186,10 @@
 -   occ: *8x8_edge
     fill: |
         {
-            noc[tm, tn, xd, yd] -> A[m, k] : 
-                0 <= tm < 8 and tm = 0 and 0 <= tn < 8 and tn = 0 and 
-                0 <= xd < 8 and 0 <= yd < 8 and 
-                0 <= m < 64 and m = (8 * tm) + xd and 
+            noc[tm, tn, xd, yd] -> A[m, k] :
+                0 <= tm < 8 and tm = 0 and 0 <= tn < 8 and tn = 0 and
+                0 <= xd < 8 and 0 <= yd < 8 and
+                0 <= m < 64 and m = (8 * tm) + xd and
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     dims: *2t-dim_2s-dim
@@ -203,15 +203,15 @@
 # Src to Dst, only 1 time step.
 -   occ: |
         {
-            noc[tm, tn, tk, xd, yd] -> A[m, k] : 
+            noc[tm, tn, tk, xd, yd] -> A[m, k] :
                 0 <= tm < 8 and tm = 0 and 0 <= tn < 8 and tn = 0 and 0 <= tk < 64 and
-                0 <= xd < 8 and 0 <= yd < 8 and 
-                0 <= m < 64 and m = (8 * tm) + xd and 
+                0 <= xd < 8 and 0 <= yd < 8 and
+                0 <= m < 64 and m = (8 * tm) + xd and
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     fill: |
         {
-            noc[tm, tn, tk, xd, yd] -> A[m, k] : 
+            noc[tm, tn, tk, xd, yd] -> A[m, k] :
                 0 <= tm < 8 and tm = 0 and 0 <= tn < 8 and tn = 0 and 0 <= tk < 64 and tk = 0 and
                 0 <= xd < 8 and 0 <= yd < 8 and
                 m = (8 * tm) + xd and k=tk
@@ -230,10 +230,10 @@
 -   occ: *8x8_edge
     fill: |
         {
-            noc[tm, tn, xd, yd] -> A[m, k] : 
-                0 <= tm < 8 and 0 <= tn < 8 and tn = 0 and 
-                0 <= xd < 8 and xd = 0 and 0 <= yd < 8 and 
-                0 <= m < 64 and m = (8 * tm) + xd and 
+            noc[tm, tn, xd, yd] -> A[m, k] :
+                0 <= tm < 8 and 0 <= tn < 8 and tn = 0 and
+                0 <= xd < 8 and xd = 0 and 0 <= yd < 8 and
+                0 <= m < 64 and m = (8 * tm) + xd and
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     dims: *2t-dim_2s-dim
@@ -247,16 +247,16 @@
 # Src to Dst, only 1 spatial dimension.
 -   occ: |
         {
-            noc[tm, tn, tk, xd, yd] -> A[m, k] : 
+            noc[tm, tn, tk, xd, yd] -> A[m, k] :
                 0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and
-                0 <= xd < 8 and xd = 0 and 0 <= yd < 8 and 
-                0 <= m < 64 and m = (8 * tm) + xd and 
+                0 <= xd < 8 and xd = 0 and 0 <= yd < 8 and
+                0 <= m < 64 and m = (8 * tm) + xd and
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     fill: |
         {
-            noc[tm, tn, tk, xd, yd] -> A[m, k] : 
-                0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and 
+            noc[tm, tn, tk, xd, yd] -> A[m, k] :
+                0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and
                 0 <= xd < 8 and xd = 0 and 0 <= yd < 8 and
                 m = (8 * tm) + xd and k=tk
         }
@@ -273,10 +273,10 @@
 -   occ: *8x8_edge
     fill: |
         {
-            noc[tm, tn, xd, yd] -> A[m, k] : 
-                0 <= tm < 8 and 0 <= tn < 8 and tn = 0 and 
-                0 <= xd < 8 and 0 <= yd < 8 and 
-                0 <= m < 64 and m = (8 * tm) + xd and 
+            noc[tm, tn, xd, yd] -> A[m, k] :
+                0 <= tm < 8 and 0 <= tn < 8 and tn = 0 and
+                0 <= xd < 8 and 0 <= yd < 8 and
+                0 <= m < 64 and m = (8 * tm) + xd and
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     dims: *2t-dim_2s-dim
@@ -290,10 +290,10 @@
 # Src to Dst, full chip.
 -   occ: |
         {
-            noc[tm, tn, tk, xd, yd] -> A[m, k] : 
+            noc[tm, tn, tk, xd, yd] -> A[m, k] :
                 0 <= tm < 8 and 0 <= tn < 8 and 0 <= tk < 64 and
-                0 <= xd < 8 and 0 <= yd < 8 and 
-                0 <= m < 64 and m = (8 * tm) + xd and 
+                0 <= xd < 8 and 0 <= yd < 8 and
+                0 <= m < 64 and m = (8 * tm) + xd and
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     fill: *8x8_pe
@@ -321,9 +321,9 @@
 #         latency: 14
 #         total_hops: 5632
 #         multicast_hops: null
-# -   occ: | 
-#         { noc[xs, ys] -> data[d0, d1] : 
-#             0 <= d0 < 3 and 0 <= d1 < 3 and 
+# -   occ: |
+#         { noc[xs, ys] -> data[d0, d1] :
+#             0 <= d0 < 3 and 0 <= d1 < 3 and
 #             0 <= xs < 9 and 0 <= ys < 9 and xs % 3 = 1 and ys % 3 = 1
 #         }
 #     fill: "{ noc[xd, yd] -> data[d0, d1] : d0 = xd % 3 and d1 = yd % 3 and 0 <= xd < 9 and 0 <= yd < 9 }"
@@ -335,8 +335,8 @@
 #         multicast_hops: null
 # -   occ: "{ noc[xs, ys] -> data[d0, d1] : d0 = xs % 3 and d1 = ys % 3 and 0 <= xs < 9 and 0 <= ys < 9 }"
 #     fill: |
-#         { noc[xd, yd] -> data[d0, d1] : 
-#             0 <= d0 < 3 and 0 <= d1 < 3 and 
+#         { noc[xd, yd] -> data[d0, d1] :
+#             0 <= d0 < 3 and 0 <= d1 < 3 and
 #             0 <= xd < 9 and 0 <= yd < 9 and xd % 3 = 1 and yd % 3 = 1
 #         }
 #     dims: *2d_spatial
@@ -359,13 +359,13 @@
 #         latency: 0
 #         total_hops: 0
 # -   occ: |
-#         { [xs, ys, z1s, z2s] -> [d0, d1, d2, d3] : 
-#             d0 = xs and d1 = ys and d2 = z1s and d3 = z2s and 
+#         { [xs, ys, z1s, z2s] -> [d0, d1, d2, d3] :
+#             d0 = xs and d1 = ys and d2 = z1s and d3 = z2s and
 #             0 <= xs < 8 and 0 <= ys < 8 and 0 <= z1s < 8 and 0 <= z2s < 8
 #         }
 #     fill: |
 #         { [xd, yd, z1d, z2d] -> [d0, d1, d2, d3] :
-#             0 <= d0 < 8 and 0 <= d1 < 8 and 0 <= d2 < 8 and 0 <= d3 < 8 and 
+#             0 <= d0 < 8 and 0 <= d1 < 8 and 0 <= d2 < 8 and 0 <= d3 < 8 and
 #             xd=0 and yd=0 and z1d=0 and z2d=0
 #         }
 #     dims: &4d_spatial
@@ -383,72 +383,72 @@
 #             - 0
 #     dist_func: &4d_manhattan |
 #         {
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + (yd - ys) + (z1d - z1s) + (z2d - z2s)] : 
-#                 (xd >= xs) and (yd >= ys) and (z1d >= z1s) and (z2d >= z2s); 
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + (yd - ys) + (z1d - z1s) + (z2d - z2s)] :
+#                 (xd >= xs) and (yd >= ys) and (z1d >= z1s) and (z2d >= z2s);
 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + (yd - ys) + (z1d - z1s) + (z2d - z2s)] : 
-#                 (xd < xs) and (yd >= ys) and (z1d >= z1s) and (z2d >= z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + -(yd - ys) + (z1d - z1s) + (z2d - z2s)] : 
-#                 (xd < xs) and (yd < ys) and (z1d >= z1s) and (z2d >= z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + -(yd - ys) + -(z1d - z1s) + (z2d - z2s)] : 
-#                 (xd < xs) and (yd < ys) and (z1d < z1s) and (z2d >= z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + -(yd - ys) + -(z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd < xs) and (yd < ys) and (z1d < z1s) and (z2d < z2s); 
-            
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + -(yd - ys) + (z1d - z1s) + (z2d - z2s)] : 
-#                 (xd >= xs) and (yd < ys) and (z1d >= z1s) and (z2d >= z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + -(yd - ys) + -(z1d - z1s) + (z2d - z2s)] : 
-#                 (xd >= xs) and (yd < ys) and (z1d < z1s) and (z2d >= z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + -(yd - ys) + -(z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd >= xs) and (yd < ys) and (z1d < z1s) and (z2d < z2s); 
-            
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + (yd - ys) + -(z1d - z1s) + (z2d - z2s)] : 
-#                 (xd >= xs) and (yd >= ys) and (z1d < z1s) and (z2d >= z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + (yd - ys) + -(z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd >= xs) and (yd >= ys) and (z1d < z1s) and (z2d < z2s); 
-            
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + (yd - ys) + (z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd >= xs) and (yd >= ys) and (z1d >= z1s) and (z2d < z2s); 
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + (yd - ys) + (z1d - z1s) + (z2d - z2s)] :
+#                 (xd < xs) and (yd >= ys) and (z1d >= z1s) and (z2d >= z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + -(yd - ys) + (z1d - z1s) + (z2d - z2s)] :
+#                 (xd < xs) and (yd < ys) and (z1d >= z1s) and (z2d >= z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + -(yd - ys) + -(z1d - z1s) + (z2d - z2s)] :
+#                 (xd < xs) and (yd < ys) and (z1d < z1s) and (z2d >= z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + -(yd - ys) + -(z1d - z1s) + -(z2d - z2s)] :
+#                 (xd < xs) and (yd < ys) and (z1d < z1s) and (z2d < z2s);
 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + (yd - ys) + -(z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd < xs) and (yd >= ys) and (z1d < z1s) and (z2d < z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + -(yd - ys) + (z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd < xs) and (yd < ys) and (z1d >= z1s) and (z2d < z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + (yd - ys) + (z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd < xs) and (yd >= ys) and (z1d >= z1s) and (z2d < z2s); 
-            
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [-(xd - xs) + (yd - ys) + -(z1d - z1s) + (z2d - z2s)] : 
-#                 (xd < xs) and (yd >= ys) and (z1d < z1s) and (z2d >= z2s); 
-#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] -> 
-#             [(xd - xs) + -(yd - ys) + (z1d - z1s) + -(z2d - z2s)] : 
-#                 (xd >= xs) and (yd < ys) and (z1d >= z1s) and (z2d < z2s) 
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + -(yd - ys) + (z1d - z1s) + (z2d - z2s)] :
+#                 (xd >= xs) and (yd < ys) and (z1d >= z1s) and (z2d >= z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + -(yd - ys) + -(z1d - z1s) + (z2d - z2s)] :
+#                 (xd >= xs) and (yd < ys) and (z1d < z1s) and (z2d >= z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + -(yd - ys) + -(z1d - z1s) + -(z2d - z2s)] :
+#                 (xd >= xs) and (yd < ys) and (z1d < z1s) and (z2d < z2s);
+
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + (yd - ys) + -(z1d - z1s) + (z2d - z2s)] :
+#                 (xd >= xs) and (yd >= ys) and (z1d < z1s) and (z2d >= z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + (yd - ys) + -(z1d - z1s) + -(z2d - z2s)] :
+#                 (xd >= xs) and (yd >= ys) and (z1d < z1s) and (z2d < z2s);
+
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + (yd - ys) + (z1d - z1s) + -(z2d - z2s)] :
+#                 (xd >= xs) and (yd >= ys) and (z1d >= z1s) and (z2d < z2s);
+
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + (yd - ys) + -(z1d - z1s) + -(z2d - z2s)] :
+#                 (xd < xs) and (yd >= ys) and (z1d < z1s) and (z2d < z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + -(yd - ys) + (z1d - z1s) + -(z2d - z2s)] :
+#                 (xd < xs) and (yd < ys) and (z1d >= z1s) and (z2d < z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + (yd - ys) + (z1d - z1s) + -(z2d - z2s)] :
+#                 (xd < xs) and (yd >= ys) and (z1d >= z1s) and (z2d < z2s);
+
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [-(xd - xs) + (yd - ys) + -(z1d - z1s) + (z2d - z2s)] :
+#                 (xd < xs) and (yd >= ys) and (z1d < z1s) and (z2d >= z2s);
+#             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
+#             [(xd - xs) + -(yd - ys) + (z1d - z1s) + -(z2d - z2s)] :
+#                 (xd >= xs) and (yd < ys) and (z1d >= z1s) and (z2d < z2s)
 #         }
 #     expected:
 #         latency: 28
 #         total_hops: null
 # -   occ: |
 #         { [xs, ys, z1s, z2s] -> [d0, d1, d2, d3] :
-#             0 <= d0 < 8 and 0 <= d1 < 8 and 0 <= d2 < 8 and 0 <= d3 < 8 and 
+#             0 <= d0 < 8 and 0 <= d1 < 8 and 0 <= d2 < 8 and 0 <= d3 < 8 and
 #             xs=0 and ys=0 and z1s=0 and z2s=0
 #         }
 #     fill: |
-#         { [xd, yd, z1d, z2d] -> [d0, d1, d2, d3] : 
-#             d0 = xd and d1 = yd and d2 = z1d and d3 = z2d and 
+#         { [xd, yd, z1d, z2d] -> [d0, d1, d2, d3] :
+#             d0 = xd and d1 = yd and d2 = z1d and d3 = z2d and
 #             0 <= xd < 8 and 0 <= yd < 8 and 0 <= z1d < 8 and 0 <= z2d < 8
 #         }
 #     dims: *4d_spatial
@@ -459,10 +459,10 @@
 # -   occ: "{ [xs] -> [d0] : 0 <= d0 < 8 and xs = 0 }"
 #     fill: "{ [xd] -> [d0] : d0 = xd and 0 <= xd < 8 }"
 #     dist_func: &ring_dist_size_8 |
-#         { 
-#             [[xd] -> [xs]] -> [(xd-xs) % 8] : 
+#         {
+#             [[xd] -> [xs]] -> [(xd-xs) % 8] :
 #                 (xd-xs)%8 <= (xs-xd)%8;
-#             [[xd] -> [xs]] -> [(xs-xd) % 8] : 
+#             [[xd] -> [xs]] -> [(xs-xd) % 8] :
 #                 (xd-xs)%8 > (xs-xd)%8
 #         }
 #     expected:

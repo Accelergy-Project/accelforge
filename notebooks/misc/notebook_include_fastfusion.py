@@ -6,7 +6,7 @@ import time
 logging.basicConfig(level=logging.WARN)
 
 from fastfusion.accelerated_imports import np
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM, TensorReservation
+from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, TensorReservation
 from tests.util import TEST_TMP_DIR
 
 import logging
@@ -17,7 +17,7 @@ from bindings.config import Config
 import pickle
 
 from fastfusion.mapper.simanneal.simanneal import mapper
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_sims
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_pmappings
 from fastfusion.visualization.ski_slope import plot_ski_slope
 from fastfusion.mapper.simanneal.process_results import Metrics
 from pytimeloop.frontend.v4fused import Specification
@@ -52,7 +52,7 @@ class EvaluationsScoreTracker():
         self.print_stopped_text = False
         self.n_mappings = {}
         self.runtime = {}
-    
+
     def add_evaluation(self, n_evaluations: int, best_score: float):
         self.evaluations += n_evaluations * self._scale_by
         self.score = min(self.score, best_score)
@@ -60,7 +60,7 @@ class EvaluationsScoreTracker():
         if len(self.history) > 2 and self.history[-2][1] == self.score:
             self.history.pop(-1)
         self.history.append((self.evaluations, self.score))
-        
+
         cur_time = time.time()
         if self.prev_print_time is None or cur_time - self.prev_print_time > self.print_period:
             self.prev_print_time = cur_time
@@ -79,16 +79,16 @@ class EvaluationsScoreTracker():
                 self.print_stopped_text = True
             return True
         return False
-    
+
     def multiply_scale_by(self, scale_by: float):
         self._scale_by *= scale_by
-        
+
     def __repr__(self):
         return f"Evaluations: {self.evaluations}, Score: {self.score}"
-    
+
     def __str__(self):
         return f"Evaluations: {self.evaluations}, Score: {self.score}"
-    
+
     def clean_history(self):
         keep_indices = [0]
         for i in range(1, len(self.history) - 1):
@@ -96,7 +96,7 @@ class EvaluationsScoreTracker():
                 keep_indices.append(i)
         keep_indices.append(len(self.history)-1)
         self.history = [self.history[i] for i in keep_indices]
-    
+
     def merge_with(self, other: "EvaluationsScoreTracker"):
         self.score = min(self.score, other.score)
         self.evaluations += other.evaluations
@@ -123,16 +123,16 @@ class EvaluationsScoreTracker():
                 j += 1
         self.history = history
         self.clean_history()
-            
-    def increase_all_evaluations(self, n_evaluations: int):            
+
+    def increase_all_evaluations(self, n_evaluations: int):
         self.evaluations += n_evaluations
         self.history = [(e + n_evaluations, s) for e, s in self.history]
 
 class Experiment:
-    def __init__(self, 
-                 name: str, 
-                 workload_fname: str, 
-                 prune_intra: bool = True, 
+    def __init__(self,
+                 name: str,
+                 workload_fname: str,
+                 prune_intra: bool = True,
                  taggers: tuple[callable] = tuple(),
                  dataflow: str = None,
                  fuse: bool = True,
@@ -191,7 +191,7 @@ class Experiment:
     @property
     def inter_results_file(self):
         return get_results_dir(self.workload_name) / f"{self.full_name} {self.name}.inter.pkl"
-    
+
     def get_pkl_attributes_intra(self):
         return ["intra_result", "equiv_ranks", "einsum2ranks", "bindings", "max_fanout", "max_capacity", "n_mappings_intra", "intra_runtime"]
 
@@ -219,7 +219,7 @@ class Experiment:
 
     @property
     def total_mappings_from_intra(self):
-        return sum(len(s.mappings.data) for sims in self.intra_result.values() for s in sims)
+        return sum(len(s.mappings.data) for pmapping_groups in self.intra_result.values() for s in pmapping_groups)
 
     def run_intra(self, tag=True, prune=True, dataflow=None):
         config_str = self.workload_config + "\n" + self.arch_config + "\n"
@@ -300,50 +300,50 @@ class Experiment:
 
 
 def clear_tags(e):
-    for sims in e.intra_result.values():
-        for s in sims:
+    for pmapping_groups in e.intra_result.values():
+        for s in pmapping_groups:
             s.set_tags()
 
 
 def filter_first_mapping(e):
     e.intra_result.pop(next(iter(e.intra_result)))
-    for k, sims in e.intra_result.items():
+    for k, pmapping_groups in e.intra_result.items():
         e.intra_result[k] = [
             s
-            for s in sims
+            for s in pmapping_groups
             if not s.compatibility.has_tensor(TensorReservation("I_I_to_Q_K_V", "*", 1, "*"))
         ]
 
 
 def filter_tensors(e, tensors_filter):
     new_intra = {}
-    for k, sims in e.intra_result.items():
-        new_intra[k] = SIM.filter_by_tensors(sims, tensors_filter)
+    for k, pmapping_groups in e.intra_result.items():
+        new_intra[k] = PmappingGroup.filter_by_tensors(pmapping_groups, tensors_filter)
         if not new_intra[k]:
             raise ValueError(f"No mappings for {k} with memory filter {tensors_filter}")
     e.intra_result = new_intra
-    
+
 def filter_layernorm(e):
-    for k, sims in e.intra_result.items():
-        e.intra_result[k] = [s for s in sims if "LAYERNORM_INVALID" not in s.compatibility.tags]
+    for k, pmapping_groups in e.intra_result.items():
+        e.intra_result[k] = [s for s in pmapping_groups if "LAYERNORM_INVALID" not in s.compatibility.tags]
         for s in e.intra_result[k]:
             s.set_tags(*(t for t in s.compatibility.tags if "LAYERNORM" not in t))
 
 
 def tileflow(e):
     filter_layernorm(e)
-    for k, sims in e.intra_result.items():
+    for k, pmapping_groups in e.intra_result.items():
         # print(f"Mappings for Einsum {k}")
-        e.intra_result[k] = [s for s in sims if "TILEFLOW_VALID" in s.compatibility.tags]
+        e.intra_result[k] = [s for s in pmapping_groups if "TILEFLOW_VALID" in s.compatibility.tags]
         for s in e.intra_result[k]:
             s.set_tags(*(t for t in s.compatibility.tags if "LOOPS_ABOVE_GLB" in t))
             # print(f"\t{s.compatibility}")
 
 def looptree(e):
     filter_layernorm(e)
-    for k, sims in e.intra_result.items():
+    for k, pmapping_groups in e.intra_result.items():
         # print(f"Mappings for Einsum {k}")
-        e.intra_result[k] = [s for s in sims if "LOOPTREE_VALID" in s.compatibility.tags]
+        e.intra_result[k] = [s for s in pmapping_groups if "LOOPTREE_VALID" in s.compatibility.tags]
         for s in e.intra_result[k]:
             s.set_tags(*(t for t in s.compatibility.tags if "FUSED_LOOPS" in t))
             # print(f"\t{s.compatibility}")
@@ -370,8 +370,8 @@ def fastfusion_full(e):
 def unfused(e):
     filter_layernorm(e)
     e.intra_result = {
-        k: SIM.filter_by_tensors(sims, {TensorReservation("*", "*", 0, "*")})
-        for k, sims in e.intra_result.items()
+        k: PmappingGroup.filter_by_tensors(pmapping_groups, {TensorReservation("*", "*", 0, "*")})
+        for k, pmapping_groups in e.intra_result.items()
     }
     clear_tags(e)
 
@@ -382,16 +382,16 @@ def ffmt(e):
         filter_first_mapping(e)
     # FFMT only fuses Q, QK, AV, and Z
     WEIGHT_TAGS = ("FFMT_WEIGHT_TILED", "FFMT_WEIGHT_UNTILED")
-    for k, sims in e.intra_result.items():
+    for k, pmapping_groups in e.intra_result.items():
         # print(f"Mappings for Einsum {k}")
-        sims = [
+        pmapping_groups = [
             s
-            for s in sims
+            for s in pmapping_groups
             if "FFMT_VALID" in s.compatibility.tags
             and "FFMT_WEIGHTS_INVALID" not in s.compatibility.tags
         ]
         r = []
-        for s in sims:
+        for s in pmapping_groups:
             # The tag is actually a set of tags, all of which must match, so we
             # combine them into a frozenset in a tuple. In the tag class, we'll
             # get a frozenset(frozenset(tag0, tag1...)).
@@ -407,12 +407,12 @@ def ffmt(e):
                 r.append(s)
             # print(f'\t{s.compatibility}')
         e.intra_result[k] = r
-        
+
 def filter_optimus(e):
     filter_layernorm(e)
-    for k, sims in e.intra_result.items():
+    for k, pmapping_groups in e.intra_result.items():
         # print(f"Mappings for Einsum {k}")
-        e.intra_result[k] = [s for s in sims if "OPTIMUS_VALID" in s.compatibility.tags]
+        e.intra_result[k] = [s for s in pmapping_groups if "OPTIMUS_VALID" in s.compatibility.tags]
         for s in e.intra_result[k]:
             s.set_tags(*(t for t in s.compatibility.tags if "OPTIMUS" in t))
     print(e)
@@ -429,7 +429,7 @@ def run_experiment(
     save_results: bool = True,
     run_inter: bool = True,
     prune_intra: bool = True,
-    fuse_function: callable = join_sims,
+    fuse_function: callable = join_pmappings,
     taggers: tuple[callable] = tuple(),
     dataflow: str = None,
     fuse: bool = True,
@@ -439,8 +439,8 @@ def run_experiment(
     load_inter_or_fail: bool = False,
 ):
     exp = Experiment(
-        name, 
-        f"workloads/{workload_name}.yaml", 
+        name,
+        f"workloads/{workload_name}.yaml",
         prune_intra=prune_intra,
         taggers=taggers,
         dataflow=dataflow,
@@ -483,16 +483,16 @@ def run_experiment(
     if callfunction is not None:
         callfunction(exp)
 
-    for k, sims in exp.intra_result.items():
-        live_tensors = list(sims[0].tensors)
-        exp.intra_result[k] = SIM.combine_combineable(sims, live_tensors)
+    for k, pmapping_groups in exp.intra_result.items():
+        live_tensors = list(pmapping_groups[0].tensors)
+        exp.intra_result[k] = PmappingGroup.combine_combineable(pmapping_groups, live_tensors)
 
     t0 = time.time()
     exp.run_fusion(
-        lookahead_filter=lookahead_filter, 
-        fuse_function=fuse_function, 
-        max_evaluations=max_evaluations, 
-        stop_at_score=stop_at_score, 
+        lookahead_filter=lookahead_filter,
+        fuse_function=fuse_function,
+        max_evaluations=max_evaluations,
+        stop_at_score=stop_at_score,
         count_intra_evaluations=prune_intra
     )
     print(f'Inter-layer exploration took {time.time() - t0} seconds')
@@ -509,10 +509,10 @@ def get_average_percent_reduction(a: pd.DataFrame, b: pd.DataFrame, x: str, y: s
     b = b.sort_values(x).reset_index(drop=True)
     ax, ay = a[x], a[y]
     bx, by = b[x], b[y]
-    
+
     start = min(ax.min(), bx.min())
     end = max(ax.max(), bx.max())
-    
+
     n_points = 10000
     x = np.linspace(start, end, n_points)
     count = 0
@@ -524,16 +524,16 @@ def get_average_percent_reduction(a: pd.DataFrame, b: pd.DataFrame, x: str, y: s
         # a_i is the highest index in a that is less than x[i]
         a_i = np.searchsorted(ax, x[i], side='right') - 1
         b_i = np.searchsorted(bx, x[i], side='right') - 1
-        
+
         assert a_i != -1 and b_i != -1, f"One of the mappings is valid at a lower occupancy than the other"
-        
+
         if a_i is None or b_i is None:
             continue
         # total += (by[b_i] / ay[a_i])# / by[b_i]
         points.append(by[b_i] / ay[a_i])
         max_reduction = max(max_reduction, by[b_i] / ay[a_i])
         count += 1
-        
+
     def geomean(points):
         excess = 0
         counter = 1

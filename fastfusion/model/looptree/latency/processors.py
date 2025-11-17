@@ -6,15 +6,15 @@ import islpy as isl
 # from pytimeloop._isl.sum import sum_until_idx, make_reduction_map
 # from pytimeloop._isl.qpolynomial import from_pw_qpolynomial_fold
 
+
 def process_sequential_latency(top_idx: int, latencies):
     common_dim_tags = latencies[0][0][:top_idx]
     try:
         total_sequential_latency = sum(
-            sum_until_idx(top_idx, latency)
-            for dim_tags, latency in latencies
+            sum_until_idx(top_idx, latency) for dim_tags, latency in latencies
         )
     except:
-        print('Bad input:')
+        print("Bad input:")
         pprint.pp(latencies)
         raise
     return common_dim_tags, total_sequential_latency
@@ -30,32 +30,24 @@ def process_pipeline_latency(top_idx: int, latencies):
             break
 
     try:
-        dim_tags = dim_tags[:pipeline_idx+1]
+        dim_tags = dim_tags[: pipeline_idx + 1]
         summed_latency = sum(
-            sum_until_idx(pipeline_idx+1, latency)
-            for tags, latency in latencies
+            sum_until_idx(pipeline_idx + 1, latency) for tags, latency in latencies
         )
     except:
-        print('Bad input:')
+        print("Bad input:")
         pprint.pp(latencies)
         raise
 
     space = summed_latency.get_domain_space()
-    hidden_latency_map = make_hidden_latency_map(dim_tags,
-                                                 space,
-                                                 len(latencies))
-    hidden_latencies = \
-        hidden_latency_map.apply_pw_qpolynomial(summed_latency)
+    hidden_latency_map = make_hidden_latency_map(dim_tags, space, len(latencies))
+    hidden_latencies = hidden_latency_map.apply_pw_qpolynomial(summed_latency)
 
-    reduction_map = make_reduction_map(space, len(dim_tags)-1, 1)
+    reduction_map = make_reduction_map(space, len(dim_tags) - 1, 1)
     reduction_map = reduction_map.intersect_range(summed_latency.domain()).coalesce()
-    hidden_latencies, is_tight = \
-        reduction_map.apply_pw_qpolynomial_fold(
-            isl.PwQPolynomialFold.from_pw_qpolynomial(
-                isl.fold.min,
-                hidden_latencies
-            )
-        )
+    hidden_latencies, is_tight = reduction_map.apply_pw_qpolynomial_fold(
+        isl.PwQPolynomialFold.from_pw_qpolynomial(isl.fold.min, hidden_latencies)
+    )
     hidden_latencies = from_pw_qpolynomial_fold(hidden_latencies)
 
     # Remove last one
@@ -68,8 +60,8 @@ def process_pipeline_latency(top_idx: int, latencies):
 
 
 LATENCY_PROCESSORS = {
-    'sequential': process_sequential_latency,
-    'pipeline': process_pipeline_latency
+    "sequential": process_sequential_latency,
+    "pipeline": process_pipeline_latency,
 }
 
 
@@ -80,15 +72,15 @@ def make_hidden_latency_map(dim_tags, space, n_stages):
     """
     assert len(dim_tags) >= 2
 
-    t_idx = len(dim_tags)-2
-    ps_idx = len(dim_tags)-1
+    t_idx = len(dim_tags) - 2
+    ps_idx = len(dim_tags) - 1
 
     tprime = isl.Aff.var_on_domain(space, isl.dim_type.set, t_idx)
     ps_prime = isl.Aff.var_on_domain(space, isl.dim_type.set, ps_idx)
-    inner = n_stages*tprime + ps_prime
+    inner = n_stages * tprime + ps_prime
 
-    lower = n_stages*tprime + ps_prime + 1
-    upper = n_stages*tprime + ps_prime + n_stages
+    lower = n_stages * tprime + ps_prime + 1
+    upper = n_stages * tprime + ps_prime + n_stages
 
     hidden_latency_map = lower.le_map(inner).intersect(upper.gt_map(inner))
 

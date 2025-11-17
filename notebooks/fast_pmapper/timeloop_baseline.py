@@ -32,7 +32,7 @@ def evaluate(workload_name, evaluated_sizes, use_hint=False):
             spec.mapper.evaluated_size = evaluated_size
             output = None
             try:
-                start = time.time() 
+                start = time.time()
                 output = tl.call_mapper(spec, output_dir="outputs/timeloop")
                 end = time.time()
             except:

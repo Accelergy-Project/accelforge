@@ -226,16 +226,23 @@ def get_constraints(
             start_index = 0
             n = next(iter(no_refetch))
             while start_index < len(mapping):
-                if isinstance(mapping[start_index], TensorHolder) and n in mapping[start_index].tensors:
+                if (
+                    isinstance(mapping[start_index], TensorHolder)
+                    and n in mapping[start_index].tensors
+                ):
                     break
                 start_index += 1
-                
+
             end_index = start_index
             while end_index < len(mapping):
-                if isinstance(mapping[end_index], TensorHolder) and n in mapping[end_index].tensors and mapping[end_index].component == m.name:
+                if (
+                    isinstance(mapping[end_index], TensorHolder)
+                    and n in mapping[end_index].tensors
+                    and mapping[end_index].component == m.name
+                ):
                     break
                 end_index += 1
-                
+
             rv = no_refetch.rank_variables
             for i in range(start_index, end_index):
                 if isinstance(mapping[i], Iteration) and mapping[i].rank_variable in rv:
@@ -272,11 +279,13 @@ def get_constraints(
 
             loop_bounds = list(spatial_constraint.loop_bounds)
             if spatial_constraint.must_reuse:
-                loop_bounds.append(Comparison(
-                    expression=spatial_constraint.must_reuse.rank_variables,
-                    operator="==",
-                    value=1,
-                ))
+                loop_bounds.append(
+                    Comparison(
+                        expression=spatial_constraint.must_reuse.rank_variables,
+                        operator="==",
+                        value=1,
+                    )
+                )
 
             # Loop bounds constraints
             if loop_bounds:

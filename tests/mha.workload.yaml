@@ -26,7 +26,7 @@ workload:
 
   - name: K
     tensor_accesses:
-    - {name: I, projection: [ b, m, d ]} 
+    - {name: I, projection: [ b, m, d ]}
     - {name: WK, projection: [ h, e, d ]}
     - {name: K, projection: [ b, m, h, e ], output: True}
 
@@ -50,7 +50,7 @@ workload:
 
   - name: Z
     tensor_accesses:
-    - {name: AV, projection: [ b, m, h, f ]}  
+    - {name: AV, projection: [ b, m, h, f ]}
     - {name: WZ, projection: [ h, f, g ]}
     - {name: Z, projection: [ b, m, g ], output: True}
 

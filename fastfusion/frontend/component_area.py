@@ -9,6 +9,7 @@ from fastfusion.util.basetypes import (
     ParsableDict,
 )
 from hwcomponents import get_area
+from fastfusion.frontend.components import ComponentAttributes
 
 
 class AreaSubcomponent(ParsableModel):
@@ -16,13 +17,15 @@ class AreaSubcomponent(ParsableModel):
     area: ParsesTo[Union[int, float]]
     model_name: Optional[str] = None
     messages: list[str] = []
-    attributes: ParsableDict[str, ParsesTo[Any]]
+    attributes: ComponentAttributes = ComponentAttributes()
 
 
 class AreaEntry(ParsableModel):
     name: str
     area: ParsesTo[Union[int, float]]
     subcomponents: ParsableList[AreaSubcomponent]
+    attributes: ComponentAttributes = ComponentAttributes()
+    messages: list[str] = []
 
     @staticmethod
     def from_models(
@@ -43,10 +46,11 @@ class AreaEntry(ParsableModel):
                 name,
             )
         except Exception as e:
-            raise ValueError(
-                f"Error calculating area for {name}. If you'd like to use a "
-                f"predefined area value, set the \"area\" attribute of the component."
-            ) from e
+            e.add_note(
+                'If you\'d like to use a predefined area value, set the "area" '
+                "attribute of the component."
+            )
+            raise
 
     @staticmethod
     def _from_models(
@@ -117,7 +121,13 @@ class AreaEntry(ParsableModel):
 
         area = sum(subcomponent.area for subcomponent in entries)
         assert name is not None, f"Name is required for AreaEntry"
-        return AreaEntry(name=name, area=area, subcomponents=entries)
+        return AreaEntry(
+            name=name,
+            area=area,
+            subcomponents=entries,
+            attributes=attributes,
+            messages=[m for e in entries for m in e.messages],
+        )
 
 
 class ComponentArea(ParsableModel):

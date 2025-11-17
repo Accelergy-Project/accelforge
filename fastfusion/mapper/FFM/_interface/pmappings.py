@@ -1,25 +1,25 @@
 from typing import Callable
 from uuid import UUID
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import Job
+from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
 
 
 class MultiEinsumPmappings:
     def __init__(
         self,
-        einsum2pmappings: dict[EinsumName, list[SIM]],
+        einsum2pmappings: dict[EinsumName, list[PmappingGroup]],
         pmapping_objects: dict[EinsumName, dict[UUID, Mapping]],
         resource2capacity: dict[str, int],
         einsum2jobs: dict[EinsumName, list[Job]],
         can_combine_multiple_runs: bool,
     ):
-        self.einsum2pmappings: dict[EinsumName, list[SIM]] = einsum2pmappings
+        self.einsum2pmappings: dict[EinsumName, list[PmappingGroup]] = einsum2pmappings
         self.pmapping_objects: dict[EinsumName, dict[UUID, Mapping]] = pmapping_objects
-        self.resource2capacity = resource2capacity
-        self.mapper_jobs = einsum2jobs
-        self.can_combine_multiple_runs = can_combine_multiple_runs
+        self.resource2capacity: dict[str, int] = resource2capacity
+        self.einsum2jobs: dict[EinsumName, list[Job]] = einsum2jobs
+        self.can_combine_multiple_runs: bool = can_combine_multiple_runs
 
     def __or__(self, other: "MultiEinsumPmappings"):
         if not self.can_combine_multiple_runs or not other.can_combine_multiple_runs:
@@ -38,14 +38,14 @@ class MultiEinsumPmappings:
                     f"specifications: {self.resource2capacity[resource]} and "
                     f"{other.resource2capacity[resource]}."
                 )
-        for einsum_name, jobs in other.mapper_jobs.items():
-            self.mapper_jobs.setdefault(einsum_name, []).extend(jobs)
+        for einsum_name, jobs in other.einsum2jobs.items():
+            self.einsum2jobs.setdefault(einsum_name, []).extend(jobs)
         self.pmapping_objects.update(other.pmapping_objects)
         return self
 
     def filter(
         self,
-        filter_lambda: Callable[[SIM], bool],
+        filter_lambda: Callable[[PmappingGroup], bool],
         einsum_names: list[EinsumName] | None = None,
     ):
         new_einsum2pmappings = {}
@@ -60,7 +60,7 @@ class MultiEinsumPmappings:
             einsum2pmappings=new_einsum2pmappings,
             pmapping_objects=self.pmapping_objects,
             resource2capacity=self.resource2capacity,
-            einsum2jobs=self.mapper_jobs,
+            einsum2jobs=self.einsum2jobs,
             can_combine_multiple_runs=self.can_combine_multiple_runs,
         )
 
@@ -75,7 +75,7 @@ class MultiEinsumPmappings:
         result = {}
         einsum2npmappings = self.total_pmappings(per_einsum=True)
 
-        for einsum_name, jobs in self.mapper_jobs.items():
+        for einsum_name, jobs in self.einsum2jobs.items():
             cur_result = result.setdefault(einsum_name, {})
             for job in jobs:
                 for cause, keep_rate in job.pmapping_keep_rates.items():
@@ -100,7 +100,7 @@ class MultiEinsumPmappings:
     def total_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
         result = {
             einsum_name: sum(job.total_pmappings for job in jobs)
-            for einsum_name, jobs in self.mapper_jobs.items()
+            for einsum_name, jobs in self.einsum2jobs.items()
         }
         if per_einsum:
             return result
@@ -109,7 +109,7 @@ class MultiEinsumPmappings:
     def valid_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
         result = {
             einsum_name: sum(job.valid_pmappings for job in jobs)
-            for einsum_name, jobs in self.mapper_jobs.items()
+            for einsum_name, jobs in self.einsum2jobs.items()
         }
         if per_einsum:
             return result
@@ -131,7 +131,7 @@ class MultiEinsumPmappings:
     ) -> int | dict[EinsumName, int]:
         result = {
             einsum_name: sum(job.evaluated_pmappings for job in jobs)
-            for einsum_name, jobs in self.mapper_jobs.items()
+            for einsum_name, jobs in self.einsum2jobs.items()
         }
         if per_einsum:
             return result

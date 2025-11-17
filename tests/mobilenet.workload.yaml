@@ -10,13 +10,13 @@ workload:
     n1: 0 <= n1 < 2
 
   einsums:
-  - name: PwiseA0
+  - name: PiecewiseA0
     tensor_accesses:
     - {name: T0, projection: [pa0, qa0, n0]}
     - {name: WA0, projection: [n0, t0]}
     - {name: TA0, projection: [pa0, qa0, t0], output: True}
 
-  - name: Dwise0
+  - name: Depthwise0
     tensor_accesses:
     - name: TA0
       projection:
@@ -29,7 +29,7 @@ workload:
     - 0 <= r0 < 3
     - 0 <= s0 < 3
 
-  - name: PwiseB0
+  - name: PiecewiseB0
     tensor_accesses:
     - {name: TB0, projection: [pb0, qb0, t0]}
     - {name: WB0, projection: [t0, n1]}

@@ -10,10 +10,10 @@ from optimization_utils import *
 
 # ****************************** prune spatial+temporal level ******************************
 """
-    For each unrolling in the list of unrollings passed, creates a tree for the problem (full layer divided by the unrolled bounds) 
-    and order. It then returns tilings that make it through the tree 
-    returns: 
-        1- pairs of a tile (that made it through the tree) and an order as a list 
+    For each unrolling in the list of unrollings passed, creates a tree for the problem (full layer divided by the unrolled bounds)
+    and order. It then returns tilings that make it through the tree
+    returns:
+        1- pairs of a tile (that made it through the tree) and an order as a list
 """
 
 def thread_task(my_args):
@@ -38,7 +38,7 @@ def thread_task(my_args):
 
     # ******* go through the spatial candidates *******
     for sp in spatial_candids:
-        # ******* divide the total problem by the unrolled dimensions 
+        # ******* divide the total problem by the unrolled dimensions
         #        to get the subproblem                               *******
         if len(tile.subtiles) == 1:
             small_prob = tile.subtiles[-1].copy()
@@ -51,9 +51,9 @@ def thread_task(my_args):
                 smallest_prob,
                 prob.tens_desc,
             )
-            
-            # ******* based on the order, some dimensions will be static meaning 
-            #        the tree will not grow in those dimensions (these are the non-indexing 
+
+            # ******* based on the order, some dimensions will be static meaning
+            #        the tree will not grow in those dimensions (these are the non-indexing
             #         dimensions of the reused operand inside the tile)                     *******
             if static:
                 static_list = []
@@ -75,8 +75,8 @@ def thread_task(my_args):
                 else:
                     pot_tiles = inner_tile_graph.bottom_up(mem, bypass=bypass)
 
-            # ******* for all the leaves of the tile graph, create a tiling configuration 
-            #         that consists of the original unrolling we were searching for, the tile, 
+            # ******* for all the leaves of the tile graph, create a tiling configuration
+            #         that consists of the original unrolling we were searching for, the tile,
             #         and the remaining upper factors                                           *******
             for pot_tile in pot_tiles:
                 temp_tile = pot_tile.copy()
@@ -88,7 +88,7 @@ def thread_task(my_args):
                     .split(sp[1], spatial=True, tail=False, pred=False)
                 )
                 ret.append((final_tile, order))
-    
+
         else:
             small_prob = copy.deepcopy(smallest_prob)
             for st in tile.subtiles[:-1]:
@@ -147,7 +147,7 @@ def tls_sptl_mlt_thrd(
     sptl_utlzn_cnstrnts=1.0
 ):
 
-    # ****** enumerate dimensions that should be unrolled together 
+    # ****** enumerate dimensions that should be unrolled together
     #       based on Sunstone unrolling principle                 ******
     ret = []
     for tile, order in tiles:
@@ -156,9 +156,9 @@ def tls_sptl_mlt_thrd(
             for unroll in prob.tens_to_sp2[i]:
                 unroll_to_try.append((unroll, i))
 
-        # ****** get potential unrollings based on Sunstone principle & 
+        # ****** get potential unrollings based on Sunstone principle &
         #        layer configuration                                    ******
-        
+
         unrln_cndds_len = 0
         lp_itr = 0
         while(unrln_cndds_len == 0):
@@ -187,10 +187,10 @@ def tls_sptl_mlt_thrd(
                 zx = zx_fltrd
             unrln_cndds_len = len(zx)
 
-        # ******* Now we want to find the potential tilings for each 
-        #         unrolling candidate. To do so, we divide the total 
-        #         unrollings we have between our working threads & then     
-        #         create a tile graph (explained in the paper) for each     
+        # ******* Now we want to find the potential tilings for each
+        #         unrolling candidate. To do so, we divide the total
+        #         unrollings we have between our working threads & then
+        #         create a tile graph (explained in the paper) for each
         #         unrolling from within the threads                     *******
         num_unrollings = len(zx)
         unrollings_per_thread = int(num_unrollings / num_threads)
@@ -296,7 +296,7 @@ def tls_sptl_tmprl(
         sptl_cnstrnts=sptl_cnstrnts,
     )
 
-    # ****** adjust accesses & energy based on by-passing 
+    # ****** adjust accesses & energy based on by-passing
     #        (no access is made for the by-passed operands of a level) ******
     if bypass:
         e_mat = get_e_mat_with_bypass(access_energies, bypass)
@@ -334,8 +334,8 @@ def tls_sptl_tmprl(
 
 
 """
-******* 
-    This is the twin function of tls_sptl_tmprl, but also calculate the cost  
+*******
+    This is the twin function of tls_sptl_tmprl, but also calculate the cost
     of the tiling levels available so far for alpha-beta pruning
 *******
 """
@@ -395,7 +395,7 @@ def tls_sptl_tmprl_alpha_beta(
 
             if not bw:
                 bw = [None] * len(new_pot_tile.subtiles)
-            
+
             if bypass:
                 cost, order, latency, energy = get_cost_edp_bypass(
                     prob,
@@ -459,14 +459,14 @@ def alpha_beta_thrd_task(args):
             break
 
         nxt_lvl_tl_cndds = enumerate_tiles(
-            [tile_orders[i]], 
-            prob, 
-            mem_size, 
-            static=static, 
+            [tile_orders[i]],
+            prob,
+            mem_size,
+            static=static,
             prior=prior,
             bypass=bypass[-1] if bypass else None,
         )
-        
+
         for new_pot_tile, _ in nxt_lvl_tl_cndds:
 
             if bypass:

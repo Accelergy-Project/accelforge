@@ -4,7 +4,7 @@ arch:
   nodes:
   - !Memory
     name: MainMemory
-    attributes: 
+    attributes:
       _size: inf
       # https://www.jedec.org/news/pressreleases/jedec-updates-standard-low-power-memory-devices-lpddr5
       _bandwidth_reads_plus_writes_per_cycle: 8 * 38.4e9 / 1e9 # 38.4 GB/s. DDR5-4800. Chip runs at at 1GHz, so divide to get per-cycle bwidth

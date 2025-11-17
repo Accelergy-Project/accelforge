@@ -40,7 +40,7 @@ from fastfusion.util.basetypes import (
     InferFromTag,
 )
 from fastfusion.frontend.workload.workload import RankVariableName, TensorName
-from fastfusion.util.util import pydot_graph
+from fastfusion.util.util import SVGJupyterRender, pydot_graph
 from fastfusion.version import assert_version, __version__
 from fastfusion.frontend import arch
 
@@ -1252,6 +1252,9 @@ class Mapping(Nested):
 
     version: Annotated[str, assert_version] = __version__
 
+    _n_loop_orders: int | None = None
+    """ Used for counting number of unique mappings. Do not touch. """
+
     def get_fused_slice(self, fusable_tensors: set[TensorName]) -> "Mapping":
         """
         Return a mapping with:
@@ -1324,7 +1327,7 @@ class Mapping(Nested):
                 if (parent_name, child_name) not in added_edges:
                     graph.add_edge(pydot.Edge(parent_name, child_name))
                     added_edges.add((parent_name, child_name))
-        return graph.create_svg(prog="dot")
+        return SVGJupyterRender(graph.create_svg(prog="dot"))
 
     @classmethod
     def from_pmappings(

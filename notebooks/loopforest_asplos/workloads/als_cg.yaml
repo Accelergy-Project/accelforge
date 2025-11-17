@@ -15,7 +15,7 @@ problem:
       - {name: UV,  dimensions: [ UV_M,  UV_N ],  projection: '[ M_MUV, N_MUV ]'}
       - {name: M,   dimensions: [ M_M,   M_N ],   projection: '[ M_MUV, N_MUV ]'}
       - {name: MUV, dimensions: [ MUV_M, MUV_N ], projection: '[ M_MUV, N_MUV ]', read_write: True}
-  
+
   - shape:
       name: O
       dimensions: [ O_M, O_N, O_L ]

@@ -8,7 +8,8 @@ from typing import Annotated, TypeAlias, Union
 
 import pydot
 
-from fastfusion.util.util import pydot_graph
+from fastfusion.util.util import SVGJupyterRender, pydot_graph
+
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
 from fastfusion.util.parse_expressions import ParseError
@@ -498,7 +499,7 @@ class Workload(ParsableModel):
                         f"Tensor_{tensor_access.name}", f"Einsum_{einsum.name}"
                     )
                     graph.add_edge(edge)
-        return graph.create_svg(prog="dot")
+        return SVGJupyterRender(graph.create_svg(prog="dot"))
 
     def get_constraint_symbol_table(
         self,
@@ -580,7 +581,6 @@ class Workload(ParsableModel):
                 for r in all_rank_variables
             },
             "Einsum": einsum_name,
-            "EinsumObject": einsum,
             "Above": InvertibleSet(instance=(), **kwargs_tensors),
         }
 

@@ -291,7 +291,8 @@ def load_yaml(
                 path, data, include_dirs
             )
         except Exception as e:
-            raise ValueError(f"Error loading YAML file {path}. {e}") from e
+            e.add_note(f"Error loading YAML file {path}")
+            raise
         try:
             result = merge_check(get_yaml(path, data).load(parsed))
             return result
@@ -301,10 +302,11 @@ def load_yaml(
             ERRCOUNT += 1
             with open(failpath, "w") as f:
                 f.write(parsed)
-            raise ValueError(
+            e.add_note(
                 f"Error parsing YAML file {path}. Offending file written to "
-                f"{failpath}. {e}"
-            ) from e
+                f"{failpath}"
+            )
+            raise
 
 
 @recursive_mutator_stop
@@ -523,13 +525,15 @@ class YAMLFileLoader:
                     found = found[k]
             except (KeyError, TypeError) as e:
                 if isinstance(found, MultiIncludeWrapper):
-                    raise KeyError(
+                    e.add_note(
                         f"Could not parse !include_loaded {x}: {k} not found " f"in {f}"
-                    ) from e
-                raise KeyError(
+                    )
+                    raise
+                e.add_note(
                     f"Could not parse !include_loaded {x}: {k} not found "
                     f"in {list(found.keys())}"
-                ) from e
+                )
+                raise
         return found.contents if isinstance(found, MultiIncludeWrapper) else found
 
     def include(

@@ -7,9 +7,11 @@ from typing import Callable
 from fastfusion.accelerated_imports import pd
 from fastfusion.frontend.specification import Specification
 from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM, Compatibility
-from fastfusion.mapper.FFM._pmapping_group import PmappingGroup
-from fastfusion.mapper.FFM._pmapping_group.df_convention import col2nameloop
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+    PmappingGroup,
+    Compatibility,
+)
+from fastfusion.mapper.FFM._pareto_df.df_convention import col2nameloop
 from fastfusion.util import parallel, delayed
 
 prev_time = 0
@@ -42,14 +44,14 @@ def print_total_time():
     logging.info(f"============================\n")
 
 
-class GroupOfSIMsHolder:
-    def __init__(self, einsum_name: str, sim_list: list[SIM]):
+class PmappingsOneEinsum:
+    def __init__(self, einsum_name: str, pm_group_list: list[PmappingGroup]):
         self.einsum_name: str = einsum_name
-        self.sims: list[SIM] = sim_list
-        self.tensor_names: set[str] = set(sim_list[0].tensor_names)
+        self.pmapping_groups: list[PmappingGroup] = pm_group_list
+        self.tensor_names: set[str] = set(pm_group_list[0].tensor_names)
 
     def __getitem__(self, i):
-        return self.sims[i]
+        return self.pmapping_groups[i]
 
 
 def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
@@ -70,17 +72,17 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
 
 
 def get_memories_to_track(
-    sims: dict[str, list[SIM]],
+    pmapping_groups: dict[str, list[PmappingGroup]],
     resource2capacity: dict[str, int],
-) -> tuple[dict[str, list[SIM]], set[str], set[str]]:
+) -> tuple[dict[str, list[PmappingGroup]], set[str], set[str]]:
 
     always_below = set(resource2capacity.keys())
     total_sizes = {}
     no_drop_reservations_for = set()
 
-    for _, einsum_sims in sims.items():
+    for _, einsum_pmapping_groups in pmapping_groups.items():
         max_sizes = {}
-        for s in einsum_sims:
+        for s in einsum_pmapping_groups:
             n_fused_loops = s.compatibility.n_loops
             for col in s.mappings.data.columns:
                 name_nloops = col2nameloop(col)
@@ -106,9 +108,9 @@ def get_memories_to_track(
     )
 
     if not ignore:
-        return sims
+        return pmapping_groups
 
-    def remove_unneeded_columns(s: SIM):
+    def remove_unneeded_columns(s: PmappingGroup):
         data = s.mappings.data
         keep_cols = []
         for col in data.columns:
@@ -116,7 +118,7 @@ def get_memories_to_track(
             if name_nloops is None or name_nloops[0] not in ignore:
                 keep_cols.append(col)
         run_pareto = len(keep_cols) < len(data.columns)
-        return SIM(
+        return PmappingGroup(
             s.compatibility,
             s.mappings.update(data=data[keep_cols], skip_pareto=not run_pareto),
         )
@@ -131,20 +133,20 @@ def get_memories_to_track(
             )
             break
 
-    new_sims = {}
-    for einsum_name, einsum_sims in sims.items():
-        new_sims[einsum_name] = list(
+    new_pmapping_groups = {}
+    for einsum_name, einsum_pmapping_groups in pmapping_groups.items():
+        new_pmapping_groups[einsum_name] = list(
             parallel(
-                [delayed(remove_unneeded_columns)(s) for s in einsum_sims],
+                [delayed(remove_unneeded_columns)(s) for s in einsum_pmapping_groups],
                 pbar=f"Removing unneeded reservations for {einsum_name}",
                 return_as="generator",
             )
         )
-    return new_sims, ignore
+    return new_pmapping_groups, ignore
 
 
-def join_sims(
-    sims: dict[str, list[SIM]],
+def join_pmappings(
+    pmapping_groups: dict[str, list[PmappingGroup]],
     spec: Specification,
     resource2capacity: dict[str, int],
     # Optimality-maintaining optimizations.
@@ -172,22 +174,24 @@ def join_sims(
     no_drop_reservations_for = set()
 
     if pmapping_row_filter_function is not None:
-        n = sum(len(s.mappings.data) for sg in sims.values() for s in sg)
-        sims = {
+        n = sum(len(s.mappings.data) for sg in pmapping_groups.values() for s in sg)
+        pmapping_groups = {
             e: [
-                SIM(
+                PmappingGroup(
                     s.compatibility,
                     s.mappings.filter_rows(pmapping_row_filter_function),
                 )
-                for s in sims[e]
+                for s in pmapping_groups[e]
             ]
-            for e in sims
+            for e in pmapping_groups
         }
-        new_n = sum(len(s.mappings.data) for sg in sims.values() for s in sg)
+        new_n = sum(len(s.mappings.data) for sg in pmapping_groups.values() for s in sg)
         print(f"Filtered {n} -> {new_n} ({new_n / n:.2%} kept) pmappings")
 
     if drop_valid_reservations:
-        sims, no_drop_reservations_for = get_memories_to_track(sims, resource2capacity)
+        pmapping_groups, no_drop_reservations_for = get_memories_to_track(
+            pmapping_groups, resource2capacity
+        )
 
     mixable_ranks = spec.workload.get_mixable_ranks()
 
@@ -199,96 +203,106 @@ def join_sims(
 
     n_evaluations = 0
 
-    sims = list(sims.items())
+    pmapping_groups = list(pmapping_groups.items())
 
     if not skip_invalid:
         lookahead_filter = False
 
-    for einsum_name, s in sims:
+    for einsum_name, s in pmapping_groups:
         if not s:
             raise ValueError(f"No pmappings for {einsum_name}")
     init_print_time()
 
-    simgroups = [GroupOfSIMsHolder(*s) for s in sims]
+    pmgroups = [PmappingsOneEinsum(*s) for s in pmapping_groups]
 
-    if not simgroups:
+    if not pmgroups:
         raise ValueError("No pmappings to join")
 
     # ======================================================================
-    # Initial consolidate and group all SIMs
+    # Initial consolidate and group all PmappingGroups
     # ======================================================================
     n_mappings["Post Intra-Layer"] = 0
-    for i, sim_holder in enumerate(simgroups):
-        cur_tensors = sim_holder.tensor_names
-        right_tensors = set.union(set(), *[s.tensor_names for s in simgroups[i + 1 :]])
+    for i, einsum_pmappings in enumerate(pmgroups):
+        cur_tensors = einsum_pmappings.tensor_names
+        right_tensors = set.union(set(), *[s.tensor_names for s in pmgroups[i + 1 :]])
         # First Einsum: Remove dead tensors and left consolidate. This is because the
         # first Einsum will have the first pmappigns that are joined from the left
         if i == 0:
             if cur_tensors - right_tensors:
-                SIM.remove_dead_tensors(sim_holder.sims, right_tensors)
-                for s in sim_holder.sims:
+                PmappingGroup.remove_dead_tensors(
+                    einsum_pmappings.pmapping_groups, right_tensors
+                )
+                for s in einsum_pmappings.pmapping_groups:
                     s.compatibility = s.compatibility.clear_dead_tensors(right_tensors)
-            sim_holder.sims = SIM.left_consolidate(
-                sim_holder.sims,
+            einsum_pmappings.pmapping_groups = PmappingGroup.left_consolidate(
+                einsum_pmappings.pmapping_groups,
                 right_tensors,
                 parallelize=False,  # We're not pareto pruning, so parallelization doesn't help.
-                pbar=f"Inital consolidate {sim_holder.einsum_name} ({i+1}/{len(simgroups)})",
+                pbar=f"Inital consolidate {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
             )
             continue
 
         # All other Einsums: Will be joined from the right. Remove dead tensors, right
         # consolidate, combine, group.
         t0 = time.time()
-        left_tensors = set.union(set(), *[s.tensor_names for s in simgroups[:i]])
+        left_tensors = set.union(set(), *[s.tensor_names for s in pmgroups[:i]])
         live_tensors = right_tensors
-        shared_tensors = left_tensors & sim_holder.tensor_names
+        shared_tensors = left_tensors & einsum_pmappings.tensor_names
 
         if cur_tensors - (right_tensors | left_tensors):
-            SIM.remove_dead_tensors(sim_holder.sims, right_tensors | left_tensors)
-            for s in sim_holder.sims:
+            PmappingGroup.remove_dead_tensors(
+                einsum_pmappings.pmapping_groups, right_tensors | left_tensors
+            )
+            for s in einsum_pmappings.pmapping_groups:
                 s.compatibility = s.compatibility.clear_dead_tensors(
                     right_tensors | left_tensors
                 )
 
-        sim_holder.sims = sorted(
-            sim_holder.sims, key=lambda x: len(x.mappings.data), reverse=True
+        einsum_pmappings.pmapping_groups = sorted(
+            einsum_pmappings.pmapping_groups,
+            key=lambda x: len(x.mappings.data),
+            reverse=True,
         )
-        sim_holder.sims = SIM.right_consolidate(
-            sim_holder.sims,
+        einsum_pmappings.pmapping_groups = PmappingGroup.right_consolidate(
+            einsum_pmappings.pmapping_groups,
             live_tensors,
             shared_tensors,
             parallelize=False,  # We're not pareto pruning, so parallelization doesn't help.
-            pbar=f"Inital consolidate {sim_holder.einsum_name} ({i+1}/{len(simgroups)})",
+            pbar=f"Inital consolidate {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
         )
-        sim_holder.sims = SIM.combine_combineable(
-            sim_holder.sims,
+        einsum_pmappings.pmapping_groups = PmappingGroup.combine_combineable(
+            einsum_pmappings.pmapping_groups,
             left_tensors | right_tensors,
             combine_reservations=combine_reservations,
-            pbar_postfix=f" for {sim_holder.einsum_name} ({i+1}/{len(simgroups)})",
+            pbar_postfix=f" for {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
         )
         n_mappings["Post Intra-Layer"] += sum(
-            len(s.mappings.data) for s in sim_holder.sims
+            len(s.mappings.data) for s in einsum_pmappings.pmapping_groups
         )
-        sim_holder.sims = SIM.group(sim_holder.sims, left_tensors)
-        einsum, prev_einsum = sim_holder.einsum_name, simgroups[i - 1].einsum_name
+        einsum_pmappings.pmapping_groups = PmappingGroup.group(
+            einsum_pmappings.pmapping_groups, left_tensors
+        )
+        einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
         t0 = time.time()
     print_time(f"Initial consolidate and group")
 
     n_iterations = 0
-    total_iterations = len(simgroups)
+    total_iterations = len(pmgroups)
 
-    def grab_sim_holder() -> tuple[dict[Compatibility, list[SIM]], str, set[str]]:
+    def grab_einsum_pmappings() -> (
+        tuple[dict[Compatibility, list[PmappingGroup]], str, set[str]]
+    ):
         nonlocal n_iterations
         n_iterations += 1
-        holder = simgroups.pop(0)
-        return holder.sims, holder.einsum_name, holder.tensor_names
+        holder = pmgroups.pop(0)
+        return holder.pmapping_groups, holder.einsum_name, holder.tensor_names
 
-    if simgroups:
-        left, left_einsum, left_tensors = grab_sim_holder()
+    if pmgroups:
+        left, left_einsum, left_tensors = grab_einsum_pmappings()
 
     partial_mapping_size = 1
-    while simgroups:
+    while pmgroups:
         t0 = time.time()
         # ======================================================================
         # Grab new Einsum from the right. Record logging data and find still
@@ -296,22 +310,22 @@ def join_sims(
         # ======================================================================
         nbuckets.append(len(left))
         # nmappings.append(sum(len(s.mappings.data) for s in left))
-        right, right_einsum, right_tensors = grab_sim_holder()
+        right, right_einsum, right_tensors = grab_einsum_pmappings()
         logging.info(f"Einsum {right_einsum} ({n_iterations}/{total_iterations})")
 
         partial_mapping_size += 1
 
-        live_tensors = set.union(set(), *[s.tensor_names for s in simgroups])
+        live_tensors = set.union(set(), *[s.tensor_names for s in pmgroups])
         shared_tensors = set(left_tensors) & set(right_tensors)
         live_tensors_with_right = live_tensors | right_tensors
 
         # ======================================================================
-        # Clean up the previously-combined SIMs. Consolidate, combine, group
+        # Clean up the previously-combined PmappingGroups. Consolidate, combine, group
         # them into buckets.
         # ======================================================================
         # print_time(f"Consolidating")
 
-        left = SIM.combine_combineable(
+        left = PmappingGroup.combine_combineable(
             left,
             live_tensors | right_tensors,
             combine_reservations=combine_reservations,
@@ -319,7 +333,7 @@ def join_sims(
 
         # print_time(f"Combining")
         # Group left and right into buckets
-        left = SIM.group(left, right_tensors)
+        left = PmappingGroup.group(left, right_tensors)
         # print_time("Grouping")
 
         # ======================================================================
@@ -328,7 +342,7 @@ def join_sims(
         # by the normal reservation system). This is in case the tensor lifetime extends
         # beyond the Einsums for which it is used.
         # ======================================================================
-        SIM.remove_dead_tensors(
+        PmappingGroup.remove_dead_tensors(
             [s for lr in [left, right] for v in lr.values() for s, _ in v], live_tensors
         )
 
@@ -337,7 +351,7 @@ def join_sims(
         # ======================================================================
         # Merge the left and right buckets.
         # ======================================================================
-        combined: list[SIM] = []
+        combined: list[PmappingGroup] = []
         cur_nmappings = 0
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = set()
 
@@ -348,8 +362,8 @@ def join_sims(
             for (a, perm_a), (b, perm_b) in itertools.product(
                 left[k], right.get(k, [])
             ):
-                a: SIM
-                b: SIM
+                a: PmappingGroup
+                b: PmappingGroup
                 perm_a: list[int]
                 perm_b: list[int]
                 key_check = (
@@ -432,17 +446,17 @@ def join_sims(
         # ======================================================================
         if lookahead_filter:
             cur_tensors = left_tensors | right_tensors
-            for next_sims in simgroups:
-                next_right_tensors = next_sims.tensor_names
+            for next_pmapping_groups in pmgroups:
+                next_right_tensors = next_pmapping_groups.tensor_names
                 if not next_right_tensors & cur_tensors:
                     continue
                 prev_combined = combined
-                combined = SIM.group(combined, next_right_tensors)
+                combined = PmappingGroup.group(combined, next_right_tensors)
                 next_keys = {
                     c.clear_dead_tensors(
                         cur_tensors
                     ).clear_tile_patterns_and_reservation_indices()
-                    for c in next_sims.sims
+                    for c in next_pmapping_groups.pmapping_groups
                 }
                 for k in list(combined):
                     k_cleared = k.clear_dead_tensors(
@@ -452,11 +466,11 @@ def join_sims(
                         if DO_PRINT:
                             for b, _ in combined[k]:
                                 print(
-                                    f"\tLOOKAHEAD to {next_sims.einsum_name}: No match for {b.compatibility}"
+                                    f"\tLOOKAHEAD to {next_pmapping_groups.einsum_name}: No match for {b.compatibility}"
                                 )
                         del combined[k]
                 if not combined:
-                    SIM.group(prev_combined, next_right_tensors)
+                    PmappingGroup.group(prev_combined, next_right_tensors)
                     raise_no_match_error()
 
                 combined = list(itertools.chain.from_iterable(combined.values()))
@@ -536,8 +550,8 @@ def join_sims(
     # Final consolidate and group
     # ======================================================================
     t0 = time.time()
-    left = SIM.left_consolidate(left, None, pbar="Final consolidate")
-    s_final = SIM.combine_combineable(left, set())
+    left = PmappingGroup.left_consolidate(left, None, pbar="Final consolidate")
+    s_final = PmappingGroup.combine_combineable(left, set())
     assert len(s_final) == 1
     mappings = s_final[0].mappings
 
@@ -552,23 +566,25 @@ def join_sims(
     return mappings
 
 
-def join_sims_no_skip_invalid(*args, **kwargs):
-    return join_sims(*args, skip_invalid=False, **kwargs)
+def join_pmappings_no_skip_invalid(*args, **kwargs):
+    return join_pmappings(*args, skip_invalid=False, **kwargs)
 
 
-def join_sims_no_combine_reservations(*args, **kwargs):
+def join_pmappings_no_combine_reservations(*args, **kwargs):
     args = list(args)
     if len(args[0]) == 16:
         args[0] = {k: v for k, v in list(args[0].items())[:11]}
     if len(args[0]) > 16:
         args[0] = {k: v for k, v in list(args[0].items())[:2]}
-    return join_sims(*args, combine_reservations=False, **kwargs)
+    return join_pmappings(*args, combine_reservations=False, **kwargs)
 
 
-def join_sims_no_either(*args, **kwargs):
+def join_pmappings_no_either(*args, **kwargs):
     args = list(args)
     if len(args[0]) == 16:
         args[0] = {k: v for k, v in list(args[0].items())[:11]}
     if len(args[0]) > 16:
         args[0] = {k: v for k, v in list(args[0].items())[:2]}
-    return join_sims(*args, skip_invalid=False, combine_reservations=False, **kwargs)
+    return join_pmappings(
+        *args, skip_invalid=False, combine_reservations=False, **kwargs
+    )

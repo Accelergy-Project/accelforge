@@ -9,7 +9,7 @@ print(src.counter.counter)
 FREQUENCY = 1e9
 
 # architecture parameters
-# sizes are in terms of total data capacity 
+# sizes are in terms of total data capacity
 L1_SIZE = 10000000
 # energy (whatever unit as long as used consistently)
 L1_E = 0.0e-12
@@ -63,7 +63,7 @@ def run_sunstone(l2_bypass, l3_bypass):
     # In this case, we will have 2 levels, so we would want 2 entries in the
     # access energy list, where each entry is a 3-entry tuple (one for each tensor)
     # x_axis and y_axis are optional to include spatial unrolling after L1
-    # static arg indicates to use static bounds (Sunstone principle for tiling 
+    # static arg indicates to use static bounds (Sunstone principle for tiling
     # that only grows in certain dimensions depending on the order)
     access_energies = [(L1_E, L1_E, L1_E),
                     (L2_E, L2_E, L2_E)]
@@ -72,7 +72,7 @@ def run_sunstone(l2_bypass, l3_bypass):
     L1_tiles, L1_costs = tls_sptl_tmprl(
                 tiles=[(GenericTile(prob), None)],
                 prob=prob,
-                mem_size=L1_SIZE, 
+                mem_size=L1_SIZE,
                 access_energies=access_energies,
                 x_axis=L1_PEX,
                 y_axis=L1_PEY,
@@ -105,7 +105,7 @@ def run_sunstone(l2_bypass, l3_bypass):
     bw.append(L3_BW)
     bypass.append(l2_bypass)
 
-    # we also get an upper estimate on the cost for each candidate which will 
+    # we also get an upper estimate on the cost for each candidate which will
     #help in alpha-beta pruning
     L2_candidates, L2_costs = tls_sptl_tmprl_alpha_beta(
                 tiles=L1_tiles,

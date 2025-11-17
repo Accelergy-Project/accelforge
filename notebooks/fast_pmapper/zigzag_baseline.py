@@ -37,7 +37,7 @@ def run_experiment(accelerator_fname, workload_name, max_lpf, target_evals):
     with open(result_fname, 'w') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         writer.writerow(['lfp', 'mapper_time', 'evaluations', 'energy', 'latency', 'edp'])
-    
+
         for lpf_limit in range(4, max_lpf+1):
             start = time.time()
             energy, latency, cmes = api.get_hardware_performance_zigzag(
@@ -66,7 +66,7 @@ def run_experiment(accelerator_fname, workload_name, max_lpf, target_evals):
                              energy,
                              latency,
                              energy*latency])
-            
+
             if estimated_evals >= target_evals:
                 break
 

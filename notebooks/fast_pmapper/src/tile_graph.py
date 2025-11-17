@@ -30,7 +30,7 @@ class GenericTileGraph:
                 size = 1
                 for dim in tens:
 
-                    if type(dim) is tuple:  
+                    if type(dim) is tuple:
                         d = 0
                         for dd in dim:
                             if len(dd) > 1:
@@ -43,8 +43,8 @@ class GenericTileGraph:
                         d += 1
                         size *= d
 
-                    else:   
-                        if len(dim) > 1:   
+                    else:
+                        if len(dim) > 1:
                             size *= (
                                 int(dim[0])
                                 * (node[dim[-1]] * self.small_prob[dd[-1]] - 1)

@@ -35,7 +35,7 @@ workload:
     - {name: I_in, projection: [b, m, d]}
     - {name: I, projection: [b, m, d], output: True}
     renames: {weight: Nothing(), input: Inputs(), output: Outputs()}
-      
+
 
   - name: V
     tensor_accesses:
@@ -77,7 +77,7 @@ workload:
 
   - name: Z
     tensor_accesses:
-    - {name: AV, projection: [b, m, h, f]}  
+    - {name: AV, projection: [b, m, h, f]}
     - {name: WZ, projection: [h, f, g]}
     - {name: Z, projection: [b, m, g], output: True}
 

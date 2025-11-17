@@ -3,7 +3,7 @@ arch:
   nodes:
   - !Memory
     name: MainMemory
-    attributes: 
+    attributes:
       _size: inf
       _latency: 8 * 614e9 / 1.05e9 # 614 GB/s. Chip runs at at 1.05GHz, so divide by 1.05 to get per-cycle bandwidth
       _datawidth: 8

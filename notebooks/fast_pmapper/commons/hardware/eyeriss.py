@@ -94,7 +94,7 @@ def acc_eyeriss_like():
     spatial_dim2 = 12
     # *********** 108 KB L2, 448 B Weight L1, 48 B Ofmap L1, 24B ifmap L1  ***********
     L2_capacity = int(1024 * 108 / 2)
-    
+
     L1_w_buffer = 192
     L1_ofmap_buffer = 16
     L1_ifmap_buffer = 12
@@ -110,15 +110,15 @@ def acc_eyeriss_like():
     accelerator.memory_hierarchy[1].read_bandwidth =  accelerator.bw.read_bw + accelerator.bw.write_bw
     accelerator.memory_hierarchy[1].write_bandwidth = accelerator.bw.read_bw + accelerator.bw.write_bw
     accelerator.NoC_type = NoC_type="eyerissv1"
-    accelerator.access_energies = {'L1': [1.59, 0.25, 0.24], 
-                                    'L2': 17.565, 
-                                    'L3': 128.0, 
-                                    'ifmap_NoC_check_tag': 0.131, 
-                                    'ifmap_NoC_idle': 0.021, 
-                                    'ofmap_NoC_check_tag': 0.238, 
-                                    'ofmap_NoC_idle': 0.039, 
-                                    'w_NoC_check_tag': 0.238, 
-                                    'w_NoC_idle': 0.039, 
+    accelerator.access_energies = {'L1': [1.59, 0.25, 0.24],
+                                    'L2': 17.565,
+                                    'L3': 128.0,
+                                    'ifmap_NoC_check_tag': 0.131,
+                                    'ifmap_NoC_idle': 0.021,
+                                    'ofmap_NoC_check_tag': 0.238,
+                                    'ofmap_NoC_idle': 0.039,
+                                    'w_NoC_check_tag': 0.238,
+                                    'w_NoC_idle': 0.039,
                                     'communication': 0.607
                                 }
     return accelerator

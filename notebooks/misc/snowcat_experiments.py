@@ -9,12 +9,12 @@ from fastfusion.frontend.mapper.metrics import Metrics
 
 ARCH_DIR          = Path('architecture/')
 WORKLOAD_DIR      = Path('workloads/')
-MAPPINGS_SIMS_DIR = Path('results/sims/')
+MAPPINGS_PmappingGroupS_DIR = Path('results/pmapping_groups/')
 MAPPINGS_DATA_DIR = Path('results/data/')
 
 
-REFRESH_BOTH = {'SIMS', 'DATA'}
-REFRESH_SIMS = {'SIMS'}
+REFRESH_BOTH = {'PmappingGroupS', 'DATA'}
+REFRESH_PmappingGroupS = {'PmappingGroupS'}
 REFRESH_DATA = {'DATA'}
 
 
@@ -31,7 +31,7 @@ def get_experiment_name(tagger_name, arch_name: str, workload_name: str):
     return f'{workload_name}.{arch_name}.{tagger_name}'
 
 
-def get_sims_with_cache(tagger_name=None,
+def get_pmappings_with_cache(tagger_name=None,
                         refresh_cache=False,
                         arch_name: str='snowcat',
                         workload_name: str='matmuls8_mixed'):
@@ -57,7 +57,7 @@ def get_sims_with_cache(tagger_name=None,
     flattened_architecture = spec.get_flattened_architecture()
 
     sims_name = get_experiment_name(tagger_name, arch_name, workload_name)
-    pmappings_pickle_name = MAPPINGS_SIMS_DIR / f'{sims_name}.pmappings.pkl'
+    pmappings_pickle_name = MAPPINGS_PmappingGroupS_DIR / f'{sims_name}.pmappings.pkl'
     if pmappings_pickle_name.is_file() and not refresh_cache:
         with open(pmappings_pickle_name, 'rb') as f:
             pmappings = pickle.load(f)

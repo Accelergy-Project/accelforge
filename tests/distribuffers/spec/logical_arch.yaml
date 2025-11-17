@@ -17,7 +17,7 @@ arch:
     name: weight_reg
     class: reg_storage
     attributes: {depth: 1, datawidth: datawidth, width: datawidth}
-      
+
   - !Component
     name: input_activation_reg
     class: reg_storage

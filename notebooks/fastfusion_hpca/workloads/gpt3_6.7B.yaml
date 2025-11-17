@@ -81,7 +81,7 @@ workload:
 
   - name: Z
     tensor_accesses:
-    - {name: AV, projection: [b, m, h, f]}  
+    - {name: AV, projection: [b, m, h, f]}
     - {name: WZ, projection: [h, f, g]}
     - {name: Z, projection: [b, m, g], output: True}
 

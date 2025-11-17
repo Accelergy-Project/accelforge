@@ -13,13 +13,13 @@ memories:
         type: read
         bandwidth_min: 16
         bandwidth_max: 16
-        allocation: 
+        allocation:
           - I2, tl
       - name: w_port_1
         type: write
         bandwidth_min: 16
         bandwidth_max: 16
-        allocation: 
+        allocation:
           - I2, fh
     served_dimensions: [] # Fully unrolled over all multipliers
 
@@ -35,25 +35,25 @@ memories:
         type: read
         bandwidth_min: 16
         bandwidth_max: 16
-        allocation: 
+        allocation:
           - O, tl
       - name: r_port_2
         type: read
         bandwidth_min: 16
         bandwidth_max: 16
-        allocation: 
+        allocation:
           - O, th
       - name: w_port_1
         type: write
         bandwidth_min: 16
         bandwidth_max: 16
-        allocation: 
+        allocation:
           - O, fh
       - name: w_port_2
         type: write
         bandwidth_min: 16
         bandwidth_max: 16
-        allocation: 
+        allocation:
           - O, fl
     served_dimensions: []
 
@@ -76,21 +76,21 @@ memories:
         type: read_write
         bandwidth_min: 8192
         bandwidth_max: 8192
-        allocation: 
+        allocation:
           - I1, tl
           - I1, fh
       # - name: r_port_2
       #   type: read
       #   bandwidth_min: 8192
       #   bandwidth_max: 8192
-      #   allocation: 
+      #   allocation:
       #     - O, tl
       #     - O, th
       # - name: w_port_2
       #   type: write
       #   bandwidth_min: 8192
       #   bandwidth_max: 8192
-      #   allocation: 
+      #   allocation:
       #     - O, fh
       #     - O, fl
     served_dimensions: [D1, D2]
@@ -116,7 +116,7 @@ memories:
         type: read
         bandwidth_min: 8192  # 2048 GiB/s = 8192 Gib/s
         bandwidth_max: 8192
-        allocation: 
+        allocation:
           # - I1, tl
           # - I2, tl
           - O, tl
@@ -125,7 +125,7 @@ memories:
         type: write
         bandwidth_min: 4096  # 512 GiB/s = 4096 Gib/s
         bandwidth_max: 4096
-        allocation: 
+        allocation:
           # - I1, fh
           # - I2, fh
           - O, fh
@@ -144,7 +144,7 @@ memories:
         type: read_write
         bandwidth_min: 2048  # 256 GiB/s = 2048 Gib/s
         bandwidth_max: 2048
-        allocation: 
+        allocation:
           - I1, fh
           - I1, tl
           - I2, fh

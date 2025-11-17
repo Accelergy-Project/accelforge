@@ -2,8 +2,8 @@ from collections import defaultdict
 import itertools
 import time
 from fastfusion.accelerated_imports import pd
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM, Loop, Compatibility
-from fastfusion.mapper.FFM._pmapping_group import PmappingGroup
+from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 from fastfusion.util.util import fzs
 
@@ -82,14 +82,14 @@ def print_total_time():
     print(f"============================\n")
 
 
-class GroupOfSIMsHolder:
-    def __init__(self, einsum_name: str, sim_list: list[SIM]):
+class PmappingsOneEinsum:
+    def __init__(self, einsum_name: str, pm_group_list: list[PmappingGroup]):
         self.einsum_name: str = einsum_name
-        self.sims: list[SIM] = sim_list
-        self.tensor_names: set[str] = set(sim_list[0].tensor_names)
+        self.pmapping_groups: list[PmappingGroup] = pm_group_list
+        self.tensor_names: set[str] = set(pm_group_list[0].tensor_names)
 
     def __getitem__(self, i):
-        return self.sims[i]
+        return self.pmapping_groups[i]
 
 
 def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
@@ -110,7 +110,7 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
 
 
 def quick_join(
-    sims: dict[str, SIM],
+    pmapping_groups: dict[str, PmappingGroup],
     mapspace_globals: MapspaceGlobals,
 ):
     resource2capacity = mapspace_globals.resource2capacity
@@ -124,64 +124,68 @@ def quick_join(
 
     n_evaluations = 0
 
-    sims = list(sims.items())
+    pmapping_groups = list(pmapping_groups.items())
 
     init_print_time()
 
-    sims = [GroupOfSIMsHolder(*s) for s in sims]
+    pmapping_groups = [PmappingsOneEinsum(*s) for s in pmapping_groups]
 
-    if not sims:
-        raise ValueError("No SIMs to join")
+    if not pmapping_groups:
+        raise ValueError("No PmappingGroups to join")
 
     # ======================================================================
-    # Initial consolidate and group all SIMs
+    # Initial consolidate and group all PmappingGroups
     # ======================================================================
-    for i, sim_holder in enumerate(sims):
-        right_tensors = set.union(set(), *[s.tensor_names for s in sims[i + 1 :]])
+    for i, sim_holder in enumerate(pmapping_groups):
+        right_tensors = set.union(
+            set(), *[s.tensor_names for s in pmapping_groups[i + 1 :]]
+        )
         if i == 0:
-            sim_holder.sims = SIM.left_consolidate(
-                sim_holder.sims,
+            sim_holder.pmapping_groups = PmappingGroup.left_consolidate(
+                sim_holder.pmapping_groups,
                 right_tensors,
             )
             continue
         t0 = time.time()
-        left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
+        left_tensors = set.union(set(), *[s.tensor_names for s in pmapping_groups[:i]])
         live_tensors = right_tensors
         shared_tensors = left_tensors & sim_holder.tensor_names
-        sim_holder.sims = sorted(
-            sim_holder.sims, key=lambda x: len(x.mappings.data), reverse=True
+        sim_holder.pmapping_groups = sorted(
+            sim_holder.pmapping_groups, key=lambda x: len(x.mappings.data), reverse=True
         )
-        sim_holder.sims = SIM.right_consolidate(
-            sim_holder.sims,
+        sim_holder.pmapping_groups = PmappingGroup.right_consolidate(
+            sim_holder.pmapping_groups,
             live_tensors,
             shared_tensors,
         )
-        sim_holder.sims = SIM.combine_combineable(
-            sim_holder.sims,
+        sim_holder.pmapping_groups = PmappingGroup.combine_combineable(
+            sim_holder.pmapping_groups,
             left_tensors | right_tensors,
         )
         if i > 0:
-            sim_holder.sims = SIM.group_right(
-                sim_holder.sims, left_tensors, drop_tags=True
+            sim_holder.pmapping_groups = PmappingGroup.group_right(
+                sim_holder.pmapping_groups, left_tensors, drop_tags=True
             )
-        einsum, prev_einsum = sim_holder.einsum_name, sims[i - 1].einsum_name
+        einsum, prev_einsum = sim_holder.einsum_name, pmapping_groups[i - 1].einsum_name
         runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
         t0 = time.time()
 
     n_iterations = 0
-    total_iterations = len(sims)
+    total_iterations = len(pmapping_groups)
 
-    def grab_sim_holder() -> tuple[dict[Compatibility, list[SIM]], str, set[str]]:
+    def grab_sim_holder() -> (
+        tuple[dict[Compatibility, list[PmappingGroup]], str, set[str]]
+    ):
         nonlocal n_iterations
         n_iterations += 1
-        holder = sims.pop(0)
-        return holder.sims, holder.einsum_name, holder.tensor_names
+        holder = pmapping_groups.pop(0)
+        return holder.pmapping_groups, holder.einsum_name, holder.tensor_names
 
-    if sims:
+    if pmapping_groups:
         left, left_einsum, left_tensors = grab_sim_holder()
 
     partial_mapping_size = 1
-    while sims:
+    while pmapping_groups:
         t0 = time.time()
         # ======================================================================
         # Grab new Einsum from the right. Record logging data and find still
@@ -194,22 +198,22 @@ def quick_join(
 
         partial_mapping_size += 1
 
-        live_tensors = set.union(set(), *[s.tensor_names for s in sims])
+        live_tensors = set.union(set(), *[s.tensor_names for s in pmapping_groups])
         shared_tensors = set(left_tensors) & set(right_tensors)
         live_tensors_with_right = live_tensors | right_tensors
 
         # ======================================================================
-        # Clean up the previously-combined SIMs. Consolidate, combine, group
+        # Clean up the previously-combined PmappingGroups. Consolidate, combine, group
         # them into buckets.
         # ======================================================================
 
-        left = SIM.combine_combineable(
+        left = PmappingGroup.combine_combineable(
             left,
             live_tensors | right_tensors,
         )
 
         # Group left and right into buckets
-        left = SIM.group_left(left, right_tensors, drop_tags=True)
+        left = PmappingGroup.group_left(left, right_tensors, drop_tags=True)
 
         # ======================================================================
         # Remove dead tensors from left and right. This happens after grouping
@@ -217,14 +221,14 @@ def quick_join(
         # is in case the tensor lifetime extends beyond the Einsums for which it
         # is used.
         # ======================================================================
-        SIM.remove_dead_tensors(
+        PmappingGroup.remove_dead_tensors(
             [s for lr in [left, right] for v in lr.values() for s in v], live_tensors
         )
 
         # ======================================================================
         # Merge the left and right buckets.
         # ======================================================================
-        combined: list[SIM] = []
+        combined: list[PmappingGroup] = []
         for k in left:
             for k_translated in get_possible_translations(
                 k,
@@ -259,8 +263,8 @@ def quick_join(
     # Final consolidate and group
     # ======================================================================
     t0 = time.time()
-    left = SIM.left_consolidate(left, None)
-    s_final = SIM.combine_combineable(left, set(), drop_tags=True)
+    left = PmappingGroup.left_consolidate(left, None)
+    s_final = PmappingGroup.combine_combineable(left, set(), drop_tags=True)
     assert len(s_final) == 1
     mappings = s_final[0].mappings
 

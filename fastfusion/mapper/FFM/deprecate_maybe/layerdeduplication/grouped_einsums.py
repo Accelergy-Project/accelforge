@@ -38,7 +38,7 @@ class GroupOfSimilarEinsums[IdOrName: Id | Name]:
             return self.similar_einsums_to_renaming[other_einsum]
         except Exception as e:
             e.add_note(f"{other_einsum} not in group of similar Einsums.")
-            raise e
+            raise
 
     @property
     def similar_einsums_and_renamings(

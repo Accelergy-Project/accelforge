@@ -4,7 +4,7 @@
         -   logical:
                 name: PE
                 l_dims: [i]
-            physical: 
+            physical:
                 name: PE
                 p_dims: [x, y]
             relations:
@@ -26,7 +26,7 @@
                 tensorA: |
                     {
                         [
-                            tensorA_ranks[c, h, w, p, q, r, s] -> 
+                            tensorA_ranks[c, h, w, p, q, r, s] ->
                             l_PE_dims[i]
                         ] ->
                         p_PE_dims[x, y] :
@@ -35,7 +35,7 @@
                 tensorB: |
                     {
                         [
-                            tensorB_ranks[c, h, w, p, q, r, s] -> 
+                            tensorB_ranks[c, h, w, p, q, r, s] ->
                             l_PE_dims[i]
                         ] ->
                         p_PE_dims[x, y] :
@@ -45,7 +45,7 @@
                 tensorA: |
                     {
                         [
-                            tensorA_ranks[c, h, w, p, q, r, s] -> 
+                            tensorA_ranks[c, h, w, p, q, r, s] ->
                             l_Scratchpad_dims[x, y]
                         ] ->
                         p_GLB_dims[ a, b ] :
@@ -54,7 +54,7 @@
                 tensorB: |
                     {
                         [
-                            tensorB_ranks[c, h, w, p, q, r, s] -> 
+                            tensorB_ranks[c, h, w, p, q, r, s] ->
                             l_Scratchpad_dims[x, y]
                         ] ->
                         p_GLB_dims[ a, b ] :
@@ -91,10 +91,10 @@
                 name: GLB
                 l_dims: [x, y, z]
             relation: # Some weird bypass shenanigans.
-                weights: 
+                weights:
                 inputs:
                 outputs:
-                
 
 
--   
+
+-

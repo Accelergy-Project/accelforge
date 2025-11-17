@@ -5,7 +5,7 @@ workload:
     - {name: input, projection: [m, k]}
     - {name: weight, projection: [k, n]}
     - {name: output, projection: [n, m], output: True}
-    shape: 
+    shape:
     - 0 <= m < 4096
     - 0 <= n < 4096
     - 0 <= k < 4096

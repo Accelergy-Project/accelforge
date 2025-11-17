@@ -57,7 +57,7 @@ COPY Makefile ./
 # ADD https://github.com/inducer/islpy/archive/refs/tags/v2024.2.tar.gz /home/build/sources/islpy-2024.2.tar.gz
 
 # --- build + install all ---
-# RUN make install-ntl 
+# RUN make install-ntl
 # RUN make install-barvinok
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 

@@ -9,16 +9,18 @@ from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
     compress_einsum2pmappings,
     decompress_pmappings,
 )
-from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import get_sims
+import fastfusion.mapper.FFM._make_pmappings.pmapper_multi_einsum as pmapper
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_sims
-from fastfusion.mapper.FFM._pmapping_group.df_convention import MAPPING_COLUMN
-from fastfusion.mapper.FFM._pmapping_group.pmapping_group import (
-    PmappingGroup,
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import (
+    join_pmappings as _join_pmappings,
+)
+from fastfusion.mapper.FFM._pareto_df.df_convention import MAPPING_COLUMN
+from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
+    PmappingDataframe,
     row2pmappings,
 )
-from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import (
+from fastfusion.mapper.FFM._make_pmappings.pmapper_multi_einsum import (
     get_rank_variable_bounds_for_all_einsums,
 )
 from fastfusion.accelerated_imports import pd
@@ -50,7 +52,7 @@ def _make_pmappings(
 ) -> MultiEinsumPmappings:
     parsed_spec = spec.calculate_component_energy_area(area=False)
     flattened_arches = parsed_spec.get_flattened_architecture()
-    sims, pmapping_objects, einsum2jobs = get_sims(
+    pmapping_groups, pmapping_objects, einsum2jobs = pmapper.make_pmappings(
         parsed_spec,
         flattened_arches,
         metrics=spec.mapper.ffm.metrics,
@@ -64,7 +66,7 @@ def _make_pmappings(
                 resource2capacity[l.name] = l.attributes.size
 
     m = MultiEinsumPmappings(
-        sims,
+        pmapping_groups,
         pmapping_objects,
         resource2capacity,
         einsum2jobs,
@@ -146,7 +148,7 @@ def join_pmappings(
             raise ValueError(f"Einsum {einsum_name} has no pmappings")
 
     compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
-    joined = join_sims(
+    joined = _join_pmappings(
         compressed,
         spec,
         pmappings.resource2capacity,

@@ -17,9 +17,11 @@ class Subaction(ParsableModel):
 
 class Action(ParsableModel):
     name: str
+    attributes: ComponentAttributes = ComponentAttributes()
     arguments: ComponentAttributes = ComponentAttributes()
     energy: ParsesTo[Union[int, float]]
     subactions: ParsableList["Subaction"]
+    messages: list[str] = []
 
     @staticmethod
     def from_models(
@@ -120,6 +122,9 @@ class Action(ParsableModel):
             name=action_name,
             subactions=entries,
             energy=energy,
+            arguments=arguments,
+            attributes=attributes,
+            messages=[m for e in entries for m in e.messages],
         )
 
 
@@ -161,11 +166,11 @@ class EnergyEntry(ParsableModel):
                     )
                 )
             except Exception as e:
-                raise ValueError(
-                    f"Error calculating energy for {name} action {action_name}. If "
-                    f"you'd like to use a predefined energy value, set the "
-                    f"\"energy\" argument of the action."
-                ) from e
+                e.add_note(
+                    'If you\'d like to use a predefined energy value, set the "energy" '
+                    "argument of the action."
+                )
+                raise
         return EnergyEntry(name=name, actions=actions, attributes=attributes)
 
 

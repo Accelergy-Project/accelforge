@@ -3,7 +3,7 @@
 # tech_node --> technology, xe-9 -> "xnm"
 # Delete actions
 # component_class -> subclass
-# !Memory -> !Component and add a class "SRAM" 
+# !Memory -> !Component and add a class "SRAM"
 # spatial --> meshX, meshY
 # tensors --> dataspace
 
@@ -59,7 +59,7 @@ architecture:
       width: 8
       depth: 1
       datawidth: 8
-    constraints: 
+    constraints:
       dataspace: {bypass: [input, output, weight]}
       spatial: {split: 999, no_iteration_over_dataspaces: [output], factors: [C=128]}
       temporal: {factors_only: []}
@@ -87,7 +87,7 @@ architecture:
       width: 8
       depth: 1
       datawidth: 8
-    constraints: 
+    constraints:
       dataspace: {bypass: [input, output], keep: [weight]}
       temporal: {no_iteration_over_dataspaces: [weight]}
 

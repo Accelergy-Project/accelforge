@@ -13,16 +13,16 @@ from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
 )
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM
-from fastfusion.mapper.FFM._pmapping_group.df_convention import (
+from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup
+from fastfusion.mapper.FFM._pareto_df.df_convention import (
     MAPPING_COLUMN,
     col2nameloop,
 )
-from fastfusion.mapper.FFM._pmapping_group.pmapping_group import (
-    PmappingGroup,
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group.pmapping_group import (
+    PmappingDataframe,
     row2pmappings,
 )
-from fastfusion.mapper.FFM._make_pmappings.mapper_multi_einsum import (
+from fastfusion.mapper.FFM._make_pmappings.pmapper_multi_einsum import (
     get_rank_variable_bounds_for_all_einsums,
 )
 from fastfusion.accelerated_imports import pd
@@ -35,7 +35,7 @@ from fastfusion.mapper.simanneal2.tracking import EvaluationsScoreTracker
 # Given:
 # - Pmappings for each Einsum
 
-# 1. Make a compatibility -> SIMs dict for each Einsum
+# 1. Make a compatibility -> PmappingGroups dict for each Einsum
 # 2. While True:
 #    a. Randomly change a compatibility choice for one Einsum
 
@@ -53,13 +53,13 @@ class FailedMutation(Exception):
 class MapspaceGlobals:
     def __init__(
         self,
-        einsum2sims: dict[EinsumName, list[SIM]],
+        einsum2sims: dict[EinsumName, list[PmappingGroup]],
         resource2capacity: dict[str, int],
         aliased_tensors: dict[str, set[str]],
         objective_function: Callable[[pd.Series], float],
         tracker: EvaluationsScoreTracker,
     ) -> None:
-        self.einsum2sims: dict[EinsumName, list[SIM]] = einsum2sims
+        self.einsum2sims: dict[EinsumName, list[PmappingGroup]] = einsum2sims
         self.resource2capacity: dict[str, int] = resource2capacity
         self.aliased_tensors: dict[str, set[str]] = aliased_tensors
         self.objective_function: Callable[[pd.Series], float] = objective_function
@@ -68,11 +68,11 @@ class MapspaceGlobals:
 
 class SimAnnealMapping:
     def __init__(self, mapspace_globals: MapspaceGlobals) -> None:
-        # self.einsum2sim: dict[EinsumName, SIM] = {
+        # self.einsum2sim: dict[EinsumName, PmappingGroup] = {
         #     e: random.choice(s) for e, s in mapspace_globals.einsum2sims.items()
         # }
         self.mapspace_globals: MapspaceGlobals = mapspace_globals
-        self.einsum2sim: dict[EinsumName, SIM] = {
+        self.einsum2sim: dict[EinsumName, PmappingGroup] = {
             e: random.choice(s) for e, s in mapspace_globals.einsum2sims.items()
         }
         self.einsum2index: dict[EinsumName, int] = {e: 0 for e in self.einsum2sim}
@@ -111,7 +111,7 @@ class SimAnnealMapping:
         lock_choice_for_einsum: EinsumName,
     ) -> None:
 
-        new_einsum2sim: dict[EinsumName, SIM] = {}
+        new_einsum2sim: dict[EinsumName, PmappingGroup] = {}
 
         # Grab all the compatibilities that match
         for i, (e, s) in enumerate(list(self.einsum2sim.items())):
@@ -154,7 +154,7 @@ class SimAnnealMapping:
                 new_einsum2sim[e] = s
 
         # Grab compatibilities that don't match
-        def _matches(s: SIM, c: Compatibility) -> bool:
+        def _matches(s: PmappingGroup, c: Compatibility) -> bool:
             cs = s.compatibility.clear_dead_tensors(
                 c.tensor_names
             ).clear_tile_patterns_and_reservation_indices()
@@ -163,21 +163,23 @@ class SimAnnealMapping:
             ).clear_tile_patterns_and_reservation_indices()
             return cs == cn
 
-        for e, sims in self.mapspace_globals.einsum2sims.items():
+        for e, pmapping_groups in self.mapspace_globals.einsum2sims.items():
             if e in new_einsum2sim:
                 continue
 
             for s in new_einsum2sim.values():
-                sims = [s2 for s2 in sims if _matches(s2, s.compatibility)]
+                pmapping_groups = [
+                    s2 for s2 in pmapping_groups if _matches(s2, s.compatibility)
+                ]
 
-            if not sims:
-                # print(f"No compatible SIMs found for {e}")
-                raise FailedMutation(f"No compatible SIMs found for {e}")
+            if not pmapping_groups:
+                # print(f"No compatible PmappingGroups found for {e}")
+                raise FailedMutation(f"No compatible PmappingGroups found for {e}")
 
-            new_einsum2sim[e] = random.choice(sims)
+            new_einsum2sim[e] = random.choice(pmapping_groups)
             self.randomize_index(e)
 
-            # sims = self.mapspace_globals.einsum2sims[e]
+            # pmapping_groups = self.mapspace_globals.einsum2sims[e]
             # [s.compatibility for s in self.einsum2sim.values()]
             # [s.compatibility for s in new_einsum2sim.values()]
             # {e: s.compatibility for e, s in new_einsum2sim.items()}
@@ -200,16 +202,17 @@ class SimAnnealMapping:
         data = s.mappings.data
         i = self.einsum2index[e] if index_override is None else index_override
         i %= len(data)
-        return SIM(
-            compatibility=s.compatibility, mappings=PmappingGroup(data.iloc[i : i + 1])
+        return PmappingGroup(
+            compatibility=s.compatibility,
+            mappings=PmappingDataframe(data.iloc[i : i + 1]),
         )
 
     def get_score(self) -> float:
         if self._prev_score is not None:
             return self._prev_score
 
-        items: list[tuple[EinsumName, SIM]] = list(self.einsum2sim.items())
-        joined: SIM = items.pop(0)[1]
+        items: list[tuple[EinsumName, PmappingGroup]] = list(self.einsum2sim.items())
+        joined: PmappingGroup = items.pop(0)[1]
         for i, (e, s) in enumerate(items):
             right_tensors = self._einsum2tensors(i)
             live_tensors = self._einsum2tensors(range(i + 1, len(items)))
@@ -219,8 +222,10 @@ class SimAnnealMapping:
             )
 
             def _merge_next(
-                left: SIM, right: SIM, apply_resource_limit: bool = True
-            ) -> SIM:
+                left: PmappingGroup,
+                right: PmappingGroup,
+                apply_resource_limit: bool = True,
+            ) -> PmappingGroup:
                 try:
                     return left.merge_next(
                         right,
@@ -313,13 +318,13 @@ def get_random_mapping(mapspace_globals: MapspaceGlobals) -> SimAnnealMapping:
             continue
 
 
-def join_sims(
-    sims: dict[EinsumName, list[SIM]],
+def join_pmappings(
+    pmapping_groups: dict[EinsumName, list[PmappingGroup]],
     spec: Specification,
     resource2capacity: dict[str, int],
     tracker: EvaluationsScoreTracker,
     pop_size_per_thread: int,
-) -> SIM:
+) -> PmappingGroup:
     objective = spec.mapper.ffm.metrics
     if objective == Metrics.ENERGY:
         objective_function = lambda x: x["Total<SEP>energy"]
@@ -331,7 +336,7 @@ def join_sims(
         raise ValueError(f"Unknown objective {objective}")
     # print(f'Resource2capacity: {resource2capacity}')
     mapspace_globals = MapspaceGlobals(
-        einsum2sims=sims,
+        einsum2sims=pmapping_groups,
         resource2capacity=resource2capacity,
         aliased_tensors=spec.workload.get_tensor_copies(),
         objective_function=objective_function,
@@ -377,7 +382,7 @@ def join_sims(
     # raise ValueError("No valid mapping found")
 
 
-def get_n_tile_shapes(sim: SIM) -> int:
+def get_n_tile_shapes(sim: PmappingGroup) -> int:
     df = sim.mappings.data
     symbols = sim.compatibility.symbols()
     cols = [c for c in df.columns if c in symbols]
@@ -425,7 +430,7 @@ def join_pmappings(
         if total == 0:
             raise ValueError(f"Einsum {einsum_name} has no pmappings")
 
-    print(f"TODO: Populate SIMs with all permutations")
+    print(f"TODO: Populate PmappingGroups with all permutations")
 
     compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
 
@@ -434,26 +439,30 @@ def join_pmappings(
         for s in einsum_sims:
             for c_perm, _ in s.compatibility.make_equivalent_permutations():
                 permuted.setdefault(einsum_name, []).append(
-                    SIM(
+                    PmappingGroup(
                         compatibility=c_perm,
                         mappings=s.mappings,
                     )
                 )
 
-    tile_shapes = [get_n_tile_shapes(s) for sims in compressed.values() for s in sims]
+    tile_shapes = [
+        get_n_tile_shapes(s)
+        for pmapping_groups in compressed.values()
+        for s in pmapping_groups
+    ]
 
     # average_tile_shapes = sum(tile_shapes) / len(tile_shapes)
     # print(f"Average tile shapes: {average_tile_shapes}")
     # tracker.multiply_scale_by(average_tile_shapes)
 
     def parallel_join(
-        permuted: dict[EinsumName, list[SIM]],
+        permuted: dict[EinsumName, list[PmappingGroup]],
         spec: Specification,
         resource2capacity: dict[str, int],
         tracker: EvaluationsScoreTracker,
         pop_size_per_thread: int,
     ) -> EvaluationsScoreTracker:
-        join_sims(permuted, spec, resource2capacity, tracker, pop_size_per_thread)
+        join_pmappings(permuted, spec, resource2capacity, tracker, pop_size_per_thread)
         return tracker
 
     trackers = util.parallel(

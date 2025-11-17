@@ -113,17 +113,21 @@ class Comparison(ParsableModel):
 
 
 class Tensors(ParsableModel):
-    keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "<Defaults to Nothing>"
-    """ Which tensors must be kept in this unit" """ 
-    
-    may_keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = "<Nothing if keep is defined, else All>"
+    keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
+        "<Defaults to Nothing>"
+    )
+    """ Which tensors must be kept in this unit" """
+
+    may_keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
+        "<Nothing if keep is defined, else All>"
+    )
     """ Which tensors may be kept in this unit, but are not required to be. The mapper
     will explore both keeping and not keeping each tensor. """
-    
+
     tile_shape: ParsableList[Comparison] = []
     """
     The tile shape for each rank variable. This is given as a list of comparisons, where
-    each comparison must evaluate to True for a valid mapping. 
+    each comparison must evaluate to True for a valid mapping.
     """
 
     no_refetch_from_above: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
@@ -134,7 +138,6 @@ class Tensors(ParsableModel):
     of tensors. These tensors must be fetched at most one time from above memories.
     """
 
-
     def _parse_keep(self, symbol_table: dict[str, Any], location: str):
         keep, may_keep = self.keep, self.may_keep
         if may_keep == "<Nothing if keep is defined, else All>":
@@ -142,14 +145,14 @@ class Tensors(ParsableModel):
         if keep == "<Defaults to Nothing>":
             keep = "Nothing"
 
-        keep_first = isinstance(keep, str) and re.findall(r"\bmay_keep\b", keep)
-        may_keep_first = isinstance(may_keep, str) and re.findall(r"\bkeep\b", may_keep)
+        may_keep_first = isinstance(keep, str) and re.findall(r"\bmay_keep\b", keep)
+        keep_first = isinstance(may_keep, str) and re.findall(r"\bkeep\b", may_keep)
         if keep_first and may_keep_first:
             raise ValueError(
                 f"Keep and may_keep constraints reference each other: "
                 f"{keep} and {may_keep}"
             )
-            
+
         if may_keep_first:
             may_keep = eval_set_expression(may_keep, symbol_table, "tensors", location)
             symbol_table = copy.copy(symbol_table)
@@ -186,7 +189,7 @@ class Iteration(ParsableModel):
 
 class Spatial(Iteration):
     name: str
-    min_utilization: Union[float, str] = 0.0
+    min_utilization: Union[int, float, str] = 0.0
     reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
     must_reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "Nothing"
 
@@ -202,7 +205,9 @@ class Spatial(Iteration):
             min_utilization=parse_expression(
                 self.min_utilization, symbol_table, "min_utilization", location
             ),
-            must_reuse=eval_set_expression(self.must_reuse, symbol_table, "tensors", location),
+            must_reuse=eval_set_expression(
+                self.must_reuse, symbol_table, "tensors", location
+            ),
         )
 
 

@@ -3,14 +3,14 @@ from typing import Any, NamedTuple
 from tqdm import tqdm
 from fastfusion.accelerated_imports import pd
 from fastfusion.frontend.workload.workload import EinsumName
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM
-from fastfusion.mapper.FFM._pmapping_group.df_convention import (
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
+from fastfusion.mapper.FFM._pareto_df.df_convention import (
     COMPRESSED_INDEX,
     col_used_in_pareto,
     is_fused_loop_col,
     is_tensor_col,
 )
-from fastfusion.mapper.FFM._pmapping_group.pmapping_group import PmappingGroup
+from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 from fastfusion.util.util import parallel, delayed
 
 
@@ -19,8 +19,8 @@ class DecompressData(NamedTuple):
 
 
 def _compress(
-    einsum_name: EinsumName, pmappings: SIM, start_index: int
-) -> tuple["PmappingGroup", pd.DataFrame]:
+    einsum_name: EinsumName, pmappings: PmappingGroup, start_index: int
+) -> tuple["PmappingDataframe", pd.DataFrame]:
     data = pmappings.mappings.data
     data.reset_index(drop=True, inplace=True)
     data.index += start_index
@@ -40,20 +40,20 @@ def _compress(
 
 
 def _compress_pmapping_list(
-    einsum_name: EinsumName, pmappings: list[SIM]
-) -> tuple[list[PmappingGroup], dict[int, pd.DataFrame]]:
+    einsum_name: EinsumName, pmappings: list[PmappingGroup]
+) -> tuple[list[PmappingDataframe], dict[int, pd.DataFrame]]:
     decompress_data = {}
     compressed = []
     start_index = 0
     jobs = []
 
-    def job(start_index: int, pmappings: SIM):
+    def job(start_index: int, pmappings: PmappingGroup):
         compress, decompress = _compress(
             einsum_name,
             pmappings,
             start_index,
         )
-        compress = SIM(pmappings.compatibility, compress)
+        compress = PmappingGroup(pmappings.compatibility, compress)
         compressed.append(compress)
         return compress, decompress, start_index
 
@@ -69,14 +69,14 @@ def _compress_pmapping_list(
 
 
 def compress_einsum2pmappings(
-    einsum2pmappings: dict[EinsumName, list[SIM]],
-) -> tuple[dict[EinsumName, list[SIM]], DecompressData]:
+    einsum2pmappings: dict[EinsumName, list[PmappingGroup]],
+) -> tuple[dict[EinsumName, list[PmappingGroup]], DecompressData]:
     decompress_data = {}
     compressed_einsum2pmappings = {}
 
     jobs = []
 
-    def job(einsum_name: EinsumName, pmappings: list[SIM]):
+    def job(einsum_name: EinsumName, pmappings: list[PmappingGroup]):
         compressed, decompress = _compress_pmapping_list(einsum_name, pmappings)
         return einsum_name, compressed, decompress
 
@@ -106,9 +106,9 @@ def compress_einsum2pmappings(
 
 
 def decompress_pmappings(
-    pmappings: PmappingGroup,
+    pmappings: PmappingDataframe,
     decompress_data: DecompressData,
-) -> PmappingGroup:
+) -> PmappingDataframe:
     data = pmappings.data
     for einsum_name, decompress in decompress_data.data.items():
         decompress_sub_dfs = []

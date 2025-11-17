@@ -9,7 +9,7 @@ arch:
       technology: "45nm"
       global_cycle_seconds: 1e-9
       datawidth: 16
-  
+
   - !Network
     name: L2
     topology: Mesh
@@ -45,7 +45,7 @@ arch:
       level: L1
       placement: |
         {
-          PE[i, j] -> L1[x, y] : 
+          PE[i, j] -> L1[x, y] :
             j = y and x < 0 and i = -x - 1;
             j = y and x > 0 and i = x;
         }
@@ -55,7 +55,7 @@ arch:
     name: weight_reg
     class: reg_storage
     attributes: {depth: 1, datawidth: datawidth, width: datawidth}
-      
+
   - !Component
     name: input_activation_reg
     class: reg_storage

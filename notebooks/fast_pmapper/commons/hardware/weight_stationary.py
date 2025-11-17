@@ -11,7 +11,7 @@ def acc_weight_stationary():
     spatial_dim2 = 16
     # *********** 128 KB L2, 512KB L1  ***********
     L2_capacity = int(1024 * 128 / 2)
-    L1_capacity = int(512 / 2) 
+    L1_capacity = int(512 / 2)
     accelerator = create_accelerator_from_mem_sizes([L1_capacity, L2_capacity], spatial_dim1, spatial_dim2, spatial_level=1)
     accelerator.memory_hierarchy[1].banks = 32
 
@@ -26,14 +26,14 @@ def acc_weight_stationary():
     accelerator.memory_hierarchy[1].write_bandwidth = accelerator.bw.read_bw + accelerator.bw.write_bw  #9
     accelerator.NoC_type = NoC_type="eyerissv1"
     accelerator.access_energies = { 'L1': 2.05,
-                                    'L2': 18.805, 
-                                    'L3': 128.0, 
-                                    'ifmap_NoC_check_tag': 0.131, 
-                                    'ifmap_NoC_idle': 0.021, 
-                                    'ofmap_NoC_check_tag': 0.238, 
-                                    'ofmap_NoC_idle': 0.039, 
-                                    'w_NoC_check_tag': 0.238, 
-                                    'w_NoC_idle': 0.039, 
+                                    'L2': 18.805,
+                                    'L3': 128.0,
+                                    'ifmap_NoC_check_tag': 0.131,
+                                    'ifmap_NoC_idle': 0.021,
+                                    'ofmap_NoC_check_tag': 0.238,
+                                    'ofmap_NoC_idle': 0.039,
+                                    'w_NoC_check_tag': 0.238,
+                                    'w_NoC_idle': 0.039,
                                     'communication': 0.607
                                 }
     return accelerator

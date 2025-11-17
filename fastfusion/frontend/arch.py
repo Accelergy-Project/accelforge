@@ -43,7 +43,7 @@ class ArchNode(ParsableModel):
         """
         if isinstance(self, Leaf) and getattr(self, "name", None) == name:
             return self
-        
+
         if isinstance(self, Branch):
             for element in self.nodes:
                 try:
@@ -82,7 +82,7 @@ class Spatial(ParsableModel):
     """A one-dimensional spatial fanout in the architecture."""
 
     name: str
-    """ 
+    """
     The name of the dimension over which this spatial fanout is occurring (e.g., X or Y).
     """
 
@@ -133,9 +133,9 @@ class Leaf(ArchNode, ABC):
     """ The attributes of this `Leaf`. """
 
     spatial: ParsableList[Spatial] = ParsableList()
-    """ 
-    The spatial fanouts of this `Leaf`. 
-    
+    """
+    The spatial fanouts of this `Leaf`.
+
     Spatial fanouts describe the spatial organization of components in the architecture.
     A spatial fanout of size N for this node means that there are N instances of this
     node. Multiple spatial fanouts lead to a multi-dimensional fanout. Spatial
@@ -235,6 +235,13 @@ MEMORY_ACTIONS = ParsableList(
     ]
 )
 
+
+PROCESSING_STAGE_ACTIONS = ParsableList(
+    [
+        ArchMemoryAction(name="read", arguments={"bits_per_action": 1}),
+    ]
+)
+
 COMPUTE_ACTIONS = ParsableList(
     [
         SubcomponentAction(name="compute"),
@@ -265,7 +272,7 @@ class TensorHolderAttributes(LeafAttributes):
     underscore-prefix attribute names. See `TODO: UNDERSCORE_PREFIX_DISCUSSION`.
     """
 
-    datawidth: ParsesTo[Union[dict, int, float]] = 1
+    datawidth: ParsesTo[Union[dict, int, float]] = {}
     """ Number of bits per value stored in this `TensorHolder`. If this is a dictionary,
     keys in the dictionary are parsed as expressions and may reference one or more
     `Tensor`s. """
@@ -328,22 +335,36 @@ class ProcessingStageAttributes(TensorHolderAttributes):
     movements are assumed to avoid this ProcessingStage.
     """
 
+
 class ProcessingStage(TensorHolder):
     """A `ProcessingStage` is a `TensorHolder` that does not store data over time, and
     therefore does not allow for temporal reuse. Use this as a toll that charges reads
     and writes every time a piece of data moves through it.
 
-    The access counts of `Memory` and `ProcessingStage` classes are identical; they vary
-    in how they affect the access counts of other components. Every write to a
-    `ProcessingStage` is written to the next `Memory` (which may be above or below
-    depending on where the write came from), and same for reads."""
-    
-    attributes: ProcessingStageAttributes = pydantic.Field(default_factory=ProcessingStageAttributes)
+    Every write to a `ProcessingStage` is immediately written to the next `Memory`
+    (which may be above or below depending on where the write came from), and same for
+    reads.
+
+    The access counts of a `ProcessingStage` are only included in the "read" action.
+    Each traversal through the `ProcessingStage` is counted as a read. Writes are always
+    zero.
+    """
+
+    attributes: ProcessingStageAttributes = pydantic.Field(
+        default_factory=ProcessingStageAttributes
+    )
     """ The attributes of this `ProcessingStage`. """
+
+    actions: ParsableList[ArchMemoryAction] = PROCESSING_STAGE_ACTIONS
+    """ The actions that this `ProcessingStage` can perform. """
+
+    def model_post_init(self, __context__=None) -> None:
+        self._update_actions(PROCESSING_STAGE_ACTIONS)
 
 
 class ComputeAttributes(LeafAttributes):
     """Attributes for a `Compute`."""
+
     pass
 
 
@@ -360,7 +381,9 @@ class Compute(Component):
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
 
+
 T = TypeVar("T")
+
 
 class Branch(ArchNode, ABC):
     # nodes: ArchNodes[InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
@@ -376,13 +399,14 @@ class Branch(ArchNode, ABC):
             Discriminator(get_tag),
         ]
     ] = ArchNodes()
-    
+
     def find_nodes_of_type(self, node_type: Type[T]) -> Iterator[T]:
         for node in self.nodes:
             if isinstance(node, node_type):
                 yield node
             elif isinstance(node, Branch):
                 yield from node.find_nodes_of_type(node_type)
+
 
 class Parallel(Branch):
     def _flatten(
@@ -489,7 +513,7 @@ class Arch(Hierarchical):
         for node in self.find_nodes_of_type(Leaf):
             symbol_table[node.name] = node
         return super()._parse_expressions(*args, **kwargs)
-    
+
     def __getitem__(self, name: str) -> Leaf:
         return self.name2leaf(name)
 
@@ -501,5 +525,6 @@ class Arch(Hierarchical):
             leaves.setdefault(n, l)
             assert l is leaves[n], f"Duplicate name {n} found in architecture"
 
-# We had to reference Hierarchical before it was defined 
+
+# We had to reference Hierarchical before it was defined
 Branch.model_rebuild()

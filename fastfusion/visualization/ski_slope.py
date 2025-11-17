@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from fastfusion.accelerated_imports import np
 from fastfusion.accelerated_imports import pd
 
-from fastfusion.mapper.FFM._pmapping_group import PmappingGroup
+from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 
 
 DATAFLOW_COLUMN = "dataflow"
@@ -25,13 +25,13 @@ def plot_ski_slope(
         _add_dataflow_to_data(data)
 
     if not split_by_dataflow:
-        data = PmappingGroup(data).data
+        data = PmappingDataframe(data).data
 
     separated_datas = []
     labels = []
     if categorize_by_dataflow or split_by_dataflow:
         for dataflow, sub_df in data.groupby(by=DATAFLOW_COLUMN):
-            separated_datas.append(PmappingGroup(sub_df).data)
+            separated_datas.append(PmappingDataframe(sub_df).data)
             labels.append(dataflow)
     else:
         separated_datas.append(data)

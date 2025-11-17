@@ -1125,7 +1125,7 @@ class GenericTile:
                 curr_dict["permutation"] = default_ord
                 ret["mapping"].append(curr_dict)
 
-            elif mem_hier[mem_i][1]:                
+            elif mem_hier[mem_i][1]:
                 for j, tn in enumerate(tens_names):
                     fctrs = {}
                     for k in t:
@@ -1143,7 +1143,7 @@ class GenericTile:
                     curr_dict["target"] = f"{mem_hier[mem_i][0]}_{tn}"
                     curr_dict["type"] = "temporal"
 
-                        
+
                     fact_str = " ".join([f"{k}={v}" for k, v in fctrs.items()])
                     curr_dict["factors"] = fact_str
                     curr_dict["permutation"] = full_orders[mem_i]

@@ -3,7 +3,7 @@ import itertools
 
 from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import SIM
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import PmappingGroup
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Loop, Compatibility
 from fastfusion.util import fzs
 from fastfusion.mapper.FFM._join_pmappings.join_pmappings import (
@@ -14,12 +14,12 @@ from fastfusion.mapper.FFM._join_pmappings.join_pmappings import (
 class MapspaceGlobals:
     def __init__(
         self,
-        sims: dict[str, list[SIM]],
+        pmapping_groups: dict[str, list[PmappingGroup]],
         spec: Specification,
         objective_function_cols: list[str] = None,
         flattened_architecture: list[arch.Leaf] = None,
     ):
-        self.sims = sims
+        self.pmapping_groups = pmapping_groups
         self.einsum_names = spec.workload.einsum_names
         self.einsum2ranks = {
             einsum_name: spec.workload.einsums[einsum_name].rank_variables
@@ -51,8 +51,8 @@ class MapspaceGlobals:
         self.objective_function_cols = objective_function_cols
         self.rank_translations = self._create_rank_translations(self.einsum2ranks)
 
-        for i, (left_id, left_sims) in enumerate(sims.items()):
-            for j, (right_id, right_sims) in enumerate(sims.items()):
+        for i, (left_id, left_sims) in enumerate(pmapping_groups.items()):
+            for j, (right_id, right_sims) in enumerate(pmapping_groups.items()):
                 if i >= j:
                     continue
 
@@ -123,10 +123,14 @@ class MapspaceGlobals:
         ) = self._create_compatibility()
         self.size_scale = len(self.einsum2ranks)
         n_optimal = sum(
-            len(s.mappings.data) for simlist in self.sims.values() for s in simlist
+            len(s.mappings.data)
+            for simlist in self.pmapping_groups.values()
+            for s in simlist
         )
         n_pmappings = sum(
-            s.mappings.n_pmappings for simlist in self.sims.values() for s in simlist
+            s.mappings.n_pmappings
+            for simlist in self.pmapping_groups.values()
+            for s in simlist
         )
         self.find_pmapping_scale = n_pmappings / n_optimal
         self.aliased_tensors = spec.workload.get_tensor_copies()
@@ -141,17 +145,17 @@ class MapspaceGlobals:
         def tilings2compatibility(tilings: list[Compatibility], live_tensors: set[str]):
             return {t: t.clear_dead_tensors(live_tensors=live_tensors) for t in tilings}
 
-        for i, (einsum_name, sim_list) in enumerate(self.sims.items()):
+        for i, (einsum_name, pm_group_list) in enumerate(self.pmapping_groups.items()):
             if i > 0:
                 prev_live = self.get_live_tensors(*self.einsum_names[:i])
                 tiling2leftcompatibility[einsum_name] = tilings2compatibility(
-                    [s.compatibility for s in sim_list],
+                    [s.compatibility for s in pm_group_list],
                     prev_live,
                 )
-            if i < len(self.sims) - 1:
+            if i < len(self.pmapping_groups) - 1:
                 next_live = self.get_live_tensors(*self.einsum_names[i + 1 :])
                 tiling2rightcompatibility[einsum_name] = tilings2compatibility(
-                    [s.compatibility for s in sim_list],
+                    [s.compatibility for s in pm_group_list],
                     next_live,
                 )
 
@@ -176,21 +180,21 @@ class MapspaceGlobals:
 
     def _create_einsum_tiling_2_sim(self):
         einsum_tiling_2_sim = {}
-        for e, sim_list in self.sims.items():
+        for e, pm_group_list in self.pmapping_groups.items():
             cur_sims = defaultdict(list)
-            for sim in sim_list:
+            for sim in pm_group_list:
                 cur_sims[sim.compatibility].append(sim)
             einsum_tiling_2_sim[e] = {}
             for t, s in cur_sims.items():
-                s = SIM.concat(s)
+                s = PmappingGroup.concat(s)
                 einsum_tiling_2_sim[e][t] = s
         return einsum_tiling_2_sim
 
     def _create_tensor2possible_loops_above(self):
         tensor2possible_loops_above = {}
-        for einsum_name, sim_list in self.sims.items():
+        for einsum_name, pm_group_list in self.pmapping_groups.items():
             tensor2possible_loops_above[einsum_name] = defaultdict(set)
-            for sim in sim_list:
+            for sim in pm_group_list:
                 for tensor in sim.compatibility.tensors:
                     tensor2possible_loops_above[einsum_name][tensor] |= set(
                         sim.compatibility.loops[: tensor.above_loop_index]
@@ -204,11 +208,11 @@ class MapspaceGlobals:
         tensor2memories = {}
         for t in self.fusable_tensor_names:
             possible_memories = []
-            for einsum_name, sim_list in self.sims.items():
+            for einsum_name, pm_group_list in self.pmapping_groups.items():
                 cur_memories = set()
-                if t not in sim_list[0].tensor_names:
+                if t not in pm_group_list[0].tensor_names:
                     continue
-                for sim in sim_list:
+                for sim in pm_group_list:
                     tensor = sim.compatibility.get_tensor_by_name(t)
                     cur_memories.add(tensor)
                 possible_memories.append(cur_memories)
@@ -254,9 +258,9 @@ class MapspaceGlobals:
         self,
     ) -> dict[str, dict[str, dict[int, list[Loop]]]]:
         einsum_rank_index_to_loops = {}
-        for einsum_name, sim_list in self.sims.items():
+        for einsum_name, pm_group_list in self.pmapping_groups.items():
             einsum_rank_index_to_loops[einsum_name] = {}
-            for sim in sim_list:
+            for sim in pm_group_list:
                 for rank_index, loop in enumerate(sim.compatibility.loops):
                     x = einsum_rank_index_to_loops[einsum_name].setdefault(
                         loop.rank_variable_name, {}

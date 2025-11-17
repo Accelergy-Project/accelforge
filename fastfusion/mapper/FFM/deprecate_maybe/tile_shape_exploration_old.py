@@ -7,6 +7,7 @@ import random
 import re
 import resource
 from typing import Callable, Optional, Union
+
 # from combinatorics.integer import integer_factorizations_to_n_parts
 from dataclasses import dataclass, field
 
@@ -158,7 +159,7 @@ def run_model(job: Job):
 
 def compile_dict(symbols, dictionary):
     def lambdify(key, value):
-        x = sympy.lambdify(symbols, value)
+        x = util.lambdify_type_check(symbols, value)
         # x._loops = [int(loop) for loop in re.findall(r'loop(\d+)_', key)]
         return x
 
@@ -486,7 +487,9 @@ class Objective:
     @property
     def formula_compiled(self):
         if self._formula_compiled is None:
-            self._formula_compiled = sympy.lambdify(self._symbols, self.formula)
+            self._formula_compiled = util.lambdify_type_check(
+                self._symbols, self.formula
+            )
         return self._formula_compiled
 
     def __call__(self, values: dict[Symbol, np.array]):
@@ -803,7 +806,7 @@ def get_tile_shape_choices(
             what_tiles_symbol=what_tiles_symbol,
             minimize_formula=minimize_formula,
         )
-        return sympy.lambdify(symbols, formula)(
+        return util.lambdify_type_check(symbols, formula)(
             **{str(k): v for k, v in padded_choices.items()},
         )
 

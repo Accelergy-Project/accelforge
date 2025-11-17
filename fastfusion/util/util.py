@@ -1,17 +1,44 @@
 import itertools
 from numbers import Number
+import tempfile
 from typing import Generic, TypeVar
 
 import pydot
 import sympy
 
 from joblib import Parallel, delayed
+import joblib
 import sys
 import os
 from tqdm import tqdm
+import numpy as np
 
 PARALLELIZE = True
 N_PARALLEL_PROCESSES = os.cpu_count()
+
+NUMPY_FLOAT_TYPE = np.float32
+
+
+def lambdify_type_check(*args, **kwargs):
+    f = sympy.lambdify(*args, **kwargs)
+
+    def f_type_checked(*args, **kwargs):
+        for a in args:
+            if isinstance(a, np.ndarray):
+                if a.dtype != NUMPY_FLOAT_TYPE:
+                    raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {a.dtype}")
+            elif not isinstance(a, Number):
+                raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {type(a)}")
+        for v in kwargs.values():
+            if isinstance(v, np.ndarray):
+                if v.dtype != NUMPY_FLOAT_TYPE:
+                    raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {v.dtype}")
+            elif not isinstance(v, Number):
+                raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {type(v)}")
+        return f(*args, **kwargs)
+
+    return f_type_checked
+
 
 def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
     global N_PARALLEL_PROCESSES
@@ -19,7 +46,7 @@ def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
     global PARALLELIZE
     PARALLELIZE = n_jobs > 1
     if print_message:
-        print(f"Using {n_jobs} parallel jobs")
+        print(f"Using {n_jobs} parallel job{'s' if n_jobs > 1 else ''}")
 
 
 def using_parallel_processing():
@@ -120,7 +147,8 @@ def parallel(
         r = zip(
             jobs.keys(),
             parallel(
-                jobs.values(), pbar=pbar,
+                jobs.values(),
+                pbar=pbar,
             ),
         )
         return {k: v for k, v in r}
@@ -158,9 +186,11 @@ def pydot_graph() -> pydot.Dot:
     graph.set_edge_defaults(fontname="Arial", fontsize="10")
     return graph
 
+
 import cProfile
 import io
 import pstats
+
 
 class ProfilePrint:
     def __init__(self):
@@ -180,3 +210,14 @@ class ProfilePrint:
         print("\n===== Profiling Results (sorted by total time) =====")
         print(s.getvalue())
         # set_n_parallel_jobs(self.n_jobs)
+
+
+class SVGJupyterRender(str):
+    def _repr_svg_(self):
+        return self
+
+
+def memmap_read(x):
+    f = tempfile.NamedTemporaryFile(delete=False, suffix=".pkl")
+    joblib.dump(x, f.name)
+    return joblib.load(f.name, mmap_mode="r")

@@ -43,9 +43,9 @@ Observations:
 
 ---
 
-This looks like the problem $FFM$ targets. 
+This looks like the problem $FFM$ targets.
 - We'd like to find all Pareto-optimal combinations of $Ni$ choices
-- The choices at a given step constrain future choices. 
+- The choices at a given step constrain future choices.
 
 We can follow the procedure:
 - Enumerate choices for $n0$: $n0\in{2,4,8,16 \ldots}$
@@ -59,7 +59,7 @@ A choice is only known to be suboptimal if a different choice is better in every
 
 # Compatibility Within a Pmapping
 
-For a given pmapping template with $n$ loops, our pmapping space is defined by a set of choices $t_1, t_1, \ldots, t_{n}$. 
+For a given pmapping template with $n$ loops, our pmapping space is defined by a set of choices $t_1, t_1, \ldots, t_{n}$.
 
 ```
 Valid:
@@ -89,7 +89,7 @@ $g(a,b,c)=c*d$
 
 We start by enumerating choices for $a$, getting us pmappings $(1,?,?,?),(2,?,?,?)$. To compare these pmappings, we can see that reducing $a$ will help us minimize $f$, but it has no effect on $g$. So we should take only pmapping $(1,?,?,?)$.
 
-Next, we enumerate choices for $b$ with our Pareto-optimal choicefor $a$, getting us $(1,1,?,?),(1,2,?,?)$. Looking at $f$, we can see that we still want to minimize $a$, but the effect of $b$ depends on the $ab-bc$ term, which depends on $c$. We therefore can't compare pmappings with different $b$. 
+Next, we enumerate choices for $b$ with our Pareto-optimal choicefor $a$, getting us $(1,1,?,?),(1,2,?,?)$. Looking at $f$, we can see that we still want to minimize $a$, but the effect of $b$ depends on the $ab-bc$ term, which depends on $c$. We therefore can't compare pmappings with different $b$.
 
 Next, we enumerate choices for $c$, getting us $(1,1,1,?),(1,2,1,?),(1,1,2,?),(1,2,2,?)$. Now that we know all the values in $f$, we can evaluate $f$ directly as $a+ab-bc$. We can't evaluate $g$ directly, but we know that lower $c$ will lead to lower $g$, so we minimize two criteria: $f(a,b,c)$ and $c$. We'll get two Pareto-optimal pmappings $(1,1,1,?),(1,2,2,?)$
 
@@ -107,7 +107,7 @@ Describe objectives and resource limits as functions $f_i$ that depend on the ti
 
 *Example*: $Energy = E_{DRAM} + E_{GLB} + E_{LLB} + E_{MAC}$
 
-We first check if we can calculate energy directly. If energy is a function only of the tile shapes we know, we're done. Otherwise, calculate the energy of each sub-component directly and use as multiple sub-objectives. 
+We first check if we can calculate energy directly. If energy is a function only of the tile shapes we know, we're done. Otherwise, calculate the energy of each sub-component directly and use as multiple sub-objectives.
 
 If a sub-objective can't be calculated, we break it down further: $E_{DRAM} = E_{DRAM,Input} + E_{DRAM,Output} + E_{DRAM,Weight}$
 
@@ -144,7 +144,7 @@ Now we're severely bottlenecked by the fusion stage because:
 - Overlapping lifetimes $\rightarrow$ we need to track usage of any memories that may be shared
 - This overwhelms the pmapping generation time
 
-I've got more ideas to fix the fusion stage bottleneck; but 
+I've got more ideas to fix the fusion stage bottleneck; but
 
 <!-- # Defining Objective Metrics and Resource Usage
 
@@ -186,7 +186,7 @@ We can use an analytic solver for this function and categorize it into one of th
 
 If we have an uncomparable criterion $g(t_1, \ldots, t_i, t_{i+1}, \ldots, t_n)$, then the betterness of one pmapping over another depends on some combination of enumerated and non-enumerated tile shapes.
 
-We'll figure out how each of the tile shapes we've picked so far affects the criterion, then use those tile shapes to build criteria that are comparable. 
+We'll figure out how each of the tile shapes we've picked so far affects the criterion, then use those tile shapes to build criteria that are comparable.
 
 For each of the tile shapes we've enumerated so far, we can check $\frac{dg}{dt_i}$ and create several cases:
 - $\frac{dg}{dt_i} > 0$: Larger $t_i$ is worse (*e.g.,* makes buffer usage larger). We want to minimize $t_i$.

@@ -37,7 +37,7 @@ mapping:
             - {type: Compute, einsum: AV}
 
     - type: Nested # Z
-      nodes: 
+      nodes:
       - {type: Temporal, rank_variable: h, loop_bound: 1}
       - {type: Temporal, rank_variable: f, loop_bound: 1}
       - {type: Temporal, rank_variable: g, loop_bound: 1}

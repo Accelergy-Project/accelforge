@@ -37,7 +37,6 @@ class InvertibleSet(BaseModel, Generic[T]):
     def __str__(self):
         return self.__repr__()
 
-
     def __invert__(self):
         return self.to_my_space(self.full_space - self.instance)
 
@@ -136,6 +135,7 @@ def eval_set_expression(
     expected_count: int | None = None,
 ) -> InvertibleSet:
     try:
+        err = None
         if not isinstance(expression, (InvertibleSet, str)):
             raise TypeError(f"Expected a string, got {type(expression)}: {expression}")
 
@@ -175,5 +175,6 @@ def eval_set_expression(
         )
         if location is not None:
             err.add_field(location)
-        raise err from e
+    if err:
+        raise err
     return result

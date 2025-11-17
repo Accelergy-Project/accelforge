@@ -44,9 +44,9 @@ def continuous_gm(data, baseline):
     areas = y_log*x_intervals
     total_area = np.sum(areas)
     average_y_delta = total_area/np.sum(x_intervals)
-    
+
     max_y_delta = np.max(y_log)
-    
+
     # Include the endpoints
     max_y_delta = np.max([max_y_delta, np.log(data_y[-1]/baseline_y[-1])])
 

@@ -7,8 +7,11 @@ from joblib import delayed
 from fastfusion.accelerated_imports import pd
 from fastfusion.frontend import arch
 from fastfusion.frontend.specification import Specification
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM, Loop, Compatibility
-from fastfusion.mapper.FFM._pmapping_group import PmappingGroup, is_reservation_col
+from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
+from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+    PmappingDataframe,
+    is_reservation_col,
+)
 from fastfusion.mapper.simanneal.simanneal import MapspaceGlobals, _fuse_sims
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
 from fastfusion.util import fzs, parallel, util
@@ -22,7 +25,7 @@ def mapping2sims(einsum_to_result: Compatibility):
 
 
 def paretofy(k, v):
-    return SIM(k, PmappingGroup(pd.DataFrame(v).fillna(0)))
+    return PmappingGroup(k, PmappingDataframe(pd.DataFrame(v).fillna(0)))
 
 
 def get_possible_translations(
@@ -92,14 +95,14 @@ def print_total_time():
     print(f"============================\n")
 
 
-class GroupOfSIMsHolder:
-    def __init__(self, einsum_name: str, sim_list: list[SIM]):
+class PmappingsOneEinsum:
+    def __init__(self, einsum_name: str, pm_group_list: list[PmappingGroup]):
         self.einsum_name: str = einsum_name
-        self.sims: list[SIM] = sim_list
-        self.tensor_names: set[str] = set(sim_list[0].tensor_names)
+        self.pmapping_groups: list[PmappingGroup] = pm_group_list
+        self.tensor_names: set[str] = set(pm_group_list[0].tensor_names)
 
     def __getitem__(self, i):
-        return self.sims[i]
+        return self.pmapping_groups[i]
 
 
 def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
@@ -119,8 +122,8 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
     return full_equivalent_rank_variables
 
 
-def get_sims_data(
-    sims: dict[str, list[SIM]],
+def get_pmappings_data(
+    pmapping_groups: dict[str, list[PmappingGroup]],
     evaluations_tracker,
     spec: Specification = None,
     flattened_architecture: list[arch.Leaf] = None,
@@ -142,7 +145,7 @@ def get_sims_data(
     )
 
     return (
-        sims,
+        pmapping_groups,
         evaluations_tracker,
         spec,
         flattened_architecture,
@@ -153,21 +156,21 @@ def get_sims_data(
     )
 
 
-def join_sims(
-    sims: dict[str, list[SIM]],
+def join_pmappings(
+    pmapping_groups: dict[str, list[PmappingGroup]],
     evaluations_tracker: EvaluationsScoreTracker,
     algorithm: str,
     spec: Specification = None,
     flattened_architecture: list[arch.Leaf] = None,
-) -> PmappingGroup:
+) -> PmappingDataframe:
     objective_function_cols = None
-    cols = next(iter(sims.values()))[0].mappings.data.columns
+    cols = next(iter(pmapping_groups.values()))[0].mappings.data.columns
     if objective_function_cols is None:
         objective_function_cols = [c for c in cols if "Total" in c]
     keepcols = []
 
-    for sim_list in sims.values():
-        for sim in sim_list:
+    for pm_group_list in pmapping_groups.values():
+        for sim in pm_group_list:
             for col in objective_function_cols:
                 if col not in sim.mappings.data.columns:
                     sim.mappings.data[col] = 0
@@ -179,7 +182,7 @@ def join_sims(
             ]
 
     mapspace_globals = MapspaceGlobals(
-        sims,
+        pmapping_groups,
         spec,
         objective_function_cols,
         flattened_architecture,
@@ -204,9 +207,9 @@ def join_sims(
             break
         except OSError as e:
             if n_threads == 1:
-                raise OSError("Failed to fuse sims with 1 thread") from e
+                raise OSError("Failed to fuse pmapping_groups with 1 thread") from e
             print(
-                f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}"
+                f"Failed to fuse pmapping_groups with {n_threads} threads, trying with {n_threads // 2}"
             )
             n_threads //= 2
 
