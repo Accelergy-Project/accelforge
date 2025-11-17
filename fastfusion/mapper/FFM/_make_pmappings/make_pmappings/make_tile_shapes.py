@@ -115,10 +115,11 @@ def _compare_to_zero(
 
     If we can't tell, then conservatively return True.
     """
-    f = f.replace(
-        lambda expr: expr.is_Function and expr.func == sympy.ceiling,
-        lambda expr: expr.args[0],
-    )
+    if isinstance(f, sympy.Expr):
+        f = f.replace(
+            lambda expr: expr.is_Function and expr.func == sympy.ceiling,
+            lambda expr: expr.args[0],
+        )
 
     fs = list(partition_heaviside(f))
 
