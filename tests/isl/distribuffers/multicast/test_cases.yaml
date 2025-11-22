@@ -7,7 +7,7 @@
         -   type: Spatial
             spatial_dim: 1
             target: 0
-    dist_func: &2d_manhattan |
+    dist_fn: &2d_manhattan |
         {
             [noc[xd, yd] -> noc[xs, ys]] -> hops[(xd - xs) + (yd - ys)] :
                 xd >= xs and yd >= ys;
@@ -27,12 +27,12 @@
 -   occ: "{ noc[xs, ys] -> data[d0, d1] : d0=xs and d1=ys and 0 <= xs < 8 and 0 <= ys < 8 }"
     fill: "{ noc[xd, yd] -> data[d0, d1] : 0 <= d0 < 8 and d1=yd and 0 <= xd < 8 and 0 <= yd < 8 }"
     dims: *2d_spatial
-    dist_func: *2d_manhattan
+    dist_fn: *2d_manhattan
     expected: *equivalent_class_1
 -   occ: "{ noc[xs, ys] -> data[d0, d1] : d0 = xs and 0 <= d1 < 8 and 0 <= xs < 8 and 0 <= ys < 8 }"
     fill: "{ noc[xd, yd] -> data[d0, d1] : d0 = xd and d1 = yd and 0 <= xd < 8 and 0 <= yd < 8 }"
     dims: *2d_spatial
-    dist_func: *2d_manhattan
+    dist_fn: *2d_manhattan
     expected: &equivalent_class_2
         latency: 0
         total_hops: 0
@@ -42,7 +42,7 @@
 -   occ: "{ noc[xs, ys] -> data[d0, d1] : 0 <= d0 < 8 and d1 = ys and 0 <= xs < 8 and 0 <= ys < 8 }"
     fill: "{ noc[xd, yd] -> data[d0, d1] : d0 = xd and d1 = yd and 0 <= xd < 8 and 0 <= yd < 8 }"
     dims: *2d_spatial
-    dist_func: *2d_manhattan
+    dist_fn: *2d_manhattan
     expected: *equivalent_class_2
 
 #######################
@@ -73,7 +73,7 @@
         - type: Spatial
           spatial_dim: 1
           target: 0
-    dist_func: &2t-dim_2s-dim_manhattan |
+    dist_fn: &2t-dim_2s-dim_manhattan |
         {
             [noc[tm, tn, xd, yd] -> noc[tm, tn, xs, ys]] -> hops[(xd - xs) + (yd - ys)] :
                 xd >= xs and yd >= ys;
@@ -115,7 +115,7 @@
         - type: Spatial
           spatial_dim: 1
           target: 0
-    dist_func: &3t-dim_2s-dim_manhattan |
+    dist_fn: &3t-dim_2s-dim_manhattan |
         {
             [noc[tm, tn, tk, xd, yd] -> noc[tm, tn, tk, xs, ys]] -> hops[(xd - xs) + (yd - ys)] :
                 xd >= xs and yd >= ys;
@@ -150,7 +150,7 @@
                 m = (8 * tm) + xd and 0 <= k < 64
         }
     dims: *2t-dim_2s-dim
-    dist_func: *2t-dim_2s-dim_manhattan
+    dist_fn: *2t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -174,7 +174,7 @@
                 0 <= k < 64 and k=tk
         }
     dims: *3t-dim_2s-dim
-    dist_func: *3t-dim_2s-dim_manhattan
+    dist_fn: *3t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -193,7 +193,7 @@
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     dims: *2t-dim_2s-dim
-    dist_func: *2t-dim_2s-dim_manhattan
+    dist_fn: *2t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -217,7 +217,7 @@
                 m = (8 * tm) + xd and k=tk
         }
     dims: *3t-dim_2s-dim
-    dist_func: *3t-dim_2s-dim_manhattan
+    dist_fn: *3t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -237,7 +237,7 @@
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     dims: *2t-dim_2s-dim
-    dist_func: *2t-dim_2s-dim_manhattan
+    dist_fn: *2t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -261,7 +261,7 @@
                 m = (8 * tm) + xd and k=tk
         }
     dims: *3t-dim_2s-dim
-    dist_func: *3t-dim_2s-dim_manhattan
+    dist_fn: *3t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -280,7 +280,7 @@
                 0 <= k < 64 and 0 = (yd - k) % 8
         }
     dims: *2t-dim_2s-dim
-    dist_func: *2t-dim_2s-dim_manhattan
+    dist_fn: *2t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -298,7 +298,7 @@
         }
     fill: *8x8_pe
     dims: *3t-dim_2s-dim
-    dist_func: *3t-dim_2s-dim_manhattan
+    dist_fn: *3t-dim_2s-dim_manhattan
     expected:
         latency: null
         total_hops: null
@@ -308,14 +308,14 @@
 # -   occ: "{ noc[xs, ys] -> data[d0, d1] : 0 <= d0 < 8 and 0 <= d1 < 8 and (xs=0 or 3<=xs<=4 or xs=7) and (ys=0 or 3<=ys<=4 or ys=7) }"
 #     fill: "{ noc[xd, yd] -> data[d0, d1] : d0 = xd and d1 = yd and 0 <= xd < 8 and 0 <= yd < 8 }"
 #     dims: *2d_spatial
-#     dist_func: *2d_manhattan
+#     dist_fn: *2d_manhattan
 #     expected:
 #         latency: 2
 #         total_hops: 64
 #         multicast_hops: null
 # -   occ: "{ noc[xs, ys] -> data[d0, d1] : d0 = xs and d1 = ys and 0 <= xs < 8 and 0 <= ys < 8 }"
 #     fill: "{ noc[xd, yd] -> data[d0, d1] : 0 <= d0 < 8 and 0 <= d1 < 8 and (xd=0 or 3<=xd<=4 or xd=7) and (yd=0 or 3<=yd<=4 or yd=7) }"
-#     dist_func: *2d_manhattan
+#     dist_fn: *2d_manhattan
 #     dims: *2d_spatial
 #     expected:
 #         latency: 14
@@ -328,7 +328,7 @@
 #         }
 #     fill: "{ noc[xd, yd] -> data[d0, d1] : d0 = xd % 3 and d1 = yd % 3 and 0 <= xd < 9 and 0 <= yd < 9 }"
 #     dims: *2d_spatial
-#     dist_func: *2d_manhattan
+#     dist_fn: *2d_manhattan
 #     expected:
 #         latency: 2
 #         total_hops: 108
@@ -340,21 +340,21 @@
 #             0 <= xd < 9 and 0 <= yd < 9 and xd % 3 = 1 and yd % 3 = 1
 #         }
 #     dims: *2d_spatial
-#     dist_func: *2d_manhattan
+#     dist_fn: *2d_manhattan
 #     expected:
 #         latency: 2
 #         total_hops: 108
 # -   occ: "{ [xs, ys] -> [d0] : d0=xs and 0 <= xs < 8 and ys = 0 }"
 #     fill: "{ [xd, yd] -> [d0] : d0=xd and 0 <= xd < 8 and 0 <= yd < 8 }"
 #     dims: *2d_spatial
-#     dist_func: *2d_manhattan
+#     dist_fn: *2d_manhattan
 #     expected:
 #         latency: 7
 #         total_hops: 224
 # -   occ: "{ [xs, ys] -> [d0] : d0=xs and 0 <= xs < 8 and 0 <= ys < 8 }"
 #     fill: "{ [xd, yd] -> [d0] : d0=xd and 0 <= xd < 8 and yd = 0 }"
 #     dims: *2d_spatial
-#     dist_func: *2d_manhattan
+#     dist_fn: *2d_manhattan
 #     expected:
 #         latency: 0
 #         total_hops: 0
@@ -381,7 +381,7 @@
 #         - Spatial
 #             - 3
 #             - 0
-#     dist_func: &4d_manhattan |
+#     dist_fn: &4d_manhattan |
 #         {
 #             [[xd, yd, z1d, z2d] -> [xs, ys, z1s, z2s]] ->
 #             [(xd - xs) + (yd - ys) + (z1d - z1s) + (z2d - z2s)] :
@@ -452,13 +452,13 @@
 #             0 <= xd < 8 and 0 <= yd < 8 and 0 <= z1d < 8 and 0 <= z2d < 8
 #         }
 #     dims: *4d_spatial
-#     dist_func: *4d_manhattan
+#     dist_fn: *4d_manhattan
 #     expected:
 #         latency: 28
 #         total_hops: null
 # -   occ: "{ [xs] -> [d0] : 0 <= d0 < 8 and xs = 0 }"
 #     fill: "{ [xd] -> [d0] : d0 = xd and 0 <= xd < 8 }"
-#     dist_func: &ring_dist_size_8 |
+#     dist_fn: &ring_dist_size_8 |
 #         {
 #             [[xd] -> [xs]] -> [(xd-xs) % 8] :
 #                 (xd-xs)%8 <= (xs-xd)%8;
@@ -470,13 +470,13 @@
 #         total_hops: 16
 # -   occ: "{ [xs] -> [d0] : 0 <= xs < 8 and d0 = xs }"
 #     fill: "{ [xd] -> [d0] : 0 <= d0 < 8 and xd = 0 }"
-#     dist_func: *ring_dist_size_8
+#     dist_fn: *ring_dist_size_8
 #     expected:
 #         latency: 4
 #         total_hops: 16
 # -   occ: "{ [xs] -> [d0] : xs <= d0 <= xs + 1 and xs % 2 = 0}"
 #     fill: "{ [xd] -> [d0] : d0 = xd and 0 <= xd < 8 }"
-#     dist_func: *ring_dist_size_8
+#     dist_fn: *ring_dist_size_8
 #     expected:
 #         latency: 1
 #         total_hops: 4

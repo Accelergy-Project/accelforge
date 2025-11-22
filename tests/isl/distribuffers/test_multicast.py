@@ -4,13 +4,13 @@ https://github.com/rengzhengcodes/timeloop/blob/distributed-multicast-dev/src/un
 """
 
 from fastfusion.model.looptree.reuse.isl.spatial import TransferInfo
-from tests.mapper.util import load_solutions
+from ..util import load_solutions
 import unittest
 from math import isclose
 
 import islpy as isl
 
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types (
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     # Data movement descriptors.
     Fill,
     Occupancy,
@@ -18,6 +18,9 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types (
     Tag,
     SpatialTag,
     TemporalTag
+)
+from fastfusion.model.looptree.reuse.isl.distributed_buffers import (
+    HypercubeMulticastModel
 )
 
 def construct_spacetime(dims: list) -> list[Tag]:
@@ -142,14 +145,12 @@ class TestHypercubeMulticastModel(unittest.TestCase):
             dim_tags: list[Tags] = construct_spacetime(test["dims"])
             fill: Fill = Fill(dims, test["fill"])
             occ: Occupancy = Occupancy(dims, test["occ"])
-            dist_func: isl.Map = isl.Map(isl.DEFAULT_CONTEXT, test["dist_func"])
-            multicast_model: HypercubeMulticastModel = HyperCubeMulticastModel(
-                True, dist_func
-            )
+            dist_fn: isl.Map = isl.Map(isl.DEFAULT_CONTEXT, test["dist_fn"])
+            multicast_model: HypercubeMulticastModel = HypercubeMulticastModel()
 
             # Applies the model.
-            info: TransferInfo = multicast_model.apply(buf_id, fill, occ)
-            # Checks the results
+            info: TransferInfo = multicast_model.apply(fill, occ, dist_fn)
+            # Checks the results.
             sum_extract: int = info.p_hops.eval(
                 isl.Point.zero(info.p_hops.domain())
             )

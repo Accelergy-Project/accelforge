@@ -1,12 +1,22 @@
-from fastfusion.model.looptree.reuse.isl.isl_functions import dim_projector_mask
+from fastfusion.model.looptree.reuse.isl.spatial import Transfers
 import logging
 from numbers import Real
 
 import islpy as isl
 
+from fastfusion.model.looptree.reuse.isl.isl_functions import dim_projector_mask
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl import (
     DUMP_ISL_IR
 )
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
+    Fill,
+    Occupancy
+)
+from fastfusion.model.looptree.reuse.isl.spatial import (
+    TransferInfo,
+    TransferModel
+)
+
 
 def identify_mesh_casts(
     src_occupancy: isl.Map, dst_fill: isl.Map, dist_fn: isl.Map
@@ -167,11 +177,46 @@ def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
     return dim_extents
 
 
-def cost_mesh_cast_hypercube(mcns: isl.Map, dist_fn: isl.Map) -> int:
-    dim_extents: list[isl.PwAff] = calculate_extents(mcns)
-    # Tracks the total cost of the hypercube cast per [src -> data]
-    one: isl.PwAff = isl.PwAff.val_on_domain(dim_extents[0].domain(), 1)
-    hypercube_costs = isl.PwQPolynomial.from_pw_aff(one)
+class HypercubeMulticastModel(TransferModel):
+    """
+    Does distributed multicasting a mesh using worst-case multicasting
+    behavior by assuming all multicasts are broadcasting to the convex
+    hypercube that encapsulates all their destinations and sources.
+    """
 
-    # Calculates the cost of the hypercube, where the hypercube cost =
-    # \sum{i=0}^{dims} ((extent_i - 1) * \prod_{j=0})
+    def apply(fills: Fill, occ: Occupancy, dist_fn: isl.Map) -> TransferInfo:
+        mcs: isl.Map = identify_mesh_casts(
+            occ.map_, fills.map_, dist_fn
+        )
+        result: isl.PwQPolynomial = cost_mesh_cast_hypercube(mcs)
+
+        # TODO: Read once from all buffers, assert that card(mcs) == tensor_size * D
+        return TransferInfo(
+            fulfilled_fill=Transfers(fills.tags, fills.map_),
+            parent_reads=Reads(occ.tags, mcs),
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_))
+        )
+    
+    def _cost_mesh_cast_hypercube(mcns: isl.Map) -> int:
+        dim_extents: list[isl.PwAff] = calculate_extents_per_dim(mcns)
+        # Tracks the total cost of the hypercube cast per [src -> data]
+        one: isl.PwAff = isl.PwAff.val_on_domain(dim_extents[0].domain(), 1)
+        hypercube_costs = isl.PwQPolynomial.from_pw_aff(one)
+
+        # Calculates the cost of the hypercube, where the hypercube cost
+        # = \sum_{i=0}^{D} ((extent_i - 1) * \prod_{j=0}^{i-1} extent_j)
+        # = (\prod_{i=0}^{D} extent_i) - 1
+        for dim_extent in dim_extents:
+            # Adds the dim_extent times the casting volume to the hypercube
+            # cost.
+            dim_plus: isl.PwQPolynomial = isl.PwQPolynomial.from_pw_aff(
+                dim_extent.add(one).coalesce()
+            )
+            hypercube_costs = hypercube_costs.mul(dim_plus).coalesce()
+        hypercube_costs = hypercube_costs.sub(isl.PwQPolynomial.from_pw_aff(one))
+
+        # Tracks the total cost of the hyppercube cast per data.
+        hypercube_costs = hypercube_costs.sum()
+
+        # Return the hypercube cost as a piecewise polynomial.
+        return hypercube_costs.sum()
