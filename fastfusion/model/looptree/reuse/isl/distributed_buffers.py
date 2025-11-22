@@ -1,4 +1,3 @@
-from fastfusion.model.looptree.reuse.isl.spatial import Transfers
 import logging
 from numbers import Real
 
@@ -13,6 +12,8 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     Occupancy
 )
 from fastfusion.model.looptree.reuse.isl.spatial import (
+    Reads,
+    Transfers,
     TransferInfo,
     TransferModel
 )
@@ -54,7 +55,7 @@ def identify_mesh_casts(
         logging.info(f"wrapped_fill_identity: {wrapped_fill_identity}")
 
     # Makes { [dst -> data] -> [dst -> data] }
-    uncurried_fill_identity: wrapped_fill_identity.uncurry()
+    uncurried_fill_identity: isl.Map = wrapped_fill_identity.uncurry()
     if DUMP_ISL_IR:
         logging.info(f"uncurried_fill_identity: {uncurried_fill_identity}")
 
@@ -63,7 +64,7 @@ def identify_mesh_casts(
     data_presence: isl.Map = src_occupancy.reverse()
 
     # { [[dst -> data] -> dst] -> [src] }
-    fills_to_dst_TO_src: isl.Map = uncurried_fill_identity.apply(
+    fills_to_dst_TO_src: isl.Map = uncurried_fill_identity.apply_range(
         data_presence
     )
     # { [dst -> data] -> [dst -> src] }
@@ -87,7 +88,7 @@ def identify_mesh_casts(
     # Associates each destination with its closest source containing the data.
     # { [dst -> data] -> [[dst -> data] -> [dst -> src]] }
     associate_dist_to_src: isl.Map = lexmin_dists.apply_range(
-        dst_to_data_TO_dst_to_src_TO2_dist.reverse()
+        fills_to_matches_TO_dist.reverse()
     )
     # Isolates the relevant minimal pairs.
     # { [dst -> data] -> [dst -> src] :.dst -> src is minimized distance }
@@ -100,7 +101,6 @@ def identify_mesh_casts(
     multicast_networks: isl.Map = minimal_pairs.curry()
     # { [data] -> [dst -> src] }
     multicast_networks = multicast_networks.range().unwrap()
-    print(multicast_networks)
     # { [data -> dst] -> [src] }
     multicast_networks = multicast_networks.uncurry()
     # Devolves to a single source if multiple sources per domain point.
@@ -164,7 +164,7 @@ def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
         extent_mapper: isl.Map = dim_projector_mask(
             casting_extents.range().get_space(), project_out_mask
         ).reverse()
-        dim_extent_space: isl.Map = casting_extents.apply(extent_mapper)
+        dim_extent_space: isl.Map = casting_extents.apply_range(extent_mapper)
         project_out_mask[noc_dim] = True
 
         # Finds max(noc_dim) - min(noc_dim) for each [data -> src]
@@ -184,20 +184,22 @@ class HypercubeMulticastModel(TransferModel):
     hypercube that encapsulates all their destinations and sources.
     """
 
-    def apply(fills: Fill, occ: Occupancy, dist_fn: isl.Map) -> TransferInfo:
+    def apply(self, fills: Fill, occ: Occupancy, dist_fn: isl.Map) -> TransferInfo:
         mcs: isl.Map = identify_mesh_casts(
             occ.map_, fills.map_, dist_fn
         )
-        result: isl.PwQPolynomial = cost_mesh_cast_hypercube(mcs)
+        result: isl.PwQPolynomial = self._cost_mesh_cast_hypercube(mcs)
 
         # TODO: Read once from all buffers, assert that card(mcs) == tensor_size * D
         return TransferInfo(
             fulfilled_fill=Transfers(fills.tags, fills.map_),
             parent_reads=Reads(occ.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_))
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),
+            hops=result,
+            link_transfer=True
         )
     
-    def _cost_mesh_cast_hypercube(mcns: isl.Map) -> int:
+    def _cost_mesh_cast_hypercube(self, mcns: isl.Map) -> int:
         dim_extents: list[isl.PwAff] = calculate_extents_per_dim(mcns)
         # Tracks the total cost of the hypercube cast per [src -> data]
         one: isl.PwAff = isl.PwAff.val_on_domain(dim_extents[0].domain(), 1)
