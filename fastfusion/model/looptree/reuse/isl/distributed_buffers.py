@@ -1,0 +1,155 @@
+from fastfusion.model.looptree.reuse.isl.isl_functions import dim_projector_mask
+import logging
+from numbers import Real
+
+import islpy as isl
+
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl import (
+    DUMP_ISL_IR
+)
+
+def identify_mesh_casts(
+    src_occupancy: isl.Map, dst_fill: isl.Map, dist_fn: isl.Map
+) -> isl.Map:
+    """
+
+    Parameters
+    ----------
+    dist_fn:
+        Example
+        -------
+        {
+            [src -> dst] -> [hops]
+        }
+        
+        A distance function that accepts two points in space, corresponding to
+        the `src` and `dst`, and returns the distance between the two points in
+        terms of `hops`, a quantized atomic distance of data transmission cost.
+    """
+    # Makes [[dst -> data] -> dst] -> data
+    wrapped_dst_fill: isl.Set = dst_fill.wrap()
+    wrapped_fill_identity: isl.Map = isl.Map.identity(
+        wrapped_dst_fill.get_space().map_from_set()
+    )
+    wrapped_fill_identity = wrapped_fill_identity.intersect_domain(
+        wrapped_dst_fill
+    )
+    if DUMP_ISL_IR:
+        logging.info(f"wrapped_fill_identity: {wrapped_fill_identity}")
+
+    # Makes { [dst -> data] -> [dst -> data] }
+    uncurried_fill_identity: wrapped_fill_identity.uncurry()
+    if DUMP_ISL_IR:
+        logging.info(f"uncurried_fill_identity: {uncurried_fill_identity}")
+
+    # Inverts src_occupancy s.t. data -> src.
+    # i.e. { [xs, ys] -> [d0, d1] } to { [d0, d1] -> [xs, ys] }
+    data_presence: isl.Map = src_occupancy.reverse()
+
+    # { [[dst -> data] -> dst] -> [src] }
+    fills_to_dst_TO_src: isl.Map = uncurried_fill_identity.apply(
+        data_presence
+    )
+    # { [dst -> data] -> [dst -> src] }
+    fills_to_matches: isl.Map = fills_to_dst_TO_src.curry()
+    if DUMP_ISL_IR:
+        logging.info(f"fills_to_matches: {filles_to_matches}")
+
+    # Calculates the distance of all the dst-src pairs with matching data.
+    # { [dst -> data] -> [dist] }
+    distances_map: isl.Map = fills_to_matches.apply_range(dist_fn)
+    # { [[dst -> data] -> [dst -> src]] -> [dst -> src] }
+    fills_to_matches_TO_matches: isl.Map = fills_to_matches.range_map()
+    # { [[dst -> data] -> [dst -> src]] -> [dist] }
+    fills_to_matches_TO_dist: isl.Map = fills_to_matches_TO_matches.apply_range(
+        dist_fn
+    )
+
+    # Gets the minimal distance pairs.
+    # { [dst -> data] -> [dist] }
+    lexmin_dists: isl.Map = distances_map.lexmin()
+    # Associates each destination with its closest source containing the data.
+    # { [dst -> data] -> [[dst -> data] -> [dst -> src]] }
+    associate_dist_to_src: isl.Map = lexmin_dists.apply_range(
+        dst_to_data_TO_dst_to_src_TO2_dist.reverse()
+    )
+    # Isolates the relevant minimal pairs.
+    # { [dst -> data] -> [dst -> src] :.dst -> src is minimized distance }
+    minimal_pairs: isl.Map = associate_dist_to_src.range().unwrap()
+    if DUMP_ISL_IR:
+        logging.log(f"minimal_pairs: {minimal_pairs}")
+
+    # Isolates the multicast networks.
+    # { [dst] -> [data -> [dst -> src]] : dst -> src is minimized distance } 
+    multicast_networks: isl.Map = minimal_pairs.curry()
+    # { [data] -> [dst -> src] }
+    multicast_networks = multicast_networks.range().unwrap()
+    print(multicast_networks)
+    # { [data -> dst] -> [src] }
+    multicast_networks = multicast_networks.uncurry()
+    # Devolves to a single source if multiple sources per domain point.
+    multicast_networks = multicast_networks.lexmin()
+    # { [data] -> [dst -> src] }
+    multicast_networks = multicast_networks.curry()
+
+    return multicast_networks
+
+
+def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
+    """
+    Preconditions
+    -------------
+    `mcns` were generated with a Manhattan distance `dst_fn` by `identify_mesh_casts`
+    s.t. all dimensions are orthogonal to each other in a metric space, where each
+    unit movement in a dimension counts as 1 hop.
+
+    We also assume `dst_fn` is translationally invariant (i.e., ∀src, dst,
+    src', dst' ∈ space, if |src - dst| = |src' - dst'|, 
+    dst_fn(src, dst) = dst_fn(src', dst')
+    )
+    """
+    # Makes mcns from { [data] -> [dst -> src] } to { [data -> src] -> [dst] }
+    potential_srcs: isl.Map = mcns.range_reverse().uncurry()
+    # Sources are part of the extents, so we union it with the destinations.
+    # { [data -> src] -> [src] }
+    srcs: isl.Map = potential_srcs.domain().unwrap().range_map()
+    # { [data -> src] -> [spacetime] }
+    casting_extents: isl.Map = srcs.union(potential_srcs)
+
+    # Projects away all dimensions but one to find their extent for hypercube.
+    dims: int = potential_srcs.range_tuple_dim()
+    min_cost: Real = float('inf')
+    # Creates a mask of what to project out.
+    project_out_mask: list[bool] = [True] * dims
+    dim_extents: list[isl.PwAff] = [None] * dims
+
+    # Gets the extents of all dimensions
+    for noc_dim in range(dims):
+        # Project out all the dimensions of the output besides noc_dim.
+        project_out_mask[noc_dim] = False
+        # { [spacetime] -> [dimension] }
+        extent_mapper: isl.Map = dim_projector_mask(
+            casting_extents.range().get_space(), project_out_mask
+        ).reverse()
+        dim_extent_space: isl.Map = casting_extents.apply(extent_mapper)
+        project_out_mask[noc_dim] = True
+
+        # Finds max(noc_dim) - min(noc_dim) for each [data -> src]
+        max_extent: isl.PwAff = dim_extent_space.dim_max(0)
+        min_extent: isl.PwAff = dim_extent_space.dim_min(0)
+
+        # Subtracts the max from the min to get the extent per [data -> src]
+        dim_extents[noc_dim] = max_extent.sub(min_extent).coalesce()
+
+    return dim_extents
+
+
+def cost_mesh_cast_hypercube(mcns: isl.Map, dist_fn: isl.Map) -> int:
+    dim_extents: list[isl.PwAff] = calculate_extents(mcns)
+    # Tracks the total cost of the hypercube cast per [src -> data]
+    one: isl.PwAff = isl.PwAff.val_on_domain(dim_extents[0].domain(), 1)
+    hypercube_costs = isl.PwQPolynomial.from_pw_aff(one)
+
+    # Calculates the cost of the hypercube, where the hypercube cost =
+    # \sum{i=0}^{dims} ((extent_i - 1) * \prod_{j=0})
+    
