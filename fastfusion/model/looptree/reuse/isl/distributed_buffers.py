@@ -1,21 +1,20 @@
+"""
+Models for handling calculating the cost of a Workload on distributed buffer
+architectures.
+"""
+
 import logging
-from numbers import Real
 
 import islpy as isl
 
 from fastfusion.model.looptree.reuse.isl.isl_functions import dim_projector_mask
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl import (
-    DUMP_ISL_IR
-)
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
-    Fill,
-    Occupancy
-)
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
+from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import Fill, Occupancy
 from fastfusion.model.looptree.reuse.isl.spatial import (
     Reads,
     Transfers,
     TransferInfo,
-    TransferModel
+    TransferModel,
 )
 
 
@@ -33,44 +32,26 @@ def identify_mesh_casts(
         An isl.Map of the form { [dst] -> [data] } corresponding to the data requested
         at the element at space `dst`.
     dist_fn:
-        Example
-        -------
-        {
-            [src -> dst] -> [hops]
-        }
-        
-        A distance function that accepts two points in space, corresponding to
-        the `src` and `dst`, and returns the distance between the two points in
-        terms of `hops`, a quantized atomic distance of data transmission cost.
+        A distance function { [src -> dst] -> [hops] } that accepts two points in
+        space, corresponding to the `src` and `dst`, and returns the distance
+        between the two points in terms of `hops`, a quantized atomic distance of
+        data transmission cost.
     """
-    # Makes [[dst -> data] -> dst] -> data
-    wrapped_dst_fill: isl.Set = dst_fill.wrap()
-    wrapped_fill_identity: isl.Map = isl.Map.identity(
-        wrapped_dst_fill.get_space().map_from_set()
-    )
-    wrapped_fill_identity = wrapped_fill_identity.intersect_domain(
-        wrapped_dst_fill
-    )
-    if DUMP_ISL_IR:
-        logging.info(f"wrapped_fill_identity: {wrapped_fill_identity}")
-
     # Makes { [dst -> data] -> [dst -> data] }
-    uncurried_fill_identity: isl.Map = wrapped_fill_identity.uncurry()
+    fill_to_fill: isl.Map = dst_fill.wrap().identity()
     if DUMP_ISL_IR:
-        logging.info(f"uncurried_fill_identity: {uncurried_fill_identity}")
+        logging.info(f"fill_to_fill: {fill_to_fill}")
 
     # Inverts src_occupancy s.t. data -> src.
     # i.e. { [xs, ys] -> [d0, d1] } to { [d0, d1] -> [xs, ys] }
     data_presence: isl.Map = src_occupancy.reverse()
 
-    # { [[dst -> data] -> dst] -> [src] }
-    fills_to_dst_TO_src: isl.Map = uncurried_fill_identity.apply_range(
-        data_presence
-    )
-    # { [dst -> data] -> [dst -> src] }
-    fills_to_matches: isl.Map = fills_to_dst_TO_src.curry()
+    # { [dst -> data] -> [dst -> src] } where src contains data.
+    fills_to_matches: isl.Map = fill_to_fill.uncurry( # { [[dst -> data] -> dst] -> data }
+                                ).apply_range(data_presence # { [[dst -> data] -> dst] -> src }
+                                ).curry() # { [[dst -> data] -> [dst -> src] }
     if DUMP_ISL_IR:
-        logging.info(f"fills_to_matches: {filles_to_matches}")
+        logging.info(f"fills_to_matches: {fills_to_matches}")
 
     # Calculates the distance of all the dst-src pairs with matching data.
     # { [dst -> data] -> [dist] }
@@ -78,9 +59,7 @@ def identify_mesh_casts(
     # { [[dst -> data] -> [dst -> src]] -> [dst -> src] }
     fills_to_matches_TO_matches: isl.Map = fills_to_matches.range_map()
     # { [[dst -> data] -> [dst -> src]] -> [dist] }
-    fills_to_matches_TO_dist: isl.Map = fills_to_matches_TO_matches.apply_range(
-        dist_fn
-    )
+    fills_to_matches_TO_dist: isl.Map = fills_to_matches_TO_matches.apply_range(dist_fn)
 
     # Gets the minimal distance pairs.
     # { [dst -> data] -> [dist] }
@@ -94,10 +73,10 @@ def identify_mesh_casts(
     # { [dst -> data] -> [dst -> src] :.dst -> src is minimized distance }
     minimal_pairs: isl.Map = associate_dist_to_src.range().unwrap()
     if DUMP_ISL_IR:
-        logging.log(f"minimal_pairs: {minimal_pairs}")
+        logging.info(f"minimal_pairs: {minimal_pairs}")
 
     # Isolates the multicast networks.
-    # { [dst] -> [data -> [dst -> src]] : dst -> src is minimized distance } 
+    # { [dst] -> [data -> [dst -> src]] : dst -> src is minimized distance }
     multicast_networks: isl.Map = minimal_pairs.curry()
     # { [data] -> [dst -> src] }
     multicast_networks = multicast_networks.range().unwrap()
@@ -118,10 +97,10 @@ def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
     mcns:
         Mesh cast-networks, or networks in which all dsts per data are grouped with
         the closest src containing the data.
-    
+
     Returns
     -------
-    A list of `isl.PwAff` that gives the max extent (length) along dim_i per mcn, 
+    A list of `isl.PwAff` that gives the max extent (length) along dim_i per mcn,
     where i is the i-th `isl.PwAff`.
 
     Preconditions
@@ -131,15 +110,8 @@ def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
     unit movement in a dimension counts as 1 hop.
 
     We also assume `dst_fn` is translationally invariant (i.e., ∀src, dst,
-    src', dst' ∈ space, if |src - dst| = |src' - dst'|, 
+    src', dst' ∈ space, if |src - dst| = |src' - dst'|,
     dst_fn(src, dst) = dst_fn(src', dst').
-
-    The extents calculation will still work if this is not the case, but downstream
-    users of the extents calculation will inherit this assumption which breaks
-    cases like hypercube mesh calculations forfractal distances (e.g., you cannot
-    access certain places in the NoC without an intermediate) and non-orthogonal 
-    distances (e.g., x, y, and an xy axis between the orthogonal x and y axes). 
-    )
     """
     # Makes mcns from { [data] -> [dst -> src] } to { [data -> src] -> [dst] }
     potential_srcs: isl.Map = mcns.range_reverse().uncurry()
@@ -151,7 +123,6 @@ def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
 
     # Projects away all dimensions but one to find their extent for hypercube.
     dims: int = potential_srcs.range_tuple_dim()
-    min_cost: Real = float('inf')
     # Creates a mask of what to project out.
     project_out_mask: list[bool] = [True] * dims
     dim_extents: list[isl.PwAff] = [None] * dims
@@ -184,22 +155,50 @@ class HypercubeMulticastModel(TransferModel):
     hypercube that encapsulates all their destinations and sources.
     """
 
-    def apply(self, fills: Fill, occ: Occupancy, dist_fn: isl.Map) -> TransferInfo:
-        mcs: isl.Map = identify_mesh_casts(
-            occ.map_, fills.map_, dist_fn
-        )
+    def __init__(self, dist_fn: isl.Map):
+        """
+        Initializes the HypercubeMulticastModel with the distance function
+        over the metric space.
+        """
+        self.dist_fn = dist_fn
+
+    def apply(self, buff: int, fills: Fill, occ: Occupancy) -> TransferInfo:
+        mcs: isl.Map = identify_mesh_casts(occ.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_mesh_cast_hypercube(mcs)
 
-        # TODO: Read once from all buffers, assert that card(mcs) == tensor_size * D
+        # TODO: Read once from all buffers, assert that
+        # card(mcs) == tensor_size * duplication factor
+        num_meshcasts: int = mcs.card()
         return TransferInfo(
             fulfilled_fill=Transfers(fills.tags, fills.map_),
             parent_reads=Reads(occ.tags, mcs),
             unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),
             hops=result,
-            link_transfer=True
+            link_transfer=True,
         )
-    
+
     def _cost_mesh_cast_hypercube(self, mcns: isl.Map) -> int:
+        """
+        Given a multicast_network, calculate the hypercube.
+
+        Parameters
+        ----------
+        mcns:
+            Multicast networks grouped together by [srcs -> data] fulfilling
+            [dsts -> data], where there is at least 1 src and 1 dst in each mcn.
+
+        Preconditions
+        -------------
+        Because we are using calculate_extents_per_dim(mcns), we inherit the
+        following requirements:
+        `mcns` were generated with a Manhattan distance `dst_fn` by `identify_mesh_casts`
+        s.t. all dimensions are orthogonal to each other in a metric space, where each
+        unit movement in a dimension counts as 1 hop.
+
+        We also assume `dst_fn` is translationally invariant (i.e., ∀src, dst,
+        src', dst' ∈ space, if |src - dst| = |src' - dst'|,
+        dst_fn(src, dst) = dst_fn(src', dst').
+        """
         dim_extents: list[isl.PwAff] = calculate_extents_per_dim(mcns)
         # Tracks the total cost of the hypercube cast per [src -> data]
         one: isl.PwAff = isl.PwAff.val_on_domain(dim_extents[0].domain(), 1)
