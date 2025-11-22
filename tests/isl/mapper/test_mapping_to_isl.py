@@ -17,8 +17,9 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     MappingAnalysisResult,
 )
 
-from ..util import TEST_CONFIG_PATH, load_solutions
+from ..util import load_solutions
 
+TEST_CONFIG_PATH: Path = Path(__file__).parent / "configs"
 
 class TestMappingToIsl(unittest.TestCase):
     """

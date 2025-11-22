@@ -7,9 +7,6 @@ import islpy as isl
 
 from ruamel.yaml import YAML
 
-TEST_CONFIG_PATH: Path = Path(__file__).parent / "configs"
-
-
 def to_isl_maps(obj: str | list | dict) -> dict:
     """
     Given an object, attempt to reduce all strings in tree with isl.Map
