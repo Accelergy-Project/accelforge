@@ -15,6 +15,12 @@ def identify_mesh_casts(
 
     Parameters
     ----------
+    src_occupancy:
+        An isl.Map of the form { [src] -> [data] } corresponding to the data held
+        at the buffer at space `src`.
+    dst_fill:
+        An isl.Map of the form { [dst] -> [data] } corresponding to the data requested
+        at the element at space `dst`.
     dist_fn:
         Example
         -------
@@ -97,6 +103,17 @@ def identify_mesh_casts(
 
 def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
     """
+    Parameters
+    ----------
+    mcns:
+        Mesh cast-networks, or networks in which all dsts per data are grouped with
+        the closest src containing the data.
+    
+    Returns
+    -------
+    A list of `isl.PwAff` that gives the max extent (length) along dim_i per mcn, 
+    where i is the i-th `isl.PwAff`.
+
     Preconditions
     -------------
     `mcns` were generated with a Manhattan distance `dst_fn` by `identify_mesh_casts`
@@ -105,7 +122,13 @@ def calculate_extents_per_dim(mcns: isl.Map) -> list[isl.PwAff]:
 
     We also assume `dst_fn` is translationally invariant (i.e., ∀src, dst,
     src', dst' ∈ space, if |src - dst| = |src' - dst'|, 
-    dst_fn(src, dst) = dst_fn(src', dst')
+    dst_fn(src, dst) = dst_fn(src', dst').
+
+    The extents calculation will still work if this is not the case, but downstream
+    users of the extents calculation will inherit this assumption which breaks
+    cases like hypercube mesh calculations forfractal distances (e.g., you cannot
+    access certain places in the NoC without an intermediate) and non-orthogonal 
+    distances (e.g., x, y, and an xy axis between the orthogonal x and y axes). 
     )
     """
     # Makes mcns from { [data] -> [dst -> src] } to { [data -> src] -> [dst] }
@@ -152,4 +175,3 @@ def cost_mesh_cast_hypercube(mcns: isl.Map, dist_fn: isl.Map) -> int:
 
     # Calculates the cost of the hypercube, where the hypercube cost =
     # \sum{i=0}^{dims} ((extent_i - 1) * \prod_{j=0})
-    
