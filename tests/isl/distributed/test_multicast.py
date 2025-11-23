@@ -17,7 +17,7 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     SpatialTag,
     TemporalTag,
 )
-from fastfusion.model.looptree.reuse.isl.distributed_buffers import (
+from fastfusion.model.looptree.reuse.isl.distributed.distributed_buffers import (
     HypercubeMulticastModel,
 )
 from fastfusion.model.looptree.reuse.isl.spatial import TransferInfo
