@@ -7,6 +7,7 @@ import logging
 
 import islpy as isl
 
+from fastfusion.frontend.mapping import MappingNode
 from fastfusion.model.looptree.reuse.isl.isl_functions import dim_projector_mask
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
 from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import Fill, Occupancy
@@ -155,10 +156,38 @@ class HypercubeMulticastModel(TransferModel):
         """
         Initializes the HypercubeMulticastModel with the distance function
         over the metric space.
+
+        Because we are using calculate_extents_per_dim(mcns), we inherit the
+        following requirements:
+        `dst_fn` holds all dimensions are orthogonal to each other in a metric space,
+        where each unit movement in a dimension counts as 1 hop.
+
+        We also assume `dst_fn` is translationally invariant (i.e., ∀src, dst,
+        src', dst' ∈ space, if |src - dst| = |src' - dst'|,
+        dst_fn(src, dst) = dst_fn(src', dst').
         """
         self.dist_fn = dist_fn
 
-    def apply(self, buff: int, fills: Fill, occs: Occupancy) -> TransferInfo:
+    def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
+        """
+        Given a buffer, its fills across time, and its occupancies across time,
+        calculate the spatial transfers."
+
+        Parameters
+        ----------
+        buff:
+            The buffer whose spatial analysis is being considered. Currently,
+            we rely on dist_fn to deal with this rather than buffer.
+        fills:
+            The fill of `buffer` across time from parents.
+        occs:
+            The occupancy of `buffer` across time.
+
+        Returns
+        -------
+        Fills that were fulfilled, Fills that were unfilled, and parent reads per
+        position in spacetime. Then, gets hops per timestep.
+        """
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_mesh_cast_hypercube(mcs)
 
@@ -182,6 +211,11 @@ class HypercubeMulticastModel(TransferModel):
         mcns:
             Multicast networks grouped together by [srcs -> data] fulfilling
             [dsts -> data], where there is at least 1 src and 1 dst in each mcn.
+        
+        Returns
+        -------
+        The upperbound of doing all the multicasts specified by the multicast
+        networks, assuming they cast only to the convex space of the network.
 
         Preconditions
         -------------
