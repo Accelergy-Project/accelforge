@@ -3,11 +3,12 @@ import unittest
 
 from typing import Dict, List
 from islpy import DEFAULT_CONTEXT, Map
+from ruamel.yaml import YAML
 
-import yaml
 from fastfusion.frontend.binding import Binding, BindingNode
 
 TESTS_DIR = Path(__file__).parent / "spec" / "binding"
+yaml = YAML(typ="safe")
 
 
 class TestBindingMapper(unittest.TestCase):
@@ -18,7 +19,7 @@ class TestBindingMapper(unittest.TestCase):
         """
         specs_file: str = TESTS_DIR / "valid_bindings.yaml"
         with open(specs_file, mode="r", encoding="utf-8") as f:
-            specs: List = yaml.safe_load(f)
+            specs: List = yaml.load(f)
 
         spec: Dict
         for spec in specs:
