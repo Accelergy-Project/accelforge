@@ -61,37 +61,37 @@
                         x = b and y = a
                     }
 
--   binding:
-        version: 0.4
-        nodes:
-        -   logical:
-                name: DRAM
-                l_dims: [i]
-            physical:
-                name: DRAM
-                p_dims: [i]
-            relations: # Compression relation where less DRAM chips than planned.
-                weights: i = i // 2
-                inputs: i = i // 2
-                outputs: i = i // 2
-        -   logical:
-                name: Scratchpad
-                l_dims: [i]
-            physical:
-                name: GLB
-                p_dims: [x, y, z]
-            relations: # weight stationary relation
-                weights: c = x and h = y and w = z
-                inputs: i=x and i=y and i=z
-                outputs: i=x and i=y and i=z
-        -   logical:
-                name: PE_Buffer
-                l_dims: [i]
-            physical:
-                name: GLB
-                l_dims: [x, y, z]
-            relations: # Some weird bypass shenanigans.
-                weights:
-                inputs:
-                outputs:
+# -   binding:
+#         version: 0.4
+#         nodes:
+#         -   logical:
+#                 name: DRAM
+#                 l_dims: [i]
+#             physical:
+#                 name: DRAM
+#                 p_dims: [i]
+#             relations: # Compression relation where less DRAM chips than planned.
+#                 weights: i = i // 2
+#                 inputs: i = i // 2
+#                 outputs: i = i // 2
+#         -   logical:
+#                 name: Scratchpad
+#                 l_dims: [i]
+#             physical:
+#                 name: GLB
+#                 p_dims: [x, y, z]
+#             relations: # weight stationary relation
+#                 weights: c = x and h = y and w = z
+#                 inputs: i=x and i=y and i=z
+#                 outputs: i=x and i=y and i=z
+#         -   logical:
+#                 name: PE_Buffer
+#                 l_dims: [i]
+#             physical:
+#                 name: GLB
+#                 l_dims: [x, y, z]
+#             relations: # Some weird bypass shenanigans.
+#                 weights:
+#                 inputs:
+#                 outputs:
 
