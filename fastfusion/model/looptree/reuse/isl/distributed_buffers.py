@@ -53,12 +53,12 @@ def identify_mesh_casts(
     if DUMP_ISL_IR:
         logging.info(f"fills_to_matches: {fills_to_matches}")
 
-    # Calculates the distance of all the dst-src pairs with matching data.
+    # Calculates the distance of a fill to the nearest src satisfying the fill.
     # { [dst -> data] -> [dist] }
-    fill_to_dist_of_nearest_src: isl.Map = fills_to_matches.apply_range(dist_fn).lexmin()
+    fill_min_dist: isl.Map = fills_to_matches.apply_range(dist_fn).lexmin()
     # Isolates the relevant minimal pairs.
     # { [dst -> data] -> [dst -> src] :.dst -> src is minimized distance }
-    minimal_pairs: isl.Map = fill_to_dist_of_nearest_src.apply_range(
+    minimal_pairs: isl.Map = fill_min_dist.apply_range(
         # Note: Need to match fill -> min_dist with min_dist -> [fill -> match] as lexmin over
         # fill and match will minimize distance over the tuple (src, dst, data), but that
         # overconstrains the optimization as we want to minimize over distance (dst, data)
@@ -69,16 +69,10 @@ def identify_mesh_casts(
         logging.info(f"minimal_pairs: {minimal_pairs}")
 
     # Isolates the multicast networks.
-    # { [dst] -> [data -> [dst -> src]] : dst -> src is minimized distance }
-    multicast_networks: isl.Map = minimal_pairs.curry()
-    # { [data] -> [dst -> src] }
-    multicast_networks = multicast_networks.range().unwrap()
-    # { [data -> dst] -> [src] }
-    multicast_networks = multicast_networks.uncurry()
+    # { [data] -> [dst -> src] : dst -> src is minimized distance }
+    multicast_networks: isl.Map = minimal_pairs.curry().range().unwrap()
     # Devolves to a single source if multiple sources per domain point.
-    multicast_networks = multicast_networks.lexmin()
-    # { [data] -> [dst -> src] }
-    multicast_networks = multicast_networks.curry()
+    multicast_networks = multicast_networks.uncurry().lexmin().curry()
 
     return multicast_networks
 
