@@ -22,6 +22,8 @@ def identify_mesh_casts(
     src_occupancy: isl.Map, dst_fill: isl.Map, dist_fn: isl.Map
 ) -> isl.Map:
     """
+    Given srcs with data, fills to destinations, and a distance function, identify per data
+    the srcs delivering that data to dsts.
 
     Parameters
     ----------
@@ -36,6 +38,13 @@ def identify_mesh_casts(
         space, corresponding to the `src` and `dst`, and returns the distance
         between the two points in terms of `hops`, a quantized atomic distance of
         data transmission cost.
+    
+    Returns
+    -------
+    { [data] -> [dst -> src] } where { [dst] -> [data] } and { [src] -> [data] } are in
+    `src_occupancy` and `dst_fill` respectively, and where `[dst -> src]` is the infimum of
+    `dst_fn(src, dst), ∀ src, dst s.t. { [src] -> [data] } ∈ `src_occupancy` and
+    `{ [dst] -> [data] }` ∈ `dst_fill`.
     """
     # Makes { [dst -> data] -> [dst -> data] }
     fill_to_fill: isl.Map = dst_fill.wrap().identity()
