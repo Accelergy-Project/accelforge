@@ -344,11 +344,6 @@ def paretoset_grouped_dirty(df: pd.DataFrame, sense: list[str]):
                 if group_b is None or i == j:
                     continue
 
-                # a can only dominate b if all of the min columns dominate
-                a_may_dom = all(a <= b for a, b in zip(mins_a, mins_b))
-                if not a_may_dom:
-                    continue
-
                 if all(a <= b for a, b in zip(good_row_a, per_col_mins_b)):
                     groups[j][-1] = None
                     continue
@@ -362,6 +357,10 @@ def paretoset_grouped_dirty(df: pd.DataFrame, sense: list[str]):
                         continue
                     groups[j].clear()
                     groups[j].extend(_row_from_group(mins_b, group_b))
+
+                # # a can only dominate b if all of the min columns dominate
+                # if not all(a <= b for a, b in zip(mins_a, mins_b)):
+                #     continue
 
                 # # Check if any b beats all a. If so, continue.
                 # if any(a > b for a, b in zip(per_col_mins_a, per_col_maxs_b)):
@@ -449,7 +448,20 @@ def makepareto_numpy(
             new_goals.append("diff")
         elif goal == "min_per_prime_factor":
             if not dirty:
-                # Paretoset tends to be faster with these as diffs
+                # Paretoset tends to be faster with these as diffs. Tanner tried for a
+                # long time to get min_per_prime_factor to be faster, but it
+                # didn't work. What it would do is say that if one choice for an inner
+                # loop has used up fewer of every prime factor than another choice, then
+                # the latter would give a superset of options for outer loops.
+                # Intuitively, we could enable more pruning by doing this instead of
+                # "diff", which is overconservative. Likewise, we could do "min" for
+                # imperfect instead of "diff". However, this ultimately made things
+                # slower because it didn't get much Pareto pruning, but caused many more
+                # Pareto comparisons ("diff" partitioning into N partitions --> N^2
+                # improvement). I hypothesize that the reason that it doesn't improve
+                # pruning much is that when we've enumerated a loop but not the loop
+                # above it, the given loop is almost always trading off tile shape for
+                # accesses, leading to no point being dominated by another point.
                 to_pareto.append(mappings[:, c].reshape((-1, 1)))
                 new_goals.append("diff")
             else:
@@ -459,7 +471,7 @@ def makepareto_numpy(
                     new_goals.append("min")
         elif goal == "max_per_prime_factor":
             if not dirty:
-                # Paretoset tends to be faster with these as diffs
+                # See above big comment.
                 to_pareto.append(mappings[:, c].reshape((-1, 1)))
                 new_goals.append("diff")
             else:

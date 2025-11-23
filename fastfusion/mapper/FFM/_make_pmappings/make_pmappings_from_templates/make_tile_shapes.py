@@ -101,6 +101,45 @@ def partition_heaviside(f: Expr) -> tuple[Expr, ...]:
     return (f,)
 
 
+# @lru_cache(maxsize=10000)
+# def _get_function_range(
+#     f: Expr,
+#     check_symbols: tuple[Symbol, ...],
+#     bounds: tuple[tuple[Symbol, int, int], ...],
+#     return_min: bool,
+# ) -> list:
+#     if isinstance(f, sympy.Expr):
+#         f = f.replace(
+#             lambda expr: expr.is_Function and expr.func == sympy.ceiling,
+#             lambda expr: expr.args[0],
+#         )
+#         fs = list(partition_heaviside(f))
+#     else:
+#         fs = [f]
+
+#     if len(fs) > 1:
+#         return [f3 for f2 in fs for f3 in _get_function_range(f2, check_symbols, bounds, return_min)]
+
+#     f = fs[0]
+#     check_symbol = check_symbols[0]
+#     check_symbols = check_symbols[1:]
+#     bounds = None
+#     for s, lo, hi in bounds:
+#         if s == check_symbol:
+#             bounds = (s, lo, hi)
+#             break
+#     else:
+#         raise ValueError(f"Symbol {check_symbol} not found in bounds")
+
+#     f_range = sympy.calculus.util.function_range(f, check_symbol, domain=sympy.Interval(lo, hi))
+
+#     if isinstance(f_range, sympy.FiniteSet):
+#         return [f3 for f2 in f_range for f3 in _get_function_range(f2, check_symbols, bounds, return_min)]
+
+#     target = f_range.left if return_min else f_range.right
+#     return _get_function_range(target, check_symbols, bounds, return_min)
+
+
 @lru_cache(maxsize=10000)
 def _compare_to_zero(
     f: Expr,
@@ -636,9 +675,7 @@ def coalesce_symbols(
                     formula = formula.args[0]
 
             # If it's a function of a non-enumerated symbol or a symbol that we can't
-            # compare and the derivative of the formula WRT the symbol does not change
-            # sign (i.e., the formula is monotonic WRT the symbol), then we can drop it
-            # because it won't affect comparisons.
+            # compare and it won't affect comparisons, then we can drop it.
 
             # If it's a function of a non-enumerated symbol &
             for s in formula.free_symbols:
@@ -699,7 +736,7 @@ def coalesce_symbols(
                     elif diff_result == ComparisonResult.UNKNOWN:
                         break
                     elif diff_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
-                        this_goal = g # Make it agree
+                        this_goal = g  # Make it agree
                     else:
                         diff_geq_leq_zero(formula, s, bounds)
                         raise ValueError(f"Comparison result {diff_result} is not a valid comparison result")
@@ -1052,26 +1089,11 @@ def get_tile_shape_choices(
         # to track this loop. Minimize it if we're imperfect (giving the outer the most
         # choices possible), or diff if we're perfect (since perfect constrains choices
         # so we can't just min).
-
-        # NOTE: Tanner tried for a long time to get min_per_prime_factor to be faster, but it
-        # didn't work. What it would do is say that if one choice for an inner loop has
-        # used up fewer of every prime factor than another choice, then the latter would
-        # give a superset of options for outer loops. Intuitively, we could enable more
-        # pruning by doing this instead of "diff", which is overconservative. Likewise,
-        # we could do "min" for imperfect instead of "diff". However, this ultimately
-        # made things slower because it didn't get much Pareto pruning, but caused many
-        # more Pareto comparisons ("diff" partitioning into N partitions --> N^2
-        # improvement). I hypothesize that the reason that it doesn't improve pruning
-        # much is that when we've enumerated a loop but not the loop above it, the given
-        # loop is almost always trading off tile shape for accesses, leading to no point
-        # being dominated by another point.
-
         for s in symbols_enumerated:
             per_prime_factor = not (IMPERFECT or _get_n_prime_factors(what_tiles_symbol.get_max_size(s)) == 1)
             tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
             if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
                 update_symbol2goal(s, Goal("min_per_prime_factor" if per_prime_factor else "min"))
-                # update_symbol2goal(s, Goal("diff"))
 
             # Same for inner loops depending on us, but maximize if we're imperfect
             tiled_by = what_tiles_symbol.get_inner_tiles(s, none_if_fail=True)
