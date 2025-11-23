@@ -55,23 +55,16 @@ def identify_mesh_casts(
 
     # Calculates the distance of all the dst-src pairs with matching data.
     # { [dst -> data] -> [dist] }
-    distances_map: isl.Map = fills_to_matches.apply_range(dist_fn)
-    # { [[dst -> data] -> [dst -> src]] -> [dst -> src] }
-    fills_to_matches_TO_matches: isl.Map = fills_to_matches.range_map()
-    # { [[dst -> data] -> [dst -> src]] -> [dist] }
-    fills_to_matches_TO_dist: isl.Map = fills_to_matches_TO_matches.apply_range(dist_fn)
-
-    # Gets the minimal distance pairs.
-    # { [dst -> data] -> [dist] }
-    lexmin_dists: isl.Map = distances_map.lexmin()
-    # Associates each destination with its closest source containing the data.
-    # { [dst -> data] -> [[dst -> data] -> [dst -> src]] }
-    associate_dist_to_src: isl.Map = lexmin_dists.apply_range(
-        fills_to_matches_TO_dist.reverse()
-    )
+    fill_to_dist_of_nearest_src: isl.Map = fills_to_matches.apply_range(dist_fn).lexmin()
     # Isolates the relevant minimal pairs.
     # { [dst -> data] -> [dst -> src] :.dst -> src is minimized distance }
-    minimal_pairs: isl.Map = associate_dist_to_src.range().unwrap()
+    minimal_pairs: isl.Map = fill_to_dist_of_nearest_src.apply_range(
+        # Note: Need to match fill -> min_dist with min_dist -> [fill -> match] as lexmin over
+        # fill and match will minimize distance over the tuple (src, dst, data), but that
+        # overconstrains the optimization as we want to minimize over distance (dst, data)
+        # only for all src.
+        fills_to_matches.range_map().apply_range(dist_fn).reverse()
+    ).range().unwrap()
     if DUMP_ISL_IR:
         logging.info(f"minimal_pairs: {minimal_pairs}")
 
@@ -162,8 +155,8 @@ class HypercubeMulticastModel(TransferModel):
         """
         self.dist_fn = dist_fn
 
-    def apply(self, buff: int, fills: Fill, occ: Occupancy) -> TransferInfo:
-        mcs: isl.Map = identify_mesh_casts(occ.map_, fills.map_, self.dist_fn)
+    def apply(self, buff: int, fills: Fill, occs: Occupancy) -> TransferInfo:
+        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_mesh_cast_hypercube(mcs)
 
         # TODO: Read once from all buffers, assert that
@@ -171,7 +164,7 @@ class HypercubeMulticastModel(TransferModel):
         num_meshcasts: int = mcs.card()
         return TransferInfo(
             fulfilled_fill=Transfers(fills.tags, fills.map_),
-            parent_reads=Reads(occ.tags, mcs),
+            parent_reads=Reads(occs.tags, mcs),
             unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),
             hops=result,
             link_transfer=True,
