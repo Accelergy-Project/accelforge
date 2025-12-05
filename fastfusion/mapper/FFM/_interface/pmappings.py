@@ -1,3 +1,4 @@
+import copy
 from typing import Callable
 from uuid import UUID
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
@@ -14,12 +15,14 @@ class MultiEinsumPmappings:
         resource2capacity: dict[str, int],
         einsum2jobs: dict[EinsumName, list[Job]],
         can_combine_multiple_runs: bool,
+        einsums_with_pmappings_generated: set[EinsumName],
     ):
         self.einsum2pmappings: dict[EinsumName, list[PmappingGroup]] = einsum2pmappings
         self.pmapping_objects: dict[EinsumName, dict[UUID, Mapping]] = pmapping_objects
         self.resource2capacity: dict[str, int] = resource2capacity
         self.einsum2jobs: dict[EinsumName, list[Job]] = einsum2jobs
         self.can_combine_multiple_runs: bool = can_combine_multiple_runs
+        self.einsums_with_pmappings_generated: set[EinsumName] = einsums_with_pmappings_generated
 
     def __or__(self, other: "MultiEinsumPmappings"):
         if not self.can_combine_multiple_runs or not other.can_combine_multiple_runs:
@@ -27,6 +30,7 @@ class MultiEinsumPmappings:
                 "Must call make_pmappings with can_combine_multiple_runs=True to combine pmappings "
                 "from multiple runs."
             )
+        self = copy.copy(self)
         for einsum_name, pmappings in other.einsum2pmappings.items():
             self.einsum2pmappings.setdefault(einsum_name, []).extend(pmappings)
         for resource, capacity in other.resource2capacity.items():
@@ -41,17 +45,18 @@ class MultiEinsumPmappings:
         for einsum_name, jobs in other.einsum2jobs.items():
             self.einsum2jobs.setdefault(einsum_name, []).extend(jobs)
         self.pmapping_objects.update(other.pmapping_objects)
+        self.einsums_with_pmappings_generated.update(other.einsums_with_pmappings_generated)
         return self
 
     def filter(
         self,
         filter_lambda: Callable[[PmappingGroup], bool],
-        einsum_names: list[EinsumName] | None = None,
+        einsums_with_pmappings_generated: list[EinsumName] | None = None,
     ):
         new_einsum2pmappings = {}
-        if einsum_names is None:
-            einsum_names = list(self.einsum2pmappings.keys())
-        for einsum_name in einsum_names:
+        if einsums_with_pmappings_generated is None:
+            einsums_with_pmappings_generated = list(self.einsum2pmappings.keys())
+        for einsum_name in einsums_with_pmappings_generated:
             new_einsum2pmappings[einsum_name] = [
                 pm for pm in self.einsum2pmappings[einsum_name] if filter_lambda(pm)
             ]
@@ -64,10 +69,12 @@ class MultiEinsumPmappings:
             can_combine_multiple_runs=self.can_combine_multiple_runs,
         )
 
-    def drop_einsums(self, *einsum_names: EinsumName):
-        for einsum_name in einsum_names:
+    def drop_einsums(self, *einsums_with_pmappings_generated: EinsumName):
+        for einsum_name in einsums_with_pmappings_generated:
             del self.einsum2pmappings[einsum_name]
             del self.pmapping_objects[einsum_name]
+            del self.einsum2jobs[einsum_name]
+            self.einsums_with_pmappings_generated.remove(einsum_name)
 
     def pmapping_keep_rates(
         self, per_einsum: bool = False

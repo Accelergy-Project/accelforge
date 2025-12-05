@@ -31,15 +31,15 @@ class MappingFromRow:
     def __init__(
         self,
         row: pd.Series,
-        spec: Specification,
         rank_variable_bounds: dict[str, dict[str, int]],
+        einsum_names: list[EinsumName] | None = None,
     ):
         self.row = row
-        self.spec = spec
         self.rank_variable_bounds = rank_variable_bounds
+        self.einsum_names = einsum_names
 
     def __call__(self) -> Mapping:
-        return row2mapping(self.row, self.spec, self.rank_variable_bounds)
+        return row2mapping(self.row, self.rank_variable_bounds, self.einsum_names)
 
     def render(self) -> str:
         return self().render()
@@ -71,6 +71,7 @@ def _make_pmappings(
         resource2capacity,
         einsum2jobs,
         can_combine_multiple_runs=can_combine_multiple_runs,
+        einsums_with_pmappings_generated=set(einsum_names if einsum_names else spec.workload.einsum_names),
     )
 
     return m
@@ -125,10 +126,12 @@ def make_pmappings(
 
 
 def row2mapping(
-    row: pd.Series, spec: Specification, rank_variable_bounds: dict[str, dict[str, int]]
+    row: pd.Series,
+    rank_variable_bounds: dict[str, dict[str, int]],
+    einsum_names: list[EinsumName],
 ) -> Mapping:
     return Mapping.from_pmappings(
-        row2pmappings(row, spec.workload.einsum_names, rank_variable_bounds),
+        row2pmappings(row, einsum_names, rank_variable_bounds),
         rank_variable_bounds=rank_variable_bounds,
     )
 
@@ -137,8 +140,15 @@ def join_pmappings(
     spec: Specification,
     pmappings: MultiEinsumPmappings,
     pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+    require_all_einsums: bool = True,
 ) -> Mappings:
-    for einsum_name, einsum_pmappings in pmappings.einsum2pmappings.items():
+    einsum2pmappings = pmappings.einsum2pmappings
+    if not require_all_einsums:
+        einsum2pmappings = {
+            k: v for k, v in pmappings.einsum2pmappings.items() if k in pmappings.einsums_with_pmappings_generated
+        }
+
+    for einsum_name, einsum_pmappings in einsum2pmappings.items():
         total = sum(len(p.mappings.data) for p in einsum_pmappings)
         n_compatibilities = len(einsum_pmappings)
         print(
@@ -147,7 +157,7 @@ def join_pmappings(
         if total == 0:
             raise ValueError(f"Einsum {einsum_name} has no pmappings")
 
-    compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
+    compressed, decompress_data = compress_einsum2pmappings(einsum2pmappings)
     joined = _join_pmappings(
         compressed,
         spec,
@@ -156,7 +166,7 @@ def join_pmappings(
     )
     joined = decompress_pmappings(joined, decompress_data)
 
-    for einsum_name in pmappings.einsum2pmappings:
+    for einsum_name in einsum2pmappings:
         col = f"{einsum_name}<SEP>{MAPPING_COLUMN}"
         joined.data[col] = joined.data[col].apply(
             lambda x: pmappings.pmapping_objects[einsum_name][x]
@@ -164,15 +174,16 @@ def join_pmappings(
     joined._data = joined.data.fillna(0).reset_index(drop=True)
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
+    einsum_names = list(einsum2pmappings.keys())
     joined.data[f"Total<SEP>{MAPPING_COLUMN}"] = [
-        MappingFromRow(r, spec, rank_variable_bounds) for _, r in joined.data.iterrows()
+        MappingFromRow(r, rank_variable_bounds, einsum_names) for _, r in joined.data.iterrows()
     ]
     # Fill nans with 0. We might get missing columns for some mapping entries if there
     # are energy entries for some pmappings but not others (e.g., one pmapping accesses
     # DRAM while another doesn't.)
     return Mappings(
         spec,
-        list(pmappings.einsum2pmappings.keys()),
+        list(einsum2pmappings.keys()),
         joined.data,
         total_mappings=joined.total_pmappings,
         valid_mappings=joined.valid_pmappings,
