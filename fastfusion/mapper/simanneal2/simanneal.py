@@ -13,7 +13,7 @@ from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
 )
 from fastfusion.frontend.workload import EinsumName
 from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup
+# from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
     MAPPING_COLUMN,
     col2nameloop,

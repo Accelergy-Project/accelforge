@@ -8,7 +8,7 @@
 # tensors --> dataspace
 
 variables:
-  global_cycle_seconds: 1e-9
+  global_cycle_seconds: 0.952e-9
   technology: "7nm"
 
 architecture:
@@ -20,9 +20,11 @@ architecture:
     subclass: dummy_storage
     attributes:
       width: 2048
-      depth: 4194304  # Just something really big. Equivalent to 1 GiB
+      depth: None  # Just something really big.
       datawidth: 8
-      shared_bandwidth: 256
+      shared_bandwidth: 614e9 * global_cycle_seconds
+    constraints:
+      temporal: {rmw_first_update: [input, output, weight]}
 
   - !Component
     name: GlobalBuffer
@@ -30,10 +32,14 @@ architecture:
     subclass: dummy_storage
     attributes:
       width: 4096
-      depth: 3072  # 1.5 MiB = 12 Mib  (Kind of a wide SRAM, probably heavily banked)
+      depth: 1024*1024*128*8//width
       datawidth: 8
-      read_bandwidth: 1024
-      write_bandwidth: 512
+      read_bandwidth: 2048e9 * global_cycle_seconds
+      write_bandwidth: 1024e9 * global_cycle_seconds
+    constraints:
+      dataspace: {keep: [output, input]}
+      temporal: {rmw_first_update: [input, output, weight]}
+      # temporal: {factors_only: [P=32]}
 
   - !Component
     name: LocalBuffer
@@ -42,14 +48,13 @@ architecture:
     spatial: [meshX: 4]
     attributes:
       width: 1024
-      depth: 1024  # 128 KiB = 1 Mib
+      depth: 1024*4*8
       datawidth: 8
-      shared_bandwidth: 1024
-      read_bandwidth: 1024
-      write_bandwidth: 1024
     constraints:
-      # dataspace: {bypass: [weight], keep: [input, output]}
-      spatial: {split: 999, factors: [C<=4, M<=4, Q<=4]}
+      dataspace: {keep: [input, output], bypass: [weight]}
+      temporal: {rmw_first_update: [input, output, weight]}
+      spatial: {split: 999, factors: [M<=4, P<=4, H<=4, N<=4, E<=4]}
+      # temporal: {factors: [M=1]}
 
   - !Component
     name: fanout_dummy_1
@@ -62,7 +67,7 @@ architecture:
       datawidth: 8
     constraints:
       dataspace: {bypass: [input, output, weight]}
-      spatial: {split: 999, no_iteration_over_dataspaces: [output], factors: [C<=128]}
+      spatial: {split: 999, no_iteration_over_dataspaces: [output], factors: [E<=128]}
       temporal: {factors_only: []}
 
   - !Component
@@ -76,9 +81,8 @@ architecture:
       datawidth: 8
     constraints:
       dataspace: {bypass: [input, output, weight]}
-      spatial: {split: 999, no_iteration_over_dataspaces: [input], factors: [M<=128]}
+      spatial: {split: 999, no_iteration_over_dataspaces: [input], factors: [P<=128]}
       temporal: {factors_only: []}
-
 
   - !Component
     name: Register
@@ -90,7 +94,7 @@ architecture:
       datawidth: 8
     constraints:
       dataspace: {bypass: [input, output], keep: [weight]}
-      temporal: {no_iteration_over_dataspaces: [weight]}
+      temporal: {no_iteration_over_dataspaces: [weight], rmw_first_update: [input, output, weight]}
 
   - !Component
     name: MAC
@@ -100,54 +104,6 @@ architecture:
       multiplier_width: 8
       adder_width: 16
 
-problem:
-  version: 0.4
-  instance:
-    N: 1          # Batch size
-    C: 16384                   # Input channels
-    H: 1                   # Input height
-    W: 1                   # Input width
-    G: 1                   # Groups
-    R: 1                   # Weight height
-    S: 1                   # Weight width
-    M: 16384                   # Output channels
-    P: 1                   # Output height
-    Q: 16384                   # Output width
-  shape:
-    data_spaces:
-    - name: weight
-      projection:
-      - - - C
-      - - - M
-      - - - R
-      - - - S
-      - - - G
-    - name: input
-      projection:
-      - - - N
-      - - - C
-      - - - R
-        - - P
-      - - - S
-        - - Q
-      - - - G
-    - name: output
-      projection:
-      - - - N
-      - - - M
-      - - - Q
-      - - - P
-      - - - G
-      read_write: true
-    dimensions:
-    - C
-    - M
-    - R
-    - S
-    - N
-    - P
-    - Q
-    - G
 
 mapper:
   version: 0.4
@@ -156,9 +112,9 @@ mapper:
   num_threads: 1
   evaluated_size: 10000
   search_size: 1000000000          # Max valid mappings per-thread
-  victory_condition: 100000      # Exit once a mapping is better than this number of
+  # victory_condition: 100000      # Exit once a mapping is better than this number of
   #                             # valid mappings in a row
-  timeout: 100000              # Max invalid mappings in a row
+  timeout: 1000000000              # Max invalid mappings in a row
   # max_permutations_per_if_visit: -1
   algorithm: random_pruned # linear_pruned
   # max_temporal_loops_in_a_mapping: -1

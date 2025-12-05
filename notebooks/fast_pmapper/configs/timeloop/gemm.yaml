@@ -48,7 +48,7 @@ architecture:
       read_bandwidth: 1024
       write_bandwidth: 1024
     constraints:
-      # dataspace: {bypass: [weight], keep: [input, output]}
+      dataspace: {keep: [input, output], bypass: [weight]}
       spatial: {split: 999, factors: [C<=4, M<=4, Q<=4]}
 
   - !Component

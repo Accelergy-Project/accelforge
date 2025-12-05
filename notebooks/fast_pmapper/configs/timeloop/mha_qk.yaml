@@ -1,11 +1,12 @@
+
 problem:
   version: 0.4
   instance:
-    N: 16          # Batch size
+    N: 64          # Batch size
     H: 32
     E: 128                 # Input channels
-    P: 16384               # Output channels
-    M: 16384               # Output width
+    P: 65536               # Output channels
+    M: 65536               # Output width
   shape:
     data_spaces:
     - name: weight

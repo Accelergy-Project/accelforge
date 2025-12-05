@@ -2,7 +2,7 @@
   operator_type: Gemm
   equation: O[b][h][m][p] = I[b][h][m][e] * W[b][h][p][e]
   loop_dims: [B, H, M, P, E]
-  loop_sizes: [16, 32, 16384, 16384, 128]
+  loop_sizes: [64, 32, 65536, 65536, 128]
   operand_precision:
     W: 8
     I: 8

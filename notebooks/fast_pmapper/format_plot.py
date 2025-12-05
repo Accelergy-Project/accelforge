@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 plt.style.use('default')
-plt.rcParams.update({'font.size': 28})
+plt.rcParams.update({'font.size': 24})
 
 
 def format_plot(ax: plt.Axes, grid_axis='both'):

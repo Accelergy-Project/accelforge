@@ -11,14 +11,14 @@ memories:
     ports:
       - name: r_port_1
         type: read
-        bandwidth_min: 16
-        bandwidth_max: 16
+        bandwidth_min: 1600
+        bandwidth_max: 1600
         allocation:
           - I2, tl
       - name: w_port_1
         type: write
-        bandwidth_min: 16
-        bandwidth_max: 16
+        bandwidth_min: 1600
+        bandwidth_max: 1600
         allocation:
           - I2, fh
     served_dimensions: [] # Fully unrolled over all multipliers
@@ -33,34 +33,34 @@ memories:
     ports:
       - name: r_port_1
         type: read
-        bandwidth_min: 16
-        bandwidth_max: 16
+        bandwidth_min: 1600
+        bandwidth_max: 1600
         allocation:
           - O, tl
       - name: r_port_2
         type: read
-        bandwidth_min: 16
-        bandwidth_max: 16
+        bandwidth_min: 1600
+        bandwidth_max: 1600
         allocation:
           - O, th
       - name: w_port_1
         type: write
-        bandwidth_min: 16
-        bandwidth_max: 16
+        bandwidth_min: 1600
+        bandwidth_max: 1600
         allocation:
           - O, fh
       - name: w_port_2
         type: write
-        bandwidth_min: 16
-        bandwidth_max: 16
+        bandwidth_min: 1600
+        bandwidth_max: 1600
         allocation:
           - O, fl
     served_dimensions: []
 
   LLB:
-    size: 1048576  # 128 KiB
-    r_cost: 2048   # 2 pJ/8b
-    w_cost: 2376   # 2.32 pJ/8b
+    size: 33554432  # 4 MiB
+    r_cost: 2048   # 0.25 pJ/b
+    w_cost: 2400   # 0.29 pJ/8b
     area: 0
     latency: 1
     operands: [I1, O]
@@ -96,9 +96,9 @@ memories:
     served_dimensions: [D1, D2]
 
   GLB:
-    size: 12582912 # 1.5 MiB
-    r_cost: 2048   # 2 pJ/8b
-    w_cost: 1188   # 2.32 pJ/8b
+    size: 1073741824 # 128 MiB
+    r_cost: 15400   # 1.88 pJ/b
+    w_cost: 9666   # 2.36 pJ/b
     area: 0
     latency: 1
     operands: [I1, O, I2]
@@ -134,16 +134,16 @@ memories:
 
   DRAM:
     size: 1000000000000000
-    r_cost: 14397 # 56.25 pJ/8b but the input must be per-width (width is bandwidth_min == bandwidth_max
-    w_cost: 14397
+    r_cost: 32886 # 7.03 pJ/b but the input must be per-width (width is bandwidth_min == bandwidth_max
+    w_cost: 32886
     area: 0
     latency: 1
     operands: [I1, I2, O]
     ports:
       - name: rw_port_1
         type: read_write
-        bandwidth_min: 2048  # 256 GiB/s = 2048 Gib/s
-        bandwidth_max: 2048
+        bandwidth_min: 4678  # 256 GiB/s = 2048 Gib/s
+        bandwidth_max: 4678
         allocation:
           - I1, fh
           - I1, tl
@@ -156,7 +156,7 @@ memories:
     served_dimensions: [D0, D1, D2]
 
 operational_array:
-  unit_energy: 0.07 # pJ
+  unit_energy: 0.084 # pJ
   unit_area: 1 # unit
   dimensions: [D0, D1, D2]
   sizes: [4, 128, 128]

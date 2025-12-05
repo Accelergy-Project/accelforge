@@ -88,7 +88,7 @@ architecture:
       depth: 1
       datawidth: 8
     constraints:
-      dataspace: {bypass: [input, output], keep: [weight]}
+      dataspace: {keep: [input, output], bypass: [weight]}
       temporal: {no_iteration_over_dataspaces: [weight]}
 
   - !Component
