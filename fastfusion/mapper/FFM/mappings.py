@@ -58,7 +58,7 @@ class Mappings:
     def per_component_energy(self) -> dict[tuple[EinsumName, str, str], float]:
         """
         Returns a dictionary of:
-            {(Einsum name, Component name, Action name): Energy}
+            {(Einsum name, Component name, CompoundAction name): Energy}
         """
         per_component_energy = {}
         for col in self.data.columns:

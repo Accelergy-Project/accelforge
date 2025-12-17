@@ -1,6 +1,8 @@
-from pytimeloop._isl.singular import get_value_from_singular_qpolynomial
-
 from .aggregators import CAPACITY_AGGREGATORS
+
+
+def get_value_from_singular_qpolynomial(qp):
+    return qp.eval(qp.domain().sample_point())
 
 
 def compute_capacity_usage(mapping, occupancy, workload):

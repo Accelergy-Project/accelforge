@@ -1,4 +1,4 @@
-from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
+# from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
 
 class EquivalentGroups:
@@ -8,7 +8,7 @@ class EquivalentGroups:
 
     @staticmethod
     def from_workload(
-        workload: LooptreeWorkload, analyzer: LooptreeWorkloadDependencyAnalyzer
+        workload: "LooptreeWorkload", analyzer: "LooptreeWorkloadDependencyAnalyzer"
     ):
         einsum_id_to_name = workload.einsum_id_to_name()
 

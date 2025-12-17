@@ -5,10 +5,16 @@ from IPython.display import SVG, display
 import plotly.graph_objs as go
 from ipywidgets import Output, VBox, HBox
 from fastfusion.accelerated_imports import pd
-
-from fastfusion.accelerated_imports import pd
-from fastfusion.mapper.FFM.deprecate_maybe.visualization import make_mapping
+from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import row2pmappings
 from fastfusion.frontend.mapping import Mapping
+
+
+def make_mapping(row, einsum_names, rank_variable_bounds):
+    pmappings = row2pmappings(row, einsum_names, rank_variable_bounds)
+    newmapping = Mapping.from_pmappings(
+        pmappings, rank_variable_bounds=rank_variable_bounds
+    )
+    return newmapping
 
 
 def mapping2svg(

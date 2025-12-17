@@ -7,13 +7,5 @@ they can be calculated automatically using `HWComponents
 <https://github.com/Accelergy-Project/hwcomponents>`_.
 
 
-
-
-
-
-
-
-
-
 The area and energy of components in the architecture either be specified directly, or
 by calls to the `HWComponents <https://github.com/Accelergy-Project/hwcomponents>`_

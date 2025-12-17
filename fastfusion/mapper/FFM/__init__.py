@@ -1,4 +1,4 @@
-from fastfusion.mapper.FFM._interface.main import (
+from fastfusion.mapper.FFM.main import (
     make_pmappings,
     join_pmappings,
     MultiEinsumPmappings,

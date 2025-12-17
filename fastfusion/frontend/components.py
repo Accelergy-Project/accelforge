@@ -58,26 +58,26 @@ class Subcomponent(ParsableModel):
     attributes: ComponentAttributes = ComponentAttributes()
 
 
-class SubcomponentAction(ParsableModel):
+class Action(ParsableModel):
     name: str
     arguments: ComponentAttributes = ComponentAttributes()
 
 
-class SubcomponentActionGroup(ParsableModel):
+class ActionGroup(ParsableModel):
     name: str
-    actions: ParsableList[SubcomponentAction]
+    actions: ParsableList[Action]
 
 
-class Action(ParsableModel):
+class CompoundAction(ParsableModel):
     name: str
-    subcomponents: ParsableList[SubcomponentActionGroup]
+    subcomponents: ParsableList[ActionGroup]
 
 
 class CompoundComponent(ParsableModel):
     name: str
     attributes: ComponentAttributes
     subcomponents: ParsableList[Subcomponent]
-    actions: ParsableList[Action]
+    actions: ParsableList[CompoundAction]
 
     def get_subcomponent_actions(
         self,
@@ -86,9 +86,9 @@ class CompoundComponent(ParsableModel):
         arguments: ComponentAttributes,
     ) -> Iterator[tuple[str, ComponentAttributes, ComponentAttributes, str]]:
         try:
-            action: Action = self.actions[action_name]
+            action: CompoundAction = self.actions[action_name]
         except KeyError:
-            raise KeyError(f"Action {action_name} not found in {self.name}") from None
+            raise KeyError(f"CompoundAction {action_name} not found in {self.name}") from None
 
         for subcomponent in action.subcomponents:
             try:

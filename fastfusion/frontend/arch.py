@@ -25,7 +25,7 @@ from fastfusion.util.parse_expressions import ParseError, parse_expression
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.frontend.renames import TensorName
 
-from .components import ComponentAttributes, SubcomponentAction
+from .components import ComponentAttributes, Action
 from . import constraints
 from fastfusion.version import assert_version, __version__
 from pydantic import Discriminator
@@ -176,10 +176,10 @@ class Component(Leaf, ABC):
     """ The class of this `Component`. Used if an energy or area model needs to be
     called for this `Component`. """
 
-    actions: ParsableList[SubcomponentAction]
+    actions: ParsableList[Action]
     """ The actions that this `Component` can perform. """
 
-    def _update_actions(self, new_actions: ParsableList[SubcomponentAction]):
+    def _update_actions(self, new_actions: ParsableList[Action]):
         has_actions = set(x.name for x in self.actions)
         for action in new_actions:
             if action.name not in has_actions:
@@ -199,7 +199,7 @@ class Component(Leaf, ABC):
         return self.component_class
 
 
-class Actions(ParsableList[SubcomponentAction]):
+class Actions(ParsableList[Action]):
     """A list of actions that a `Component` can perform."""
 
     pass
@@ -221,7 +221,7 @@ class ArchMemoryActionArguments(ComponentAttributes):
     to 16 means that each call to this action yields 16 bits. """
 
 
-class ArchMemoryAction(SubcomponentAction):
+class ArchMemoryAction(Action):
     """An action that a `Memory` can perform."""
 
     arguments: ArchMemoryActionArguments = ArchMemoryActionArguments()
@@ -244,7 +244,7 @@ PROCESSING_STAGE_ACTIONS = ParsableList(
 
 COMPUTE_ACTIONS = ParsableList(
     [
-        SubcomponentAction(name="compute"),
+        Action(name="compute"),
     ]
 )
 
@@ -369,7 +369,7 @@ class ComputeAttributes(LeafAttributes):
 
 
 class Compute(Component):
-    actions: ParsableList[SubcomponentAction] = COMPUTE_ACTIONS
+    actions: ParsableList[Action] = COMPUTE_ACTIONS
     """ The actions that this `Compute` can perform. """
 
     attributes: ComputeAttributes = pydantic.Field(default_factory=ComputeAttributes)

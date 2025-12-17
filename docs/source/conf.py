@@ -22,7 +22,7 @@ templates_path = ['_templates']
 exclude_patterns = []
 
 # -- HTML output -------------------------------------------------------------
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'alabaster'
 html_static_path = ['_static']
 
 extensions = [
@@ -35,5 +35,5 @@ extensions = [
 autodoc_default_options = {
     'members': True,
     'undoc-members': False,
-    'exclude-members': 'model_config,model_fields,__pydantic_fields__'
+    'exclude-members': 'model_config,model_fields,__pydantic_fields__,model_post_init'
 }

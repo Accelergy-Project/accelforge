@@ -3,8 +3,8 @@ import os
 from typing import Callable
 from fastfusion import arch
 from fastfusion import Specification
-from fastfusion.mapper.FFM._interface.pmappings import MultiEinsumPmappings
-from fastfusion.mapper.FFM._interface.mappings import Mappings
+from fastfusion.mapper.FFM.pmappings import MultiEinsumPmappings
+from fastfusion.mapper.FFM.mappings import Mappings
 from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
     compress_einsum2pmappings,
     decompress_pmappings,

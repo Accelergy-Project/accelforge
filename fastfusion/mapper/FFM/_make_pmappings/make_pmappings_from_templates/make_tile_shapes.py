@@ -1326,7 +1326,7 @@ def call_compiled_objective(f, *args):
     return f(*args)
 
 
-def _make_tile_shapes_new(job: "Job"):
+def _make_tile_shapes(job: "Job"):
     # We're going to convert the job into a list of symbols and objectives
     pmapping = job.mapping
     constraints = job.constraints
@@ -1579,15 +1579,3 @@ def make_tile_shapes(job: "Job"):
             # Ignore permission errors when trying to reset CPU limits
             pass
 
-
-EXPERIMENTAL_TILE_SHAPE_EXPLORATION = True
-
-
-def _make_tile_shapes(job: "Job"):
-    if EXPERIMENTAL_TILE_SHAPE_EXPLORATION:
-        return _make_tile_shapes_new(job)
-    from fastfusion.mapper.FFM.deprecate_maybe.tile_shape_exploration_old import (
-        _make_tile_shapes_old,
-    )
-
-    return _make_tile_shapes_old(job)

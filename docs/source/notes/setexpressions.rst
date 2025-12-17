@@ -8,6 +8,7 @@ in constraints. For example, you may describe all tensors that are not intermedi
 using the following:
 
 .. code-block:: yaml
+
     ~Intermediates
 
 Set expressions can use the full Python syntax, including the following:
@@ -21,6 +22,7 @@ You may also use Pythonic language with set expressions in some locations. For e
 we may want to use input tensors if and only if there are three or fewer total tensors:
 
 .. code-block:: yaml
+
     Inputs if len(All) > 3 else All
 
 Set expressions are parsed for every Einsum + Flattened-Architecture:ref:`flattening`
@@ -51,6 +53,8 @@ Additionally, the following special variables are available:
 All tensor expressions can be converted into relevant rank variables by accessing
 ``.rank_variables``, which will return the set of all rank variables that index into the
 tensor. If multiple tensors are referenced, then the union of all indexing rank
-variables is returned.
+variables is returned. For example, `MemoryObject.Tensors.rank_variables` will return
+the set of all rank variables that index into any of the tensors stored in
+`MemoryObject`.
 
 Additional keys can be defined using :ref:`Renames`.

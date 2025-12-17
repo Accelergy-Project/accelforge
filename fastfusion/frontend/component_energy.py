@@ -15,7 +15,7 @@ class Subaction(ParsableModel):
     messages: list[str] = []
 
 
-class Action(ParsableModel):
+class CompoundAction(ParsableModel):
     name: str
     attributes: ComponentAttributes = ComponentAttributes()
     arguments: ComponentAttributes = ComponentAttributes()
@@ -82,7 +82,7 @@ class Action(ParsableModel):
                     action_name, attributes, arguments
                 ):
                     entries.extend(
-                        Action.from_models(
+                        CompoundAction.from_models(
                             component,
                             component_attributes,
                             sub_arguments,
@@ -118,7 +118,7 @@ class Action(ParsableModel):
             return entries
 
         energy = sum(subaction.energy for subaction in entries)
-        return Action(
+        return CompoundAction(
             name=action_name,
             subactions=entries,
             energy=energy,
@@ -131,9 +131,9 @@ class Action(ParsableModel):
 class EnergyEntry(ParsableModel):
     name: str
     attributes: ComponentAttributes = ComponentAttributes()
-    actions: ParsableList[Action]
+    actions: ParsableList[CompoundAction]
 
-    def find_action(self, name: str) -> Optional[Action]:
+    def find_action(self, name: str) -> Optional[CompoundAction]:
         for action in self.actions:
             if name == action.name:
                 return action
@@ -156,7 +156,7 @@ class EnergyEntry(ParsableModel):
         for action_name, action_arguments in zip(action_names, arguments):
             try:
                 actions.append(
-                    Action.from_models(
+                    CompoundAction.from_models(
                         class_name,
                         attributes,
                         action_arguments,
@@ -189,7 +189,7 @@ class ComponentEnergy(ParsableModel):
                 r[(t.name, a.name)] = a.energy
         return r
 
-    def find_action(self, component: str, action: str) -> Action:
+    def find_action(self, component: str, action: str) -> CompoundAction:
         try:
             return self.entries[component].find_action(action)
         except KeyError:
