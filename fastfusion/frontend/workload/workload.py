@@ -45,9 +45,9 @@ ISL_REGEX = re.compile(
     r"\b(?!(?:" + "|".join(CLIST_OPERATORS) + r")\b)[a-zA-Z#$@][a-zA-Z0-9_]*\b"
 )
 """
-Pattern[AnyStr@compile] ISL_REGEX: A compiled regex pattern that matches 
+Pattern[AnyStr@compile] ISL_REGEX: A compiled regex pattern that matches
 words that are not exactly in CLIST_OPERATORS (case-sensitive), start with a
-letter, `#`, `$`, or `@`, and are followed by zero or more letters, digits, 
+letter, `#`, `$`, or `@`, and are followed by zero or more letters, digits,
 or underscores.
 """
 
@@ -181,12 +181,6 @@ def projection_factory(projection: dict | list):
     return projection
 
 
-def shape_factory(shape: list | str):
-    if isinstance(shape, str):
-        shape = [shape]
-    return Shape(shape)
-
-
 class Shape(ParsableList):
     """
     Specifies valid values for the rank variables.
@@ -206,8 +200,10 @@ class Einsum(ParsableModel):
     """ The name of the Einsum. """
     tensor_accesses: ParsableList[TensorAccess]
     """ The tensors accessed by the Einsum. """
-    shape: Shape[str] = Shape()
+    iteration_space_shape: Shape[str] = Shape()
     """ Bounds of valid rank variable values. """
+    rank_sizes: ParsableDict[RankName, int] = ParsableDict()
+    """ Sizes of rank variables. """
     is_copy_operation: bool = False
     """ Whether the Einsum is a copy operation. """
     renames: RenameList[Rename] = RenameList()
@@ -238,6 +234,12 @@ class Einsum(ParsableModel):
         if not self.tensor_accesses:
             return set()
         return set.union(*[t.rank_variables for t in self.tensor_accesses])
+
+    @property
+    def ranks(self) -> set[RankName]:
+        if not self.tensor_accesses:
+            return set()
+        return set.union(*[set(t.ranks) for t in self.tensor_accesses])
 
     @property
     def tensor_names(self) -> set[TensorName]:
@@ -330,12 +332,17 @@ class Workload(ParsableModel):
     einsums: ParsableList[Einsum] = ParsableList()
     """ Einsums in the workload. """
 
-    shape: ParsableDict[RankVariableName, str] = ParsableDict()
+    iteration_space_shape: ParsableDict[RankVariableName, str] = ParsableDict()
     """ Bounds of valid rank variable values. This is a dictionary of rank variable
     names to bounds of valid rank variable values. The bounds are specified as a string
     in the ISL format. For example, "0 <= a < 10" means that the rank variable `a` must
     be between 0 and 10, including 0 but not 10. Bounds are included for all Einsums
     that include that rank variable.
+    """
+
+    rank_sizes: ParsableDict[RankName, int] = ParsableDict()
+    """ Sizes of rank variables. This is a dictionary of rank names to sizes. Sizes are
+    integers. The rank's bounds are assumed to be 0 <= rank < size.
     """
 
     n_instances: int = 1
@@ -393,9 +400,22 @@ class Workload(ParsableModel):
 
     def get_shape_isl_string(self, einsum_name: str) -> str:
         einsum = self.einsums[einsum_name]
-        einsum_shape = einsum.shape
-        global_shape = [self.shape[r] for r in einsum.rank_variables if r in self.shape]
-        return " and ".join(term for term in einsum_shape + global_shape)
+        einsum_shape = einsum.iteration_space_shape
+        my_ispace = self.iteration_space_shape
+        global_shape = [my_ispace[r] for r in einsum.rank_variables if r in my_ispace]
+        rank_sizes = einsum.rank_sizes
+        global_rank_sizes = {r: self.rank_sizes[r] for r in einsum.ranks if r in self.rank_sizes}
+
+        exprs = einsum_shape + global_shape
+        for tensor in einsum.tensor_accesses:
+            for rank, projection in tensor.projection.items():
+                if rank in rank_sizes:
+                    exprs.append(f"0 <= {projection} < {rank_sizes[rank]}")
+                elif rank in global_rank_sizes:
+                    exprs.append(f"0 <= {projection} < {global_rank_sizes[rank]}")
+
+        return " and ".join(exprs)
+
 
     def _check_consistent_persistent(self):
         for tensor in self.tensor_names:

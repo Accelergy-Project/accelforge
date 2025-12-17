@@ -1,19 +1,19 @@
 workload:
   version: "0.5"
-  shape:
+  rank_sizes:
     {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
-    b: 0 <= b < {{BATCH_SIZE}}
-    p0: 0 <= p0 < 28
-    q0: 0 <= q0 < 28
-    n0: 0 <= n0 < 24
-    t0: 0 <= t0 < 192
-    n1: 0 <= n1 < 24
-    p1: 0 <= p1 < 28
-    q1: 0 <= q1 < 28
-    p2: 0 <= p2 < 28
-    q2: 0 <= q2 < 28
-    t1: 0 <= t1 < 192
-    n2: 0 <= n2 < 24
+    B: {{BATCH_SIZE}}
+    P0: 28
+    Q0: 28
+    N0: 24
+    T0: 192
+    N1: 24
+    P1: 28
+    Q1: 28
+    P2: 28
+    Q2: 28
+    T1: 192
+    N2: 24
 
   einsums:
   - name: PiecewiseA0

@@ -17,19 +17,19 @@
 workload:
   version: "0.5"
 
-  shape:
+  rank_sizes:
     {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
-    b: 0 <= b < {{BATCH_SIZE}}
     {% set N_TOKENS = N_TOKENS | default(8192) %}
-    m: 0 <= m < {{N_TOKENS}} # = b
-    p: 0 <= p < {{N_TOKENS}} # = m
-    h: 0 <= h < 32
-    e: 0 <= e < 128
-    f: 0 <= f < 128
-    d: 0 <= d < 4096 # = e * h
-    c: 0 <= c < 16384
-    j: 0 <= j < 4096
-    g: 0 <= g < 4096
+    B: {{BATCH_SIZE}}
+    P: {{N_TOKENS}}
+    M: {{N_TOKENS}}
+    H: 32
+    E: 128
+    F: 128
+    D: 4096 # = e * h
+    C: 16384
+    J: 4096
+    G: 4096
 
   einsums:
   - name: I
