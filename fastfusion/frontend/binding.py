@@ -3,10 +3,8 @@ Defines Pydantic models to handle Binding Specifications that relate logical to
 physical architectures.
 """
 
-from typing import TypeAlias
-from islpy._isl import Val
 from abc import abstractmethod
-from typing import Dict, Set, List, Tuple
+from typing import Dict, Set, Tuple, TypeAlias
 
 from pydantic import StrictFloat, model_validator
 import islpy as isl
@@ -265,7 +263,7 @@ class PhysicalSpec(ParsableModel):
                 raise ValueError(
                     "Component placed on invalid NoC.\n"
                     f"Component: {component}\n"
-                    f"NoCs: {nocs}"
+                    f"NoCs: {self.nocs}"
                 )
         # TODO: Check that all ports form a DAG between the networks and all
         # networks are connected.
