@@ -3,6 +3,7 @@ Defines Pydantic models to handle Binding Specifications that relate logical to
 physical architectures.
 """
 
+from typing import TypeAlias
 from islpy._isl import Val
 from abc import abstractmethod
 from typing import Dict, Set, List, Tuple
@@ -137,6 +138,7 @@ class Binding(ParsableModel):
 
 class NetworkOnChip(ParsableModel):
     """A model of a network-on-chip on the physical chip."""
+
     name: str
     """NoC name"""
     cost: isl.PwMultiAff
@@ -148,14 +150,12 @@ class NetworkOnChip(ParsableModel):
     def validate(self):
         """Ensures the domain is not empty."""
         if self.domain.is_empty():
-            raise ValueError(
-                "NoC domain cannot be empty:\n"
-                f"Domain: {self.domain}"
-            )
+            raise ValueError("NoC domain cannot be empty:\n" f"Domain: {self.domain}")
 
 
 class Placement(ParsableModel):
     """The location(s) of a hardware component physically on the chip."""
+
     noc: NetworkOnChip
     "The NoC objects are being placed on."
     placement: isl.Map
@@ -200,17 +200,14 @@ class PhysicalComponents(ParsableModel):
 
 
 # For static analysis of types being used.
-class PhysicalStorage(PhysicalComponent):
-
-
-
-class PhysicalProcessingElement(PhysicalComponent):
-    pass
+PhysicalStorage: TypeAlias = PhysicalComponent
+PhysicalProcessingElement: TypeAlias = PhysicalComponent
 
 
 # Ports connecting the different NoC Components.
 class Port(ParsableModel):
     """Connection between two physical components of a chip and the cost to use."""
+
     parent: NetworkOnChip
     child: NetworkOnChip
     relation: isl.Map
@@ -218,7 +215,7 @@ class Port(ParsableModel):
     @model_validator(mode="after")
     def validate(self):
         # Ensures the parent and child NoCs are not the same.
-        if self.parent.name == self.child.name: 
+        if self.parent.name == self.child.name:
             raise ValueError(
                 "Parent should not be equal to the child.\n"
                 f"Parent: {self.parent}\n"
@@ -227,10 +224,7 @@ class Port(ParsableModel):
 
         # Ensures port map is not null.
         if self.relation.is_empty():
-            raise ValueError(
-                "Port cannot be empty\n"
-                f"Port: {Port}"
-            )
+            raise ValueError("Port cannot be empty\n" f"Port: {Port}")
         # Ensures the relation is contained in both NoCs.
         parent_domain: isl.Set = self.parent.domain
         child_domain: isl.Set = self.child.domain
@@ -251,6 +245,7 @@ class Port(ParsableModel):
 
 class PhysicalSpec(ParsableModel):
     """Physical specification of an accelerator."""
+
     name: str
     nocs: Set[NetworkOnChip]
     ports: Tuple[Port]
@@ -260,14 +255,10 @@ class PhysicalSpec(ParsableModel):
     def validate(self):
         # Checks that the networks are not empty.
         if not self.networks:
-            raise ValueError(
-                f"A physical chip {self.name} cannot have no NoCs."
-            )
+            raise ValueError(f"A physical chip {self.name} cannot have no NoCs.")
         # Checks that the components are not empty.
         if not self.components:
-            raise ValueError(
-                f"A physical chip {self.name} cannot have no components."
-            )
+            raise ValueError(f"A physical chip {self.name} cannot have no components.")
         # Check that the components are on on-chip NoCs.
         for component in self.components:
             if component.placement.noc not in self.nocs:
@@ -276,26 +267,28 @@ class PhysicalSpec(ParsableModel):
                     f"Component: {component}\n"
                     f"NoCs: {nocs}"
                 )
-        # TODO: Check that all ports form a DAG between the networks and all 
+        # TODO: Check that all ports form a DAG between the networks and all
         # networks are connected.
-        
+
 
 class LogicalComponent(ParsableDict):
     """Logical components of an accelerator."""
+
     name: str
     indices: isl.Set
 
 
 class LogicalSpec(ParsableModel):
     """Logical specification of an accelerator."""
+
     name: str
     components: Set[LogicalComponent]
 
 
 class BindingSpec(ParsableModel):
     """The binding of physical to logical components."""
+
     name: str
     physical: PhysicalSpec
     logical: LogicalSpec
     bindings: Set[isl.Map]
-
