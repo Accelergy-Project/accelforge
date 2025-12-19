@@ -239,20 +239,20 @@ def make_pmappings_from_templates(
 
         # prev = job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation
         # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
-        # a = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        # a = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
         # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
-        # b = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        # b = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
 
         # if a < b:
         #     job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
-        #     a = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        #     a = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
         #     job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
-        #     b = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        #     b = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
         #     assert False
 
         # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = prev
-        job.total_pmappings = multiply_n_pmappings_by_permutations(
-            job.total_pmappings, job
+        job.n_total_pmappings = multiply_n_pmappings_by_permutations(
+            job.n_total_pmappings, job
         )
 
         result[MAPPING_COLUMN] = job.job_id
@@ -282,8 +282,8 @@ def make_pmappings_from_templates(
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
                 limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
-                total_pmappings=1,  # Unused for now, just making an initial Pareto
-                valid_pmappings=1,  # Unused for now, just making an initial Pareto
+                n_total_pmappings=1,  # Unused for now, just making an initial Pareto
+                n_valid_pmappings=1,  # Unused for now, just making an initial Pareto
                 no_drop_reservations_for=job.no_drop_reservations_for,
             )
             for r in results
@@ -325,10 +325,10 @@ def make_pmappings_from_templates(
     )
     groups = list(df.groupby(["fused_loop_indices"]))
     total_pmappings_per_group = sum(
-        j.total_pmappings for j in jobs_with_similar_compatibilities
+        j.n_total_pmappings for j in jobs_with_similar_compatibilities
     ) / len(groups)
     valid_pmappings_per_group = sum(
-        j.valid_pmappings for j in jobs_with_similar_compatibilities
+        j.n_valid_pmappings for j in jobs_with_similar_compatibilities
     ) / len(groups)
 
     pmapping_groups = []
@@ -386,8 +386,8 @@ def make_pmappings_from_templates(
         partial_mappings = PmappingDataframe(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
-            total_pmappings=total_pmappings_per_group,
-            valid_pmappings=valid_pmappings_per_group,
+            n_total_pmappings=total_pmappings_per_group,
+            n_valid_pmappings=valid_pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
             no_drop_reservations_for=job.no_drop_reservations_for,

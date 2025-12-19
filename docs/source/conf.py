@@ -7,13 +7,12 @@ import locale
 locale.setlocale(locale.LC_ALL, 'C.UTF-8')
 
 # -- Project information -----------------------------------------------------
-project = 'MyRepo'
-author = 'Your Name'
+project = 'fastfusion'
+author = 'Tanner Andrulis, Michael Gilbert'
 release = '0.1.0'
 
 # -- HTML output -------------------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
-# html_static_path = ['_static']
 
 extensions = [
     'sphinx.ext.autodoc',            # Pull docstrings

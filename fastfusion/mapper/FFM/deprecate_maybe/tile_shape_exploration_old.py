@@ -842,7 +842,7 @@ def get_tile_shape_choices(
 
         prev_size = choices_enumerated.shape[0] if choices_enumerated is not None else 1
         choices_enumerated = np.concatenate(choices, axis=0)
-        job.total_pmappings *= choices_enumerated.shape[0] / prev_size
+        job.n_total_pmappings *= choices_enumerated.shape[0] / prev_size
         symbols_enumerated.append(symbol)
         log_message("enumerate", f"{symbol}", f"size={choices_enumerated.shape[0]}")
 
@@ -948,7 +948,7 @@ def get_tile_shape_choices(
             for symbol, goal in goals.items():
                 update_symbol2goal(symbol, goal)
 
-        job.evaluated_pmappings += choices_enumerated.shape[0]
+        job.n_evaluated_pmappings += choices_enumerated.shape[0]
         if not choices_enumerated.shape[0]:
             return np.array([]).reshape(-1, len(symbols))
 
@@ -1178,7 +1178,7 @@ def _explore_tile_shapes_new(job: "Job"):
 
     df = pd.DataFrame(df, columns=df.keys())
     assert not df.isna().any().any()
-    job.valid_pmappings = job.total_pmappings * prod(job.pmapping_keep_rates.values())
+    job.n_valid_pmappings = job.n_total_pmappings * prod(job.pmapping_keep_rates.values())
     return df
 
 
@@ -2003,8 +2003,8 @@ def generate_tile_shapes(
     job.log_message(f"Nominal n mappings: {nominal_n_mappings}")
     job.log_message(f"Actual n mappings: {choices[:,indices].shape[0]}")
     job.log_message(f"Ratio: {choices[:,indices].shape[0] / nominal_n_mappings}")
-    job.total_pmappings = nominal_n_mappings
-    job.valid_pmappings = choices.shape[0]
+    job.n_total_pmappings = nominal_n_mappings
+    job.n_valid_pmappings = choices.shape[0]
 
     return choices[:, indices], is_symbol[indices]
 

@@ -3,70 +3,53 @@
 Specifying the Workload
 =======================
 
-This document shows how to convert a cascade of Einsums into an FFM workload
-specification. If you are not familiar with the Einsum notation, please refer to a
-(TODO) before proceeding.
+The :py:class:`~fastfusion.frontend.workload.Workload` object describes a cascade of
+Einsums. An Einsum, described in ..., can represent a variety of tensor algebra kernels,
+and a cascade of Einsums is a list of Einsums with data dependencies.
 
-The FFM workload has the following structure ::
+The following is an example workload for three back-to-back matrix multiplications:
 
-  workload:
-    shape: <shape-map>
-    einsums: <einsums-list>
+The top-level Workload spec has the following attributes:
 
-The map ``<shape-map>`` has rank variables as keys and a constraint expression as
-values. For example, one can constrain the rank variable ``m`` by specifying a map entry
-``m: 0 <= m < 4``.
+_list_parameter_docstrings
 
-The <einsum-list> is a list of Einsums in the workload. Each Einsum has the following
-structure ::
+Each Einsum in the workload represents a single Einsum with the following attributes:
 
-  name: <einsum-name-string>
-  tensor_accesses:
-  - name: <tensor-name-string>
-    projection: <projection-list-or-map>
-    output: <whether-the-tensor-is-output>
-  - name: <other-tensor-name-string>
-    ...
-  ...
-
-The projection can be a list of rank variable names if each rank is indexed by a rank
-variable with a name that is the lowercase of the rank name (*e.g.*, rank `M` is indexed
-by `m`). *I.e.*, a list can be used when the rank name can be uniquely inferred from the
-rank variable name.
-
-If any of the rank does not meet the criteria above, then a map must be specified in
-which the keys are rank names and the values are the index expressions (*e.g.*, ``H:
-p+r``).
+_list_einsum_docstrings
 
 .. _workload-rename:
+
 
 Renaming Tensors and Rank Variables
 -----------------------------------
 
-It is often conventient to be able to assign a generic name that resolves to tensors of
-an Einsum. For example, architecture constraints often use tensor names. However, the
-tensors in an Einsum changes between Einsums in the cascade. Thus, it is useful to
-define a name `output` and use it to write architecture constraints, and resolve it for
-specific Einsums, such as `output = Z` in `Z = AB`.
+Renames allow us to write simple, generic names (*e.g.,* `input`,
+`reduced_rank_variable`) in our set expresssions and have them resolve to tensors or
+rank variable in the Einsum.
 
-This feature is supported in FFM using the renaming feature. Renames are defined by
-specifying a `renames` key as follows ::
+Each Einsum object has a `renames` attribute. This attribute may be populated with one
+of the following:
 
-  renames:
-    version: <version-string>
-    einsums: <list-of-renames-per-einsum>
+- A dictionary of `{new_name: source_set_expression}` expressions, where
+  `source_set_expression` may resolve either to tensors or rank variables. This is the
+  simplest method.
+- A list of dictionaries, each one having the structure `{name: new_name, source:
+  source_set_expression, expected_count: 1}`. This method allows you to write an
+  expected count, which is optional, and checks that your set expression returned the
+  expected number of elements. For example, if your source set expression were
+  `Outputs()`, an expected count of 1 would pass if there were only one output tensor,
+  but fail if there were two.
 
-The ``<list-of-renames-per-einsum>`` contains items with the following from ::
 
-  name: <einsum-name-or-default>
-  tensor_accesses:
-  - name: <generic-tensor-name>
-    source: <specific-tensor-name-or-set-expression>
-  ...
-  rank_variables:
-  - name: <generic-rank-name>
-    source: <specific-rank-name-or-set-expression>
+Additionally, you may define a separate top-level
+:py:class:`~fastfusion.frontend.renames.Renames` object with structure mirroring the
+workload. For example, one is in the bottom of the following workload:
 
-The <einsum-name-or-default> can be an Einsum name or the keyword ``default``, which
-means that the renames will be used by default when an Einsum does not have a specific
-renames specified.
+gpt3_6.7B.workload.yaml
+
+This renames format includes, for every Einsum, a `tensor_accesses` key and a
+`rank_variables` key. Both support the above dictionary or list-of-dictionary rename
+formats.
+
+If an Einsum in the renames is named `default`, then its renames are applied to every
+Einsum unless overridden.

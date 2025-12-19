@@ -185,6 +185,6 @@ def join_pmappings(
         spec,
         list(einsum2pmappings.keys()),
         joined.data,
-        total_mappings=joined.total_pmappings,
-        valid_mappings=joined.valid_pmappings,
+        total_mappings=joined.n_total_pmappings,
+        valid_mappings=joined.n_valid_pmappings,
     )

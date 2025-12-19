@@ -409,13 +409,13 @@ def join_pmappings(
     tracker.multiply_scale_by(len(pmappings.einsum2pmappings))
 
     # Expected #pmappings before a Pareto-optimal one is found
-    # tracker.multiply_scale_by(pmappings._evaluated_pmappings_for_simanneal_baseline_compare() / pmappings.pareto_optimal_pmappings())
+    # tracker.multiply_scale_by(pmappings._evaluated_pmappings_for_simanneal_baseline_compare() / pmappings.n_pareto_optimal_pmappings())
     tracker.multiply_scale_by(
-        pmappings.evaluated_pmappings() / pmappings.pareto_optimal_pmappings()
+        pmappings.n_evaluated_pmappings() / pmappings.n_pareto_optimal_pmappings()
     )
 
     # Normalize to the speed of the intra-Einsum pmapper
-    tracker.multiply_scale_by(1 / pmappings.evaluated_pmappings())
+    tracker.multiply_scale_by(1 / pmappings.n_evaluated_pmappings())
 
     for einsum_name, einsum_pmappings in pmappings.einsum2pmappings.items():
         total = sum(len(p.mappings.data) for p in einsum_pmappings)

@@ -19,6 +19,8 @@ Modeling Steps
 Calculating Number of Actions
 -----------------------------
 
+.. _calculating-num-actions:
+
 Except for :py:class:`~fastfusion.frontend.arch.Compute`\ components (whose number of
 compute actions, barring recomputation, depends only on workload), the number of actions
 incurred by most :py:class:`~fastfusion.frontend.arch.Component`\ s depends on the

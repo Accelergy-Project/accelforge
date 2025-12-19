@@ -84,9 +84,9 @@ class Job:
         dict[TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]] | None
     ) = None
 
-    total_pmappings: int = 1
-    valid_pmappings: int = 1
-    evaluated_pmappings: int = 0
+    n_total_pmappings: int = 1
+    n_valid_pmappings: int = 1
+    n_evaluated_pmappings: int = 0
 
     _update_compatibility_with_tile_shapes_args: dict[str, Any] | None = None
 
@@ -172,11 +172,11 @@ class Job:
         for m in self.messages:
             s += f"\t{m}\n"
 
-        s += f"Total pmappings: {self.total_pmappings}\n"
-        s += f"Valid pmappings: {self.valid_pmappings}\n"
-        s += f"One in {expfmt(self.total_pmappings / self.valid_pmappings)} pmappings is valid\n"
-        s += f"Number of pmappings evaluated: {self.evaluated_pmappings}\n"
-        s += f"One in {expfmt(self.evaluated_pmappings / self.total_pmappings)} pmappings was evaluated\n"
+        s += f"Total pmappings: {self.n_total_pmappings}\n"
+        s += f"Valid pmappings: {self.n_valid_pmappings}\n"
+        s += f"One in {expfmt(self.n_total_pmappings / self.n_valid_pmappings)} pmappings is valid\n"
+        s += f"Number of pmappings evaluated: {self.n_evaluated_pmappings}\n"
+        s += f"One in {expfmt(self.n_evaluated_pmappings / self.n_total_pmappings)} pmappings was evaluated\n"
         s += f"Pmapping elimination reasons:\n"
         for cause, keep_rate in self.pmapping_keep_rates.items():
             s += f"\t{cause} kept one in {expfmt(1/keep_rate)} pmappings\n"
@@ -184,7 +184,7 @@ class Job:
         return s
 
     def set_total_pmappings(self, n_pmappings: int):
-        self.total_pmappings = n_pmappings
+        self.n_total_pmappings = n_pmappings
 
     def log_porp_pmappings_kept(
         self,
@@ -193,8 +193,8 @@ class Job:
         out_of: int = None,
     ):
         if out_of is not None:
-            n_kept = porp_kept * out_of + (self.total_pmappings - out_of)
-            porp_kept = n_kept / self.total_pmappings
+            n_kept = porp_kept * out_of + (self.n_total_pmappings - out_of)
+            porp_kept = n_kept / self.n_total_pmappings
 
         self.pmapping_keep_rates.setdefault(cause, 1)
         self.pmapping_keep_rates[cause] *= porp_kept

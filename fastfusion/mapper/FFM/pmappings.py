@@ -80,14 +80,14 @@ class MultiEinsumPmappings:
         self, per_einsum: bool = False
     ) -> dict[EinsumName, dict[str, float]] | dict[str, float]:
         result = {}
-        einsum2npmappings = self.total_pmappings(per_einsum=True)
+        einsum2npmappings = self.n_total_pmappings(per_einsum=True)
 
         for einsum_name, jobs in self.einsum2jobs.items():
             cur_result = result.setdefault(einsum_name, {})
             for job in jobs:
                 for cause, keep_rate in job.pmapping_keep_rates.items():
                     cur_result.setdefault(cause, 0)
-                    cur_result[cause] += job.total_pmappings * keep_rate
+                    cur_result[cause] += job.n_total_pmappings * keep_rate
 
         if per_einsum:
             for einsum_name, npmappings in einsum2npmappings.items():
@@ -95,34 +95,34 @@ class MultiEinsumPmappings:
                     result[einsum_name][cause] = keep_rate / npmappings
         else:
             new_result = {}
-            total_pmappings = sum(einsum2npmappings.values())
+            n_total_pmappings = sum(einsum2npmappings.values())
             for einsum_name, keep_rates in result.items():
                 for cause, keep_rate in keep_rates.items():
                     new_result.setdefault(cause, 0)
-                    new_result[cause] += keep_rate / total_pmappings
+                    new_result[cause] += keep_rate / n_total_pmappings
             result = new_result
 
         return result
 
-    def total_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
+    def n_total_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
         result = {
-            einsum_name: sum(job.total_pmappings for job in jobs)
+            einsum_name: sum(job.n_total_pmappings for job in jobs)
             for einsum_name, jobs in self.einsum2jobs.items()
         }
         if per_einsum:
             return result
         return sum(result.values())
 
-    def valid_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
+    def n_valid_pmappings(self, per_einsum: bool = False) -> int | dict[EinsumName, int]:
         result = {
-            einsum_name: sum(job.valid_pmappings for job in jobs)
+            einsum_name: sum(job.n_valid_pmappings for job in jobs)
             for einsum_name, jobs in self.einsum2jobs.items()
         }
         if per_einsum:
             return result
         return sum(result.values())
 
-    def pareto_optimal_pmappings(
+    def n_pareto_optimal_pmappings(
         self, per_einsum: bool = False
     ) -> int | dict[EinsumName, int]:
         result = {
@@ -133,11 +133,11 @@ class MultiEinsumPmappings:
             return result
         return sum(result.values())
 
-    def evaluated_pmappings(
+    def n_evaluated_pmappings(
         self, per_einsum: bool = False
     ) -> int | dict[EinsumName, int]:
         result = {
-            einsum_name: sum(job.evaluated_pmappings for job in jobs)
+            einsum_name: sum(job.n_evaluated_pmappings for job in jobs)
             for einsum_name, jobs in self.einsum2jobs.items()
         }
         if per_einsum:
@@ -151,25 +151,25 @@ class MultiEinsumPmappings:
                 f"an Einsum named 'Total'. Use a different name for the Einsum."
             )
 
-        total_pmappings = self.total_pmappings(per_einsum=True)
-        valid_pmappings = self.valid_pmappings(per_einsum=True)
-        evaluated_pmappings = self.evaluated_pmappings(per_einsum=True)
-        pareto_optimal_pmappings = self.pareto_optimal_pmappings(per_einsum=True)
+        n_total_pmappings = self.n_total_pmappings(per_einsum=True)
+        n_valid_pmappings = self.n_valid_pmappings(per_einsum=True)
+        n_evaluated_pmappings = self.n_evaluated_pmappings(per_einsum=True)
+        n_pareto_optimal_pmappings = self.n_pareto_optimal_pmappings(per_einsum=True)
 
         for x in (
-            total_pmappings,
-            valid_pmappings,
-            evaluated_pmappings,
-            pareto_optimal_pmappings,
+            n_total_pmappings,
+            n_valid_pmappings,
+            n_evaluated_pmappings,
+            n_pareto_optimal_pmappings,
         ):
             x["Total"] = sum(x.values())
 
         s = []
-        for e in total_pmappings:
-            t = total_pmappings[e]
-            v = valid_pmappings[e]
-            ev = evaluated_pmappings[e]
-            p = pareto_optimal_pmappings[e]
+        for e in n_total_pmappings:
+            t = n_total_pmappings[e]
+            v = n_valid_pmappings[e]
+            ev = n_evaluated_pmappings[e]
+            p = n_pareto_optimal_pmappings[e]
 
             def fmt(x, total: bool = True):
                 x = round(x)

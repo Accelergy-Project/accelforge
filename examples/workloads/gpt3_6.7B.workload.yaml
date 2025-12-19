@@ -109,11 +109,6 @@ workload:
     - {name: WFFB, projection: [c, j], persistent: True}
     - {name: FFB, projection: [b, m, j], output: True}
 
-# Inputs(): Inputs to this Einsum
-# Intermediates(): Produced by some Einsum and consumed by some other Einsum
-# Outputs(): Outputs of this Einsum
-# Nothing(): Empty set
-
 renames:
   einsums:
   - name: default

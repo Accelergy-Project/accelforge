@@ -1050,7 +1050,7 @@ def get_tile_shape_choices(
 
         prev_size = choices_enumerated.shape[0] if choices_enumerated is not None else 1
         choices_enumerated = np.concatenate(choices, axis=0)
-        job.total_pmappings *= choices_enumerated.shape[0] / max(1, prev_size)
+        job.n_total_pmappings *= choices_enumerated.shape[0] / max(1, prev_size)
         symbols_enumerated.append(symbol)
         log_message("enumerate", f"{symbol}", f"size={choices_enumerated.shape[0]}")
 
@@ -1194,7 +1194,7 @@ def get_tile_shape_choices(
             for symbol, goal in goals.items():
                 update_symbol2goal(symbol, goal)
 
-        job.evaluated_pmappings += choices_enumerated.shape[0]
+        job.n_evaluated_pmappings += choices_enumerated.shape[0]
         if not choices_enumerated.shape[0]:
             return np.array([]).reshape(-1, len(symbols))
 
@@ -1518,7 +1518,7 @@ def _make_tile_shapes(job: "Job"):
             msg += "\n"
         raise RuntimeError(f"negative energy:\n{msg}")
 
-    job.valid_pmappings = job.total_pmappings * prod(job.pmapping_keep_rates.values())
+    job.n_valid_pmappings = job.n_total_pmappings * prod(job.pmapping_keep_rates.values())
     return df
 
 

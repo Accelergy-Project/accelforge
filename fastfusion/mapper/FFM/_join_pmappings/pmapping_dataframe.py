@@ -57,8 +57,8 @@ class PmappingDataframe:
     def __init__(
         self,
         data: pd.DataFrame,
-        total_pmappings: float,
-        valid_pmappings: float,
+        n_total_pmappings: float,
+        n_valid_pmappings: float,
         skip_pareto: bool = False,
         fill_reservation_cols: set | str = fzs(),
         check_above_subset_below: bool = CHECK_CORRECTNESS,
@@ -74,8 +74,8 @@ class PmappingDataframe:
         self._prev_free_to_loop_index = None
         self._parallelize_pareto = parallelize_pareto
         self._make_reservations()
-        self.total_pmappings: float = total_pmappings
-        self.valid_pmappings: float = valid_pmappings
+        self.n_total_pmappings: float = n_total_pmappings
+        self.n_valid_pmappings: float = n_valid_pmappings
 
         if next_shared_loop_index is not None:
             assert (
@@ -477,11 +477,11 @@ class PmappingDataframe:
         df = df.drop(columns=dropcols)
 
         # Number of combinations
-        total_pmappings = self.total_pmappings * right.total_pmappings
-        valid_pmappings = self.valid_pmappings * right.valid_pmappings
+        n_total_pmappings = self.n_total_pmappings * right.n_total_pmappings
+        n_valid_pmappings = self.n_valid_pmappings * right.n_valid_pmappings
         scale_by = len(df) / max(1, len(self.data) * len(right.data))
-        total_pmappings *= scale_by
-        valid_pmappings *= scale_by
+        n_total_pmappings *= scale_by
+        n_valid_pmappings *= scale_by
 
         # Make sure everything is done in increasing loop order so we don't have
         # read-after-write hazards
@@ -553,8 +553,8 @@ class PmappingDataframe:
             df,
             skip_pareto=True,
             check_above_subset_below=False,
-            total_pmappings=total_pmappings,
-            valid_pmappings=valid_pmappings,
+            n_total_pmappings=n_total_pmappings,
+            n_valid_pmappings=n_valid_pmappings,
         )
         # Remove tensors that were allocated in both branches and got added
         # together.
@@ -671,8 +671,8 @@ class PmappingDataframe:
             concatenated.fillna(0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
             fill_reservation_cols=fill_cols,
-            total_pmappings=sum(p.total_pmappings for p in paretos),
-            valid_pmappings=sum(p.valid_pmappings for p in paretos),
+            n_total_pmappings=sum(p.n_total_pmappings for p in paretos),
+            n_valid_pmappings=sum(p.n_valid_pmappings for p in paretos),
         )
         return p
 
@@ -685,8 +685,8 @@ class PmappingDataframe:
             data=self.data,
             skip_pareto=skip_pareto,
             check_above_subset_below=False,
-            total_pmappings=self.total_pmappings,
-            valid_pmappings=self.valid_pmappings,
+            n_total_pmappings=self.n_total_pmappings,
+            n_valid_pmappings=self.n_valid_pmappings,
         )
         args.update(kwargs)
         return PmappingDataframe(**args)
