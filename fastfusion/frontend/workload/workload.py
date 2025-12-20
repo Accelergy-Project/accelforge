@@ -443,45 +443,8 @@ class Workload(ParsableModel):
     def tensor_names(self) -> set[TensorName]:
         return {TensorName(t.name) for e in self.einsums for t in e.tensor_accesses}
 
-    # def render(self) -> str:
-    #     import mermaid as md
-    #     from mermaid.graph import Graph
-    #     lines = [
-    #         "graph LR",
-    #         "linkStyle default interpolate basis"
-    #     ]
-
-    #     # Add all tensors as nodes (circles)
-    #     tensors = []
-    #     seen_tensor_names = set()
-    #     for einsum in self.einsums:
-    #         lines.append(f"\tEinsum_{einsum.name}[\"<b>{einsum.name}</b>\n<small>{einsum.to_formatted_string(compress=True)}</small>\"]")
-    #         for tensor_access in einsum.tensor_accesses:
-    #             if tensor_access.name not in seen_tensor_names:
-    #                 tensors.append(tensor)
-    #                 seen_tensor_names.add(tensor_access.name)
-    #                 lines.append(f"\tTensor_{tensor_access.name}{{{{\"<b>{tensor_access.name}</b>\n\"}}}}")
-
-    #     # Add all einsums as nodes (rectangles)
-    #     for einsum in self.einsums:
-    #         # Add edges from tensors to einsums
-    #         for tensor_access in einsum.tensor_accesses:
-    #             if tensor_access.output:
-    #                 # Output tensor: einsum -> tensor
-    #                 lines.append(f"\tEinsum_{einsum.name} --> Tensor_{tensor_access.name}")
-    #             else:
-    #                 # Input tensor: tensor -> einsum
-    #                 lines.append(f"\tTensor_{tensor_access.name} --> Einsum_{einsum.name}")
-
-    #     # Create the graph with the flowchart script
-    #     flowchart_script = "\n".join(lines)
-    #     graph = Graph('Flowchart', flowchart_script)
-
-    #     # Set the configuration to ignore node order
-    #     config = md.Config()
-    #     graph.config = config
-
-    #     return md.Mermaid(graph)
+    def _repr_svg_(self) -> str:
+        return self.render()
 
     def render(self) -> str:  # Render as Pydot
         graph = pydot_graph()

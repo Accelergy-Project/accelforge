@@ -41,6 +41,9 @@ class MappingFromRow:
     def __call__(self) -> Mapping:
         return row2mapping(self.row, self.rank_variable_bounds, self.einsum_names)
 
+    def _repr_svg_(self) -> str:
+        return self.render()
+
     def render(self) -> str:
         return self().render()
 

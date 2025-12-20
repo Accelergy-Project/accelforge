@@ -207,6 +207,9 @@ class Mappings:
         new_df = new_df[(c for c in new_df.columns if (new_df[c] != 0).any())]
         return self._update(data=new_df)
 
+    def _repr_svg_(self) -> str:
+        return self.render()
+
     def render(self) -> str:
         if len(self) != 1:
             raise ValueError(
