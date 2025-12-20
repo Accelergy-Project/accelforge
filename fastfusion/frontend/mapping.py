@@ -563,6 +563,13 @@ class TensorHolder(MappingNode):
     be kept in backing storage for the full duration of the workload's execution.
     """
 
+    def __eq__(self, other: Any) -> bool:
+        return (
+            isinstance(other, TensorHolder)
+            and set(self.tensors) == set(other.tensors)
+            and self.component == other.component
+        )
+
     def compact_str(self) -> str:
         tname = ",".join(self.tensors)
         return f"[{tname} in {self.component}]"
@@ -700,6 +707,8 @@ class MappingNodeWithChildren(MappingNode):
     def clear_nodes(self, *nodes: MappingNode) -> None:
         new_nodes: list[MappingNode] = []
         for node in self.nodes:
+            if any(n == node for n in nodes):
+                continue
             if node in nodes:
                 continue
             if isinstance(node, MappingNodeWithChildren):
@@ -1301,6 +1310,9 @@ class Mapping(Nested):
 
     def _render_node_label(self) -> str:
         return f"Root"
+
+    def _repr_svg_(self) -> str:
+        return self.render()
 
     def render(self) -> str:
         graph = pydot_graph()
