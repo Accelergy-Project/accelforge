@@ -24,12 +24,13 @@ extensions = [
     'include_notebook',              # Include notebooks
     'include_attrs',                 # Include attributes & their docstrings
     'include_functions',             # Include functions & their docstrings
+    'inherited_attributes',          # Inherit docstrings from parent classes
 ]
 
 autodoc_default_options = {
     'members': True,
     'undoc-members': False,
-    'exclude-members': 'model_config,model_fields,__pydantic_fields__,model_post_init'
+    'exclude-members': 'model_config,model_fields,__pydantic_fields__,model_post_init',
 }
 
 # ---------- Autodoc settings ----------
