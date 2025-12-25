@@ -1,4 +1,7 @@
 from typing import Annotated, Optional
+
+from pydantic import ConfigDict
+from hwcomponents import EnergyAreaModel
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion.version import assert_version, __version__
 from platformdirs import user_config_dir
@@ -36,8 +39,9 @@ class Config(ParsableModel):
     version: Annotated[str, assert_version] = __version__
     environment_variables: ParsableDict[str, str] = ParsableDict()
     expression_custom_functions: ParsableList[str] = ParsableList()
-    component_models: ParsableList[str] = ParsableList()
+    component_models: ParsableList[str | EnergyAreaModel] = ParsableList()
     use_installed_component_models: Optional[bool] = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @classmethod
     def from_yaml(cls, f: str) -> "Config":

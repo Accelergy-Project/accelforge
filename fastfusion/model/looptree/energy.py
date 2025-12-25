@@ -4,7 +4,6 @@ from typing import Any
 from numbers import Real
 
 from fastfusion.frontend import arch
-from fastfusion.frontend.component_energy import ComponentEnergy
 from fastfusion.frontend.specification import Specification
 from fastfusion.model.looptree.reuse.symbolic import SymbolicAnalysisOutput
 from fastfusion.frontend.workload import Workload
@@ -80,7 +79,7 @@ def compute_energy_from_actions(
 
     for leak_entry in spec.component_leak.entries:
         energy_result[(leak_entry.name, "leak")] = (
-            leak_entry.leak_power * overall_latency
+            leak_entry.total_leak_power * overall_latency
         )
 
     return energy_result

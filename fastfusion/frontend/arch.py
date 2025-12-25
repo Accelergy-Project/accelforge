@@ -11,8 +11,13 @@ from typing import (
     Annotated,
     Type,
 )
-from pydantic import Tag
+from pydantic import ConfigDict, Tag
 import pydantic
+from hwcomponents import (
+    EnergyAreaModel,
+    get_models,
+    get_model,
+)
 
 from fastfusion.util.basetypes import (
     ParsableModel,
@@ -25,12 +30,12 @@ from fastfusion.util.parse_expressions import ParseError, parse_expression
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.frontend.renames import TensorName
 
-from .components import ComponentAttributes, Action
-from . import constraints
 from fastfusion.version import assert_version, __version__
 from pydantic import Discriminator
 
 from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
+
+T = TypeVar("T", bound="ArchNode")
 
 
 class ArchNode(ParsableModel):
@@ -108,7 +113,13 @@ class Spatial(ParsableModel):
         )
 
 
-class LeafAttributes(ComponentAttributes):
+class AttributesWithEnergy(ParsableModel):
+    energy: ParsesTo[Union[int, float, None]] = None
+    energy_scale: ParsesTo[Union[int, float]] = 1
+    model_config = ConfigDict(extra="allow")
+
+
+class LeafAttributes(AttributesWithEnergy):
     latency: Union[str, int, float] = 0
     """
     An expression representing the latency of this component in seconds. This is used to
@@ -124,6 +135,43 @@ class LeafAttributes(ComponentAttributes):
 
       latency: 1e-9 * (read_actions + write_actions) # 1ns per read or write
     """
+    area_scale: ParsesTo[Union[int, float]] = 1
+    """
+    The scale factor for the area of this component. This is used to scale the area of
+    this component. For example, if the area is 1 m^2 and the scale factor is 2, then
+    the area is 2 m^2.
+    """
+    area: ParsesTo[Union[int, float, None]] = None
+    """
+    The area of this component in m^2. This is the area of a single instance of this
+    component.
+    """
+    total_area: ParsesTo[Union[int, float, None]] = None
+    """
+    The total area of this component in m^2. This is the total area of all instances of
+    this component.
+    """
+    leak_power: ParsesTo[Union[int, float, None]] = None
+    """
+    The leak power of this component in W. This is the leak power of a single instance
+    of this component.
+    """
+    total_leak_power: ParsesTo[Union[int, float, None]] = None
+    """
+    The total leak power of this component in W. This is the total leak power of all
+    instances of this component.
+    """
+    leak_power_scale: ParsesTo[Union[int, float]] = 1
+    """
+    The scale factor for the leak power of this component. This is used to scale the
+    leak power of this component. For example, if the leak power is 1 W and the scale
+    factor is 2, then the leak power is 2 W.
+    """
+
+
+class Action(ParsableModel):
+    name: str
+    arguments: AttributesWithEnergy = AttributesWithEnergy()
 
 
 class Leaf(ArchNode, ABC):
@@ -176,12 +224,24 @@ class Component(Leaf, ABC):
     """A component object in the architecture. This is overridden by different
     component types, such as `Memory` and `Compute`."""
 
+    name: str
+    """ The name of this `Component`. """
+
     component_class: Optional[str] = None
     """ The class of this `Component`. Used if an energy or area model needs to be
     called for this `Component`. """
 
+    component_model: EnergyAreaModel | None = None
+    """ The model to use for this `Component`. If not set, the model will be found with
+    `hwcomponents.get_models()`. If set, the `component_class` will be ignored. """
+
+    energy_area_log: list[str] = []
+    """ A log of the energy and area calculations for this `Component`. """
+
     actions: ParsableList[Action]
     """ The actions that this `Component` can perform. """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _update_actions(self, new_actions: ParsableList[Action]):
         has_actions = set(x.name for x in self.actions)
@@ -202,11 +262,295 @@ class Component(Leaf, ABC):
             )
         return self.component_class
 
+    def populate_component_model(
+        self: T,
+        models: list[EnergyAreaModel] | None = None,
+        in_place: bool = False,
+    ) -> T:
+        """
+        Populates the ``component_model`` attribute with the model for this component.
+        Extends the ``energy_area_log`` field with log messages. Uses the
+        ``component_class`` attribute to find the model and populate the
+        ``component_model`` attribute. Uses the ``hwcomponents.get_model()`` function
+        to find the model.
 
-class Actions(ParsableList[Action]):
-    """A list of actions that a `Component` can perform."""
+        Parameters
+        ----------
+        models : list[EnergyAreaModel] | None
+            The models to use for energy calculation. If not provided, the models will
+            be found with `hwcomponents.get_models()`.
+        in_place : bool
+            If True, the component will be modified in place. Otherwise, a copy will be
+            returned.
 
-    pass
+        Returns
+        -------
+        T
+            A copy of the component with the populated ``component_model`` attribute.
+        """
+        if not in_place:
+            self = self.model_copy()
+            self.attributes = self.attributes.model_copy()
+            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
+            for action in self.actions:
+                action.arguments = action.arguments.model_copy()
+
+        if self.component_model is None:
+            if models is None:
+                models = get_models(
+                    self.get_component_class(),
+                    include_installed=self.config.use_installed_component_models,
+                )
+            estimation = get_model(
+                self.get_component_class(),
+                self.attributes.model_dump(),
+                required_actions=list(x.name for x in self.actions),
+                models=models,
+                return_estimation_object=True,
+            )
+            self.component_model = estimation.value
+            self.energy_area_log.extend(estimation.messages)
+        return self
+
+    def calculate_energy(
+        self: T,
+        models: list[EnergyAreaModel] | None = None,
+        in_place: bool = False,
+    ) -> T:
+        """
+        Calculates the leak power for this component and the energy for each action of
+        this component. If energy is set in the arguments or attributes (with arguments
+        taking precedence), that value will be used. Otherwise, the energy will be
+        calculated using the hwcomponents library. If the leak power is set in the
+        attributes, that value will be used. Otherwise, the leak power will be
+        calculated using the hwcomponents library. Populates ``attributes.leak_power``,
+        and ``attributes.total_leak_power`` fields and, for each action, the
+        ``<action>.arguments.energy`` and field. Extends the ``energy_area_log`` field
+        with log messages.
+
+        Uses the ``component_model`` attribute, or, if not set, the ``component_class``
+        attribute to find the model and populate the ``component_model`` attribute.
+
+        Note that these methods will be called by the Specification when calculating
+        energy and area. If you call them yourself, note that string expressions may not
+        be parsed because they need the Specification's global scope. If you are sure
+        that all necessary values are present and not a result of an expression, you can
+        call these directly. Otherwise, you can call the
+        ``Specification.calculate_component_energy_area`` and then grab components from
+        the returned ``Specification``.
+
+        Parameters
+        ----------
+        models : list[EnergyAreaModel] | None
+            The models to use for energy calculation. If not provided, the models will
+            be found with `hwcomponents.get_models()`.
+        in_place : bool
+            If True, the component will be modified in place. Otherwise, a copy will be
+            returned.
+
+        Returns
+        -------
+        T
+            A copy of the component with the calculated energy.
+        """
+        if not in_place:
+            self = self.model_copy()
+            self.attributes = self.attributes.model_copy()
+            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
+            for action in self.actions:
+                action.arguments = action.arguments.model_copy()
+
+        messages = self.energy_area_log
+
+        attributes = self.attributes
+        for action in self.actions:
+            messages.append(f"Calculating energy for {self.name} action {action.name}.")
+            args = action.arguments
+            if args.energy is not None:
+                energy = args.energy
+                messages.append(f"Setting {self.name} energy to {args.energy=}")
+            elif attributes.energy is not None:
+                energy = attributes.energy
+                messages.append(f"Setting {self.name} energy to {attributes.energy=}")
+            else:
+                self.populate_component_model(models, in_place=True)
+                energy = self.component_model.try_call_arbitrary_action(
+                    action_name=action.name,
+                    action_arguments={**attributes.model_dump(), **args.model_dump()},
+                    return_estimation_object=True,
+                )
+                messages.extend(energy.messages)
+                energy = energy.value
+            if attributes.energy_scale != 1:
+                energy *= attributes.energy_scale
+                messages.append(f"Scaling {self.name} energy by {attributes.energy_scale=}")
+            if args.energy_scale != 1:
+                energy *= args.energy_scale
+                messages.append(f"Scaling {self.name} energy by {args.energy_scale=}")
+            action.arguments.energy = energy
+        self._calculate_leak_power(models, in_place=True)
+        return self
+
+    def calculate_area(
+        self: T,
+        models: list[EnergyAreaModel] | None = None,
+        in_place: bool = False,
+    ) -> T:
+        """
+        Calculates the area for this component. If area is set in the attributes, that
+        value will be used. Otherwise, the area will be calculated using the
+        hwcomponents library. Populates ``attributes.area`` field. Extends the
+        ``energy_area_log`` field with log messages.
+
+        Uses the ``component_model`` attribute, or, if not set, the ``component_class``
+        attribute to find the model and populate the ``component_model`` attribute.
+
+        Note that these methods will be called by the Specification when calculating
+        energy and area. If you call them yourself, note that string expressions may not
+        be parsed because they need the Specification's global scope. If you are sure
+        that all necessary values are present and not a result of an expression, you can
+        call these directly. Otherwise, you can call the
+        ``Specification.calculate_component_energy_area`` and then grab components from
+        the returned ``Specification``.
+
+        Parameters
+        ----------
+        models : list[EnergyAreaModel] | None
+            The models to use for area calculation. If not provided, the models will be
+            found with `hwcomponents.get_models()`.
+        in_place : bool
+            If True, the component will be modified in place. Otherwise, a copy will be
+            returned.
+
+        Returns
+        -------
+        T
+            A copy of the component with the calculated area.
+        """
+        if not in_place:
+            self = self.model_copy()
+            self.attributes = self.attributes.model_copy()
+            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
+            for action in self.actions:
+                action.arguments = action.arguments.model_copy()
+
+        attributes = self.attributes
+        messages = self.energy_area_log
+        if attributes.area is not None:
+            area = attributes.area
+            messages.append(f"Using predefined area value {attributes.area=}")
+        else:
+            self.populate_component_model(models, in_place=True)
+            area = self.component_model.area
+        if attributes.area_scale != 1:
+            area *= attributes.area_scale
+            messages.append(f"Scaling area by {attributes.area_scale=}")
+        self.attributes.area = area
+        return self
+
+    def _calculate_leak_power(
+        self: T,
+        models: list[EnergyAreaModel] | None = None,
+        in_place: bool = False,
+    ) -> T:
+        """
+        Calculates the leak power for this component. If leak power is set in the
+        attributes, that value will be used. Otherwise, the leak power will be
+        calculated using the hwcomponents library. Populates the attributes
+        ``leak_power`` field. Extends the ``energy_area_log`` field with log messages.
+
+        Uses the ``component_model`` attribute, or, if not set, the ``component_class``
+        attribute to find the model and populate the ``component_model`` attribute.
+
+        Note that these methods will be called by the Specification when calculating
+        energy and area. If you call them yourself, note that string expressions may not
+        be parsed because they need the Specification's global scope. If you are sure
+        that all necessary values are present and not a result of an expression, you can
+        call these directly. Otherwise, you can call the
+        ``Specification.calculate_component_energy_area`` and then grab components from
+        the returned ``Specification``.
+
+        Parameters
+        ----------
+        models : list[EnergyAreaModel] | None
+            The models to use for leak power calculation. If not provided, the models
+            will be found with `hwcomponents.get_models()`.
+        in_place : bool
+            If True, the component will be modified in place. Otherwise, a copy will be
+            returned.
+
+        Returns
+        -------
+        T
+            A copy of the component with the calculated area.
+        """
+        if not in_place:
+            self = self.model_copy()
+            self.attributes = self.attributes.model_copy()
+            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
+            for action in self.actions:
+                action.arguments = action.arguments.model_copy()
+
+
+        attributes = self.attributes
+        messages = self.energy_area_log
+        if attributes.leak_power is not None:
+            leak_power = attributes.leak_power
+            messages.append(
+                f"Using predefined leak power value {attributes.leak_power=}"
+            )
+        else:
+            self.populate_component_model(models, in_place=True)
+            leak_power = self.component_model.leak_power
+        if attributes.leak_power_scale != 1:
+            leak_power *= attributes.leak_power_scale
+            messages.append(f"Scaling leak power by {attributes.leak_power_scale=}")
+        self.attributes.leak_power = leak_power
+        return self
+
+    def calculate_energy_area(
+        self: T, models: list[EnergyAreaModel] | None = None, in_place: bool = False
+    ) -> T:
+        """
+        Calculates the energy, area, and leak power for this component. Populates the
+        ``attributes.area``, ``attributes.total_area``, ``attributes.leak_power``,
+        ``attributes.total_leak_power``, and ``energy_area_log`` fields of this
+        component. Additionally, for each action, populates the
+        ``<action>.arguments.energy`` field. Extends the ``energy_area_log`` field with
+        log messages.
+
+        Note that these methods will be called by the Specification when calculating
+        energy and area. If you call them yourself, note that string expressions may not
+        be parsed because they need the Specification's global scope. If you are sure
+        that all necessary values are present and not a result of an expression, you can
+        call these directly. Otherwise, you can call the
+        ``Specification.calculate_component_energy_area`` and then grab components from
+        the returned ``Specification``.
+
+        Parameters
+        ----------
+        models : list[EnergyAreaModel] | None
+            The models to use for energy calculation. If not provided, the models will
+            be found with `hwcomponents.get_models()`.
+        in_place : bool
+            If True, the component will be modified in place. Otherwise, a copy will be
+            returned.
+
+        Returns
+        -------
+        T
+            The component with the calculated energy, area, and leak power.
+        """
+        if not in_place:
+            self = self.model_copy()
+            self.attributes = self.attributes.model_copy()
+            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
+            for action in self.actions:
+                action.arguments = action.arguments.model_copy()
+        self.calculate_energy(models, in_place=True)
+        self.calculate_area(models, in_place=True)
+        self._calculate_leak_power(models, in_place=True)
+        return self
 
 
 class Container(Leaf, ABC):
@@ -217,10 +561,10 @@ class Container(Leaf, ABC):
     pass
 
 
-class ArchMemoryActionArguments(ComponentAttributes):
+class ArchMemoryActionArguments(AttributesWithEnergy):
     """Arguments for any `Memory` action."""
 
-    bits_per_action: ParsesTo[Union[int, float]] = 1
+    _bits_per_action: ParsesTo[Union[int, float]] = 1
     """ The number of bits accessed in this action. For example, setting bits_per_action
     to 16 means that each call to this action yields 16 bits. """
 
@@ -433,7 +777,6 @@ class Parallel(Branch):
             node2.attributes = type(node.attributes)(
                 **{**attributes.model_dump(), **node.attributes.model_dump()}
             )
-            node2.attributes.n_instances *= fanout
             nodes.append(node2)
             return fanout
 
@@ -472,7 +815,6 @@ class Hierarchical(Branch):
             node2.attributes = type(node.attributes)(
                 **{**attributes.model_dump(), **node.attributes.model_dump()}
             )
-            node2.attributes.n_instances *= fanout
             nodes.append(node2)
             return fanout
 
@@ -516,6 +858,76 @@ class Hierarchical(Branch):
 class Arch(Hierarchical):
     version: Annotated[str, assert_version] = __version__
     """ The version of the architecture specification. """
+
+    @property
+    def total_area(self) -> float:
+        """
+        Returns the total area of the architecture in m^2.
+
+        Returns
+        -------
+        float
+            The total area of the architecture in m^2.
+        """
+        return sum(self.per_component_area.values())
+
+    @property
+    def total_leak_power(self) -> float:
+        """
+        Returns the total leak power of the architecture in W.
+
+        Returns
+        -------
+        float
+            The total leak power of the architecture in W.
+        """
+        return sum(self.per_component_leak_power.values())
+
+    @property
+    def per_component_area(self) -> dict[str, float]:
+        """
+        Returns the area of each component in the architecture in m^2.
+
+        Returns
+        -------
+        dict[str, float]
+            A dictionary of component names to their area in m^2.
+        """
+        area = {
+            node.name: node.attributes.total_area
+            for node in self.find_nodes_of_type(Leaf)
+        }
+        for k, v in area.items():
+            if v is None:
+                raise ValueError(
+                    f"Area of {k} is not set. Please call the Specification's "
+                    "`calculate_component_energy_area` method before accessing this "
+                    "property."
+                )
+        return area
+
+    @property
+    def per_component_leak_power(self) -> dict[str, float]:
+        """
+        Returns the leak power of each component in the architecture in W.
+
+        Returns
+        -------
+        dict[str, float]
+            A dictionary of component names to their leak power in W.
+        """
+        leak_power = {
+            node.name: node.attributes.total_leak_power
+            for node in self.find_nodes_of_type(Leaf)
+        }
+        for k, v in leak_power.items():
+            if v is None:
+                raise ValueError(
+                    f"Leak power of {k} is not set. Please call the Specification's "
+                    "`calculate_component_energy_area` method before accessing this "
+                    "property."
+                )
+        return leak_power
 
     def _parse_expressions(self, *args, **kwargs):
         symbol_table = kwargs["symbol_table"]
