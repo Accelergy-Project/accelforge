@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 from pydantic import BaseModel, ConfigDict, Tag, ValidationError
+from pydantic.main import IncEx
 from pydantic_core.core_schema import (
     CoreSchema,
     chain_schema,
@@ -367,22 +368,26 @@ class FromYAMLAble:
     def from_yaml(
         cls: type[T],
         *files: Union[str, List[str], Path, list[Path]],
-        jinja_parse_data: Dict[str, Any] = None,
+        jinja_parse_data: Optional[Dict[str, Any]] = None,
         top_key: Optional[str] = None,
         **kwargs,
     ) -> T:
         """
         Loads a dictionary from one more more yaml files.
 
-        Each yaml file should contain a dictionary. Dictionaries are combined in
-        the order they are given.
+        Each yaml file should contain a dictionary. Dictionaries are combined in the
+        order they are given.
 
         Keyword arguments are also added to the dictionary.
 
         Args:
-            files: A list of yaml files to load. jinja_parse_data: A dictionary
-            of data to use when parsing kwargs: Extra keyword arguments to add
-            to the dictionary.
+            files:
+                A list of yaml files to load.
+            jinja_parse_data: Optional[Dict[str, Any]]
+                A dictionary of Jinja2 data to use when parsing the yaml files.
+            top_key: Optional[str]
+                The top key to use when parsing the yaml files.
+            kwargs: Extra keyword arguments to be passed to the constructor.
 
         Returns:
             A dict containing the combined dictionaries.
@@ -567,7 +572,7 @@ def get_parsable_field_order(
     return order
 
 
-class ModelWithUnderscoreFields(BaseModel):
+class ModelWithUnderscoreFields(BaseModel, FromYAMLAble):
     def __init__(self, **kwargs):
         new_kwargs = {}
         for field, value in kwargs.items():
@@ -581,16 +586,51 @@ class ModelWithUnderscoreFields(BaseModel):
                 new_kwargs[field] = value
         super().__init__(**new_kwargs)
 
+    def to_yaml(self, f: str = None, exclude: IncEx | None = None) -> str:
+        """
+        Dump the model to a YAML string.
 
-class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"], FromYAMLAble):
+        Args:
+            f: The file to write the YAML to.
+            exclude: The fields to exclude from the YAML.
+        """
+        dump = self.model_dump(exclude=exclude)
+
+        def _to_str(value: Any):
+            if isinstance(value, list):
+                return [_to_str(x) for x in value]
+            elif isinstance(value, dict):
+                return {_to_str(k): _to_str(v) for k, v in value.items()}
+            elif isinstance(value, str):
+                return str(value)
+            return value
+
+        if f is not None:
+            yaml.write_yaml_file(f, _to_str(dump))
+        return yaml.to_yaml_string(_to_str(dump))
+
+    def all_fields_default(self):
+        for field in self.__class__.model_fields:
+            default = self.__class__.model_fields[field].default
+            if getattr(self, field) != default:
+                return False
+        return True
+
+    def model_dump_non_none(self, **kwargs):
+        return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
+
+
+class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"]):
     model_config = ConfigDict(extra="forbid")
-    type: Optional[str] = None
+    # type: Optional[str] = None
 
-    def __post_init__(self):
-        if self.type is not None:
-            if not isinstance(self, self.type):
+    def __init__(self, **kwargs):
+        required_type = kwargs.pop("type", None)
+        super().__init__(**kwargs)
+        if required_type is not None:
+            if not isinstance(self, required_type):
                 raise TypeError(
-                    f"type field {self.type} does not match"
+                    f"type field {required_type} does not match"
                     f"{self.__class__.__name__}"
                 )
 
@@ -619,34 +659,8 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"], FromYA
             symbol_table, order, post_calls, use_setattr=True, **kwargs
         )
 
-    def to_yaml(self, f: str = None) -> str:
-        dump = self.model_dump()
 
-        def _to_str(value: Any):
-            if isinstance(value, list):
-                return [_to_str(x) for x in value]
-            elif isinstance(value, dict):
-                return {_to_str(k): _to_str(v) for k, v in value.items()}
-            elif isinstance(value, str):
-                return str(value)
-            return value
-
-        if f is not None:
-            yaml.write_yaml_file(f, _to_str(dump))
-        return yaml.to_yaml_string(_to_str(dump))
-
-    def all_fields_default(self):
-        for field in self.__class__.model_fields:
-            default = self.__class__.model_fields[field].default
-            if getattr(self, field) != default:
-                return False
-        return True
-
-    def model_dump_non_none(self, **kwargs):
-        return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
-
-
-class NonParsableModel(ModelWithUnderscoreFields, FromYAMLAble):
+class NonParsableModel(ModelWithUnderscoreFields):
     model_config = ConfigDict(extra="forbid")
     type: Optional[str] = None
 
