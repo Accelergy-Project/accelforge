@@ -297,10 +297,7 @@ class Component(Leaf, ABC):
 
         if self.component_model is None:
             if models is None:
-                models = get_models(
-                    self.get_component_class(),
-                    include_installed=self.config.use_installed_component_models,
-                )
+                models = get_models()
             estimation = get_model(
                 self.get_component_class(),
                 self.attributes.model_dump(),
