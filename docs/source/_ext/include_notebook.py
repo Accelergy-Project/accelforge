@@ -57,10 +57,10 @@ class IncludeNotebook(Directive):
             )
             return [error]
 
-        # Extract the marked section
-        content = self._extract_marked_section(notebook, marker_name)
+        # Extract all marked sections
+        content_sections = self._extract_marked_sections(notebook, marker_name)
 
-        if content is None:
+        if not content_sections:
             warning = self.state_machine.reporter.warning(
                 f'Marker "# < DOC_INCLUDE_MARKER > {marker_name}" not found in {notebook_path}',
                 nodes.literal_block("", ""),
@@ -68,17 +68,22 @@ class IncludeNotebook(Directive):
             )
             return [warning]
 
+        # Concatenate all sections with double newline separator
+        content = "\n\n".join(content_sections)
+
         # Create a code block node
         code_block = nodes.literal_block(content, content)
         code_block["language"] = language
         return [code_block]
 
-    def _extract_marked_section(self, notebook, marker_name):
+    def _extract_marked_sections(self, notebook, marker_name):
         """
         Extract content between DOC_INCLUDE_MARKER and DOC_INCLUDE_END (or end of cell).
+        Returns a list of all matching sections.
         """
         start_marker = f"# < DOC_INCLUDE_MARKER > {marker_name}"
         end_marker = "# < DOC_INCLUDE_END >"
+        sections = []
 
         for cell_idx, cell in enumerate(notebook.get("cells", [])):
             if cell.get("cell_type") != "code":
@@ -92,7 +97,7 @@ class IncludeNotebook(Directive):
             else:
                 lines = source
 
-            # Look for the start marker
+            # Look for all start markers in this cell
             for i, line in enumerate(lines):
                 # Remove trailing newlines for comparison
                 line_stripped = line.rstrip("\n")
@@ -107,9 +112,10 @@ class IncludeNotebook(Directive):
 
                     # Join lines and strip trailing whitespace
                     content = "\n".join(content_lines).rstrip()
-                    return content
+                    if content:  # Only add non-empty sections
+                        sections.append(content)
 
-        return None
+        return sections
 
 
 def setup(app):
