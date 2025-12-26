@@ -9,7 +9,7 @@ from fastfusion.frontend.config import Config, get_config
 from fastfusion.frontend.mapping import Mapping
 import hwcomponents
 
-from typing import Any, Dict, Optional, Union, Self
+from typing import Any, Dict, Optional, Self
 from fastfusion.util.basetypes import ParsableModel
 from pydantic import Field
 
@@ -140,7 +140,8 @@ class Spec(ParsableModel):
         return self
 
     def get_flattened_architecture(
-        self, compute_node: Union[str, Compute] = None
+        self,
+        compute_node: str | Compute | None = None
     ) -> list[list[Leaf]] | list[Leaf]:
         """
         Return the architecture as paths of ``Leaf`` instances from the highest-level

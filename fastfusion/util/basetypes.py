@@ -25,7 +25,6 @@ from typing import (
     Any,
     Callable,
     TypeVarTuple,
-    Union,
     Dict,
     Optional,
     Type,
@@ -367,9 +366,9 @@ class FromYAMLAble:
     @classmethod
     def from_yaml(
         cls: type[T],
-        *files: Union[str, List[str], Path, list[Path]],
-        jinja_parse_data: Optional[Dict[str, Any]] = None,
-        top_key: Optional[str] = None,
+        *files: str | list[str] | Path | list[Path],
+        jinja_parse_data: dict[str, Any] | None = None,
+        top_key: str | None = None,
         **kwargs,
     ) -> T:
         """
@@ -712,7 +711,7 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
             ]
         )
 
-    def __getitem__(self, key: Union[str, int, slice]) -> T:
+    def __getitem__(self, key: str | int | slice) -> T:
         if isinstance(key, int):
             return super().__getitem__(key)  # type: ignore
 

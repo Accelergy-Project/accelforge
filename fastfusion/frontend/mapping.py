@@ -392,7 +392,7 @@ class Iteration(MappingNode):
     A bounded loop over a rank with a given shape and/or pattern.
     """
 
-    rank_variable: Union[Set[RankVariableName], RankVariableName]
+    rank_variable: set[RankVariableName] | RankVariableName
     """ The set of rank variables that are iterated over in this loop. """
 
     tile_pattern: ParsesTo[TilePattern] = TilePattern()
@@ -451,11 +451,11 @@ class Iteration(MappingNode):
         )
 
     @property
-    def initial_tile_shape(self) -> Union[int, sympy.Symbol]:
+    def initial_tile_shape(self) -> int | sympy.Symbol:
         return self.tile_pattern.initial_tile_shape
 
     @property
-    def stride(self) -> Union[int, sympy.Symbol]:
+    def stride(self) -> int | sympy.Symbol:
         return self.tile_pattern.stride
 
     @property
@@ -463,11 +463,11 @@ class Iteration(MappingNode):
         return self.tile_pattern.calculated_n_iterations
 
     @initial_tile_shape.setter
-    def initial_tile_shape(self, value: Union[int, sympy.Symbol]) -> None:
+    def initial_tile_shape(self, value: int | sympy.Symbol) -> None:
         self.tile_pattern = self.tile_pattern.update(initial_tile_shape=value)
 
     @stride.setter
-    def stride(self, value: Union[int, sympy.Symbol]) -> None:
+    def stride(self, value: int | sympy.Symbol) -> None:
         self.tile_pattern = self.tile_pattern.update(stride=value)
 
     @calculated_n_iterations.setter
@@ -495,7 +495,7 @@ class Temporal(Iteration):
 class Spatial(Iteration):
     """A spatial loop."""
 
-    name: Union[int, str]
+    name: int | str
     """ The dimension the spatial is occuring over. """
 
     component: str

@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Union
+from typing import Optional
 import plotly
 from IPython.display import SVG, display
 import plotly.graph_objs as go
@@ -95,7 +95,7 @@ def diplay_mappings_on_fig(
 
 
 def plotly_show(
-    data: Union[pd.DataFrame, dict[str, pd.DataFrame]],
+    data: pd.DataFrame | dict[str, pd.DataFrame],
     x: str,
     y: str,
     category: Optional[str] = None,

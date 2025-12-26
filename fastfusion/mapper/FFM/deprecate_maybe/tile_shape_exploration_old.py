@@ -6,7 +6,7 @@ import copy
 import random
 import re
 import resource
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 # from combinatorics.integer import integer_factorizations_to_n_parts
 from dataclasses import dataclass, field
@@ -527,7 +527,7 @@ def get_padded_choices(
     symbols_enumerated: list[Symbol],
     symbols_non_enumerated_set: set[Symbol],
     choices_enumerated: np.ndarray,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
+    what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]],
     minimize_formula: sympy.Expr = None,
 ):
     choices_padded = {}
@@ -551,7 +551,7 @@ def get_padded_choices(
 
 def get_tiled_by(
     symbol: Symbol,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
+    what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]],
 ):
     for tiled_by, what_tiles in what_tiles_symbol:
         if tiled_by == symbol:
@@ -561,7 +561,7 @@ def get_tiled_by(
 
 def get_tiles(
     symbol: Symbol,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
+    what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]],
 ):
     for tiled_by, what_tiles in what_tiles_symbol:
         if what_tiles == symbol:
@@ -571,7 +571,7 @@ def get_tiles(
 
 def get_max_size(
     symbol: Symbol,
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]],
+    what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]],
 ):
     while not isinstance(symbol, Number):
         symbol = get_tiles(symbol, what_tiles_symbol)
@@ -588,12 +588,12 @@ def check_max_fused_loops_per_rank(
     if max_fused_loops_per_rank_variable >= len(symbols_enumerated):
         return choices_enumerated
 
-    def get_size(x: Union[Symbol, int]):
+    def get_size(x: Symbol | int):
         if isinstance(x, Symbol):
             x = choices_enumerated[:, symbols_enumerated.index(x)]
         return x
 
-    def can_check(x: Union[Symbol, int]):
+    def can_check(x: Symbol | int):
         return not isinstance(x, Symbol) or x in symbols_enumerated
 
     for group in max_fused_loops_per_rank_check_groups:
@@ -1029,9 +1029,9 @@ def makesymbol(name: str):
 
 def make_what_tiles_symbol(
     pmapping: Mapping, shape: dict[str, int]
-) -> list[tuple[Union[Symbol, int], Union[Symbol, int]]]:
-    what_tiles_symbol: list[tuple[Union[Symbol, int], Union[Symbol, int]]] = []
-    last_seen_loop_per_rank_var: dict[str, Union[Symbol, int]] = dict(shape)
+) -> list[tuple[Symbol | int, Symbol | int]]:
+    what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]] = []
+    last_seen_loop_per_rank_var: dict[str, Symbol | int] = dict(shape)
     for node in pmapping.nodes:
         if not isinstance(node, Iteration):
             continue

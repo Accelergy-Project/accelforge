@@ -7,9 +7,9 @@ from typing import (
     Literal,
     Optional,
     TypeVar,
-    Union,
     Annotated,
     Type,
+    Union,
 )
 from pydantic import ConfigDict, Tag
 import pydantic
@@ -94,7 +94,7 @@ class Spatial(ParsableModel):
     fanout: ParsesTo[int]
     """ The size of this fanout. """
 
-    reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All()"
+    reuse: str | InvertibleSet[TensorName] | set[TensorName] = "All()"
     """ The tensors that are reused in this fanout. This expression will be parsed for
     each pmapping template. """
 
@@ -118,13 +118,13 @@ class LeafAttributes(ParsableModel):
 
 
 class AttributesWithEnergy(ParsableModel):
-    energy: ParsesTo[Union[int, float, None]] = None
-    energy_scale: ParsesTo[Union[int, float]] = 1
+    energy: ParsesTo[int | float | None] = None
+    energy_scale: ParsesTo[int | float] = 1
     model_config = ConfigDict(extra="allow")
 
 
 class ComponentAttributes(AttributesWithEnergy):
-    latency: Union[str, int, float] = 0
+    latency: str | int | float = 0
     """
     An expression representing the latency of this component in seconds. This is used to
     calculate the latency of a given Einsum. Special variables available are `min`,
@@ -139,29 +139,29 @@ class ComponentAttributes(AttributesWithEnergy):
 
       latency: 1e-9 * (read_actions + write_actions) # 1ns per read or write
     """
-    area_scale: ParsesTo[Union[int, float]] = 1
+    area_scale: ParsesTo[int | float] = 1
     """
     The scale factor for the area of this component. This is used to scale the area of
     this component. For example, if the area is 1 m^2 and the scale factor is 2, then
     the area is 2 m^2.
     """
-    area: ParsesTo[Union[int, float, None]] = None
+    area: ParsesTo[int | float | None] = None
     """
     The area of a single instance of this component in m^2.
     """
-    total_area: ParsesTo[Union[int, float, None]] = None
+    total_area: ParsesTo[int | float | None] = None
     """
     The total area of all instances of this component in m^2.
     """
-    leak_power: ParsesTo[Union[int, float, None]] = None
+    leak_power: ParsesTo[int | float | None] = None
     """
     The leak power of a single instance of this component in W.
     """
-    total_leak_power: ParsesTo[Union[int, float, None]] = None
+    total_leak_power: ParsesTo[int | float | None] = None
     """
     The total leak power of all instances of this component in W.
     """
-    leak_power_scale: ParsesTo[Union[int, float]] = 1
+    leak_power_scale: ParsesTo[int | float] = 1
     """
     The scale factor for the leak power of this component. This is used to scale the
     leak power of this component. For example, if the leak power is 1 W and the scale
@@ -564,7 +564,7 @@ class Container(Leaf, ABC):
 class ArchMemoryActionArguments(AttributesWithEnergy):
     """Arguments for any `Memory` action."""
 
-    _bits_per_action: ParsesTo[Union[int, float]] = 1
+    bits_per_action: ParsesTo[int | float] = 1
     """ The number of bits accessed in this action. For example, setting bits_per_action
     to 16 means that each call to this action yields 16 bits. """
 
@@ -621,7 +621,7 @@ class TensorHolderAttributes(ComponentAttributes):
     underscore-prefix attribute names. See `TODO: UNDERSCORE_PREFIX_DISCUSSION`.
     """
 
-    datawidth: ParsesTo[Union[dict, int, float]] = {}
+    datawidth: ParsesTo[dict | int | float] = {}
     """
     Number of bits per value stored in this `TensorHolder`. If this is a dictionary,
     keys in the dictionary are parsed as expressions and may reference one or more
@@ -647,7 +647,7 @@ class TensorHolderAttributes(ComponentAttributes):
 class MemoryAttributes(TensorHolderAttributes):
     """Attributes for a `Memory`."""
 
-    size: ParsesTo[Union[int, float]]
+    size: ParsesTo[int | float]
     """ The size of this `Memory` in bits. """
 
 

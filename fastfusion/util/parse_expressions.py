@@ -5,7 +5,7 @@ import logging
 import math
 import re
 import threading
-from typing import Any, Callable, Union
+from typing import Any, Callable
 from .yaml import load_yaml, SCRIPTS_FROM
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString, SingleQuotedScalarString
 import os
@@ -168,7 +168,7 @@ class ParseExpressionsContext:
             parse_expression_thread_lock.release()
 
 
-def cast_to_numeric(x: Any) -> Union[int, float, bool]:
+def cast_to_numeric(x: Any) -> int | float | bool:
     if str(x).lower() == "true":
         return True
     if str(x).lower() == "false":

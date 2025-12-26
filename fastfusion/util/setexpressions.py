@@ -1,5 +1,4 @@
 from fastfusion.util.parse_expressions import ParseError
-from fastfusion.util.util import fzs
 from pydantic import BaseModel, ConfigDict
 from typing import Iterator, Optional, TypeVar, Generic, Any, Union
 from fastfusion.util.parse_expressions import MATH_FUNCS
@@ -47,7 +46,7 @@ class InvertibleSet(BaseModel, Generic[T]):
                 f"{self.space_name} and {other.space_name}."
             )
 
-    def to_my_space(self, other) -> Union["InvertibleSet", set]:
+    def to_my_space(self, other) -> Union[set, "InvertibleSet"]:
         return InvertibleSet(
             instance=other.instance if isinstance(other, InvertibleSet) else other,
             full_space=self.full_space,

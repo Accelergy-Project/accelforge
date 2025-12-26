@@ -1,7 +1,7 @@
 import copy
 import logging
 import re
-from typing import Annotated, Any, Callable, List, Optional, Tuple, Union
+from typing import Annotated, Any, Callable, List, Optional
 
 from fastfusion.accelerated_imports import np
 from fastfusion.util.basetypes import ParsableList, ParsableModel, ParsesTo
@@ -27,7 +27,7 @@ class LoopOrder(ParsableList[RankVariableName]):
 
 
 class Comparison(ParsableModel):
-    expression: Union[str, InvertibleSet[RankVariableName], set[RankVariableName]]
+    expression: str | InvertibleSet[RankVariableName] | set[RankVariableName]
     operator: str
     value: ParsesTo[int]
 
@@ -61,7 +61,7 @@ class Comparison(ParsableModel):
     def to_constraint_lambda(
         self,
         increasing_sizes: bool,
-    ) -> Callable[[bool, np.ndarray], Union[bool, np.ndarray]]:
+    ) -> Callable[[bool, np.ndarray], bool | np.ndarray]:
         # Equal operators can only evaluate when all sizes are known
         eq_op = lambda final: (
             np.equal
@@ -113,12 +113,12 @@ class Comparison(ParsableModel):
 
 
 class Tensors(ParsableModel):
-    keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
+    keep: str | InvertibleSet[TensorName] | set[TensorName] = (
         "<Defaults to Nothing>"
     )
     """ Which tensors must be kept in this unit" """
 
-    may_keep: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
+    may_keep: str | InvertibleSet[TensorName] | set[TensorName] = (
         "<Nothing if keep is defined, else All>"
     )
     """ Which tensors may be kept in this unit, but are not required to be. The mapper
@@ -130,7 +130,7 @@ class Tensors(ParsableModel):
     each comparison must evaluate to True for a valid mapping.
     """
 
-    no_refetch_from_above: Union[str, InvertibleSet[TensorName], set[TensorName]] = (
+    no_refetch_from_above: str | InvertibleSet[TensorName] | set[TensorName] = (
         "~All"
     )
     """
@@ -139,7 +139,7 @@ class Tensors(ParsableModel):
     """
 
     tensor_order_options: ParsableList[
-        ParsableList[Union[str, InvertibleSet[TensorName], set[TensorName]]]
+        ParsableList[str | InvertibleSet[TensorName] | set[TensorName]]
     ] = ParsableList()
     """
     Options for the order of tensor storage nodes in the mapping. This is given as a
@@ -214,7 +214,7 @@ class Tensors(ParsableModel):
 
 class Iteration(ParsableModel):
     version: Annotated[str, assert_version] = __version__
-    reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
+    reuse: str | InvertibleSet[TensorName] | set[TensorName] = "All"
     loop_bounds: ParsableList[Comparison] = ParsableList()
 
     def _parse(self, symbol_table: dict[str, Any], location: str):
@@ -226,9 +226,9 @@ class Iteration(ParsableModel):
 
 class Spatial(Iteration):
     name: str
-    min_utilization: Union[int, float, str] = 0.0
-    reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "All"
-    must_reuse: Union[str, InvertibleSet[TensorName], set[TensorName]] = "Nothing"
+    min_utilization: int | float | str = 0.0
+    reuse: str | InvertibleSet[TensorName] | set[TensorName] = "All"
+    must_reuse: str | InvertibleSet[TensorName] | set[TensorName] = "Nothing"
 
     @property
     def name(self):
@@ -260,7 +260,7 @@ class Temporal(Iteration):
 
 
 class Misc(ParsableModel):
-    enabled: Union[str, bool] = True
+    enabled: str | bool = True
 
 
 class MiscOnlyConstraints(ParsableModel):

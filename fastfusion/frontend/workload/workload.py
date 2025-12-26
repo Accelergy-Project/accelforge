@@ -4,7 +4,7 @@ All the objects used for a Workload description in FastFusion.
 
 from itertools import product
 import re
-from typing import Annotated, TypeAlias, Union
+from typing import Annotated, TypeAlias
 
 import pydot
 
@@ -491,7 +491,7 @@ class Workload(ParsableModel):
     def get_constraint_symbol_table(
         self,
         einsum_name: EinsumName,
-        renames: Union[Renames, None] = None,
+        renames: Renames | None = None,
     ) -> SymbolTable:
         """
         Return a table that maps symbols (e.g., Nothing, All, Inputs) to

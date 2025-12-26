@@ -5,7 +5,7 @@ import copy
 import re
 import resource
 import time
-from typing import Callable, Iterator, Optional, Union
+from typing import Callable, Iterator, Optional
 from sympy import Expr, Symbol, factorint, lambdify
 from fastfusion import util
 from fastfusion.accelerated_imports import np
@@ -579,7 +579,7 @@ def check_max_fused_loops_per_rank(
     max_fused_loop_check_groups: list[tuple[Number, list[Symbol]]],
     what_tiles_symbol: SymbolRelations,
 ):
-    def get_size(x: Union[Symbol, int]):
+    def get_size(x: Symbol | int):
         if isinstance(x, Symbol) and x in symbols_enumerated:
             return choices_enumerated[:, symbols_enumerated.index(x)]
         elif isinstance(x, Symbol):
@@ -587,12 +587,12 @@ def check_max_fused_loops_per_rank(
         else:
             return x
 
-    def has_fanout(x: Union[Symbol, int]):
+    def has_fanout(x: Symbol | int):
         outer = get_size(what_tiles_symbol.get_inner_tiles(x))  # TODO: is this a bug?
         inner = get_size(x)
         return outer != inner
 
-    def can_check(x: Union[Symbol, int]):
+    def can_check(x: Symbol | int):
         if isinstance(x, Symbol) and x not in symbols_enumerated:
             return False
         # tiles = what_tiles_symbol.get_outer_tiles(x, none_if_fail=True)

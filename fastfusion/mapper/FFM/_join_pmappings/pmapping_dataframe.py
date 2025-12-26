@@ -3,7 +3,7 @@ import copy
 import functools
 import itertools
 
-from typing import Callable, Iterable, Optional, Tuple, Union
+from typing import Callable, Iterable, Optional
 
 import sympy
 
@@ -284,7 +284,7 @@ class PmappingDataframe:
         level: int,
         left: bool = False,
         return_name_level_left: bool = False,
-    ) -> Optional[Union[str, Tuple[str, int, bool]]]:
+    ) -> str | tuple[str, int, bool] | None:
         reservations = self.left_reservations if left else self.right_reservations
         if (reservations := reservations.get(name, None)) is not None:
             while level >= -1:
