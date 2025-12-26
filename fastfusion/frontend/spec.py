@@ -172,7 +172,7 @@ class Spec(ParsableModel):
         assert getattr(
             self, "_parsed", False
         ), "Spec must be parsed before getting flattened architecture"
-        all_leaves = self.arch.find_nodes_of_type(Leaf)
+        all_leaves = self.arch.get_nodes_of_type(Leaf)
         found_names = set()
         for leaf in all_leaves:
             if leaf.name in found_names:
@@ -181,7 +181,7 @@ class Spec(ParsableModel):
 
         found = []
         if compute_node is None:
-            compute_nodes = [c.name for c in self.arch.find_nodes_of_type(Compute)]
+            compute_nodes = [c.name for c in self.arch.get_nodes_of_type(Compute)]
         else:
             compute_nodes = [
                 compute_node.name if isinstance(compute_node, Compute) else compute_node
