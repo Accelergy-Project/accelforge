@@ -113,13 +113,17 @@ class Spatial(ParsableModel):
         )
 
 
+class LeafAttributes(ParsableModel):
+    pass
+
+
 class AttributesWithEnergy(ParsableModel):
     energy: ParsesTo[Union[int, float, None]] = None
     energy_scale: ParsesTo[Union[int, float]] = 1
     model_config = ConfigDict(extra="allow")
 
 
-class LeafAttributes(AttributesWithEnergy):
+class ComponentAttributes(AttributesWithEnergy):
     latency: Union[str, int, float] = 0
     """
     An expression representing the latency of this component in seconds. This is used to
@@ -143,23 +147,19 @@ class LeafAttributes(AttributesWithEnergy):
     """
     area: ParsesTo[Union[int, float, None]] = None
     """
-    The area of this component in m^2. This is the area of a single instance of this
-    component.
+    The area of a single instance of this component in m^2.
     """
     total_area: ParsesTo[Union[int, float, None]] = None
     """
-    The total area of this component in m^2. This is the total area of all instances of
-    this component.
+    The total area of all instances of this component in m^2.
     """
     leak_power: ParsesTo[Union[int, float, None]] = None
     """
-    The leak power of this component in W. This is the leak power of a single instance
-    of this component.
+    The leak power of a single instance of this component in W.
     """
     total_leak_power: ParsesTo[Union[int, float, None]] = None
     """
-    The total leak power of this component in W. This is the total leak power of all
-    instances of this component.
+    The total leak power of all instances of this component in W.
     """
     leak_power_scale: ParsesTo[Union[int, float]] = 1
     """
@@ -240,6 +240,9 @@ class Component(Leaf, ABC):
 
     actions: ParsableList[Action]
     """ The actions that this `Component` can perform. """
+
+    attributes: ComponentAttributes = ComponentAttributes()
+    """ The attributes of this `Component`. """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -328,13 +331,13 @@ class Component(Leaf, ABC):
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
         attribute to find the model and populate the ``component_model`` attribute.
 
-        Note that these methods will be called by the Specification when calculating
+        Note that these methods will be called by the Spec when calculating
         energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Specification's global scope. If you are sure
+        be parsed because they need the Spec's global scope. If you are sure
         that all necessary values are present and not a result of an expression, you can
         call these directly. Otherwise, you can call the
-        ``Specification.calculate_component_energy_area`` and then grab components from
-        the returned ``Specification``.
+        ``Spec.calculate_component_energy_area`` and then grab components from
+        the returned ``Spec``.
 
         Parameters
         ----------
@@ -402,13 +405,13 @@ class Component(Leaf, ABC):
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
         attribute to find the model and populate the ``component_model`` attribute.
 
-        Note that these methods will be called by the Specification when calculating
+        Note that these methods will be called by the Spec when calculating
         energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Specification's global scope. If you are sure
+        be parsed because they need the Spec's global scope. If you are sure
         that all necessary values are present and not a result of an expression, you can
         call these directly. Otherwise, you can call the
-        ``Specification.calculate_component_energy_area`` and then grab components from
-        the returned ``Specification``.
+        ``Spec.calculate_component_energy_area`` and then grab components from
+        the returned ``Spec``.
 
         Parameters
         ----------
@@ -459,13 +462,13 @@ class Component(Leaf, ABC):
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
         attribute to find the model and populate the ``component_model`` attribute.
 
-        Note that these methods will be called by the Specification when calculating
+        Note that these methods will be called by the Spec when calculating
         energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Specification's global scope. If you are sure
+        be parsed because they need the Spec's global scope. If you are sure
         that all necessary values are present and not a result of an expression, you can
         call these directly. Otherwise, you can call the
-        ``Specification.calculate_component_energy_area`` and then grab components from
-        the returned ``Specification``.
+        ``Spec.calculate_component_energy_area`` and then grab components from
+        the returned ``Spec``.
 
         Parameters
         ----------
@@ -516,13 +519,13 @@ class Component(Leaf, ABC):
         ``<action>.arguments.energy`` field. Extends the ``energy_area_log`` field with
         log messages.
 
-        Note that these methods will be called by the Specification when calculating
+        Note that these methods will be called by the Spec when calculating
         energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Specification's global scope. If you are sure
+        be parsed because they need the Spec's global scope. If you are sure
         that all necessary values are present and not a result of an expression, you can
         call these directly. Otherwise, you can call the
-        ``Specification.calculate_component_energy_area`` and then grab components from
-        the returned ``Specification``.
+        ``Spec.calculate_component_energy_area`` and then grab components from
+        the returned ``Spec``.
 
         Parameters
         ----------
@@ -611,7 +614,7 @@ def _parse_tensor2bits(
     return result
 
 
-class TensorHolderAttributes(LeafAttributes):
+class TensorHolderAttributes(ComponentAttributes):
     """
     Attributes for a `TensorHolder`. `TensorHolder`s are components that hold tensors
     (usually `Memory`s). When specifying these attributes, it is recommended to
@@ -712,7 +715,7 @@ class ProcessingStage(TensorHolder):
         self._update_actions(PROCESSING_STAGE_ACTIONS)
 
 
-class ComputeAttributes(LeafAttributes):
+class ComputeAttributes(ComponentAttributes):
     """Attributes for a `Compute`."""
 
     pass
@@ -854,7 +857,7 @@ class Hierarchical(Branch):
 
 class Arch(Hierarchical):
     version: Annotated[str, assert_version] = __version__
-    """ The version of the architecture specification. """
+    """ The version of the architecture spec. """
 
     @property
     def total_area(self) -> float:
@@ -866,7 +869,7 @@ class Arch(Hierarchical):
         float
             The total area of the architecture in m^2.
         """
-        return sum(self.per_component_area.values())
+        return sum(self.per_component_total_area.values())
 
     @property
     def total_leak_power(self) -> float:
@@ -878,17 +881,17 @@ class Arch(Hierarchical):
         float
             The total leak power of the architecture in W.
         """
-        return sum(self.per_component_leak_power.values())
+        return sum(self.per_component_total_leak_power.values())
 
     @property
-    def per_component_area(self) -> dict[str, float]:
+    def per_component_total_area(self) -> dict[str, float]:
         """
-        Returns the area of each component in the architecture in m^2.
+        Returns the total area used by each component in the architecture in m^2.
 
         Returns
         -------
         dict[str, float]
-            A dictionary of component names to their area in m^2.
+            A dictionary of component names to their total area in m^2.
         """
         area = {
             node.name: node.attributes.total_area
@@ -897,21 +900,21 @@ class Arch(Hierarchical):
         for k, v in area.items():
             if v is None:
                 raise ValueError(
-                    f"Area of {k} is not set. Please call the Specification's "
+                    f"Area of {k} is not set. Please call the Spec's "
                     "`calculate_component_energy_area` method before accessing this "
                     "property."
                 )
         return area
 
     @property
-    def per_component_leak_power(self) -> dict[str, float]:
+    def per_component_total_leak_power(self) -> dict[str, float]:
         """
-        Returns the leak power of each component in the architecture in W.
+        Returns the total leak power of each component in the architecture in W.
 
         Returns
         -------
         dict[str, float]
-            A dictionary of component names to their leak power in W.
+            A dictionary of component names to their total leak power in W.
         """
         leak_power = {
             node.name: node.attributes.total_leak_power
@@ -920,7 +923,7 @@ class Arch(Hierarchical):
         for k, v in leak_power.items():
             if v is None:
                 raise ValueError(
-                    f"Leak power of {k} is not set. Please call the Specification's "
+                    f"Leak power of {k} is not set. Please call the Spec's "
                     "`calculate_component_energy_area` method before accessing this "
                     "property."
                 )
