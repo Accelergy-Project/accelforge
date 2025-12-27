@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import ConfigDict
 from fastfusion.util.basetypes import ParsableModel, ParseExtras, ParsesTo
-from fastfusion.version import assert_version, __version__
+from fastfusion._version import assert_version, __version__
 
 
 class Variables(ParseExtras):

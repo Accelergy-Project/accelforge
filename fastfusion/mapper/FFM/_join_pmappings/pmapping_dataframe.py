@@ -15,7 +15,7 @@ from fastfusion.mapper.FFM._join_pmappings.compatibility import (
 )
 from fastfusion.util import fzs
 
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import pd
 
 from fastfusion.mapper.FFM._pareto_df.df_convention import *
 from fastfusion.mapper.FFM._pareto_df.pareto import makepareto

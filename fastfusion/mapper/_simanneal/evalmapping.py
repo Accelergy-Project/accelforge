@@ -1,7 +1,7 @@
 from collections import defaultdict
 import itertools
 import time
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import pd
 from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
 from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals

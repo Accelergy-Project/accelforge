@@ -1,7 +1,7 @@
 import copy
 from typing import Annotated, TypeAlias
 from fastfusion.util.basetypes import ParsableList, ParsableModel
-from fastfusion.version import assert_version, __version__
+from fastfusion._version import assert_version, __version__
 
 TensorName: TypeAlias = str
 RankVariableName: TypeAlias = str

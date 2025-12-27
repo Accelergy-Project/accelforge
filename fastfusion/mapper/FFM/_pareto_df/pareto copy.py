@@ -9,7 +9,7 @@ from paretoset import paretoset
 from joblib import delayed
 from sympy import factorint
 
-from fastfusion.accelerated_imports import np
+from fastfusion._accelerated_imports import np
 from fastfusion.util.util import parallel
 
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
@@ -185,7 +185,7 @@ def pareto_front_cupy_blockwise_sorted_recursive(X, block_size=2000):
 #     # return makepareto_time_compare(mappings)
 #     if columns is None:
 #         columns = [c for c in mappings.columns if col_used_in_pareto(c)]
-#     if accelerated_imports.ACCELERATED:
+#     if _accelerated_imports.ACCELERATED:
 #         mask = pareto_front_cupy_blockwise_sorted_recursive(mappings[columns].to_cupy())
 #         return mappings[mask]
 

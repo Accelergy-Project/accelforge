@@ -1,6 +1,6 @@
 from collections import defaultdict
 from typing import List
-from fastfusion.accelerated_imports import np
+from fastfusion._accelerated_imports import np
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.constraints import (
     Comparison,

@@ -30,7 +30,7 @@ from fastfusion.util.parse_expressions import ParseError, parse_expression
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.frontend.renames import TensorName
 
-from fastfusion.version import assert_version, __version__
+from fastfusion._version import assert_version, __version__
 from pydantic import Discriminator
 
 from fastfusion.frontend.constraints import ConstraintGroup, MiscOnlyConstraints
@@ -41,7 +41,7 @@ T = TypeVar("T", bound="ArchNode")
 class ArchNode(ParsableModel):
     """A node in the architecture."""
 
-    def name2leaf(self, name: str) -> "Leaf":
+    def find(self, name: str) -> "Leaf":
         """
         Finds a `Leaf` node with the given name.
         :raises ValueError: If the `Leaf` node with the given name is not found.
@@ -56,13 +56,6 @@ class ArchNode(ParsableModel):
                 except (AttributeError, ValueError):
                     pass
         raise ValueError(f"Leaf {name} not found in {self}")
-
-    def find(self, *args, **kwargs) -> "Leaf":
-        """
-        Finds a `Leaf` node with the given name.
-        :raises ValueError: If the `Leaf` node with the given name is not found.
-        """
-        return self.name2leaf(*args, **kwargs)
 
 
 class ArchNodes(ParsableList):
@@ -132,22 +125,19 @@ class ComponentAttributes(AttributesWithEnergy):
     perform. `X_actions` resolves to the number of times action `X` is performed. For
     example, `read_actions` is the number of times the read action is performed.
 
-    For example, the following expression will calculate the latency of a component
-    based on the number of read and write actions:
-
-    .. code-block:: yaml
-
-      latency: 1e-9 * (read_actions + write_actions) # 1ns per read or write
+    For example, the following expression calculates latency assuming that each read or
+    write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.
     """
     area_scale: ParsesTo[int | float] = 1
     """
-    The scale factor for the area of this component. This is used to scale the area of
+    The scale factor for the area of this comxponent. This is used to scale the area of
     this component. For example, if the area is 1 m^2 and the scale factor is 2, then
     the area is 2 m^2.
     """
     area: ParsesTo[int | float | None] = None
     """
-    The area of a single instance of this component in m^2.
+    The area of a single instance of this component in m^2. If set, area calculations
+    will use this value.
     """
     total_area: ParsesTo[int | float | None] = None
     """
@@ -155,7 +145,8 @@ class ComponentAttributes(AttributesWithEnergy):
     """
     leak_power: ParsesTo[int | float | None] = None
     """
-    The leak power of a single instance of this component in W.
+    The leak power of a single instance of this component in W. If set, leak power
+    calculations will use this value.
     """
     total_leak_power: ParsesTo[int | float | None] = None
     """
@@ -167,7 +158,33 @@ class ComponentAttributes(AttributesWithEnergy):
     leak power of this component. For example, if the leak power is 1 W and the scale
     factor is 2, then the leak power is 2 W.
     """
+    energy: ParsesTo[int | float | None] = None
+    """
+    Dynamic energy of all actions of this component. If set, energy calculations will
+    use this value for all actions that are not overridden by the action's arguments.
+    """
+    energy_scale: ParsesTo[int | float] = 1
+    """
+    The scale factor for dynamic energy of this component. For each action, multiplies
+    this action's energy.
+    """
 
+class ActionArguments(AttributesWithEnergy):
+    """
+    Arguments for an action of a component.
+    """
+    energy: ParsesTo[int | float | None] = None
+    """
+    Dynamic energy of this action. If set, this value will be used instead of the
+    component's attributes.energy. Higher precedence than the component's
+    attributes.energy. Per-action energy is multiplied by the component's
+    attributes.energy_scale and the action's arguments.energy_scale.
+    """
+    energy_scale: ParsesTo[int | float] = 1
+    """
+    The scale factor for dynamic energy of this action. Multiplies this action's energy
+    by this value.
+    """
 
 class Action(ParsableModel):
     name: str

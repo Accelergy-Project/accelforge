@@ -21,7 +21,7 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingDatafra
 from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
     get_rank_variable_bounds_for_all_einsums,
 )
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import pd
 import joblib
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper._simanneal2.tracking import EvaluationsScoreTracker

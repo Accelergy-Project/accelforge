@@ -3,7 +3,7 @@ import copy
 import itertools
 import time
 from joblib import delayed
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import pd
 from fastfusion.frontend import arch
 from fastfusion.frontend.spec import Spec
 from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility

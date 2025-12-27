@@ -12,11 +12,11 @@ from typing import Callable, Optional
 from dataclasses import dataclass, field
 
 from fastfusion import util
-from fastfusion.accelerated_imports import np
+from fastfusion._accelerated_imports import np
 
 import sympy
 
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import pd
 
 from fastfusion.frontend import mapping
 import fastfusion.frontend.arch as arch

@@ -41,7 +41,7 @@ from fastfusion.util.basetypes import (
 )
 from fastfusion.frontend.workload.workload import RankVariableName, TensorName
 from fastfusion.util.util import SVGJupyterRender, pydot_graph
-from fastfusion.version import assert_version, __version__
+from fastfusion._version import assert_version, __version__
 from fastfusion.frontend import arch
 
 T = TypeVar("T", bound="MappingNode")
@@ -496,7 +496,7 @@ class Spatial(Iteration):
     """A spatial loop."""
 
     name: int | str
-    """ The dimension the spatial is occuring over. """
+    """ The dimension over which the spatial is occuring. """
 
     component: str
     """ The hardware feature name hosting the iteration. """

@@ -14,7 +14,7 @@ from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
-from fastfusion.version import assert_version, __version__
+from fastfusion._version import assert_version, __version__
 
 from fastfusion.frontend.renames import (
     EinsumName,

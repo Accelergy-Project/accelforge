@@ -1,7 +1,7 @@
 import matplotlib.axes as mpax
 import matplotlib.pyplot as plt
-from fastfusion.accelerated_imports import np
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import np
+from fastfusion._accelerated_imports import pd
 
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 

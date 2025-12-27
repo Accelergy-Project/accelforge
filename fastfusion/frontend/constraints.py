@@ -3,27 +3,27 @@ import logging
 import re
 from typing import Annotated, Any, Callable, List, Optional
 
-from fastfusion.accelerated_imports import np
+from fastfusion._accelerated_imports import np
 from fastfusion.util.basetypes import ParsableList, ParsableModel, ParsesTo
 from fastfusion.util.parse_expressions import parse_expression
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.frontend.workload.workload import RankVariableName, TensorName
-from fastfusion.version import assert_version, __version__
+from fastfusion._version import assert_version, __version__
 
 
-class LoopOrder(ParsableList[RankVariableName]):
-    """
-    A loop_order of ranks.
-    """
+# class LoopOrder(ParsableList[RankVariableName]):
+#     """
+#     A loop_order of ranks.
+#     """
 
-    def _parse(self, symbol_table: dict[str, Any], location: str):
-        # return [x._parse(symbol_table) for x in self]
-        return type(self)(
-            [
-                eval_set_expression(x, symbol_table, "rank_variables", location)
-                for x in self
-            ],
-        )
+#     def _parse(self, symbol_table: dict[str, Any], location: str):
+#         # return [x._parse(symbol_table) for x in self]
+#         return type(self)(
+#             [
+#                 eval_set_expression(x, symbol_table, "rank_variables", location)
+#                 for x in self
+#             ],
+#         )
 
 
 class Comparison(ParsableModel):
@@ -116,13 +116,13 @@ class Tensors(ParsableModel):
     keep: str | InvertibleSet[TensorName] | set[TensorName] = (
         "<Defaults to Nothing>"
     )
-    """ Which tensors must be kept in this unit" """
+    """ Which tensors must be kept in this component. """
 
     may_keep: str | InvertibleSet[TensorName] | set[TensorName] = (
         "<Nothing if keep is defined, else All>"
     )
-    """ Which tensors may be kept in this unit, but are not required to be. The mapper
-    will explore both keeping and not keeping each tensor. """
+    """ Which tensors may be kept in this component, but are not required to be. The
+    mapper will explore both keeping and not keeping each tensor. """
 
     tile_shape: ParsableList[Comparison] = []
     """

@@ -2,7 +2,7 @@ from typing import Any, Annotated, Literal
 
 from fastfusion.frontend.mapper.metrics import Metrics
 from fastfusion.util.basetypes import ParsableModel
-from fastfusion.version import assert_version, __version__
+from fastfusion._version import assert_version, __version__
 
 
 class FFM(ParsableModel):

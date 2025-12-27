@@ -8,8 +8,8 @@ import time
 from typing import Callable, Iterator, Optional
 from sympy import Expr, Symbol, factorint, lambdify
 from fastfusion import util
-from fastfusion.accelerated_imports import np
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import np
+from fastfusion._accelerated_imports import pd
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.workload._isl import get_rank_variable_bounds
 from fastfusion.frontend.workload._symbolic import get_projection_expr
