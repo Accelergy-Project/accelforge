@@ -4,8 +4,8 @@ from fastfusion.util.basetypes import ParsableList, ParsableModel
 from fastfusion._version import assert_version, __version__
 
 TensorName: TypeAlias = str
-RankVariableName: TypeAlias = str
-RankName: TypeAlias = str
+RankVariable: TypeAlias = str
+Rank: TypeAlias = str
 EinsumName: TypeAlias = str
 
 

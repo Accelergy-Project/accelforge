@@ -11,7 +11,7 @@ from fastfusion.frontend.mapping import (
 )
 from fastfusion.frontend.workload.workload import (
     Einsum,
-    RankVariableName,
+    RankVariable,
     Workload,
 )
 
@@ -31,7 +31,7 @@ def insert_temporal_loops(
     mapping: list[TensorHolder],
     einsum: Einsum,
     first_memory: arch.Memory,
-    rank_variable_bounds: dict[RankVariableName, int],
+    rank_variable_bounds: dict[RankVariable, int],
     ranks_with_tile_pattern: set,
     workload: Workload,
     can_lower_first_memory: bool,
@@ -55,9 +55,9 @@ def insert_temporal_loops(
 
     # These Einsum properties are recalculated since Einsum is mutable
     # We're pre-computing and reusing for efficiency
-    tensor2fully_relevant_rank_vars = einsum.tensor2fully_relevant_rank_variables
+    tensor2fully_relevant_rank_vars = einsum.tensor2directly_indexing_rank_variables
     tensor2partially_relevant_rank_vars = (
-        einsum.tensor2partially_relevant_rank_variables
+        einsum.tensor2expression_indexing_rank_variables
     )
     tensor2irrelevant_rank_vars = einsum.tensor2irrelevant_rank_variables
     tensor2rank_vars = einsum.tensor2rank_variables
@@ -255,8 +255,8 @@ def insert_spatial_loops(
 
 
 def canonical_loop_orders(
-    rank_variables: set[RankVariableName],
-    partially_relevant_to_previous: set[RankVariableName],
+    rank_variables: set[RankVariable],
+    partially_relevant_to_previous: set[RankVariable],
     can_lower: bool,
 ):
     """Generate loop orders that result in unique reuse patterns."""

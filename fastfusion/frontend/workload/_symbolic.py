@@ -10,15 +10,15 @@ from .workload import (
     Einsum,
     EinsumName,
     Workload,
-    RankName,
-    RankVariableName,
+    Rank,
+    RankVariable,
 )
 from ._isl import get_rank_variable_bounds
 
 
 def get_projection_expr(
     einsum: Einsum, tensor: TensorName
-) -> dict[RankName, sympy.Expr]:
+) -> dict[Rank, sympy.Expr]:
     projection = einsum.tensor_accesses[tensor].projection
     return {
         rank_name: sympy.parsing.sympy_parser.parse_expr(proj_str)
@@ -88,8 +88,8 @@ def compute_rank_occupancy(projection_expr: sympy.Expr, rank_variable_shapes: di
 def get_stride_and_halo_of_einsum(
     einsum_name: str,
     workload: Workload,
-    rank_variable_bounds: dict[RankVariableName, int] | None = None,
-) -> dict[TensorName, dict[tuple[RankName, RankVariableName]], tuple[int, int]]:
+    rank_variable_bounds: dict[RankVariable, int] | None = None,
+) -> dict[TensorName, dict[tuple[Rank, RankVariable]], tuple[int, int]]:
     """
     Get stride and halo (initial delta) for an Einsum in workload.
 
@@ -127,7 +127,7 @@ def get_stride_and_halo(
     workload: Workload,
 ) -> dict[
     tuple[EinsumName, TensorName],
-    dict[tuple[RankName, RankVariableName], tuple[int, int]],
+    dict[tuple[Rank, RankVariable], tuple[int, int]],
 ]:
     """
     Get stride and halo (initial delta) for Einsums in workload.

@@ -52,7 +52,7 @@ class ArchNode(ParsableModel):
         if isinstance(self, Branch):
             for element in self.nodes:
                 try:
-                    return element.name2leaf(name)
+                    return element.find(name)
                 except (AttributeError, ValueError):
                     pass
         raise ValueError(f"Leaf {name} not found in {self}")

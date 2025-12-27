@@ -17,10 +17,10 @@ from fastfusion.frontend.spec import Spec
 from fastfusion.frontend.workload._symbolic import Relevant, PartiallyRelevant
 from fastfusion.frontend.workload.workload import (
     EinsumName,
-    RankVariableName,
+    RankVariable,
     TensorName,
     Workload,
-    RankName,
+    Rank,
 )
 
 from fastfusion.frontend.mapper import Metrics
@@ -41,7 +41,7 @@ def make_compatibility(
     mapping: Mapping,
     fusable_tensors: set[TensorName],
     workload: Workload,
-    rank_variable_bounds: dict[RankVariableName, int],
+    rank_variable_bounds: dict[RankVariable, int],
     stride_and_halo,
 ) -> Compatibility:
 
@@ -56,12 +56,12 @@ def make_compatibility(
 class Job:
     spec: Spec | None
     metrics: Metrics
-    rank_variable_bounds: dict[RankVariableName, int]
+    rank_variable_bounds: dict[RankVariable, int]
 
     job_id: UUID = field(default_factory=uuid4)
 
     stride_and_halo: (
-        dict[TensorName, dict[tuple[RankName, RankVariableName], tuple[int, int]]]
+        dict[TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]]
         | None
     ) = None
     mapping: Mapping | None = None
@@ -81,7 +81,7 @@ class Job:
     messages: list[str] = field(default_factory=list)
     pmapping_keep_rates: dict[str, float] = field(default_factory=dict)
     tensor_to_relevancy: (
-        dict[TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]] | None
+        dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]] | None
     ) = None
 
     n_total_pmappings: int = 1
@@ -216,7 +216,7 @@ class SameSpecJobs(list[Job]):
         return first(self).spec
 
     @property
-    def rank_variable_bounds(self) -> dict[RankVariableName, int]:
+    def rank_variable_bounds(self) -> dict[RankVariable, int]:
         return first(self).rank_variable_bounds
 
     @property
@@ -239,7 +239,7 @@ class SameEinsumJobs(SameSpecJobs):
         return first(self).einsum_name
 
     @property
-    def rank_variable_bounds(self) -> dict[RankVariableName, int]:
+    def rank_variable_bounds(self) -> dict[RankVariable, int]:
         return first(self).rank_variable_bounds
 
     @property

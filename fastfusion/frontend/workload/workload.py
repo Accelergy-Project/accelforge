@@ -11,19 +11,19 @@ import pydot
 from fastfusion.util.util import SVGJupyterRender, pydot_graph
 
 from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
-from fastfusion.frontend.renames import EinsumName, RankVariableName, Rename, RenameList, Renames, TensorName, RankName, rename_list_factory
+from fastfusion.frontend.renames import EinsumName, RankVariable, Rename, RenameList, Renames, TensorName, Rank, rename_list_factory
 from fastfusion.util.parse_expressions import ParseError
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
 from fastfusion._version import assert_version, __version__
 
 from fastfusion.frontend.renames import (
     EinsumName,
-    RankVariableName,
+    RankVariable,
     Rename,
     RenameList,
     Renames,
     TensorName,
-    RankName,
+    Rank,
     rename_list_factory,
 )
 
@@ -78,7 +78,7 @@ class TensorAccess(ParsableModel):
     """
 
     output: bool = False
-    """ Whether the tensor is an output. """
+    """ Whether the tensor is an output. False means the tensor is an input. """
 
     persistent: bool = False
     """ If True, then a copy of this tensor must remain in backing storage for the full
@@ -88,9 +88,10 @@ class TensorAccess(ParsableModel):
     """ If != 1, then the backing storage size will be scaled by this factor. """
 
     def model_post_init(self, __context__=None) -> None:
-        self.projection: ImpliedProjection = projection_factory(self.projection)
+        self.projection: ImpliedProjection = _projection_factory(self.projection)
 
     def to_formatted_string(self) -> str:
+        """ Returns a string representation of the tensor access for Pydot nodes. """
         subscript = ",".join(self.projection.values())
         if isinstance(self.projection, ImpliedProjection):
             return f"{self.name}<sub>{subscript}</sub>"
@@ -104,17 +105,25 @@ class TensorAccess(ParsableModel):
         return "".join(string)
 
     @property
-    def rank2rank_variables(self) -> dict[RankName, set[RankVariableName]]:
+    def rank2rank_variables(self) -> dict[Rank, set[RankVariable]]:
+        """
+        Returns a dictionary of rank names to the rank variables that project into that
+        rank.
+        """
         return {
-            RankName(rank): set(
-                RankVariableName(rank_var)
+            Rank(rank): set(
+                RankVariable(rank_var)
                 for rank_var in re.findall(_ISL_REGEX, projection)
             )
             for rank, projection in self.projection.items()
         }
 
     @property
-    def rank_variable2ranks(self) -> dict[RankVariableName, set[RankName]]:
+    def rank_variable2ranks(self) -> dict[RankVariable, set[Rank]]:
+        """
+        Returns a dictionary of rank variables to the ranks into which that rank
+        variable projects.
+        """
         result = {}
         for rank, projection in self.projection.items():
             for rank_var in re.findall(_ISL_REGEX, projection):
@@ -123,30 +132,36 @@ class TensorAccess(ParsableModel):
         return result
 
     @property
-    def ranks(self) -> tuple[RankName, ...]:
-        return tuple(RankName(x) for x in self.projection.keys())
+    def ranks(self) -> tuple[Rank, ...]:
+        """ Returns the ranks of this access's tensor. """
+        return tuple(Rank(x) for x in self.projection.keys())
 
     @property
-    def rank_variables(self) -> set[RankVariableName]:
+    def rank_variables(self) -> set[RankVariable]:
+        """ Returns all rank variables used in this access. """
         # Projection values may be expressions, so we need to grab all identifiers
         return set(
-            RankVariableName(x)
+            RankVariable(x)
             for x in re.findall(_ISL_REGEX, " ".join(self.projection.values()))
         )
 
     @property
-    def relevant_rank_variables(self) -> set[RankVariableName]:
-        return self.rank_variables
-
-    @property
-    def fully_relevant_rank_variables(self) -> set[RankVariableName]:
+    def directly_indexing_rank_variables(self) -> set[RankVariable]:
+        """
+        Returns the rank variables that directly index into this tensor without any
+        expression (e.g., "M=m", NOT "M=m+n").
+        """
         return set(
-            RankVariableName(x) for x in self.projection.values() if _ISL_REGEX.match(x)
+            RankVariable(x) for x in self.projection.values() if _ISL_REGEX.match(x)
         )
 
     @property
-    def partially_relevant_rank_variables(self) -> set[RankVariableName]:
-        return self.rank_variables - self.fully_relevant_rank_variables
+    def expression_indexing_rank_variables(self) -> set[RankVariable]:
+        """
+        Returns the rank variables that indirectly index into this tensor through an
+        expression (e.g., "M=m+n") instead of a direct index (e.g., "M=m").
+        """
+        return self.rank_variables - self.directly_indexing_rank_variables
 
 
 class ImpliedProjection(dict):
@@ -157,7 +172,7 @@ class ImpliedProjection(dict):
     """
 
 
-def projection_factory(projection: dict | list):
+def _projection_factory(projection: dict | list):
     if isinstance(projection, list):
         for i, x in enumerate(projection):
             if not isinstance(x, str):
@@ -187,11 +202,14 @@ def projection_factory(projection: dict | list):
 
 class Shape(ParsableList):
     """
-    Specifies valid values for the rank variables.
+    Specifies valid values for the rank variables. This is a list of strings, each one
+    an ISL expression. The total space is considered to be the logal AND of all the
+    expressions in the list.
     """
 
     @property
     def rank_variables(self) -> set[str]:
+        """ Returns all rank variables used in this shape. """
         if not self:
             return set()
         return set.union(*[set(re.findall(_ISL_REGEX, x)) for x in self])
@@ -203,15 +221,29 @@ class Einsum(ParsableModel):
     name: EinsumName
     """ The name of the Einsum. """
     tensor_accesses: ParsableList[TensorAccess]
-    """ The tensors accessed by the Einsum. """
+    """ The tensors accessed by this Einsum, and how they are accessed. """
     iteration_space_shape: Shape[str] = Shape()
-    """ Bounds of valid rank variable values. """
-    rank_sizes: ParsableDict[RankName, int] = ParsableDict()
-    """ Sizes of rank variables. """
+    """
+    Bounds of valid rank variable values. This is a list of expressions, each one an ISL
+    expression. Additionally, global iteration_space_shape expressions are appended to
+    the list if their rank variables are present in the Einsum's rank_variables. For
+    example, if the global scope has "m: 0 <= m < 10" and the Einsum has "m" in its
+    rank_variables, then "0 <= m < 10" will be appended to the iteration_space_shape.
+    """
+    rank_sizes: ParsableDict[Rank, int] = ParsableDict()
+    """
+    Sizes of ranks. This is a dictionary of rank names to sizes. Sizes are integers, and
+    the rank's bounds are 0 <= rank < size. Accesses outside of these bounds are
+    skipped.
+    """
     is_copy_operation: bool = False
-    """ Whether the Einsum is a copy operation. """
+    """ Whether the Einsum is a copy operation. Copy operations take the input tensor
+    and directly place them at the location of the output tensor(s) without any
+    computation."""
     renames: RenameList[Rename] = RenameList()
-    """ Renames of the Einsum. """
+    """ Renames of the Einsum. Renames here can be used to rename rank variables or
+    tensors. When this Einsum is executed on an architecture, the architecture can use
+    renamed tensors and rank variables to access the tensors and rank variables. """
     n_instances: int = 1
     """
     Number of times to repeat the Einsum. Multiplied by `Workload.n_instances` to get
@@ -234,43 +266,57 @@ class Einsum(ParsableModel):
         super().__init__(*args, **kwargs)
 
     @property
-    def rank_variables(self) -> set[RankVariableName]:
+    def rank_variables(self) -> set[RankVariable]:
+        """ Returns all rank variables used in this Einsum. """
         if not self.tensor_accesses:
             return set()
         return set.union(*[t.rank_variables for t in self.tensor_accesses])
 
     @property
-    def ranks(self) -> set[RankName]:
+    def ranks(self) -> set[Rank]:
+        """ Returns all ranks used in this Einsum. """
         if not self.tensor_accesses:
             return set()
         return set.union(*[set(t.ranks) for t in self.tensor_accesses])
 
     @property
+    def input_tensor_names(self) -> set[TensorName]:
+        """ Returns the names of the input tensors of this Einsum. """
+        return set([TensorName(t.name) for t in self.tensor_accesses if not t.output])
+
+    @property
+    def output_tensor_names(self) -> set[TensorName]:
+        """ Returns the names of the output tensors of this Einsum. """
+        return set([TensorName(t.name) for t in self.tensor_accesses if t.output])
+
+    @property
     def tensor_names(self) -> set[TensorName]:
+        """ Returns the names of all tensors of this Einsum. """
         return set([TensorName(t.name) for t in self.tensor_accesses])
 
     @property
-    def tensors(self) -> set[TensorName]:
+    def tensor_names(self) -> set[TensorName]:
+        """ Returns the tensors used in this Einsum. """
         return set([TensorName(t.name) for t in self.tensor_accesses])
 
     @property
-    def tensor2rank_variables(self) -> dict[TensorName, set[RankVariableName]]:
+    def tensor2rank_variables(self) -> dict[TensorName, set[RankVariable]]:
         return {TensorName(t.name): t.rank_variables for t in self.tensor_accesses}
 
     @property
-    def tensor2fully_relevant_rank_variables(
+    def tensor2directly_indexing_rank_variables(
         self,
-    ) -> dict[TensorName, set[RankVariableName]]:
+    ) -> dict[TensorName, set[RankVariable]]:
         return {
-            TensorName(t.name): t.fully_relevant_rank_variables
+            TensorName(t.name): t.directly_indexing_rank_variables
             for t in self.tensor_accesses
         }
 
     @property
-    def tensor2partially_relevant_rank_variables(
+    def tensor2expression_indexing_rank_variables(
         self,
-    ) -> dict[TensorName, set[RankVariableName]]:
-        fully_relevant_rank_vars = self.tensor2fully_relevant_rank_variables
+    ) -> dict[TensorName, set[RankVariable]]:
+        fully_relevant_rank_vars = self.tensor2directly_indexing_rank_variables
         return {
             TensorName(t.name): t.rank_variables - fully_relevant_rank_vars[t.name]
             for t in self.tensor_accesses
@@ -279,9 +325,9 @@ class Einsum(ParsableModel):
     @property
     def tensor2irrelevant_rank_variables(
         self,
-    ) -> dict[TensorName, set[RankVariableName]]:
-        partially_relevant = self.tensor2partially_relevant_rank_variables
-        fully_relevant = self.tensor2fully_relevant_rank_variables
+    ) -> dict[TensorName, set[RankVariable]]:
+        partially_relevant = self.tensor2expression_indexing_rank_variables
+        fully_relevant = self.tensor2directly_indexing_rank_variables
         rank_variables = self.rank_variables
         return {
             TensorName(t.name): rank_variables
@@ -310,7 +356,7 @@ class Einsum(ParsableModel):
     def copy_source_tensor(self) -> TensorName | None:
         if not self.is_copy_operation:
             return None
-        input_tensors = self.input_tensors()
+        input_tensors = self.input_tensor_names
         if len(input_tensors) != 1:
             raise ValueError(
                 f"Copy Einsum {self.name} has {len(input_tensors)} input tensors, expected 1"
@@ -318,8 +364,8 @@ class Einsum(ParsableModel):
         return input_tensors.pop()
 
     @property
-    def rank_variable2ranks(self) -> dict[RankVariableName, set[RankName]]:
-        result: dict[RankVariableName, set[RankName]] = {}
+    def rank_variable2ranks(self) -> dict[RankVariable, set[Rank]]:
+        result: dict[RankVariable, set[Rank]] = {}
         for tensor_access in self.tensor_accesses:
             new = tensor_access.rank_variable2ranks
             for rank_var, ranks in new.items():
@@ -328,25 +374,33 @@ class Einsum(ParsableModel):
 
 
 class Workload(ParsableModel):
-    """The workload specification as a cascade of Einsums."""
+    """
+    The workload specification as a cascade of Einsums.
+
+    Each Einsum is a computation step in the workload. Its shape is determined by a set
+    of ranks, each of which is a dimension of the computation.
+
+    """
 
     version: Annotated[str, assert_version] = __version__
     """ The version of the workload specification. """
 
     einsums: ParsableList[Einsum] = ParsableList()
-    """ Einsums in the workload. """
+    """ The Einsums in the workload. """
 
-    iteration_space_shape: ParsableDict[RankVariableName, str] = ParsableDict()
-    """ Bounds of valid rank variable values. This is a dictionary of rank variable
+    iteration_space_shape: ParsableDict[RankVariable, str] = ParsableDict()
+    """
+    Bounds of valid rank variable values. This is a dictionary of rank variable
     names to bounds of valid rank variable values. The bounds are specified as a string
     in the ISL format. For example, "0 <= a < 10" means that the rank variable `a` must
     be between 0 and 10, including 0 but not 10. Bounds are included for all Einsums
     that include that rank variable.
     """
 
-    rank_sizes: ParsableDict[RankName, int] = ParsableDict()
-    """ Sizes of rank variables. This is a dictionary of rank names to sizes. Sizes are
-    integers. The rank's bounds are assumed to be 0 <= rank < size.
+    rank_sizes: ParsableDict[Rank, int] = ParsableDict()
+    """
+    Rank sizes. This is a dictionary of rank names to sizes. Sizes are integers, and the
+    rank's bounds are 0 <= rank < size. Accesses outside of these bounds are skipped.
     """
 
     n_instances: int = 1
@@ -382,22 +436,18 @@ class Workload(ParsableModel):
 
     @property
     def einsum_names(self) -> list[EinsumName]:
+        """ Returns the names of the Einsums in the workload. """
         return [EinsumName(e.name) for e in self.einsums]
 
     def einsums_with_tensor(self, tensor: TensorName) -> list["Einsum"]:
+        """ Returns the Einsums in the workload that access the given tensor. """
         return [e for e in self.einsums if tensor in e.tensor_names]
 
-    def tensors_read_by_einsum(self, einsum_name: str) -> set[TensorName]:
-        return self.einsums[einsum_name].input_tensors()
-
-    def tensors_written_by_einsum(self, einsum_name: str) -> set[TensorName]:
-        return self.einsums[einsum_name].output_tensors()
-
     def einsums_that_read_tensor(self, tensor: TensorName) -> list["Einsum"]:
-        return [e for e in self.einsums if tensor in e.input_tensors()]
+        return [e for e in self.einsums if tensor in e.input_tensor_names]
 
     def einsums_that_write_tensor(self, tensor: TensorName) -> list["Einsum"]:
-        return [e for e in self.einsums if tensor in e.output_tensors()]
+        return [e for e in self.einsums if tensor in e.output_tensor_names]
 
     def accesses_for_tensor(self, tensor: TensorName) -> list[TensorAccess]:
         return [t for e in self.einsums for t in e.tensor_accesses if t.name == tensor]
@@ -498,8 +548,8 @@ class Workload(ParsableModel):
         tensors or rank variables.
         """
         einsum = self.einsums[einsum_name]
-        inputs = einsum.input_tensors()
-        outputs = einsum.output_tensors()
+        inputs = einsum.input_tensor_names
+        outputs = einsum.output_tensor_names
         all_ = inputs | outputs
         intermediates = {
             t
@@ -626,7 +676,7 @@ class Workload(ParsableModel):
 
         return symbol_table
 
-    def get_mixable_ranks(self) -> dict[RankName, set[RankName]]:
+    def get_mixable_ranks(self) -> dict[Rank, set[Rank]]:
         rank2rankvars = {}
         for tensor in self.tensor_names:
             for acc in self.accesses_for_tensor(tensor):
@@ -657,7 +707,7 @@ class Workload(ParsableModel):
             if not einsum.is_copy_operation:
                 continue
             input_tensor = einsum.copy_source_tensor()
-            for output_tensor in einsum.output_tensors():
+            for output_tensor in einsum.output_tensor_names:
                 tensor_copies.setdefault(input_tensor, set()).add(output_tensor)
                 tensor_copies.setdefault(output_tensor, set()).add(input_tensor)
         return tensor_copies

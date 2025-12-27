@@ -154,7 +154,7 @@ def isl_buffer_accesses_from_buffet_actions(
             parent_is_backing = parent_buffers[(parent_buffer, tensor, einsum)] is None
 
             accesses = accesses_results.get_accesses(parent_buffer, tensor, einsum)
-            if tensor in workload.tensors_written_by_einsum(einsum):
+            if tensor in workload.einsums[einsum].output_tensor_names:
                 accesses.total_writes += read_to_parent
                 accesses.total_reads += read_to_parent
 
@@ -177,7 +177,7 @@ def isl_buffer_accesses_from_buffet_actions(
                     accesses.total_reads -= elidable_reads
                     accesses.max_per_unit_reads -= per_unit_to_total * elidable_reads
 
-            elif tensor in workload.tensors_read_by_einsum(einsum):
+            elif tensor in workload.einsums[einsum].input_tensor_names:
                 accesses.total_reads += read_to_parent
 
                 accesses.max_per_unit_reads += max_per_parent_read_to_parent
@@ -186,7 +186,7 @@ def isl_buffer_accesses_from_buffet_actions(
         # not have write action) and top-level buffer
         if buffer_id not in compute_targets and parent_buffer is not None:
             accesses = accesses_results.get_accesses(buffer_id, tensor, einsum)
-            if tensor in workload.tensors_written_by_einsum(einsum):
+            if tensor in workload.einsums[einsum].output_tensor_names:
                 accesses.total_writes += fill
                 accesses.max_per_unit_writes += max_per_unit_fill
 
@@ -225,11 +225,11 @@ def get_parent_buffers(mapping: Mapping, workload: Workload, is_path):
                         parent_buffers[key] = None
                     tensor_to_top_buffer[tensor] = node.component
             elif isinstance(node, Compute):
-                for tensor in workload.tensors_read_by_einsum(einsum):
+                for tensor in workload.einsums[einsum].input_tensor_names:
                     key = (node.compute, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
-                for tensor in workload.tensors_written_by_einsum(einsum):
+                for tensor in workload.einsums[einsum].output_tensor_names:
                     key = (node.compute, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
@@ -283,7 +283,7 @@ def isl_buffer_accesses_from_buffet_actions(
             parent_is_backing = parent_buffers[(parent_buffer, tensor, einsum)] is None
 
             accesses = accesses_results.get_accesses(parent_buffer, tensor, einsum)
-            if tensor in workload.tensors_written_by_einsum(einsum):
+            if tensor in workload.einsums[einsum].output_tensor_names:
                 accesses.total_writes += read_to_parent
                 accesses.total_reads += read_to_parent
 
@@ -306,7 +306,7 @@ def isl_buffer_accesses_from_buffet_actions(
                     accesses.total_reads -= elidable_reads
                     accesses.max_per_unit_reads -= per_unit_to_total * elidable_reads
 
-            elif tensor in workload.tensors_read_by_einsum(einsum):
+            elif tensor in workload.einsums[einsum].input_tensor_names:
                 accesses.total_reads += read_to_parent
 
                 accesses.max_per_unit_reads += max_per_parent_read_to_parent
@@ -315,7 +315,7 @@ def isl_buffer_accesses_from_buffet_actions(
         # not have write action) and top-level buffer
         if buffer_id not in compute_targets and parent_buffer is not None:
             accesses = accesses_results.get_accesses(buffer_id, tensor, einsum)
-            if tensor in workload.tensors_written_by_einsum(einsum):
+            if tensor in workload.einsums[einsum].output_tensor_names:
                 accesses.total_writes += fill
                 accesses.max_per_unit_writes += max_per_unit_fill
 

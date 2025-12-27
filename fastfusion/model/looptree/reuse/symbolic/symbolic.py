@@ -349,7 +349,7 @@ def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
     einsum_name = mapping[-1].einsum
 
     einsum = workload.einsums[einsum_name]
-    all_tensors = einsum.input_tensors() | einsum.output_tensors()
+    all_tensors = einsum.input_tensor_names | einsum.output_tensor_names
 
     info = AnalysisInfo(
         mapping=None,
@@ -427,7 +427,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
 
     einsum_tensor_to_projection = {}
     einsum = workload.einsums[einsum_name]
-    all_tensors = einsum.input_tensors() | einsum.output_tensors()
+    all_tensors = einsum.input_tensor_names | einsum.output_tensor_names
     for tensor in all_tensors:
         einsum_tensor_to_projection[(einsum_name, tensor)] = get_projection_expr(
             einsum, tensor
@@ -902,7 +902,7 @@ def analyze_storage(
             #   results upward to any storage nodes that will need this data.
             # - This is a written tensor, so we need to write back the written data.
             if (
-                tensor in info.workload.tensors_written_by_einsum(einsum_name)
+                tensor in info.workload.einsums[einsum_name].output_tensor_names
                 or not below_backing
             ):
                 stats.total_writes_to_parent += (
@@ -916,7 +916,7 @@ def analyze_storage(
 
             # For read+write tensors, we skip the first fill because the data will be
             # initialized with a zero value.
-            if tensor in info.workload.tensors_written_by_einsum(einsum_name):
+            if tensor in info.workload.einsums[einsum_name].output_tensor_names:
                 stats.total_skipped_first_reads_to_parent += (
                     child.total_skipped_first_reads_to_parent
                     if inherit_from_child
@@ -1096,7 +1096,7 @@ def analyze_compute(
         stats = BuffetStats()
         stats.total_reads_to_parent = 1
         stats.max_per_parent_reads_to_parent = 1
-        if tensor in info.workload.tensors_written_by_einsum(einsum):
+        if tensor in info.workload.einsums[einsum].output_tensor_names:
             stats.total_writes_to_parent = 1
             stats.max_per_parent_writes_to_parent = 1
             stats.total_skipped_first_reads_to_parent = 1
@@ -1230,7 +1230,7 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
             continue
 
         stride_halos = set()
-        for t in job.spec.workload.einsums[job.einsum_name].tensors:
+        for t in job.spec.workload.einsums[job.einsum_name].tensor_names:
             for (rank, rank_variable), (stride, halo) in job.stride_and_halo[t].items():
                 if rank_variable == node.rank_variable:
                     stride_halos.add((stride, halo))

@@ -60,7 +60,7 @@ def get_leaves(mapping: Mapping, is_path):
 def get_intermediate_tensors(workload: Workload):
     result = set()
     for einsum in workload.einsum_id_to_name():
-        written_tensors = workload.tensors_written_by_einsum(einsum)
+        written_tensors = workload.einsums[einsum].output_tensor_names
         for tensor in written_tensors:
             reader_einsums = workload.reader_einsums(tensor)
             for reader in reader_einsums:

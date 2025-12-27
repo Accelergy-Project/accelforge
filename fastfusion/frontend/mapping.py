@@ -39,7 +39,7 @@ from fastfusion.util.basetypes import (
     get_tag,
     InferFromTag,
 )
-from fastfusion.frontend.workload.workload import RankVariableName, TensorName
+from fastfusion.frontend.workload.workload import RankVariable, TensorName
 from fastfusion.util.util import SVGJupyterRender, pydot_graph
 from fastfusion._version import assert_version, __version__
 from fastfusion.frontend import arch
@@ -392,7 +392,7 @@ class Iteration(MappingNode):
     A bounded loop over a rank with a given shape and/or pattern.
     """
 
-    rank_variable: set[RankVariableName] | RankVariableName
+    rank_variable: set[RankVariable] | RankVariable
     """ The set of rank variables that are iterated over in this loop. """
 
     tile_pattern: ParsesTo[TilePattern] = TilePattern()

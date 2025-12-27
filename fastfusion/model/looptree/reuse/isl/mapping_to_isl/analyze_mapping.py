@@ -7,7 +7,7 @@ Flow of analysis:
     (buffer, tensor, einsum) tuple.
 -   Run tile shape inference.
 
-Adapted from: 
+Adapted from:
 https://github.com/NVlabs/timeloop/blob/4cf6d4cd043bc2a5d2eb02afa9063d7117a4dc11/ \
     src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp
 Relevant Name Changes:
@@ -238,12 +238,8 @@ def occupancies_from_mapping(
         tiling = branch_tiling[bte.einsum]
 
         accesses: Optional[isl.Map] = None
-        read_tensors: set[TensorName] = workload.tensors_read_by_einsum(
-            bte.einsum.einsum
-        )
-        write_tensors: set[TensorName] = workload.tensors_written_by_einsum(
-            bte.einsum.einsum
-        )
+        read_tensors: set[TensorName] = workload.einsums[bte.einsum.einsum].input_tensor_names
+        write_tensors: set[TensorName] = workload.einsums[bte.einsum.einsum].output_tensor_names
 
         if bte.tensor in read_tensors or bte.tensor in write_tensors:
             accesses = get_projection_map(

@@ -7,11 +7,11 @@ from fastfusion._accelerated_imports import np
 from fastfusion.util.basetypes import ParsableList, ParsableModel, ParsesTo
 from fastfusion.util.parse_expressions import parse_expression
 from fastfusion.util.setexpressions import InvertibleSet, eval_set_expression
-from fastfusion.frontend.workload.workload import RankVariableName, TensorName
+from fastfusion.frontend.workload.workload import RankVariable, TensorName
 from fastfusion._version import assert_version, __version__
 
 
-# class LoopOrder(ParsableList[RankVariableName]):
+# class LoopOrder(ParsableList[RankVariable]):
 #     """
 #     A loop_order of ranks.
 #     """
@@ -27,7 +27,7 @@ from fastfusion._version import assert_version, __version__
 
 
 class Comparison(ParsableModel):
-    expression: str | InvertibleSet[RankVariableName] | set[RankVariableName]
+    expression: str | InvertibleSet[RankVariable] | set[RankVariable]
     operator: str
     value: ParsesTo[int]
 
@@ -53,7 +53,7 @@ class Comparison(ParsableModel):
             "product<=",
         ]
 
-    def split_expression(self) -> List[set[RankVariableName]]:
+    def split_expression(self) -> List[set[RankVariable]]:
         if "product" in self.operator:
             return [self.expression]
         return sorted(set((x,)) for x in self.expression)
@@ -291,7 +291,7 @@ class ConstraintLambda:
         self._target_loop_indices = None
 
     def __call__(
-        self, rank_variables: set[RankVariableName], sizes: np.ndarray
+        self, rank_variables: set[RankVariable], sizes: np.ndarray
     ) -> bool:
         final = self.rank_variables.issubset(rank_variables)
         return self.constraint_lambda(final, sizes)

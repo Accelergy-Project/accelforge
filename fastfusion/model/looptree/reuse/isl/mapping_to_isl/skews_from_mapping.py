@@ -223,12 +223,12 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
             tags, removal_map
         )
         einsum: EinsumName = leaf.einsum
-        for tensor in workload.tensors_read_by_einsum(einsum):
+        for tensor in workload.einsums[einsum].input_tensor_names:
             buffer_tensor_einsum_to_skew[
                 BufferTensorEinsum(leaf.compute, tensor, leaf)
             ] = Skew(tags, removal_map)
 
-        for tensor in workload.tensors_written_by_einsum(einsum):
+        for tensor in workload.einsums[einsum].output_tensor_names:
             buffer_tensor_einsum_to_skew[
                 BufferTensorEinsum(leaf.compute, tensor, leaf)
             ] = Skew(tags, removal_map)

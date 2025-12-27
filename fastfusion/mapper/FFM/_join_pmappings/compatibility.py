@@ -16,7 +16,7 @@ from fastfusion.frontend.mapping import (
     Split as MappingSplit,
     TilePattern,
 )
-from fastfusion.frontend.renames import RankName, RankVariableName, TensorName
+from fastfusion.frontend.renames import Rank, RankVariable, TensorName
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
     make_fused_loop_col,
     stride2col,
@@ -61,12 +61,12 @@ def _update_rename_dict(
 
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
-    rank_name: RankName
+    rank_name: Rank
     tile_pattern: TilePattern | None
     is_spatial: bool
 
     def __post_init__(self):
-        assert isinstance(self.rank_name, RankName)
+        assert isinstance(self.rank_name, Rank)
         assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
         assert isinstance(
@@ -388,7 +388,7 @@ class Compatibility(Updatable):
         self,
         right: "Compatibility",
         live_tensors: set[str],
-        mixable_ranks: dict[RankName, set[RankName]],
+        mixable_ranks: dict[Rank, set[Rank]],
     ) -> "Compatibility":
         self_freed = self.clear_dead_tensors(live_tensors)
         right_freed = right.clear_dead_tensors(live_tensors)
@@ -505,7 +505,7 @@ class Compatibility(Updatable):
         cls,
         mapping: Mapping,
         tensors: set[TensorName],
-        rank_variable_to_ranks: dict[TensorName, dict[RankVariableName, RankName]],
+        rank_variable_to_ranks: dict[TensorName, dict[RankVariable, Rank]],
     ) -> "Compatibility":
 
         tensor_indices = []
@@ -642,7 +642,7 @@ class Compatibility(Updatable):
             tensors=fzs(t.add_n_iteration_symbols() for t in self.tensors)
         )
 
-    def _is_valid(self, mixable_ranks: dict[RankName, set[RankName]]) -> bool:
+    def _is_valid(self, mixable_ranks: dict[Rank, set[Rank]]) -> bool:
         # Mixable ranks: Ranks that may be co-iterated by a single loop.
         ranks_at_each_loop_index = []
         for i in range(self.n_loops):

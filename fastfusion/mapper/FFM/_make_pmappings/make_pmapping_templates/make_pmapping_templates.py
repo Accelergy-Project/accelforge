@@ -25,7 +25,7 @@ from fastfusion.frontend.workload._symbolic import (
 from fastfusion.frontend.workload.workload import (
     Einsum,
     EinsumName,
-    RankVariableName,
+    RankVariable,
     Workload,
 )
 from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
@@ -176,7 +176,7 @@ def get_initial_delta_choices(einsum_name: str, workload: Workload):
     while stack:
         cur_chain = stack.pop()
         last_tensor, last_einsum = cur_chain[-1]
-        for tensor in last_einsum.output_tensors():
+        for tensor in last_einsum.output_tensor_names:
             einsums_that_read_tensor = workload.einsums_that_read_tensor(tensor)
 
             if len(einsums_that_read_tensor) == 0:
@@ -219,7 +219,7 @@ def iterate_mappings_no_constraints(
     spec: Spec,
     einsum_name: str,
     arch_flattened: list[arch.Leaf],
-    rank_variable_bounds: dict[RankVariableName, int],
+    rank_variable_bounds: dict[RankVariable, int],
 ):
     first_memory = None
     for node in arch_flattened:
@@ -262,7 +262,7 @@ def iterate_mappings_constraints(
     spec: Spec,
     einsum_names: list[str] | str | None = None,
     arch_flattened: list[arch.Leaf] | None = None,
-    rank_variable_bounds: dict[RankVariableName, int] | None = None,
+    rank_variable_bounds: dict[RankVariable, int] | None = None,
 ) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
     if arch_flattened is None:
         arch_flattened = spec.get_flattened_architecture()

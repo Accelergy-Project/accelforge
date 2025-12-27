@@ -149,7 +149,7 @@ def get_head_among_einsums(
                 consumer.name in einsum_set
                 for consumer in workload.einsums_that_read_tensor(output_tensor)
             )
-            for output_tensor in workload.tensors_written_by_einsum(einsum)
+            for output_tensor in workload.einsums[einsum].output_tensor_names
         )
     }
 
@@ -342,9 +342,9 @@ def consumer_based_tile_shape_inference(
         tiling: Tiling = tiling_info[einsum]
 
         # For each tensor read by this einsum, tile that tensor's producers.
-        for tensor in workload.tensors_read_by_einsum(einsum):
+        for tensor in workload.einsums[einsum].input_tensor_names:
             producer_einsums: set[EinsumName] = {
-                e.name for e in workload.einsums_that_write_tensor(tensor)
+                e.name for e in workload.einsums[einsum].output_tensor_names
             }
             if len(producer_einsums) > 1:
                 raise NotImplementedError(
@@ -429,7 +429,7 @@ def detect_shared_input_tensor(
 
     # Counts the number of times a tensor is read by an einsum.
     for einsum in fused_set:
-        for tensor in workload.tensors_read_by_einsum(einsum):
+        for tensor in workload.einsums[einsum].input_tensor_names:
             tensor_read_counts[tensor] += 1
         n_einsums += 1
 

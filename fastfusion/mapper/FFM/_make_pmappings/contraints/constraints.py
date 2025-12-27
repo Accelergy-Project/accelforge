@@ -18,7 +18,7 @@ from fastfusion.frontend.mapping import (
     Temporal,
     Spatial,
 )
-from fastfusion.frontend.workload.workload import EinsumName, RankVariableName
+from fastfusion.frontend.workload.workload import EinsumName, RankVariable
 from fastfusion.util.setexpressions import InvertibleSet
 from fastfusion.util.util import fzs
 
@@ -148,7 +148,7 @@ def first_tensor_holder_index(mapping: list["MappingNode"], memory_name: str) ->
 
 def constrained_loops(
     mapping: list["MappingNode"],
-    rank_variables: set[RankVariableName],
+    rank_variables: set[RankVariable],
     start_index: int = None,
     look_behind: bool = False,
     component: str = None,
@@ -175,7 +175,7 @@ def constrained_loops(
             not isinstance(m, Spatial) or m.component != component
         ):
             continue
-        assert isinstance(m.rank_variable, RankVariableName)
+        assert isinstance(m.rank_variable, RankVariable)
         if m.rank_variable in remaining_rank_variables:
             nodes.append(m)
             if one_loop_per_rank_variable:
