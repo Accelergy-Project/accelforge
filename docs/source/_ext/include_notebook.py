@@ -71,6 +71,9 @@ class IncludeNotebook(Directive):
         # Concatenate all sections with double newline separator
         content = "\n\n".join(content_sections)
 
+        # Remove newlines at the beginning and end
+        content = content.strip()
+
         # Create a code block node
         code_block = nodes.literal_block(content, content)
         code_block["language"] = language
@@ -111,7 +114,7 @@ class IncludeNotebook(Directive):
                         content_lines.append(lines[j].rstrip("\n"))
 
                     # Join lines and strip trailing whitespace
-                    content = "\n".join(content_lines).rstrip()
+                    content = "\n".join(content_lines).strip()
                     if content:  # Only add non-empty sections
                         sections.append(content)
 

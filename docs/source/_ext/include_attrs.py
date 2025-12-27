@@ -144,21 +144,30 @@ class IncludeAttrs(Directive):
             list_item = nodes.list_item()
             para = nodes.paragraph()
 
-            # Attribute name (formatted as code)
-            para += nodes.literal('', attr_name)
+            # Attribute name as :py:attr: role for clickable links
+            from sphinx.addnodes import pending_xref
+            refnode = pending_xref(
+                '',
+                refdomain='py',
+                reftype='attr',
+                reftarget=fqname + '.' + attr_name,
+                refwarn=True
+            )
+            refnode += nodes.literal('', attr_name, classes=['xref', 'py', 'py-attr'])
+            para += refnode
 
-            # Type
-            if attr_info['type'] is not None:
-                type_str = self._format_type(attr_info['type'])
-                para += nodes.Text(f" ({type_str})")
+            # # Type
+            # if attr_info['type'] is not None:
+            #     type_str = self._format_type(attr_info['type'])
+            #     para += nodes.Text(f" ({type_str})")
 
-            # Default
-            if attr_info['default'] is not None:
-                para += nodes.Text(f", default: {attr_info['default']}")
+            # # Default
+            # if attr_info['default'] is not None:
+            #     para += nodes.Text(f", default: {attr_info['default']}")
 
             # Docstring
             if attr_info['doc']:
-                para += nodes.Text(f" — {attr_info['doc']}")
+                para += nodes.Text(f": {attr_info['doc']}")
 
             list_item += para
             bullet_list += list_item

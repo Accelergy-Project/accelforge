@@ -58,12 +58,22 @@ class IncludeFunctions(Directive):
             list_item = nodes.list_item()
             para = nodes.paragraph()
 
-            # Function name and signature (formatted as code)
-            para += nodes.literal(text=f"{func_name}{func_info['signature']}")
+            # Function name as :py:func: role for clickable links
+            from sphinx.addnodes import pending_xref
+            refnode = pending_xref(
+                '',
+                refdomain='py',
+                reftype='func',
+                reftarget=fqname + '.' + func_name,
+                refwarn=True
+            )
+            # refnode += nodes.literal('', f"{func_name}{func_info['signature']}", classes=['xref', 'py', 'py-func'])
+            refnode += nodes.literal('', f"{func_name}()", classes=['xref', 'py', 'py-func'])
+            para += refnode
 
             # Docstring
             if func_info['doc']:
-                para += nodes.Text(f" — {func_info['doc']}")
+                para += nodes.Text(f": {func_info['doc']}")
 
             list_item += para
             bullet_list += list_item

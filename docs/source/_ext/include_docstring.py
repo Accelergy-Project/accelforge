@@ -33,65 +33,105 @@ class IncludeDocstring(Directive):
             return []
 
         obj = module
-        for part in rest:
-            # Normal attribute
+        for idx, part in enumerate(rest):
+            # Check if we're at the last part and current obj might have the part as a field
+            is_last = (idx == len(rest) - 1)
+
+            # Try to get docstring from Pydantic/annotated field BEFORE moving to next attribute
+            docstring = self._try_get_field_docstring(obj, part)
+            if docstring:
+                if is_last:
+                    return self._parse_docstring(docstring)
+                # If not last, we found the field but need to continue traversing
+                # Get the field's type and continue with that
+                field_type = self._get_field_type(obj, part)
+                if field_type:
+                    obj = field_type
+                    continue
+
+            # Normal attribute access - move to next level
             if hasattr(obj, part):
-                obj = getattr(obj, part)
+                next_obj = getattr(obj, part)
+                # If we got an instance, use its class for field lookups
+                if not inspect.isclass(next_obj) and not inspect.ismodule(next_obj):
+                    obj = type(next_obj)
+                else:
+                    obj = next_obj
                 continue
 
-            # --- Check if obj is a class with annotations ---
-            if inspect.isclass(obj) and hasattr(obj, "__annotations__") and part in obj.__annotations__:
-                # Try to extract inline docstring using AST
-                try:
-                    source = inspect.getsource(obj)
-                    tree = ast.parse(source)
-
-                    for node in ast.walk(tree):
-                        if isinstance(node, ast.ClassDef):
-                            for i, item in enumerate(node.body):
-                                # Look for annotated assignment (attribute with type hint)
-                                if isinstance(item, ast.AnnAssign):
-                                    if isinstance(item.target, ast.Name) and item.target.id == part:
-                                        # Check if next item is a string (docstring)
-                                        if i + 1 < len(node.body):
-                                            next_item = node.body[i + 1]
-                                            if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
-                                                if isinstance(next_item.value.value, str):
-                                                    docstring = next_item.value.value
-                                                    return self._parse_docstring(docstring)
-                except (OSError, TypeError, SyntaxError):
-                    pass
-
-            # --- Pydantic v2 field ---
-            if hasattr(obj, "model_fields") and part in obj.model_fields:
-                field = obj.model_fields[part]
-                docstring = (
-                    field.description
-                    or (field.json_schema_extra or {}).get("description")
-                )
-                return self._parse_docstring(docstring) if docstring else []
-
-            # --- Pydantic v1 field ---
-            if hasattr(obj, "__fields__") and part in obj.__fields__:
-                field = obj.__fields__[part]
-                if hasattr(field, "description"):
-                    docstring = field.description
-                    return self._parse_docstring(docstring) if docstring else []
-
+            # If we couldn't find it as an attribute and already checked fields, give up
             return []
 
-        # Fallback: normal __doc__
+        # Fallback: normal __doc__ for the final object
         doc = getattr(obj, "__doc__", None)
         return self._parse_docstring(doc) if doc else []
+
+    def _try_get_field_docstring(self, obj, field_name):
+        """Try to extract docstring from a field in obj."""
+        # --- Check if obj is a class with annotations ---
+        if inspect.isclass(obj) and hasattr(obj, "__annotations__") and field_name in obj.__annotations__:
+            # Try to extract inline docstring using AST
+            try:
+                source = inspect.getsource(obj)
+                tree = ast.parse(source)
+
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        for i, item in enumerate(node.body):
+                            # Look for annotated assignment (attribute with type hint)
+                            if isinstance(item, ast.AnnAssign):
+                                if isinstance(item.target, ast.Name) and item.target.id == field_name:
+                                    # Check if next item is a string (docstring)
+                                    if i + 1 < len(node.body):
+                                        next_item = node.body[i + 1]
+                                        if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                            if isinstance(next_item.value.value, str):
+                                                return next_item.value.value
+            except (OSError, TypeError, SyntaxError):
+                pass
+
+        # --- Pydantic v2 field ---
+        if hasattr(obj, "model_fields") and field_name in obj.model_fields:
+            field = obj.model_fields[field_name]
+            return (
+                field.description
+                or (field.json_schema_extra or {}).get("description")
+            )
+
+        # --- Pydantic v1 field ---
+        if hasattr(obj, "__fields__") and field_name in obj.__fields__:
+            field = obj.__fields__[field_name]
+            if hasattr(field, "description"):
+                return field.description
+
+        return None
+
+    def _get_field_type(self, obj, field_name):
+        """Get the type/class of a field so we can continue traversing."""
+        # Pydantic v2
+        if hasattr(obj, "model_fields") and field_name in obj.model_fields:
+            field = obj.model_fields[field_name]
+            if hasattr(field, "annotation"):
+                return field.annotation
+
+        # Pydantic v1
+        if hasattr(obj, "__fields__") and field_name in obj.__fields__:
+            field = obj.__fields__[field_name]
+            if hasattr(field, "outer_type_"):
+                return field.outer_type_
+            elif hasattr(field, "type_"):
+                return field.type_
+
+        # Regular annotations
+        if inspect.isclass(obj) and hasattr(obj, "__annotations__") and field_name in obj.__annotations__:
+            return obj.__annotations__[field_name]
+
+        return None
 
     def _parse_docstring(self, docstring):
         """Parse a docstring as reStructuredText."""
         if not docstring:
             return []
-
-        # Convert single backticks to double backticks for RST inline literals
-        # In RST, `text` is a reference, ``text`` is inline code
-        docstring = re.sub(r'`([^`\n]+)`', r'``\1``', docstring)
 
         # Decapitalize first letter if option is set
         if 'decapitalize' in self.options:
@@ -178,9 +218,6 @@ def docstring_role(name, rawtext, text, lineno, inliner, options={}, content=[])
         prb = inliner.problematic(rawtext, rawtext, msg)
         return [prb], [msg]
 
-    # Convert single backticks to double backticks
-    docstring = re.sub(r'`([^`\n]+)`', r'``\1``', docstring)
-
     # Decapitalize if requested
     if decapitalize:
         docstring = _decapitalize_first_letter(docstring)
@@ -197,7 +234,6 @@ def docstring_role(name, rawtext, text, lineno, inliner, options={}, content=[])
 
 def _get_docstring(fqname):
     """Get docstring from a fully qualified name."""
-    fqname, attr_name = fqname.split(" ", 1)
     parts = fqname.split(".")
 
     # Import the module
@@ -214,15 +250,46 @@ def _get_docstring(fqname):
         return None
 
     obj = module
-    for part in rest:
-        # Normal attribute
+    for idx, part in enumerate(rest):
+        # Check if we're at the last part
+        is_last = (idx == len(rest) - 1)
+
+        # Try to get docstring from Pydantic/annotated field BEFORE moving to next attribute
+        docstring = _try_get_field_docstring(obj, part)
+        if docstring:
+            if is_last:
+                return docstring
+            # If not last, we found the field but need to continue traversing
+            # Don't return yet, but also don't try normal attribute access for this field
+            # Instead, get the field's type and continue with that
+            field_type = _get_field_type(obj, part)
+            if field_type:
+                obj = field_type
+                continue
+
+        # Normal attribute access - move to next level
         if hasattr(obj, part):
-            obj = getattr(obj, part)
+            next_obj = getattr(obj, part)
+            # If we got an instance, use its class for field lookups
+            if not inspect.isclass(next_obj) and not inspect.ismodule(next_obj):
+                obj = type(next_obj)
+            else:
+                obj = next_obj
             continue
 
-        # --- Check if obj is a class with annotations ---
-        if inspect.isclass(obj) and hasattr(obj, "__annotations__") and part in obj.__annotations__:
-            # Try to extract inline docstring using AST
+        # If we couldn't find it as an attribute and already checked fields, give up
+        return None
+
+    # Fallback: normal __doc__ for the final object
+    return getattr(obj, "__doc__", None)
+
+
+def _try_get_field_docstring(obj, field_name):
+    """Try to extract docstring from a field in obj."""
+    # --- Check if obj is a class with annotations ---
+    if inspect.isclass(obj) and hasattr(obj, "__annotations__") and field_name in obj.__annotations__:
+        # Try to extract inline docstring using AST
+        try:
             source = inspect.getsource(obj)
             tree = ast.parse(source)
 
@@ -230,32 +297,53 @@ def _get_docstring(fqname):
                 if isinstance(node, ast.ClassDef):
                     for i, item in enumerate(node.body):
                         if isinstance(item, ast.AnnAssign):
-                            if isinstance(item.target, ast.Name) and item.target.id == part:
+                            if isinstance(item.target, ast.Name) and item.target.id == field_name:
                                 if i + 1 < len(node.body):
                                     next_item = node.body[i + 1]
                                     if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
                                         if isinstance(next_item.value.value, str):
                                             return next_item.value.value
+        except (OSError, TypeError, SyntaxError):
+            pass
+
+    # --- Pydantic v2 field ---
+    if hasattr(obj, "model_fields") and field_name in obj.model_fields:
+        field = obj.model_fields[field_name]
+        return (
+            field.description
+            or (field.json_schema_extra or {}).get("description")
+        )
+
+    # --- Pydantic v1 field ---
+    if hasattr(obj, "__fields__") and field_name in obj.__fields__:
+        field = obj.__fields__[field_name]
+        if hasattr(field, "description"):
+            return field.description
+
+    return None
 
 
-        # --- Pydantic v2 field ---
-        if hasattr(obj, "model_fields") and part in obj.model_fields:
-            field = obj.model_fields[part]
-            return (
-                field.description
-                or (field.json_schema_extra or {}).get("description")
-            )
+def _get_field_type(obj, field_name):
+    """Get the type/class of a field so we can continue traversing."""
+    # Pydantic v2
+    if hasattr(obj, "model_fields") and field_name in obj.model_fields:
+        field = obj.model_fields[field_name]
+        if hasattr(field, "annotation"):
+            return field.annotation
 
-        # --- Pydantic v1 field ---
-        if hasattr(obj, "__fields__") and part in obj.__fields__:
-            field = obj.__fields__[part]
-            if hasattr(field, "description"):
-                return field.description
+    # Pydantic v1
+    if hasattr(obj, "__fields__") and field_name in obj.__fields__:
+        field = obj.__fields__[field_name]
+        if hasattr(field, "outer_type_"):
+            return field.outer_type_
+        elif hasattr(field, "type_"):
+            return field.type_
 
-        return None
+    # Regular annotations
+    if inspect.isclass(obj) and hasattr(obj, "__annotations__") and field_name in obj.__annotations__:
+        return obj.__annotations__[field_name]
 
-    # Fallback: normal __doc__
-    return getattr(obj, "__doc__", None)
+    return None
 
 
 def _decapitalize_first_letter(text):
