@@ -255,7 +255,7 @@ class Mapping:
 
     def mutate_backing_tensor(self, mapspace_globals: MapspaceGlobals):
         self.n_changes += 1
-        tensor = random.choice(list(mapspace_globals.fusable_tensor_names))
+        tensor = random.choice(list(mapspace_globals.tensor_names_used_in_multiple_einsums))
         memories = random.choice(mapspace_globals.tensor2memories[tensor])
         for t in self.einsum2tiling.values():
             if memories in t.tensors:

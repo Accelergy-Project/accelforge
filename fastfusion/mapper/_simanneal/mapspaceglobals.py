@@ -32,7 +32,7 @@ class MapspaceGlobals:
         self.tensor_names = set().union(
             *(self.einsum2tensors[e] for e in self.einsum_names)
         )
-        self.fusable_tensor_names = spec.workload.fusable_tensor_names
+        self.tensor_names_used_in_multiple_einsums = spec.workload.tensor_names_used_in_multiple_einsums
         self.pairwise_equivalent_ranks = (
             spec.workload.get_pairwise_equivalent_rank_variables()
         )
@@ -206,7 +206,7 @@ class MapspaceGlobals:
 
     def _create_tensor2memories(self):
         tensor2memories = {}
-        for t in self.fusable_tensor_names:
+        for t in self.tensor_names_used_in_multiple_einsums:
             possible_memories = []
             for einsum_name, pm_group_list in self.pmapping_groups.items():
                 cur_memories = set()

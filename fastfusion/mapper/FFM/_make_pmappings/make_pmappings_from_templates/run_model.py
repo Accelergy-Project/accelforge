@@ -60,7 +60,7 @@ def run_model(
     actions = gather_actions(reuse, None, use_name=True)
     energy = compute_energy_from_actions(spec, actions, overall_latency)
 
-    fusable_tensors = workload.fusable_tensor_names
+    fusable_tensors = workload.tensor_names_used_in_multiple_einsums
     tensor_to_backing = {}
     for node in pmapping.nodes:
         if isinstance(node, TensorHolder):

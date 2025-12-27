@@ -72,7 +72,7 @@ def get_jobs(
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
     einsum2jobs = {}
-    fusable_tensors = spec.workload.fusable_tensor_names
+    fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     def make_jobs_for_einsum(einsum_name: EinsumName, flattened_arch: list[arch.Leaf]):

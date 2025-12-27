@@ -177,12 +177,12 @@ def get_initial_delta_choices(einsum_name: str, workload: Workload):
         cur_chain = stack.pop()
         last_tensor, last_einsum = cur_chain[-1]
         for tensor in last_einsum.output_tensor_names:
-            einsums_that_read_tensor = workload.einsums_that_read_tensor(tensor)
+            einsums_with_tensor_as_input = workload.einsums_with_tensor_as_input(tensor)
 
-            if len(einsums_that_read_tensor) == 0:
+            if len(einsums_with_tensor_as_input) == 0:
                 consumer_chains.append(cur_chain)
 
-            for next_einsum in einsums_that_read_tensor:
+            for next_einsum in einsums_with_tensor_as_input:
                 stack.append(cur_chain + [(tensor, next_einsum)])
 
     for chain in consumer_chains:

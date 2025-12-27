@@ -6,7 +6,7 @@ from .workload import Workload, TensorName, Einsum
 
 def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:
     """Return isl.Set of all operations in an einsum."""
-    einsum_shape = workload.get_shape_isl_string(einsum_name)
+    einsum_shape = workload.get_iteration_space_shape_isl_string(einsum_name)
     rank_variable_names = ",".join(
         map(str, workload.einsums[einsum_name].rank_variables)
     )
@@ -74,9 +74,9 @@ def get_tensor_data_space(workload: Workload, tensor: TensorName) -> isl.Set:
     tensor is only ever read or all writer EInsums if the tensor is ever
     an output tensor.
     """
-    writer_einsums = workload.einsums_that_write_tensor(tensor)
+    writer_einsums = workload.einsums_with_tensor_as_output(tensor)
     if len(writer_einsums) == 0:
-        reader_einsums = workload.einsums_that_read_tensor(tensor)
+        reader_einsums = workload.einsums_with_tensor_as_input(tensor)
         canonical_einsums = reader_einsums
     else:
         canonical_einsums = writer_einsums

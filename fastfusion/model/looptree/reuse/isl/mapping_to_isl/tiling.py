@@ -147,7 +147,7 @@ def get_head_among_einsums(
         if all(
             not any(
                 consumer.name in einsum_set
-                for consumer in workload.einsums_that_read_tensor(output_tensor)
+                for consumer in workload.einsums_with_tensor_as_input(output_tensor)
             )
             for output_tensor in workload.einsums[einsum].output_tensor_names
         )

@@ -193,7 +193,7 @@ def join_pmappings(
             pmapping_groups, resource2capacity
         )
 
-    mixable_ranks = spec.workload.get_mixable_ranks()
+    mixable_ranks = spec.workload.get_ranks_that_share_indexing_rank_variables()
 
     aliased_tensors = spec.workload.get_tensor_copies()
 
