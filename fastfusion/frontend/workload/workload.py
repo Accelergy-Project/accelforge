@@ -216,7 +216,16 @@ class Shape(ParsableList):
 
 
 class Einsum(ParsableModel):
-    """Represents a computation step in the workload as an Einsum."""
+    """
+    Represents an Einsum, which is a single computation step in the workload. The Einsum
+    includes a set of rank variables, which are used to index into tensors. Rank
+    variables iterate through an iteration space.
+
+    For example, if the Einsum is A[m, n] += B[k, n] * C[k, n] and we define the
+    iteration space as "0 <= m < 10, 0 <= n < 10, 0 <= k < 10", then the Einsum will
+    iterate through all possible values of (m, n, k) in the iteration space, indexing
+    into tensors for each and updating A[m, n] with B[k, n] * C[k, n].
+    """
 
     name: EinsumName
     """ The name of the Einsum. """

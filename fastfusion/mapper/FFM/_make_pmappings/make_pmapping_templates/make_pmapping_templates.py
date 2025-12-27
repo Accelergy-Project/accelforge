@@ -244,7 +244,7 @@ def iterate_mappings_no_constraints(
             rank_variable_bounds,
             ranks_with_tile_pattern,
             spec.workload,
-            spec.mapper.ffm.can_lower_first_memory,
+            spec.mapper.ffm._can_lower_outermost_memory,
         ):
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(mapping, einsum, arch_flattened)

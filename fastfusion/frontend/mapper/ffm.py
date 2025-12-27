@@ -19,10 +19,16 @@ class FFM(ParsableModel):
         locations where storage nodes may be placed. """
 
     force_memory_hierarchy_order: bool = True
-    """ If set to true, storage nodes for lower-level memories must be placed below
-        storage nodes for higher-level memories. Note that this applies across different
-        tensors, and the storage nodes for the same tensor always obey this ordering.
-        """
+    """
+    If set to true, storage nodes for lower-level memories must be placed below storage
+    nodes for higher-level memories. For example, all MainMemory storage nodes must go
+    above all LocalBuffer storage nodes.
+
+    This constraint always applies to same-tensor storage nodes (e.g., MainMemory
+    reusing Output must go above LocalBuffer reusing Output); turning it off will
+    permit things like MainMemory reusing Output going above LocalBuffer reusing
+    Input.
+    """
 
     max_fused_loops_per_rank_variable: int = 1
     """ The maximum number of fused loops in a pmapping for a given rank variable. """
@@ -34,11 +40,22 @@ class FFM(ParsableModel):
     """ The maximum total loops in a pmapping. """
 
     max_loops_minus_ranks: float | int = float("inf")
-    """ The maximum total loops in a pmapping minus the number of ranks. For example,
-        3 means that the number of loops can be up to (the number of ranks + 3). """
+    """
+    The maximum total loops in a pmapping minus the number of ranks. For example,
+    3 means that the number of loops can be up to (the number of ranks + 3).
+    """
 
-    can_lower_first_memory: bool = False
-    """Whether the storage node of first memory can be lowered."""
+    _can_lower_outermost_memory: bool = False
+    """
+    Whether the storage node of outermost memory can be lowered. If set to True, the
+    mapper may exchange tiles of tensors via the outermost memory, instead of storing
+    full tensors. Set this to True to explore reducing outermost memory usage.
+
+    TODO: Also need to explore putting loops above the outermost memory then. This is
+    currently private because we may want to have a catch-all term like
+    "save_outermost_memory_usage".
+
+    """
 
     memory_limit: float | int = float("inf")
     """ The maximum memory limit for the mapper. """

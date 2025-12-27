@@ -34,7 +34,7 @@ def insert_temporal_loops(
     rank_variable_bounds: dict[RankVariable, int],
     ranks_with_tile_pattern: set,
     workload: Workload,
-    can_lower_first_memory: bool,
+    _can_lower_outermost_memory: bool,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -154,7 +154,7 @@ def insert_temporal_loops(
             )
             partially_relevant_to_previous &= rank_variables
             lowerable_backing = (
-                can_lower_first_memory or s.component != first_memory.name
+                _can_lower_outermost_memory or s.component != first_memory.name
             )
 
             # Persistent. Must be at the top of the mapping.
