@@ -13,6 +13,9 @@ release = '0.1.0'
 
 # -- HTML output -------------------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
+# html_theme = 'furo'
+# html_theme = 'pydata_sphinx_theme'
+# pip3 install sphinx-furo-theme
 
 extensions = [
     'sphinx.ext.autodoc',            # Pull docstrings
@@ -27,6 +30,7 @@ extensions = [
     'include_functions',             # Include functions & their docstrings
     'inherited_attributes',          # Inherit docstrings from parent classes
     'include_yaml',                  # Include subsets of YAML files
+    'sphinx_copybutton',             # Add copy button to code blocks
 ]
 
 autodoc_default_options = {
@@ -68,9 +72,8 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
-    'matplotlib': ('https://matplotlib.org/stable/contents.html', None),
+    # 'matplotlib': ('https://matplotlib.org/stable/contents.html', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
     'scikit-learn': ('https://scikit-learn.org/stable/documentation.html', None),
-    'scikit-image': ('https://scikit-image.org/docs/stable/', None),
     'hwcomponents': ('https://accelergy-project.github.io/hwcomponents/', None),
 }

@@ -1,7 +1,8 @@
-Using the Fast & Fusiest Mapper
-===============================
+Mapping with Fast & Fusiest
+===========================
 
-Mapping workloads onto accelerators uses FFM, which consists of two parts:
+Mapping workloads onto accelerators uses the Fast and Fusiest Mapper (FFM), which
+includes of two parts:
 
 - The Turbo-Charged Pmapper: This part makes all Pareto-optimal pmappings for all
   Einsums.
@@ -82,7 +83,7 @@ The :py:class:`~fastfusion.mapper.FFM.mappings.Mappings` object includes stats f
 mappings that were found, including, for each pmapping, resource usage and objective
 metrics.
 
-To access the stats, we can use the :py:obj:`~fastfusion.mapper.FFM.mappings.Mappings.access`
+To access the stats, we can use the :py:meth:`~fastfusion.mapper.FFM.mappings.Mappings.access`
 method, which will return a :py:class:`~fastfusion.mapper.FFM.mappings.Mappings` object
 with only the columns that match the given key, and with the key removed from the column
 names.
@@ -93,7 +94,7 @@ with columns ``Energy`` and ``Area``, and ``mapping.access("Energy")`` will retu
 Mappings object with columns ``Total`` and ``EinsumA``.
 
 To render a mapping, we can use the
-:py:obj:`~fastfusion.mapper.FFM.mappings.Mappings.render` method, which will return a
+:py:meth:`~fastfusion.mapper.FFM.mappings.Mappings.render` method, which will return a
 string representation of the mapping. In a Jupyter notebook, the mapping will render
 automatically if it is the last object in the cell. Note that if there is more than one
 Pareto-optimal mapping, you must index into a single mapping to render it.

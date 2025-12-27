@@ -117,10 +117,33 @@ Constraints
 Constraints restrict the available actions that may be taken by hardware. Constraints
 may be attached to any component in the architecture.
 
-The following constraint types are available:
+Tensors
+~~~~~~~
 
-- ``tensors`` constraints define how tensors may be stored and used by a particular
-  component. They are supported by :py:class:`~fastfusion.frontend.arch.Memory`
-  components. Sub-keys are defined in :py:class:`~fastfusion.frontend.arch.Tensors`.
+Tensor constraints define how tensors may be stored and used by a particular component.
+They are supported by :py:class:`~fastfusion.frontend.arch.Memory` components. They are
+represented by the :py:class:`~fastfusion.frontend.constraints.Tensors` class, which
+supports the following fields:
 
-TODO: Move tensor order options into tensors
+.. include-attrs:: fastfusion.frontend.constraints.Tensors
+
+Spatial
+~~~~~~~
+
+Spatial constraints how data may be moved between components in a spatial fanout. They
+are represented by the :py:class:`~fastfusion.frontend.constraints.Spatial` class, which
+supports the following fields:
+
+.. include-attrs:: fastfusion.frontend.constraints.Spatial
+
+Spatial constraints are given as a dictionary, where keys match the name of a spatial
+fanout. Extra spatial keys are ignored. The following example shows a spatial constraint
+for the ``X`` and ``Y`` fanouts of the ``ArrayDummy`` component:
+
+.. include-yaml:: examples/arches/tpu_v4i_like.arch.yaml
+   :startfrom: ArrayDummy
+   :same-indent:
+
+
+
+Temporal

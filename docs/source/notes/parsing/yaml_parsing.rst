@@ -1,5 +1,5 @@
-Parsing YAML Files
-==================
+YAML Parsing
+============
 
 YAML objects can include expressions that are parsed when they are loaded into Python.
 To-be-parsed expressions can include Python code, and supported operations include many
@@ -232,7 +232,7 @@ Jinja2 Templating
 
 We also support Jinja2 templating. To substitute Jinja2 variables, the
 ``jinja_parse_data`` argument can be passed to the
-:py:obj:`~fastfusion.util.basetypes.FromYAMLAble.from_yaml` function. Additional Jinja2
+:py:meth:`~fastfusion.util.basetypes.FromYAMLAble.from_yaml` function. Additional Jinja2
 functions are also supported, including:
 
 - ``add_to_path(path)``: Add a path to the search path for the ``include`` function.
@@ -263,7 +263,6 @@ The following is a Jinja2 template cheat sheet:
   {{add_to_path('path/to/some/other/dir')}}
 
   variables:
-    version: 0.4
     var1: 5
     var3: "{{cwd()}}/some_file.yaml" # {{cwd()}} is the directory of this file
     var4: "{{find_path('some_file.yaml')}}" # find_path searches all paths added by add_to_path
@@ -273,16 +272,15 @@ The following is a Jinja2 template cheat sheet:
     var6: "some_file.yaml exists" # Include this line if the file exists
     {% else %}
 
-  architecture:
+  arch:
     # Include a subset of the file. Index into the structure with
     # dot-separated keys.
-    nodes: {{include('other_arch.yaml', 'architecture.nodes')}}
+    nodes: {{include('other.arch.yaml', 'arch.nodes')}}
 
   # Include the entire file
   {{include_text('grab_text_from_file.yaml')}}
 
   compound_components:
-    version: 0.4         # REQUIRED version number
     # Include the subsets of multiple files. They will be merged into one list.
     classes: {{include_all('compound_components/*.yaml', 'compound_components.classes')}}
 
