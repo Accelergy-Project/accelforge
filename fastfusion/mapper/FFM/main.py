@@ -145,6 +145,28 @@ def join_pmappings(
     pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     require_all_einsums: bool = True,
 ) -> Mappings:
+    """
+    Joins pmappings into a full mappings for the entire workload. Pmappings can
+    be generated using `make_pmappings`.
+
+    Parameters
+    ----------
+    spec:
+        The complete specifications for the workload and architecture.
+    pmappings:
+        The pmappings to join.
+    pmapping_row_filter_function:
+        A function that takes in a row of the pmapping dataframe and returns
+        True if the row should be included in the final mappings, and False
+        otherwise. If None, all rows will be included.
+    require_all_einsums:
+        If True, all einsums in the workload must have pmappings. If False, only
+        einsums that have pmappings will be included in the final mappings.
+
+    Returns
+    -------
+    A Mappings object containing all valid, optimal mappings for the workload.
+    """
     einsum2pmappings = pmappings.einsum2pmappings
     if not require_all_einsums:
         einsum2pmappings = {

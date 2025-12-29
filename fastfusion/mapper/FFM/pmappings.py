@@ -8,6 +8,12 @@ from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
 
 
 class MultiEinsumPmappings:
+    """
+    A collection of pmappings for each Einsum in a workload.
+
+    Commonly generated using `make_pmappings`.
+    """
+
     def __init__(
         self,
         einsum2pmappings: dict[EinsumName, list[PmappingGroup]],

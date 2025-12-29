@@ -10,6 +10,22 @@ from typing import Union
 
 
 class Mappings:
+    """
+    A collection of mappings and its evaluation results.
+
+    Attributes
+    ----------
+    spec:
+        The specification used to generate the mappings.
+    einsum_names:
+        The list of Einsum names in the workload.
+    data:
+        A DataFrame containing the mappings and their evaluation results.
+    total_mappings:
+        The total number of mappings generated.
+    valid_mappings:
+        The number of valid mappings after filtering.
+    """
     def __init__(
         self,
         spec: Spec,
@@ -25,10 +41,18 @@ class Mappings:
         self.valid_mappings = valid_mappings
 
     def num_computes(self, einsum_name: EinsumName | None = None) -> int:
+        """
+        Returns the number of computes for the given einsum name, or total
+        computes if `einsum_name` is None.
+        """
         # TODO: this is not correct if there are recomputation.
         return get_num_computes(self.spec, einsum_name)
 
     def per_tensor_size(self) -> dict[TensorName, int]:
+        """
+        Returns a dictionary of:
+            {Tensor name: Number of elements}
+        """
         return get_per_tensor_size(self.spec)
 
     def _update(self, **kwargs):
