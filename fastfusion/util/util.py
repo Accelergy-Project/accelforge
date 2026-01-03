@@ -60,7 +60,7 @@ def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
 
 
 def is_using_parallel_processing():
-    """ Returns True if parallel processing is enabled. """
+    """Returns True if parallel processing is enabled."""
     return PARALLELIZE and N_PARALLEL_PROCESSES > 1
 
 

@@ -59,7 +59,9 @@ class Node:
             graph.add_node(node)
         if parent:
             reservations = "\n".join(
-                sorted(f"[{k}] {_expfmt(v)}" for k, v in self.get_reservations().items())
+                sorted(
+                    f"[{k}] {_expfmt(v)}" for k, v in self.get_reservations().items()
+                )
             )
             graph.add_edge(pydot.Edge(parent, node, label=reservations))
         for child in self.children:
