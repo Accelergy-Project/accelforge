@@ -9,7 +9,7 @@ from joblib import delayed
 from sympy import factorint
 
 from fastfusion._accelerated_imports import np
-from fastfusion.util.util import parallel
+from fastfusion.util.parallel import parallel
 
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
     col_used_in_pareto,

@@ -8,9 +8,9 @@ from typing import Annotated, TypeAlias
 
 import pydot
 
-from fastfusion.util.util import _SVGJupyterRender, _pydot_graph
+from fastfusion.util.parallel import _SVGJupyterRender, _pydot_graph
 
-from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from fastfusion.util._basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion.frontend.renames import (
     EinsumName,
     RankVariable,

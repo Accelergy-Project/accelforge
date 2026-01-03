@@ -5,9 +5,9 @@ from typing import Optional, overload
 
 import islpy as isl
 
-from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
-from fastfusion.model.looptree.reuse.symbolic import BuffetStats, SymbolicAnalysisOutput
-from fastfusion.model.looptree.mapping_utilities import get_paths, get_leaves
+from fastfusion._model.looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion._model.looptree.reuse.symbolic import BuffetStats, SymbolicAnalysisOutput
+from fastfusion._model.looptree.mapping_utilities import get_paths, get_leaves
 
 from fastfusion.frontend.mapping import Mapping, TensorHolder, Compute
 from fastfusion.frontend.workload import Workload

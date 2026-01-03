@@ -1,13 +1,13 @@
 from typing import overload
 from sympy import Piecewise
 
-# from fastfusion.model.looptree._isl.singular import get_value_from_singular_qpolynomial
+# from fastfusion._model.looptree._isl.singular import get_value_from_singular_qpolynomial
 from fastfusion.frontend.arch import Compute
-from fastfusion.model.looptree.latency.processors import LATENCY_PROCESSORS
-from fastfusion.model.looptree.reuse.isl import IslReuseAnalysisOutput
-from fastfusion.model.looptree.reuse import SymbolicAnalysisOutput
+from fastfusion._model.looptree.latency.processors import LATENCY_PROCESSORS
+from fastfusion._model.looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion._model.looptree.reuse import SymbolicAnalysisOutput
 
-from fastfusion.util.sympy.broadcast_max import Max
+from fastfusion.util._sympy.broadcast_max import Max
 
 # from bindings.looptree import SpatialTag
 

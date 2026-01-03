@@ -2,11 +2,11 @@ from sympy import Symbol
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import TensorHolder
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
-from fastfusion.model.looptree.reuse.symbolic import (
+from fastfusion._model.looptree.reuse.symbolic import (
     analyze_reuse_and_add_reservations_to_mapping,
 )
-from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
-from fastfusion.model.looptree.latency.memory import component_latency
+from fastfusion._model.looptree.energy import compute_energy_from_actions, gather_actions
+from fastfusion._model.looptree.latency.memory import component_latency
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,
@@ -15,7 +15,7 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
 from fastfusion.frontend.mapper.metrics import Metrics
 import sympy
 from numbers import Number
-from fastfusion.util.sympy.broadcast_max import Max
+from fastfusion.util._sympy.broadcast_max import Max
 
 
 def run_model(

@@ -11,7 +11,7 @@ from fastfusion.mapper.FFM._pareto_df.df_convention import (
     is_tensor_col,
 )
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
-from fastfusion.util.util import parallel, delayed
+from fastfusion.util.parallel import parallel, delayed
 
 
 class DecompressData(NamedTuple):

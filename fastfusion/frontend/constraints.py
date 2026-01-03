@@ -5,7 +5,7 @@ from abc import ABC
 from typing import Annotated, Any, Callable, List, Optional
 
 from fastfusion._accelerated_imports import np
-from fastfusion.util.basetypes import ParsableList, ParsableModel, ParsesTo
+from fastfusion.util._basetypes import ParsableList, ParsableModel, ParsesTo
 from fastfusion.util._parse_expressions import parse_expression
 from fastfusion.util._setexpressions import InvertibleSet, eval_set_expression
 from fastfusion.frontend.workload.workload import RankVariable, TensorName

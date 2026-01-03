@@ -28,7 +28,7 @@ from fastfusion.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 from fastfusion.mapper.FFM._pareto_df.pareto import makepareto_numpy
-from fastfusion.model.looptree.reuse.symbolic import IMPERFECT
+from fastfusion._model.looptree.reuse.symbolic import IMPERFECT
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,
@@ -44,7 +44,7 @@ from numbers import Number
 from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
     SymbolRelations,
 )
-from fastfusion.util.sympy.broadcast_max import Max
+from fastfusion.util._sympy.broadcast_max import Max
 from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import (
     run_model,
 )

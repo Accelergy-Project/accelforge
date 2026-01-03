@@ -2,7 +2,7 @@ from typing import Annotated, Callable, Optional
 
 from pydantic import ConfigDict
 from hwcomponents import EnergyAreaModel
-from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from fastfusion.util._basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion._version import assert_version, __version__
 from platformdirs import user_config_dir
 import logging

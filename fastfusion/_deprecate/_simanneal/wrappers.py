@@ -14,7 +14,7 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
 from fastfusion.mapper.simanneal.simanneal import MapspaceGlobals, _fuse_sims
 from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
 from fastfusion.util._frozenset import fzs
-from fastfusion.util.util import parallel, util
+from fastfusion.util.parallel import parallel, util
 
 
 def mapping2sims(einsum_to_result: Compatibility):

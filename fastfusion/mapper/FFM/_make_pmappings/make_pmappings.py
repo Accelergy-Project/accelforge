@@ -26,8 +26,7 @@ from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates import 
 )
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
-from fastfusion.util.util import parallel
-from fastfusion.util import util
+from fastfusion.util.parallel import parallel, _memmap_read, get_n_parallel_jobs, is_using_parallel_processing
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
     SameCompatibilityJobs,
@@ -95,8 +94,8 @@ def get_jobs(
 
         return einsum_name, jobs
 
-    spec = util._memmap_read(spec)
-    flattened_arches = [util._memmap_read(f) for f in flattened_arches]
+    spec = _memmap_read(spec)
+    flattened_arches = [_memmap_read(f) for f in flattened_arches]
 
     for einsum_name, jobs in parallel(
         [
@@ -121,7 +120,7 @@ def get_jobs(
                 )
 
     total_jobs = sum(len(jobs) for jobs in einsum2jobs.values())
-    n_procs = util.N_PARALLEL_PROCESSES if util.PARALLELIZE else 1
+    n_procs = get_n_parallel_jobs()
     memory_limit = min(
         spec.mapper.ffm.memory_limit, spec.mapper.ffm.memory_limit_per_process / n_procs
     )
@@ -341,7 +340,7 @@ def _allocate_jobs(einsum2jobs):
         )
 
     split = False
-    if not split and util.PARALLELIZE and len(calls) < util.N_PARALLEL_PROCESSES * 4:
+    if not split and is_using_parallel_processing() and len(calls) < get_n_parallel_jobs() * 4:
         logging.warning(
             f"Insufficient jobs available to utilize available threads. "
             f"Splitting jobs into smaller chunks."

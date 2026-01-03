@@ -19,7 +19,7 @@ from hwcomponents import (
     get_model,
 )
 
-from fastfusion.util.basetypes import (
+from fastfusion.util._basetypes import (
     ParsableModel,
     ParsableList,
     ParsesTo,

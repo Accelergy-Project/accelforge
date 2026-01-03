@@ -1,4 +1,4 @@
-from fastfusion.util.basetypes import ParsableModel
+from fastfusion.util._basetypes import ParsableModel
 from fastfusion.frontend.mapper.ffm import FFM
 
 

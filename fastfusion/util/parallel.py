@@ -59,6 +59,14 @@ def set_n_parallel_jobs(n_jobs: int, print_message: bool = False):
         print(f"Using {n_jobs} parallel job{'s' if n_jobs > 1 else ''}")
 
 
+def get_n_parallel_jobs():
+    """
+    Returns the number of parallel jobs being used. If parallel processing is not
+    enabled, returns 1.
+    """
+    return N_PARALLEL_PROCESSES if is_using_parallel_processing() else 1
+
+
 def is_using_parallel_processing():
     """Returns True if parallel processing is enabled."""
     return PARALLELIZE and N_PARALLEL_PROCESSES > 1
@@ -148,6 +156,7 @@ def parallel(
 
     return list(yield_results())
 
+# TODO: Move some of these things to a different file.
 
 def _symbol2str(x: str | sympy.Symbol) -> str:
     return x.name if isinstance(x, sympy.Symbol) else x

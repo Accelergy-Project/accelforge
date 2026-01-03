@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from pydantic import ConfigDict
-from fastfusion.util.basetypes import ParsableModel, ParseExtras, ParsesTo
+from fastfusion.util._basetypes import ParsableModel, ParseExtras, ParsesTo
 from fastfusion._version import assert_version, __version__
 
 

@@ -9,7 +9,7 @@ from typing import Dict, Tuple
 from pydantic import StrictFloat
 import islpy as isl
 
-from fastfusion.util.basetypes import ParsableDict, ParsableList, ParsableModel
+from fastfusion.util._basetypes import ParsableDict, ParsableList, ParsableModel
 
 
 class Domain(ParsableModel):

@@ -15,7 +15,7 @@ import islpy as isl
 
 from fastfusion.frontend.mapping import Compute, MappingNode
 from fastfusion.frontend.workload.workload import TensorName
-from fastfusion.model.looptree.types import Buffet
+from fastfusion._model.looptree.types import Buffet
 
 
 # Mapper intermediates.
@@ -123,7 +123,7 @@ class BufferTensorEinsum:
 
     See Also:
     ---------
-    :class:`fastfusion.model.looptree.reuse.Buffet`
+    :class:`fastfusion._model.looptree.reuse.Buffet`
     """
 
     buffer: str

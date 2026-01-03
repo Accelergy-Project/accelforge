@@ -11,7 +11,7 @@ from fastfusion.frontend.mapping import Mapping
 import hwcomponents
 
 from typing import Any, Dict, Optional, Self
-from fastfusion.util.basetypes import ParsableModel
+from fastfusion.util._basetypes import ParsableModel
 from pydantic import Field
 
 

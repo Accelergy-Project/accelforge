@@ -27,7 +27,7 @@ from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
     _ConstraintLambda,
 )
-from fastfusion.util.util import _expfmt
+from fastfusion.util.parallel import _expfmt
 from fastfusion.util._itertools import first
 from fastfusion.frontend.mapping import Reservation as ReservationNode
 
@@ -107,7 +107,7 @@ class Job:
         )
 
     def _make_compatibility_and_updater(self):
-        from fastfusion.model.looptree.reuse.symbolic import (
+        from fastfusion._model.looptree.reuse.symbolic import (
             quick_insert_reservation_nodes,
         )
 

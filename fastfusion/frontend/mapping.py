@@ -31,7 +31,7 @@ from collections.abc import Set
 from pydantic import ConfigDict, Discriminator, Tag
 import sympy
 
-from fastfusion.util.basetypes import (
+from fastfusion.util._basetypes import (
     # Parsing helpers for the input files.
     ParsableModel,
     ParsableList,
@@ -41,7 +41,7 @@ from fastfusion.util.basetypes import (
     _InferFromTag,
 )
 from fastfusion.frontend.workload.workload import RankVariable, TensorName
-from fastfusion.util.util import _SVGJupyterRender, _pydot_graph
+from fastfusion.util.parallel import _SVGJupyterRender, _pydot_graph
 from fastfusion._version import assert_version, __version__
 from fastfusion.frontend import arch
 

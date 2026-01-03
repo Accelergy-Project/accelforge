@@ -23,13 +23,13 @@ from fastfusion.frontend.mapping import (
 )
 from fastfusion.frontend.workload.workload import TensorName, Workload
 
-from fastfusion.model.looptree.mapping_utilities import get_paths
-from fastfusion.model.looptree.types import ComponentName
-from fastfusion.model.looptree.reuse.isl.isl_functions import (
+from fastfusion._model.looptree.mapping_utilities import get_paths
+from fastfusion._model.looptree.types import ComponentName
+from fastfusion._model.looptree.reuse.isl.isl_functions import (
     dim_projector_mask,
     insert_equal_dims_map,
 )
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
+from fastfusion._model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
 
 from .types import (
     # Bookkeeping objects

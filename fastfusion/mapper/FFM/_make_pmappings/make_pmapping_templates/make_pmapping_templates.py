@@ -43,7 +43,7 @@ from fastfusion.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
     SameEinsumJobs,
 )
-from fastfusion.util.basetypes import ParsableList
+from fastfusion.util._basetypes import ParsableList
 from fastfusion.util._setexpressions import eval_set_expression
 
 
