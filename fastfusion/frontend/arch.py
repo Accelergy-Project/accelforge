@@ -23,8 +23,8 @@ from fastfusion.util.basetypes import (
     ParsableModel,
     ParsableList,
     ParsesTo,
-    PostCall,
-    get_tag,
+    _PostCall,
+    _get_tag,
 )
 from fastfusion.util._parse_expressions import ParseError, parse_expression
 from fastfusion.util._setexpressions import InvertibleSet, eval_set_expression
@@ -65,7 +65,7 @@ class ArchNodes(ParsableList):
         return f"{self.__class__.__name__}({super().__repr__()})"
 
     def _parse_expressions(self, *args, **kwargs):
-        class PostCallArchNode(PostCall):
+        class PostCallArchNode(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
                 if isinstance(parsed, Container):
                     symbol_table.update(parsed.attributes)
@@ -219,7 +219,7 @@ class Leaf(ArchNode, ABC):
     """ Mapping constraints applied to this `Leaf`. """
 
     def _parse_expressions(self, *args, **kwargs):
-        class PostCallLeaf(PostCall):
+        class PostCallLeaf(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
                 if field == "attributes":
                     symbol_table.update(parsed.model_dump())
@@ -654,7 +654,7 @@ class TensorHolderAttributes(ComponentAttributes):
             self.datawidth = {"All()": self.datawidth}
 
     def _parse_expressions(self, *args, **kwargs):
-        class MyPostCall(PostCall):
+        class MyPostCall(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
                 if field == "datawidth":
                     parsed = _parse_tensor2bits(
@@ -760,7 +760,7 @@ T = TypeVar("T")
 
 
 class Branch(ArchNode, ABC):
-    # nodes: ArchNodes[InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
+    # nodes: ArchNodes[_InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
     nodes: ArchNodes[
         Annotated[
             Union[
@@ -770,7 +770,7 @@ class Branch(ArchNode, ABC):
                 Annotated["Parallel", Tag("Parallel")],
                 Annotated["Hierarchical", Tag("Hierarchical")],
             ],
-            Discriminator(get_tag),
+            Discriminator(_get_tag),
         ]
     ] = ArchNodes()
 

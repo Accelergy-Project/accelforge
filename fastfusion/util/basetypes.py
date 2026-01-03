@@ -53,7 +53,7 @@ PL = TypeVar("PL", bound="ParsableList[Any]")
 Ts = TypeVarTuple("Ts")
 
 
-def get_tag(value: Any) -> str:
+def _get_tag(value: Any) -> str:
     if not isinstance(value, dict):
         return value.__class__.__name__
     tag = None
@@ -85,7 +85,7 @@ def get_tag(value: Any) -> str:
     return tag
 
 
-class InferFromTag(Generic[*Ts]):
+class _InferFromTag(Generic[*Ts]):
     @classmethod
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: Callable
@@ -93,7 +93,7 @@ class InferFromTag(Generic[*Ts]):
         type_args = get_args(source_type)
         if not type_args:
             raise TypeError(
-                f"InferFromTag must be used with a type parameter, e.g. InferFromTag[int]"
+                f"_InferFromTag must be used with a type parameter, e.g. _InferFromTag[int]"
             )
 
         # type_args contains all the possible types: (Compute, Memory, "Hierarchical")
@@ -248,12 +248,16 @@ if TYPE_CHECKING:
         pass
 
 
-class PostCall(Generic[T]):
+class _PostCall(Generic[T]):
     def __call__(self, field: str, value: T, symbol_table: dict[str, Any]) -> T:
         return value
 
 
 class Parsable(ABC, Generic[M]):
+    """An abstract base class for parsing. Parsables support the `_parse_expressions`
+    method, which is used to parse the object from a string.
+    """
+
     def _parse_expressions(
         self, symbol_table: dict[str, Any] = None, **kwargs
     ) -> tuple[M, dict[str, Any]]:
@@ -265,57 +269,16 @@ class Parsable(ABC, Generic[M]):
     def get_validator(self, field: str) -> type:
         raise NotImplementedError("Subclasses must implement this method")
 
-    # def get_instances_of_type(
-    #     self,
-    #     type: Type[T],
-    #     _first_call: bool = True,
-    #     _seen: set[int] = None,
-    # ) -> Iterator[T]:
-    #     _seen = set() if _seen is None else _seen
-    #     if not _first_call:
-    #         if self.__class__.__name__ == "Spec":
-    #             return
-
-    #     def _recurse(item: Parsable):
-    #         prev_seen = _seen.copy()
-    #         if id(item) in _seen:
-    #             return
-    #         _seen.add(id(item))
-
-    #         if isinstance(item, type):
-    #             yield item
-
-    #         if isinstance(item, Parsable):
-    #             yield from item.get_instances_of_type(
-    #                 type,
-    #                 _first_call=False,
-    #                 _seen=_seen,
-    #             )
-
-    #     if isinstance(self, list):
-    #         items = self
-    #     elif isinstance(self, dict):
-    #         items = [v for k, v in self.items()]
-    #     elif isinstance(self, ParsableModel):
-    #         items = [getattr(self, field) for field in self.get_fields()]
-    #     else:
-    #         items = []
-
-    #     for item in items:
-    #         for x in _recurse(item):
-    #             print(f'Yielding {x.name} from {str(item)[:100]}')
-    #             yield x
-
     def _parse_expressions_final(
         self,
         symbol_table: dict[str, Any],
         order: tuple[str, ...],
-        post_calls: tuple[PostCall[T], ...],
+        post_calls: tuple[_PostCall[T], ...],
         use_setattr: bool = True,
         **kwargs,
     ) -> tuple["Parsable", dict[str, Any]]:
         self._parsed = True
-        field_order = get_parsable_field_order(
+        field_order = _get_parsable_field_order(
             order,
             [
                 (
@@ -338,7 +301,7 @@ class Parsable(ABC, Generic[M]):
         for field in field_order:
             value = getattr(self, field) if use_setattr else self[field]
             validator = self.get_validator(field)
-            parsed = parse_field(field, value, validator, symbol_table, self, **kwargs)
+            parsed = _parse_field(field, value, validator, symbol_table, self, **kwargs)
             for post_call in post_calls:
                 parsed = post_call(field, value, parsed, symbol_table)
             if use_setattr:
@@ -361,7 +324,7 @@ class Parsable(ABC, Generic[M]):
         return self, symbol_table
 
 
-class FromYAMLAble:
+class _FromYAMLAble:
     @classmethod
     def from_yaml(
         cls: type[T],
@@ -483,7 +446,7 @@ class FromYAMLAble:
         return c
 
 
-def parse_field(field, value, validator, symbol_table, parent, **kwargs):
+def _parse_field(field, value, validator, symbol_table, parent, **kwargs):
     try:
         # Get the origin type (ParsesTo) and its arguments
         origin = get_origin(validator)
@@ -532,7 +495,7 @@ def parse_field(field, value, validator, symbol_table, parent, **kwargs):
 # python_name_regex = re.compile(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b')
 
 
-def get_parsable_field_order(
+def _get_parsable_field_order(
     order: tuple[str, ...], field_value_validator_triples: list[tuple[str, Any, type]]
 ) -> list[str]:
     order = list(order)
@@ -570,7 +533,7 @@ def get_parsable_field_order(
     return order
 
 
-class ModelWithUnderscoreFields(BaseModel, FromYAMLAble):
+class _ModelWithUnderscoreFields(BaseModel, _FromYAMLAble):
     def __init__(self, **kwargs):
         new_kwargs = {}
         for field, value in kwargs.items():
@@ -624,7 +587,17 @@ class ModelWithUnderscoreFields(BaseModel, FromYAMLAble):
         return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
 
 
-class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"]):
+class ParsableModel(_ModelWithUnderscoreFields, Parsable["ParsableModel"]):
+    """A model that will parse any fields that are given to it. When parsing, submodels
+    will also be parsed if they support it. Parsing will parse any fields that are given
+    as strings and do not match the expected type.
+
+    Underscore-prefixed fields will have type checking applied strictly, meaning that
+    even if this class or a subclass allows extra fields, underscore-prefixed fields
+    must be recognized directly. The leading underscore is removed before setting any
+    variable names.
+    """
+
     model_config = ConfigDict(extra="forbid")
     # type: Optional[str] = None
 
@@ -653,7 +626,7 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"]):
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
-        post_calls: tuple[PostCall[T], ...] = (),
+        post_calls: tuple[_PostCall[T], ...] = (),
         **kwargs,
     ) -> tuple[Self, dict[str, Any]]:
         new = self.model_copy()
@@ -664,7 +637,9 @@ class ParsableModel(ModelWithUnderscoreFields, Parsable["ParsableModel"]):
         )
 
 
-class NonParsableModel(ModelWithUnderscoreFields):
+class NonParsableModel(_ModelWithUnderscoreFields):
+    """A model that will not parse any fields."""
+
     model_config = ConfigDict(extra="forbid")
     type: Optional[str] = None
 
@@ -673,6 +648,11 @@ class NonParsableModel(ModelWithUnderscoreFields):
 
 
 class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
+    """
+    A list that can be parsed from a string. ParsableList[T] means that a given string
+    can be parsed, yielding a list of objects of type T.
+    """
+
     def get_validator(self, field: str) -> Type:
         return T
 
@@ -680,7 +660,7 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
-        post_calls: tuple[PostCall[T], ...] = (),
+        post_calls: tuple[_PostCall[T], ...] = (),
         **kwargs,
     ) -> tuple["ParsableList[T]", dict[str, Any]]:
         new = ParsableList[T](x for x in self)
@@ -748,8 +728,12 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
 
 
 class ParsableDict(
-    dict[K, V], Parsable["ParsableDict[K, V]"], Generic[K, V], FromYAMLAble
+    dict[K, V], Parsable["ParsableDict[K, V]"], Generic[K, V], _FromYAMLAble
 ):
+    """A dictionary that can be parsed from a string. ParsableDict[K, V] means that a
+    given string can be parsed, yielding a dictionary with keys of type K and values of
+    type V.
+    """
 
     def get_validator(self, field: str) -> type:
         return V
@@ -761,7 +745,7 @@ class ParsableDict(
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
-        post_calls: tuple[PostCall[V], ...] = (),
+        post_calls: tuple[_PostCall[V], ...] = (),
         **kwargs,
     ) -> tuple["ParsableDict[K, V]", dict[str, Any]]:
         new = ParsableDict[K, V](self)
@@ -796,6 +780,15 @@ class ParsableDict(
 
 
 class ParseExtras(ParsableModel):
+    """
+    A model that will parse any extra fields that are given to it.
+
+    Underscore-prefixed fields will have type checking applied strictly, meaning that
+    even if this class or a subclass allows extra fields, underscore-prefixed fields
+    must be recognized directly. The leading underscore is removed before setting any
+    variable names.
+    """
+
     def get_validator(self, field: str) -> type:
         if field not in self.__class__.model_fields:
             return ParsesTo[Any]

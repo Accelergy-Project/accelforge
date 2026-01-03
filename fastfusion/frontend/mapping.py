@@ -37,8 +37,8 @@ from fastfusion.util.basetypes import (
     ParsableList,
     ParsesTo,
     # Retrieves information from YAML tags.
-    get_tag,
-    InferFromTag,
+    _get_tag,
+    _InferFromTag,
 )
 from fastfusion.frontend.workload.workload import RankVariable, TensorName
 from fastfusion.util.util import _SVGJupyterRender, _pydot_graph
@@ -63,7 +63,7 @@ NodeList: TypeAlias = ParsableList[
             Annotated["Mapping", Tag("Mapping")],
             Annotated["ProcessingStage", Tag("ProcessingStage")],
         ],
-        Discriminator(get_tag),
+        Discriminator(_get_tag),
     ]
 ]
 """

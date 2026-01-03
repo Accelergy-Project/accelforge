@@ -22,7 +22,7 @@ DEFAULT_IGNORE = [
     'ParsableDict',
     'ParseExtras',
     'NonParsableModel',
-    'FromYAMLAble',
+    '_FromYAMLAble',
     'ParsesTo',
     'Enum',
     'Flag',
