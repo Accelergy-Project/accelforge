@@ -14,8 +14,7 @@ Relevant Name Changes:
 -   DataspaceId -> TensorName
 -   LogicalBuffer -> Buffet
 -   LogicalComputeUnit -> ComputeEinsum
--   Loop -> Iteration
--   Loop.op_dim -> Iteration.rank_variable
+-   Loop.op_dim -> Loop.rank_variable
 -   *MappingNode.child -> MappingNode.flatten()[0]
 -   Root -> Mapping
 -   Compute.kernel -> Compute.einsum

@@ -15,8 +15,6 @@
 
 
 workload:
-  version: "0.5"
-
   rank_sizes:
     {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
     {% set N_TOKENS = N_TOKENS | default(8192) %}

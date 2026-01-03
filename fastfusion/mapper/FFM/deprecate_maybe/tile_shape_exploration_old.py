@@ -26,7 +26,7 @@ from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload._isl import get_rank_variable_bounds
 from fastfusion.frontend.workload._symbolic import get_stride_and_halo
 from fastfusion.frontend.mapping import (
-    Iteration,
+    Loop,
     Mapping,
     MappingNode,
     Temporal,
@@ -1033,7 +1033,7 @@ def make_what_tiles_symbol(
     what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]] = []
     last_seen_loop_per_rank_var: dict[str, Symbol | int] = dict(shape)
     for node in pmapping.nodes:
-        if not isinstance(node, Iteration):
+        if not isinstance(node, Loop):
             continue
         prev = last_seen_loop_per_rank_var.get(node.rank_variable, None)
         # If we're a symbol and we've seen an outer loop with the same rank variable,
@@ -1051,7 +1051,7 @@ def make_what_tiles_symbol(
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
     keep_symbols = set()
     for node in pmapping.nodes:
-        if isinstance(node, Iteration) and node._fused:
+        if isinstance(node, Loop) and node._fused:
             if isinstance(node.initial_tile_shape, Symbol):
                 keep_symbols.add(node.initial_tile_shape)
             if isinstance(node.stride, Symbol):
@@ -1063,7 +1063,7 @@ def get_rank_var_to_fused_loops(
     pmapping: Mapping, shape: dict[str, int]
 ) -> dict[str, list[Symbol]]:
     rank_var_to_fused_loops: dict[str, list[Symbol]] = {}
-    for node in [n for n in pmapping.nodes if isinstance(n, Iteration) and n._fused]:
+    for node in [n for n in pmapping.nodes if isinstance(n, Loop) and n._fused]:
         rank_var_to_fused_loops.setdefault(node.rank_variable, []).append(node.stride)
 
     # Max fused loops per rank
@@ -1165,7 +1165,7 @@ def _explore_tile_shapes_new(job: "Job"):
         df[key] = compiled_df[key](*choices_enumerated.T)
 
     for n in job.mapping.nodes:
-        if not isinstance(n, Iteration) or not n._fused:
+        if not isinstance(n, Loop) or not n._fused:
             continue
         stride = n.tile_pattern.stride
         n_iterations = str(n.tile_pattern.calculated_n_iterations)
@@ -1780,7 +1780,7 @@ def generate_tile_shapes(
     #     n = -1
     #     nodes = job.mapping.nodes
     #     for i, node in enumerate(job.mapping.nodes):
-    #         if not isinstance(node, Iteration):
+    #         if not isinstance(node, Loop):
     #             continue
     #         n += 1
 

@@ -11,7 +11,7 @@ from fastfusion.frontend.mapping import Mapping
 
 def make_mapping(row, einsum_names, rank_variable_bounds):
     pmappings = row2pmappings(row, einsum_names, rank_variable_bounds)
-    newmapping = Mapping.from_pmappings(
+    newmapping = Mapping._from_pmappings(
         pmappings, rank_variable_bounds=rank_variable_bounds
     )
     return newmapping

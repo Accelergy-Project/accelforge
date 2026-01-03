@@ -2,16 +2,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 import logging
 from numbers import Number
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 from uuid import UUID, uuid4
 
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
-    Iteration,
     Mapping,
-    Reservation,
-    Spatial,
-    TilePattern,
 )
 from fastfusion.frontend.spec import Spec
 from fastfusion.frontend.workload._symbolic import Relevant, PartiallyRelevant
@@ -26,11 +22,10 @@ from fastfusion.frontend.workload.workload import (
 from fastfusion.frontend.mapper import Metrics
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
-    TensorReservation,
 )
 from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
-    ConstraintLambda,
+    _ConstraintLambda,
 )
 from fastfusion.util.util import expfmt, fzs
 from fastfusion.util.itertools import first
@@ -146,7 +141,7 @@ class Job:
 
     def pretty_str(self) -> str:
         constraints = self.constraints.get_all_constraints()
-        node2constraints: dict[int, list[ConstraintLambda]] = {}
+        node2constraints: dict[int, list[_ConstraintLambda]] = {}
         for constraint in constraints:
             for target_index in constraint._target_node_indices:
                 l = node2constraints.setdefault(target_index, [])

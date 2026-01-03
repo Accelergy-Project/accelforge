@@ -36,7 +36,8 @@ def get_config() -> "Config":
 
 
 class Config(ParsableModel):
-    version: Annotated[str, assert_version] = __version__
+    # version: Annotated[str, assert_version] = __version__
+
     expression_custom_functions: ParsableList[str | Callable] = ParsableList()
     """
     A list of functions to use while parsing expressions. These can either be functions

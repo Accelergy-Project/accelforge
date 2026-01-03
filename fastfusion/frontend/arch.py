@@ -770,12 +770,12 @@ class Branch(ArchNode, ABC):
         ]
     ] = ArchNodes()
 
-    def get_nodes_of_type(self, node_type: Type[T]) -> Iterator[T]:
+    def get_nodes_of_type(self, types: Type[T] | tuple[Type[T], ...]) -> Iterator[T]:
         for node in self.nodes:
-            if isinstance(node, node_type):
+            if isinstance(node, types):
                 yield node
             elif isinstance(node, Branch):
-                yield from node.get_nodes_of_type(node_type)
+                yield from node.get_nodes_of_type(types)
 
 
 class Parallel(Branch):
@@ -873,8 +873,8 @@ class Hierarchical(Branch):
 
 
 class Arch(Hierarchical):
-    version: Annotated[str, assert_version] = __version__
-    """ The version of the architecture spec. """
+    # version: Annotated[str, assert_version] = __version__
+    # """ The version of the architecture spec. """
 
     @property
     def total_area(self) -> float:

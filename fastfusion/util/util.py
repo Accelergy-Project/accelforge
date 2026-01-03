@@ -176,7 +176,7 @@ def parallel(
     return list(yield_results())
 
 
-def symbol2str(x: str | sympy.Symbol) -> str:
+def _symbol2str(x: str | sympy.Symbol) -> str:
     return x.name if isinstance(x, sympy.Symbol) else x
 
 

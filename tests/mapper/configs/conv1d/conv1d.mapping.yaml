@@ -1,5 +1,4 @@
 mapping:
-  version: "0.5"
   nodes:
   - !Storage
     tensors: [I, W, O]
@@ -18,7 +17,7 @@ mapping:
     # bound is 8
     tile_pattern:
       initial_tile_shape: 1
-      stride: 1    
+      stride: 1
   - !Spatial
     rank_variable: r
     # bound is 3

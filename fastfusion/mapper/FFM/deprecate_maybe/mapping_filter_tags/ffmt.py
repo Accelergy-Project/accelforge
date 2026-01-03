@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Iteration, Temporal
+from fastfusion.frontend.mapping import Loop, Temporal
 from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
 
 from .util import get_fused_loops_per_tensor
@@ -104,7 +104,7 @@ def get_ffmt_mha_tag(pmapping):
 
     rank_var_permutation = []
     for node in pmapping:
-        if isinstance(node, Iteration):
+        if isinstance(node, Loop):
             if not isinstance(node, Temporal):
                 raise RuntimeError(
                     "get_ffmt_mha_tag should not be used for "

@@ -15,7 +15,7 @@ from fastfusion.frontend.workload._isl import get_rank_variable_bounds
 from fastfusion.frontend.workload._symbolic import get_projection_expr
 from fastfusion.frontend.workload import Einsum
 from fastfusion.frontend.mapping import (
-    Iteration,
+    Loop,
     Mapping,
     Temporal,
     Spatial,
@@ -1291,7 +1291,7 @@ def makesymbol(name: str):
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
     keep_symbols = set()
     for node in pmapping.nodes:
-        if isinstance(node, Iteration) and node._fused:
+        if isinstance(node, Loop) and node._fused:
             if isinstance(node.initial_tile_shape, Symbol):
                 keep_symbols.add(node.initial_tile_shape)
             if isinstance(node.stride, Symbol):
@@ -1303,7 +1303,7 @@ def get_rank_var_to_fused_loops(
     pmapping: Mapping, shape: dict[str, int]
 ) -> dict[str, list[Symbol]]:
     rank_var_to_fused_loops: dict[str, list[Symbol]] = {}
-    for node in [n for n in pmapping.nodes if isinstance(n, Iteration) and n._fused]:
+    for node in [n for n in pmapping.nodes if isinstance(n, Loop) and n._fused]:
         rank_var_to_fused_loops.setdefault(node.rank_variable, []).append(node.stride)
     return rank_var_to_fused_loops
 
@@ -1448,7 +1448,7 @@ def _make_tile_shapes(job: "Job"):
     for nloops, n in enumerate(
         node
         for node in job.mapping.nodes
-        if isinstance(node, Iteration) and node._fused
+        if isinstance(node, Loop) and node._fused
     ):
         stride = n.tile_pattern.stride
         initial = (

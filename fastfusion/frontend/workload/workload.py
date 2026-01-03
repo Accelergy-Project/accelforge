@@ -412,14 +412,12 @@ class Einsum(ParsableModel):
 
 class Workload(ParsableModel):
     """
-    The workload specification as a cascade of Einsums.
-
-    Each Einsum is a computation step in the workload. Its shape is determined by a set
-    of ranks, each of which is a dimension of the computation.
+    The workload specification as a cascade of Einsums, with each Einsum being a
+    computation step in the workload.
     """
 
-    version: Annotated[str, assert_version] = __version__
-    """ The version of the workload specification. """
+    # version: Annotated[str, assert_version] = __version__
+    # """ The version of the workload specification. """
 
     einsums: ParsableList[Einsum] = ParsableList()
     """ The Einsums in the workload. """
@@ -603,7 +601,7 @@ class Workload(ParsableModel):
     def _repr_svg_(self) -> str:
         return self.render()
 
-    def render(self) -> str:  # Render as Pydot
+    def render(self) -> str:
         """ Renders the workload as a Pydot graph. Returns an SVG string. """
         graph = pydot_graph()
 

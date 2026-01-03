@@ -1,0 +1,40 @@
+workload:
+  # These rank sizes define the shapes of the tensors in the Einsum. Shapes are assumed
+  # to go from [0, size-1]. Indexes into a rank are omitted if out of range.
+  rank_sizes:
+    M: 128
+    N0: 128
+    N1: 128
+    N2: 128
+
+  # Alternatively, we can constrain each of the rank variables to be within a range. The
+  # values in this dictionary are ISL expressions, and the constraints apply to all
+  # Einsums that use these rank variables.
+  shape:
+    m:  0 <= m  < 128
+    n0: 0 <= n0 < 128
+    n1: 0 <= n1 < 128
+    n2: 0 <= n2 < 128
+
+  # The Einsums in the workload.
+  einsums:
+  - name: Matmul1
+    tensor_accesses:
+    - {name: T0, projection: [m, n0]}
+    - {name: W1, projection: [k, n0]}
+    - {name: T1, projection: [m, n0], output: True}
+    renames: {weight: W0, input: T0, output: T1}
+
+  - name: Matmul2
+    tensor_accesses:
+    - {name: T1, projection: {M: m, N0: n0}}
+    - {name: W1, projection: {N0: n0, N1: n1}}
+    - {name: T2, projection: {M: m, N1: n1}, output: True}
+    renames: {weight: W1, input: T1, output: T2}
+
+  - name: Matmul3
+    tensor_accesses:
+    - {name: T2, projection: {M: m, N1: n1}}
+    - {name: W2, projection: {N1: n1, N2: n2}}
+    - {name: T3, projection: {M: m, N2: n2}, output: True}
+    renames: {weight: W2, input: T2, output: T3}

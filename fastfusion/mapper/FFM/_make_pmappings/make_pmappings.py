@@ -9,7 +9,7 @@ from joblib import delayed
 
 from fastfusion.frontend import arch
 from fastfusion.frontend.spec import Spec
-from fastfusion.frontend.mapping import Iteration, Mapping, TensorHolder
+from fastfusion.frontend.mapping import Loop, Mapping, TensorHolder
 from fastfusion.frontend.workload._isl import (
     get_rank_variable_bounds,
     get_tensor_size,
@@ -224,7 +224,7 @@ def get_memories_to_track(
                     seen = True
                     if node.persistent:
                         ignored_resources.add(m)
-                if isinstance(node, Iteration) and node._fused and seen:
+                if isinstance(node, Loop) and node._fused and seen:
                     must_track = True
 
         if not must_track:

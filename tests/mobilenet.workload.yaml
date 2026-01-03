@@ -1,5 +1,4 @@
 workload:
-  version: "0.5"
   shape:
     pa0: 0 <= pa0 < 25
     qa0: 0 <= qa0 < 25

@@ -11,7 +11,7 @@ from fastfusion.frontend.mapping import (
     Mapping,
     MappingNode,
     # Iterations
-    Iteration,
+    Loop,
     Spatial,
     Temporal,
     # Splits
@@ -170,7 +170,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                     )
                     if node == buffer_to_last_storage_node[node.component]:
                         buffer_fully_complete.add(node.component)
-                case Iteration():
+                case Loop():
                     tag: Tag
                     if isinstance(node, Temporal):
                         tag: Tag = TemporalTag()

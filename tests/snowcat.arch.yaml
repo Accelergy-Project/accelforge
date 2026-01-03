@@ -2,7 +2,6 @@ variables:
 tech_node: 7e-9
 
 arch:
-  version: "0.5"
   nodes:
   - !Memory
     name: MainMemory

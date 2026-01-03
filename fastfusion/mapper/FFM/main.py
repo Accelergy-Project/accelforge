@@ -133,7 +133,7 @@ def row2mapping(
     rank_variable_bounds: dict[str, dict[str, int]],
     einsum_names: list[EinsumName],
 ) -> Mapping:
-    return Mapping.from_pmappings(
+    return Mapping._from_pmappings(
         row2pmappings(row, einsum_names, rank_variable_bounds),
         rank_variable_bounds=rank_variable_bounds,
     )
@@ -142,8 +142,8 @@ def row2mapping(
 def join_pmappings(
     spec: Spec,
     pmappings: MultiEinsumPmappings,
-    pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     require_all_einsums: bool = True,
+    _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ) -> Mappings:
     """
     Joins pmappings into a full mappings for the entire workload. Pmappings can
@@ -155,13 +155,13 @@ def join_pmappings(
         The complete specifications for the workload and architecture.
     pmappings:
         The pmappings to join.
-    pmapping_row_filter_function:
-        A function that takes in a row of the pmapping dataframe and returns
-        True if the row should be included in the final mappings, and False
-        otherwise. If None, all rows will be included.
     require_all_einsums:
         If True, all einsums in the workload must have pmappings. If False, only
         einsums that have pmappings will be included in the final mappings.
+    _pmapping_row_filter_function:
+        A function that takes in a row of the pmapping dataframe and returns
+        True if the row should be included in the final mappings, and False
+        otherwise. If None, all rows will be included.
 
     Returns
     -------
@@ -199,7 +199,7 @@ def join_pmappings(
         compressed,
         spec,
         pmappings.resource2capacity,
-        pmapping_row_filter_function=pmapping_row_filter_function,
+        _pmapping_row_filter_function=_pmapping_row_filter_function,
     )
     joined = decompress_pmappings(joined, decompress_data)
 

@@ -21,7 +21,7 @@ from fastfusion.frontend.mapping import (
     Compute,
     Storage,
     # Logical object types in Mappings.
-    Iteration,
+    Loop,
     Spatial,
     Temporal,
     Split,
@@ -535,7 +535,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
             # Fuses current_node to one of the heads.
             match current_node:
                 # For or Par-For loop handling.
-                case Iteration():
+                case Loop():
                     if len(heads) != 1:
                         raise ValueError(
                             f"Cannot fuse tiled set with {len(heads)} heads.\n"

@@ -6,7 +6,7 @@ from sympy import Symbol
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.workload._symbolic import get_stride_and_halo
 from fastfusion.frontend.mapping import (
-    Iteration,
+    Loop,
     Mapping,
 )
 
@@ -103,7 +103,7 @@ class SymbolRelations:
         relation = SymbolRelations()
         last_seen_loop_per_rank_var: dict[str, Symbol | int] = dict(shape)
         for node in pmapping.nodes:
-            if not isinstance(node, Iteration):
+            if not isinstance(node, Loop):
                 continue
             prev = last_seen_loop_per_rank_var.get(node.rank_variable, None)
             # If we're a symbol and we've seen an outer loop with the same rank variable,

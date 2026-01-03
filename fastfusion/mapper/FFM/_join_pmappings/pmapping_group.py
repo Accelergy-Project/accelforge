@@ -45,7 +45,7 @@ class PmappingGroup:
         resource2capacity: dict[str, int],
         drop_valid_reservations: bool = True,
         delay: bool = False,
-        pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+        _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> "PmappingGroup":
         shared_loop_index = self.compatibility.shared_loop_index(
             right.compatibility.tensor_names | live_tensors
@@ -78,7 +78,7 @@ class PmappingGroup:
             compatibility_joined=compatibility_joined,
             resource2capacity=resource2capacity,
             drop_valid_reservations=drop_valid_reservations,
-            pmapping_row_filter_function=pmapping_row_filter_function,
+            _pmapping_row_filter_function=_pmapping_row_filter_function,
             ignored_resources=ignored_resources,
         )
 
@@ -191,7 +191,7 @@ class PmappingGroup:
         )
 
     def rename_compatibility(self, new_c: Compatibility) -> Compatibility:
-        c, renamed = self.compatibility.rename_to_match(new_c)
+        c, renamed = self.compatibility._rename_to_match(new_c)
         return PmappingGroup(c, self.mappings.rename(renamed))
 
     @staticmethod

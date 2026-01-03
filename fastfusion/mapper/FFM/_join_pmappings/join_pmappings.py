@@ -154,7 +154,7 @@ def join_pmappings(
     combine_reservations: bool = True,
     lookahead_filter: bool = True,
     metrics: Metrics = None,
-    pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+    _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -173,13 +173,13 @@ def join_pmappings(
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = set()
 
-    if pmapping_row_filter_function is not None:
+    if _pmapping_row_filter_function is not None:
         n = sum(len(s.mappings.data) for sg in pmapping_groups.values() for s in sg)
         pmapping_groups = {
             e: [
                 PmappingGroup(
                     s.compatibility,
-                    s.mappings.filter_rows(pmapping_row_filter_function),
+                    s.mappings.filter_rows(_pmapping_row_filter_function),
                 )
                 for s in pmapping_groups[e]
             ]
@@ -405,7 +405,7 @@ def join_pmappings(
                         resource2capacity=resource2capacity,
                         drop_valid_reservations=drop_valid_reservations,
                         delay=DELAY,
-                        pmapping_row_filter_function=pmapping_row_filter_function,
+                        _pmapping_row_filter_function=_pmapping_row_filter_function,
                         ignored_resources=ignored_resources,
                     )
                 )

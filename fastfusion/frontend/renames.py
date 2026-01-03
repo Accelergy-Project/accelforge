@@ -10,9 +10,23 @@ EinsumName: TypeAlias = str
 
 
 class Rename(ParsableModel):
+    """
+    A rename of something into something else.
+    """
+
     name: str
+    """ The name of the thing to be renamed. This is a string representing the new name.
+    """
     source: str
+    """ The source of the rename. This is a set expression that can be parsed, yielding
+    a set that can be referenced by the new name. """
+
     expected_count: int | None = None
+    """
+    The expected count of the source set expression. If this is set, then the source
+    expression must resolve to the expected count or an error will be raised. Otherwise,
+    any count (including zero for an empty set) is allowed.
+    """
 
 
 def rename_list_factory(rename_list: list | dict) -> "RenameList":
@@ -30,13 +44,33 @@ def rename_list_factory(rename_list: list | dict) -> "RenameList":
 
 
 class RenameList(ParsableList[Rename]):
+    """ A list of renames. """
     pass
 
 
 class EinsumRename(ParsableModel):
+    """
+    Renames for a single Einsum.
+    """
+
     name: EinsumName
+    """ The name of the Einsum. Set this to "default" to apply the renames to all
+    Einsums, unless overridden. Overriding is specific to a single name, so every rename
+    in the default must be overridden independently. """
+
     tensor_accesses: ParsableList[Rename] = ParsableList()
+    """ Renames for the tensor accesses of this Einsum. This may be given either as a
+    dictionary ``{new_name: source_set_expression}`` expressions, or as a list of
+    dictionaries, each one having the structure ``{name: new_name, source:
+    source_set_expression, expected_count: 1}``, where expected count is optional for
+    each and may be set to any integer. """
+
     rank_variables: ParsableList[Rename] = ParsableList()
+    """ Renames for the rank variables of this Einsum. This may be given either as a
+    dictionary ``{new_name: source_set_expression}`` expressions, or as a list of
+    dictionaries, each one having the structure ``{name: new_name, source:
+    source_set_expression, expected_count: 1}``, where expected count is optional for
+    each and may be set to any integer. """
 
     def __init__(self, *args, **kwargs) -> None:
         if "tensor_accesses" in kwargs:
@@ -47,11 +81,15 @@ class EinsumRename(ParsableModel):
 
 
 class Renames(ParsableModel):
-    version: Annotated[str, assert_version] = __version__
+    # version: Annotated[str, assert_version] = __version__
     einsums: ParsableList[EinsumRename] = ParsableList()
-
-    def model_post_init(self, __context__=None) -> None:
-        assert_version(self.version)
+    """
+    Renames for a workload. The Einsum list is a list of EinsumRename objects, and
+    renames will be applied to Einsums whose names match the EinsumRename.name. If an
+    EinsumRename is named "default", then its renames are applied to every Einsum unless
+    overridden. Overriding is specific to a single name, so every rename in the default
+    must be overridden independently.
+    """
 
     def get_renames_for_einsum(self, einsum_name: EinsumName) -> EinsumRename:
         if einsum_name not in self.einsums:

@@ -1,5 +1,4 @@
 arch:
-  version: "0.5"
   nodes:
   - !Memory
     name: MainMemory

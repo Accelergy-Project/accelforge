@@ -5,7 +5,7 @@ from uuid import UUID
 from collections import defaultdict
 
 import sympy
-from fastfusion.frontend.mapping import Iteration, Mapping, Spatial, Temporal
+from fastfusion.frontend.mapping import Loop, Mapping, Spatial, Temporal
 from fastfusion.frontend.workload.workload import EinsumName
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
@@ -85,7 +85,7 @@ def get_equivalent_pmappings(
 
 def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
     cols = []
-    for loop in [l for l in mapping.nodes if isinstance(l, Iteration) and l._fused]:
+    for loop in [l for l in mapping.nodes if isinstance(l, Loop) and l._fused]:
         if loop.tile_shape is not None:
             cols.append(loop.tile_shape)
         elif loop.tile_pattern is not None:
@@ -154,7 +154,7 @@ def _count_loops(job: Job) -> tuple[list[int], list[int], dict[str, int]]:
         if cur_spatial_dim != spatial_dim:
             pop_loop()
             spatial_dim = cur_spatial_dim
-        if isinstance(node, Iteration):
+        if isinstance(node, Loop):
             cur_n_loops += 1
             if isinstance(node, Temporal):
                 rv_temporal_count[node.rank_variable] += 1

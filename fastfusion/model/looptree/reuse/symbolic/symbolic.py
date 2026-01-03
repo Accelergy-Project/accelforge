@@ -11,7 +11,7 @@ from fastfusion.frontend.mapping import (
     Temporal,
     Storage,
     Reservation,
-    Iteration,
+    Loop,
     TensorHolder,
     ProcessingStage,
 )
@@ -619,7 +619,7 @@ def label_fused_loops(mapping: list[MappingNode]):
         )
 
     for i, node in enumerate(mapping):
-        if isinstance(node, Iteration):
+        if isinstance(node, Loop):
             node._fused = i < last_backer
     return mapping
 
@@ -1124,7 +1124,7 @@ class StrideAndShape:
     shape: any
 
 
-def get_stride_and_tile_shape(node: Iteration, full_shape, n: int, info: AnalysisInfo):
+def get_stride_and_tile_shape(node: Loop, full_shape, n: int, info: AnalysisInfo):
     rank = node.rank_variable
     rank_shape = full_shape[rank]
 
@@ -1143,7 +1143,7 @@ def get_stride_and_tile_shape(node: Iteration, full_shape, n: int, info: Analysi
         return StrideAndShape(stride_avg, RepeatedValue(stride, factor))
 
     if initial_tile_shape is None:
-        if node.assume_perfect_factor or known_perfect_factor(stride, rank_shape):
+        if node._assume_perfect_factor or known_perfect_factor(stride, rank_shape):
             factor = rank_shape / stride
             return StrideAndShape(stride, RepeatedValue(stride, factor))
         else:
@@ -1168,7 +1168,7 @@ def get_stride_and_tile_shape(node: Iteration, full_shape, n: int, info: Analysi
     # if node.tile_shape is not None:
     #     tile_shape = node.tile_shape
 
-    #     if node.assume_perfect_factor or known_perfect_factor(tile_shape, rank_shape):
+    #     if node._assume_perfect_factor or known_perfect_factor(tile_shape, rank_shape):
     #         factor = rank_shape / tile_shape
     #         return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
     #     else:
@@ -1177,7 +1177,7 @@ def get_stride_and_tile_shape(node: Iteration, full_shape, n: int, info: Analysi
     # elif node.loop_bound is not None:
     #     factor = node.loop_bound
 
-    #     if node.assume_perfect_factor or known_perfect_factor(factor, rank_shape):
+    #     if node._assume_perfect_factor or known_perfect_factor(factor, rank_shape):
     #         tile_shape = rank_shape / factor
     #         return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
     #     else:
@@ -1226,7 +1226,7 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
     symbols = []
     rank_var_with_initial = set()
     for i, node in enumerate(mapping):
-        if not isinstance(node, Iteration):
+        if not isinstance(node, Loop):
             continue
 
         stride_halos = set()

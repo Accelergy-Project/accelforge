@@ -2,7 +2,7 @@ from fastfusion.frontend.mapper.mapper import Mapper
 from fastfusion.frontend.renames import Renames
 from fastfusion.util.parse_expressions import ParseError, ParseExpressionsContext
 from fastfusion.frontend.arch import Compute, Leaf, Component, Arch
-from fastfusion.frontend.constraints import Constraints
+# from fastfusion.frontend.constraints import Constraints
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.variables import Variables
 from fastfusion.frontend.config import Config, get_config
@@ -15,26 +15,30 @@ from pydantic import Field
 
 
 class Spec(ParsableModel):
-    """Top-level spec class."""
+    """ The top-level spec of all of the inputs to this package. """
 
     arch: Arch = Arch()
-    """ The hardware being used. """
+    """ The hardware architecture being used. """
 
-    constraints: Constraints = Constraints()
-    """ Constrains how the workload is mapped onto the architecture. May be
-    defined here or directly in the architecture. """
+    # TODO: Any reason to support separated constraints? They can be added
+    # programatically to arch components.
+
+    # constraints: Constraints = Constraints()
+    # """ Constrains how the workload is mapped onto the architecture. May be
+    # defined here or directly in the architecture. """
 
     mapping: Mapping = Mapping()
-    """ How the workload is programmed onto the architecture. """
+    """ How the workload is programmed onto the architecture. Do not specify this if
+    you'd like the mapper to generate a mapping for you. """
 
     workload: Workload = Workload()
-    """ The program to be run on the architecture. """
+    """ The program to be run on the arch. """
 
     variables: Variables = Variables()
-    """ Top-level variables that can be referenced in other places in the spec. """
+    """ Variables that can be referenced in other places in the spec. """
 
     config: Config = Field(default_factory=get_config)
-    """ Top-level configuration settings. """
+    """ Configuration settings. """
 
     renames: Renames = Renames()
     """ Aliases for tensors in the workload so that they can be called

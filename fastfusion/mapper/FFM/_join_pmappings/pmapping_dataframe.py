@@ -7,7 +7,8 @@ from typing import Callable, Iterable, Optional
 
 import sympy
 
-from fastfusion.frontend.mapping import Iteration, Nested, TilePattern
+from fastfusion.frontend.mapping import Nested, TilePattern
+from fastfusion.frontend.mapping import Loop as MappingLoop
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     Loop,
@@ -378,7 +379,7 @@ class PmappingDataframe:
         ignored_resources: set[str],
         resource2capacity: dict[str, int],
         drop_valid_reservations: bool = True,
-        pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+        _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> "PmappingDataframe":
         """
            A  B            A2
@@ -583,8 +584,8 @@ class PmappingDataframe:
                 ignored_resources=ignored_resources,
             )
         result.max_right_to_left()
-        if pmapping_row_filter_function is not None:
-            result = result.filter_rows(pmapping_row_filter_function)
+        if _pmapping_row_filter_function is not None:
+            result = result.filter_rows(_pmapping_row_filter_function)
         result.make_pareto()
         result._check_reservations()
 
@@ -800,16 +801,16 @@ class PmappingDataframe:
                 raise ValueError(error)
 
     def filter_rows(
-        self, pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None
+        self, _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None
     ) -> "PmappingDataframe":
-        if pmapping_row_filter_function is None:
+        if _pmapping_row_filter_function is None:
             return self.copy()
 
-        # s = pmapping_row_filter_function(self._data)
+        # s = _pmapping_row_filter_function(self._data)
         # if s.sum() > 0:
         #     print(f"Filter rate: {s.sum() / len(s):.2%}")
         return self.update(
-            data=self._data[pmapping_row_filter_function(self._data)].copy(),
+            data=self._data[_pmapping_row_filter_function(self._data)].copy(),
             skip_pareto=True,
         )
 
@@ -903,12 +904,12 @@ def row2pmappings(
                 s = s.name if isinstance(s, sympy.Symbol) else s
                 return row[f"{einsum_name}<SEP>{s}"] if isinstance(s, str) else s
 
-            if isinstance(node, Iteration):
+            if isinstance(node, MappingLoop):
                 tp: TilePattern = node.tile_pattern
                 node.tile_pattern = tp.update(
                     initial_tile_shape=acc(tp.initial_tile_shape),
                     stride=acc(tp.stride),
                 )
         pmappings.append(pmapping)
-        pmapping.beautify_loops(rank_variable_bounds)
+        pmapping._beautify_loops(rank_variable_bounds)
     return pmappings

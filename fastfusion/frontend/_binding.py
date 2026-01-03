@@ -125,5 +125,5 @@ class Binding(ParsableModel):
     logical and physical space.
     """
 
-    version: StrictFloat
+    # version: StrictFloat
     nodes: ParsableList[BindingNode]

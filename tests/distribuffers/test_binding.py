@@ -5,7 +5,7 @@ from typing import Dict, List
 from islpy import DEFAULT_CONTEXT, Map
 
 import yaml
-from fastfusion.frontend.binding import Binding, BindingNode
+from fastfusion.frontend._binding import Binding, BindingNode
 
 TESTS_DIR = Path(__file__).parent / "spec" / "binding"
 
@@ -25,7 +25,6 @@ class TestBindingMapper(unittest.TestCase):
             binding: Binding = Binding.model_validate(spec["binding"])
 
             soln: Dict = spec["solution"]
-            assert binding.version == soln["version"]
 
             soln_node: Dict[str, str]
             binding_node: BindingNode

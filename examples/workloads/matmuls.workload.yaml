@@ -1,5 +1,4 @@
 workload:
-  version: "0.5"
   shape:
     {% set M = M | default(128) %}
     {% set KN = KN | default(128) %}

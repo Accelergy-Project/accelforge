@@ -1,5 +1,4 @@
 mapping:
-  version: "0.5"
   nodes:
   - !Storage
     tensors: [I, W, O]

@@ -8,8 +8,8 @@ from fastfusion._version import assert_version, __version__
 class FFM(ParsableModel):
     """Configuration for the Fast and Fusiest Mapper."""
 
-    version: Annotated[str, assert_version] = __version__
-    """ Version """
+    # version: Annotated[str, assert_version] = __version__
+    # """ Version """
 
     metrics: Metrics = Metrics.ENERGY
     """ Metrics used to optimize mappings. """

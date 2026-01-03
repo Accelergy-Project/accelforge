@@ -5,14 +5,14 @@ import fastfusion.frontend.arch as arch
 from fastfusion.frontend.constraints import (
     Comparison,
     ConstraintGroup,
-    MinUtilizationConstraintLambda,
-    TileShapeConstraintLambda,
-    LoopBoundsConstraintLambda,
-    ConstraintLambda,
+    _MinUtilizationConstraintLambda,
+    _TileShapeConstraintLambda,
+    _LoopBoundsConstraintLambda,
+    _ConstraintLambda,
 )
 from fastfusion.frontend.constraints import Spatial as SpatialConstraint
 from fastfusion.frontend.mapping import (
-    Iteration,
+    Loop,
     MappingNode,
     TensorHolder,
     Temporal,
@@ -28,13 +28,13 @@ from fastfusion.util.util import fzs
 # =================================================================================================
 class MappingConstraints:
     def __init__(self):
-        self.tile_shape_constraints: list[TileShapeConstraintLambda] = []
-        self.loop_bounds_constraints: list[LoopBoundsConstraintLambda] = []
+        self.tile_shape_constraints: list[_TileShapeConstraintLambda] = []
+        self.loop_bounds_constraints: list[_LoopBoundsConstraintLambda] = []
         self.min_utilization_constraints: dict[
-            tuple[str, str], MinUtilizationConstraintLambda
+            tuple[str, str], _MinUtilizationConstraintLambda
         ] = {}
 
-    def get_all_constraints(self) -> list[ConstraintLambda]:
+    def get_all_constraints(self) -> list[_ConstraintLambda]:
         return (
             self.tile_shape_constraints
             + self.loop_bounds_constraints
@@ -64,7 +64,7 @@ class MappingConstraints:
         )
 
     def set_loop_indices(self, nodes: list[MappingNode]):
-        loops = [n for n in nodes if isinstance(n, Iteration)]
+        loops = [n for n in nodes if isinstance(n, Loop)]
         for c in self.get_all_constraints():
             c._target_node_indices = [nodes.index(t) for t in c.target_mapping_nodes]
             c._target_loop_indices = [loops.index(t) for t in c.target_mapping_nodes]
@@ -98,14 +98,14 @@ class MappingConstraints:
             for t in c.target_mapping_nodes:
                 do_not_remove.add(id(t))
         for c in self.loop_bounds_constraints:
-            if not c.constraint.constrained_to_one():
+            if not c.constraint._constrained_to_one():
                 for t in c.target_mapping_nodes:
                     do_not_remove.add(id(t))
 
         # Constrained to one --> remove iff not in do_not_remove
         to_remove = set()
         for c in self.loop_bounds_constraints:
-            if c.constraint.constrained_to_one():
+            if c.constraint._constrained_to_one():
                 my_remove = set(id(t) for t in c.target_mapping_nodes) - do_not_remove
                 c.target_mapping_nodes = [
                     t for t in c.target_mapping_nodes if id(t) not in my_remove
@@ -114,7 +114,7 @@ class MappingConstraints:
         self.loop_bounds_constraints = [
             c
             for c in self.loop_bounds_constraints
-            if not c.constraint.constrained_to_one()
+            if not c.constraint._constrained_to_one()
         ]
 
         for c in self.get_all_constraints():
@@ -153,7 +153,7 @@ def constrained_loops(
     look_behind: bool = False,
     component: str = None,
     one_loop_per_rank_variable: bool = True,
-) -> list[Iteration]:
+) -> list[Loop]:
     nodes = []
     remaining_rank_variables = set(rank_variables)
 
@@ -169,7 +169,7 @@ def constrained_loops(
         to_check = [m for i, m in to_check if start_index is None or i >= start_index]
 
     for m in to_check:
-        if not isinstance(m, Iteration):
+        if not isinstance(m, Loop):
             continue
         if component is not None and (
             not isinstance(m, Spatial) or m.component != component
@@ -215,9 +215,9 @@ def get_constraints(
             nodes = constrained_loops(
                 mapping, c.expression, index - 1, look_behind=True
             )
-            for exp in c.split_expression():
+            for exp in c._split_expression():
                 new_nodes = [n for n in nodes if n.rank_variable in exp]
-                constraint = TileShapeConstraintLambda(c, new_nodes, exp)
+                constraint = _TileShapeConstraintLambda(c, new_nodes, exp)
                 constraints.tile_shape_constraints.append(constraint)
         exp = symbol_table[m.name] & tensor_constraints.no_refetch_from_above
         nodes = []
@@ -245,13 +245,13 @@ def get_constraints(
 
             rv = no_refetch.rank_variables
             for i in range(start_index, end_index):
-                if isinstance(mapping[i], Iteration) and mapping[i].rank_variable in rv:
+                if isinstance(mapping[i], Loop) and mapping[i].rank_variable in rv:
                     if mapping[i] not in nodes:
                         nodes.append(mapping[i])
 
         if nodes:
             constraints.loop_bounds_constraints.append(
-                LoopBoundsConstraintLambda(
+                _LoopBoundsConstraintLambda(
                     Comparison(expression=exp, operator="==", value=1), nodes, exp
                 )
             )
@@ -291,9 +291,9 @@ def get_constraints(
             if loop_bounds:
                 for c in loop_bounds:
                     nodes = constrained_loops(loops, c.expression, component=m.name)
-                    for exp in c.split_expression():
+                    for exp in c._split_expression():
                         new_nodes = [l for l in loops if l.rank_variable in exp]
-                        constraint = LoopBoundsConstraintLambda(c, new_nodes, exp)
+                        constraint = _LoopBoundsConstraintLambda(c, new_nodes, exp)
                         constraints.loop_bounds_constraints.append(constraint)
 
             # Min utilization constraints
@@ -308,7 +308,7 @@ def get_constraints(
                 if not target_mapping_nodes:
                     continue
                 rank_variables = {t.rank_variable for t in target_mapping_nodes}
-                constraint = MinUtilizationConstraintLambda(
+                constraint = _MinUtilizationConstraintLambda(
                     target_mapping_nodes,
                     rank_variables,
                     spatial_constraint.min_utilization,

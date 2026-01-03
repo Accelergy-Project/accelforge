@@ -1,5 +1,4 @@
 arch:
-  version: 0.4
   nodes:
   - !Component
     name: DRAM                 # offchip DRAM is the source of all datatypes

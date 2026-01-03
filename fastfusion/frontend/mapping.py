@@ -25,6 +25,7 @@ from typing import (
     # Variable meta-mandates
     Optional,
     Union,
+    override,
 )
 from collections.abc import Set
 from pydantic import ConfigDict, Discriminator, Tag
@@ -70,45 +71,17 @@ TypeAlias NodeList: ParsableList that can contain and discriminate between
 MappingNodes of different types.
 """
 
-
-def comma_separated_list(items: list[str]) -> list[str]:
-    return items
-    result = []
-    for item in items[:-1]:
-        result.append(item)
-        result.append(",")
-    result.extend(items[-1:])
-    return result
-
-
 # =============================================================================
 # Color Map for Visualization
 # =============================================================================
 
-# digraph G {
 
-# "A" -> "B" [label=<This is my label <br/> It has line breaks. I <FONT COLOR="Red">love</FONT>  background<br/>Colors.>]
-
-# C [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
-#   <TR><TD COLSPAN="3">This is my label </TD></TR>
-#   <TR><TD>It has line breaks. I </TD><TD BGCOLOR="red">love</TD><TD>background</TD></TR>
-#   <TR><TD COLSPAN="3">Colors</TD></TR>
-#   </TABLE>>]
-# }
-
-
-class ColorMap:
-    """
-    A ColorMap used to visualize the Mapping objects.
-    """
+class _ColorMap:
 
     def __init__(self, keys: list[str]):
         self.keys = keys
         self.color_list = self._make_color_map(len(keys))
         self.color_map = {key: self.color_list[i] for i, key in enumerate(keys)}
-
-    # b'Error: Syntax error: non-space string used after </TABLE> in line 1 \n...  reused via MainMemory</HTML> ...\nin label of node Storage_139993997346128
-    # Label: <<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR><TD BGCOLOR="#90EE90">W1</TD></TR></TABLE> reused via MainMemory>
 
     def format_list(self, items: list[str]) -> str:
         result = ['<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR>']
@@ -206,7 +179,6 @@ class ColorMap:
 # LoopTree Mapping Nodes
 # =============================================================================
 
-
 class MappingNode(ParsableModel, ABC):
     """
     Represents a Node in the Mapping, which can be a loop, a storage node, a compute
@@ -223,18 +195,19 @@ class MappingNode(ParsableModel, ABC):
     """ Must the mapper keep this node? """
 
     def _render_node_name(self) -> str:
+        """ The name for a Pydot node. """
         return f"{self.__class__.__name__}_{id(self)}"
 
     def _render_node_label(self) -> str:
+        """ The label for a Pydot node. """
         return self.__str__()
-        # return f"[\"{str(self)}\"]"
-        # return self.__class__.__name__
-        # return f"[\"{self.__class__.__name__}\"]"
 
     def _render_node_shape(self) -> str:
+        """ The shape for a Pydot node. """
         return "box"
 
     def _render_node(self) -> str:
+        """ Render this node using Pydot. """
         return pydot.Node(
             self._render_node_name(),
             label=self._render_node_label(),
@@ -245,17 +218,30 @@ class MappingNode(ParsableModel, ABC):
         )
 
     def _parent2next(self) -> "MappingNode":
+        """
+        Return the parent to the next node in the tree. This is used for nodes that
+        don't appear in the tree, like Nested nodes.
+        """
         return self
 
     def _parent2child(
         self, parent: "MappingNode"
     ) -> list[tuple["MappingNode", "MappingNode"]]:
+        """
+        Returns a list of tuples, each one being a parent and child node.
+        """
         return []
 
     def _render_make_children(self) -> list[str]:
+        """
+        Renders the children of this node and returns them as a list of strings.
+        """
         return []
 
-    def get_nodes_of_type(self, *types: Type[T]) -> List[T]:
+    def get_nodes_of_type(self, types: Type[T] | tuple[Type[T], ...]) -> List[T]:
+        """
+        Returns all sub-nodes, including this one, that match the given types.
+        """
         nodes: List[T] = []
         if isinstance(self, types):
             nodes.append(self)
@@ -264,18 +250,19 @@ class MappingNode(ParsableModel, ABC):
                 if isinstance(node, types):
                     nodes.append(node)
                 if isinstance(node, MappingNodeWithChildren):
-                    nodes.extend(node.get_nodes_of_type(*types))
+                    nodes.extend(node.get_nodes_of_type(types))
         return nodes
 
-    def flatten(self) -> list["MappingNode"]:
+    def _flatten(self) -> list["MappingNode"]:
         if isinstance(self, MappingNodeWithChildren):
             result = [self]
             for node in self.nodes:
-                result.extend(node.flatten())
+                result.extend(node._flatten())
             return result
         return [self]
 
     def _render_node_color(self) -> str:
+        """ The color for a Pydot node. """
         return "white"
 
     def __hash__(self):
@@ -296,19 +283,28 @@ class MappingNode(ParsableModel, ABC):
         if h is None or h is ParsableModel.__hash__:
             cls.__hash__ = MappingNode.__hash__
 
+    def compact_str(self) -> str:
+        """ Returns a compact string representation of this node. """
+        return self.__str__()
 
 class TilePattern(ParsableModel):
-    stride: ParsesTo[Literal["symbol"] | sympy.Symbol | int | str | None] = "symbol"
-    """ The stride of the pattern. """
+    stride: ParsesTo[Literal["symbol"] | sympy.Symbol | int | str | None | sympy.Expr] = "symbol"
+    """
+    The stride of the pattern. This is the number of indices by which the tile moves
+    each iteration.
+    """
 
     initial_tile_shape: ParsesTo[
-        Literal["symbol"] | sympy.Symbol | int | None | str
+        Literal["symbol"] | sympy.Symbol | int | None | str | sympy.Expr
     ] = "symbol"
-    """ The initial tile shape. """
+    """
+    The initial tile shape. This is the shape of the tile at the first iteration.
+    Subsequent iterations may be smaller if they overlap previous iterations.
+    """
 
-    calculated_n_iterations: Literal["symbol"] | sympy.Symbol | int | None | str = None
+    calculated_n_iterations: Literal["symbol"] | sympy.Symbol | int | None | str | sympy.Expr = None
     """ The number of iterations in the pattern. Do not set this! Used internally by the
-    mapper! """
+    mapper. """
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -316,6 +312,7 @@ class TilePattern(ParsableModel):
     )
 
     def _symbol_attrs(self) -> tuple[str, ...]:
+        """ The attributes that may be symbols. """
         return ("stride", "initial_tile_shape", "calculated_n_iterations")
 
     def __str__(self) -> str:
@@ -329,9 +326,14 @@ class TilePattern(ParsableModel):
         return " ".join(s)
 
     def update(self, **kwargs) -> "TilePattern":
+        """ Update the TilePattern with the given keyword arguments. """
         return type(self)(**{**self.model_dump(), **kwargs})
 
-    def symbol2str(self) -> "TilePattern":
+    def _symbol2str(self) -> "TilePattern":
+        """
+        Convert the symbols in the TilePattern to strings, and return a new TilePattern
+        with the symbols replaced by their names.
+        """
         def _symbol2str(x: sympy.Symbol | int | None) -> str | int | None:
             return x.name if isinstance(x, sympy.Symbol) else x
 
@@ -339,17 +341,7 @@ class TilePattern(ParsableModel):
             **{x: _symbol2str(getattr(self, x)) for x in self._symbol_attrs()}
         )
 
-    def symbols_as_strings(self) -> set[str]:
-        symbols: set[str] = set()
-        for x in self._symbol_attrs():
-            x = getattr(self, x)
-            if isinstance(x, sympy.Symbol):
-                symbols.add(x.name)
-            elif isinstance(x, str):
-                symbols.add(x)
-        return symbols
-
-    def prepend_symbols(self, prepend: str) -> "TilePattern":
+    def _prepend_symbols(self, prepend: str) -> "TilePattern":
         def _prepend(x: sympy.Symbol | int | None) -> str | int | None:
             if isinstance(x, sympy.Symbol):
                 x = x.name
@@ -365,9 +357,22 @@ class TilePattern(ParsableModel):
     def __hash__(self) -> int:
         return hash((self.initial_tile_shape, self.stride))
 
-    def rename_to_match(
+    def _rename_to_match(
         self, other: "TilePattern"
     ) -> tuple["TilePattern", dict[str, str]]:
+        """
+        Changes the symbols in this TilePattern to match the other TilePattern.
+
+        Parameters
+        ----------
+        other:
+            The TilePattern to match.
+
+        Returns
+        -------
+        A tuple containing the updated TilePattern and a dictionary of source->target
+        symbol renames.
+        """
         renames = {}
         setattrs = {}
         for x in self._symbol_attrs():
@@ -376,7 +381,10 @@ class TilePattern(ParsableModel):
                 setattrs[x] = getattr(other, x)
         return self.update(**setattrs), renames
 
-    def clear_symbols(self) -> "TilePattern":
+    def _clear_symbols(self) -> "TilePattern":
+        """
+        Clears the symbols in this TilePattern, replacing them with None.
+        """
         def desymbol(x: str | sympy.Symbol | int | None) -> str | int | None:
             if isinstance(x, (str, sympy.Symbol)):
                 return None
@@ -387,33 +395,37 @@ class TilePattern(ParsableModel):
         )
 
 
-class Iteration(MappingNode):
+class Loop(MappingNode, ABC):
     """
-    A bounded loop over a rank with a given shape and/or pattern.
+    A bounded loop over a rank variable with a given shape and/or pattern.
+
+    Do not instantiate directly; inherited by :class:`~.Temporal` and
+    :class:`~.Spatial`.
     """
 
     rank_variable: set[RankVariable] | RankVariable
-    """ The set of rank variables that are iterated over in this loop. """
+    """ The rank variable(s) iterated over in this loop. This may be a
+    single rank variable, or a set of rank variables if the loop is shared between
+    multiple Einsums. """
 
     tile_pattern: ParsesTo[TilePattern] = TilePattern()
-    """ The tile pattern. """
+    """ The tile pattern, which describes the shape of the tile at each iteration. """
+
+    _assume_perfect_factor: bool = True
+    """ Whether the Mapper assumes that tile shapes perfectly divide tensor shapes and
+    parent tile shapes. """
+
+    _fused: bool = None
+    """ Whether this Loop is shared with another Einsum. """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    assume_perfect_factor: bool = True
-    """ Whether the Mapper assumes perfect factorization is necessary to perform an
-    operation. """
-
-    _fused: bool = None
-    """ Whether this Iteration is fused with another. """
-
     def __str__(self) -> str:
-        x = []
         return f"for {self.rank_variable} {self.tile_pattern}"
 
     def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, Iteration)
+            isinstance(other, Loop)
             and self.rank_variable == other.rank_variable
             and self.tile_pattern == other.tile_pattern
         )
@@ -424,15 +436,18 @@ class Iteration(MappingNode):
     def _render_node_color(self) -> str:
         return "#FCC2FC"
 
+    @override
     def compact_str(self) -> str:
+        """ Returns a compact string representation of this Loop. """
         rv = self.rank_variable
         if isinstance(rv, (set, frozenset)):
             rv = ",".join(sorted(rv))
         return f"{rv} {self.tile_pattern}"
 
-    def merge(self, other: "Iteration", **kwargs) -> "Iteration":
-        if not isinstance(other, Iteration):
-            raise ValueError(f"Expected Iteration, got {type(other)}")
+    def _merge(self, other: "Loop", **kwargs) -> "Loop":
+        """ Merge this Loop with another Loop, returning the result. """
+        if not isinstance(other, Loop):
+            raise ValueError(f"Expected Loop, got {type(other)}")
         if self.tile_pattern != other.tile_pattern:
             raise ValueError(
                 f"Tile patterns do not match: {self.tile_pattern} != {other.tile_pattern}"
@@ -446,64 +461,74 @@ class Iteration(MappingNode):
         return type(self)(
             rank_variable=my_rv | other_rv,
             tile_pattern=self.tile_pattern,
-            assume_perfect_factor=self.assume_perfect_factor,
+            _assume_perfect_factor=self._assume_perfect_factor,
             **kwargs,
         )
 
     @property
     def initial_tile_shape(self) -> int | sympy.Symbol:
+        """ The initial tile shape of this Loop's tile pattern. This is the shape
+        of the tile at the first iteration. Subsequent iterations may be smaller if they
+        overlap previous iterations. """
         return self.tile_pattern.initial_tile_shape
 
     @property
     def stride(self) -> int | sympy.Symbol:
+        """ The stride of this Loop's tile pattern. This is the number of indices
+        by which the tile moves each iteration. """
         return self.tile_pattern.stride
 
     @property
     def calculated_n_iterations(self) -> int:
+        """ The number of iterations performed by this loop. """
         return self.tile_pattern.calculated_n_iterations
 
     @initial_tile_shape.setter
     def initial_tile_shape(self, value: int | sympy.Symbol) -> None:
+        """ Set the initial tile shape of this Loop's tile pattern. """
         self.tile_pattern = self.tile_pattern.update(initial_tile_shape=value)
 
     @stride.setter
     def stride(self, value: int | sympy.Symbol) -> None:
+        """ Set the stride of this Loop's tile pattern. """
         self.tile_pattern = self.tile_pattern.update(stride=value)
 
     @calculated_n_iterations.setter
     def calculated_n_iterations(self, value: int) -> None:
+        """ Set the number of iterations performed by this loop. Do not set this!
+        This is calculated by the Mapper. """
         self.tile_pattern = self.tile_pattern.update(calculated_n_iterations=value)
 
 
-class Temporal(Iteration):
-    """
-    A Temporal :class:`~.Iteration`.
-    """
+class Temporal(Loop):
+    """ A Temporal :class:`~.Loop`. """
 
+    @override
     def compact_str(self) -> str:
         return f"T-{super().compact_str()}"
 
     def __eq__(self, other: "Temporal") -> bool:
         return isinstance(other, Temporal) and super().__eq__(other)
 
-    def merge(self, other: "Temporal") -> "Temporal":
+    def _merge(self, other: "Temporal") -> "Temporal":
         if not isinstance(other, Temporal):
             raise ValueError(f"Expected Temporal, got {type(other)}")
-        return super().merge(other)
+        return super()._merge(other)
 
 
-class Spatial(Iteration):
-    """A spatial loop."""
+class Spatial(Loop):
+    """A spatial :class:`~.Loop`."""
 
     name: int | str
     """ The dimension over which the spatial is occuring. """
 
     component: str
-    """ The hardware feature name hosting the iteration. """
+    """ The component name across which different spatial iterations occur. """
 
     component_object: Optional[arch.Leaf] = None
-    """ The hardware feature hosting the Iteration. """
+    """ The component object across which different spatial iterations occur. """
 
+    @override
     def compact_str(self) -> str:
         return f"S-{self.name}-{super().compact_str()}"
 
@@ -519,7 +544,7 @@ class Spatial(Iteration):
             and self.component_object == other.component_object
         )
 
-    def merge(self, other: "Spatial") -> "Spatial":
+    def _merge(self, other: "Spatial") -> "Spatial":
         if not isinstance(other, Spatial):
             raise ValueError(f"Expected Spatial, got {type(other)}")
         if self.name != other.name:
@@ -528,7 +553,7 @@ class Spatial(Iteration):
             raise ValueError(
                 f"Components do not match: {self.component} != {other.component}"
             )
-        return super().merge(
+        return super()._merge(
             other,
             name=self.name,
             component=self.component,
@@ -546,7 +571,7 @@ class TensorHolder(MappingNode):
     """ The name of the component holding the tensors. """
 
     component_object: Optional[arch.Component] = None
-    """ The component object hosting the tensors. """
+    """ The component object holding the tensors. """
 
     _must_keep_tensors: ParsableList[TensorName] = ParsableList()
     """ Which tensor(s) the Mapper must keep here. """
@@ -570,20 +595,22 @@ class TensorHolder(MappingNode):
             and self.component == other.component
         )
 
+    @override
     def compact_str(self) -> str:
         tname = ",".join(self.tensors)
         return f"[{tname} in {self.component}]"
 
-    def __str__(self, color_map: ColorMap = None) -> str:
+    def __str__(self, color_map: _ColorMap = None) -> str:
         tensors = self.tensors
         if color_map is not None:
-            # format_list = comma_separated_list(tensors) + [f" reused via {self.component}"]
-            format_list = [f"{self.component} reuses"] + comma_separated_list(tensors)
+            format_list = [f"{self.component} reuses"] + list(tensors)
             return color_map.format_list(format_list)
         return f"{self.component} reuses {', '.join(tensors)}"
 
     @property
     def tensor(self) -> TensorName:
+        """ If there is one tensor held in this tensor holder, returns its name.
+        Otherwise, raises an error. """
         if len(self.tensors) != 1:
             raise ValueError(
                 f"TensorHolder node {repr(self)} has {len(self.tensors)} tensors. "
@@ -597,7 +624,7 @@ class TensorHolder(MappingNode):
     def _render_node_color(self) -> str:
         return "#D7FCD7"
 
-    def merge(self, other: "TensorHolder") -> "TensorHolder":
+    def _merge(self, other: "TensorHolder") -> "TensorHolder":
         if not isinstance(other, TensorHolder):
             raise ValueError(f"Expected TensorHolder, got {type(other)}")
 
@@ -616,18 +643,19 @@ class TensorHolder(MappingNode):
 
 class Storage(TensorHolder):
     """
-    A Storage component that acts as a :class:`~.TensorHolder`.
+    A Storage :class:`~.TensorHolder` that can hold tensors for reuse.
     """
 
-    def merge(self, other: "Storage") -> "Storage":
+    def _merge(self, other: "Storage") -> "Storage":
         if not isinstance(other, Storage):
             raise ValueError(f"Expected Storage, got {type(other)}")
-        return super().merge(other)
+        return super()._merge(other)
 
 
 class ProcessingStage(TensorHolder):
     """
-    A ProcessingStage that acts as a :class:`~.TensorHolder`.
+    A ProcessingStage :class:`~.TensorHolder` that acts as a pass-through, where data is
+    not reused but incurs accesses into this ProcessingStage.
     """
 
     pass
@@ -641,11 +669,13 @@ class Compute(MappingNode):
     """ The Einsum being computed. """
 
     compute: str
-    """ The type of computation being performed. """
+    """ The name of the compute component performing the computation. """
 
     component_object: Optional[arch.Compute] = None
-    """ The compute object performing the computation. """
+    """ The :class:`~fastfusion.frontend.arch.Compute` object performing the
+    computation. """
 
+    @override
     def compact_str(self) -> str:
         return f"{self.compute} computes {self.einsum}"
 
@@ -661,12 +691,13 @@ class Compute(MappingNode):
 
 class MappingNodeWithChildren(MappingNode):
     """
-    A :class:`~.MappingNode` that also contains children.
+    A :class:`~.MappingNode` that also has child nodes.
     """
 
     nodes: NodeList = ParsableList()
     """ The child nodes. """
 
+    @override
     def _parent2child(
         self, parent: MappingNode
     ) -> list[tuple[MappingNode, MappingNode]]:
@@ -675,9 +706,11 @@ class MappingNodeWithChildren(MappingNode):
             mine.extend(child._parent2child(self))
         return mine
 
+    @override
     def _parent2next(self) -> MappingNode:
         return None
 
+    @override
     def _render_make_children(self) -> list[str]:
         lines = []
         for child in self.nodes:
@@ -685,26 +718,29 @@ class MappingNodeWithChildren(MappingNode):
             lines.extend(child._render_make_children())
         return lines
 
-    def get_backers(self) -> list[TensorHolder]:
+    @override
+    def _get_backers(self) -> list[TensorHolder]:
         backing = []
         for child in self.nodes:
             if isinstance(child, TensorHolder) and child._backing:
                 backing.append(child)
             elif isinstance(child, MappingNodeWithChildren):
-                backing.extend(child.get_backers())
+                backing.extend(child._get_backers())
         return backing
 
-    def clear_nodes_of_type(self, *types: type) -> None:
+    def clear_nodes_of_type(self, types: type | tuple[type]) -> None:
+        """ Clears all child nodes that match the given type(s). """
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, types):
                 continue
             if isinstance(node, MappingNodeWithChildren):
-                node.clear_nodes_of_type(*types)
+                node.clear_nodes_of_type(types)
             new_nodes.append(node)
         self.nodes = ParsableList(new_nodes)
 
     def clear_nodes(self, *nodes: MappingNode) -> None:
+        """ Removes nodes that equal any of the given nodes. """
         new_nodes: list[MappingNode] = []
         for node in self.nodes:
             if any(n == node for n in nodes):
@@ -728,7 +764,7 @@ class MappingNodeWithChildren(MappingNode):
                         )
                         found = True
                         break
-                    if isinstance(n, Iteration):
+                    if isinstance(n, Loop):
                         break
                 if not found:
                     new_nodes.append(node)
@@ -749,7 +785,7 @@ class MappingNodeWithChildren(MappingNode):
                         n.purposes.extend(node.purposes)
                         found = True
                         break
-                    if isinstance(n, Iteration):
+                    if isinstance(n, Loop):
                         break
                 if not found:
                     new_nodes.append(node)
@@ -838,11 +874,9 @@ class MappingNodeWithChildren(MappingNode):
 
 class Split(MappingNodeWithChildren):
     """
-    A :class:`~.MappingNodeWithChildren` that determines a Tensor split between
-    the child nodes.
+    A :class:`~.MappingNodeWithChildren` that splits the tree into multiple branches,
+    each applying to different Einsums.
     """
-
-    pass
 
     def __str__(self) -> str:
         return "Split"
@@ -874,15 +908,14 @@ class Split(MappingNodeWithChildren):
         return "#FFFFE0"
 
 
-LoopGroup: TypeAlias = list[Iteration]
+LoopGroup: TypeAlias = list[Loop]
 NonLoopGroup: TypeAlias = list[MappingNode]
 
 
 class Nested(MappingNodeWithChildren):
     """
-    A :class:`~.MappingNodeWithChildren` where the last Node may, but is not
-    obligated to be, a :class:`~.MappingNodeWithChildren` and where all other
-    nodes are guaranteed to to be not :class:`~.MappingNodeWithChildren`.
+    A :class:`~.MappingNodeWithChildren` that represents a nested set of nodes. Each
+    node is the parent of the next node.
     """
 
     def model_post_init(self, __context__=None) -> None:
@@ -919,12 +952,12 @@ class Nested(MappingNodeWithChildren):
             raise ValueError("Nested node has no children")
         return self.nodes[0]._render_node_name()
 
-    def get_n_shared_loops(self, other: "Nested") -> int:
+    def _get_n_shared_loops(self, other: "Nested") -> int:
         my_backing = set(
-            (t, s.component) for s in self.get_backers() for t in s._backing
+            (t, s.component) for s in self._get_backers() for t in s._backing
         )
         other_backing = set(
-            (t, s.component) for s in other.get_backers() for t in s._backing
+            (t, s.component) for s in other._get_backers() for t in s._backing
         )
         shared_backing = my_backing & other_backing
 
@@ -933,7 +966,7 @@ class Nested(MappingNodeWithChildren):
 
         n_shared_loops = 0
         for i, node in enumerate(self.nodes):
-            if isinstance(node, Iteration):
+            if isinstance(node, Loop):
                 n_shared_loops += 1
             if (
                 isinstance(node, Reservation)
@@ -945,7 +978,7 @@ class Nested(MappingNodeWithChildren):
                     max_child_n_shared_loops = 0
                     try:
                         max_child_n_shared_loops = max(
-                            max_child_n_shared_loops, child.get_n_shared_loops(other)
+                            max_child_n_shared_loops, child._get_n_shared_loops(other)
                         )
                     except ValueError:
                         pass
@@ -963,7 +996,7 @@ class Nested(MappingNodeWithChildren):
         seen_loops = 0
 
         if stop_at_n_loops == 0 and not any(
-            isinstance(node, Iteration) for node in self.nodes
+            isinstance(node, Loop) for node in self.nodes
         ):
             return [list(self.nodes)]
 
@@ -971,19 +1004,19 @@ class Nested(MappingNodeWithChildren):
         for i, node in enumerate(self.nodes):
             if seen_loops >= stop_at_n_loops:
                 break
-            is_iteration = isinstance(node, Iteration)
+            is_iteration = isinstance(node, Loop)
             if cur_group is None:
                 cur_group = []
             elif (
-                is_iteration and not all(isinstance(x, Iteration) for x in cur_group)
+                is_iteration and not all(isinstance(x, Loop) for x in cur_group)
             ) or (
-                not is_iteration and any(isinstance(x, Iteration) for x in cur_group)
+                not is_iteration and any(isinstance(x, Loop) for x in cur_group)
             ):
                 groups.append(cur_group)
                 cur_group = []
             cur_group.append(node)
             assert not isinstance(node, Sequential) or i == len(self.nodes) - 1, "BUG"
-            if isinstance(node, Iteration):
+            if isinstance(node, Loop):
                 seen_loops += 1
 
         if cur_group:
@@ -1000,15 +1033,15 @@ class Nested(MappingNodeWithChildren):
         # Lower reservations. If reservations are in the second-to-last group
         # # non-iteration group, lower them to the last group.
         # if len(groups) > 3:
-        #     assert not any(isinstance(x, Iteration) for x in groups[-1]), "BUG"
-        #     assert not any(isinstance(x, Iteration) for x in groups[-3]), "BUG"
+        #     assert not any(isinstance(x, Loop) for x in groups[-1]), "BUG"
+        #     assert not any(isinstance(x, Loop) for x in groups[-3]), "BUG"
         #     reservations = [x for x in groups[-2] if isinstance(x, Reservation)]
         #     groups[-1].extend(reservations)
         #     groups[-3] = [x for x in groups[-3] if x not in reservations]
 
         return groups
 
-    def merge(self, other: "Nested", n_shared_loops: int) -> "Nested":
+    def _merge(self, other: "Nested", n_shared_loops: int) -> "Nested":
 
         # Break up the nodes above the indices. We need to have them in the format of
         # [(loop, other stuff...), (loop, other stuff...), ...]
@@ -1024,7 +1057,7 @@ class Nested(MappingNodeWithChildren):
         zipped_groups = []
 
         def _pop_loop_group(groups: list[list[MappingNode]]) -> list[MappingNode]:
-            while groups and not any(isinstance(x, Iteration) for x in groups[0]):
+            while groups and not any(isinstance(x, Loop) for x in groups[0]):
                 zipped_groups.append(groups.pop(0))
             return groups.pop(0) if groups else []
 
@@ -1113,19 +1146,19 @@ class Nested(MappingNodeWithChildren):
 
         return Nested(nodes=new_nodes)
 
-    def beautify_loops(
+    def _beautify_loops(
         self, rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None
     ):
         to_remove = []
         rank_variable_bounds = rank_variable_bounds or {}
 
         for i, node in enumerate(self.nodes):
-            if not isinstance(node, Iteration):
+            if not isinstance(node, Loop):
                 continue
             prev_tile_shape = None
             for j in range(i - 1, -1, -1):
                 node2 = self.nodes[j]
-                if not isinstance(node2, Iteration):
+                if not isinstance(node2, Loop):
                     continue
                 if node2.stride is None:
                     continue
@@ -1153,7 +1186,7 @@ class Nested(MappingNodeWithChildren):
             return x
 
         for i, node in enumerate(self.nodes):
-            if not isinstance(node, Iteration):
+            if not isinstance(node, Loop):
                 continue
             node.tile_pattern = node.tile_pattern.update(
                 initial_tile_shape=safe_int_cast(node.tile_pattern.initial_tile_shape),
@@ -1162,12 +1195,13 @@ class Nested(MappingNodeWithChildren):
 
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
 
+    @override
     def compact_str(self) -> str:
         result = []
         prev = None
         for node in self.nodes:
             try:
-                prev = prev.merge(node)
+                prev = prev._merge(node)
             except:
                 if prev is not None:
                     result.append(prev)
@@ -1178,10 +1212,19 @@ class Nested(MappingNodeWithChildren):
         return " ".join(node.compact_str() for node in result)
 
 
+class Parallel(Split):
+    """
+    A :class:`~.Split` where each branch operates at the same time in different
+    spatially-organized hardware.
+    """
+
+    pass
+
+
 class Pipeline(Split):
     """
-    A :class:`~.Split` where the tensors are stored and processed
-    in parallel.
+    A :class:`~.Split` where each branch operates at the same time in different
+    spatially-organized hardware.
     """
 
     pass
@@ -1189,8 +1232,7 @@ class Pipeline(Split):
 
 class Sequential(Split):
     """
-    A :class:`~.Split` where the tensors are stored and processed
-    in series.
+    A :class:`~.Split` where branches are processed one-after-another.
     """
 
     pass
@@ -1211,20 +1253,23 @@ class Reservation(MappingNode):
     """ The resource being reserved. """
 
     _backing: Set[str] = set()
-    """The set of purposes for which this reservation is backing."""
+    """ Tensors for which this reservation is reserving the tensor's backing storage.
+    """
 
     persistent: bool = False
+    """
+    Whether this reservation is persistent. Persistent reservations can't be tiled and
+    must be kept in backing storage for the full duration of the workload's execution.
+    """
 
+    @override
     def compact_str(self) -> str:
         return f'{",".join(self.purposes)} reserves {self.resource}'
 
-    def __str__(self, color_map: ColorMap = None) -> str:
+    def __str__(self, color_map: _ColorMap = None) -> str:
         purposes = self.purposes
         if color_map is not None:
-            # format_list = comma_separated_list(purposes) + [f" reserves {self.resource}"]
-            format_list = [f"{self.resource} reserved for"] + comma_separated_list(
-                purposes
-            )
+            format_list = [f"{self.resource} reserved for"] + list(purposes)
             return color_map.format_list(format_list)
         return f"{self.resource} reserved for {",".join(purposes)}"
 
@@ -1269,12 +1314,12 @@ MappingNodeTypes: TypeAlias = Union[
 class Mapping(Nested):
     """A Mapping of a workload onto a hardware architecture."""
 
-    version: Annotated[str, assert_version] = __version__
+    # version: Annotated[str, assert_version] = __version__
 
     _n_loop_orders: int | None = None
     """ Used for counting number of unique mappings. Do not touch. """
 
-    def get_fused_slice(self, fusable_tensors: set[TensorName]) -> "Mapping":
+    def _get_fused_slice(self, fusable_tensors: set[TensorName]) -> "Mapping":
         """
         Return a mapping with:
         - All backing reservation nodes for intermediate tensors
@@ -1300,13 +1345,14 @@ class Mapping(Nested):
                 relevant_intermediate_tensors.remove(node.purpose)
                 if len(relevant_intermediate_tensors) == 0:
                     break
-            elif isinstance(node, Iteration):
+            elif isinstance(node, Loop):
                 to_add.append(node)
         return fused_slice
 
     @property
-    def loops(self) -> list[Iteration]:
-        return [node for node in self.nodes if isinstance(node, Iteration)]
+    def loops(self) -> list[Loop]:
+        """ Returns all :class:`~.Loop` nodes in the Mapping. """
+        return self.get_nodes_of_type(Loop)
 
     def _render_node_label(self) -> str:
         return f"Root"
@@ -1315,6 +1361,7 @@ class Mapping(Nested):
         return self.render()
 
     def render(self) -> str:
+        """ Renders the mapping as a Pydot graph. Returns an SVG string. """
         graph = pydot_graph()
         # Enable HTML-like labels for color support
         graph.set_node_defaults(label="")
@@ -1322,14 +1369,14 @@ class Mapping(Nested):
             graph.add_node(node)
 
         color_keys = set()
-        all_nodes = self.flatten()
+        all_nodes = self._flatten()
         for node in all_nodes:
             if isinstance(node, TensorHolder):
                 color_keys.update(node.tensors)
             if isinstance(node, Reservation):
                 color_keys.update(node.purposes)
 
-        color_map = ColorMap(sorted(color_keys))
+        color_map = _ColorMap(sorted(color_keys))
 
         for node in all_nodes:
             if isinstance(node, (TensorHolder, Reservation)):
@@ -1352,14 +1399,14 @@ class Mapping(Nested):
         return SVGJupyterRender(graph.create_svg(prog="dot").decode('utf-8'))
 
     @classmethod
-    def from_pmappings(
+    def _from_pmappings(
         cls,
         pmappings: list[Nested],
         rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None,
     ) -> "Mapping":
         pmappings = list(copy.deepcopy(pmappings))
         for pmapping in pmappings:
-            pmapping.beautify_loops(rank_variable_bounds)
+            pmapping._beautify_loops(rank_variable_bounds)
 
         while len(pmappings) > 1:
             highest_n_shared_loops = 0
@@ -1368,7 +1415,7 @@ class Mapping(Nested):
                 shared_index = 0
                 for j in range(i + 1, len(pmappings)):
                     shared_index = max(
-                        pmapping.get_n_shared_loops(pmappings[j]), shared_index
+                        pmapping._get_n_shared_loops(pmappings[j]), shared_index
                     )
                 if shared_index > highest_n_shared_loops:
                     highest_n_shared_loops = shared_index
@@ -1382,10 +1429,10 @@ class Mapping(Nested):
             # print(
             #     f"Merging with shared loops {highest_n_shared_loops}: {names_a} <--> {names_b}."
             # )
-            # print(pmappings[highest_shared_pmapping_index].get_n_shared_loops(pmappings[highest_shared_pmapping_index + 1]))
+            # print(pmappings[highest_shared_pmapping_index]._get_n_shared_loops(pmappings[highest_shared_pmapping_index + 1]))
             pmappings[highest_shared_pmapping_index] = pmappings[
                 highest_shared_pmapping_index
-            ].merge(
+            ]._merge(
                 pmappings.pop(highest_shared_pmapping_index + 1),
                 highest_n_shared_loops,
             )
@@ -1439,10 +1486,6 @@ class Mapping(Nested):
         # graph.config = config
 
         # return md.Mermaid(graph)
-
-
-class MappingTree(MappingNode):  # TODO: Make this a full mapping
-    version: Annotated[str, assert_version] = __version__
 
 
 Split.model_rebuild()

@@ -6,7 +6,6 @@
   #   - {name: Q, projection: [ b, m, h, e ], output: True}
 
 mapping:
-  version: "0.5"
   nodes:
   - !Storage
     tensors: [I, WQ, Q]

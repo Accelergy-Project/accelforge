@@ -20,8 +20,6 @@ variables:
 
 
 arch:
-  version: "0.5"
-  global_cycle_period: 1e-9
   nodes:
   - !Memory
     name: MainMemory

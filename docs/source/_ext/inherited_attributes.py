@@ -72,7 +72,7 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
         config = self.env.config
         ignore = getattr(config, 'inherited_attributes_ignore', []) + DEFAULT_IGNORE
 
-        # Get the class's own members (not inherited)
+        # Collect ALL attributes defined directly on this class (not inherited)
         own_members = set()
         if hasattr(self.object, '__dict__'):
             own_members.update(self.object.__dict__.keys())
@@ -114,11 +114,14 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
         except (AttributeError, TypeError):
             return members_check_module, members
 
-        # Track seen names - ObjectMember is a namedtuple, access by index
+        # Track seen names - includes both members from super() and own_members
+        # ObjectMember is a namedtuple, access by index
         seen_names = set()
         for member in members:
             if hasattr(member, '__getitem__'):
                 seen_names.add(member[0])
+        # Add all own members to seen_names to prevent inheritance
+        seen_names.update(own_members)
 
         # Collect inherited members
         inherited = []
@@ -134,7 +137,7 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
                 if name.startswith('_'):
                     continue
 
-                # Skip if already seen
+                # Skip if already seen (including own_members)
                 if name in seen_names:
                     continue
 
@@ -161,6 +164,7 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
                 for field_name in parent_class.model_fields:
                     if field_name.startswith('_'):
                         continue
+                    # Skip if already seen (including own_members)
                     if field_name in seen_names:
                         continue
                     if field_name in ignore:
@@ -173,6 +177,7 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
                 for field_name in parent_class.__fields__:
                     if field_name.startswith('_'):
                         continue
+                    # Skip if already seen (including own_members)
                     if field_name in seen_names:
                         continue
                     if field_name in ignore:
@@ -204,7 +209,9 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
 
 def setup(app):
     """Setup the extension."""
-    app.add_config_value('inherited_attributes_ignore', [], 'env')
+    # Only add config value if it doesn't exist
+    if not hasattr(app.config, 'inherited_attributes_ignore'):
+        app.add_config_value('inherited_attributes_ignore', [], 'env')
 
     app.add_autodocumenter(InheritedAttributesClassDocumenter, override=True)
 

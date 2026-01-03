@@ -9,7 +9,7 @@ from tqdm import tqdm
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
     Compute,
-    Iteration,
+    Loop,
     Mapping,
     MappingNode,
     TensorHolder,
@@ -50,7 +50,7 @@ from fastfusion.util.setexpressions import eval_set_expression
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
     mapping_new = []
     for node in mapping:
-        if not isinstance(node, Iteration) or not isinstance(node.rank_variable, set):
+        if not isinstance(node, Loop) or not isinstance(node.rank_variable, set):
             mapping_new.append(node)
             continue
 
@@ -76,7 +76,7 @@ def label_fused_loops(mapping: List[MappingNode]):
         )
 
     for i, node in enumerate(mapping):
-        if isinstance(node, Iteration):
+        if isinstance(node, Loop):
             if node._fused is None:
                 node._fused = i < last_backer
     return mapping
@@ -155,7 +155,7 @@ def assert_proper_fusion_labeling(mapping: list[MappingNode], check_loops: bool 
 
         if new and check_loops:
             for j in range(i):
-                if isinstance(mapping[j], Iteration):
+                if isinstance(mapping[j], Loop):
                     assert mapping[
                         j
                     ]._fused, f"Node {j} is not fused in {' '.join(m.compact_str() for m in mapping)}"

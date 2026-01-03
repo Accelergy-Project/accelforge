@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Reservation, Iteration, Mapping
+from fastfusion.frontend.mapping import Reservation, Loop, Mapping
 
 
 def get_fused_loops_per_tensor(
@@ -19,6 +19,6 @@ def get_fused_loops_per_tensor(
                 tensor_to_n_fused_loops[tensor] = None
             else:
                 tensor_to_n_fused_loops[tensor] = n_loops
-        elif isinstance(node, Iteration):
+        elif isinstance(node, Loop):
             n_loops += 1
     return tensor_to_n_fused_loops

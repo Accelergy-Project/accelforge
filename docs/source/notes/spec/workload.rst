@@ -9,6 +9,9 @@ and a cascade of Einsums is a list of Einsums with data dependencies.
 
 The following is an example workload for three back-to-back matrix multiplications:
 
+.. include:: ../../../../examples/workloads/three_matmuls.workload.yaml
+   :code: yaml
+
 The top-level Workload spec has the following attributes:
 
 .. include-attrs:: fastfusion.frontend.workload.Workload
@@ -16,6 +19,32 @@ The top-level Workload spec has the following attributes:
 Each Einsum in the workload represents a single Einsum with the following attributes:
 
 .. include-attrs:: fastfusion.frontend.workload.Einsum
+
+And each tensor access has the following attributes:
+
+.. include-attrs:: fastfusion.frontend.workload.TensorAccess
+
+Workloads include *ranks* and *rank variables*. Ranks are the dimensions of the tensors
+in the Einsum, while rank variables are variables that index into these ranks. Generally
+the rank names are uppercased versions of the rank variable names, but not always. In
+more-complex workloads (such as the GPT example later in this doc), there may be cases
+where we index into a rank with multiple different rank variables-- in this case, we may
+use a projection dictionary instead of a list.
+
+.. code-block:: yaml
+
+  - name: Matmul0
+    tensor_accesses:
+    - {name: T0, projection: [m, n0]} # Implies projection: {M: m, N0: n0}
+    - {name: W1, projection: [k, n0]} # Implies projection: {K: k, N0: n0}
+    - {name: T1, projection: [n0, n1], output: True} # Implies projection: {N0: n0, N1: n1}
+
+  - name: Matmul1
+    tensor_accesses:
+    # We can be explicit about the projection
+    - {name: T1, projection: {M: m, N1: n1}}
+    - {name: W1, projection: {N1: n1, N2: n2}}
+    - {name: T2, projection: {M: m, N2: n2}, output: True}
 
 Renaming Tensors and Rank Variables
 -----------------------------------
@@ -43,7 +72,7 @@ Additionally, you may define a separate top-level
 :py:class:`~fastfusion.frontend.renames.Renames` object with structure mirroring the
 workload. For example, one is in the bottom of the following workload:
 
-.. include:: ../../../examples/workloads/gpt3_6.7B.workload.yaml
+.. include:: ../../../../examples/workloads/gpt3_6.7B.workload.yaml
    :code: yaml
 
 This renames format includes, for every Einsum, a ``tensor_accesses`` key and a

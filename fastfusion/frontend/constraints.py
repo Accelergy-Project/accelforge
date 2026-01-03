@@ -1,6 +1,7 @@
 import copy
 import logging
 import re
+from abc import ABC
 from typing import Annotated, Any, Callable, List, Optional
 
 from fastfusion._accelerated_imports import np
@@ -27,9 +28,41 @@ from fastfusion._version import assert_version, __version__
 
 
 class Comparison(ParsableModel):
+    """
+    A comparison between a rank variable's bound and a value. A comparison is performed
+    for each rank variable.
+
+    The LHS of each comparison is the loop bound of a loop that affects this rank
+    variable. The RHS is the given value.
+
+    For example, if the expression resolves to [a, b], the operator is "<=", and the
+    value is 10, and we have loops "for a0 in [0..A0)" and "for b0 in [0..B0)", then a
+    mapping is only valid if A0 <= 10 and B0 <= 10.
+    """
+
     expression: str | InvertibleSet[RankVariable] | set[RankVariable]
+    """ The expression to compare. This expression should resolve to a set of rank
+    variables. A comparison is performed for each rank variable independently, and the
+    result passes if and only if all comparisons pass. The LHS of each comparison is the
+    loop bound of a loop that affects this rank variable. The RHS is the given value.
+    """
+
     operator: str
+    """ The operator to use for the comparison. Supported operators are:
+    - == (equal to)
+    - <= (less than or equal to)
+    - >= (greater than or equal to)
+    - < (less than)
+    - > (greater than)
+    - product== (product of all loop bounds is equal to)
+    - product<= (product of all loop bounds is less than or equal to)
+    - product>= (product of all loop bounds is greater than or equal to)
+    - product< (product of all loop bounds is less than)
+    - product> (product of all loop bounds is greater than)
+    """
+
     value: ParsesTo[int]
+    """ The value to compare against. """
 
     def _parse(self, symbol_table: dict[str, Any], location: str):
         # if len(self) != 3:
@@ -45,7 +78,7 @@ class Comparison(ParsableModel):
             new.operator = new.operator.replace("product", "")
         return new
 
-    def constrained_to_one(self) -> bool:
+    def _constrained_to_one(self) -> bool:
         return self.value == 1 and self.operator in [
             "==",
             "<=",
@@ -53,12 +86,12 @@ class Comparison(ParsableModel):
             "product<=",
         ]
 
-    def split_expression(self) -> List[set[RankVariable]]:
+    def _split_expression(self) -> List[set[RankVariable]]:
         if "product" in self.operator:
             return [self.expression]
         return sorted(set((x,)) for x in self.expression)
 
-    def to_constraint_lambda(
+    def _to_constraint_lambda(
         self,
         increasing_sizes: bool,
     ) -> Callable[[bool, np.ndarray], bool | np.ndarray]:
@@ -103,31 +136,31 @@ class Comparison(ParsableModel):
             f"Unknown operator: {self.operator}. Known operators: {list(operator_to_wrapper.keys())}"
         )
 
-    def force_to_one(self):
-        return self.value == 1 and self.operator in [
-            "==",
-            "<=",
-            "product==",
-            "product<=",
-        ]
-
-
 class Tensors(ParsableModel):
     keep: str | InvertibleSet[TensorName] | set[TensorName] = (
         "<Defaults to Nothing>"
     )
-    """ Which tensors must be kept in this component. """
+    """
+    A set expression describing which tensors must be kept in this
+    :class:`fastfusion.frontend.arch.TensorHolder`. If this is not defined, then all
+    tensors must be kept.
+    """
 
     may_keep: str | InvertibleSet[TensorName] | set[TensorName] = (
         "<Nothing if keep is defined, else All>"
     )
-    """ Which tensors may be kept in this component, but are not required to be. The
-    mapper will explore both keeping and not keeping each tensor. """
+    """
+    A set expression describing which tensors may optionally be kept in this
+    :class:`fastfusion.frontend.arch.TensorHolder`. The mapper will explore both keeping
+    and not keeping each of these tensors. If this is not defined, then all tensors may
+    be kept.
+    """
 
     tile_shape: ParsableList[Comparison] = []
     """
-    The tile shape for each rank variable. This is given as a list of comparisons, where
-    each comparison must evaluate to True for a valid mapping.
+    The tile shape for each rank variable. This is given as a list of
+    :class:`~.Comparison` objects, where each comparison must evaluate to True for a
+    valid mapping.
     """
 
     no_refetch_from_above: str | InvertibleSet[TensorName] | set[TensorName] = (
@@ -135,7 +168,10 @@ class Tensors(ParsableModel):
     )
     """
     The tensors that are not allowed to be refetched from above. This is given as a set
-    of tensors. These tensors must be fetched at most one time from above memories.
+    of :class:`~.TensorName` objects or a set expression that resolves to them. These
+    tensors must be fetched at most one time from above memories, and may not be
+    refetched across any temporal or spatial loop iterations. Tensors may be fetched in
+    pieces (if they do not cause re-fetches of any piece).
     """
 
     tensor_order_options: ParsableList[
@@ -212,33 +248,46 @@ class Tensors(ParsableModel):
         )
 
 
-class Iteration(ParsableModel):
-    version: Annotated[str, assert_version] = __version__
-    reuse: str | InvertibleSet[TensorName] | set[TensorName] = "All"
+class Loop(ParsableModel, ABC):
+    """ Constraints that apply to loops. Do not use this directly; use :class:`~.Spatial`
+    or :class:`~.Temporal` instead.
+    """
+
     loop_bounds: ParsableList[Comparison] = ParsableList()
+    """ Bounds for this loop. This is a list of :class:`~.Comparison` objects, all of
+    which must be satisfied by the loops to which this constraint applies. """
 
     def _parse(self, symbol_table: dict[str, Any], location: str):
         return type(self)(
             loop_bounds=[x._parse(symbol_table, location) for x in self.loop_bounds],
-            reuse=eval_set_expression(self.reuse, symbol_table, "tensors", location),
         )
 
 
-class Spatial(Iteration):
-    name: str
-    min_utilization: int | float | str = 0.0
-    reuse: str | InvertibleSet[TensorName] | set[TensorName] = "All"
-    must_reuse: str | InvertibleSet[TensorName] | set[TensorName] = "Nothing"
+class Spatial(Loop):
+    """
+    A :class:`~.Loop` constraints that apply to spatial loops.
+    """
 
-    @property
-    def name(self):
-        return self.name
+    name: str
+    """ The dimension name across which different spatial iterations occur. """
+
+    min_utilization: int | float | str = 0.0
+    """ The minimum utilization of spatial instances, as a value from 0 to 1. A mapping
+    is invalid if less than this porportion of this dimension's fanout is utilized.
+    Mappers that support it (e.g., FFM) may, if no mappings satisfy this constraint,
+    return the highest-utilization mappings.
+    """
+
+    must_reuse: str | InvertibleSet[TensorName] | set[TensorName] = "Nothing"
+    """ A set of tensors or a set expression representing tensors that must be reused
+    across spatial iterations. Spatial loops may only be placed that reuse ALL tensors
+    given here.
+    """
 
     def _parse(self, symbol_table: dict[str, Any], location: str):
         return type(self)(
             name=self.name,
             loop_bounds=[x._parse(symbol_table, location) for x in self.loop_bounds],
-            reuse=eval_set_expression(self.reuse, symbol_table, "tensors", location),
             min_utilization=parse_expression(
                 self.min_utilization, symbol_table, "min_utilization", location
             ),
@@ -248,8 +297,18 @@ class Spatial(Iteration):
         )
 
 
-class Temporal(Iteration):
-    rmw_first_update: List[str] = []
+class Temporal(Loop):
+    """
+    A :class:`~.Loop` constraints that apply to temporal loops.
+    """
+
+    rmw_first_update: str | InvertibleSet[TensorName] | set[TensorName] = "Nothing"
+    """ A set of tensors or a set expression representing tensors that incur a
+    read-modify-write the first time they are updated in a memory. For tensors outputted
+    by an Einsum, the first update of a value only incurs a read, because the previous
+    value is null. If a tensor is given here, then the first update of that tensor will
+    incur a read and write.
+    """
 
     def _parse(self, symbol_table: dict[str, Any], location: str):
         new_temporal = super()._parse(symbol_table, location)
@@ -260,21 +319,38 @@ class Temporal(Iteration):
 
 
 class Misc(ParsableModel):
+    """
+    Miscellaneous constraints that do not fit into the other categories.
+    """
+
     enabled: str | bool = True
+    """ Whether this component is enabled. If the expression resolves to False, then
+    the component is disabled. """
 
 
 class MiscOnlyConstraints(ParsableModel):
-    name: Optional[str] = None
+    """
+    Miscellaneous constraints that do not fit into the other categories.
+    """
+
     misc: Misc = Misc()
+    """ Miscellaneous constraints that do not fit into the other categories. """
 
 
 class ConstraintGroup(MiscOnlyConstraints):
+    """ A group of constraints that apply to a component. """
+
     spatial: ParsableList[Spatial] = ParsableList()
-    temporal: Temporal = Temporal()
+    """ Constraints that apply to spatial loops across spatial instances of this
+    component. """
+
+    # temporal: Temporal = Temporal()
+
     tensors: Tensors = Tensors()
+    """ Constraints that apply to tensors stored in this component. """
 
 
-class ConstraintLambda:
+class _ConstraintLambda:
     def __init__(
         self,
         constraint: Comparison,
@@ -283,7 +359,7 @@ class ConstraintLambda:
     ):
         self.constraint = constraint
         self.constraint_lambda = (
-            None if constraint is None else constraint.to_constraint_lambda(True)
+            None if constraint is None else constraint._to_constraint_lambda(True)
         )
         self.target_mapping_nodes = target_mapping_nodes
         self.rank_variables = rank_variables
@@ -300,17 +376,17 @@ class ConstraintLambda:
         return f"constrains {self._target_node_indices}"
 
 
-class TileShapeConstraintLambda(ConstraintLambda):
+class _TileShapeConstraintLambda(_ConstraintLambda):
     def pretty_str(self) -> str:
         return f"Tile shape {self.constraint.operator} {self.constraint.value} {self._constrained_node_str()}"
 
 
-class LoopBoundsConstraintLambda(ConstraintLambda):
+class _LoopBoundsConstraintLambda(_ConstraintLambda):
     def pretty_str(self) -> str:
         return f"Loop bounds {self.constraint.operator} {self.constraint.value} {self._constrained_node_str()}"
 
 
-class MinUtilizationConstraintLambda(ConstraintLambda):
+class _MinUtilizationConstraintLambda(_ConstraintLambda):
     def __init__(
         self,
         target_mapping_nodes: list[Spatial],
@@ -339,6 +415,6 @@ class MinUtilizationConstraintLambda(ConstraintLambda):
         return f"Min utilization {self.min_utilization} {self._constrained_node_str()}"
 
 
-class Constraints(ParsableModel):
-    version: Annotated[str, assert_version] = __version__
-    constraints: ParsableList[ConstraintGroup] = ParsableList()
+# class Constraints(ParsableModel):
+#     # version: Annotated[str, assert_version] = __version__
+#     constraints: ParsableList[ConstraintGroup] = ParsableList()

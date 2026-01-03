@@ -1,5 +1,4 @@
 -   binding:
-        version: 0.4
         nodes:
         -   logical:
                 name: PE
@@ -20,7 +19,6 @@
                 tensorA: x = a and y = b
                 tensorB: x = b and y = a
     solution:
-        version: 0.4
         nodes:
             -
                 tensorA: |
@@ -62,7 +60,6 @@
                     }
 
 -   binding:
-        version: 0.4
         nodes:
         -   logical:
                 name: DRAM

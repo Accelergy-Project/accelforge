@@ -2,7 +2,6 @@ arch:
   # ============================================================
   # Architecture Description
   # ============================================================
-  version: "0.5"
   nodes: # Top-level is hierarchical
   - !Memory # DRAM main memory
     name: MainMemory

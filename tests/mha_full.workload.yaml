@@ -1,5 +1,4 @@
 workload:
-  version: "0.5"
   shape:
     b: 0 <= b < 1
     m: 0 <= m < 128

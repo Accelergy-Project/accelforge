@@ -21,7 +21,7 @@ are supported:
 In the architecture file, each component is represented by a YAML dictionary. Component
 types are preceded by the ``!`` character. An example architecture is shown below:
 
-.. include:: ../../../examples/arches/tpu_v4i_like.arch.yaml
+.. include:: ../../../../examples/arches/tpu_v4i_like.arch.yaml
    :code: yaml
 
 
