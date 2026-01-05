@@ -3,7 +3,7 @@ How Modeling Works
 
 .. _accelerator-modeling:
 
-Modeling calculates the energy, area, and latency of an accelerator running a given
+Modeling calculates the energy, area, and latency of an architecture running a given
 workload. This is done in three steps:
 
 1. **Per-Component Energy, Area, and Leakage**: This step models the area and leakage

@@ -2,19 +2,20 @@ Citing This Work
 ================
 
 **Please cite all of the following papers if you use this work.** This work is the
-combination of many other works:
+combination of the following:
 
 - **CiMLoop**: The architecture and component specification.
 - **Fast & Fusiest**: The multi-Einsum mapper.
+- **LoopTree**: The mapping specification.
+- **LoopForest**: The mapspace specification.
 - **Turbo-Charged**: The single-Einsum mapper (and an essential first step for Fast &
   Fusiest).
-- **LoopTree**: The mapping specification.
 
 They are available as the following:
 
 .. code-block:: latex
 
-    \cite{cimloop, fast_fusiest, turbo_charged, loop_tree}
+    \cite{cimloop, fast_fusiest, turbo_charged, loop_tree, loopforest}
 
 .. code-block:: bibtex
 

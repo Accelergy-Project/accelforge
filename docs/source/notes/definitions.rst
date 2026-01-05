@@ -24,5 +24,10 @@ Pmapping
   A *partial mapping*, or *pmapping*, is a mapping of a subset of the workload to the
   hardware.
 
+Pmapping Template
+  A *pmapping template* is a template for a pmapping. It includes all storage nodes
+  (dataplacement) and loop nodes (dataflow), but does not have loop bounds defined (tile
+  shapes).
+
 Tile
   TODO

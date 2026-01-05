@@ -3,7 +3,7 @@
 Workload and Renames Specification
 ==================================
 
-The :py:class:`~fastfusion.frontend.workload.Workload` object describes a cascade of
+The :py:class:`~fastfusion.frontend.workload` object describes a cascade of
 Einsums. An Einsum, described in ..., can represent a variety of tensor algebra kernels,
 and a cascade of Einsums is a list of Einsums with data dependencies.
 
@@ -14,7 +14,7 @@ The following is an example workload for three back-to-back matrix multiplicatio
 
 The top-level Workload spec has the following attributes:
 
-.. include-attrs:: fastfusion.frontend.workload.Workload
+.. include-attrs:: fastfusion.frontend.workload
 
 Each Einsum in the workload represents a single Einsum with the following attributes:
 

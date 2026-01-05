@@ -3,8 +3,11 @@
 Set Expressions
 ===============
 
-Set expressions are used to describe sets of tensors and rank variables, commonly used
-in constraints. For example, you may describe all tensors that are not intermediates
+Set expressions are used to describe sets of tensors and rank variables. Set expressions
+are parsed for each pmapping template, meaning that they can reference specific tensors
+for each Einsum.
+
+As an example of a set expression, we can describe all tensors that are not intermediates
 using the following:
 
 .. code-block:: yaml
