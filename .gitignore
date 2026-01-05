@@ -183,3 +183,12 @@ cython_debug/
 
 libraries/*
 !libraries/.gitkeep
+
+
+docs/source/fastfusion.frontend.mapper.rst
+docs/source/fastfusion.frontend.workload.rst
+docs/source/fastfusion.mapper.rst
+docs/source/fastfusion.util.rst
+docs/source/fastfusion.frontend.rst
+docs/source/fastfusion.mapper.FFM.rst
+docs/source/fastfusion.rst

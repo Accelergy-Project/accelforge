@@ -29,6 +29,11 @@ dependencies = [
     "pydot>=4.0.0",
     "platformdirs>=4.3.0",
     "joblib>=1.5.1",
+    "hwcomponents",
+    "hwcomponents-adc",
+    "hwcomponents-cacti",
+    "hwcomponents-library",
+    "hwcomponents-neurosim",
 ]
 
 [project.optional-dependencies]
@@ -47,4 +52,4 @@ where = ["."]
 "*" = ["*.txt", "*.md", "*.yaml", "*.yml"]
 
 [project.scripts]
-# Add any console scripts here if needed 
+# Add any console scripts here if needed
