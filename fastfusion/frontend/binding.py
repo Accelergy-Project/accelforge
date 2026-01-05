@@ -36,8 +36,6 @@ class LogicalDomain(Domain):
     """
     Represents the logical architecture domain space of logical dims × tensor ranks.
     """
-
-    ranks: Tuple[str] = ("c", "h", "w", "p", "q", "r", "s")
     l_dims: ParsableList[str]
 
     @property
