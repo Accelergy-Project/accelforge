@@ -1,9 +1,8 @@
 from fastfusion.frontend.mapper.mapper import Mapper
 from fastfusion.frontend.renames import Renames
 from fastfusion.util._parse_expressions import ParseError, ParseExpressionsContext
-from fastfusion.frontend.arch import Compute, Leaf, Component, Arch
+from fastfusion.frontend.arch import Compute, Leaf, Component, Arch, Fanout
 
-# from fastfusion.frontend.constraints import Constraints
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.variables import Variables
 from fastfusion.frontend.config import Config, get_config
@@ -20,13 +19,6 @@ class Spec(ParsableModel):
 
     arch: Arch = Arch()
     """ The hardware architecture being used. """
-
-    # TODO: Any reason to support separated constraints? They can be added
-    # programatically to arch components.
-
-    # constraints: Constraints = Constraints()
-    # """ Constrains how the workload is mapped onto the architecture. May be
-    # defined here or directly in the architecture. """
 
     mapping: Mapping = Mapping()
     """ How the workload is programmed onto the architecture. Do not specify this if
@@ -122,7 +114,7 @@ class Spec(ParsableModel):
             fanout = 1
             for component in arch:
                 fanout *= component.get_fanout()
-                if component.name in components:
+                if component.name in components or isinstance(component, Fanout):
                     continue
                 assert isinstance(component, Component)
                 components.add(component.name)

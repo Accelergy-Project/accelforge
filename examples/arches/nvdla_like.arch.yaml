@@ -13,7 +13,7 @@ arch:
       # reference, and they said it left out some things.
     - {name: read, arguments: {energy: 7.03e-12}}
     - {name: write, arguments: {energy: 7.03e-12}}
-    constraints: {tensors: {keep: ~Intermediates, may_keep: All}}
+    tensors: {keep: ~Intermediates, may_keep: All}
 
   - !Memory
     name: GlobalBuffer
@@ -25,29 +25,18 @@ arch:
     actions:
     - {name: read, arguments: {energy: 0.249e-12}}
     - {name: write, arguments: {energy: 0.293e-12}}
-    constraints:
-      tensors:
-        keep: All
-      # dataflow:
-      #   tensor_order_options:
-      #   - [~weight, weight]
+    tensors: {keep: All}
 
-  - !Memory
-    name: ArrayDummy
-    attributes: {_size: 0, _area: 0, _leak_power: 0, _energy: 0}
+  - !Fanout
+    name: ArrayFanout
     spatial:
-    - {name: reuse_input, fanout: 32, reuse: input} # 8 is the datawidth
-    - {name: reuse_output, fanout: 192, reuse: output}
-    constraints:
-      tensors: {keep: Nothing}
-      spatial:
-      - {name: reuse_input, must_reuse: input, min_utilization: 1}
-      - {name: reuse_output, must_reuse: output, min_utilization: 1}
+    - {name: reuse_input, fanout: 32, may_reuse: input, must_reuse: input, min_utilization: 1}
+    - {name: reuse_output, fanout: 192, may_reuse: output, must_reuse: output, min_utilization: 1}
 
   - !Memory
     name: Register
     attributes: {_size: 1, _area: 0, _leak_power: 0, _energy: 0, _datawidth: 1}
-    constraints: {tensors: {keep: weight}}
+    tensors: {keep: weight}
 
   - !Compute
     name: MAC

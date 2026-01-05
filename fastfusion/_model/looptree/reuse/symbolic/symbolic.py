@@ -734,7 +734,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         component_object = find_component_object(
             node.component, info.job.flattened_arch
         )
-        spatial_reuse = component_object.spatial[node.name].reuse
+        spatial_reuse = component_object.spatial[node.name].may_reuse
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
         child_stats = list(child_result.buffet_stats.items())

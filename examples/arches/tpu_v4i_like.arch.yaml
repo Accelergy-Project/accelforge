@@ -13,7 +13,7 @@ arch:
       # reference, and they said it left out some things.
     - {name: read, arguments: {energy: 7.03e-12}}
     - {name: write, arguments: {energy: 7.03e-12}}
-    constraints: {tensors: {keep: ~Intermediates, may_keep: All}}
+    tensors: {keep: ~Intermediates, may_keep: All}
 
   - !Memory
     name: GlobalBuffer
@@ -27,14 +27,11 @@ arch:
     actions:
     - {name: read, arguments: {energy: 1.88e-12}}
     - {name: write, arguments: {energy: 2.36e-12}}
-    constraints:
-      tensors:
-        keep: ~MainMemory.tensors
-        may_keep: All
+    tensors: {keep: ~MainMemory.tensors, may_keep: All}
 
   - !Memory
     name: LocalBuffer
-    spatial: [{name: Z, fanout: 4, reuse: Nothing}]
+    spatial: [{name: Z, fanout: 4, may_reuse: Nothing}]
     attributes:
       _size: 1024*1024*4*8 # 4MB
       _datawidth: 8
@@ -43,8 +40,7 @@ arch:
     actions:
     - {name: read, arguments: {energy: 0.249e-12}}
     - {name: write, arguments: {energy: 0.293e-12}}
-    constraints:
-      tensors: {keep: input | output}
+    tensors: {keep: input | output}
 
   - !Compute
     name: ScalarUnit
@@ -53,19 +49,13 @@ arch:
       _leak_power: 0
       _energy: 8e-6
       _latency: compute_actions / 128 / 1.05e9
-    constraints: {misc: {enabled: len(All) == 2}}
+    enabled: len(All) == 2
 
-  - !Memory
-    name: ArrayDummy
-    attributes: {_size: 0, _area: 0, _leak_power: 0, _energy: 0}
+  - !Fanout
+    name: ArrayFanout
     spatial:
-    - {name: reuse_input, fanout: 128, reuse: input} # 8 is the datawidth
-    - {name: reuse_output, fanout: 128, reuse: output}
-    constraints:
-      tensors: {keep: Nothing}
-      spatial:
-      - {name: reuse_input, must_reuse: input, min_utilization: 1}
-      - {name: reuse_output, must_reuse: output, min_utilization: 1}
+    - {name: reuse_input, fanout: 128, may_reuse: input, must_reuse: input, min_utilization: 1}
+    - {name: reuse_output, fanout: 128, may_reuse: output, must_reuse: output, min_utilization: 1}
 
   - !Memory
     name: Register
@@ -75,7 +65,7 @@ arch:
       _leak_power: 0
       _energy: 0
       _datawidth: 1
-    constraints: {tensors: {keep: weight}}
+    tensors: {keep: weight}
 
   - !Compute
     name: MAC
@@ -85,4 +75,4 @@ arch:
       _area: 9e-11 # 90 um^2. Very rough estimate based on die photo.
     actions:
     - {name: compute, arguments: {energy: 0.084e-12}}
-    constraints: {misc: {enabled: len(All) == 3}}
+    enabled: len(All) == 3

@@ -10,10 +10,7 @@ arch:
       size: 9999999999999
       datawidth: 1
       area: 1
-    constraints:
-      tensors:
-        keep: ~Intermediates()
-        bypass: Intermediates()
+    tensors: {keep: ~Intermediates(), may_keep: Intermediates()}
     actions:
     - {name: read, arguments: {energy: 1}}
     - {name: write, arguments: {energy: 1}}
@@ -26,9 +23,7 @@ arch:
       size: 9999999999999
       datawidth: 1
       area: 1
-    constraints:
-      tensors:
-        keep: All()
+    tensors: {keep: All()}
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}

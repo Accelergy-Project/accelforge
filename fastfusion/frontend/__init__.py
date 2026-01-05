@@ -3,7 +3,6 @@
 from .spec import *
 import fastfusion.frontend.arch as arch
 import fastfusion.frontend.config as config
-import fastfusion.frontend.constraints as constraints
 import fastfusion.frontend.mapping as mapping
 import fastfusion.frontend.renames as renames
 import fastfusion.frontend.spec as spec

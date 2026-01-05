@@ -33,13 +33,14 @@ def make_tensor_choices_one_level(
         target_type = Storage
     elif isinstance(node, arch.ProcessingStage):
         target_type = ProcessingStage
+    elif isinstance(node, arch.Dummy):
+        yield [], symbol_table, set(seen_tensors)
+        return
     else:
         raise ValueError(f"Unexpected tensor holder type: {type(node)}")
 
     new_symbol_table = copy.copy(symbol_table)
-    tensor_constraints = node.constraints.tensors._parse_keep(
-        symbol_table, f"{node.name}.constraints.tensors"
-    )
+    tensor_constraints = node.tensors._parse_keep(symbol_table, f"{node.name}.tensors")
     must_keep = tensors.to_my_space(tensor_constraints.keep)
     may_keep = tensors.to_my_space(tensor_constraints.may_keep)
     may_keep -= must_keep
@@ -74,6 +75,8 @@ def make_tensor_choices_one_level(
         keep_choice = keep_choice.to_my_space({copy.copy(t) for t in keep_choice})
         nodes = []
 
+        # Create storage nodes. Sort them to keep this deterministic. Ordering is done
+        # later.
         for t in sorted(keep_choice, key=str):
             nodes.append(
                 target_type(tensors=[t], component=node.name, component_object=node)

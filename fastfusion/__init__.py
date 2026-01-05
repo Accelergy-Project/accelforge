@@ -1,6 +1,5 @@
 from fastfusion.frontend import arch
 from fastfusion.frontend import config
-from fastfusion.frontend import constraints
 from fastfusion.frontend import mapping
 from fastfusion.frontend import renames
 from fastfusion.frontend import spec

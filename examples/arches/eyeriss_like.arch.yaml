@@ -29,14 +29,12 @@ arch:
     - {name: read, arguments: {_bits_per_action: 64}}
     - {name: write, arguments: {_bits_per_action: 64}}
 
-  - !Memory
-    name: ArrayDummy
-    attributes: {_size: 0, _area: 0, _leak_power: 0, _energy: 0}
+  - !Fanout
+    name: ArrayFanout
     spatial:
-    - {name: reuse_weight, fanout: 14, reuse: weight}
-    - {name: reuse_output, fanout: 12, reuse: output}
+    - {name: reuse_weight, fanout: 14, may_reuse: weight}
+    - {name: reuse_output, fanout: 12, may_reuse: output}
     constraints:
-      tensors: {keep: Nothing}
       spatial:
       - {name: reuse_weight, must_reuse: weight, min_utilization: 1}
       - {name: reuse_output, must_reuse: output, min_utilization: 1}

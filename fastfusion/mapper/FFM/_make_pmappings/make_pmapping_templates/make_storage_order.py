@@ -16,7 +16,8 @@ from fastfusion.frontend.workload.workload import EinsumName
 
 
 def eval_enabled(component: arch.Component, symbol_table: SymbolTable) -> bool:
-    enabled = component.constraints.misc.enabled
+    enabled = component.enabled
+    symbol_table = {**symbol_table, **component.attributes.model_dump_non_none()}
     if isinstance(enabled, str):
         return eval(enabled, {"__builtins__": MATH_FUNCS}, symbol_table)
     if isinstance(enabled, bool):
@@ -94,8 +95,10 @@ def get_tensor_choices(
 def get_tensor_order_constraint(nodes, symbol_table, tensors):
     required_order: dict[str, list[Order]] = {}
     for node in nodes:
-        constraint = node.constraints.tensors._parse_tensor_order_options(
-            symbol_table, f"{node.name}.constraints.tensors"
+        if isinstance(node, arch.Fanout):
+            continue
+        constraint = node.tensors._parse_tensor_order_options(
+            symbol_table, f"{node.name}.tensors"
         )
         if constraint.tensor_order_options:
             for order_constraint in constraint.tensor_order_options:

@@ -2,15 +2,13 @@ from collections import defaultdict
 from typing import List
 from fastfusion._accelerated_imports import np
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.constraints import (
+from fastfusion.frontend.arch import (
     Comparison,
-    ConstraintGroup,
     _MinUtilizationConstraintLambda,
     _TileShapeConstraintLambda,
     _LoopBoundsConstraintLambda,
     _ConstraintLambda,
 )
-from fastfusion.frontend.constraints import Spatial as SpatialConstraint
 from fastfusion.frontend.mapping import (
     Loop,
     MappingNode,
@@ -202,12 +200,14 @@ def get_constraints(
         if not isinstance(m, arch.Memory):
             continue
 
+        cur_symbol_table = {**symbol_table, **m.attributes.model_dump_non_none()}
+
         # Ignore if it doesn't hold any tensors
         if (index := first_tensor_holder_index(mapping, m.name)) is None:
             continue
 
-        tensor_constraints = m.constraints.tensors._parse_non_keep(
-            symbol_table, f"{m.name}.constraints.tensors"
+        tensor_constraints = m.tensors._parse_non_keep(
+            cur_symbol_table, f"{m.name}.tensors"
         )
 
         # Tile shape constraints
@@ -261,27 +261,23 @@ def get_constraints(
 
     # Spatial constraints
     for m in arch_flattened:
-        if not isinstance(m, arch.Memory):
+        if not isinstance(m, (arch.Memory, arch.Fanout)):
             continue
+        cur_symbol_table = {**symbol_table, **m.attributes.model_dump_non_none()}
 
         for dim in m.spatial:
+            parsed = dim._parse(cur_symbol_table, f"{m.name}.spatial")
             dim = dim.name
-            if dim not in m.constraints.spatial or m.spatial[dim].fanout == 1:
-                continue
             loops = [
                 n
                 for n in mapping
                 if isinstance(n, Spatial) and (n.component, n.name) == (m.name, dim)
             ]
-            spatial_constraint = m.constraints.spatial[dim]._parse(
-                symbol_table, f"{m.name}.constraints.spatial"
-            )
-
-            loop_bounds = list(spatial_constraint.loop_bounds)
-            if spatial_constraint.must_reuse:
+            loop_bounds = list(parsed.loop_bounds)
+            if parsed.must_reuse:
                 loop_bounds.append(
                     Comparison(
-                        expression=spatial_constraint.must_reuse.rank_variables,
+                        expression=parsed.must_reuse.rank_variables,
                         operator="==",
                         value=1,
                     )
@@ -297,7 +293,7 @@ def get_constraints(
                         constraints.loop_bounds_constraints.append(constraint)
 
             # Min utilization constraints
-            if spatial_constraint.min_utilization > 0:
+            if parsed.min_utilization > 0:
                 target_mapping_nodes = [
                     n
                     for n in mapping
@@ -311,7 +307,7 @@ def get_constraints(
                 constraint = _MinUtilizationConstraintLambda(
                     target_mapping_nodes,
                     rank_variables,
-                    spatial_constraint.min_utilization,
+                    parsed.min_utilization,
                 )
                 key = (m.name, dim)
                 constraints.min_utilization_constraints[key] = constraint

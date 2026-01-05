@@ -5,8 +5,7 @@ arch:
     attributes:
       _size: 1e9
       _datawidth: 8
-    constraints:
-      tensors: {keep: All()}
+    tensors: {keep: All()}
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
@@ -17,8 +16,7 @@ arch:
     attributes:
       _datawidth: 8
       _direction: up_and_down
-    constraints:
-      tensors: {keep: All()}
+    tensors: {keep: All()}
     actions:
     - {name: read, arguments: {energy: 100}}
     - {name: write, arguments: {energy: 0}}
@@ -29,8 +27,7 @@ arch:
     attributes:
       _size: 1e9
       _datawidth: 8
-    constraints:
-      tensors: {keep: All()}
+    tensors: {keep: All()}
     actions:
     - {name: read, arguments: {energy: 0}}
     - {name: write, arguments: {energy: 0}}
