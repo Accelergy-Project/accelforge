@@ -579,8 +579,8 @@ class _ModelWithUnderscoreFields(BaseModel, _FromYAMLAble):
             return value
 
         if f is not None:
-            yaml.write_yaml_file(f, _to_str(dump))
-        return yaml.to_yaml_string(_to_str(dump))
+            _yaml.write_yaml_file(f, _to_str(dump))
+        return _yaml.to_yaml_string(_to_str(dump))
 
     def all_fields_default(self):
         for field in self.__class__.model_fields:
