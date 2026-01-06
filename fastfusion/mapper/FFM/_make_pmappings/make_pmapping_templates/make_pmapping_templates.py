@@ -1,6 +1,7 @@
 import copy
 from collections import defaultdict
 import itertools
+import logging
 from typing import Any, Iterator, List
 import uuid
 
@@ -236,6 +237,7 @@ def iterate_mappings_no_constraints(
     for mapping, symbol_table in get_tensor_choices(
         einsum_name, arch_flattened, symbol_table, spec
     ):
+        logging.info('\tGenerated tensor choices: ' + ', '.join(m.compact_str() for m in mapping))
         mapping = copy.deepcopy(mapping)
         for mapping, n_permutations in insert_temporal_loops(
             mapping,
@@ -279,6 +281,11 @@ def iterate_mappings_constraints(
         rank_variable_bounds = get_rank_variable_bounds(spec, einsum_names)
 
     for einsum_name in einsum_names:
+        logging.info(
+            f"Generating pmapping templates for compute {compute_name} Einsums "
+            f"{einsum_name}"
+        )
+
         for mapping, symbol_table, n_permutations in iterate_mappings_no_constraints(
             spec,
             einsum_name,

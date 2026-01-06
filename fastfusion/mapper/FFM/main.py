@@ -25,6 +25,7 @@ from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
 )
 from fastfusion._accelerated_imports import pd
 import joblib
+import logging
 
 
 class MappingFromRow:
@@ -55,6 +56,8 @@ def _make_pmappings(
 ) -> MultiEinsumPmappings:
     parsed_spec = spec.calculate_component_energy_area(area=False)
     flattened_arches = parsed_spec.get_flattened_architecture()
+    for i, flattened_arch in enumerate(flattened_arches):
+        logging.info(f'Flattened arch {i} uses compute {flattened_arch[-1].name}')
     pmapping_groups, pmapping_objects, einsum2jobs = pmapper.make_pmappings(
         parsed_spec,
         flattened_arches,
@@ -94,14 +97,19 @@ def make_pmappings(
     `join_pmappings` to create a full mapping.
 
     Args:
-        spec: The Spec to generate pmappings for.
-        einsum_names: The einsum names to generate pmappings for. If None, all einsums will be included.
+        spec:
+            The Spec to generate pmappings for.
+        einsum_names:
+            The einsum names to generate pmappings for. If None, all einsums will be
+            included.
         can_combine_multiple_runs: Whether we would like to be able to combine multiple
-        make_pmappings runs. Haivng this as True allows you to do things like
-            `pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)`
-        but slows down execution.
-        cache_dir: The directory to cache pmappings in. If None, no caching will be done.
-        print_number_of_pmappings: Whether to print the number of pmappings for each einsum.
+            make_pmappings runs. Having this as True allows you to do things like
+            `pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)` but slows
+            down execution.
+        cache_dir:
+            The directory to cache pmappings in. If None, no caching will be done.
+        print_number_of_pmappings:
+            Whether to print the number of pmappings for each einsum.
 
     Returns:
         A MultiEinsumPmappings object.

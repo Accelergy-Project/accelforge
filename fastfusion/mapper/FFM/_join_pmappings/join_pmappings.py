@@ -440,6 +440,26 @@ def join_pmappings(
             )
             raise ValueError(estr)
 
+        def no_match_lookahead_error(
+            combined: list[PmappingGroup],
+            next_keys: set[tuple[int, int, tuple[tuple[int, int], ...]]],
+        ):
+            estr = f"No match found for any group. Left and right joined successfully, "
+            estr += f"but will not be compatible with following Einsums.\n"
+            estr += f"Left compatibility:\n\t" + "\n\t".join(
+                str(s.compatibility) for g in left.values() for s, _ in g
+            )
+            estr += f"\nRight compatibility:\n\t" + "\n\t".join(
+                str(s.compatibility) for g in right.values() for s, _ in g
+            )
+            estr += f"\nCombined compatibility:\n\t" + "\n\t".join(
+                str(s.compatibility) for s in combined
+            )
+            estr += f"\nFollowing Einsum compatibility:\n\t" + "\n\t".join(
+                str(c) for c in next_keys
+            )
+            raise ValueError(estr)
+
         # ======================================================================
         # Look ahead to the next Einsum and see if any of our groups will not
         # be able to merge with it. If so, we can drop them immediately.
@@ -471,7 +491,7 @@ def join_pmappings(
                         del combined[k]
                 if not combined:
                     PmappingGroup.group(prev_combined, next_right_tensors)
-                    raise_no_match_error()
+                    no_match_lookahead_error(prev_combined, next_keys)
 
                 combined = list(itertools.chain.from_iterable(combined.values()))
                 combined = [c[0] for c in combined]

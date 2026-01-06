@@ -1,6 +1,7 @@
 import copy
 from collections.abc import Generator
 from itertools import chain, combinations
+import logging
 
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import Storage, TensorHolder, ProcessingStage
@@ -55,6 +56,8 @@ def make_tensor_choices_one_level(
             f"Bypass constraint for {node.name} includes tensors that are "
             f"not in the workload: {may_keep - tensors.full_space}"
         )
+
+    logging.info(f"\t\t{node.name} must keep {sorted(must_keep)}, may keep {sorted(may_keep)}")
 
     # No reuse in copy operations, so no need to keep tensors in more places
     if is_copy_op:
