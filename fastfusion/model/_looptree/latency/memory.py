@@ -5,13 +5,13 @@ from fastfusion.frontend.arch import Leaf, Memory, TensorHolder, Component
 from fastfusion.frontend.mapping import Compute, Mapping
 from fastfusion.frontend.spec import Spec
 
-from fastfusion._model.looptree.accesses import isl_buffer_accesses_from_buffet_actions
-from fastfusion._model.looptree.mapping_utilities import get_leaves
-from fastfusion._model.looptree.reuse.isl import IslReuseAnalysisOutput
-from fastfusion._model.looptree.reuse import SymbolicAnalysisOutput
-from fastfusion._model.looptree.types import Buffet
+from fastfusion.model._looptree.accesses import isl_buffer_accesses_from_buffet_actions
+from fastfusion.model._looptree.mapping_utilities import get_leaves
+from fastfusion.model._looptree.reuse.isl import IslReuseAnalysisOutput
+from fastfusion.model._looptree.reuse import SymbolicAnalysisOutput
+from fastfusion.model._looptree.types import Buffet
 
-from fastfusion._model.looptree.reuse.symbolic import BuffetStats
+from fastfusion.model._looptree.reuse.symbolic import BuffetStats
 from fastfusion.util._parse_expressions import MATH_FUNCS, parse_expression
 from fastfusion.util._sympy.broadcast_max import Max, Min
 

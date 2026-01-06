@@ -2,14 +2,14 @@ from sympy import Symbol
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import TensorHolder
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
-from fastfusion._model.looptree.reuse.symbolic import (
+from fastfusion.model._looptree.reuse.symbolic import (
     analyze_reuse_and_add_reservations_to_mapping,
 )
-from fastfusion._model.looptree.energy import (
+from fastfusion.model._looptree.energy import (
     compute_energy_from_actions,
     gather_actions,
 )
-from fastfusion._model.looptree.latency.memory import component_latency
+from fastfusion.model._looptree.latency.memory import component_latency
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,

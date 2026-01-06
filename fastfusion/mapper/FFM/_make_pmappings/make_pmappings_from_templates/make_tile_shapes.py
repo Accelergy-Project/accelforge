@@ -28,7 +28,7 @@ from fastfusion.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 from fastfusion.mapper.FFM._pareto_df.pareto import makepareto_numpy
-from fastfusion._model.looptree.reuse.symbolic import IMPERFECT
+from fastfusion.model._looptree.reuse.symbolic import IMPERFECT
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,

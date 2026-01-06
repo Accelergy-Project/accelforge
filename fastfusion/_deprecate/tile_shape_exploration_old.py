@@ -39,14 +39,14 @@ from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
 )
 from fastfusion.mapper.FFM._make_pmappings.mapper_one_einsum.mapper_job import Job
-from fastfusion._model.looptree.reuse.summarized.symbolic import (
+from fastfusion.model._looptree.reuse.summarized.symbolic import (
     analyze_reuse_and_add_reservations_to_mapping,
 )
-from fastfusion._model.looptree.energy import (
+from fastfusion.model._looptree.energy import (
     compute_energy_from_actions,
     gather_actions,
 )
-from fastfusion._model.looptree.latency import get_latency
+from fastfusion.model._looptree.latency import get_latency
 
 from fastfusion.mapper.FFM._pmapping_group import (
     nameloop2col,

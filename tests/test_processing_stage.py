@@ -8,14 +8,14 @@ from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import Workload
 
 from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion._model.looptree.accesses import (
+from fastfusion.model._looptree.accesses import (
     isl_buffer_accesses_from_buffet_actions,
     Accesses,
 )
-from fastfusion._model.looptree.energy import gather_actions
-from fastfusion._model.looptree.latency import get_latency
-from fastfusion._model.looptree.types import Buffet
-from fastfusion._model.looptree.reuse.symbolic import (
+from fastfusion.model._looptree.energy import gather_actions
+from fastfusion.model._looptree.latency import get_latency
+from fastfusion.model._looptree.types import Buffet
+from fastfusion.model._looptree.reuse.symbolic import (
     BuffetStats,
     analyze_reuse_and_add_reservations_to_mapping,
     Compute,

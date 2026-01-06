@@ -6,12 +6,12 @@ import unittest
 
 import islpy as isl
 
-from fastfusion._model.looptree.reuse.isl.mapping_to_isl.types import (
+from fastfusion.model._looptree.reuse.isl.mapping_to_isl.types import (
     Occupancy,
     SpatialTag,
     TemporalTag,
 )
-from fastfusion._model.looptree.reuse.isl.temporal import (
+from fastfusion.model._looptree.reuse.isl.temporal import (
     TemporalReuse,
     analyze_temporal_reuse,
 )

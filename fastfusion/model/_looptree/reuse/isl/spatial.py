@@ -9,11 +9,11 @@ from typing import Optional
 import islpy as isl
 
 from fastfusion.frontend.mapping import MappingNode
-from fastfusion._model.looptree.reuse.isl.isl_functions import (
+from fastfusion.model._looptree.reuse.isl.isl_functions import (
     insert_equal_dims_map,
     reorder_projector,
 )
-from fastfusion._model.looptree.reuse.isl.mapping_to_isl.types import (
+from fastfusion.model._looptree.reuse.isl.mapping_to_isl.types import (
     TEMPORAL_TAGS,
     Fill,
     Occupancy,

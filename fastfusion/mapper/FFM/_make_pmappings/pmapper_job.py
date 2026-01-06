@@ -107,7 +107,7 @@ class Job:
         )
 
     def _make_compatibility_and_updater(self):
-        from fastfusion._model.looptree.reuse.symbolic import (
+        from fastfusion.model._looptree.reuse.symbolic import (
             quick_insert_reservation_nodes,
         )
 

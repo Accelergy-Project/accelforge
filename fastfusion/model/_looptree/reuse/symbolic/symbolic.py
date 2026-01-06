@@ -26,7 +26,7 @@ from fastfusion.frontend._workload_isl._symbolic import (
     PartiallyRelevant,
 )
 
-from fastfusion._model.looptree.types import Buffet
+from fastfusion.model._looptree.types import Buffet
 
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
 from fastfusion.util._sympy.broadcast_max import Min, Max

@@ -35,13 +35,13 @@ from fastfusion.frontend._workload_isl._isl import (
     get_projection_map,
 )
 from fastfusion.frontend.mapping import TensorName
-from fastfusion._model.looptree.reuse.isl.isl_functions import (
+from fastfusion.model._looptree.reuse.isl.isl_functions import (
     add_dims_preserve_name_map,
     insert_dims_preserve_name_map,
     map_to_prior_coordinate,
 )
-from fastfusion._model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
-from fastfusion._model.looptree.reuse.isl.mapping_to_isl.types import (
+from fastfusion.model._looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
+from fastfusion.model._looptree.reuse.isl.mapping_to_isl.types import (
     EinsumName,
     Tiling,
     BranchTiling,

@@ -5,7 +5,7 @@ from numbers import Real
 
 from fastfusion.frontend import arch
 from fastfusion.frontend.spec import Spec
-from fastfusion._model.looptree.reuse.symbolic import SymbolicAnalysisOutput
+from fastfusion.model._looptree.reuse.symbolic import SymbolicAnalysisOutput
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.mapping import Mapping
 

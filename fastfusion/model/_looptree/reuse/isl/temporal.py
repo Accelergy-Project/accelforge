@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import islpy as isl
 
-from fastfusion._model.looptree.reuse.isl.isl_functions import map_to_shifted
-from fastfusion._model.looptree.reuse.isl.mapping_to_isl.types import (
+from fastfusion.model._looptree.reuse.isl.isl_functions import map_to_shifted
+from fastfusion.model._looptree.reuse.isl.mapping_to_isl.types import (
     TEMPORAL_TAGS,
     Fill,
     Occupancy,
