@@ -497,7 +497,9 @@ def makepareto_numpy(
             raise ValueError(f"Unknown goal: {goal}")
 
     if not to_pareto:
-        return mappings[:1]
+        n = np.zeros(mappings.shape[0], dtype=bool)
+        n[0] = True
+        return n
 
     df = pd.DataFrame(np.concatenate(to_pareto, axis=1), columns=range(len(to_pareto)))
 
