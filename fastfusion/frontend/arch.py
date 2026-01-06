@@ -800,7 +800,7 @@ class TensorHolderAttributes(ComponentAttributes):
     underscore-prefix attribute names. See `TODO: UNDERSCORE_PREFIX_DISCUSSION`.
     """
 
-    datawidth: ParsesTo[dict | int | float] = {}
+    datawidth: ParsesTo[dict | int | float] = {"All()": 1}
     """
     Number of bits per value stored in this `TensorHolder`. If this is a dictionary,
     keys in the dictionary are parsed as expressions and may reference one or more
