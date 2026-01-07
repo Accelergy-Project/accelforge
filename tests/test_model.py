@@ -17,4 +17,4 @@ class TestModel(unittest.TestCase):
             jinja_parse_data={"N_EINSUMS": 1, "M": 64, "KN": 64},
         )
 
-        evaluate_mapping(spec)
+        result = evaluate_mapping(spec)
