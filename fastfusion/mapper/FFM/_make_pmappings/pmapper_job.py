@@ -190,6 +190,9 @@ class Job:
             n_kept = porp_kept * out_of + (self.n_total_pmappings - out_of)
             porp_kept = n_kept / self.n_total_pmappings
 
+        if any(x == 0 for x in self.pmapping_keep_rates.values()):
+            return
+
         self.pmapping_keep_rates.setdefault(cause, 1)
         self.pmapping_keep_rates[cause] *= porp_kept
 
