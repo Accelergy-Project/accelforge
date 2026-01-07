@@ -34,6 +34,8 @@ from fastfusion.frontend.workload import (
 )
 from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
     get_tensor_choices,
+)
+from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_reservations import (
     get_reservation_choices,
 )
 from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
@@ -243,30 +245,49 @@ def iterate_mappings_no_constraints(
     ):
         logging.info('\tGenerated tensor choices: ' + ', '.join(m.compact_str() for m in mapping))
         mapping = copy.deepcopy(mapping)
-        for mapping, symbol_table in get_reservation_choices(
-            mapping,
-            arch_flattened,
-            spec,
-        ):
-            for mapping, n_permutations in insert_temporal_loops(
-                mapping,
-                einsum,
-                first_memory,
-                rank_variable_bounds,
-                ranks_with_tile_pattern,
-                spec.workload,
-                spec.mapper.ffm._can_lower_outermost_memory,
-            ):
-                mapping = copy.deepcopy(mapping)
-                insert_spatial_loops(mapping, einsum, arch_flattened)
-                mapping = unpack_loops_to_rank_variables(mapping)
-                if spec.mapper.ffm._timeloop_style_even:
-                    mapping = _timeloop_style_even(mapping)
+        # for new_mapping, symbol_table in get_reservation_choices(
+        #     new_mapping,
+        #     arch_flattened,
+        # ):
+        #     for mapping, n_permutations in insert_loops(
+        #         new_mapping,
+        #         einsum,
+        #         first_memory,
+        #         rank_variable_bounds,
+        #         ranks_with_tile_pattern,
+        #         spec.workload,
+        #         spec.mapper.ffm._can_lower_outermost_memory,
+        #     ):
+        #         mapping = copy.deepcopy(mapping)
+        #         insert_spatial_loops(mapping, einsum, arch_flattened)
+        #         mapping = unpack_loops_to_rank_variables(mapping)
+        #         if spec.mapper.ffm._timeloop_style_even:
+        #             mapping = _timeloop_style_even(mapping)
 
-                place_missing_temporal_loops(mapping, einsum)
-                label_fused_loops(mapping)
-                assert_proper_fusion_labeling(mapping)
-                yield mapping, symbol_table, n_permutations
+        #         place_missing_temporal_loops(mapping, einsum)
+        #         label_fused_loops(mapping)
+        #         assert_proper_fusion_labeling(mapping)
+        #         yield mapping, symbol_table, n_permutations
+
+        for mapping, n_permutations in insert_temporal_loops(
+            mapping,
+            einsum,
+            first_memory,
+            rank_variable_bounds,
+            ranks_with_tile_pattern,
+            spec.workload,
+            spec.mapper.ffm._can_lower_outermost_memory,
+        ):
+            mapping = copy.deepcopy(mapping)
+            insert_spatial_loops(mapping, einsum, arch_flattened)
+            mapping = unpack_loops_to_rank_variables(mapping)
+            if spec.mapper.ffm._timeloop_style_even:
+                mapping = _timeloop_style_even(mapping)
+
+            place_missing_temporal_loops(mapping, einsum)
+            label_fused_loops(mapping)
+            assert_proper_fusion_labeling(mapping)
+            yield mapping, symbol_table, n_permutations
 
 
 def iterate_mappings_constraints(

@@ -199,10 +199,6 @@ def insert_temporal_loops(
     # Iterate over all possible mappings
     # ==================================================================================
 
-    # TODO: Optimization: If we can optionally lower a tensor & the loop below it is
-    # not something through which we can lower for a given permutation, skip options
-    # that lower that tensor because they get the same result as not lowering the
-    # tensor.
     n_loop_orders = len(list(itertools.product(*choices)))
     for loop_orders in itertools.product(*choices):
         full_mapping = []
@@ -277,3 +273,14 @@ def canonical_loop_orders(
             + tuple(sorted(rest_of_partially_relevant))
             + tuple(sorted(rest_rank_vars))
         )
+
+# def insert_loops(
+#     mapping: list[MappingNode],
+#     einsum: Einsum,
+#     first_memory: arch.Memory,
+#     rank_variable_bounds: dict[RankVariable, int],
+#     ranks_with_tile_pattern: set,
+#     workload: Workload,
+#     _can_lower_outermost_memory: bool,
+# ):
+#     # Insert loops between storage nodes and reservations
