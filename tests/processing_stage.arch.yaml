@@ -7,9 +7,9 @@ arch:
       _datawidth: 8
     tensors: {keep: All}
     actions:
-    - {name: read, arguments: {energy: 0}}
-    - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: read, arguments: {_energy: 0}}
+    - {name: write, arguments: {_energy: 0}}
+    - {name: leak, arguments: {_energy: 0}}
 
   - !ProcessingStage
     name: ProcessingStage
@@ -18,9 +18,9 @@ arch:
       _direction: up_and_down
     tensors: {keep: All}
     actions:
-    - {name: read, arguments: {energy: 100}}
-    - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: read, arguments: {_energy: 100}}
+    - {name: write, arguments: {_energy: 0}}
+    - {name: leak, arguments: {_energy: 0}}
 
   - !Memory
     name: LocalBuffer
@@ -29,12 +29,12 @@ arch:
       _datawidth: 8
     tensors: {keep: All}
     actions:
-    - {name: read, arguments: {energy: 0}}
-    - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: read, arguments: {_energy: 0}}
+    - {name: write, arguments: {_energy: 0}}
+    - {name: leak, arguments: {_energy: 0}}
 
   - !Compute
     name: mac
     actions:
-    - {name: compute, arguments: {energy: 0.0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: compute, arguments: {_energy: 0.0}}
+    - {name: leak, arguments: {_energy: 0}}

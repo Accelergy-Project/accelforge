@@ -1,3 +1,7 @@
+# The YAML tag at the beginning of the component tells the parser what type of component
+# it is.
+!Memory
+
 name: GlobalBuffer
 
 # This component_class invokes the hwcomponents_library.SmartBufferSRAM model. The

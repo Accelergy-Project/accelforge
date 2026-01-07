@@ -10,8 +10,8 @@ arch:
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, arguments: {energy: 7.03e-12, latency: 1 / (8 * 614e9)}}
-    - {name: write, arguments: {energy: 7.03e-12, latency: 1 / (8 * 614e9)}}
+    - {name: read, arguments: {_energy: 7.03e-12, _latency: 1 / (8 * 614e9)}}
+    - {name: write, arguments: {_energy: 7.03e-12, _latency: 1 / (8 * 614e9)}}
     tensors: {keep: ~Intermediates, may_keep: All}
 
   - !Memory
@@ -23,8 +23,8 @@ arch:
       _leak_power: 0
       _area: 112e-6 # 112 mm^2
     actions:
-    - {name: read, arguments: {energy: 1.88e-12, latency: 1 / (8 * 2048e9)}}
-    - {name: write, arguments: {energy: 2.36e-12, latency: 1 / (8 * 1024e9)}}
+    - {name: read, arguments: {_energy: 1.88e-12, _latency: 1 / (8 * 2048e9)}}
+    - {name: write, arguments: {_energy: 2.36e-12, _latency: 1 / (8 * 1024e9)}}
     tensors: {keep: ~MainMemory.tensors, may_keep: All}
 
   - !Memory
@@ -36,8 +36,8 @@ arch:
       _leak_power: 0
       _area: 50e-6 # 50 mm^2. Very rough estimate based on die photo.
     actions:
-    - {name: read, arguments: {energy: 0.249e-12, latency: 0}}
-    - {name: write, arguments: {energy: 0.293e-12, latency: 0}}
+    - {name: read, arguments: {_energy: 0.249e-12, _latency: 0}}
+    - {name: write, arguments: {_energy: 0.293e-12, _latency: 0}}
     tensors: {keep: input | output}
 
   - !Compute
@@ -46,7 +46,7 @@ arch:
       _area: 10e-6 # 10 um^2. Very rough estimate based on die photo.
       _leak_power: 0
     actions:
-    - {name: compute, arguments: {energy: 0, latency: 1 / 1.05e9 / 128}}
+    - {name: compute, arguments: {_energy: 0, _latency: 1 / 1.05e9 / 128}}
     enabled: len(All) == 2
 
   - !Fanout
@@ -62,8 +62,8 @@ arch:
       _area: 1e-11 # 10 um^2. Very rough estimate based on die photo.
       _leak_power: 0
     actions:
-    - {name: read, arguments: {energy: 0, latency: 0}}
-    - {name: write, arguments: {energy: 0, latency: 0}}
+    - {name: read, arguments: {_energy: 0, _latency: 0}}
+    - {name: write, arguments: {_energy: 0, _latency: 0}}
     tensors: {keep: weight}
 
   - !Compute
@@ -72,5 +72,5 @@ arch:
       _leak_power: 0
       _area: 9e-11 # 90 um^2. Very rough estimate based on die photo.
     actions:
-    - {name: compute, arguments: {energy: 0.084e-12, latency: 1 / 1.05e9}}
+    - {name: compute, arguments: {_energy: 0.084e-12, _latency: 1 / 1.05e9}}
     enabled: len(All) == 3

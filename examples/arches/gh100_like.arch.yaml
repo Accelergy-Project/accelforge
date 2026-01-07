@@ -128,5 +128,5 @@ arch:
     actions:
     # The 0.21 energy scale makes the plug-in return give the same value as a MAC
     # from "Ten Lessons From Three Generations Shaped Google’s TPUv4i".
-    - {name: compute, arguments: {energy_scale: {{1 if AQFP else 0.21}} }}
+    - {name: compute, arguments: {_energy_scale: {{1 if AQFP else 0.21}} }}
     constraints: {misc: {enabled: len(All) == 3}}

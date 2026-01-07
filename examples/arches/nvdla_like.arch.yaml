@@ -11,8 +11,8 @@ arch:
       # their reference, and they said it left out some things. Latency is 38.4 GB/s.
       # DDR5-4800. Chip runs at at 1GHz, so divide to get per-cycle bandwidth.
       # https://www.jedec.org/news/pressreleases/jedec-updates-standard-low-power-memory-devices-lpddr5
-    - {name: read, arguments: {energy: 7.03e-12, latency: 1 / (8 * 38.4e9)}}
-    - {name: write, arguments: {energy: 7.03e-12, latency: 1 / (8 * 38.4e9)}}
+    - {name: read, arguments: {_energy: 7.03e-12, _latency: 1 / (8 * 38.4e9)}}
+    - {name: write, arguments: {_energy: 7.03e-12, _latency: 1 / (8 * 38.4e9)}}
     tensors: {keep: ~Intermediates, may_keep: All}
 
   - !Memory
@@ -24,8 +24,8 @@ arch:
       _leak_power: 0
     actions:
     # 512 GB/s read, 128 GB/s write
-    - {name: read, arguments: {energy: 0.249e-12, latency: 1 / 512e9 / 8}}
-    - {name: write, arguments: {energy: 0.293e-12, latency: 1 / 128e9 / 8}}
+    - {name: read, arguments: {_energy: 0.249e-12, _latency: 1 / 512e9 / 8}}
+    - {name: write, arguments: {_energy: 0.293e-12, _latency: 1 / 128e9 / 8}}
     tensors: {keep: All}
 
   - !Fanout
@@ -38,12 +38,12 @@ arch:
     name: Register
     attributes: {_size: 1, _area: 0, _leak_power: 0}
     actions:
-    - {name: read, arguments: {energy: 0, latency: 0}}
-    - {name: write, arguments: {energy: 0, latency: 0}}
+    - {name: read, arguments: {_energy: 0, _latency: 0}}
+    - {name: write, arguments: {_energy: 0, _latency: 0}}
     tensors: {keep: weight}
 
   - !Compute
     name: MAC
     attributes: {_leak_power: 0}
     actions:
-    - {name: compute, arguments: {energy: 0.084e-12, latency: 1 / 1e9}}
+    - {name: compute, arguments: {_energy: 0.084e-12, _latency: 1 / 1e9}}
