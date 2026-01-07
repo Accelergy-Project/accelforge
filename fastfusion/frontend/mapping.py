@@ -358,7 +358,9 @@ class TilePattern(ParsableModel):
             {x: _prepend(getattr(self, x)) for x in self._symbol_attrs()}
         )
 
-    def __eq__(self, other: "TilePattern") -> bool:
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, TilePattern):
+            return False
         return all(getattr(self, x) == getattr(other, x) for x in self._symbol_attrs())
 
     def __hash__(self) -> int:
