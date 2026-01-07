@@ -3,7 +3,6 @@ A module containing the visualization and types needed to run mapspace explorati
 in FastFusion.
 """
 
-from abc import ABC
 import copy
 from dataclasses import dataclass, replace
 import inspect
@@ -39,6 +38,7 @@ from fastfusion.util._basetypes import (
     # Retrieves information from YAML tags.
     _get_tag,
     _InferFromTag,
+    _uninstantiable,
 )
 from fastfusion.frontend.workload import RankVariable, TensorName
 from fastfusion.util.parallel import _SVGJupyterRender, _pydot_graph
@@ -179,8 +179,8 @@ class _ColorMap:
 # LoopTree Mapping Nodes
 # =============================================================================
 
-
-class MappingNode(ParsableModel, ABC):
+@_uninstantiable
+class MappingNode(ParsableModel):
     """
     Represents a Node in the Mapping, which can be a loop, a storage node, a compute
     node, etc.
@@ -405,7 +405,8 @@ class TilePattern(ParsableModel):
         )
 
 
-class Loop(MappingNode, ABC):
+@_uninstantiable
+class Loop(MappingNode):
     """
     A bounded loop over a rank variable with a given shape and/or pattern.
 

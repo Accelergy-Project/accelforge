@@ -1,4 +1,3 @@
-from abc import ABC
 import copy
 import glob
 import logging
@@ -84,6 +83,27 @@ def _get_tag(value: Any) -> str:
     if tag.startswith("!"):
         tag = tag[1:]
     return tag
+
+
+def _uninstantiable(cls):
+    prev_init = cls.__init__
+    def _get_all_subclasses(cls):
+        subclasses = set()
+        for subclass in cls.__subclasses__():
+            subclasses.add(subclass.__name__)
+            subclasses.update(_get_all_subclasses(subclass))
+        return subclasses
+
+    def __init__(self, *args, **kwargs):
+        if self.__class__ is cls:
+            subclasses = _get_all_subclasses(cls)
+            raise ValueError(
+                f'{cls} can not be instantiated directly. Use a subclass. '
+                f'Supported subclasses are:\n\t' + '\n\t'.join(sorted(subclasses))
+            )
+        return prev_init(self, *args, **kwargs)
+    cls.__init__ = __init__
+    return cls
 
 
 class _InferFromTag(Generic[*Ts]):
@@ -254,7 +274,8 @@ class _PostCall(Generic[T]):
         return value
 
 
-class Parsable(ABC, Generic[M]):
+@_uninstantiable
+class Parsable(Generic[M]):
     """An abstract base class for parsing. Parsables support the `_parse_expressions`
     method, which is used to parse the object from a string.
     """
@@ -609,7 +630,7 @@ class _ModelWithUnderscoreFields(BaseModel, _FromYAMLAble, Mapping):
         return len(self.get_fields())
 
 
-
+@_uninstantiable
 class ParsableModel(_ModelWithUnderscoreFields, Parsable["ParsableModel"]):
     """A model that will parse any fields that are given to it. When parsing, submodels
     will also be parsed if they support it. Parsing will parse any fields that are given

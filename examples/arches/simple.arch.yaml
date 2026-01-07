@@ -11,8 +11,8 @@ arch:
       _area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, arguments: {energy: 1}}
-    - {name: write, arguments: {energy: 1}}
+    - {name: read, arguments: {energy: 1, latency: 0}}
+    - {name: write, arguments: {energy: 1, latency: 0}}
 
   - !Memory
     name: GlobalBuffer
@@ -23,11 +23,11 @@ arch:
       _area: 0
     tensors: {keep: All}
     actions:
-    - {name: read, arguments: {energy: 0}}
-    - {name: write, arguments: {energy: 0}}
+    - {name: read, arguments: {energy: 0, latency: 0}}
+    - {name: write, arguments: {energy: 0, latency: 0}}
 
   - !Compute
     name: MAC
-    attributes: {_latency: compute_actions, _leak_power: 0, _area: 0}
+    attributes: {_leak_power: 0, _area: 0}
     actions:
-    - {name: compute, arguments: {energy: 0}}
+    - {name: compute, arguments: {energy: 0, latency: 1}}

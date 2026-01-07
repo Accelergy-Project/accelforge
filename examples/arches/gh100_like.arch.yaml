@@ -26,7 +26,7 @@ arch:
     component_class: {{"cryo_bridge_dram" if AQFP else "DRAM"}}
     attributes:
       _size: 4 * b_per_GB # 4GB
-      _latency: (read_actions + write_actions) * width / 8 / 614e9 # 614 GB/s
+      _total_latency: (read_actions + write_actions) * width / 8 / 614e9 # 614 GB/s
       _datawidth: 8
       width: 8192
       depth: size / width
@@ -42,7 +42,7 @@ arch:
       _size: 60 * b_per_MB # 60 MB
       _datawidth: 8
       # 2kB/cycle read, 1kB/cycle write
-      _latency: max(read_actions / 8 * 2048, write_actions / 8 * 1024) * global_cycle_period * clock_derate
+      _total_latency: max(read_actions / 8 * 2048, write_actions / 8 * 1024) * global_cycle_period * clock_derate
       _leak_power_scale: cooling_overhead
       width: 16384
       depth: size / width
@@ -80,7 +80,7 @@ arch:
       _size: 64 * b_per_KB # 64 kB
       _datawidth: 8
       # 1 read or write per cycle
-      _latency: (read_actions + write_actions) * global_cycle_period * clock_derate
+      _total_latency: (read_actions + write_actions) * global_cycle_period * clock_derate
       width: 512
       depth: size / width
       clock_derate: {{4 if AQFP else 1}}
@@ -124,7 +124,7 @@ arch:
       multiplier_width: 8
       adder_width: 16
       _leak_power_scale: cooling_overhead
-      _latency: compute_actions * global_cycle_period # 1 compute/cycle
+      _total_latency: compute_actions * global_cycle_period # 1 compute/cycle
     actions:
     # The 0.21 energy scale makes the plug-in return give the same value as a MAC
     # from "Ten Lessons From Three Generations Shaped Google’s TPUv4i".

@@ -1,7 +1,7 @@
 from typing import overload
 from sympy import Piecewise
 
-# from fastfusion._model.looptree._isl.singular import get_value_from_singular_qpolynomial
+# from fastfusion.model._looptree._isl.singular import get_value_from_singular_qpolynomial
 from fastfusion.frontend.arch import Compute
 from fastfusion.model._looptree.latency.processors import LATENCY_PROCESSORS
 from fastfusion.model._looptree.reuse.isl import IslReuseAnalysisOutput

@@ -1,4 +1,3 @@
-from abc import ABC
 import copy
 import math
 from numbers import Number
@@ -18,7 +17,7 @@ from typing import (
 from pydantic import ConfigDict, Tag
 import pydantic
 from hwcomponents import (
-    EnergyAreaModel,
+    ComponentModel,
     get_models,
     get_model,
 )
@@ -39,7 +38,7 @@ from fastfusion.frontend.renames import RankVariable, TensorName
 
 from fastfusion._version import assert_version, __version__
 from pydantic import Discriminator
-
+from fastfusion.util._basetypes import _uninstantiable
 
 T = TypeVar("T", bound="ArchNode")
 
@@ -265,29 +264,13 @@ class AttributesWithExtras(ParseExtras):
     pass
 
 
-class AttributesWithEnergy(AttributesWithExtras):
+class AttributesWithEnergyLatency(AttributesWithExtras):
     energy: ParsesTo[int | float | None] = None
     energy_scale: ParsesTo[int | float] = 1
+    latency_scale: ParsesTo[int | float] = 1
 
 
-class ComponentAttributes(AttributesWithEnergy):
-    latency: str | int | float = 0
-    """
-    An expression representing the latency of this component in seconds. This is used to
-    calculate the latency of a given Einsum. Special variables available are `min`,
-    `max`, and `X_actions`, where `X` is the name of an action that this component can
-    perform. `X_actions` resolves to the number of times action `X` is performed. For
-    example, `read_actions` is the number of times the read action is performed.
-
-    For example, the following expression calculates latency assuming that each read or
-    write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.
-    """
-    area_scale: ParsesTo[int | float] = 1
-    """
-    The scale factor for the area of this comxponent. This is used to scale the area of
-    this component. For example, if the area is 1 m^2 and the scale factor is 2, then
-    the area is 2 m^2.
-    """
+class ComponentAttributes(AttributesWithEnergyLatency):
     area: ParsesTo[int | float | None] = None
     """
     The area of a single instance of this component in m^2. If set, area calculations
@@ -295,8 +278,16 @@ class ComponentAttributes(AttributesWithEnergy):
     """
     total_area: ParsesTo[int | float | None] = None
     """
-    The total area of all instances of this component in m^2.
+    The total area of all instances of this component in m^2. Do not set this value. It
+    is calculated when the architecture's area is calculated.
     """
+    area_scale: ParsesTo[int | float] = 1
+    """
+    The scale factor for the area of this comxponent. This is used to scale the area of
+    this component. For example, if the area is 1 m^2 and the scale factor is 2, then
+    the area is 2 m^2.
+    """
+
     leak_power: ParsesTo[int | float | None] = None
     """
     The leak power of a single instance of this component in W. If set, leak power
@@ -304,7 +295,8 @@ class ComponentAttributes(AttributesWithEnergy):
     """
     total_leak_power: ParsesTo[int | float | None] = None
     """
-    The total leak power of all instances of this component in W.
+    The total leak power of all instances of this component in W. Do not set this value.
+    It is calculated when the architecture's leak power is calculated.
     """
     leak_power_scale: ParsesTo[int | float] = 1
     """
@@ -312,32 +304,55 @@ class ComponentAttributes(AttributesWithEnergy):
     leak power of this component. For example, if the leak power is 1 W and the scale
     factor is 2, then the leak power is 2 W.
     """
-    energy: ParsesTo[int | float | None] = None
-    """
-    Dynamic energy of all actions of this component. If set, energy calculations will
-    use this value for all actions that are not overridden by the action's arguments.
-    """
+
     energy_scale: ParsesTo[int | float] = 1
     """
     The scale factor for dynamic energy of this component. For each action, multiplies
-    this action's energy.
+    this action's energy. Multiplies the calculated energy of each action.
     """
 
+    total_latency: str | int | float = "sum(*action2latency.values())"
+    """
+    An expression representing the total latency of this component in seconds. This is
+    used to calculate the latency of a given Einsum. Special variables available are the
+    following:
+
+    - `min`: The minimum value of all arguments to the expression.
+    - `max`: The maximum value of all arguments to the expression.
+    - `sum`: The sum of all arguments to the expression.
+    - `X_actions`: The number of times action `X` is performed. For example,
+      `read_actions` is the number of times the read action is performed.
+    - `X_latency`: The total latency of all actions of type `X`. For example,
+      `read_latency` is the total latency of all read actions. It is equal to the
+      per-read latency multiplied by the number of read actions.
+    - `action2latency`: A dictionary of action names to their latency.
+
+    Additionally, all component attributes are availble as variables, and all other
+    functions generally available in parsing. Note this expression is parsed after other
+    component attributes are parsed.
+
+    For example, the following expression calculates latency assuming that each read or
+    write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.
+    """
+    latency_scale: ParsesTo[int | float] = 1
+    """
+    The scale factor for the latency of this component. This is used to scale the
+    latency of this component. For example, if the latency is 1 ns and the scale factor
+    is 2, then the latency is 2 ns. Multiplies the calculated latency of each action.
+    """
 
 class FanoutAttributes(LeafAttributes):
     model_config = ConfigDict(extra="forbid")
 
 
-class ActionArguments(AttributesWithEnergy):
+class ActionArguments(AttributesWithEnergyLatency):
     """
     Arguments for an action of a component.
     """
 
     energy: ParsesTo[int | float | None] = None
     """
-    Dynamic energy of this action. If set, this value will be used instead of the
-    component's attributes.energy. Higher precedence than the component's
-    attributes.energy. Per-action energy is multiplied by the component's
+    Dynamic energy of this action. Per-action energy is multiplied by the component's
     attributes.energy_scale and the action's arguments.energy_scale.
     """
     energy_scale: ParsesTo[int | float] = 1
@@ -345,14 +360,44 @@ class ActionArguments(AttributesWithEnergy):
     The scale factor for dynamic energy of this action. Multiplies this action's energy
     by this value.
     """
+    latency: ParsesTo[int | float | None] = None
+    """
+    Latency of this action. Per-action latency is multiplied by the component's
+    attributes.latency_scale and the action's arguments.latency_scale.
+    """
+    latency_scale: ParsesTo[int | float] = 1
+    """
+    The scale factor for dynamic latency of this action. Multiplies this action's
+    latency by this value.
+    """
+
+class MemoryActionArguments(ActionArguments):
+    bits_per_action: ParsesTo[int | float] = 1
+    """ The number of bits accessed in this action. For example, setting bits_per_action
+    to 16 means that each call to this action yields 16 bits. """
 
 
 class Action(ParsableModel):
     name: str
-    arguments: AttributesWithEnergy = AttributesWithEnergy()
+    """ The name of this action. """
+
+    arguments: ActionArguments = ActionArguments()
+    """
+    The arguments for this action. Passed to the component's model to calculate the
+    energy and latency of the action.
+    """
 
 
-class Leaf(ArchNode, ABC):
+class TensorHolderAction(Action):
+    arguments: MemoryActionArguments = MemoryActionArguments()
+    """
+    The arguments for this action. Passed to the component's model to calculate the
+    energy and latency of the action.
+    """
+
+
+@_uninstantiable
+class Leaf(ArchNode):
     """A leaf node in the architecture. This is an abstract class that represents any
     node that is not a `Branch`."""
 
@@ -391,7 +436,8 @@ class Leaf(ArchNode, ABC):
         return int(math.prod(x.fanout for x in self.spatial))
 
 
-class Component(Leaf, ABC):
+@_uninstantiable
+class Component(Leaf):
     """A component object in the architecture. This is overridden by different
     component types, such as `Memory` and `Compute`."""
 
@@ -402,11 +448,11 @@ class Component(Leaf, ABC):
     """ The class of this `Component`. Used if an energy or area model needs to be
     called for this `Component`. """
 
-    component_model: EnergyAreaModel | None = None
+    component_model: ComponentModel | None = None
     """ The model to use for this `Component`. If not set, the model will be found with
     `hwcomponents.get_models()`. If set, the `component_class` will be ignored. """
 
-    energy_area_log: list[str] = []
+    component_modeling_log: list[str] = []
     """ A log of the energy and area calculations for this `Component`. """
 
     actions: ParsableList[Action]
@@ -430,39 +476,57 @@ class Component(Leaf, ABC):
             if action.name not in has_actions:
                 self.actions.append(action)
 
-    def get_component_class(self) -> str:
+    def get_component_class(self, trying_to_calculate: str = None) -> str:
         """Returns the class of this `Component`.
+
+        Parameters
+        ----------
+        trying_to_parse : str, optional
+            What was trying to be calculated using this component. If provided, the
+            error message will be more specific.
 
         :raises ParseError: If the `component_class` is not set.
         """
+        extra_info = ""
+        if trying_to_calculate is not None:
+            extra_info = f" Occurred while trying to calculate {trying_to_calculate}."
+
         if self.component_class is None:
             raise ParseError(
                 f"component_class must be set to a valid string. "
-                f"Got {self.component_class}.",
+                f"Got {self.component_class}. This occurred because the model tried to "
+                "talk to hwcomponents, but was missing necessary attributes. If you do "
+                "not want to use hwcomponents models, ensure that attributes.area and "
+                "attributes.leak_power are set, as well as, for each action, "
+                f"arguments.energy and arguments.latency are set.{extra_info}",
                 source_field=f"{self.name}.component_class",
             )
         return self.component_class
 
     def populate_component_model(
         self: T,
-        models: list[EnergyAreaModel] | None = None,
+        models: list[ComponentModel] | None = None,
         in_place: bool = False,
+        trying_to_calculate: str = None,
     ) -> T:
         """
         Populates the ``component_model`` attribute with the model for this component.
-        Extends the ``energy_area_log`` field with log messages. Uses the
+        Extends the ``component_modeling_log`` field with log messages. Uses the
         ``component_class`` attribute to find the model and populate the
-        ``component_model`` attribute. Uses the ``hwcomponents.get_model()`` function
-        to find the model.
+        ``component_model`` attribute. Uses the ``hwcomponents.get_model()`` function to
+        find the model.
 
         Parameters
         ----------
-        models : list[EnergyAreaModel] | None
+        models : list[ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
             If True, the component will be modified in place. Otherwise, a copy will be
             returned.
+        trying_to_calculate : str, optional
+            What was trying to be calculated using this component. If provided, the
+            error messages for missing component_class will be more specific.
 
         Returns
         -------
@@ -480,46 +544,41 @@ class Component(Leaf, ABC):
             if models is None:
                 models = get_models()
             estimation = get_model(
-                self.get_component_class(),
+                self.get_component_class(trying_to_calculate=trying_to_calculate),
                 self.attributes.model_dump(),
                 required_actions=list(x.name for x in self.actions),
                 models=models,
                 _return_estimation_object=True,
             )
             self.component_model = estimation.value
-            self.energy_area_log.extend(estimation.messages)
+            self.component_modeling_log.extend(estimation.messages)
         return self
 
-    def calculate_energy(
+    def calculate_action_energy(
         self: T,
-        models: list[EnergyAreaModel] | None = None,
+        models: list[ComponentModel] | None = None,
         in_place: bool = False,
     ) -> T:
         """
-        Calculates the leak power for this component and the energy for each action of
-        this component. If energy is set in the arguments or attributes (with arguments
-        taking precedence), that value will be used. Otherwise, the energy will be
-        calculated using the hwcomponents library. If the leak power is set in the
-        attributes, that value will be used. Otherwise, the leak power will be
-        calculated using the hwcomponents library. Populates ``attributes.leak_power``,
-        and ``attributes.total_leak_power`` fields and, for each action, the
-        ``<action>.arguments.energy`` and field. Extends the ``energy_area_log`` field
-        with log messages.
+        Calculates energy for each action of this component. If energy is set in the
+        arguments or attributes (with arguments taking precedence), that value will be
+        used. Otherwise, the energy will be calculated using hwcomponents. Populates,
+        for each action, the ``<action>.arguments.energy`` and field. Extends the
+        ``component_modeling_log`` field with log messages.
 
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
         attribute to find the model and populate the ``component_model`` attribute.
 
-        Note that these methods will be called by the Spec when calculating
-        energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Spec's global scope. If you are sure
-        that all necessary values are present and not a result of an expression, you can
-        call these directly. Otherwise, you can call the
-        ``Spec.calculate_component_energy_area`` and then grab components from
-        the returned ``Spec``.
+        Note that these methods will be called by the Spec when calculating energy and
+        area. If you call them yourself, note that string expressions may not be parsed
+        because they need the Spec's global scope. If you are sure that all necessary
+        values are present and not a result of an expression, you can call these
+        directly. Otherwise, you can call the ``Spec.calculate_component_area_energy_latency_leak``
+        and then grab components from the returned ``Spec``.
 
         Parameters
         ----------
-        models : list[EnergyAreaModel] | None
+        models : list[ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -538,7 +597,7 @@ class Component(Leaf, ABC):
             for action in self.actions:
                 action.arguments = action.arguments.model_copy()
 
-        messages = self.energy_area_log
+        messages = self.component_modeling_log
 
         attributes = self.attributes
         for action in self.actions:
@@ -547,18 +606,19 @@ class Component(Leaf, ABC):
             if args.energy is not None:
                 energy = args.energy
                 messages.append(f"Setting {self.name} energy to {args.energy=}")
-            elif attributes.energy is not None:
-                energy = attributes.energy
-                messages.append(f"Setting {self.name} energy to {attributes.energy=}")
             else:
-                self.populate_component_model(models, in_place=True)
+                self.populate_component_model(
+                    models,
+                    in_place=True,
+                    trying_to_calculate=f"arguments.energy for action {action.name}",
+                )
                 energy = self.component_model.try_call_arbitrary_action(
                     action_name=action.name,
                     _return_estimation_object=True,
                     **{**attributes.model_dump(), **args.model_dump()},
                 )
                 messages.extend(energy.messages)
-                energy = energy.value
+                energy = energy.value[0]
             if attributes.energy_scale != 1:
                 energy *= attributes.energy_scale
                 messages.append(
@@ -568,19 +628,81 @@ class Component(Leaf, ABC):
                 energy *= args.energy_scale
                 messages.append(f"Scaling {self.name} energy by {args.energy_scale=}")
             action.arguments.energy = energy
-        self._calculate_leak_power(models, in_place=True)
+        return self
+
+    def calculate_leak_power(
+        self: T,
+        models: list[ComponentModel] | None = None,
+        in_place: bool = False,
+    ) -> T:
+        """
+        Calculates the leak power for this component. If leak power is set in the
+        arguments or attributes (with arguments taking precedence), that value will be
+        used. Otherwise, the leak power will be calculated using hwcomponents. Populates
+        ``attributes.leak_power`` field. Extends the ``component_modeling_log`` field with log
+        messages.
+
+        Uses the ``component_model`` attribute, or, if not set, the ``component_class``
+        attribute to find the model and populate the ``component_model`` attribute.
+
+        Note that these methods will be called by the Spec when calculating energy and
+        area. If you call them yourself, note that string expressions may not be parsed
+        because they need the Spec's global scope. If you are sure that all necessary
+        values are present and not a result of an expression, you can call these
+        directly. Otherwise, you can call the ``Spec.calculate_component_area_energy_latency_leak``
+        and then grab components from the returned ``Spec``.
+
+        Parameters
+        ----------
+        models : list[ComponentModel] | None
+            The models to use for energy calculation. If not provided, the models will
+            be found with `hwcomponents.get_models()`.
+        in_place : bool
+            If True, the component will be modified in place. Otherwise, a copy will be
+            returned.
+
+        Returns
+        -------
+        T
+            A copy of the component with the calculated energy.
+        """
+        if not in_place:
+            self = self.model_copy()
+            self.attributes = self.attributes.model_copy()
+            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
+            for action in self.actions:
+                action.arguments = action.arguments.model_copy()
+
+        attributes = self.attributes
+        messages = self.component_modeling_log
+        if attributes.leak_power is not None:
+            leak_power = attributes.leak_power
+            messages.append(
+                f"Using predefined leak power value {attributes.leak_power=}"
+            )
+        else:
+            self.populate_component_model(
+                models,
+                in_place=True,
+                trying_to_calculate="attributes.leak_power",
+            )
+            leak_power = self.component_model.leak_power
+        if attributes.leak_power_scale != 1:
+            leak_power *= attributes.leak_power_scale
+            messages.append(f"Scaling leak power by {attributes.leak_power_scale=}")
+        self.attributes.leak_power = leak_power
         return self
 
     def calculate_area(
         self: T,
-        models: list[EnergyAreaModel] | None = None,
+        models: list[ComponentModel] | None = None,
         in_place: bool = False,
     ) -> T:
         """
         Calculates the area for this component. If area is set in the attributes, that
         value will be used. Otherwise, the area will be calculated using the
         hwcomponents library. Populates ``attributes.area`` field. Extends the
-        ``energy_area_log`` field with log messages.
+        ``component_modeling_log`` field with log messages.
 
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
         attribute to find the model and populate the ``component_model`` attribute.
@@ -590,12 +712,12 @@ class Component(Leaf, ABC):
         be parsed because they need the Spec's global scope. If you are sure
         that all necessary values are present and not a result of an expression, you can
         call these directly. Otherwise, you can call the
-        ``Spec.calculate_component_energy_area`` and then grab components from
+        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components from
         the returned ``Spec``.
 
         Parameters
         ----------
-        models : list[EnergyAreaModel] | None
+        models : list[ComponentModel] | None
             The models to use for area calculation. If not provided, the models will be
             found with `hwcomponents.get_models()`.
         in_place : bool
@@ -615,12 +737,16 @@ class Component(Leaf, ABC):
                 action.arguments = action.arguments.model_copy()
 
         attributes = self.attributes
-        messages = self.energy_area_log
+        messages = self.component_modeling_log
         if attributes.area is not None:
             area = attributes.area
             messages.append(f"Using predefined area value {attributes.area=}")
         else:
-            self.populate_component_model(models, in_place=True)
+            self.populate_component_model(
+                models,
+                in_place=True,
+                trying_to_calculate="attributes.area",
+            )
             area = self.component_model.area
         if attributes.area_scale != 1:
             area *= attributes.area_scale
@@ -628,33 +754,21 @@ class Component(Leaf, ABC):
         self.attributes.area = area
         return self
 
-    def _calculate_leak_power(
+    def calculate_action_latency(
         self: T,
-        models: list[EnergyAreaModel] | None = None,
+        models: list[ComponentModel] | None = None,
         in_place: bool = False,
     ) -> T:
         """
-        Calculates the leak power for this component. If leak power is set in the
-        attributes, that value will be used. Otherwise, the leak power will be
-        calculated using the hwcomponents library. Populates the attributes
-        ``leak_power`` field. Extends the ``energy_area_log`` field with log messages.
-
-        Uses the ``component_model`` attribute, or, if not set, the ``component_class``
-        attribute to find the model and populate the ``component_model`` attribute.
-
-        Note that these methods will be called by the Spec when calculating
-        energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Spec's global scope. If you are sure
-        that all necessary values are present and not a result of an expression, you can
-        call these directly. Otherwise, you can call the
-        ``Spec.calculate_component_energy_area`` and then grab components from
-        the returned ``Spec``.
+        Calculates the latency for each action by this component. Populates the
+        ``<action>.arguments.latency`` field. Extends the ``component_modeling_log`` field with
+        log messages.
 
         Parameters
         ----------
-        models : list[EnergyAreaModel] | None
-            The models to use for leak power calculation. If not provided, the models
-            will be found with `hwcomponents.get_models()`.
+        models : list[ComponentModel] | None
+            The models to use for latency calculation. If not provided, the models will be
+            found with `hwcomponents.get_models()`.
         in_place : bool
             If True, the component will be modified in place. Otherwise, a copy will be
             returned.
@@ -662,7 +776,7 @@ class Component(Leaf, ABC):
         Returns
         -------
         T
-            A copy of the component with the calculated area.
+            A copy of the component with the calculated latency for each action.
         """
         if not in_place:
             self = self.model_copy()
@@ -671,44 +785,63 @@ class Component(Leaf, ABC):
             for action in self.actions:
                 action.arguments = action.arguments.model_copy()
 
+        messages = self.component_modeling_log
+
         attributes = self.attributes
-        messages = self.energy_area_log
-        if attributes.leak_power is not None:
-            leak_power = attributes.leak_power
-            messages.append(
-                f"Using predefined leak power value {attributes.leak_power=}"
-            )
-        else:
-            self.populate_component_model(models, in_place=True)
-            leak_power = self.component_model.leak_power
-        if attributes.leak_power_scale != 1:
-            leak_power *= attributes.leak_power_scale
-            messages.append(f"Scaling leak power by {attributes.leak_power_scale=}")
-        self.attributes.leak_power = leak_power
+        for action in self.actions:
+            messages.append(f"Calculating latency for {self.name} action {action.name}.")
+            args = action.arguments
+            if args.latency is not None:
+                latency = args.latency
+                messages.append(f"Setting {self.name} latency to {args.latency=}")
+            else:
+                self.populate_component_model(
+                    models,
+                    in_place=True,
+                    trying_to_calculate=f"arguments.latency for action {action.name}",
+                )
+                latency = self.component_model.try_call_arbitrary_action(
+                    action_name=action.name,
+                    _return_estimation_object=True,
+                    **{**attributes.model_dump(), **args.model_dump()},
+                )
+                messages.extend(latency.messages)
+                latency = latency.value[1]
+            if attributes.latency_scale != 1:
+                latency *= attributes.latency_scale
+                messages.append(
+                    f"Scaling {self.name} latency by {attributes.latency_scale=}"
+                )
+            if args.latency_scale != 1:
+                latency *= args.latency_scale
+                messages.append(f"Scaling {self.name} latency by {args.latency_scale=}")
+            action.arguments.latency = latency
         return self
 
-    def calculate_energy_area(
-        self: T, models: list[EnergyAreaModel] | None = None, in_place: bool = False
+
+    def calculate_area_energy_latency_leak(
+        self: T, models: list[ComponentModel] | None = None, in_place: bool = False
     ) -> T:
         """
-        Calculates the energy, area, and leak power for this component. Populates the
-        ``attributes.area``, ``attributes.total_area``, ``attributes.leak_power``,
-        ``attributes.total_leak_power``, and ``energy_area_log`` fields of this
+        Calculates the area, energy, latency, and leak power for this component.
+        Populates the ``attributes.area``, ``attributes.total_area``,
+        ``attributes.leak_power``, ``attributes.total_leak_power``,
+        ``attributes.total_latency``, and ``component_modeling_log`` fields of this
         component. Additionally, for each action, populates the
-        ``<action>.arguments.energy`` field. Extends the ``energy_area_log`` field with
-        log messages.
+        ``<action>.arguments.area``, ``<action>.arguments.energy``,
+        ``<action>.arguments.latency``, and ``<action>.arguments.leak_power`` fields.
+        Extends the ``component_modeling_log`` field with log messages.
 
-        Note that these methods will be called by the Spec when calculating
-        energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Spec's global scope. If you are sure
-        that all necessary values are present and not a result of an expression, you can
-        call these directly. Otherwise, you can call the
-        ``Spec.calculate_component_energy_area`` and then grab components from
-        the returned ``Spec``.
+        Note that these methods will be called by the Spec when calculating energy and
+        area. If you call them yourself, note that string expressions may not be parsed
+        because they need the Spec's global scope. If you are sure that all necessary
+        values are present and not a result of an expression, you can call these
+        directly. Otherwise, you can call the ``Spec.calculate_component_area_energy_latency_leak``
+        and then grab components from the returned ``Spec``.
 
         Parameters
         ----------
-        models : list[EnergyAreaModel] | None
+        models : list[ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -726,46 +859,31 @@ class Component(Leaf, ABC):
             self.actions = type(self.actions)([a.model_copy() for a in self.actions])
             for action in self.actions:
                 action.arguments = action.arguments.model_copy()
-        self.calculate_energy(models, in_place=True)
         self.calculate_area(models, in_place=True)
-        self._calculate_leak_power(models, in_place=True)
+        self.calculate_action_energy(models, in_place=True)
+        self.calculate_action_latency(models, in_place=True)
+        self.calculate_leak_power(models, in_place=True)
         return self
 
 
-class Container(Leaf, ABC):
+class Container(Leaf):
     """A `Container` is an abstract node in the architecture that contains other nodes.
     For example, a P` may be a `Container` that contains `Memory`s and `Compute` units.
     """
 
     pass
 
-
-class ArchMemoryActionArguments(AttributesWithEnergy):
-    """Arguments for any `Memory` action."""
-
-    bits_per_action: ParsesTo[int | float] = 1
-    """ The number of bits accessed in this action. For example, setting bits_per_action
-    to 16 means that each call to this action yields 16 bits. """
-
-
-class ArchMemoryAction(Action):
-    """An action that a `Memory` can perform."""
-
-    arguments: ArchMemoryActionArguments = ArchMemoryActionArguments()
-    """ The arguments for this `ArchMemoryAction`. """
-
-
-MEMORY_ACTIONS = ParsableList(
+MEMORY_ACTIONS = ParsableList[TensorHolderAction](
     [
-        ArchMemoryAction(name="read", arguments={"bits_per_action": 1}),
-        ArchMemoryAction(name="write", arguments={"bits_per_action": 1}),
+        TensorHolderAction(name="read"),
+        TensorHolderAction(name="write"),
     ]
 )
 
 
-PROCESSING_STAGE_ACTIONS = ParsableList(
+PROCESSING_STAGE_ACTIONS = ParsableList[TensorHolderAction](
     [
-        ArchMemoryAction(name="read", arguments={"bits_per_action": 1}),
+        TensorHolderAction(name="read"),
     ]
 )
 
@@ -942,13 +1060,14 @@ class Tensors(ParsableModel):
         )
 
 
+@_uninstantiable
 class TensorHolder(Component):
     """
     A `TensorHolder` is a component that holds tensors. These are usually `Memory`s,
     but can also be `ProcessingStage`s.
     """
 
-    actions: ParsableList[ArchMemoryAction] = MEMORY_ACTIONS
+    actions: ParsableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `TensorHolder` can perform. """
 
     attributes: TensorHolderAttributes = pydantic.Field(
@@ -982,6 +1101,9 @@ class Memory(TensorHolder):
     attributes: "MemoryAttributes" = pydantic.Field(default_factory=MemoryAttributes)
     """ The attributes of this `Memory`. """
 
+    actions: ParsableList[TensorHolderAction] = MEMORY_ACTIONS
+    """ The actions that this `Memory` can perform. """
+
 
 class ProcessingStageAttributes(TensorHolderAttributes):
     """Attributes for a `ProcessingStage`."""
@@ -1014,7 +1136,7 @@ class ProcessingStage(TensorHolder):
     )
     """ The attributes of this `ProcessingStage`. """
 
-    actions: ParsableList[ArchMemoryAction] = PROCESSING_STAGE_ACTIONS
+    actions: ParsableList[TensorHolderAction] = PROCESSING_STAGE_ACTIONS
     """ The actions that this `ProcessingStage` can perform. """
 
     def model_post_init(self, __context__=None) -> None:
@@ -1041,7 +1163,8 @@ class Compute(Component):
 T = TypeVar("T")
 
 
-class Branch(ArchNode, ABC):
+@_uninstantiable
+class Branch(ArchNode):
     # nodes: ArchNodes[_InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
     nodes: ArchNodes[
         Annotated[
@@ -1269,7 +1392,7 @@ class Arch(Hierarchical):
             if v is None:
                 raise ValueError(
                     f"Area of {k} is not set. Please call the Spec's "
-                    "`calculate_component_energy_area` method before accessing this "
+                    "`calculate_component_area_energy_latency_leak` method before accessing this "
                     "property."
                 )
         return area
@@ -1292,7 +1415,7 @@ class Arch(Hierarchical):
             if v is None:
                 raise ValueError(
                     f"Leak power of {k} is not set. Please call the Spec's "
-                    "`calculate_component_energy_area` method before accessing this "
+                    "`calculate_component_area_energy_latency_leak` method before accessing this "
                     "property."
                 )
         return leak_power

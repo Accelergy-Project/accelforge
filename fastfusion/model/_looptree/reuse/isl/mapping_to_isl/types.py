@@ -123,7 +123,7 @@ class BufferTensorEinsum:
 
     See Also:
     ---------
-    :class:`fastfusion._model.looptree.reuse.Buffet`
+    :class:`fastfusion.model._looptree.reuse.Buffet`
     """
 
     buffer: str

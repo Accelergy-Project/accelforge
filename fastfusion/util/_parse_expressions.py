@@ -246,7 +246,7 @@ def parse_expression(
         errstr += f"Symbol table: "
         bindings = {}
         bindings.update(symbol_table)
-        bindings.update(parse_expressions_local.script_funcs)
+        bindings.update(getattr(parse_expressions_local, "script_funcs", {}))
         extras = []
         for k, v in bindings.items():
             if isinstance(v, Callable):

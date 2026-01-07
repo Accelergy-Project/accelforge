@@ -19,7 +19,7 @@ class TestTileShapeExploration(unittest.TestCase):
         spec = Spec.from_yaml(
             PARENT_DIR / "conv.workload.yaml", PARENT_DIR / "four_level.arch.yaml"
         )
-        spec = spec.calculate_component_energy_area(area=False)
+        spec = spec.calculate_component_area_energy_latency_leak(area=False)
 
         mapping = Mapping.from_yaml(PARENT_DIR / "conv_sym.mapping.yaml")
 

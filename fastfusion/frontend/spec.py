@@ -81,24 +81,36 @@ class Spec(ParsableModel):
             symbol_table["variables"] = parsed_variables
             return super()._parse_expressions(symbol_table, **kwargs)
 
-    def calculate_component_energy_area(
-        self, energy: bool = True, area: bool = True
+    def calculate_component_area_energy_latency_leak(
+        self,
+        area: bool = True,
+        energy: bool = True,
+        latency: bool = True,
+        leak: bool = True,
     ) -> "Spec":
         """
-        Populate per-component area and/or energy entries using installed component
-        models. Populates the ``area``, ``leak_power``, and ``energy`` fields of each
-        component. For each action of each component, populates the ``energy`` field.
-        Extends the ``energy_area_log`` field with log messages. For each component,
-        uses the ``component_model`` attribute, or, if not set, the ``component_class``
-        attribute to find the model and populate the ``component_model`` attribute.
+        Populates per-component area, energy, latency, and/or leak power. For each
+        component, populates the ``attributes.area``, ``attributes.total_area``,
+        ``attributes.leak_power`` and ``attributes.total_leak_power``. Additionally, for
+        each action of each component, populates the ``arguments.energy`` and
+        ``arguments.latency`` fields. Extends the ``component_modeling_log`` field with
+        log messages. Also populates the ``component_model`` attribute for each
+        component if not already set.
 
         Parameters
         ----------
-        energy : bool, optional
-            Whether to compute and populate energy entries.
         area : bool, optional
             Whether to compute and populate area entries.
+        energy : bool, optional
+            Whether to compute and populate energy entries.
+        latency : bool, optional
+            Whether to compute and populate latency entries.
+        leak : bool, optional
+            Whether to compute and populate leak power entries.
         """
+        if not area and not energy and not latency and not leak:
+            return self
+
         models = hwcomponents.get_models(
             self.config.component_models,
             include_installed=self.config.use_installed_component_models,
@@ -121,17 +133,23 @@ class Spec(ParsableModel):
                 orig: Component = self.arch.find(component.name)
                 if area:
                     c = component.calculate_area(models)
-
                     orig.attributes.area = c.attributes.area
                     orig.attributes.total_area = c.attributes.area * fanout
                 if energy:
-                    c = component.calculate_energy(models)
+                    c = component.calculate_action_energy(models)
                     for a in c.actions:
                         orig_action = orig.actions[a.name]
                         orig_action.arguments.energy = a.arguments.energy
+                if latency:
+                    c = component.calculate_action_latency(models)
+                    for a in c.actions:
+                        orig_action = orig.actions[a.name]
+                        orig_action.arguments.latency = a.arguments.latency
+                if leak:
+                    c = component.calculate_leak_power(models)
                     orig.attributes.leak_power = c.attributes.leak_power
                     orig.attributes.total_leak_power = c.attributes.leak_power * fanout
-                orig.energy_area_log.extend(c.energy_area_log)
+                orig.component_modeling_log.extend(c.component_modeling_log)
                 orig.component_model = c.component_model
 
         return self

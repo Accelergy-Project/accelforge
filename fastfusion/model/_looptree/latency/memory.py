@@ -14,6 +14,7 @@ from fastfusion.model._looptree.types import Buffet
 from fastfusion.model._looptree.reuse.symbolic import BuffetStats
 from fastfusion.util._parse_expressions import MATH_FUNCS, parse_expression
 from fastfusion.util._sympy.broadcast_max import Max, Min
+import sympy as sp
 
 
 def isl_to_summarized(
@@ -77,6 +78,15 @@ def component_latency(
     )
     component_to_actions[compute_obj.name]["compute_actions"] = longest_compute_latency
 
+    # TODO: Unhardcode "compute" name"
+    component_to_action_latency = defaultdict(dict)
+    for component, actions in component_to_actions.items():
+        component_obj = name2component[component]
+        for action, count in actions.items():
+            action_name = action.rsplit("_", 1)[0]
+            latency = component_obj.actions[action_name].arguments.latency
+            component_to_action_latency[component][f"{action_name}_latency"] = latency * count
+
     component_latency = {}
 
     symbol_table_base = {
@@ -84,21 +94,24 @@ def component_latency(
         "variables": spec.variables,
         "max": Max,
         "min": Min,
+        "sum": sp.Add,
     }
 
     for component, actions in component_to_actions.items():
-        if name2component[component].attributes.latency is None:
-            continue
+        component_obj = name2component[component]
         symbol_table = {
+            "action2latency": component_to_action_latency[component],
             **symbol_table_base,
             **dict(name2component[component].attributes),
             **actions,
+            **component_to_action_latency[component],
         }
-        component_latency[component] = parse_expression(
-            name2component[component].attributes.latency,
-            symbol_table,
-            attr_name="latency",
-            location=component,
-        )
+        if name2component[component].attributes.total_latency is not None:
+            component_latency[component] = parse_expression(
+                name2component[component].attributes.total_latency,
+                symbol_table,
+                attr_name="latency",
+                location=component,
+            )
 
     return component_latency

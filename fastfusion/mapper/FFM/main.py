@@ -54,7 +54,7 @@ def _make_pmappings(
     einsum_names: list[EinsumName] | None = None,
     can_combine_multiple_runs: bool = False,
 ) -> MultiEinsumPmappings:
-    parsed_spec = spec.calculate_component_energy_area(area=False)
+    parsed_spec = spec.calculate_component_area_energy_latency_leak(area=False)
     flattened_arches = parsed_spec.get_flattened_architecture()
     for i, flattened_arch in enumerate(flattened_arches):
         logging.info(f'Flattened arch {i} uses compute {flattened_arch[-1].name}')

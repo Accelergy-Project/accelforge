@@ -14,12 +14,11 @@ arch:
   - !Memory
     name: GlobalBuffer
     component_class: SmartBufferSRAM
-
     attributes:
       _size: width * depth
       _datawidth: 8
       # 32 reads and writes per cycle, 200MHz. Note bits per action is set below.
-      _latency: (read_actions + write_actions) / 32 / 200e6
+      _total_latency: (read_actions + write_actions) / 32 / 200e6
 
       depth: 16384
       width: 64
@@ -42,7 +41,7 @@ arch:
       _size: width * depth
       _datawidth: 8
       # One read, one write per cycle, 200MHz. Note bits per action is set below.
-      _latency: max(read_actions / 200e6 + write_actions / 200e6)
+      _total_latency: max(read_actions / 200e6 + write_actions / 200e6)
       depth: 12
       width: 16
       tech_node: 65e-9
@@ -58,7 +57,7 @@ arch:
       _size: width * depth
       _datawidth: 8
       # One read, one write per cycle, 200MHz. Note bits per action is set below.
-      _latency: max(read_actions / 200e6 + write_actions / 200e6)
+      _total_latency: max(read_actions / 200e6 + write_actions / 200e6)
       depth: 192
       width: 16
       tech_node: 65e-9
@@ -74,7 +73,7 @@ arch:
       _size: width * depth
       _datawidth: 16 # Outputs are accumulated in double-width accumulators
       # One read, one write per cycle, 200MHz. Note bits per action is set below.
-      _latency: max(read_actions / 200e6 + write_actions / 200e6)
+      _total_latency: max(read_actions / 200e6 + write_actions / 200e6)
       depth: 16
       width: 16
       tech_node: 65e-9
@@ -87,7 +86,7 @@ arch:
     name: MAC
     component_class: intmac
     attributes:
-      _latency: compute_actions / 200e6
+      _total_latency: compute_actions / 200e6
       tech_node: 65e-9
       multiplier_width: 8
       adder_width: 16

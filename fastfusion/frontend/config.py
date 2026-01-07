@@ -1,7 +1,7 @@
 from typing import Annotated, Callable, Optional
 
 from pydantic import ConfigDict
-from hwcomponents import EnergyAreaModel
+from hwcomponents import ComponentModel
 from fastfusion.util._basetypes import ParsableDict, ParsableList, ParsableModel
 from fastfusion._version import assert_version, __version__
 from platformdirs import user_config_dir
@@ -42,11 +42,11 @@ class Config(ParsableModel):
     or paths to Python files that contain the functions. If a path is provided, then all
     functions in the file will be added to the parser.
     """
-    component_models: ParsableList[str | EnergyAreaModel] = ParsableList()
+    component_models: ParsableList[str | ComponentModel] = ParsableList()
     """
     A list of hwcomponents models to use for the energy and area calculations. These can
     either be paths to Python files that contain the models, or `hwcomponents`
-    :py:class:`~hwcomponents.EnergyAreaModel` objects.
+    :py:class:`~hwcomponents.ComponentModel` objects.
     """
     use_installed_component_models: Optional[bool] = True
     """
