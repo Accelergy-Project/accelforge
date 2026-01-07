@@ -4,8 +4,6 @@ arch:
     name: MainMemory
     attributes:
       _size: inf
-
-      _total_latency: (read_actions + write_actions) / (8 * 38.4e9)
       _datawidth: 8
       _leak_power: 0
     actions:
