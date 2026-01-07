@@ -1,4 +1,4 @@
-from copy import copy
+from copy import copy, deepcopy
 from uuid import uuid4
 
 import pandas as pd
@@ -7,6 +7,7 @@ from fastfusion.frontend import arch
 from fastfusion.frontend.arch import Memory
 from fastfusion.frontend.spec import Mapping, Spec
 from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder
+from fastfusion.frontend.workload import Workload, Einsum
 from fastfusion.frontend._workload_isl._symbolic import (
     get_stride_and_halo_of_einsum,
 )
@@ -23,7 +24,6 @@ from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
 
 
 def evaluate_mapping(spec: Spec):
-    print(spec.mapping)
     spec = spec.calculate_component_energy_area(area=False)
     flattened_arches = spec.get_flattened_architecture()
     original_job = Job(
@@ -42,7 +42,7 @@ def evaluate_mapping(spec: Spec):
     einsum2pmappings = {}
     pmapping_objects = {}
     einsum2jobs = {}
-    for pmapping in _split_mapping_to_pmappings(spec.mapping):
+    for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         pmapping_id = uuid4()
         job = copy(original_job)
         _add_backing_to_tensor_holders(pmapping)
@@ -103,7 +103,7 @@ def _add_backing_to_tensor_holders(pmapping: Mapping):
             seen_tensors.update(new_tensors)
 
 
-def _split_mapping_to_pmappings(mapping: Mapping):
+def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
     """
     A DFS-like algorithm to split a mapping into pmappings at Split nodes.
 
@@ -129,15 +129,29 @@ def _split_mapping_to_pmappings(mapping: Mapping):
             assert isinstance(last_node, Compute)
 
             mapping = Mapping()
-            mapping.nodes = [n for ns in cur_pmapping for n in ns] + [last_node]
+            mapping.nodes = deepcopy([n for ns in cur_pmapping for n in ns] + [last_node])
+            _remove_storage_of_unrelevant_tensors(mapping, workload)
             yield mapping
 
             cur_pmapping.pop() # Remove the last segment
 
 
-def _get_compatibility_from_pmapping(pmapping: Mapping) -> Compatibility:
+def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload):
+    """
+    Remove tensors from Storage nodes that are not relevant to the Einsum being
+    mapped.
+    """
+    einsum_name = pmapping.nodes[-1].einsum
+    einsum = workload.einsums[einsum_name]
+    relevant_tensors = set(t.name for t in einsum.tensor_accesses)
+
+    new_nodes = []
     for node in pmapping.nodes:
         if isinstance(node, TensorHolder):
-            for tensor in node.tensors:
-                compatibility.add_tensor_holder(tensor, node.component)
-    return compatibility
+            node.tensors = [t for t in node.tensors if t in relevant_tensors]
+            if node.tensors:
+                new_nodes.append(node)
+        else:
+            new_nodes.append(node)
+
+    pmapping.nodes = new_nodes

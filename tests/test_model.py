@@ -18,3 +18,13 @@ class TestModel(unittest.TestCase):
         )
 
         result = evaluate_mapping(spec)
+
+    def test_two_matmuls(self):
+        spec = Spec.from_yaml(
+            EXAMPLES_DIR / "arches" / "simple.arch.yaml",
+            EXAMPLES_DIR / "workloads" / "matmuls.workload.yaml",
+            EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.mapping.yaml",
+            jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
+        )
+
+        result = evaluate_mapping(spec)

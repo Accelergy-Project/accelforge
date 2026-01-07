@@ -1,8 +1,13 @@
 mapping:
   nodes:
+  {% for i in range(N_EINSUMS+1) %}
+  - !Storage
+    tensors: [T{{i}}]
+    component: MainMemory
+  {% endfor %}
   {% for i in range(N_EINSUMS) %}
   - !Storage
-    tensors: [T{{i}}, W{{i}}, T{{i+1}}]
+    tensors: [W{{i}}]
     component: MainMemory
   {% endfor %}
   - !Temporal
