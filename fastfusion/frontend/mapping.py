@@ -1448,7 +1448,7 @@ class Mapping(Nested):
                 highest_n_shared_loops,
             )
 
-        mapping: Mapping = cls(nodes=pmappings)
+        mapping: Mapping = cls(nodes=pmappings[0].nodes)
         mapping._elevate_persistent_nodes_above_splits()
         mapping._elevate_tensor_holders_above_splits()
         mapping._propagate_reservations_between_splits()

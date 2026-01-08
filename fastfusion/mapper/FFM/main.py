@@ -69,6 +69,7 @@ def map_workload_to_arch(
     for i in range(len(mappings.data)):
         local_spec = deepcopy(spec)
         local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"]()
+        # BUG: Mapping._from_pmappings create mappings that cannot be evaluated!
         evaluate_mapping(local_spec)
 
     return mappings

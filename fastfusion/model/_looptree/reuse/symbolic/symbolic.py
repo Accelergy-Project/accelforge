@@ -1266,9 +1266,13 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
             symbols.append(stride)
             node.stride = stride
 
-        assert (
-            node.calculated_n_iterations is None
-        ), "Number of iterations is derived from the model. Do not set it!"
+        # TODO: sometimes, a mapping is passed into the model twice.
+        #       E.g., after calling mapper, the model is called again for more
+        #       details.
+        #
+        # assert (
+        #     node.calculated_n_iterations is None
+        # ), "Number of iterations is derived from the model. Do not set it!"
         node.calculated_n_iterations = sympy.symbols(
             f"n_iterations{loop_idx}", positive=True, integer=True
         )

@@ -683,21 +683,13 @@ class MappingFromRow:
         self.einsum_names = einsum_names
 
     def __call__(self) -> Mapping:
-        return row2mapping(self.row, self.rank_variable_bounds, self.einsum_names)
+        return Mapping._from_pmappings(
+            row2pmappings(self.row, self.einsum_names, self.rank_variable_bounds),
+            rank_variable_bounds=self.rank_variable_bounds,
+        )
 
     def _repr_svg_(self) -> str:
         return self.render()
 
     def render(self) -> str:
         return self().render()
-
-
-def row2mapping(
-    row: pd.Series,
-    rank_variable_bounds: dict[str, dict[str, int]],
-    einsum_names: list[EinsumName],
-) -> Mapping:
-    return Mapping._from_pmappings(
-        row2pmappings(row, einsum_names, rank_variable_bounds),
-        rank_variable_bounds=rank_variable_bounds,
-    )
