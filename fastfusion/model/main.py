@@ -15,7 +15,7 @@ from fastfusion.mapper import Metrics
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
-from fastfusion.mapper.FFM import join_pmappings
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import clean_compress_and_join_pmappings
 from fastfusion.mapper.FFM.pmappings import MultiEinsumPmappings
 from fastfusion.mapper.FFM._make_pmappings.make_pmappings import get_rank_variable_bounds_for_all_einsums
 from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import parse_flattened_arch
@@ -24,7 +24,15 @@ from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
 
 
 def evaluate_mapping(spec: Spec):
-    spec = spec.calculate_component_energy_area(area=False)
+    """
+    Evaluate a mapping.
+
+    Parameters
+    ----------
+    spec:
+        The specification of architecture, workload, and mapping.
+    """
+    spec = spec.calculate_component_area_energy_latency_leak(area=False)
     flattened_arches = spec.get_flattened_architecture()
     original_job = Job(
         spec=spec,
@@ -91,7 +99,7 @@ def evaluate_mapping(spec: Spec):
         einsums_with_pmappings_generated=spec.workload.einsum_names,
     )
 
-    return join_pmappings(spec, m)
+    return clean_compress_and_join_pmappings(spec, m)
 
 
 def _add_backing_to_tensor_holders(pmapping: Mapping):
