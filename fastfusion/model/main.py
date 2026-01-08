@@ -7,7 +7,7 @@ from fastfusion.frontend import arch
 from fastfusion.frontend.arch import Memory
 from fastfusion.frontend.spec import Mapping, Spec
 from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder
-from fastfusion.frontend.workload import Workload, Einsum
+from fastfusion.frontend.workload import Workload
 from fastfusion.frontend._workload_isl._symbolic import (
     get_stride_and_halo_of_einsum,
 )

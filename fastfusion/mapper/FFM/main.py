@@ -11,7 +11,6 @@ from fastfusion.mapper.FFM.pmappings import MultiEinsumPmappings
 from fastfusion.mapper.FFM.mappings import Mappings
 import fastfusion.mapper.FFM._make_pmappings.make_pmappings as pmapper
 from fastfusion.frontend.workload import EinsumName
-from fastfusion.model import evaluate_mapping
 from fastfusion.mapper.FFM._join_pmappings.join_pmappings import (
     clean_compress_and_join_pmappings,
 )
@@ -51,6 +50,7 @@ def map_workload_to_arch(
         True if the row should be included in the final mappings, and False
         otherwise. If None, all rows will be included.
     """
+    from fastfusion.model.main import evaluate_mapping
 
     pmappings = make_pmappings(
         spec,

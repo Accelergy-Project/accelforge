@@ -8,7 +8,7 @@ from fastfusion.mapper.FFM.main import map_workload_to_arch
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
 
 
-class TestModel(unittest.TestCase):
+class TestMapper(unittest.TestCase):
     def test_one_matmul(self):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.arch.yaml",
