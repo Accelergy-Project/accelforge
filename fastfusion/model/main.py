@@ -6,12 +6,11 @@ import pandas as pd
 from fastfusion.frontend import arch
 from fastfusion.frontend.arch import Memory
 from fastfusion.frontend.spec import Mapping, Spec
-from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder, Reservation, Loop
+from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend._workload_isl._symbolic import (
     get_stride_and_halo_of_einsum,
 )
-from fastfusion.mapper import Metrics
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
@@ -36,7 +35,7 @@ def evaluate_mapping(spec: Spec):
     flattened_arches = spec.get_flattened_architecture()
     original_job = Job(
         spec=spec,
-        metrics=Metrics.all_metrics(),
+        metrics=spec.model.metrics,
         rank_variable_bounds=get_rank_variable_bounds_for_all_einsums(spec),
         flattened_arch=flattened_arches[0],
     )
@@ -72,6 +71,7 @@ def evaluate_mapping(spec: Spec):
 
         job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name, spec.workload)
         _, df, _, _ = run_model(job)
+        df = {f"{job.einsum_name}<SEP>{key}": value for key, value in df.items()}
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
 
         einsum = spec.workload.einsums[pmapping.nodes[-1].einsum]

@@ -22,6 +22,9 @@ class Metrics(Flag):
     hardware.
     """
 
+    ACTIONS = auto()
+    """Action counts."""
+
     @classmethod
     def all_metrics(cls):
         return reduce(or_, iter(cls), cls.LATENCY)

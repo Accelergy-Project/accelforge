@@ -105,6 +105,10 @@ def run_model(
                 running_total += occupancies[n_loop]
                 df[nameloop2col(memory, n_loop)] = running_total
 
+    if metrics & Metrics.ACTIONS:
+        for (component, action_name), count in actions.items():
+            df[f"action<SEP>{component}<SEP>{action_name}"] = count.total
+
     if metrics & Metrics.LATENCY:
         df[f"Total<SEP>latency"] = overall_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances

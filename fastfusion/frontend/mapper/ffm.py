@@ -14,6 +14,9 @@ class FFM(ParsableModel):
     metrics: Metrics = Metrics.ENERGY
     """ Metrics used to optimize mappings. """
 
+    info_metrics: Metrics = Metrics.all_metrics()
+    """Metrics to be reported for final mappings."""
+
     _timeloop_style_even: bool = False
     """ Timeloop-style even mappings must have, for each memory, at most two
         locations where storage nodes may be placed. """

@@ -7,6 +7,7 @@ from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.variables import Variables
 from fastfusion.frontend.config import Config, get_config
 from fastfusion.frontend.mapping import Mapping
+from fastfusion.frontend.model import Model
 import hwcomponents
 
 from typing import Any, Dict, Optional, Self
@@ -40,6 +41,9 @@ class Spec(ParsableModel):
 
     mapper: Mapper = Mapper()
     """ Configures the mapper used to map the workload onto the architecture. """
+
+    model: Model = Model()
+    """Configures the model used to evaluate mappings."""
 
     def _parse_expressions(
         self,

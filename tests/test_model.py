@@ -3,6 +3,9 @@ from pathlib import Path
 
 from fastfusion.frontend.spec import Spec
 from fastfusion.model.main import evaluate_mapping
+from fastfusion.util.parallel import set_n_parallel_jobs
+
+set_n_parallel_jobs(1)
 
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
@@ -28,3 +31,4 @@ class TestModel(unittest.TestCase):
         )
 
         result = evaluate_mapping(spec)
+        print(result.data)

@@ -18,6 +18,8 @@ class TestMapper(unittest.TestCase):
 
         result = map_workload_to_arch(spec)
 
+        self._check_memory_actions_exist(spec, ["MainMemory", "GlobalBuffer"], result)
+
     def test_two_matmuls(self):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.arch.yaml",
@@ -26,3 +28,15 @@ class TestMapper(unittest.TestCase):
         )
 
         result = map_workload_to_arch(spec)
+
+        self._check_memory_actions_exist(spec, ["MainMemory", "GlobalBuffer"], result)
+
+    def _check_memory_actions_exist(self, spec, memory_names, result):
+        for einsum_name in spec.workload.einsum_names:
+            for memory_name in memory_names:
+                for memory_action in ["read", "write"]:
+                    self.assertTrue(
+                        f"{einsum_name}<SEP>action<SEP>{memory_name}<SEP>{memory_action}" in result.data.columns,
+                        f"{einsum_name}<SEP>action<SEP>{memory_name}<SEP>{memory_action} "
+                        f"not found in {result.data.columns}"
+                    )
