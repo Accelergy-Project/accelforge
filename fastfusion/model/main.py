@@ -6,7 +6,7 @@ import pandas as pd
 from fastfusion.frontend import arch
 from fastfusion.frontend.arch import Memory
 from fastfusion.frontend.spec import Mapping, Spec
-from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder
+from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder, Reservation, Loop
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend._workload_isl._symbolic import (
     get_stride_and_halo_of_einsum,
@@ -53,6 +53,8 @@ def evaluate_mapping(spec: Spec):
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         pmapping_id = uuid4()
         job = copy(original_job)
+        pmapping.split_loop_with_multiple_rank_variables()
+        pmapping.remove_reservations()
         _add_backing_to_tensor_holders(pmapping)
         job.mapping = pmapping
         job.einsum_name = pmapping.nodes[-1].einsum

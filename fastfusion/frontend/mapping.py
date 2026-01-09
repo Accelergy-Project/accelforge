@@ -1330,6 +1330,21 @@ class Mapping(Nested):
     _n_loop_orders: int | None = None
     """ Used for counting number of unique mappings. Do not touch. """
 
+    def remove_reservations(self):
+        self.nodes = [n for n in self.nodes if not isinstance(n, Reservation)]
+
+    def split_loop_with_multiple_rank_variables(self):
+        new_nodes = []
+        for node in self.nodes:
+            if isinstance(node, Loop) and isinstance(node.rank_variable, set):
+                for rank_variable in node.rank_variable:
+                    new_node = copy.copy(node)
+                    new_node.rank_variable = rank_variable
+                    new_nodes.append(new_node)
+            else:
+                new_nodes.append(node)
+        self.nodes = new_nodes
+
     def _get_fused_slice(self, fusable_tensors: set[TensorName]) -> "Mapping":
         """
         Return a mapping with:

@@ -1238,6 +1238,9 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
                 if rank_variable == node.rank_variable:
                     stride_halos.add((stride, halo))
 
+        if len(stride_halos) == 0:
+            raise RuntimeError(f"{repr(node.rank_variable)} not found in {job.stride_and_halo}")
+
         # We only explore imperfect for the outermost fused loops
         simple = (
             (len(stride_halos) <= 1 and next(iter(stride_halos)) == (1, 0))
