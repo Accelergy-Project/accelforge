@@ -759,7 +759,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             reuse_parent_accesses = (
                 last_buffet
                 and isinstance(relevancy, Irrelevant)
-                and buffet.tensor in spatial_reuse
+                and True
             )
 
             accumulated_stats += stats.repeat_spatial(
