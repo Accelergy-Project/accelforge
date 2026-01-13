@@ -15,6 +15,7 @@ from fastfusion.frontend.mapping import (
     Reservation as MappingReservation,
     Split as MappingSplit,
     TilePattern,
+    Loop as MappingLoop,
 )
 from fastfusion.frontend.renames import Rank, RankVariable, TensorName
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
@@ -526,7 +527,7 @@ class Compatibility(Updatable):
                 tensor_indices.append(i)
             elif isinstance(n, MappingSplit):
                 split_above_loop_indices.append(n_seen_loops)
-            elif isinstance(n, Loop):
+            elif isinstance(n, MappingLoop):
                 n_seen_loops += 1
                 n_fused_loops += bool(backing_remaining)
             elif isinstance(n, TensorHolder):
@@ -546,8 +547,10 @@ class Compatibility(Updatable):
             ), f"Rank variable {rank_variable} indexes into multiple ranks {rv} for tensor {tensor} "
             return next(iter(rv))
 
-        def make_loops(above_index: int, tensor_name: TensorName) -> list[Loop]:
-            loops = [n for n in mapping.nodes[:above_index] if isinstance(n, Loop)]
+        def make_loops(above_index: int, tensor_name: TensorName) -> list[MappingLoop]:
+            loops = [
+                n for n in mapping.nodes[:above_index] if isinstance(n, MappingLoop)
+            ]
             loops = [
                 Loop(
                     rank_name=get_rank(n.rank_variable, tensor_name),
