@@ -678,8 +678,18 @@ class ProcessingStage(TensorHolder):
     not reused but incurs accesses into this ProcessingStage.
     """
 
-    pass
+    def _render_node_shape(self) -> str:
+        return "rarrow"
 
+    def _render_node_color(self) -> str:
+        return "#FFCC99"
+
+    def __str__(self, color_map: _ColorMap = None) -> str:
+        tensors = self.tensors
+        if color_map is not None:
+            format_list = [f"{self.component} processes"] + list(tensors)
+            return color_map.format_list(format_list)
+        return f"{self.component} processes {', '.join(tensors)}"
 
 class Compute(MappingNode):
     """A node that represents a compute operation. These nodes are the leaves of the
@@ -890,6 +900,13 @@ class MappingNodeWithChildren(MappingNode):
             for g in groups
         ]
         self.nodes = ParsableList([x for g in groups for x in g])
+
+    def _remove_reservations_for_processing_stages(self) -> None:
+        processing_stages = self.get_nodes_of_type(ProcessingStage)
+        processing_stage_names = set(ps.component for ps in processing_stages)
+        reservations = self.get_nodes_of_type(Reservation)
+        remove = [r for r in reservations if r.resource in processing_stage_names]
+        self.clear_nodes(*remove)
 
 
 class Split(MappingNodeWithChildren):
@@ -1654,6 +1671,7 @@ class Mapping(Nested):
         mapping._consolidate_tensor_holders()
         mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
+        mapping._remove_reservations_for_processing_stages()
         return mapping
 
         # import mermaid as md
