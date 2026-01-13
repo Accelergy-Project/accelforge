@@ -64,12 +64,12 @@ class ComparisonResult(Enum):
         return ComparisonResult.UNKNOWN
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=10000)
 def diff(f: Expr, s: Symbol):
     return sympy.diff(f, s)
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=10000)
 def diff_geq_leq_zero(
     f: Expr, s: Symbol, bounds: tuple[tuple[Symbol, int, int], ...]
 ):
@@ -83,7 +83,7 @@ def diff_geq_leq_zero(
     return geq_leq_zero(diff(f, s), bounds)
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=10000)
 def function_range(f: Expr, s: Symbol, lo: int, hi: int):
     return sympy.calculus.util.function_range(f, s, domain=sympy.Interval(lo, hi))
 
@@ -101,7 +101,46 @@ def partition_heaviside(f: Expr) -> tuple[Expr, ...]:
     return (f,)
 
 
-@lru_cache(maxsize=1000)
+# @lru_cache(maxsize=10000)
+# def _get_function_range(
+#     f: Expr,
+#     check_symbols: tuple[Symbol, ...],
+#     bounds: tuple[tuple[Symbol, int, int], ...],
+#     return_min: bool,
+# ) -> list:
+#     if isinstance(f, sympy.Expr):
+#         f = f.replace(
+#             lambda expr: expr.is_Function and expr.func == sympy.ceiling,
+#             lambda expr: expr.args[0],
+#         )
+#         fs = list(partition_heaviside(f))
+#     else:
+#         fs = [f]
+
+#     if len(fs) > 1:
+#         return [f3 for f2 in fs for f3 in _get_function_range(f2, check_symbols, bounds, return_min)]
+
+#     f = fs[0]
+#     check_symbol = check_symbols[0]
+#     check_symbols = check_symbols[1:]
+#     bounds = None
+#     for s, lo, hi in bounds:
+#         if s == check_symbol:
+#             bounds = (s, lo, hi)
+#             break
+#     else:
+#         raise ValueError(f"Symbol {check_symbol} not found in bounds")
+
+#     f_range = sympy.calculus.util.function_range(f, check_symbol, domain=sympy.Interval(lo, hi))
+
+#     if isinstance(f_range, sympy.FiniteSet):
+#         return [f3 for f2 in f_range for f3 in _get_function_range(f2, check_symbols, bounds, return_min)]
+
+#     target = f_range.left if return_min else f_range.right
+#     return _get_function_range(target, check_symbols, bounds, return_min)
+
+
+@lru_cache(maxsize=10000)
 def _compare_to_zero(
     f: Expr,
     bounds: tuple[tuple[Symbol, int, int], ...],
@@ -171,7 +210,7 @@ def _compare_to_zero(
         )
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=10000)
 def geq_leq_zero(
     f: Expr,
     bounds: tuple[tuple[Symbol, int, int], ...],
@@ -281,7 +320,7 @@ class Objective:
         if isinstance(formula, Number):
             formula = sympy.Number(formula)
         self.name: str = name
-        self.formula: Expr = formula.simplify()
+        self.formula: Expr = simplify(formula)
         self._symbols: list[str] = symbols
         self.max_value: float = max_value
         self.only_care_if_valid: bool = only_care_if_valid
@@ -297,7 +336,7 @@ def is_constant(f: Expr) -> bool:
         return all(is_constant(arg) for arg in f.args)
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=10000)
 def _try_replace_single_term(
     t: Expr,
     symbols_enumerated: fzs[Symbol],
@@ -318,7 +357,6 @@ def _try_replace_single_term(
                 pass
             else:
                 raise ValueError(f"Comparison result {diff_result} is not a valid comparison result")
-            t = t.subs(s, 1)
             return s, goal
         except (TypeError, ValueError):
             pass
@@ -329,7 +367,7 @@ def try_replace_single_term(t: Expr, symbols_enumerated: fzs[Symbol], bounds: tu
     return _try_replace_single_term(t, symbols_enumerated & t.free_symbols, bounds)
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=10000)
 def _partition_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
@@ -346,16 +384,9 @@ def _partition_formula(
         return goals
 
     def _try_replace_unknowns(t: Expr):
-        for s in t.free_symbols:
-            if s in symbols_enumerated:
-                continue
-            try:
-                diff_result = diff_geq_leq_zero(t, s, bounds)
-                # Won't change the derivative sign, so we can just replace it with 1.
-                if diff_result != ComparisonResult.UNKNOWN:
-                    t = t.subs(s, 1)
-            except (TypeError, ValueError):
-                pass
+        for s in t.free_symbols - symbols_enumerated:
+            if not affects_comparison(t, s, symbols_enumerated):
+                t = t.subs(s, 1)
         return t
 
     def _recombine_terms(terms: list[Expr]):
@@ -445,7 +476,7 @@ def _partition_formula(
     return goals
 
 
-@lru_cache(maxsize=1000)
+@lru_cache(maxsize=10000)
 def _get_n_prime_factors(n: int) -> int:
     return len(factorint(n))
 
@@ -480,8 +511,35 @@ def append_vector(matrix: np.ndarray, vector: np.ndarray):
     )
 
 
+@lru_cache(maxsize=10000)
+def simplify(f: Expr):
+    return f.simplify()
+
 def symbol2int(symbol: Symbol):
     return int(re.findall(r"(\d+)", symbol.name)[0])
+
+
+@lru_cache(maxsize=10000)
+def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
+    f2 = f
+    for s in f.free_symbols & symbols_enumerated:
+        f2 = f2.subs(s, sympy.Symbol(f"{s}_2", integer=True, positive=True))
+    return f2 - f > 0
+
+
+@lru_cache(maxsize=10000)
+def affects_comparison(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
+    if not isinstance(f, sympy.Expr):
+        return False
+    delta = f_minus_other_f(f, symbols_enumerated)
+    if not isinstance(delta, sympy.Expr) or s not in delta.free_symbols:
+        return False
+
+    delta = simplify(delta)
+    if s not in delta.free_symbols:
+        return False
+
+    return True
 
 
 def get_padded_choices(
@@ -559,14 +617,13 @@ def check_max_fused_loops_per_rank(
 
 
 def coalesce_symbols(
-    symbols: list[Symbol],
     update_symbol2goal: Callable,
     symbols_enumerated: list[Symbol],
     symbol2goal: dict[Symbol, Goal],
     log_message: Callable,
     bounds: tuple[tuple[Symbol, int, int], ...],
 ):
-    sym_enumerated_set = set(symbols_enumerated)
+    sym_enumerated_set = fzs(symbols_enumerated)
     new_symbol2goal = {}
 
     log_message("coalesce symbols", f"initial")
@@ -618,34 +675,25 @@ def coalesce_symbols(
                     formula = formula.args[0]
 
             # If it's a function of a non-enumerated symbol or a symbol that we can't
-            # compare and the derivative of the formula WRT the symbol does not change
-            # sign (i.e., the formula is monotonic WRT the symbol), then we can drop it
-            # because it won't affect comparisons.
+            # compare and it won't affect comparisons, then we can drop it.
 
             # If it's a function of a non-enumerated symbol &
             for s in formula.free_symbols:
                 if s in symbols_enumerated and latest().get(s, Goal()).goal != "diff":
                     continue
 
-                try:
-                    diff_result = diff_geq_leq_zero(formula, s, bounds)
-                    # If this symbol doesn't change the derivative sign & we can't
-                    # compare it, then don't include it here.
-                    if diff_result != ComparisonResult.UNKNOWN:
-                        log_message(
-                            "coalesce symbols", f"dropping non-comparable symbol based on derivative {s}: {formula}"
-                        )
-                        formula = formula.subs(s, 1)
-                    else:
-                        log_message("coalesce symbols", f"not dropping symbol based on derivative {s}: {formula}")
-                except TypeError:
-                    pass
+                if not affects_comparison(formula, s, sym_enumerated_set):
+                    formula = formula.subs(s, 1)
+                    log_message("coalesce symbols", f"dropping non-comparable symbol that does not affect comparison {s}: {formula}")
+                    continue
+                else:
+                    log_message("coalesce symbols", f"keeping dropping symbol that affects comparison {s}: {formula}")
 
             # If there's only one symbol in the formula, we can try to replace it with
             # just the symbol.
             if len(formula.free_symbols & sym_enumerated_set) == 1:
                 formula, new_goal = try_replace_single_term(
-                    formula, fzs(symbols_enumerated), bounds
+                    formula, sym_enumerated_set, bounds
                 )
                 if new_goal is not None:
                     log_message("coalesce symbols", f"replacing single term: {formula}")
@@ -688,7 +736,7 @@ def coalesce_symbols(
                     elif diff_result == ComparisonResult.UNKNOWN:
                         break
                     elif diff_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
-                        this_goal = g # Make it agree
+                        this_goal = g  # Make it agree
                     else:
                         diff_geq_leq_zero(formula, s, bounds)
                         raise ValueError(f"Comparison result {diff_result} is not a valid comparison result")
@@ -1041,26 +1089,11 @@ def get_tile_shape_choices(
         # to track this loop. Minimize it if we're imperfect (giving the outer the most
         # choices possible), or diff if we're perfect (since perfect constrains choices
         # so we can't just min).
-
-        # NOTE: Tanner tried for a long time to get min_per_prime_factor to be faster, but it
-        # didn't work. What it would do is say that if one choice for an inner loop has
-        # used up fewer of every prime factor than another choice, then the latter would
-        # give a superset of options for outer loops. Intuitively, we could enable more
-        # pruning by doing this instead of "diff", which is overconservative. Likewise,
-        # we could do "min" for imperfect instead of "diff". However, this ultimately
-        # made things slower because it didn't get much Pareto pruning, but caused many
-        # more Pareto comparisons ("diff" partitioning into N partitions --> N^2
-        # improvement). I hypothesize that the reason that it doesn't improve pruning
-        # much is that when we've enumerated a loop but not the loop above it, the given
-        # loop is almost always trading off tile shape for accesses, leading to no point
-        # being dominated by another point.
-
         for s in symbols_enumerated:
             per_prime_factor = not (IMPERFECT or _get_n_prime_factors(what_tiles_symbol.get_max_size(s)) == 1)
             tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
             if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
                 update_symbol2goal(s, Goal("min_per_prime_factor" if per_prime_factor else "min"))
-                # update_symbol2goal(s, Goal("diff"))
 
             # Same for inner loops depending on us, but maximize if we're imperfect
             tiled_by = what_tiles_symbol.get_inner_tiles(s, none_if_fail=True)
@@ -1173,7 +1206,6 @@ def get_tile_shape_choices(
         # partially-unknown goals into fully-known and/or fully-unknown goals.
         # ==============================================================================
         symbol2goal = coalesce_symbols(
-            symbols=symbols,
             symbols_enumerated=symbols_enumerated,
             symbol2goal=symbol2goal,
             update_symbol2goal=update_symbol2goal,
