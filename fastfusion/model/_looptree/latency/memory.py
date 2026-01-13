@@ -62,10 +62,11 @@ def component_latency(
                 buffet_stats.max_per_unit_read_actions
                 - buffet_stats.min_per_unit_skipped_first_read_actions
             )
-            actions["write_actions"] += (
-                buffet_stats.max_per_unit_write_actions
-                - buffet_stats.min_per_unit_skipped_first_write_actions
-            )
+            if not isinstance(name2component[component], arch.ProcessingStage):
+                actions["write_actions"] += (
+                    buffet_stats.max_per_unit_write_actions
+                    - buffet_stats.min_per_unit_skipped_first_write_actions
+                )
         elif isinstance(name2component[component], arch.Compute):
             pass
         else:
@@ -85,7 +86,9 @@ def component_latency(
         for action, count in actions.items():
             action_name = action.rsplit("_", 1)[0]
             latency = component_obj.actions[action_name].arguments.latency
-            component_to_action_latency[component][f"{action_name}_latency"] = latency * count
+            component_to_action_latency[component][f"{action_name}_latency"] = (
+                latency * count
+            )
 
     component_latency = {}
 
