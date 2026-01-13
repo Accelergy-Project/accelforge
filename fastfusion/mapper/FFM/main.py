@@ -163,10 +163,7 @@ def join_pmappings(
     A Mappings object containing all valid, optimal mappings for the workload.
     """
     return clean_compress_and_join_pmappings(
-        spec,
-        pmappings,
-        require_all_einsums,
-        _pmapping_row_filter_function
+        spec, pmappings, require_all_einsums, _pmapping_row_filter_function
     )
 
 
@@ -178,7 +175,7 @@ def _make_pmappings(
     parsed_spec = spec.calculate_component_area_energy_latency_leak(area=False)
     flattened_arches = parsed_spec.get_flattened_architecture()
     for i, flattened_arch in enumerate(flattened_arches):
-        logger.info(f'Flattened arch {i} uses compute {flattened_arch[-1].name}')
+        logger.info(f"Flattened arch {i} uses compute {flattened_arch[-1].name}")
     pmapping_groups, pmapping_objects, einsum2jobs = pmapper.make_pmappings(
         parsed_spec,
         flattened_arches,
@@ -204,4 +201,3 @@ def _make_pmappings(
     )
 
     return m
-

@@ -87,7 +87,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
                         (buffer, tensor) for tensor in node.tensors
                     )
                 case Compute():
-                    compute: ComponentName = node.compute
+                    compute: ComponentName = node.component
                     buffer_to_last_storage_node[compute] = node
                     buffer_node.append((compute, node))
 
@@ -102,7 +102,7 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
 
         # Generate tags, map, and which dims (and tags) should be removed per buffer.
         tags: List[Tag] = []
-        base_space: str = f"{leaf.compute}_spacetime"
+        base_space: str = f"{leaf.component}_spacetime"
         removal_map: isl.Map = (
             isl.Map.from_multi_aff(
                 isl.MultiAff.identity_on_domain_space(
@@ -219,18 +219,18 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
 
         # TODO: Figure out what is actually:
         # https://github.com/NVlabs/timeloop/blob/32370826fdf1aa3c8deb0c93e6b2a2fc7cf053aa/src/loop-analysis/mapping-to-isl/fused-mapping-to-isl.cpp#L746
-        compute_einsum_to_skew[ComputeEinsum(leaf.compute, leaf)] = Skew(
+        compute_einsum_to_skew[ComputeEinsum(leaf.component, leaf)] = Skew(
             tags, removal_map
         )
         einsum: EinsumName = leaf.einsum
         for tensor in workload.einsums[einsum].input_tensor_names:
             buffer_tensor_einsum_to_skew[
-                BufferTensorEinsum(leaf.compute, tensor, leaf)
+                BufferTensorEinsum(leaf.component, tensor, leaf)
             ] = Skew(tags, removal_map)
 
         for tensor in workload.einsums[einsum].output_tensor_names:
             buffer_tensor_einsum_to_skew[
-                BufferTensorEinsum(leaf.compute, tensor, leaf)
+                BufferTensorEinsum(leaf.component, tensor, leaf)
             ] = Skew(tags, removal_map)
 
     return SkewsInfo(buffer_tensor_einsum_to_skew, compute_einsum_to_skew)

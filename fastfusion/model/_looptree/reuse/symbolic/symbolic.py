@@ -1,5 +1,19 @@
 import copy
 from dataclasses import dataclass, field
+import itertools
+from fastfusion.frontend.mapping import (
+    Compute,
+    Mapping,
+    Nested,
+    Pipeline,
+    ProcessingStage,
+    Reservation,
+    Sequential,
+    Spatial,
+    Split,
+    Storage,
+    Temporal,
+)
 from typing import Any
 
 from fastfusion.frontend import arch
@@ -7,6 +21,7 @@ import fastfusion.frontend.mapping as mapping_spec
 from fastfusion.frontend.mapping import (
     Mapping,
     MappingNode,
+    Nested,
     Spatial,
     Temporal,
     Storage,
@@ -15,7 +30,11 @@ from fastfusion.frontend.mapping import (
     TensorHolder,
     ProcessingStage,
 )
-from fastfusion.frontend.workload import Workload, TensorName
+from fastfusion.frontend.workload import (
+    Workload,
+    TensorName,
+    isl_expression_has_variable,
+)
 from fastfusion.frontend._workload_isl._isl import get_rank_variable_bounds
 from fastfusion.frontend._workload_isl._symbolic import (
     get_projection_expr,
@@ -265,11 +284,19 @@ class SymbolicAnalysisOutput:
     buffet_stats: dict[Buffet, BuffetStats] = field(default_factory=dict)
 
     # Mapping [level, einsum] to the fanout
-    fanout: dict = field(default_factory=dict)
+    fanout: dict[(Buffet, str), int] = field(default_factory=dict)
 
-    temporal_steps: dict = field(default_factory=dict)
+    # Mapping [einsum] to the number of temporal steps
+    temporal_steps: dict[str, int] = field(default_factory=dict)
 
-    symbols: list = field(default_factory=list)
+    symbols: list[sympy.Symbol] = field(default_factory=list)
+
+    # List of tuples of loops that are incompatible with one another. Only one of any
+    # given pair may be effectual.
+    incompatible_loop_pairs: list[tuple[Loop, Loop]] = field(default_factory=list)
+
+    # tensor to the mapping for that particular tensor
+    tensor2mapping: dict[TensorName, Mapping] = field(default_factory=dict)
 
     def get_buffet_for_tensor(self, tensor: TensorName) -> Buffet:
         for buffet in self.buffet_stats:
@@ -311,6 +338,19 @@ class SymbolicAnalysisOutput:
             result[buffet.level] += stats
         return result
 
+    def add_buffet_stats_and_symbols(self, other: "SymbolicAnalysisOutput"):
+        assert not (set(self.buffet_stats) & set(other.buffet_stats)), "BUG"
+        self.buffet_stats.update(other.buffet_stats)
+        # if self.temporal_steps != other.temporal_steps:
+        #     print(f'Temporal steps are different.')
+        #     print(f'\tmine:  {self.temporal_steps}')
+        #     print(f'\tother: {other.temporal_steps}')
+        # assert self.temporal_steps == other.temporal_steps, "BUG"
+        self.temporal_steps.update(other.temporal_steps)
+        self.symbols.extend([s for s in other.symbols if s not in self.symbols])
+        # Assert compute stats are the same
+        # assert self.compute_stats == other.compute_stats, "BUG"
+
 
 @dataclass
 class AnalysisInfo:
@@ -347,10 +387,9 @@ class AnalysisInfo:
 def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
     mapping = list(job.mapping.nodes)
     workload = job.spec.workload
-    einsum_name = mapping[-1].einsum
 
-    einsum = workload.einsums[einsum_name]
-    all_tensors = einsum.input_tensor_names | einsum.output_tensor_names
+    # TODO: Subclass reservation with TensorReservation or something so that we can
+    # track which are for tensors and which are for non-tensor resources.
 
     info = AnalysisInfo(
         mapping=None,
@@ -420,15 +459,17 @@ def analyze_reuse_and_add_reservations_to_mapping(
 
     if is_copy_operation:
         mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
-        # We're working with a new mapping at this point, so we need to add reservations
-        # to the job mapping.
-        job.mapping = quick_insert_reservation_nodes(job)
     else:
         tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
+    job.mapping = quick_insert_reservation_nodes(job)
+    # print(f'Job mapping: {job.mapping.compact_str()}')
+    # for n in job.mapping.nodes:
+    #     print(f'\t{n.compact_str()}')
+
     einsum_tensor_to_projection = {}
     einsum = workload.einsums[einsum_name]
-    all_tensors = einsum.input_tensor_names | einsum.output_tensor_names
+    all_tensors = einsum.tensor_names
     for tensor in all_tensors:
         einsum_tensor_to_projection[(einsum_name, tensor)] = get_projection_expr(
             einsum, tensor
@@ -438,23 +479,97 @@ def analyze_reuse_and_add_reservations_to_mapping(
         tensor: get_rank_variable_relevancy(einsum, tensor) for tensor in all_tensors
     }
 
-    info = AnalysisInfo(
-        mapping=mapping,
-        workload=workload,
-        full_rank_variable_shapes=get_rank_variable_bounds(workload, einsum_name),
-        all_tensors=all_tensors,
-        einsum_tensor_to_projection=einsum_tensor_to_projection,
-        tensor_to_relevancy=tensor_to_relevancy,
-        tensor_to_backer_id=tensor_to_backer_id,
-        is_copy_operation=is_copy_operation,
-        job=job,
-    )
+    # mapping = Nested(nodes=job.mapping)
+    rv_bounds = get_rank_variable_bounds(workload, einsum_name)
+    assert all_tensors, f"Einsum {einsum_name} has no tensors"
 
-    insert_reservation_nodes(mapping, info)
+    """
+    Note for how this works.
 
-    result = analyze_node(0, einsum_shape, info)
+    Spatial loops are weird, because they don't belong at a single point in the loop
+    nest. For example:
+
+    - DRAM keep A, B
+    - *
+    - Reg keep A
+    - for n in [0..N)
+    - GLB keep B
+    - *
+    - Compute
+
+    A loop spatial-for (Reg) k in [0..K) would affect the register at the point of the
+    first asterisk, but the global buffer at the point of the second asterisk.
+
+    To handle this, we make a separate mapping for each tensor, analyze each, and
+    combine the results.
+
+    To anyone who would like to create behavior that simultaneously looks at multiple
+    storage nodes for a given memory, note that there will be two challenges to address:
+
+    1. The code currently analyzes one tensor at a time. This could be fixed by
+       processing all mapping(s) together, applying loop(s) from each to only the
+       appropriate nodes.
+    2. The code must analyze one storage node at a time, and there may be temporal and
+       spatial nodes between two storage nodes for a given memory, which would separate
+       the analysis steps for the storage nodes. This may be addressed by only
+       performing such analysis until the outermost storage node for a particular memory
+       has been analyzed.
+    """
+
+    result = None
+
+    tensor2mapping = {}
+    for tensor in all_tensors:
+        cur_mapping = job.mapping._get_single_tensor_mapping(tensor, job.flattened_arch)
+        # print(f'Cur mapping: {cur_mapping.compact_str()}')
+        # print(f'Cur mapping loops: ' + ' '.join(n.compact_str() for n in cur_mapping.nodes if isinstance(n, Loop)))
+        info = AnalysisInfo(
+            mapping=cur_mapping.nodes,
+            workload=workload,
+            full_rank_variable_shapes=rv_bounds,
+            all_tensors=set([tensor]),
+            einsum_tensor_to_projection=einsum_tensor_to_projection,
+            tensor_to_relevancy=tensor_to_relevancy,
+            tensor_to_backer_id=tensor_to_backer_id,
+            is_copy_operation=is_copy_operation,
+            job=job,
+        )
+        cur_result = analyze_node(0, einsum_shape, info)
+        if result is None:
+            result = cur_result
+        else:
+            result.add_buffet_stats_and_symbols(cur_result)
+        tensor2mapping[tensor] = cur_mapping
+
+    # Check for spatial/temporal loops that have been reordered. These ones can not
+    # co-exist because the tiling is inconsistent.
+    # See CONTIGUOUS_ITERATION_SPACE_DISCUSSION
+    node2idx = {id(node): i for i, node in enumerate(job.mapping.nodes)}
+    incompatible_loop_pairs = []
+    rv_expressions = job.spec.workload.einsums[einsum_name].indexing_expressions
+    for mapping in tensor2mapping.values():
+        # for m in mapping.nodes:
+        #     print(m.compact_str())
+        # print('---')
+        for node1, node2 in itertools.combinations(mapping.nodes, 2):
+            # Both must be loops
+            if not isinstance(node1, Loop) or not isinstance(node2, Loop):
+                continue
+            # Must have been reordered
+            if node2idx[id(node1)] <= node2idx[id(node2)]:
+                continue
+            # Must affect the same rank variable expression
+            for expr in rv_expressions:
+                if not isl_expression_has_variable(expr, node1.rank_variable):
+                    continue
+                if not isl_expression_has_variable(expr, node2.rank_variable):
+                    continue
+                incompatible_loop_pairs.append((node1, node2))
+                break
+
     result.symbols = symbols
-
+    result.incompatible_loop_pairs = incompatible_loop_pairs
+    result.tensor2mapping = tensor2mapping
     return result
 
 
@@ -679,6 +794,7 @@ def analyze_temporal(
             if einsum not in result_accumulator.temporal_steps:
                 result_accumulator.temporal_steps[einsum] = 0
             result_accumulator.temporal_steps[einsum] += child_steps * shape_repeats
+            # print(f'\tLoop {node.compact_str()} {result_accumulator.temporal_steps[einsum]=}, {child_steps=}, {shape_repeats=}')
 
         result_accumulator.max(fanout=child_result.fanout)
 
@@ -732,11 +848,6 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
 
         child_result = analyze_node(node_idx + 1, child_shape, info)
 
-        component_object = find_component_object(
-            node.component, info.job.flattened_arch
-        )
-        spatial_reuse = component_object.spatial[node.name].may_reuse
-
         accumulated_buffet_stats = result_accumulator.buffet_stats
         child_stats = list(child_result.buffet_stats.items())
         for i, (buffet, buffet_stats) in enumerate(child_stats):
@@ -759,7 +870,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             reuse_parent_accesses = (
                 last_buffet
                 and isinstance(relevancy, Irrelevant)
-                and True
+                and buffet.tensor in node._may_reuse
             )
 
             accumulated_stats += stats.repeat_spatial(
@@ -774,6 +885,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 result_accumulator.temporal_steps[einsum] = Max(
                     result_accumulator.temporal_steps[einsum], child_steps
                 )
+            # print(f'\tLoop {node.compact_str()} {result_accumulator.temporal_steps[einsum]=}, {child_steps=}')
 
         my_key = (node.component, einsum_name)
         child_result.fanout.setdefault(my_key, {})
@@ -864,6 +976,8 @@ def analyze_storage(
     for tensor in node.tensors:
         tensor = TensorName(tensor)
         buffet = Buffet(tensor, einsum_name, node.component)
+
+        # print(f'\tStorage {node.compact_str()}')
 
         # Reservations make these, and they go below the storage node, so the buffet
         # stats are already made at this point
@@ -1051,41 +1165,18 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     return child_result
 
 
-def analyze_fill(node_idx, current_shape, info: AnalysisInfo) -> SymbolicAnalysisOutput:
-    mapping = info.mapping
-    einsum_name = mapping[-1].einsum
-    node = mapping[node_idx]
-
-    child_result = analyze_node(node_idx + 1, current_shape, info)
-    return child_result
-
-    tensor = node.tensor
-    buffet = Buffet(tensor, mapping[-1].einsum, node.component)
-
-    stats = child_result.buffet_stats[buffet]
-    projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-    stats.total_fills = compute_dense_tile_occupancy(projection, current_shape)
-
-    stats.max_per_unit_fills = stats.total_fills
-    stats.total_reads_to_parent = stats.total_fills
-    stats.max_per_parent_reads_to_parent = stats.total_reads_to_parent
-
-    return child_result
-
-
 def analyze_compute(
     node_idx, current_shape, info: AnalysisInfo
 ) -> SymbolicAnalysisOutput:
     einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
-    compute_node: arch.Compute = info.job.flattened_arch[-1]
 
     computes = 0 if info.is_copy_operation else 1
 
     result_accumulator = SymbolicAnalysisOutput()
 
     result_accumulator.temporal_steps[einsum] = computes
-    result_accumulator.compute_stats[Compute(einsum, node.compute)] = ComputeStats(
+    result_accumulator.compute_stats[Compute(einsum, node.component)] = ComputeStats(
         computes,
         computes,
         1,
@@ -1095,7 +1186,7 @@ def analyze_compute(
         return result_accumulator
 
     for tensor in info.all_tensors:
-        buffet = Buffet(tensor, einsum, node.compute)
+        buffet = Buffet(tensor, einsum, node.component)
         stats = BuffetStats()
         stats.total_reads_to_parent = 1
         stats.max_per_parent_reads_to_parent = 1
@@ -1239,7 +1330,9 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
                     stride_halos.add((stride, halo))
 
         if len(stride_halos) == 0:
-            raise RuntimeError(f"{repr(node.rank_variable)} not found in {job.stride_and_halo}")
+            raise RuntimeError(
+                f"{repr(node.rank_variable)} not found in {job.stride_and_halo}"
+            )
 
         # We only explore imperfect for the outermost fused loops
         simple = (

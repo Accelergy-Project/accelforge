@@ -192,7 +192,9 @@ def get_constraints(
     mapping: List[MappingNode],
     symbol_table: dict[str, InvertibleSet],
     einsum_name: EinsumName,
-    tensor_to_relevancy: dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]],
+    tensor_to_relevancy: dict[
+        TensorName, dict[RankVariable, Relevant | PartiallyRelevant]
+    ],
 ) -> tuple[List[MappingNode], MappingConstraints]:
 
     constraints = MappingConstraints()
@@ -249,7 +251,9 @@ def get_constraints(
                 end_index += 1
 
             for i in range(start_index, end_index):
-                if isinstance(mapping[i], Loop) and not isinstance(tensor_to_relevancy[n][mapping[i].rank_variable], Relevant):
+                if isinstance(mapping[i], Loop) and not isinstance(
+                    tensor_to_relevancy[n][mapping[i].rank_variable], Relevant
+                ):
                     if mapping[i] not in nodes:
                         nodes.append(mapping[i])
 
@@ -297,14 +301,14 @@ def get_constraints(
                         constraints.loop_bounds_constraints.append(constraint)
 
             # Min utilization constraints
+            target_mapping_nodes = [
+                n
+                for n in mapping
+                if isinstance(n, Spatial)
+                and n.component == m.name
+                and n.name == dim
+            ]
             if parsed.min_utilization > 0:
-                target_mapping_nodes = [
-                    n
-                    for n in mapping
-                    if isinstance(n, Spatial)
-                    and n.component == m.name
-                    and n.name == dim
-                ]
                 if not target_mapping_nodes:
                     continue
                 rank_variables = {t.rank_variable for t in target_mapping_nodes}
@@ -315,6 +319,20 @@ def get_constraints(
                 )
                 key = (m.name, dim)
                 constraints.min_utilization_constraints[key] = constraint
+
+            for t in target_mapping_nodes:
+                t._may_reuse = parsed.may_reuse
+
+    # Additional spatial constraints
+    for m in mapping:
+        if isinstance(m, Spatial) and m._constrained_to_one:
+            constraints.loop_bounds_constraints.append(
+                _LoopBoundsConstraintLambda(
+                    Comparison(expression=m.rank_variable, operator="==", value=1),
+                    [m],
+                    m.rank_variable,
+                )
+            )
 
     mapping = constraints.clear_constrained_to_one(mapping)
     constraints.set_loop_indices(mapping)

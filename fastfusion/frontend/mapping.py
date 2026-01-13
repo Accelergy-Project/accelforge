@@ -6,6 +6,7 @@ in FastFusion.
 import copy
 from dataclasses import dataclass, replace
 import inspect
+import itertools
 import pydot
 
 from typing import (
@@ -17,6 +18,7 @@ from typing import (
     Annotated,
     Callable,
     Literal,
+    Self,
     # Type constructions
     Type,
     TypeVar,
@@ -70,6 +72,8 @@ NodeList: TypeAlias = ParsableList[
 TypeAlias NodeList: ParsableList that can contain and discriminate between
 MappingNodes of different types.
 """
+
+_NO_JOIN_MAPPING_VISUALIZATION = False
 
 # =============================================================================
 # Color Map for Visualization
@@ -178,6 +182,7 @@ class _ColorMap:
 # =============================================================================
 # LoopTree Mapping Nodes
 # =============================================================================
+
 
 @_uninstantiable
 class MappingNode(ParsableModel):
@@ -539,6 +544,10 @@ class Spatial(Loop):
     component_object: Optional[arch.Leaf] = None
     """ The component object across which different spatial iterations occur. """
 
+    _constrained_to_one: bool = False
+    """ Whether this Spatial loop is constrained to one iteration. Do not set this; used
+    internally by the Mapper."""
+
     @override
     def compact_str(self) -> str:
         return f"S-{self.name}-{super().compact_str()}"
@@ -679,7 +688,7 @@ class Compute(MappingNode):
     einsum: str
     """ The Einsum being computed. """
 
-    compute: str
+    component: str
     """ The name of the compute component performing the computation. """
 
     component_object: Optional[arch.Compute] = None
@@ -688,10 +697,10 @@ class Compute(MappingNode):
 
     @override
     def compact_str(self) -> str:
-        return f"{self.compute} computes {self.einsum}"
+        return f"{self.component} computes {self.einsum}"
 
     def __str__(self) -> str:
-        return f"{self.compute} computes {self.einsum}"
+        return f"{self.component} computes {self.einsum}"
 
     def _render_node_shape(self) -> str:
         return "ellipse"
@@ -1222,6 +1231,181 @@ class Nested(MappingNodeWithChildren):
 
         return " ".join(node.compact_str() for node in result)
 
+    def _get_single_tensor_mapping(
+            self,
+            tensor_name: TensorName,
+            flattened_arch: list[arch.Leaf]
+        ) -> Self:
+        """
+        CONTIGUOUS_ITERATION_SPACE_DISCUSSION
+
+        Returns this Nested node with only the nodes associated with the given tensor.
+
+        Includes loops and compute nodes, plus any tensor holders and reservations that
+        are associated with the given tensor.
+
+        Puts spatials as high as they can go while being below any node that is above
+        them in the memory hierarchy. Between two tensor holders, generally puts spatial
+        loops at the bottom, but may put them above temporal loops if that better lines
+        up with the original order. When memory hierarchy order is followed globally
+        (e.g., output in buffer must be above input in reg), the loop order going into
+        this function will always match that going out.
+
+        This function expects, as input, all spatials to be placed as low as they can
+        go, but above their respective fanouts. This also means being put under any
+        temporal loops if possible while being above their respective fanouts.
+
+        When memory hierarchy order is only followed per-tensor (e.g., output in buffer
+        must be above output in reg, but can be below input in reg), things may be more
+        complicated. We discuss this in more detail using the following example:
+
+        Hierarchy:
+
+        - Buffer
+        - 2x fanout
+        - Reg
+
+        Mapping:
+            S-reg for m1 in [0, 2):
+              [Reg reuses input]
+                for m0 in [0, 2):
+                  [Buffer reuses output]
+
+        When given a mapping and architecture like the above, this function may reorder
+        the spatial and temporal loops, yielding the following:
+
+        Mapping for input:
+            S-reg for m1 in [0, 2):
+              [Reg reuses input]
+                for m0 in [0, 2):
+
+        Mapping for output:
+            for m0 in [0, 2):
+              [Buffer reuses output]
+                S-reg for m1 in [0, 2):
+
+        Unfortunately, such reordering is inevitable given our assumptions of an
+        inclusive memory hierarchy (because any tile stored in the reg must be stored in
+        the buffer), and our desire to place the reg storage node higher. It's also a
+        symptom of the following other issues:
+
+        - In cases like these, storage nodes may need to keep non-contiguous chunks of
+          the iteration space. For example, if the spatial loop is on top, then one reg
+          holds [0, 1] while the other holds [2, 3]. Meanwhile, in the first temporal
+          iteration, the buffer holds [0, 2] and in the second temporal iteration, the
+          buffer holds [2, 4].
+        - We get weird dependencies between loop order and compatibility for fusion
+          because loop order affects the iteration space tiles that are stored.
+
+        To prevent these problems from occuring, we must enforce the following: If there
+        are two tensor holders, one above and one below a fanout in the architecture,
+        and their order is flipped in the mapping (i.e., above-the-fanout tensor holder
+        has the lower storage node, below-the-fanout tensor holder has the higher
+        storage node), then we can't have both a spatial and a temporal loop over the
+        same rank variable. Otherwise we'll get non-contiguous chunks of the iteration
+        space (either temporal OR spatial can be contiguous, but not both).
+
+        The result of the above is that we'll never reorder spatial and temporal loops
+        that affect one another.
+
+        I haven't thought through how this will work with more complex rank variable
+        expressions, so to be safe, will say that there can not be a temporal and
+        spatial loop that affect the same indexing expression or each others' loop
+        bounds.
+
+        These problems also aren't necessarily impossible to solve; I just haven't
+        thought it through. If we do think it through, a good place to start would be to
+        update the model to support non-contiguous chunks of the iteration space, then
+        come up with some way to explore mappings and fusion while using non-contiguous
+        chunks of the iteration space.
+
+        TODO: Mapper then also needs explore swapping temporal/spatial loops
+        """
+        spatials = [n for n in self.nodes if isinstance(n, Spatial)]
+        tensor_holders = [n for n in self.nodes if isinstance(n, (TensorHolder, Compute))]
+        others = [
+            n for n in self.nodes if not isinstance(n, (TensorHolder, Reservation, Spatial))
+            or (isinstance(n, TensorHolder) and n.tensor == tensor_name)
+            or (isinstance(n, Reservation) and n.purpose == tensor_name)
+        ]
+        assert not any(isinstance(n, MappingNodeWithChildren) for n in others), "BUG"
+
+        def arch_idx(node: MappingNode) -> int:
+            for i, n in enumerate(flattened_arch):
+                if n.name == node.component:
+                    return i
+            raise ValueError(f"Component {node.component} not found in flattened arch")
+
+        spatials_above = {
+            id(node): [s for s in spatials if arch_idx(s) <= arch_idx(node)]
+            for node in tensor_holders
+        }
+        spatials_below = {
+            id(node): [s for s in spatials if arch_idx(s) >= arch_idx(node)]
+            for node in tensor_holders
+        }
+
+        mapping = []
+        for to_add in others:
+            if isinstance(to_add, (TensorHolder, Compute)):
+                cur_spatials_above = [s for s in spatials if s in spatials_above[id(to_add)]]
+                spatials = [s for s in spatials if s not in cur_spatials_above]
+                mapping.extend(cur_spatials_above)
+            mapping.append(to_add)
+
+        mapping.extend(spatials)
+
+        # Check that spatials are always above their respective fanouts
+        for i, node in enumerate(mapping):
+            if not isinstance(node, (TensorHolder, Compute)):
+                continue
+            for node2 in mapping[i + 1:]:
+                if not isinstance(node2, Spatial):
+                    continue
+                assert node2 in spatials_below[id(node)], "BUG"
+                assert node2 not in spatials_above[id(node)], "BUG"
+
+        # Split the mapping into groups of tensor holders and sequential loops
+        id2idx = {id(node): i for i, node in enumerate(self.nodes)}
+        groups = []
+        for node in mapping:
+            if isinstance(node, Loop) and len(groups) > 0 and isinstance(groups[-1][0], Loop):
+                groups[-1].append(node)
+            else:
+                groups.append([node])
+
+        groups = [sorted(g, key=lambda x: id2idx[id(x)]) for g in groups]
+        mapping = [x for g in groups for x in g]
+
+        # Check that all storage-temporal relations are held from before
+        node2idx = {id(node): i for i, node in enumerate(mapping)}
+        prev_node2idx = {id(node): i for i, node in enumerate(self.nodes)}
+        for node, node2 in itertools.combinations(mapping, 2):
+            idx1 = node2idx[id(node)]
+            idx2 = node2idx[id(node2)]
+            prev_idx1 = prev_node2idx[id(node)]
+            prev_idx2 = prev_node2idx[id(node2)]
+            if isinstance(node, TensorHolder) and isinstance(node2, TensorHolder):
+                assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
+            # Because of the reordering above, may lower loops beneath tensor holders
+            # and temporal loops in order to place them as low as possble above the
+            # fanout.
+            # elif isinstance(node, TensorHolder) and isinstance(node2, Spatial):
+            #     assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
+            # elif isinstance(node, Spatial) and isinstance(node2, TensorHolder):
+            #     assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
+            elif isinstance(node, Spatial) and isinstance(node2, Spatial):
+                assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
+
+        # for m in mapping:
+        #   print(m.compact_str())
+        # for n in self.nodes:
+        #   print(n.compact_str())
+
+        return type(self)(nodes=mapping)
+
+
+
 
 class Parallel(Split):
     """
@@ -1460,7 +1644,7 @@ class Mapping(Nested):
                 highest_shared_pmapping_index
             ]._merge(
                 pmappings.pop(highest_shared_pmapping_index + 1),
-                highest_n_shared_loops,
+                0 if _NO_JOIN_MAPPING_VISUALIZATION else highest_n_shared_loops,
             )
 
         mapping: Mapping = cls(nodes=pmappings[0].nodes)

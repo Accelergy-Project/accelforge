@@ -72,7 +72,7 @@ def run_model(
                     tensor_to_backing[tensor] = node.component
 
     total_occupancy = {}
-    compute_unit = pmapping.nodes[-1].compute
+    compute_unit = pmapping.nodes[-1].component
 
     n_instances = workload.n_instances * workload.einsums[job.einsum_name].n_instances
 
@@ -138,4 +138,11 @@ def run_model(
                 fanout / component_to_max_fanout[component][dim]
             )
 
-    return reuse.symbols, df, per_memory_usage_df, utilization_df
+    return (
+        reuse.symbols,
+        df,
+        per_memory_usage_df,
+        utilization_df,
+        reuse.incompatible_loop_pairs,
+        reuse.tensor2mapping,
+    )

@@ -40,7 +40,7 @@ class TestTileShapeExploration(unittest.TestCase):
             memories_track_pmappings_only=memories_track_pmappings_only,
         )
 
-        result = make_tile_shapes(job)
+        result, _ = make_tile_shapes(job)
         data, n_total_pmappings = result
         self.assertTrue("Total_latency" in data.columns)
 

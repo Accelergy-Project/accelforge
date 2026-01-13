@@ -71,16 +71,20 @@ def get_reservation_choices(
             elif i >= fence_positions[node2lastfanout[id(res)]]:
                 add = True
             if add:
-                new_mapping.append(Reservation(
-                    purposes=[res.component],
-                    resource=res.component,
-                    persistent=res.persistent,
-                ))
+                new_mapping.append(
+                    Reservation(
+                        purposes=[res.component],
+                        resource=res.component,
+                        persistent=res.persistent,
+                    )
+                )
                 reservations_to_add.remove(res)
 
     # Fence positions are indices of storage nodes below which we'll push all the
     # reservations below that fanout
-    for fence_positions in _recursive_iter_fence_positions(fence_positions, len(mapping)):
+    for fence_positions in _recursive_iter_fence_positions(
+        fence_positions, len(mapping)
+    ):
         new_mapping = []
         reservations_to_add = []
         for i, node in enumerate(mapping):

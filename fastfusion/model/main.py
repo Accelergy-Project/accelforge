@@ -14,11 +14,19 @@ from fastfusion.frontend._workload_isl._symbolic import (
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import clean_compress_and_join_pmappings
+from fastfusion.mapper.FFM._join_pmappings.join_pmappings import (
+    clean_compress_and_join_pmappings,
+)
 from fastfusion.mapper.FFM.pmappings import MultiEinsumPmappings
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings import get_rank_variable_bounds_for_all_einsums
-from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import parse_flattened_arch
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import run_model
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
+    get_rank_variable_bounds_for_all_einsums,
+)
+from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
+    parse_flattened_arch,
+)
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import (
+    run_model,
+)
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
 
 
@@ -49,6 +57,7 @@ def evaluate_mapping(spec: Spec):
     einsum2pmappings = {}
     pmapping_objects = {}
     einsum2jobs = {}
+    einsum2incompatible_loop_pairs = {}
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         pmapping_id = uuid4()
         job = copy(original_job)
@@ -69,28 +78,30 @@ def evaluate_mapping(spec: Spec):
             m.name for m in flattened_arch if isinstance(m, Memory)
         ]
 
-        job.stride_and_halo = get_stride_and_halo_of_einsum(job.einsum_name, spec.workload)
-        _, df, _, _ = run_model(job)
+        job.stride_and_halo = get_stride_and_halo_of_einsum(
+            job.einsum_name, spec.workload
+        )
+        _, df, _, _, incompatible_loop_pairs, tensor2mapping = run_model(job)
         df = {f"{job.einsum_name}<SEP>{key}": value for key, value in df.items()}
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
+        einsum2incompatible_loop_pairs[job.einsum_name] = incompatible_loop_pairs
 
         einsum = spec.workload.einsums[pmapping.nodes[-1].einsum]
         rank_variable_to_ranks = {
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
-        compatibility = Compatibility.from_mapping(pmapping, einsum.tensor_names, rank_variable_to_ranks)
+        compatibility = Compatibility.from_mapping(
+            tensor2mapping, einsum.tensor_names, rank_variable_to_ranks
+        )
 
         einsum2pmappings[job.einsum_name] = [
             PmappingGroup(
                 compatibility,
-                PmappingDataframe(
-                    pd.DataFrame(df, columns=df.keys(), index=[0]),
-                    1,
-                    1
-                )
+                PmappingDataframe(pd.DataFrame(df, columns=df.keys(), index=[0]), 1, 1),
             )
         ]
         pmapping_objects[job.einsum_name] = {pmapping_id: pmapping}
+        print(f"TODO: Check incompatible loops for {job.einsum_name}")
 
     m = MultiEinsumPmappings(
         einsum2pmappings,
@@ -139,11 +150,13 @@ def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
             assert isinstance(last_node, Compute)
 
             mapping = Mapping()
-            mapping.nodes = deepcopy([n for ns in cur_pmapping for n in ns] + [last_node])
+            mapping.nodes = deepcopy(
+                [n for ns in cur_pmapping for n in ns] + [last_node]
+            )
             _remove_storage_of_unrelevant_tensors(mapping, workload)
             yield mapping
 
-            cur_pmapping.pop() # Remove the last segment
+            cur_pmapping.pop()  # Remove the last segment
 
 
 def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload):

@@ -139,7 +139,7 @@ def isl_buffer_accesses_from_buffet_actions(
     compute_targets = set()
     for compute_node in get_leaves(mapping, is_path):
         assert isinstance(compute_node, Compute)
-        compute_targets.add(compute_node.compute)
+        compute_targets.add(compute_node.component)
 
     summarized_actions = summarize_total_and_per_unit_actions(reuse_analysis_result)
 
@@ -229,11 +229,11 @@ def get_parent_buffers(mapping: Mapping, workload: Workload, is_path):
                     tensor_to_top_buffer[tensor] = node.component
             elif isinstance(node, Compute):
                 for tensor in workload.einsums[einsum].input_tensor_names:
-                    key = (node.compute, tensor, einsum)
+                    key = (node.component, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
                 for tensor in workload.einsums[einsum].output_tensor_names:
-                    key = (node.compute, tensor, einsum)
+                    key = (node.component, tensor, einsum)
                     if tensor in tensor_to_top_buffer:
                         parent_buffers[key] = tensor_to_top_buffer[tensor]
 
@@ -268,7 +268,7 @@ def isl_buffer_accesses_from_buffet_actions(
     compute_targets = set()
     for compute_node in get_leaves(mapping, is_path):
         assert isinstance(compute_node, Compute)
-        compute_targets.add(compute_node.compute)
+        compute_targets.add(compute_node.component)
 
     summarized_actions = summarize_total_and_per_unit_actions(reuse_analysis_result)
 

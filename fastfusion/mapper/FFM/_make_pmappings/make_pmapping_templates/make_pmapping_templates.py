@@ -93,16 +93,19 @@ def label_fused_loops(mapping: List[MappingNode]):
 # Iterate over mappings
 # =================================================================================================
 def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
+    """
+    Adds temporal loops to the mapping to fill in any rank variables that are missing.
+    This may occur if there are no points where it'd be helpful to add a non-fused loop,
+    so we just need to add one somewhere.
+    """
     # If any rank variables are missing, add them as high as possible.
     rank_variables = einsum.rank_variables
     for m in mapping:
         if isinstance(m, Temporal) and not m._fused:
             rank_variables.discard(m.rank_variable)
 
-    # insert_point = 0
-    # while insert_point < len(mapping) and not isinstance(mapping[insert_point], Temporal):
-    #     insert_point += 1
     # Insert point: Right under the last backing
+    insert_point = 0
     for i in range(len(mapping) - 1, -1, -1):
         if isinstance(mapping[i], TensorHolder) and mapping[i]._backing:
             insert_point = i + 1
@@ -241,34 +244,12 @@ def iterate_mappings_no_constraints(
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
     for mapping, symbol_table in get_tensor_choices(
-        einsum_name, arch_flattened, symbol_table, spec
+        einsum_name, arch_flattened, symbol_table, spec, first_memory
     ):
-        logging.info('\tGenerated tensor choices: ' + ', '.join(m.compact_str() for m in mapping))
+        logging.info(
+            "\tGenerated tensor choices: " + ", ".join(m.compact_str() for m in mapping)
+        )
         mapping = copy.deepcopy(mapping)
-        # for new_mapping, symbol_table in get_reservation_choices(
-        #     new_mapping,
-        #     arch_flattened,
-        # ):
-        #     for mapping, n_permutations in insert_loops(
-        #         new_mapping,
-        #         einsum,
-        #         first_memory,
-        #         rank_variable_bounds,
-        #         ranks_with_tile_pattern,
-        #         spec.workload,
-        #         spec.mapper.ffm._can_lower_outermost_memory,
-        #     ):
-        #         mapping = copy.deepcopy(mapping)
-        #         insert_spatial_loops(mapping, einsum, arch_flattened)
-        #         mapping = unpack_loops_to_rank_variables(mapping)
-        #         if spec.mapper.ffm._timeloop_style_even:
-        #             mapping = _timeloop_style_even(mapping)
-
-        #         place_missing_temporal_loops(mapping, einsum)
-        #         label_fused_loops(mapping)
-        #         assert_proper_fusion_labeling(mapping)
-        #         yield mapping, symbol_table, n_permutations
-
         for mapping, n_permutations in insert_temporal_loops(
             mapping,
             einsum,
@@ -277,6 +258,7 @@ def iterate_mappings_no_constraints(
             ranks_with_tile_pattern,
             spec.workload,
             spec.mapper.ffm._can_lower_outermost_memory,
+            arch_flattened,
         ):
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(mapping, einsum, arch_flattened)
@@ -295,7 +277,9 @@ def iterate_mappings_constraints(
     einsum_names: list[str] | str | None = None,
     arch_flattened: list[arch.Leaf] | None = None,
     rank_variable_bounds: dict[RankVariable, int] | None = None,
-    tensor_to_relevancy: dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]] | None = None,
+    tensor_to_relevancy: (
+        dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]] | None
+    ) = None,
 ) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
     if arch_flattened is None:
         arch_flattened = spec.get_flattened_architecture()
@@ -330,7 +314,7 @@ def iterate_mappings_constraints(
             mapping.append(
                 Compute(
                     einsum=einsum_name,
-                    compute=compute_name,
+                    component=compute_name,
                     component_object=arch_flattened[-1],
                 )
             )

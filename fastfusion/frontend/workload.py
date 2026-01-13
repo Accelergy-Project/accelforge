@@ -61,6 +61,25 @@ or underscores.
 """
 
 
+def isl_expression_has_variable(expression: str, variable: RankVariable) -> bool:
+    """
+    Returns True if the given ISL expression has the given rank variable.
+
+    Parameters
+    ----------
+    expression : str
+        The ISL expression to check.
+    variable : RankVariable
+        The rank variable to check for.
+
+    Returns
+    -------
+    bool
+        True if the given ISL expression has the given rank variable.
+    """
+    return variable in re.findall(_ISL_REGEX, expression)
+
+
 SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 
@@ -416,6 +435,18 @@ class Einsum(ParsableModel):
             new = tensor_access.rank_variable2ranks
             for rank_var, ranks in new.items():
                 result.setdefault(rank_var, set()).update(ranks)
+        return result
+
+    @property
+    def indexing_expressions(self) -> set[str]:
+        """
+        Returns a list of all the expressions that index into the tensors of this
+        Einsum.
+        """
+        result = set()
+        for tensor_access in self.tensor_accesses:
+            for _, projection in tensor_access.projection.items():
+                result.add(projection)
         return result
 
 

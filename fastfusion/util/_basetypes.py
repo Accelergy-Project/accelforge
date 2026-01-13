@@ -87,6 +87,7 @@ def _get_tag(value: Any) -> str:
 
 def _uninstantiable(cls):
     prev_init = cls.__init__
+
     def _get_all_subclasses(cls):
         subclasses = set()
         for subclass in cls.__subclasses__():
@@ -98,10 +99,11 @@ def _uninstantiable(cls):
         if self.__class__ is cls:
             subclasses = _get_all_subclasses(cls)
             raise ValueError(
-                f'{cls} can not be instantiated directly. Use a subclass. '
-                f'Supported subclasses are:\n\t' + '\n\t'.join(sorted(subclasses))
+                f"{cls} can not be instantiated directly. Use a subclass. "
+                f"Supported subclasses are:\n\t" + "\n\t".join(sorted(subclasses))
             )
         return prev_init(self, *args, **kwargs)
+
     cls.__init__ = __init__
     return cls
 
@@ -832,6 +834,7 @@ class ParseExtras(ParsableModel):
     must be recognized directly. The leading underscore is removed before setting any
     variable names.
     """
+
     model_config = ConfigDict(extra="allow")
 
     def get_validator(self, field: str) -> type:

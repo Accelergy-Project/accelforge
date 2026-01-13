@@ -341,6 +341,7 @@ class ComponentAttributes(AttributesWithEnergyLatency):
     is 2, then the latency is 2 ns. Multiplies the calculated latency of each action.
     """
 
+
 class FanoutAttributes(LeafAttributes):
     model_config = ConfigDict(extra="forbid")
 
@@ -370,6 +371,7 @@ class ActionArguments(AttributesWithEnergyLatency):
     The scale factor for dynamic latency of this action. Multiplies this action's
     latency by this value.
     """
+
 
 class MemoryActionArguments(ActionArguments):
     bits_per_action: ParsesTo[int | float] = 1
@@ -789,7 +791,9 @@ class Component(Leaf):
 
         attributes = self.attributes
         for action in self.actions:
-            messages.append(f"Calculating latency for {self.name} action {action.name}.")
+            messages.append(
+                f"Calculating latency for {self.name} action {action.name}."
+            )
             args = action.arguments
             if args.latency is not None:
                 latency = args.latency
@@ -817,7 +821,6 @@ class Component(Leaf):
                 messages.append(f"Scaling {self.name} latency by {args.latency_scale=}")
             action.arguments.latency = latency
         return self
-
 
     def calculate_area_energy_latency_leak(
         self: T, models: list[ComponentModel] | None = None, in_place: bool = False
@@ -872,6 +875,7 @@ class Container(Leaf):
     """
 
     pass
+
 
 MEMORY_ACTIONS = ParsableList[TensorHolderAction](
     [
@@ -1000,6 +1004,20 @@ class Tensors(ParsableModel):
     both.
     """
 
+    force_memory_hierarchy_order: bool = True
+    """
+    If set to true, storage nodes for lower-level memories must be placed below storage
+    nodes for higher-level memories. For example, all MainMemory storage nodes must go
+    above all LocalBuffer storage nodes.
+
+    This constraint always applies to same-tensor storage nodes (e.g., MainMemory
+    reusing Output must go above LocalBuffer reusing Output); turning it off will permit
+    things like MainMemory reusing Output going above LocalBuffer reusing Input.
+
+    This is identical to the `force_memory_hierarchy_order` field in the `FFM` class,
+    but only applies to this tensor holder.
+    """
+
     def _parse_tensor_order_options(
         self, symbol_table: dict[str, Any], location: str
     ) -> "Tensors":
@@ -1057,6 +1075,12 @@ class Tensors(ParsableModel):
             no_refetch_from_above=eval_set_expression(
                 self.no_refetch_from_above, symbol_table, "tensors", location
             ),
+            force_memory_hierarchy_order=parse_expression(
+                self.force_memory_hierarchy_order,
+                symbol_table,
+                "force_memory_hierarchy_order",
+                location
+            )
         )
 
 

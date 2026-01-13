@@ -1,3 +1,6 @@
+from fastfusion.frontend.renames import TensorName
+
+
 import itertools
 from enum import Enum
 
@@ -35,21 +38,39 @@ def insert_temporal_loops(
     ranks_with_tile_pattern: set,
     workload: Workload,
     _can_lower_outermost_memory: bool,
+    flattened_arch: list[arch.Leaf],
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
     # - Between any two TensorHolder nodes
     # - After the last TensorHolder node
 
-    # TODO: When deciding to break up first memory into multiple split mapping indices,
-    # make sure to check persistence. Idk if it'll be important or not
-    # TODO: This only works if all the splits are on top
+    # The following logic is really just to make sure that all the storage nodse for the
+    # outermost memory are together at the beginning of the split mapping. After that,
+    # each entries in the split mapping has a single TensorHolder.
     split_mapping: list[list[TensorHolder]] = [[]]
     for m in mapping:
         split_mapping.append([m])
-        if m.component == first_memory.name:
-            while len(split_mapping) > 1:
-                split_mapping[0].extend(split_mapping.pop(1))
+        if len(split_mapping) > 1 and m.component == first_memory.name:
+            split_mapping[-2].extend(split_mapping.pop(-1))
+    for i, s in enumerate[list[TensorHolder | Spatial]](split_mapping):
+        for m in s:
+            if i == 0 and m.component != first_memory.name:
+                raise ValueError(
+                    "The first TensorHolder in the mapping is not for the outermost "
+                    "memory. This isn't known to be invalid, but the code may not "
+                    "handle it."
+                )
+            elif i > 0 and m.component == first_memory.name:
+                raise ValueError(
+                    "First memory isn't at the top of the hierarchy. This isn't known"
+                    "to be invalid, but the code may not handle it."
+                )
+            elif i == 0 and isinstance(m, Spatial):
+                raise ValueError(
+                    "Found Spatial node before any TensorHolder. This isn't known to "
+                    "be invalid, but the code may not handle it."
+                )
 
     split_mapping = [m for m in split_mapping if m]
 
@@ -69,10 +90,15 @@ def insert_temporal_loops(
     seen_tensors = set()
     choices = []
     lowering_choices: list[tuple[bool, ...]] = []
+    fanouts = {}
+    fanout = 1
+    for node in flattened_arch:
+        fanouts[node.name] = (fanout := fanout * node.get_fanout())
 
     def _get_next_storages(i: int) -> list[TensorHolder]:
         for j in range(i + 1, len(split_mapping)):
             assert len(split_mapping[j]) <= 1
+            # We don't add loops before processing stages
             if isinstance(split_mapping[j][0], ProcessingStage):
                 continue
             return split_mapping[j]
@@ -101,6 +127,25 @@ def insert_temporal_loops(
             set(), *(set(t.tensors) for t in next_storages if t.persistent)
         )
 
+        max_fanout_before = max(
+            [fanouts[s2.component] for s in split_mapping[:i] for s2 in s],
+            default=float("inf"),
+        )
+        min_fanout_after = min(
+            [fanouts[s2.component] for s in split_mapping[i + 1 :] for s2 in s],
+            default=0,
+        )
+        cur_fanout = set(fanouts[s2.component] for s2 in prev_storages)
+        next_fanout = set(fanouts[s2.component] for s2 in next_storages)
+        if len(next_fanout) == 0:
+            next_fanout.add(float("inf"))
+        # Either it's main memory or we have one entry in the list, so there should only
+        # be one
+        assert len(cur_fanout) == 1
+        assert len(next_fanout) == 1
+        cur_fanout = next(iter(cur_fanout))
+        next_fanout = next(iter(next_fanout))
+
         # Can't have loops above persistent tensor holders
         if next_persistent:
             rank_variables &= set()
@@ -120,20 +165,33 @@ def insert_temporal_loops(
 
         # Optimality-preserving optimizations: We can trivially lower non-backing
         # TensorHolder nodes through fully-relevant loops. Can't do this if the loops
-        # are fused because that'd add loops to the compatibility.
+        # are fused because that'd add loops to the compatibility. See
+        # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if the tensor holder is
+        # below any tensor holders with a larger fanout, because raising would constrain
+        # loops. TODO CONTIGUOUS_ITERATION_SPACE_DISCUSSION: This causes all loops to be
+        # added, but really we only need to re-add the ones that may conflict with a
+        # spatial loop.
         for s in prev_storages:
             for t in s.tensors:
-                if t not in s._backing and not s._must_be_here:
+                if (
+                    t not in s._backing
+                    and not s._must_be_here
+                    and cur_fanout >= max_fanout_before
+                ):
                     rank_variables -= tensor2fully_relevant_rank_vars[t]
 
         # Optimality-preserving optimization: We can trivially raise TensorHolder nodes
         # through irrelevant unfused loops. Can't do this if the loops are fused because
         # that'd increase the lifetime of the TensorHolder node. Can't do this if the
         # irrelevant rank variables partially-relevant to the previous tensors, since
-        # that affects the permutation.
+        # that affects the permutation. See CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't
+        # do this if the tensor holder is above any tensor holders with a smaller
+        # fanout, because raising would constrain loops. TODO
+        # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: This causes all loops to be added, but
+        # really we only need to re-add the ones that may conflict with a spatial loop.
         if not is_fused_loops:
             for s in next_storages:
-                if not s._must_be_here:
+                if not s._must_be_here and next_fanout <= min_fanout_after:
                     for t in s.tensors:
                         rvs = tensor2irrelevant_rank_vars[t]
                         for t2 in prev_tensors:
@@ -199,6 +257,10 @@ def insert_temporal_loops(
     # Iterate over all possible mappings
     # ==================================================================================
 
+    # TODO: Optimization: If we can optionally lower a tensor & the loop below it is
+    # not something through which we can lower for a given permutation, skip options
+    # that lower that tensor because they get the same result as not lowering the
+    # tensor.
     n_loop_orders = len(list(itertools.product(*choices)))
     for loop_orders in itertools.product(*choices):
         full_mapping = []
@@ -273,14 +335,3 @@ def canonical_loop_orders(
             + tuple(sorted(rest_of_partially_relevant))
             + tuple(sorted(rest_rank_vars))
         )
-
-# def insert_loops(
-#     mapping: list[MappingNode],
-#     einsum: Einsum,
-#     first_memory: arch.Memory,
-#     rank_variable_bounds: dict[RankVariable, int],
-#     ranks_with_tile_pattern: set,
-#     workload: Workload,
-#     _can_lower_outermost_memory: bool,
-# ):
-#     # Insert loops between storage nodes and reservations

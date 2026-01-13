@@ -37,7 +37,7 @@ class JoiningTimer:
     def __init__(self):
         self.prev_time = time.time()
         self.total_time = defaultdict(int)
-    
+
     def print_time(self, what: str):
         t = time.time() - self.prev_time
         logger.info(f"{what}: {t:.2f} seconds")

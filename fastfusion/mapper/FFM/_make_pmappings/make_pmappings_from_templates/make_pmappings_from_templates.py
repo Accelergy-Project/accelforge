@@ -228,11 +228,15 @@ def make_pmappings_from_templates(
 
     for job in jobs_with_similar_compatibilities:
         try:
-            result = make_tile_shapes(job)
+            result, tensor2mapping = make_tile_shapes(job)
         except Exception as e:
             e.add_note(f"Einsum {jwsc.einsum_name} compatibility {job.compatibility}")
             raise
         job.compatibility = job.compatibility.populate_loops()
+
+        # CONTIGUOUS_ITERATION_SPACE_DISCUSSION TODO: Turn tensor2pmapping into
+        # per-tensor compatibility
+
         # This changes the pmapping count to include superfluous permutations
         # TODO: Add a multiplier for the permutations that we include in the fusion
         # piece, which are NOT known to be superfluous

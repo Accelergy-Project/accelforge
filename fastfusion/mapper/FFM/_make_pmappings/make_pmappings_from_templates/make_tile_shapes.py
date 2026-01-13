@@ -583,10 +583,10 @@ def get_padded_choices(
     return choices_padded
 
 
-def check_max_fused_loops_per_rank(
+def check_loops(
     symbols_enumerated: list[Symbol],
     choices_enumerated: np.ndarray,
-    max_fused_loop_check_groups: list[tuple[Number, list[Symbol]]],
+    max_loop_check_groups: list[tuple[Number, list[Symbol]]],
     what_tiles_symbol: SymbolRelations,
 ):
     def get_size(x: Symbol | int):
@@ -610,7 +610,8 @@ def check_max_fused_loops_per_rank(
         #     return False
         return True
 
-    for limit, group in max_fused_loop_check_groups:
+    for limit, group in max_loop_check_groups:
+        prev_len = choices_enumerated.shape[0]
         if len(group) <= limit:
             continue
 
@@ -618,6 +619,7 @@ def check_max_fused_loops_per_rank(
         for g in group:
             if can_check(g):
                 n += has_fanout(g)
+
         if isinstance(n, np.ndarray):
             choices_enumerated = choices_enumerated[n <= limit]
         elif n > limit:
@@ -794,7 +796,7 @@ def get_tile_shape_choices(
     what_tiles_symbol: SymbolRelations,
     job: "Job",
     keep_symbols: list[Symbol] = (),
-    max_fused_loop_check_groups: list[tuple[Number, list[Symbol]]] = (),
+    max_loop_check_groups: list[tuple[Number, list[Symbol]]] = (),
 ):
     objectives = [copy.deepcopy(o) for o in objectives]
 
@@ -1077,10 +1079,10 @@ def get_tile_shape_choices(
         # ==============================================================================
 
         prev_size = choices_enumerated.shape[0]
-        choices_enumerated = check_max_fused_loops_per_rank(
+        choices_enumerated = check_loops(
             symbols_enumerated,
             choices_enumerated,
-            max_fused_loop_check_groups,
+            max_loop_check_groups,
             what_tiles_symbol,
         )
         job.log_porp_pmappings_kept(
@@ -1358,7 +1360,15 @@ def _make_tile_shapes(job: "Job"):
     constraints.set_loop_indices(pmapping.nodes)
     set_last_tile_shape_to_one(pmapping)
     t0 = time.time()
-    symbols, symbolic_df, per_memory_usage_df, utilization_df = run_model(job)
+    (
+        symbols,
+        symbolic_df,
+        per_memory_usage_df,
+        utilization_df,
+        incompatible_loop_pairs,
+        tensor2mapping,
+    ) = run_model(job)
+
     model_time = time.time() - t0
     shape = get_rank_variable_bounds(job.spec.workload, pmapping.nodes[-1].einsum)
     what_tiles_symbol = SymbolRelations.from_pmapping_and_shape(
@@ -1419,7 +1429,7 @@ def _make_tile_shapes(job: "Job"):
             if node.stride in symbols:
                 rank2symbols.setdefault(node.rank_variable, []).append(node.stride)
 
-    max_fused_loop_check_groups = [
+    max_loop_check_groups = [
         (job.spec.mapper.ffm.max_fused_loops, all_fused_loops),
         *[
             (job.spec.mapper.ffm.max_fused_loops_per_rank_variable, x)
@@ -1427,13 +1437,18 @@ def _make_tile_shapes(job: "Job"):
         ],
     ]
 
+    for loop_pair_disallowed in incompatible_loop_pairs:
+        max_loop_check_groups.append((1, [x.stride for x in loop_pair_disallowed]))
+
+    max_loop_check_groups = [g for g in max_loop_check_groups if g[1]]
+
     choices_enumerated = get_tile_shape_choices(
         objectives=objectives,
         symbols=symbols,
         what_tiles_symbol=what_tiles_symbol,
         job=job,
         keep_symbols=keep_symbols,
-        max_fused_loop_check_groups=max_fused_loop_check_groups,
+        max_loop_check_groups=max_loop_check_groups,
     )
 
     try:
@@ -1544,7 +1559,7 @@ def _make_tile_shapes(job: "Job"):
     job.n_valid_pmappings = job.n_total_pmappings * prod(
         job.pmapping_keep_rates.values()
     )
-    return df
+    return df, tensor2mapping
 
 
 def make_tile_shapes(job: "Job"):

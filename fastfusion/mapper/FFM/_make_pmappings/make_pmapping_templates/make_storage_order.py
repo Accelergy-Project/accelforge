@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.mapping import MappingNode, TensorHolder
+from fastfusion.frontend.mapping import MappingNode, ProcessingStage, TensorHolder
 from fastfusion.frontend.spec import Spec
 from fastfusion.frontend.workload import TensorName, SymbolTable
 from fastfusion.util._parse_expressions import MATH_FUNCS
@@ -34,6 +34,7 @@ def get_tensor_choices(
     nodes: list[arch.Memory],
     symbol_table: SymbolTable,
     spec: Spec,
+    first_memory: arch.Memory,
 ) -> Generator[tuple[list[TensorHolder], Any], None, None]:
     nodes, compute = nodes[:-1], nodes[-1]
     while True:
@@ -46,8 +47,6 @@ def get_tensor_choices(
             nodes = nodes[1:]
             continue
         break
-
-    first_tensor_holder = nodes[0]
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
@@ -65,7 +64,9 @@ def get_tensor_choices(
         seen_tensors=set(),
     ):
         x = [y for z in choice.values() for y in z]
-        logging.info(f"\t\tUnordered storage choice: {", ".join(n.compact_str() for n in x)}")
+        logging.info(
+            f"\t\tUnordered storage choice: {", ".join(n.compact_str() for n in x)}"
+        )
         all_tensor_holders = [v2 for v in choice.values() for v2 in v]
 
         # Start out the mapping with the outermost memory name
@@ -91,6 +92,7 @@ def get_tensor_choices(
             required_order,
             spec,
             is_copy_op,
+            first_memory,
         ):
             yield mapping, symbol_table
 
@@ -128,7 +130,8 @@ def recursive_order_tensor_choices(
     remaining_choices: list,
     required_order: list[list[TensorHolder]],
     spec: Spec,
-    is_copy_op: bool = False,
+    is_copy_op: bool,
+    first_memory: arch.Memory,
 ) -> Generator[list[MappingNode], None, None]:
     def check_has_tensors(mapping: list[MappingNode]):
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
@@ -164,7 +167,7 @@ def recursive_order_tensor_choices(
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
         valid, reason = valid_tensor_holder_order(
-            mapping, [n.name for n in nodes], required_order, spec
+            mapping, [n.name for n in nodes], required_order, spec, first_memory
         )
         if valid:
             yield from recursive_order_tensor_choices(
@@ -176,9 +179,14 @@ def recursive_order_tensor_choices(
                 required_order,
                 spec,
                 is_copy_op,
+                first_memory,
             )
         else:
-            logging.info('\t\t' + ' ' * len(mapping) + f"Invalid tensor holder order: {", ".join(n.compact_str() for n in mapping)}: {reason}")
+            logging.info(
+                "\t\t"
+                + " " * len(mapping)
+                + f"Invalid tensor holder order: {", ".join(n.compact_str() for n in mapping)}: {reason}"
+            )
         mapping.pop()
 
 
@@ -187,6 +195,7 @@ def valid_tensor_holder_order(
     node_names: list[str],
     required_orders: dict[str, list["Order"]],
     spec: Spec,
+    first_memory: arch.Memory,
 ):
     memory_to_satisfied_constraints: dict[str, set] = {}
     for i, m0 in enumerate(mapping):
@@ -201,17 +210,46 @@ def valid_tensor_holder_order(
             assert len(m0.tensors) == 1
             assert len(m1.tensors) == 1
 
-            if spec.mapper.ffm.force_memory_hierarchy_order and not either_persistent:
-                if i < j and s2_idx < s1_idx:
-                    return False, f"force_memory_hierarchy_order is True and memory {s1} is below memory {s2}"
 
-            # # Persistent tensors must be at the top of the hierarchy
-            if s2_persistent and not s1_persistent and i < j:
-                return False, f"Persistent {m0.compact_str()} is below non-persistent {m1.compact_str()}"
+            # If they're persistent they're forced to be at the top.
+            force_order = spec.mapper.ffm.force_memory_hierarchy_order and not either_persistent
+            force_order &= m0.component_object.tensors.force_memory_hierarchy_order
+            force_order &= m1.component_object.tensors.force_memory_hierarchy_order
 
-            # # Persistent tensors must be at the top of the hierarchy
-            if s1_persistent and not s2_persistent and j < i:
-                return False, f"Persistent {m1.compact_str()} is below non-persistent {m0.compact_str()}"
+            # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: The following line does not let
+            # backing storage be above in the mapping anything that is below it in the
+            # memory hierarchy. THIS IS NOT FUNDAMENTAL. If we remove this constraint,
+            # then the fused loops may be different across different backing storages,
+            # so we would need to update make_pmappings_from_templates.py to make
+            # compatibility from the mapping for each tensor.
+            force_order |= bool(m0._backing)
+
+            if force_order and i < j and s2_idx < s1_idx:
+                return False, f"Memory {s1} is below memory {s2}, violating memory hierarchy order."
+
+            s1_outermost = s1_persistent
+            s2_outermost = s2_persistent
+            if not spec.mapper.ffm._can_lower_outermost_memory:
+                s1_outermost |= s1 == first_memory.name
+                s2_outermost |= s2 == first_memory.name
+
+            # Persistent tensors must be at the top of the hierarchy
+            if s2_outermost and not s1_outermost and i < j:
+                return (
+                    False,
+                    f"Outermost {m0.compact_str()}, persistent {s1_persistent} is below non-outermost {m1.compact_str()}, persistent {s2_persistent}.",
+                )
+
+            # We don't really care about processing stage order, so just make it follow
+            # the regular memory hierarchy order. For processing stages at a given
+            # level, make them alphabetical.
+            if isinstance(m0, ProcessingStage) and m0.component == m1.component and m0.tensor < m1.tensor:
+                return False, f"Processing stage {m0} is not ordered alphabetically by tensor; has tensor {m0.tensor} before {m1.tensor}"
+
+            # If m0 is a processing stage and it follows the memory hierarchy order, put
+            # m0 above m1 because we don't care about processing stage order.
+            if isinstance(m0, ProcessingStage) and s2_idx < s1_idx:
+                return False, f"Processing stage {m0} is directly above {m1}"
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:
@@ -260,12 +298,18 @@ def valid_tensor_holder_order(
                         (set(m0._must_keep_tensors) & set(m1.tensors)) or either_backing
                     ):
                         shared = set(m0._must_keep_tensors) & set(m1.tensors)
-                        return False, f"{shared} stored in back-to-back storage nodes, and could have bypassed the outer one."
+                        return (
+                            False,
+                            f"{shared} stored in back-to-back storage nodes, and could have bypassed the outer one.",
+                        )
                     if s2_idx < s1_idx and not (
                         (set(m1._must_keep_tensors) & set(m0.tensors)) or either_backing
                     ):
                         shared = set(m1._must_keep_tensors) & set(m0.tensors)
-                        return False, f"{shared} is stored in back-to-back storage nodes, and could have bypassed the outer one."
+                        return (
+                            False,
+                            f"{shared} is stored in back-to-back storage nodes, and could have bypassed the outer one.",
+                        )
 
     for i, m0 in enumerate(mapping):
         for j, m1 in enumerate(mapping[i:]):
