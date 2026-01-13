@@ -36,6 +36,7 @@ class LogicalDomain(Domain):
     """
     Represents the logical architecture domain space of logical dims × tensor ranks.
     """
+    ranks: ParsableList[str]
     l_dims: ParsableList[str]
 
     @property
@@ -131,7 +132,7 @@ class Binding(ParsableModel):
     nodes: ParsableList[BindingNode]
     """Parts of the binding."""
 
-
+'''
 class NetworkOnChip(ParsableModel):
     """A model of a network-on-chip on the physical chip."""
 
@@ -288,3 +289,4 @@ class BindingSpec(ParsableModel):
     physical: PhysicalSpec
     logical: LogicalSpec
     bindings: Set[isl.Map]
+'''
