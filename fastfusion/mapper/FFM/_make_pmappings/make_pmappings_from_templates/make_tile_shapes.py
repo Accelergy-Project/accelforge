@@ -598,7 +598,7 @@ def check_loops(
             return x
 
     def has_fanout(x: Symbol | int):
-        outer = get_size(what_tiles_symbol.get_inner_tiles(x))  # TODO: is this a bug?
+        outer = get_size(what_tiles_symbol.get_inner_tiles(x))
         inner = get_size(x)
         return outer != inner
 
@@ -934,6 +934,8 @@ def get_tile_shape_choices(
             inner_tiles = what_tiles_symbol.get_inner_tiles(symbol, none_if_fail=True)
             outer_tiles = what_tiles_symbol.get_outer_tiles(symbol, none_if_fail=True)
 
+
+            # Figure out inner size and outer size
             if inner_tiles in symbols_enumerated:
                 inner_tiles_type = "enumerated"
                 inner_size = None
@@ -962,25 +964,15 @@ def get_tile_shape_choices(
             if inner_tiles_type == "unknown" and outer_tiles_type == "unknown":
                 raise RuntimeError("BUG: both inner and outer tiles are unknown")
 
+            # Use inner size and outer size to generate choices
             if inner_tiles_type in {"set", "unknown"} and outer_tiles_type in {
                 "set",
                 "unknown",
             }:
-                choices.append(
-                    append_vector(
-                        choices_enumerated,
-                        (
-                            np.array(
-                                list(
-                                    get_possible_factor_sizes(
-                                        math.ceil(outer_size / inner_size), imperfect
-                                    )
-                                )
-                            )
-                            * inner_size
-                        ),
-                    )
-                )
+                factorize = math.ceil(outer_size / inner_size)
+                factors = list(get_possible_factor_sizes(factorize, imperfect))
+                scaled = np.array(factors) * inner_size
+                choices.append(append_vector(choices_enumerated, scaled))
             elif inner_tiles_type == "enumerated":
                 assert isinstance(outer_size, int)
                 i = symbols_enumerated.index(inner_tiles)
@@ -988,22 +980,10 @@ def get_tile_shape_choices(
                     partition = choices_enumerated[
                         np.where(choices_enumerated[:, i] == inner_choice)
                     ]
-                    choices.append(
-                        append_vector(
-                            partition,
-                            (
-                                np.array(
-                                    list(
-                                        get_possible_factor_sizes(
-                                            math.ceil(outer_size / inner_choice),
-                                            imperfect,
-                                        )
-                                    )
-                                )
-                                * inner_choice
-                            ),
-                        )
-                    )
+                    factorize = math.ceil(outer_size / inner_choice)
+                    factors = list(get_possible_factor_sizes(factorize, imperfect))
+                    scaled = np.array(factors) * inner_choice
+                    choices.append(append_vector(partition, scaled))
             else:
                 assert outer_tiles_type == "enumerated"
                 assert isinstance(inner_size, int)
@@ -1012,22 +992,10 @@ def get_tile_shape_choices(
                     partition = choices_enumerated[
                         np.where(choices_enumerated[:, i] == outer_choice)
                     ]
-                    choices.append(
-                        append_vector(
-                            partition,
-                            (
-                                np.array(
-                                    list(
-                                        get_possible_factor_sizes(
-                                            math.ceil(outer_choice / inner_size),
-                                            imperfect,
-                                        )
-                                    )
-                                )
-                                * inner_size
-                            ),
-                        )
-                    )
+                    factorize = math.ceil(outer_choice / inner_size)
+                    factors = list(get_possible_factor_sizes(factorize, imperfect))
+                    scaled = np.array(factors) * inner_size
+                    choices.append(append_vector(partition, scaled))
         elif what_tiles_symbol.is_initial_tile_shape(symbol):
             stride = what_tiles_symbol.get_stride(symbol)
             delta_choices = np.array(list(what_tiles_symbol.get_delta_choices(symbol)))
@@ -1358,19 +1326,17 @@ def _make_tile_shapes(job: "Job"):
     pmapping = job.mapping
     constraints = job.constraints
     constraints.set_loop_indices(pmapping.nodes)
-    set_last_tile_shape_to_one(pmapping)
     t0 = time.time()
     (
         symbols,
         symbolic_df,
         per_memory_usage_df,
         utilization_df,
-        incompatible_loop_pairs,
         tensor2mapping,
     ) = run_model(job)
 
     model_time = time.time() - t0
-    shape = get_rank_variable_bounds(job.spec.workload, pmapping.nodes[-1].einsum)
+    shape = job.rank_variable_bounds
     what_tiles_symbol = SymbolRelations.from_pmapping_and_shape(
         pmapping, shape, job.spec.workload
     )
@@ -1436,9 +1402,6 @@ def _make_tile_shapes(job: "Job"):
             for x in rank_var_to_fused_loops.values()
         ],
     ]
-
-    for loop_pair_disallowed in incompatible_loop_pairs:
-        max_loop_check_groups.append((1, [x.stride for x in loop_pair_disallowed]))
 
     max_loop_check_groups = [g for g in max_loop_check_groups if g[1]]
 

@@ -1079,8 +1079,8 @@ class Tensors(ParsableModel):
                 self.force_memory_hierarchy_order,
                 symbol_table,
                 "force_memory_hierarchy_order",
-                location
-            )
+                location,
+            ),
         )
 
 
@@ -1329,6 +1329,9 @@ class _ConstraintLambda:
 
     def _constrained_node_str(self) -> str:
         return f"constrains {self._target_node_indices}"
+
+    def __bool__(self) -> bool:
+        return bool(self.target_mapping_nodes)
 
 
 class _TileShapeConstraintLambda(_ConstraintLambda):

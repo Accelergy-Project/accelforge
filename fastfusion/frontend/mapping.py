@@ -691,6 +691,7 @@ class ProcessingStage(TensorHolder):
             return color_map.format_list(format_list)
         return f"{self.component} processes {', '.join(tensors)}"
 
+
 class Compute(MappingNode):
     """A node that represents a compute operation. These nodes are the leaves of the
     LoopTree."""
@@ -1249,12 +1250,13 @@ class Nested(MappingNodeWithChildren):
         return " ".join(node.compact_str() for node in result)
 
     def _get_single_tensor_mapping(
-            self,
-            tensor_name: TensorName,
-            flattened_arch: list[arch.Leaf]
-        ) -> Self:
+        self,
+        tensor_name: TensorName,
+        flattened_arch: list[arch.Leaf],
+        indexing_expressions: set[str],
+    ) -> Self:
         """
-        CONTIGUOUS_ITERATION_SPACE_DISCUSSION
+        Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION
 
         Returns this Nested node with only the nodes associated with the given tensor.
 
@@ -1269,8 +1271,7 @@ class Nested(MappingNodeWithChildren):
         this function will always match that going out.
 
         This function expects, as input, all spatials to be placed as low as they can
-        go, but above their respective fanouts. This also means being put under any
-        temporal loops if possible while being above their respective fanouts.
+        go, but above their respective fanouts.
 
         When memory hierarchy order is only followed per-tensor (e.g., output in buffer
         must be above output in reg, but can be below input in reg), things may be more
@@ -1314,13 +1315,14 @@ class Nested(MappingNodeWithChildren):
         - We get weird dependencies between loop order and compatibility for fusion
           because loop order affects the iteration space tiles that are stored.
 
-        To prevent these problems from occuring, we must enforce the following: If there
-        are two tensor holders, one above and one below a fanout in the architecture,
-        and their order is flipped in the mapping (i.e., above-the-fanout tensor holder
-        has the lower storage node, below-the-fanout tensor holder has the higher
-        storage node), then we can't have both a spatial and a temporal loop over the
-        same rank variable. Otherwise we'll get non-contiguous chunks of the iteration
-        space (either temporal OR spatial can be contiguous, but not both).
+        To prevent these problems from occuring, we raise an error if there any temporal
+        loops in between that affect the same indexing expressions as the spatial loops.
+        I tried to have it work with our model and then constraining the temporal loops
+        to be null (have the same tile shape as their outer loop), but when we run it
+        per-tensor and reorder, the loop above the temporal changes, so the model
+        returns inconsistent results for each tensor as the tile shape is different.
+        With this constraint, we'll never reorder spatial and temporal loops that affect
+        one another.
 
         The result of the above is that we'll never reorder spatial and temporal loops
         that affect one another.
@@ -1339,9 +1341,13 @@ class Nested(MappingNodeWithChildren):
         TODO: Mapper then also needs explore swapping temporal/spatial loops
         """
         spatials = [n for n in self.nodes if isinstance(n, Spatial)]
-        tensor_holders = [n for n in self.nodes if isinstance(n, (TensorHolder, Compute))]
+        tensor_holders = [
+            n for n in self.nodes if isinstance(n, (TensorHolder, Compute))
+        ]
         others = [
-            n for n in self.nodes if not isinstance(n, (TensorHolder, Reservation, Spatial))
+            n
+            for n in self.nodes
+            if not isinstance(n, (TensorHolder, Reservation, Spatial))
             or (isinstance(n, TensorHolder) and n.tensor == tensor_name)
             or (isinstance(n, Reservation) and n.purpose == tensor_name)
         ]
@@ -1365,7 +1371,9 @@ class Nested(MappingNodeWithChildren):
         mapping = []
         for to_add in others:
             if isinstance(to_add, (TensorHolder, Compute)):
-                cur_spatials_above = [s for s in spatials if s in spatials_above[id(to_add)]]
+                cur_spatials_above = [
+                    s for s in spatials if s in spatials_above[id(to_add)]
+                ]
                 spatials = [s for s in spatials if s not in cur_spatials_above]
                 mapping.extend(cur_spatials_above)
             mapping.append(to_add)
@@ -1376,7 +1384,7 @@ class Nested(MappingNodeWithChildren):
         for i, node in enumerate(mapping):
             if not isinstance(node, (TensorHolder, Compute)):
                 continue
-            for node2 in mapping[i + 1:]:
+            for node2 in mapping[i + 1 :]:
                 if not isinstance(node2, Spatial):
                     continue
                 assert node2 in spatials_below[id(node)], "BUG"
@@ -1386,7 +1394,11 @@ class Nested(MappingNodeWithChildren):
         id2idx = {id(node): i for i, node in enumerate(self.nodes)}
         groups = []
         for node in mapping:
-            if isinstance(node, Loop) and len(groups) > 0 and isinstance(groups[-1][0], Loop):
+            if (
+                isinstance(node, Loop)
+                and len(groups) > 0
+                and isinstance(groups[-1][0], Loop)
+            ):
                 groups[-1].append(node)
             else:
                 groups.append([node])
@@ -1419,9 +1431,46 @@ class Nested(MappingNodeWithChildren):
         # for n in self.nodes:
         #   print(n.compact_str())
 
+        # Check for spatial/temporal loops that have been reordered. These ones can not
+        # co-exist because the tiling is inconsistent.
+        # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION
+        from fastfusion.frontend.workload import isl_expression_has_variable
+
+        node2idx = {id(node): i for i, node in enumerate(self.nodes)}
+        for node1, node2 in itertools.combinations(mapping, 2):
+            # Both must be loops
+            if not isinstance(node1, Loop) or not isinstance(node2, Loop):
+                continue
+            # Must have been reordered
+            if node2idx[id(node1)] <= node2idx[id(node2)]:
+                continue
+            # Must affect the same rank variable expression
+            for expr in indexing_expressions:
+                if not isl_expression_has_variable(expr, node1.rank_variable):
+                    continue
+                if not isl_expression_has_variable(expr, node2.rank_variable):
+                    continue
+
+                s = """
+                In the given mapping, there exists (potentially with other nodes in
+                between) a spatial loop above a temporal loop above a storage node,
+                where the loops index into the same indexing expression, and the storage
+                node is not fanned out by the spatial loop. This is not allowed.
+
+                Mapping:
+                """
+                s = s.replace("                ", "")
+
+                to_add = []
+                for n in self.nodes:
+                    if id(n) == id(node1) or id(n) == id(node2):
+                        to_add.append(f"\t{n.compact_str()} <-- Offending Loop")
+                    else:
+                        to_add.append(f"\t{n.compact_str()}")
+
+                raise ValueError(s + "\n".join(to_add))
+
         return type(self)(nodes=mapping)
-
-
 
 
 class Parallel(Split):

@@ -291,10 +291,6 @@ class SymbolicAnalysisOutput:
 
     symbols: list[sympy.Symbol] = field(default_factory=list)
 
-    # List of tuples of loops that are incompatible with one another. Only one of any
-    # given pair may be effectual.
-    incompatible_loop_pairs: list[tuple[Loop, Loop]] = field(default_factory=list)
-
     # tensor to the mapping for that particular tensor
     tensor2mapping: dict[TensorName, Mapping] = field(default_factory=dict)
 
@@ -452,7 +448,6 @@ def analyze_reuse_and_add_reservations_to_mapping(
     mapping = job.mapping.nodes
     workload = job.spec.workload
     einsum_name = mapping[-1].einsum
-    einsum_shape = get_rank_variable_bounds(workload, einsum_name)
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
     symbols = insert_sympy_symbols(job.mapping.nodes, job)
@@ -474,13 +469,9 @@ def analyze_reuse_and_add_reservations_to_mapping(
         einsum_tensor_to_projection[(einsum_name, tensor)] = get_projection_expr(
             einsum, tensor
         )
-
     tensor_to_relevancy = {
         tensor: get_rank_variable_relevancy(einsum, tensor) for tensor in all_tensors
     }
-
-    # mapping = Nested(nodes=job.mapping)
-    rv_bounds = get_rank_variable_bounds(workload, einsum_name)
     assert all_tensors, f"Einsum {einsum_name} has no tensors"
 
     """
@@ -515,18 +506,28 @@ def analyze_reuse_and_add_reservations_to_mapping(
        performing such analysis until the outermost storage node for a particular memory
        has been analyzed.
     """
-
     result = None
 
     tensor2mapping = {}
+    index_expressions = set(einsum.indexing_expressions)
+    for k, v in job.rank_variable_bounds.items():
+        index_expressions.add(f"0 < {k} <= {v}")
     for tensor in all_tensors:
-        cur_mapping = job.mapping._get_single_tensor_mapping(tensor, job.flattened_arch)
+        cur_mapping = job.mapping._get_single_tensor_mapping(
+            tensor,
+            job.flattened_arch,
+            index_expressions
+        )
         # print(f'Cur mapping: {cur_mapping.compact_str()}')
+        # print(f'Cur mapping:')
+        # for n in cur_mapping.nodes:
+        #     print(f'\t{n.compact_str()}')
+        # print('---')
         # print(f'Cur mapping loops: ' + ' '.join(n.compact_str() for n in cur_mapping.nodes if isinstance(n, Loop)))
         info = AnalysisInfo(
             mapping=cur_mapping.nodes,
             workload=workload,
-            full_rank_variable_shapes=rv_bounds,
+            full_rank_variable_shapes=job.rank_variable_bounds,
             all_tensors=set([tensor]),
             einsum_tensor_to_projection=einsum_tensor_to_projection,
             tensor_to_relevancy=tensor_to_relevancy,
@@ -534,41 +535,14 @@ def analyze_reuse_and_add_reservations_to_mapping(
             is_copy_operation=is_copy_operation,
             job=job,
         )
-        cur_result = analyze_node(0, einsum_shape, info)
+        cur_result = analyze_node(0, job.rank_variable_bounds, info)
         if result is None:
             result = cur_result
         else:
             result.add_buffet_stats_and_symbols(cur_result)
         tensor2mapping[tensor] = cur_mapping
 
-    # Check for spatial/temporal loops that have been reordered. These ones can not
-    # co-exist because the tiling is inconsistent.
-    # See CONTIGUOUS_ITERATION_SPACE_DISCUSSION
-    node2idx = {id(node): i for i, node in enumerate(job.mapping.nodes)}
-    incompatible_loop_pairs = []
-    rv_expressions = job.spec.workload.einsums[einsum_name].indexing_expressions
-    for mapping in tensor2mapping.values():
-        # for m in mapping.nodes:
-        #     print(m.compact_str())
-        # print('---')
-        for node1, node2 in itertools.combinations(mapping.nodes, 2):
-            # Both must be loops
-            if not isinstance(node1, Loop) or not isinstance(node2, Loop):
-                continue
-            # Must have been reordered
-            if node2idx[id(node1)] <= node2idx[id(node2)]:
-                continue
-            # Must affect the same rank variable expression
-            for expr in rv_expressions:
-                if not isl_expression_has_variable(expr, node1.rank_variable):
-                    continue
-                if not isl_expression_has_variable(expr, node2.rank_variable):
-                    continue
-                incompatible_loop_pairs.append((node1, node2))
-                break
-
     result.symbols = symbols
-    result.incompatible_loop_pairs = incompatible_loop_pairs
     result.tensor2mapping = tensor2mapping
     return result
 
@@ -654,23 +628,22 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
     while i < n_nodes:
         node = mapping[i]
         to_remove = []
-        if isinstance(node, Temporal):
+        if isinstance(node, Reservation):
+            pass
+        elif isinstance(node, Temporal):
             rank = node.rank_variable
-            for tracker_idx, tracker in enumerate(trackers):
+            for tracker in trackers:
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_temporal_loop(relevancy[rank], node)
-
-                if tracker.should_stop:
-                    to_remove.append(tracker_idx)
         elif isinstance(node, Spatial):
             rank = node.rank_variable
-            for tracker_idx, tracker in enumerate(trackers):
+            for tracker in trackers:
                 relevancy = info.tensor_to_relevancy[tracker.buffet.tensor]
                 tracker.track_spatial_loop(relevancy[rank], node)
-
-                if tracker.should_stop:
-                    to_remove.append(tracker_idx)
         elif isinstance(node, TensorHolder):
+            for tracker in trackers:
+                tracker.should_stop = True
+                tracker.insert_reservation_under = False
             for tensor in node.tensors:
                 tensor = TensorName(tensor)
                 buffet = Buffet(tensor, mapping[-1].einsum, node.component)
@@ -679,25 +652,23 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
                     tensor not in seen_tensors and tensor in non_intermediate_tensors
                 ):
                     seen_tensors.add(tensor)
-                    to_remove.append(len(trackers) - 1)
                     trackers[-1].is_fill_level = True
                     trackers[-1].insert_reservation_under = True
                     trackers[-1].insert_fill_under = True
+                    trackers[-1].should_stop = True
         elif isinstance(node, mapping_spec.Compute):
-            for tracker_idx, tracker in enumerate(trackers):
+            for tracker in trackers:
                 tracker.track_compute()
-
-                if tracker.should_stop:
-                    to_remove.append(tracker_idx)
-        elif isinstance(node, Reservation):
-            pass
+                tracker.insert_reservation_under = False
         else:
             raise NotImplementedError(f"Unknown node type {type(node)}")
 
         reservation_insert_below = []
         reservation_insert_above = []
-        for tracker_idx in reversed(to_remove):
-            tracker = trackers.pop(tracker_idx)
+        for j in range(len(trackers) - 1, -1, -1):
+            if not trackers[j].should_stop:
+                continue
+            tracker = trackers.pop(j)
             buffet = tracker.buffet
             node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
             node.persistent = tracker.node.persistent
@@ -717,8 +688,10 @@ def insert_reservation_nodes(mapping, info: AnalysisInfo):
         # The order of these for loops is important. Reservation must be below fill.
         for node in reservation_insert_below:
             mapping.insert(i + 1, node)
+            i += 1
         for node in reservation_insert_above:
             mapping.insert(i, node)
+            i += 1
 
         i += 1
         n_nodes = len(mapping)
@@ -780,6 +753,10 @@ def analyze_temporal(
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
         for buffet, stats in child_result.buffet_stats.items():
+            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
+                print(f'Temporal {node.compact_str()} tensor {buffet.tensor} memory {buffet.level}')
+                print(f'\tBEFORE Reads to parent: {stats.total_reads_to_parent}')
+                print(f'\tBEFORE Writes to parent: {stats.total_writes_to_parent}')
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
             is_fully_relevant = isinstance(relevancy, Relevant)
             accumulated_stats = accumulated_buffet_stats.setdefault(
@@ -789,6 +766,14 @@ def analyze_temporal(
                 shape_repeats, is_fully_relevant=is_fully_relevant
             )
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
+
+            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
+                # print(f'Temporal {node.compact_str()} tensor {buffet.tensor}')
+                print(f'\trelevancy {relevancy}')
+                print(f'\tRepeating temporal {shape_repeats} times')
+                print(f'\tRead actions: {accumulated_stats.total_read_actions}')
+                print(f'\tReads to parent: {accumulated_stats.total_reads_to_parent}')
+                print(f'\tWrites to parent: {accumulated_stats.total_writes_to_parent}')
 
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
@@ -873,9 +858,23 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 and buffet.tensor in node._may_reuse
             )
 
+            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
+                print(f'Spatial {node.compact_str()} tensor {buffet.tensor} memory {buffet.level}')
+                print(f'\tBEFORE Reads to parent: {stats.total_reads_to_parent}')
+                print(f'\tBEFORE Writes to parent: {stats.total_writes_to_parent}')
+
             accumulated_stats += stats.repeat_spatial(
                 shape_repeats, reuse_parent_accesses=reuse_parent_accesses
             )
+            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
+                print(f'\tlast_buffet {last_buffet}')
+                print(f'\treuse_parent_accesses {reuse_parent_accesses}')
+                print(f'\trelevancy {relevancy}')
+                print(f'\tRepeating spatial {shape_repeats} times')
+                print(f'\tRead actions: {accumulated_stats.total_read_actions}')
+                print(f'\tReads to parent: {accumulated_stats.total_reads_to_parent}')
+                print(f'\tWrites to parent: {accumulated_stats.total_writes_to_parent}')
+                print(f'\treuse_parent_accesses {reuse_parent_accesses}')
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
         for einsum, child_steps in child_result.temporal_steps.items():
@@ -963,8 +962,8 @@ def analyze_storage(
     current_shape: dict[str, int],
     info: AnalysisInfo,
     propagate_child_results: bool = False,
-    count_parent_accesses: bool = True,
-    count_child_accesses: bool = True,
+    count_upward_movement: bool = True,
+    count_downward_movement: bool = True,
     ignore_writes: bool = False,
 ):
     mapping = info.mapping
@@ -1063,23 +1062,23 @@ def analyze_storage(
 
         # ==========================
         # Data exchanges with parent
-        if count_parent_accesses:
+        if count_downward_movement:  # Parent -> Me
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
             stats.max_per_unit_write_actions += (
                 stats.total_reads_to_parent * write_scale
             )
-
-            # Comment this to have the final writeback to a buffer hit both that buffer and
-            # go directly to the parent without incurring another read from the buffer.
-            stats.total_read_actions += stats.total_writes_to_parent * read_scale
-            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
-
             stats.total_skipped_first_write_actions += (
                 stats.total_skipped_first_reads_to_parent * write_scale
             )
             stats.min_per_unit_skipped_first_write_actions += (
                 stats.min_per_parent_skipped_first_reads_to_parent * write_scale
             )
+
+        if count_upward_movement:  # Me -> Parent
+            # Comment this to have the final writeback to a buffer hit both that buffer and
+            # go directly to the parent without incurring another read from the buffer.
+            stats.total_read_actions += stats.total_writes_to_parent * read_scale
+            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
 
         # ========================
         # Data exchanges with peer
@@ -1088,24 +1087,26 @@ def analyze_storage(
 
         # =========================
         # Data exchanges with child
-        if child is not None and count_child_accesses:
-            stats.total_read_actions += child.total_reads_to_parent * read_scale
-            stats.max_per_unit_read_actions += (
-                child.max_per_parent_reads_to_parent * read_scale
-            )
+        if child is not None:
+            if count_downward_movement:  # Me -> Child
+                stats.total_read_actions += child.total_reads_to_parent * read_scale
+                stats.max_per_unit_read_actions += (
+                    child.max_per_parent_reads_to_parent * read_scale
+                )
+                # Skip first read
+                stats.total_skipped_first_read_actions += (
+                    child.total_skipped_first_reads_to_parent * read_scale
+                )
+                stats.min_per_unit_skipped_first_read_actions += (
+                    child.min_per_parent_skipped_first_reads_to_parent * read_scale
+                )
 
-            stats.total_write_actions += child.total_writes_to_parent * write_scale
-            stats.max_per_unit_write_actions += (
-                child.max_per_parent_writes_to_parent * write_scale
-            )
+            if count_upward_movement:  # Child -> Me
+                stats.total_write_actions += child.total_writes_to_parent * write_scale
+                stats.max_per_unit_write_actions += (
+                    child.max_per_parent_writes_to_parent * write_scale
+                )
 
-            # Skip first read
-            stats.total_skipped_first_read_actions += (
-                child.total_skipped_first_reads_to_parent * read_scale
-            )
-            stats.min_per_unit_skipped_first_read_actions += (
-                child.min_per_parent_skipped_first_reads_to_parent * read_scale
-            )
 
     return child_result
 
@@ -1120,8 +1121,8 @@ def analyze_processing_stage(node_idx, current_shape, info: AnalysisInfo):
         current_shape,
         info,
         propagate_child_results=True,
-        count_parent_accesses=component_object.attributes.direction != "down",
-        count_child_accesses=component_object.attributes.direction != "up",
+        count_upward_movement=component_object.attributes.direction != "down",
+        count_downward_movement=component_object.attributes.direction != "up",
         ignore_writes=True,
     )
     for tensor in node.tensors:

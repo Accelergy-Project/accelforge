@@ -234,8 +234,8 @@ def make_pmappings_from_templates(
             raise
         job.compatibility = job.compatibility.populate_loops()
 
-        # CONTIGUOUS_ITERATION_SPACE_DISCUSSION TODO: Turn tensor2pmapping into
-        # per-tensor compatibility
+        # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION TODO: Turn tensor2pmapping
+        # into per-tensor compatibility
 
         # This changes the pmapping count to include superfluous permutations
         # TODO: Add a multiplier for the permutations that we include in the fusion

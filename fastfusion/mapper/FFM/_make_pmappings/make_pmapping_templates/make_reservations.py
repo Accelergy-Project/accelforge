@@ -23,7 +23,7 @@ def _recursive_iter_fence_positions(
 
 def get_reservation_choices(
     mapping: list[TensorHolder],
-    arch_flattened: list[arch.Leaf],
+    flattened_arch: list[arch.Leaf],
 ) -> Generator[tuple[list[TensorHolder], Any], None, None]:
     # Rules:
     # - In general, reservations go right under their storage node
@@ -47,7 +47,7 @@ def get_reservation_choices(
     # Design choices here:
     # - Where to put the 'fence' for each fanout
 
-    fanout_nodes = [n for n in arch_flattened if n.get_fanout() > 1]
+    fanout_nodes = [n for n in flattened_arch if n.get_fanout() > 1]
     fanout_node_names = set[str](n.name for n in fanout_nodes)
     last_seen_fanout = None
     node2lastfanout = {}

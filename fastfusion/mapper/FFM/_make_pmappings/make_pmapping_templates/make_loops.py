@@ -95,15 +95,17 @@ def insert_temporal_loops(
     for node in flattened_arch:
         fanouts[node.name] = (fanout := fanout * node.get_fanout())
 
-    def _get_next_storages(i: int) -> list[TensorHolder]:
+    def _get_next_storages(i: int, pstage_allowed: bool = False) -> list[TensorHolder]:
         for j in range(i + 1, len(split_mapping)):
             assert len(split_mapping[j]) <= 1
             # We don't add loops before processing stages
-            if isinstance(split_mapping[j][0], ProcessingStage):
+            if isinstance(split_mapping[j][0], ProcessingStage) and not pstage_allowed:
                 continue
             return split_mapping[j]
         return []
 
+    prev_fanout = 1
+    someone_elses_spatials_may_be_placed_above = False
     for i, prev_storages in enumerate(split_mapping):
         # =============================================================================
         # Choose what temporal loops to insert between prev_storages and the next
@@ -111,6 +113,7 @@ def insert_temporal_loops(
         # =============================================================================
 
         next_storages = _get_next_storages(i)
+        next_anything = _get_next_storages(i, pstage_allowed=True)
 
         for s in prev_storages:
             # No tensor holders must mix backing/non-backing tensors.
@@ -136,7 +139,7 @@ def insert_temporal_loops(
             default=0,
         )
         cur_fanout = set(fanouts[s2.component] for s2 in prev_storages)
-        next_fanout = set(fanouts[s2.component] for s2 in next_storages)
+        next_fanout = set(fanouts[s2.component] for s2 in next_anything)
         if len(next_fanout) == 0:
             next_fanout.add(float("inf"))
         # Either it's main memory or we have one entry in the list, so there should only
@@ -150,8 +153,24 @@ def insert_temporal_loops(
         if next_persistent:
             rank_variables &= set()
 
-        # Loops below processing stages aren't helpful becauase there is no storage
-        if isinstance(prev_storages[0], ProcessingStage):
+
+        #  The fanout for a prior node may be placed here, so spatial nodes may be moved
+        #  here
+        someone_elses_spatials_may_be_placed_below = \
+            next_fanout > cur_fanout and max_fanout_before > cur_fanout
+
+        # If the fanout is about to increase, then spatial loops may be placed below the
+        # current node. There may have been constrained temporal loops earlier that need
+        # to be placed here, so we won't prohibit any loops.
+        if someone_elses_spatials_may_be_placed_below:
+            pass
+
+        # Loops below processing stages aren't helpful because there is no storage.
+        # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if we may put
+        # another node's spatial loops below this one, because lowering would add move
+        # the spatials down, which would constrain the temporals due to spatial-temporal
+        # crossing.
+        if isinstance(prev_storages[0], ProcessingStage) and not someone_elses_spatials_may_be_placed_below:
             rank_variables &= set()
 
         # Generally we want to only use rank variables that are irrelevant to the
@@ -165,18 +184,17 @@ def insert_temporal_loops(
 
         # Optimality-preserving optimizations: We can trivially lower non-backing
         # TensorHolder nodes through fully-relevant loops. Can't do this if the loops
-        # are fused because that'd add loops to the compatibility. See
-        # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if the tensor holder is
-        # below any tensor holders with a larger fanout, because raising would constrain
-        # loops. TODO CONTIGUOUS_ITERATION_SPACE_DISCUSSION: This causes all loops to be
-        # added, but really we only need to re-add the ones that may conflict with a
-        # spatial loop.
+        # are fused because that'd add loops to the compatibility. Ctrl-F
+        # forCONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if we may put another
+        # node's spatial loops below this one, because lowering would add move the
+        # spatials down, which would constrain the temporals due to spatial-temporal
+        # crossing.
         for s in prev_storages:
             for t in s.tensors:
                 if (
                     t not in s._backing
                     and not s._must_be_here
-                    and cur_fanout >= max_fanout_before
+                    and not someone_elses_spatials_may_be_placed_below
                 ):
                     rank_variables -= tensor2fully_relevant_rank_vars[t]
 
@@ -185,13 +203,14 @@ def insert_temporal_loops(
         # that'd increase the lifetime of the TensorHolder node. Can't do this if the
         # irrelevant rank variables partially-relevant to the previous tensors, since
         # that affects the permutation. See CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't
-        # do this if the tensor holder is above any tensor holders with a smaller
-        # fanout, because raising would constrain loops. TODO
-        # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: This causes all loops to be added, but
-        # really we only need to re-add the ones that may conflict with a spatial loop.
+        # do this if we may put another node's spatial loops above this one, because
+        # raising would add move the temporals down, which would constrain them due to
+        # spatial-temporal crossing. TODO: CONTIGUOUS_ITERATION_SPACE_DISCUSSION: This
+        # causes all loops to be added, but really we only need to re-add the ones that
+        # may conflict with a spatial loop.
         if not is_fused_loops:
             for s in next_storages:
-                if not s._must_be_here and next_fanout <= min_fanout_after:
+                if not s._must_be_here and not someone_elses_spatials_may_be_placed_above:
                     for t in s.tensors:
                         rvs = tensor2irrelevant_rank_vars[t]
                         for t2 in prev_tensors:
@@ -219,6 +238,9 @@ def insert_temporal_loops(
 
             # Persistent. Must be at the top of the mapping.
             if s.persistent:
+                lowering_choices.append((False,))
+            # Don't lower our own reservations through someone else's spatial loops.
+            elif someone_elses_spatials_may_be_placed_below:
                 lowering_choices.append((False,))
             # Processing stage. Lowering doesn't matter. Don't lower.
             elif isinstance(s, ProcessingStage):
@@ -252,6 +274,9 @@ def insert_temporal_loops(
                 )
             )
         )
+        prev_fanout = cur_fanout
+        someone_elses_spatials_may_be_placed_above = \
+            someone_elses_spatials_may_be_placed_below
 
     # ==================================================================================
     # Iterate over all possible mappings
@@ -280,10 +305,10 @@ def insert_temporal_loops(
 def insert_spatial_loops(
     mapping: list[MappingNode],
     einsum: Einsum,
-    arch_flattened: list[arch.Memory],
+    flattened_arch: list[arch.Memory],
 ):
-    nodes_with_fanout = [n for n in arch_flattened if n.get_fanout() > 1]
-    arch_node_names = [n.name for n in arch_flattened]
+    nodes_with_fanout = [n for n in flattened_arch if n.get_fanout() > 1]
+    arch_node_names = [n.name for n in flattened_arch]
 
     # Place spatials above the first instance of the first memory BELOW each fanout
     for node in nodes_with_fanout:

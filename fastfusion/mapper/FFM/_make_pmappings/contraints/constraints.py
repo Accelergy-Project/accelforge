@@ -138,6 +138,18 @@ class MappingConstraints:
             s += f"\t{all_constraints.index(c)} {c.pretty_str()}\n"
         return s
 
+    def remove_missing_targets(self, mapping: list[MappingNode]):
+        for c in self.get_all_constraints():
+            c.target_mapping_nodes = [
+                n for n in c.target_mapping_nodes if n in mapping
+            ]
+
+        self.tile_shape_constraints = [c for c in self.tile_shape_constraints if c]
+        self.loop_bounds_constraints = [c for c in self.loop_bounds_constraints if c]
+        self.min_utilization_constraints = {
+            k: c for k, c in self.min_utilization_constraints.items() if c
+        }
+
 
 def first_tensor_holder_index(mapping: list["MappingNode"], memory_name: str) -> int:
     for i, m in enumerate(mapping):
@@ -188,7 +200,7 @@ def constrained_loops(
 
 
 def get_constraints(
-    arch_flattened: list[arch.Leaf],
+    flattened_arch: list[arch.Leaf],
     mapping: List[MappingNode],
     symbol_table: dict[str, InvertibleSet],
     einsum_name: EinsumName,
@@ -200,7 +212,7 @@ def get_constraints(
     constraints = MappingConstraints()
 
     # Tensor constraints
-    for m in arch_flattened:
+    for m in flattened_arch:
         # Ignore if not a memory
         if not isinstance(m, arch.Memory):
             continue
@@ -268,7 +280,7 @@ def get_constraints(
     # TODO: Implement
 
     # Spatial constraints
-    for m in arch_flattened:
+    for m in flattened_arch:
         if not isinstance(m, (arch.Memory, arch.Fanout)):
             continue
         cur_symbol_table = {**symbol_table, **m.attributes.model_dump_non_none()}
@@ -335,6 +347,5 @@ def get_constraints(
             )
 
     mapping = constraints.clear_constrained_to_one(mapping)
-    constraints.set_loop_indices(mapping)
 
     return mapping, constraints

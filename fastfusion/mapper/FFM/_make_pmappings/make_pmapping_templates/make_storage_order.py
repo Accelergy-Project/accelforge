@@ -216,12 +216,12 @@ def valid_tensor_holder_order(
             force_order &= m0.component_object.tensors.force_memory_hierarchy_order
             force_order &= m1.component_object.tensors.force_memory_hierarchy_order
 
-            # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: The following line does not let
-            # backing storage be above in the mapping anything that is below it in the
-            # memory hierarchy. THIS IS NOT FUNDAMENTAL. If we remove this constraint,
-            # then the fused loops may be different across different backing storages,
-            # so we would need to update make_pmappings_from_templates.py to make
-            # compatibility from the mapping for each tensor.
+            # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION: The following line does
+            # not let backing storage be above in the mapping anything that is below it
+            # in the memory hierarchy. THIS IS NOT FUNDAMENTAL. If we remove this
+            # constraint, then the fused loops may be different across different backing
+            # storages, so we would need to update make_pmappings_from_templates.py to
+            # make compatibility from the mapping for each tensor.
             force_order |= bool(m0._backing)
 
             if force_order and i < j and s2_idx < s1_idx:
@@ -246,10 +246,13 @@ def valid_tensor_holder_order(
             if isinstance(m0, ProcessingStage) and m0.component == m1.component and m0.tensor < m1.tensor:
                 return False, f"Processing stage {m0} is not ordered alphabetically by tensor; has tensor {m0.tensor} before {m1.tensor}"
 
-            # If m0 is a processing stage and it follows the memory hierarchy order, put
-            # m0 above m1 because we don't care about processing stage order.
-            if isinstance(m0, ProcessingStage) and s2_idx < s1_idx:
+            # If there is a processing stage, don't explore order. If there's two
+            # back-to-back nodes and one is a processing stage, make them follow the
+            # memory hierarchy order.
+            if isinstance(m0, ProcessingStage) and s2_idx < s1_idx and i == j - 1:
                 return False, f"Processing stage {m0} is directly above {m1}"
+            if isinstance(m1, ProcessingStage) and s2_idx < s1_idx and i == j - 1:
+                return False, f"Processing stage {m1} is directly above {m0}"
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:

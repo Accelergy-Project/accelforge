@@ -143,6 +143,5 @@ def run_model(
         df,
         per_memory_usage_df,
         utilization_df,
-        reuse.incompatible_loop_pairs,
         reuse.tensor2mapping,
     )

@@ -98,7 +98,7 @@ def clean_compress_and_join_pmappings(
     # DRAM while another doesn't.)
     return Mappings(
         spec,
-        list(einsum2pmappings.keys()),
+        list(x for x in list(einsum2pmappings.keys()) if x in pmappings.einsums_with_pmappings_generated),
         joined.data,
         total_mappings=joined.n_total_pmappings,
         valid_mappings=joined.n_valid_pmappings,

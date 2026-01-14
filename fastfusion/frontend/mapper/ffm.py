@@ -33,6 +33,39 @@ class FFM(ParsableModel):
     Input.
     """
 
+    out_of_order_hierarchy_explore_removing_spatials_for_more_temporals: bool = False
+    """
+    If force_memory_hierarchy_order is set to False or is set to False for any
+    particular component, and a spatial fanout ends up being raised above a storage node
+    that does not have that fanout, then there may be cases where a spatial loop is put
+    above a component that does not have the associated fanout.
+
+    When this happens, we may not put between the spatial and the storage node any
+    temporal loops that affect the same indexing expressions as the spatial loops.
+
+    For example, the following is not allowed:
+
+    Arch:
+
+    - Global Buffer
+    - 2x fanout
+    - Register
+
+    Mapping:
+
+    spatial-for-reg n in [0, 10):
+      [Register reuses input]
+        for n in [0, 2):
+          [Global Buffer reuses output]
+
+    By default, if there are spatial loops that are not constrained away, then the
+    mapper will not explore putting any temporal loops that conflict. In the above
+    example, it will never place the above temporal loop. If this is set to True, then
+    the mapper will explore removing the spatial loop in order to allow for the temporal
+    loop to be placed. In the above example, it will explore removing the spatial loop
+    in order to allow for the temporal loop to be placed.
+    """
+
     max_fused_loops_per_rank_variable: int = 1
     """ The maximum number of fused loops in a pmapping for a given rank variable. """
 

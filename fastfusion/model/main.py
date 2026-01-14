@@ -57,7 +57,6 @@ def evaluate_mapping(spec: Spec):
     einsum2pmappings = {}
     pmapping_objects = {}
     einsum2jobs = {}
-    einsum2incompatible_loop_pairs = {}
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         pmapping_id = uuid4()
         job = copy(original_job)
@@ -81,10 +80,9 @@ def evaluate_mapping(spec: Spec):
         job.stride_and_halo = get_stride_and_halo_of_einsum(
             job.einsum_name, spec.workload
         )
-        _, df, _, _, incompatible_loop_pairs, tensor2mapping = run_model(job)
+        _, df, _, _, tensor2mapping = run_model(job)
         df = {f"{job.einsum_name}<SEP>{key}": value for key, value in df.items()}
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
-        einsum2incompatible_loop_pairs[job.einsum_name] = incompatible_loop_pairs
 
         einsum = spec.workload.einsums[pmapping.nodes[-1].einsum]
         rank_variable_to_ranks = {
@@ -101,7 +99,6 @@ def evaluate_mapping(spec: Spec):
             )
         ]
         pmapping_objects[job.einsum_name] = {pmapping_id: pmapping}
-        print(f"TODO: Check incompatible loops for {job.einsum_name}")
 
     m = MultiEinsumPmappings(
         einsum2pmappings,

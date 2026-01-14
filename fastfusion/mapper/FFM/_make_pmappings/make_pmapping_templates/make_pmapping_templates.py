@@ -13,6 +13,7 @@ from fastfusion.frontend.mapping import (
     Loop,
     Mapping,
     MappingNode,
+    Spatial,
     TensorHolder,
     Temporal,
 )
@@ -31,6 +32,7 @@ from fastfusion.frontend.workload import (
     EinsumName,
     RankVariable,
     Workload,
+    isl_expression_has_variable,
 )
 from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
     get_tensor_choices,
@@ -118,6 +120,58 @@ def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum):
     else:
         for t in temporals:
             mapping.insert(insert_point, t)
+
+
+def remove_unordered_spatial_temporal_loops(
+    mapping: list[MappingNode],
+    flattened_arch: list[arch.Leaf],
+    einsum: Einsum,
+    explore_unordered_spatial_loops: bool = True,
+):
+    fanout = 1
+    fanouts = {}
+    for node in flattened_arch:
+        fanouts[node.name] = (fanout := fanout * node.get_fanout())
+
+    index_exprs = einsum.indexing_expressions
+
+    # Remove a temporal loop if:
+    # - It's between a spatial loop and a storage node above that fanout in the arch
+    # - It indexes into one of the same indexing expressions as the spatial loop
+
+    disallowed_combinations: list[tuple[set[int], set[int]]] = []
+    for i, node in enumerate(mapping):
+        if not isinstance(node, Spatial):
+            continue
+
+        for j in range(len(mapping) - 1, i, -1):
+            n = mapping[j]
+            if (
+                isinstance(n, TensorHolder)
+                and fanouts[n.component] <= fanouts[node.component]
+            ):
+                break
+
+        to_check = mapping[i + 1 : j]
+        to_remove = set()
+        for n in to_check:
+            if isinstance(n, Temporal):
+                for expr in index_exprs:
+                    if not isl_expression_has_variable(expr, node.rank_variable):
+                        continue
+                    if not isl_expression_has_variable(expr, n.rank_variable):
+                        continue
+                    to_remove.add(id(n))
+                    break
+
+        disallowed_combinations.append((set([id(node)]), to_remove))
+
+    if not explore_unordered_spatial_loops:
+        disallowed_combinations = [x[1:] for x in disallowed_combinations]
+
+    for combo in itertools.product(*disallowed_combinations):
+        combo = set.union(set(), *combo)
+        yield [n for n in mapping if id(n) not in combo]
 
 
 def pad_with_bottom_loops(mapping: list[MappingNode], einsum: Einsum):
@@ -228,11 +282,11 @@ def get_ranks_with_tile_pattern(producer_name: EinsumName, workload: Workload):
 def iterate_mappings_no_constraints(
     spec: Spec,
     einsum_name: str,
-    arch_flattened: list[arch.Leaf],
+    flattened_arch: list[arch.Leaf],
     rank_variable_bounds: dict[RankVariable, int],
 ):
     first_memory = None
-    for node in arch_flattened:
+    for node in flattened_arch:
         if isinstance(node, arch.Memory):
             first_memory = node
             break
@@ -244,7 +298,7 @@ def iterate_mappings_no_constraints(
     symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
     for mapping, symbol_table in get_tensor_choices(
-        einsum_name, arch_flattened, symbol_table, spec, first_memory
+        einsum_name, flattened_arch, symbol_table, spec, first_memory
     ):
         logging.info(
             "\tGenerated tensor choices: " + ", ".join(m.compact_str() for m in mapping)
@@ -258,10 +312,10 @@ def iterate_mappings_no_constraints(
             ranks_with_tile_pattern,
             spec.workload,
             spec.mapper.ffm._can_lower_outermost_memory,
-            arch_flattened,
+            flattened_arch,
         ):
             mapping = copy.deepcopy(mapping)
-            insert_spatial_loops(mapping, einsum, arch_flattened)
+            insert_spatial_loops(mapping, einsum, flattened_arch)
             mapping = unpack_loops_to_rank_variables(mapping)
             if spec.mapper.ffm._timeloop_style_even:
                 mapping = _timeloop_style_even(mapping)
@@ -275,15 +329,15 @@ def iterate_mappings_no_constraints(
 def iterate_mappings_constraints(
     spec: Spec,
     einsum_names: list[str] | str | None = None,
-    arch_flattened: list[arch.Leaf] | None = None,
+    flattened_arch: list[arch.Leaf] | None = None,
     rank_variable_bounds: dict[RankVariable, int] | None = None,
     tensor_to_relevancy: (
         dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]] | None
     ) = None,
 ) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
-    if arch_flattened is None:
-        arch_flattened = spec.get_flattened_architecture()
-    compute_name = arch_flattened[-1].name
+    if flattened_arch is None:
+        flattened_arch = spec.get_flattened_architecture()
+    compute_name = flattened_arch[-1].name
 
     n_yielded = 0
 
@@ -304,27 +358,40 @@ def iterate_mappings_constraints(
         for mapping, symbol_table, n_permutations in iterate_mappings_no_constraints(
             spec,
             einsum_name,
-            arch_flattened,
+            flattened_arch,
             rank_variable_bounds,
         ):
-            # MAPPING MUST NOT BE MODIFIED AFTER THIS POINT
             mapping, constraints = get_constraints(
-                arch_flattened, mapping, symbol_table, einsum_name, tensor_to_relevancy
+                flattened_arch, mapping, symbol_table, einsum_name, tensor_to_relevancy
             )
-            mapping.append(
-                Compute(
-                    einsum=einsum_name,
-                    component=compute_name,
-                    component_object=arch_flattened[-1],
-                )
-            )
-            mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
-            mapping._n_loop_orders = n_permutations
-            yield mapping, constraints, symbol_table
-            n_yielded += 1
-            if n_yielded >= spec.mapper.ffm.max_pmapping_templates_per_einsum:
-                return
 
+            # This goes after the constraints because constraints may remove some loops,
+            # giving us fewer that may be reordered.
+            for mapping in remove_unordered_spatial_temporal_loops(
+                    mapping,
+                    flattened_arch,
+                    spec.workload.einsums[einsum_name],
+                    spec.mapper.ffm.unordered_hierarchy_explore_removing_spatials_for_more_temporals,
+            ):
+                constraints.remove_missing_targets(mapping)
+
+                mapping.append(
+                    Compute(
+                        einsum=einsum_name,
+                        component=compute_name,
+                        component_object=flattened_arch[-1],
+                    )
+                )
+
+                # MAPPING MUST NOT BE MODIFIED AFTER constraints.set_loop_indices
+                constraints.set_loop_indices(mapping)
+
+                mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
+                mapping._n_loop_orders = n_permutations
+                yield mapping, constraints, symbol_table
+                n_yielded += 1
+                if n_yielded >= spec.mapper.ffm.max_pmapping_templates_per_einsum:
+                    return
 
 # =================================================================================================
 # Make pmapping_groups
@@ -432,10 +499,9 @@ def make_pmapping_templates(job: Job) -> SameEinsumJobs:
         ),
         desc=f"Generating pmapping templates for compute {compute_name} Einsum {job.einsum_name}",
     )
-    rank_variable_bounds = get_rank_variable_bounds(job.spec.workload, job.einsum_name)
 
     stride_and_halo = get_stride_and_halo_of_einsum(
-        job.einsum_name, job.spec.workload, rank_variable_bounds
+        job.einsum_name, job.spec.workload, job.rank_variable_bounds
     )
 
     jobs = SameEinsumJobs()
@@ -446,7 +512,7 @@ def make_pmapping_templates(job: Job) -> SameEinsumJobs:
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
         new_job.flattened_arch = parse_flattened_arch(new_job, symbol_table)
-        new_job.rank_variable_bounds = rank_variable_bounds
+        new_job.rank_variable_bounds = job.rank_variable_bounds
         new_job.stride_and_halo = stride_and_halo
         new_job.compatibility
         jobs.append(new_job)
