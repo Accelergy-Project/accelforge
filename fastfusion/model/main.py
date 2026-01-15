@@ -89,7 +89,7 @@ def evaluate_mapping(spec: Spec):
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
         compatibility = Compatibility.from_mapping(
-            tensor2mapping, einsum.tensor_names, rank_variable_to_ranks
+            pmapping, einsum.tensor_names, rank_variable_to_ranks
         )
 
         einsum2pmappings[job.einsum_name] = [
