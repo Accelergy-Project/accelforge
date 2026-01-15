@@ -508,7 +508,7 @@ class Compatibility(Updatable):
         tensors: set[TensorName],
         rank_variable_to_ranks: dict[TensorName, dict[RankVariable, Rank]],
     ) -> "Compatibility":
-
+        # TODO: update compatibility to handle spatial-for loop per-tensor update
         tensor_indices = []
         split_above_loop_indices = []
         reservation_indices = []
