@@ -219,7 +219,7 @@ class Spatial(ParsableModel):
     return the highest-utilization mappings.
     """
 
-    must_reuse: str | InvertibleSet[TensorName] | set[TensorName] = "Nothing"
+    reuse: str | InvertibleSet[TensorName] | set[TensorName] = "Nothing"
     """ A set of tensors or a set expression representing tensors that must be reused
     across spatial iterations. Spatial loops may only be placed that reuse ALL tensors
     given here.
@@ -247,11 +247,11 @@ class Spatial(ParsableModel):
                 "min_utilization",
                 location + ".min_utilization",
             ),
-            must_reuse=eval_set_expression(
-                self.must_reuse,
+            reuse=eval_set_expression(
+                self.reuse,
                 symbol_table,
                 "tensors",
-                location + ".must_reuse",
+                location + ".reuse",
             ),
         )
 

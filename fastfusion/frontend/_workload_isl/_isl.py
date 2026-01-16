@@ -1,7 +1,7 @@
 import math
 import islpy as isl
 
-from fastfusion.frontend.workload import Workload, TensorName, Einsum
+from fastfusion.frontend.workload import Workload, TensorName, Einsum, EinsumName
 
 
 def get_einsum_operation_space(workload: Workload, einsum_name: str) -> isl.Set:
@@ -34,7 +34,7 @@ def get_dim_bounds(isl_set: isl.Set) -> list[int]:
     return bounds
 
 
-def get_rank_variable_bounds(workload: Workload, einsum_name: str) -> dict[str, int]:
+def get_rank_variable_bounds(workload: Workload, einsum_name: EinsumName) -> dict[RankVariable, int]:
     """Return dictionary mapping rank variable name to bound."""
     operation_space = get_einsum_operation_space(workload, einsum_name)
     dim_shapes = get_dim_bounds(operation_space)

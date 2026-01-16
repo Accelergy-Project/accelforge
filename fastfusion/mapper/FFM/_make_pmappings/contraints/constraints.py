@@ -292,10 +292,10 @@ def get_constraints(
                 if isinstance(n, Spatial) and (n.component, n.name) == (m.name, dim)
             ]
             loop_bounds = list(parsed.loop_bounds)
-            if parsed.must_reuse:
+            if parsed.reuse:
                 loop_bounds.append(
                     Comparison(
-                        expression=parsed.must_reuse.rank_variables,
+                        expression=parsed.reuse.rank_variables,
                         operator="==",
                         value=1,
                     )
