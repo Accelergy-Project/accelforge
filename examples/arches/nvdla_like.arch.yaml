@@ -31,8 +31,8 @@ arch:
   - !Fanout
     name: ArrayFanout
     spatial:
-    - {name: reuse_input, fanout: 32, may_reuse: input, must_reuse: input, min_utilization: 1}
-    - {name: reuse_output, fanout: 192, may_reuse: output, must_reuse: output, min_utilization: 1}
+    - {name: reuse_input, fanout: 32, may_reuse: input, reuse: input, min_utilization: 1}
+    - {name: reuse_output, fanout: 192, may_reuse: output, reuse: output, min_utilization: 1}
 
   - !Memory
     name: Register

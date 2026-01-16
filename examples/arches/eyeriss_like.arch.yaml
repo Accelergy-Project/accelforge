@@ -31,8 +31,8 @@ arch:
   - !Fanout
     name: ArrayFanout
     spatial:
-    - {name: reuse_weight, fanout: 14, may_reuse: weight, must_reuse: weight, min_utilization: 1 }
-    - {name: reuse_output, fanout: 12, may_reuse: output, must_reuse: output, min_utilization: 1 }
+    - {name: reuse_weight, fanout: 14, may_reuse: weight, reuse: weight, min_utilization: 1 }
+    - {name: reuse_output, fanout: 12, may_reuse: output, reuse: output, min_utilization: 1 }
 
   - !Memory # Input scratchpad
     name: InputScratchpad
