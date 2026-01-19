@@ -140,14 +140,6 @@ def run_model(
                 fanout / component_to_max_fanout[component][dim]
             )
 
-    for m in job.mapping.nodes:
-        print(m.compact_str())
-
-    for k, v in per_memory_usage_df.items():
-        print(f"{k}: {v}")
-    for k, v in utilization_df.items():
-        print(f"{k}: {v}")
-
     return (
         reuse.symbols,
         df,
