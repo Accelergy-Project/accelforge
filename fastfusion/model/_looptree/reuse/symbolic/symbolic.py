@@ -1024,7 +1024,7 @@ def analyze_storage(
             ].arguments.bits_per_action
             write_scale = bits_per_value / write_bits_per_action
         else:
-            stats.write_scale = 0
+            write_scale = 0
 
         # ==========================
         # Data exchanges with parent
