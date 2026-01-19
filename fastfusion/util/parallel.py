@@ -157,20 +157,6 @@ def parallel(
     return list(yield_results())
 
 
-# TODO: Move some of these things to a different file.
-
-
-def _symbol2str(x: str | sympy.Symbol) -> str:
-    return x.name if isinstance(x, sympy.Symbol) else x
-
-
-def _pydot_graph() -> pydot.Dot:
-    graph = pydot.Dot(graph_type="digraph", rankdir="TD", ranksep=0.2)
-    graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
-    graph.set_edge_defaults(fontname="Arial", fontsize="10")
-    return graph
-
-
 # import cProfile
 # import io
 # import pstats
