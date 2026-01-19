@@ -284,6 +284,7 @@ def iterate_mappings_no_constraints(
     einsum_name: str,
     flattened_arch: list[arch.Leaf],
     rank_variable_bounds: dict[RankVariable, int],
+    job: Job,
 ):
     first_memory = None
     for node in flattened_arch:
@@ -295,10 +296,9 @@ def iterate_mappings_no_constraints(
 
     ranks_with_tile_pattern = get_ranks_with_tile_pattern(einsum_name, spec.workload)
 
-    symbol_table = spec.workload.get_constraint_symbol_table(einsum_name, spec.renames)
     einsum = spec.workload.einsums[einsum_name]
     for mapping, symbol_table in get_tensor_choices(
-        einsum_name, flattened_arch, symbol_table, spec, first_memory
+        einsum_name, flattened_arch, job.symbol_table, spec, first_memory
     ):
         logging.info(
             "\tGenerated tensor choices: " + ", ".join(m.compact_str() for m in mapping)
@@ -328,26 +328,20 @@ def iterate_mappings_no_constraints(
 
 def iterate_mappings_constraints(
     spec: Spec,
-    einsum_names: list[str] | str | None = None,
-    flattened_arch: list[arch.Leaf] | None = None,
-    rank_variable_bounds: dict[RankVariable, int] | None = None,
-    tensor_to_relevancy: (
-        dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]] | None
-    ) = None,
+    einsum_names: list[str] | str,
+    flattened_arch: list[arch.Leaf],
+    rank_variable_bounds: dict[RankVariable, int],
+    tensor_to_relevancy: dict[
+        TensorName, dict[RankVariable, Relevant | PartiallyRelevant]
+    ],
+    job: Job,
 ) -> Iterator[tuple[Mapping, MappingConstraints, dict[str, str]]]:
-    if flattened_arch is None:
-        flattened_arch = spec.get_flattened_architecture()
     compute_name = flattened_arch[-1].name
 
     n_yielded = 0
 
     if isinstance(einsum_names, str):
         einsum_names = [einsum_names]
-    if einsum_names is None:
-        einsum_names = [e.name for e in spec.workload.einsums]
-
-    if rank_variable_bounds is None:
-        rank_variable_bounds = get_rank_variable_bounds(spec, einsum_names)
 
     for einsum_name in einsum_names:
         logging.info(
@@ -360,6 +354,7 @@ def iterate_mappings_constraints(
             einsum_name,
             flattened_arch,
             rank_variable_bounds,
+            job,
         ):
             mapping, constraints = get_constraints(
                 flattened_arch, mapping, symbol_table, einsum_name, tensor_to_relevancy
@@ -457,13 +452,14 @@ def parse_flattened_arch(
                 tensors = {tensors} if isinstance(tensors, str) else set(tensors)
                 tensor_names.update(tensors)
 
-        node.attributes.datawidth = parse_tensor2bits(
-            node.attributes.datawidth,
-            location=f"datawidth of {node.name} for Einsum {job.einsum_name}",
+        s = f"{node.name}.attributes.bits_per_value_scale"
+        node.attributes.bits_per_value_scale = parse_tensor2bits(
+            node.attributes.bits_per_value_scale,
+            location=f"{s} for Einsum {job.einsum_name}",
             symbol_table=symbol_table,
             extra_error_message=(
-                f"Set datawidth either as a dictionary of tensors to datawidths, or as "
-                f"a single value for all tensors."
+                f"Set {s} either as a dictionary of tensors to bits per value scale, "
+                f"or as a single value that will be used for all tensors."
             ),
             tensor_names=tensor_names,
         )
@@ -497,6 +493,7 @@ def make_pmapping_templates(job: Job) -> SameEinsumJobs:
             job.flattened_arch,
             job.rank_variable_bounds,
             job.tensor_to_relevancy,
+            job,
         ),
         desc=f"Generating pmapping templates for compute {compute_name} Einsum {job.einsum_name}",
     )

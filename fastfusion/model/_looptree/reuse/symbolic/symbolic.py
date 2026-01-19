@@ -193,6 +193,14 @@ class BuffetStats:
                 setattr(new, attr, Max(getattr(self, attr), getattr(other, attr)))
             elif attr.startswith("total_"):
                 setattr(new, attr, getattr(self, attr) + getattr(other, attr))
+            elif getattr(self, attr) is None:
+                setattr(new, attr, getattr(other, attr))
+            elif getattr(other, attr) is None:
+                setattr(new, attr, getattr(self, attr))
+            else:
+                assert getattr(self, attr) == getattr(
+                    other, attr
+                ), f"BUG: {attr} is different. self: {getattr(self, attr)} other: {getattr(other, attr)}"
         return new
 
     def __iadd__(self, other: "BuffetStats") -> "BuffetStats":
@@ -218,6 +226,12 @@ class BuffetStats:
             self.max_per_unit_write_actions
             - self.min_per_unit_skipped_first_write_actions
         )
+
+
+def blank_buffet_stats() -> BuffetStats:
+    stats = BuffetStats()
+    stats.n_loops_above = None  # Inherit from whoever is added to this
+    return stats
 
 
 @dataclass
@@ -330,7 +344,7 @@ class SymbolicAnalysisOutput:
     def sum_buffet_stats_per_level(self) -> dict[str, BuffetStats]:
         result: dict[str, BuffetStats] = {}
         for buffet, stats in self.buffet_stats.items():
-            result.setdefault(buffet.level, BuffetStats())
+            result.setdefault(buffet.level, blank_buffet_stats())
             result[buffet.level] += stats
         return result
 
@@ -516,12 +530,6 @@ def analyze_reuse_and_add_reservations_to_mapping(
         cur_mapping = job.mapping._get_single_tensor_mapping(
             tensor, job.flattened_arch, index_expressions
         )
-        # print(f'Cur mapping: {cur_mapping.compact_str()}')
-        # print(f'Cur mapping:')
-        # for n in cur_mapping.nodes:
-        #     print(f'\t{n.compact_str()}')
-        # print('---')
-        # print(f'Cur mapping loops: ' + ' '.join(n.compact_str() for n in cur_mapping.nodes if isinstance(n, Loop)))
         info = AnalysisInfo(
             mapping=cur_mapping.nodes,
             workload=workload,
@@ -751,35 +759,20 @@ def analyze_temporal(
 
         accumulated_buffet_stats = result_accumulator.buffet_stats
         for buffet, stats in child_result.buffet_stats.items():
-            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
-                print(
-                    f"Temporal {node.compact_str()} tensor {buffet.tensor} memory {buffet.level}"
-                )
-                print(f"\tBEFORE Reads to parent: {stats.total_reads_to_parent}")
-                print(f"\tBEFORE Writes to parent: {stats.total_writes_to_parent}")
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
             is_fully_relevant = isinstance(relevancy, Relevant)
             accumulated_stats = accumulated_buffet_stats.setdefault(
-                buffet, BuffetStats()
+                buffet, blank_buffet_stats()
             )
             accumulated_stats += stats.repeat_temporal(
                 shape_repeats, is_fully_relevant=is_fully_relevant
             )
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
-            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
-                # print(f'Temporal {node.compact_str()} tensor {buffet.tensor}')
-                print(f"\trelevancy {relevancy}")
-                print(f"\tRepeating temporal {shape_repeats} times")
-                print(f"\tRead actions: {accumulated_stats.total_read_actions}")
-                print(f"\tReads to parent: {accumulated_stats.total_reads_to_parent}")
-                print(f"\tWrites to parent: {accumulated_stats.total_writes_to_parent}")
-
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
                 result_accumulator.temporal_steps[einsum] = 0
             result_accumulator.temporal_steps[einsum] += child_steps * shape_repeats
-            # print(f'\tLoop {node.compact_str()} {result_accumulator.temporal_steps[einsum]=}, {child_steps=}, {shape_repeats=}')
 
         result_accumulator.max(fanout=child_result.fanout)
 
@@ -838,7 +831,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         for i, (buffet, buffet_stats) in enumerate(child_stats):
             stats = buffet_stats
             accumulated_stats = accumulated_buffet_stats.setdefault(
-                buffet, BuffetStats()
+                buffet, blank_buffet_stats()
             )
             relevancy = info.tensor_to_relevancy[buffet.tensor][rank_var]
 
@@ -858,25 +851,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 and buffet.tensor in node._may_reuse
             )
 
-            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
-                print(
-                    f"Spatial {node.compact_str()} tensor {buffet.tensor} memory {buffet.level}"
-                )
-                print(f"\tBEFORE Reads to parent: {stats.total_reads_to_parent}")
-                print(f"\tBEFORE Writes to parent: {stats.total_writes_to_parent}")
-
             accumulated_stats += stats.repeat_spatial(
                 shape_repeats, reuse_parent_accesses=reuse_parent_accesses
             )
-            if str(buffet.tensor) == "T1" and buffet.level == "FreeCompute":
-                print(f"\tlast_buffet {last_buffet}")
-                print(f"\treuse_parent_accesses {reuse_parent_accesses}")
-                print(f"\trelevancy {relevancy}")
-                print(f"\tRepeating spatial {shape_repeats} times")
-                print(f"\tRead actions: {accumulated_stats.total_read_actions}")
-                print(f"\tReads to parent: {accumulated_stats.total_reads_to_parent}")
-                print(f"\tWrites to parent: {accumulated_stats.total_writes_to_parent}")
-                print(f"\treuse_parent_accesses {reuse_parent_accesses}")
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
         for einsum, child_steps in child_result.temporal_steps.items():
@@ -886,7 +863,6 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 result_accumulator.temporal_steps[einsum] = Max(
                     result_accumulator.temporal_steps[einsum], child_steps
                 )
-            # print(f'\tLoop {node.compact_str()} {result_accumulator.temporal_steps[einsum]=}, {child_steps=}')
 
         my_key = (node.component, einsum_name)
         child_result.fanout.setdefault(my_key, {})
@@ -966,19 +942,17 @@ def analyze_storage(
     propagate_child_results: bool = False,
     count_upward_movement: bool = True,
     count_downward_movement: bool = True,
-    ignore_writes: bool = False,
+    count_writes: bool = True,
 ):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
-    node = mapping[node_idx]
+    node: TensorHolder = mapping[node_idx]
 
     child_result = analyze_node(node_idx + 1, current_shape, info)
 
     for tensor in node.tensors:
         tensor = TensorName(tensor)
         buffet = Buffet(tensor, einsum_name, node.component)
-
-        # print(f'\tStorage {node.compact_str()}')
 
         # Reservations make these, and they go below the storage node, so the buffet
         # stats are already made at this point
@@ -999,18 +973,17 @@ def analyze_storage(
         # ==============================================================================
         # Calculate the total fills and reads to parent. These propagate upward.
         # ==============================================================================
+
+        def inherit_add(attr: str, default_value: Any = fills) -> Any:
+            val = getattr(child, attr) if inherit_from_child else default_value
+            setattr(stats, attr, val + getattr(stats, attr))
+
         if has_parent_tensor_holder(tensor, node_idx, info):
             # Initial fetch: If we're below the backing storage, fetch data from above
             # at the beginning.
             if not is_backing and below_backing:
-                stats.total_reads_to_parent += (
-                    child.total_reads_to_parent if inherit_from_child else fills
-                )
-                stats.max_per_parent_reads_to_parent += (
-                    child.max_per_parent_reads_to_parent
-                    if inherit_from_child
-                    else fills
-                )
+                inherit_add("total_reads_to_parent", fills)
+                inherit_add("max_per_parent_reads_to_parent", fills)
 
             # Data writeback. Do not writeback if it's a copy operation and we're below
             # the backing storage; data only flows upward.
@@ -1023,28 +996,14 @@ def analyze_storage(
                 tensor in info.workload.einsums[einsum_name].output_tensor_names
                 or not below_backing
             ):
-                stats.total_writes_to_parent += (
-                    child.total_writes_to_parent if inherit_from_child else fills
-                )
-                stats.max_per_parent_writes_to_parent += (
-                    child.max_per_parent_writes_to_parent
-                    if inherit_from_child
-                    else fills
-                )
+                inherit_add("total_writes_to_parent")
+                inherit_add("max_per_parent_writes_to_parent")
 
             # For read+write tensors, we skip the first fill because the data will be
             # initialized with a zero value.
             if tensor in info.workload.einsums[einsum_name].output_tensor_names:
-                stats.total_skipped_first_reads_to_parent += (
-                    child.total_skipped_first_reads_to_parent
-                    if inherit_from_child
-                    else fills
-                )
-                stats.min_per_parent_skipped_first_reads_to_parent += (
-                    child.min_per_parent_skipped_first_reads_to_parent
-                    if inherit_from_child
-                    else fills
-                )
+                inherit_add("total_skipped_first_reads_to_parent")
+                inherit_add("min_per_parent_skipped_first_reads_to_parent")
 
         # ==============================================================================
         # Convert to actions. These are not used used upward; they are used to get
@@ -1053,14 +1012,19 @@ def analyze_storage(
         component_object = find_component_object(
             node.component, info.job.flattened_arch
         )
-        datawidth = component_object.attributes.datawidth[tensor]
-        bits_per_read = component_object.actions["read"].arguments.bits_per_action
-        read_scale = datawidth / bits_per_read
-        if ignore_writes:
-            write_scale = 0
+        bits_per_value_scale = component_object.attributes.bits_per_value_scale[tensor]
+        bits_per_value = bits_per_value_scale * info.job.bits_per_value[tensor]
+        read_bits_per_action = component_object.actions[
+            "read"
+        ].arguments.bits_per_action
+        read_scale = bits_per_value / read_bits_per_action
+        if count_writes:
+            write_bits_per_action = component_object.actions[
+                "write"
+            ].arguments.bits_per_action
+            write_scale = bits_per_value / write_bits_per_action
         else:
-            bits_per_write = component_object.actions["write"].arguments.bits_per_action
-            write_scale = datawidth / bits_per_write
+            stats.write_scale = 0
 
         # ==========================
         # Data exchanges with parent
@@ -1124,12 +1088,13 @@ def analyze_processing_stage(node_idx, current_shape, info: AnalysisInfo):
         propagate_child_results=True,
         count_upward_movement=component_object.attributes.direction != "down",
         count_downward_movement=component_object.attributes.direction != "up",
-        ignore_writes=True,
+        count_writes=False,
     )
     for tensor in node.tensors:
         buffet = Buffet(tensor, einsum_name, node.component)
         stats = storage_result.buffet_stats[buffet]
         stats.max_occupancy = 0
+        assert stats.total_write_actions == 0
     return storage_result
 
 
@@ -1154,9 +1119,10 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     stats = BuffetStats()
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
     component_object = find_component_object(node.resource, info.job.flattened_arch)
-    datawidth = component_object.attributes.datawidth[tensor]
+    bits_per_value_scale = component_object.attributes.bits_per_value_scale[tensor]
+    bits_per_value = bits_per_value_scale * info.job.bits_per_value[tensor]
     stats.max_occupancy = (
-        compute_dense_tile_occupancy(projection, current_shape) * datawidth
+        compute_dense_tile_occupancy(projection, current_shape) * bits_per_value
     )
     child_result.buffet_stats[buffet] = stats
 

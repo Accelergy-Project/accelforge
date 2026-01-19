@@ -7,9 +7,7 @@ from fastfusion.frontend.spec import Spec
 
 
 def plot_area(
-    specs: Iterable[Spec],
-    labels: Iterable[str]=None,
-    ax: axes.Axes=None
+    specs: Iterable[Spec], labels: Iterable[str] = None, ax: axes.Axes = None
 ):
     """
     Plot area of one or more specs.
@@ -47,7 +45,7 @@ def plot_area(
             heights.append(height)
             colors.append(color)
             names.append(component)
-        
+
         heights = reversed(heights)
         colors = reversed(colors)
         names = reversed(names)

@@ -73,7 +73,13 @@ def compute_energy_from_actions(
         if component not in components:
             components[component] = spec.arch.find(component)
         component_obj = components[component]
-        energy_per_ac = component_obj.actions[action].arguments.energy
+        try:
+            energy_per_ac = component_obj.actions[action].arguments.energy
+        except KeyError as e:
+            raise KeyError(
+                f"Action {action} not found in component {component}. Action occurred "
+                f"{counts.total} times."
+            ) from None
         energy_result[(component, action)] = counts.total * energy_per_ac
 
     for component_obj in spec.arch.get_nodes_of_type(arch.Component):

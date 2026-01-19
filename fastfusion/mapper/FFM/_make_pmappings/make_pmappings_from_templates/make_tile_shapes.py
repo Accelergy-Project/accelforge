@@ -1360,10 +1360,10 @@ def _make_tile_shapes(job: "Job"):
         min_value = None
         if k in utilization_df:
             component_name, name = k.split("<SEP>")[1:]
-            if (component_name, name) in job.constraints.min_utilization_constraints:
-                min_value = job.constraints.min_utilization_constraints[
+            if (component_name, name) in job.constraints.min_usage_constraints:
+                min_value = job.constraints.min_usage_constraints[
                     (component_name, name)
-                ].min_utilization
+                ].min_usage
 
         objectives.append(
             Objective(

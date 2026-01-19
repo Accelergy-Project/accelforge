@@ -28,6 +28,7 @@ Additionally, the following fields will affect the energy and area calculations:
 - ``attributes.energy_scale``: :docstring:`fastfusion.frontend.arch.Component.attributes.energy_scale`
 - ``attributes.leak_power_scale``: :docstring:`fastfusion.frontend.arch.Component.attributes.leak_power_scale`
 - ``attributes.area_scale``: :docstring:`fastfusion.frontend.arch.Component.attributes.area_scale`
+- ``attributes.n_parallel_instances``: :docstring:`fastfusion.frontend.arch.Component.attributes.n_parallel_instances`
 - ``actions[<action name>].arguments.energy_scale``: :docstring:`fastfusion.frontend.arch.ActionArguments.energy_scale`
 
 The energy and area of a all components in the architecture can be calculated by calling

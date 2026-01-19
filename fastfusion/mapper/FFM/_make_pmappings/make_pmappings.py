@@ -15,7 +15,7 @@ from fastfusion.frontend._workload_isl._isl import (
     get_tensor_size,
     get_operation_space_size,
 )
-from fastfusion.frontend.workload import EinsumName, TensorName
+from fastfusion.frontend.workload import EinsumName, SymbolTable, TensorName
 
 from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates import (
     make_pmapping_templates,
@@ -72,9 +72,11 @@ def get_per_tensor_size(spec: Spec) -> dict[TensorName, int]:
 def get_jobs(
     spec: Spec,
     flattened_arches: list[list[arch.Leaf]],
-    metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
-    einsum_names: Optional[list[EinsumName]] = None,
-    fail_if_no_pmappings_for_einsum: bool = False,
+    metrics: Metrics,
+    einsum_names: list[EinsumName],
+    fail_if_no_pmappings_for_einsum: bool,
+    einsum2symbol_table: dict[EinsumName, SymbolTable],
+    tensor2bits_per_value: dict[TensorName, int],
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
     einsum2jobs = {}
@@ -93,6 +95,8 @@ def get_jobs(
             flattened_arch=flattened_arch,
             job_id=uuid.uuid4(),
             fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
+            symbol_table=einsum2symbol_table[einsum_name],
+            bits_per_value=tensor2bits_per_value,
         )
         for j in make_pmapping_templates(job):
             jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
@@ -208,10 +212,11 @@ def get_memories_to_track(
 
     # If the memory is big enough to hold all the tensors then we don't need to consider
     # it
+    max_bits_per_value = max(max(j.bits_per_value.values()) for j in jobs)
     for m in list(memories_track_all):
         memory, size = memory_to_size[m]
-        if size >= total_tensor_sizes * max(
-            memory.attributes.datawidth.values(), default=0
+        if size >= total_tensor_sizes * max_bits_per_value * max(
+            memory.attributes.bits_per_value_scale.values(), default=1
         ):
             memories_track_all.remove(m)
             logging.info(
@@ -248,6 +253,8 @@ def make_pmappings(
     spec: Spec,
     flattened_arches: list[list[arch.Leaf]],
     can_combine_multiple_runs: bool,
+    einsum2symbol_table: dict[EinsumName, SymbolTable],
+    tensor2bits_per_value: dict[TensorName, int],
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     fail_if_no_pmappings_for_einsum: bool | None = None,
@@ -272,6 +279,8 @@ def make_pmappings(
         metrics,
         einsum_names,
         fail_if_no_pmappings_for_einsum,
+        einsum2symbol_table,
+        tensor2bits_per_value,
     )
     _fill_jobs_with_memories_to_track(
         new_einsum2jobs, spec, flattened_arches, metrics, can_combine_multiple_runs

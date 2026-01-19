@@ -13,6 +13,7 @@ class InvertibleSet(BaseModel, Generic[T]):
     space_name: str
     child_access_name: Optional[str] = None
     element_to_child_space: Optional[dict[str, Any]] = None
+    bits_per_value: Optional[int] = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

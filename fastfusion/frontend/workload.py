@@ -3,6 +3,8 @@ All the objects used for a Workload description in FastFusion.
 """
 
 from itertools import product
+import itertools
+import logging
 import re
 from typing import Annotated, TypeAlias
 
@@ -21,7 +23,7 @@ from fastfusion.frontend.renames import (
     Rank,
     rename_list_factory,
 )
-from fastfusion.util._parse_expressions import ParseError
+from fastfusion.util._parse_expressions import ParseError, parse_expression
 from fastfusion.util._setexpressions import InvertibleSet, eval_set_expression
 from fastfusion._version import assert_version, __version__
 
@@ -115,10 +117,13 @@ class TensorAccess(ParsableModel):
     backing_storage_size_scale: float = 1.0
     """ If != 1, then the backing storage size will be scaled by this factor. """
 
+    bits_per_value: int | str | None = None
+    """ Bits per value for this tensor. """
+
     def model_post_init(self, __context__=None) -> None:
         self.projection: ImpliedProjection = _projection_factory(self.projection)
 
-    def to_formatted_string(self) -> str:
+    def _to_formatted_string(self) -> str:
         """Returns a string representation of the tensor access for Pydot nodes."""
         subscript = ",".join(self.projection.values())
         if isinstance(self.projection, ImpliedProjection):
@@ -386,7 +391,7 @@ class Einsum(ParsableModel):
             for t in self.tensor_accesses
         }
 
-    def to_formatted_string(self, compress: bool = False) -> str:
+    def _to_formatted_string(self, compress: bool = False) -> str:
         """
         Returns a string representation of this Einsum for use in a Pydot graph.
 
@@ -403,10 +408,10 @@ class Einsum(ParsableModel):
         lhs_join = ",\n" if compress else " , "
         rhs_join = " \n " if compress else "  "
         lhs = lhs_join.join(
-            [t.to_formatted_string() for t in self.tensor_accesses if t.output]
+            [t._to_formatted_string() for t in self.tensor_accesses if t.output]
         )
         rhs = rhs_join.join(
-            [t.to_formatted_string() for t in self.tensor_accesses if not t.output]
+            [t._to_formatted_string() for t in self.tensor_accesses if not t.output]
         )
         return f"{lhs}=\n{rhs}" if compress else f"{lhs} = {rhs}"
 
@@ -484,6 +489,15 @@ class Workload(ParsableModel):
     are multiplied by this value. Persistent reservations are also multiplied by this
     value, but non-persistent reservations are not, as they are assumed to be freed
     between each instance.
+    """
+
+    bits_per_value: ParsableDict[str, int | str] = ParsableDict()
+    """
+    Bits per value for each tensor. The workload-level bits_per_value is overridden if
+    bits_per_action is specified for any given tensor access. This is a dictionary of
+    set expressions to bits per value for the tensors given by those expressions. For
+    example, we may write "Inputs: 8" to set the bits per value to 8 for all input
+    tensors, unless overridden.
     """
 
     def model_post_init(self, __context__=None) -> None:
@@ -653,7 +667,7 @@ class Workload(ParsableModel):
             node = pydot.Node(
                 f"Einsum_{einsum.name}",
                 shape="box",
-                label=f"<{einsum.to_formatted_string(compress=True)}>",
+                label=f"<{einsum._to_formatted_string(compress=True)}>",
             )
             graph.add_node(node)
             for tensor_access in einsum.tensor_accesses:
@@ -663,7 +677,7 @@ class Workload(ParsableModel):
                     node = pydot.Node(
                         f"Tensor_{tensor_access.name}",
                         shape="oval",
-                        label=f"<{tensor_access.to_formatted_string()}>",
+                        label=f"<{tensor_access._to_formatted_string()}>",
                     )
                     graph.add_node(node)
 
@@ -687,31 +701,39 @@ class Workload(ParsableModel):
 
     def get_constraint_symbol_table(
         self,
-        einsum_name: EinsumName,
+        einsum_name: EinsumName | list[EinsumName],
         renames: Renames | None = None,
-    ) -> SymbolTable:
+    ) -> SymbolTable | dict[EinsumName, SymbolTable]:
         """
         Return a table that maps symbols (e.g., Nothing, All, Inputs, X) to tensors or
         rank variables.
 
         Parameters
         ----------
-        einsum_name : EinsumName
-            The name of the Einsum for which to get the constraint symbol table.
+        einsum_name : EinsumName | list[EinsumName]
+            The name of the Einsum for which to get the constraint symbol table. If a
+            list, a dictionary of all Einsum names in the list to symbol tables is
+            returned.
         renames : Renames, optional
             The renames to apply to the symbol table. If None, no renames are applied.
 
         Returns
         -------
-        SymbolTable
+        SymbolTable | dict[EinsumName, SymbolTable]
             A table that maps symbols (e.g., Nothing, All, Inputs, X) to tensors or rank
-            variables.
+            variables. If einsum_name is a list, a dictionary of all Einsum names in the
+            list to symbol tables is returned.
 
         Raises
         ------
         ParseError
-            If the renames are invalid.
+            If the renames are invalid or any parsing fails.
         """
+        if isinstance(einsum_name, list):
+            return {
+                e: self.get_constraint_symbol_table(e, renames) for e in einsum_name
+            }
+
         einsum = self.einsums[einsum_name]
         inputs = einsum.input_tensor_names
         outputs = einsum.output_tensor_names
@@ -842,7 +864,7 @@ class Workload(ParsableModel):
 
         return symbol_table
 
-    def get_ranks_that_share_indexing_rank_variables(self) -> dict[Rank, set[Rank]]:
+    def _get_ranks_that_share_indexing_rank_variables(self) -> dict[Rank, set[Rank]]:
         """
         Returns a dictionary of ranks to the ranks with which they share indexing rank
         variables. For example, if one einsum indexes into rank A with rank variable a
@@ -903,3 +925,93 @@ class Workload(ParsableModel):
                 tensor_copies.setdefault(input_tensor, set()).add(output_tensor)
                 tensor_copies.setdefault(output_tensor, set()).add(input_tensor)
         return tensor_copies
+
+    def _get_bits_per_value(
+        self,
+        einsum2symbol_table: dict[EinsumName, SymbolTable],
+    ) -> dict[TensorName, int]:
+        """
+        Returns a dictionary of tensor names to bits per value for the given Einsum.
+
+        Parameters
+        ----------
+        einsum2symbol_table : dict[EinsumName, SymbolTable]
+            A dictionary of Einsum names to symbol tables.
+
+        Returns
+        -------
+        dict[TensorName, int]
+            A dictionary of tensor names to bits per value for the given Einsum.
+        """
+        bits_per_value_per_einsum = {}
+        bits_per_value = {}
+
+        for einsum, symbol_table in einsum2symbol_table.items():
+            cur_bpv = {}
+            seen_tensors = set()
+
+            # Parse the global bits per value expressions
+            for set_expression, n_bits in self.bits_per_value.items():
+                tensors = eval_set_expression(
+                    set_expression,
+                    symbol_table,
+                    "tensors",
+                    f"workload.bits_per_value for Einsum {einsum}",
+                )
+                n_bits = parse_expression(
+                    n_bits,
+                    symbol_table,
+                    "bits_per_value",
+                    location=f"workload.bits_per_value[{set_expression}] for Einsum {einsum}",
+                )
+                if tensors & seen_tensors:
+                    raise ValueError(
+                        f"Tensors {sorted(tensors & seen_tensors)} are used in multiple "
+                        f"entries in the workload.bits_per_value dictionary. This "
+                        f"occured while parsing the bits per value for Einsum {einsum}."
+                    )
+                cur_bpv.update({t: n_bits for t in tensors})
+
+            # Override with the local bits per value expressions
+            for tensor_access in self.einsums[einsum].tensor_accesses:
+                if tensor_access.bits_per_value is not None:
+                    cur_bpv[tensor_access.name] = parse_expression(
+                        tensor_access.bits_per_value,
+                        symbol_table,
+                        "bits_per_value",
+                        str(tensor_access.bits_per_value),
+                        location=f"workload.einsums[{einsum}].tensor_accesses[{tensor_access.name}].bits_per_value",
+                    )
+                if tensor_access.name not in cur_bpv:
+                    if tensor_access.name in bits_per_value:
+                        logging.warning(
+                            f"Einsum {einsum} does not specify the bits per value "
+                            f"for tensor {tensor_access.name}, but it is already "
+                            f"specified in another Einsum. Taking the other value."
+                        )
+                    else:
+                        raise ValueError(
+                            f"Tensor {tensor_access.name} in Einsum {einsum} does "
+                            f"not have a bits per value specified. Ensure that the "
+                            f"tensor is either covered by the set expressions in the "
+                            f"workload.bits_per_value dictionary or bits_per_value is "
+                            f"specified for the tensor access."
+                        )
+
+            # Check for consistency across Einsums
+            for prev_einsum, prev_bpv in bits_per_value_per_einsum.items():
+                for t0, t1 in itertools.product(cur_bpv.keys(), prev_bpv.keys()):
+                    b0 = cur_bpv[t0]
+                    b1 = prev_bpv[t1]
+                    if b0 != b1:
+                        raise ValueError(
+                            f"Tensor {t0} has bits per value {b0} in Einsum "
+                            f"{einsum} and {b1} in Einsum {prev_einsum}. Bits per "
+                            "value must be consistent across all Einsums that access "
+                            "the same tensor."
+                        )
+
+            bits_per_value_per_einsum[einsum] = cur_bpv
+            bits_per_value.update(cur_bpv)
+
+        return bits_per_value
