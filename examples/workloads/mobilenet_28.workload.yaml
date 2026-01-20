@@ -14,6 +14,8 @@ workload:
     T1: 192
     N2: 24
 
+  bits_per_value: {All: 8}
+
   einsums:
   - name: PiecewiseA0
     tensor_accesses:
@@ -69,10 +71,10 @@ renames:
   - name: default
     tensor_accesses:
     - name: input
-      source: Inputs() & Intermediates()
+      source: Inputs & Intermediates
       expected_count: 1
     - name: output
-      source: Outputs()
+      source: Outputs
       expected_count: 1
     - name: weight
       source: ~(input | output)

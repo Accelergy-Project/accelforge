@@ -30,7 +30,7 @@ class MappingConstraints:
     def __init__(self):
         self.tile_shape_constraints: list[_TileShapeConstraintLambda] = []
         self.loop_bounds_constraints: list[_LoopBoundsConstraintLambda] = []
-        self.min_utilization_constraints: dict[
+        self.min_usage_constraints: dict[
             tuple[str, str], _MinUtilizationConstraintLambda
         ] = {}
 
@@ -38,7 +38,7 @@ class MappingConstraints:
         return (
             self.tile_shape_constraints
             + self.loop_bounds_constraints
-            + list(self.min_utilization_constraints.values())
+            + list(self.min_usage_constraints.values())
         )
 
     def check_tile_shape_constraints(
@@ -49,17 +49,17 @@ class MappingConstraints:
             mask = mask & c(complete_indices, tile_shapes[:, c._target_loop_indices])
         return mask
 
-    def check_min_utilization_constraints(
+    def check_min_usage_constraints(
         self,
         component_name: str,
         name: str,
         utilization: np.ndarray,
         complete_indices: list[int],
     ):
-        if (component_name, name) not in self.min_utilization_constraints:
+        if (component_name, name) not in self.min_usage_constraints:
             return np.ones(utilization.shape[0], dtype=np.bool)
 
-        return self.min_utilization_constraints[(component_name, name)](
+        return self.min_usage_constraints[(component_name, name)](
             complete_indices, utilization
         )
 
@@ -71,7 +71,7 @@ class MappingConstraints:
 
         # Min utilization constraints also depend on the loop ABOVE the target loop
         # because the loop above determines the number of tiles
-        for c in self.min_utilization_constraints.values():
+        for c in self.min_usage_constraints.values():
             # Rank variables must be unique between mapping nodes
             rank_variables = set(t.rank_variable for t in c.target_mapping_nodes)
             assert len(rank_variables) == len(
@@ -134,7 +134,7 @@ class MappingConstraints:
         for c in self.loop_bounds_constraints:
             s += f"\t{all_constraints.index(c)} {c.pretty_str()}\n"
         s += "Min utilization constraints:\n"
-        for c in self.min_utilization_constraints.values():
+        for c in self.min_usage_constraints.values():
             s += f"\t{all_constraints.index(c)} {c.pretty_str()}\n"
         return s
 
@@ -144,8 +144,8 @@ class MappingConstraints:
 
         self.tile_shape_constraints = [c for c in self.tile_shape_constraints if c]
         self.loop_bounds_constraints = [c for c in self.loop_bounds_constraints if c]
-        self.min_utilization_constraints = {
-            k: c for k, c in self.min_utilization_constraints.items() if c
+        self.min_usage_constraints = {
+            k: c for k, c in self.min_usage_constraints.items() if c
         }
 
 
@@ -316,17 +316,17 @@ def get_constraints(
                 for n in mapping
                 if isinstance(n, Spatial) and n.component == m.name and n.name == dim
             ]
-            if parsed.min_utilization > 0:
+            if parsed.min_usage > 0:
                 if not target_mapping_nodes:
                     continue
                 rank_variables = {t.rank_variable for t in target_mapping_nodes}
                 constraint = _MinUtilizationConstraintLambda(
                     target_mapping_nodes,
                     rank_variables,
-                    parsed.min_utilization,
+                    parsed.min_usage,
                 )
                 key = (m.name, dim)
-                constraints.min_utilization_constraints[key] = constraint
+                constraints.min_usage_constraints[key] = constraint
 
             for t in target_mapping_nodes:
                 t._may_reuse = parsed.may_reuse

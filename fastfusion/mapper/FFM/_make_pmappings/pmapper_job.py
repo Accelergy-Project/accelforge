@@ -14,6 +14,7 @@ from fastfusion.frontend._workload_isl._symbolic import Relevant, PartiallyRelev
 from fastfusion.frontend.workload import (
     EinsumName,
     RankVariable,
+    SymbolTable,
     TensorName,
     Workload,
     Rank,
@@ -83,6 +84,9 @@ class Job:
     n_evaluated_pmappings: int = 0
 
     _update_compatibility_with_tile_shapes_args: dict[str, Any] | None = None
+
+    bits_per_value: dict[TensorName, int] | None = None
+    symbol_table: SymbolTable | None = None
 
     @property
     def compatibility(self) -> Compatibility:

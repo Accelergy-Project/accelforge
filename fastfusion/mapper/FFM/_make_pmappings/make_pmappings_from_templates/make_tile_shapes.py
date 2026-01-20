@@ -1325,6 +1325,7 @@ def _make_tile_shapes(job: "Job"):
     pmapping = job.mapping
     constraints = job.constraints
     constraints.set_loop_indices(pmapping.nodes)
+    set_last_tile_shape_to_one(pmapping)
     t0 = time.time()
     (
         symbols,
@@ -1360,10 +1361,10 @@ def _make_tile_shapes(job: "Job"):
         min_value = None
         if k in utilization_df:
             component_name, name = k.split("<SEP>")[1:]
-            if (component_name, name) in job.constraints.min_utilization_constraints:
-                min_value = job.constraints.min_utilization_constraints[
+            if (component_name, name) in job.constraints.min_usage_constraints:
+                min_value = job.constraints.min_usage_constraints[
                     (component_name, name)
-                ].min_utilization
+                ].min_usage
 
         objectives.append(
             Objective(

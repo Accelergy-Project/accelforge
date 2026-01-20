@@ -4,7 +4,6 @@ arch:
     name: MainMemory
     attributes:
       _size: inf
-      _datawidth: 8
       _leak_power: 0
       _area: 0 # Don't include off-chip DRAM area
     actions:
@@ -18,7 +17,6 @@ arch:
     name: GlobalBuffer
     attributes:
       _size: 1024*1024*128*8 # 128MB
-      _datawidth: 8
       _total_latency: max(read_latency, write_latency) # Separate ports
       _leak_power: 0
       _area: 112e-6 # 112 mm^2
@@ -32,7 +30,6 @@ arch:
     spatial: [{name: Z, fanout: 4, may_reuse: Nothing}]
     attributes:
       _size: 1024*1024*4*8 # 4MB
-      _datawidth: 8
       _leak_power: 0
       _area: 50e-6 # 50 mm^2. Very rough estimate based on die photo.
     actions:
@@ -52,13 +49,13 @@ arch:
   - !Fanout
     name: ArrayFanout
     spatial:
-    - {name: reuse_input, fanout: 128, may_reuse: input, reuse: input, min_utilization: 1}
-    - {name: reuse_output, fanout: 128, may_reuse: output, reuse: output, min_utilization: 1}
+    - {name: reuse_input, fanout: 128, may_reuse: input, reuse: input, min_usage: 1}
+    - {name: reuse_output, fanout: 128, may_reuse: output, reuse: output, min_usage: 1}
 
   - !Memory
     name: Register
     attributes:
-      _size: 1
+      _size: inf
       _area: 1e-11 # 10 um^2. Very rough estimate based on die photo.
       _leak_power: 0
     actions:

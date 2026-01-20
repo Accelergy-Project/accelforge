@@ -1,3 +1,6 @@
+variables:
+  tech_node: 65e-9
+
 arch:
   # ============================================================
   # Architecture Description
@@ -8,43 +11,37 @@ arch:
     component_class: lpddr4
     attributes:
       _size: inf
-      _datawidth: 8
       width: 64
 
   - !Memory
     name: GlobalBuffer
     component_class: SmartBufferSRAM
     attributes:
-      _size: width * depth
-      _datawidth: 8
-      # 32 reads and writes per cycle, 200MHz. Note bits per action is set below.
+      _size: 1024 * 1024 # 1Mb
+      # 32 reads and writes per cycle, 200MHz. Note that the bits per read/write is the
+      # bits per action set below.
       _total_latency: (read_actions + write_actions) / 32 / 200e6
-
-      depth: 16384
       width: 64
       n_banks: 32
-      tech_node: 65e-9
     actions:
     - {name: read, arguments: {_bits_per_action: 64}}
     - {name: write, arguments: {_bits_per_action: 64}}
+    tensors: {keep: ~MainMemory, may_keep: All}
 
   - !Fanout
     name: ArrayFanout
     spatial:
-    - {name: reuse_weight, fanout: 14, may_reuse: weight, reuse: weight, min_utilization: 1 }
-    - {name: reuse_output, fanout: 12, may_reuse: output, reuse: output, min_utilization: 1 }
+    - {name: reuse_weight, fanout: 14, may_reuse: weight, reuse: weight, min_usage: 1 }
+    - {name: reuse_output, fanout: 12, may_reuse: output, reuse: output, min_usage: 1 }
 
   - !Memory # Input scratchpad
     name: InputScratchpad
     component_class: SmartBufferSRAM
     attributes:
-      _size: width * depth
-      _datawidth: 8
+      _size: 12 * 16 # 12 16b entries
       # One read, one write per cycle, 200MHz. Note bits per action is set below.
       _total_latency: max(read_actions / 200e6 + write_actions / 200e6)
-      depth: 12
       width: 16
-      tech_node: 65e-9
     tensors: {keep: input}
     actions:
     - {name: read, arguments: {_bits_per_action: 16}}
@@ -54,13 +51,10 @@ arch:
     name: WeightScratchpad
     component_class: SmartBufferSRAM
     attributes:
-      _size: width * depth
-      _datawidth: 8
+      _size: 192 * 16 # 12 16b entries
       # One read, one write per cycle, 200MHz. Note bits per action is set below.
       _total_latency: max(read_actions / 200e6 + write_actions / 200e6)
-      depth: 192
       width: 16
-      tech_node: 65e-9
     tensors: {keep: weight}
     actions:
     - {name: read, arguments: {_bits_per_action: 16}}
@@ -70,13 +64,10 @@ arch:
     name: OutputScratchpad
     component_class: SmartBufferSRAM
     attributes:
-      _size: width * depth
-      _datawidth: 16 # Outputs are accumulated in double-width accumulators
+      _size: 16 * 16 # 16 16b entries
       # One read, one write per cycle, 200MHz. Note bits per action is set below.
       _total_latency: max(read_actions / 200e6 + write_actions / 200e6)
-      depth: 16
       width: 16
-      tech_node: 65e-9
     tensors: {keep: output}
     actions:
     - {name: read, arguments: {_bits_per_action: 16}}
@@ -84,9 +75,8 @@ arch:
 
   - !Compute # MAC unit
     name: MAC
-    component_class: intmac
+    component_class: IntMAC
     attributes:
       _total_latency: compute_actions / 200e6
-      tech_node: 65e-9
       multiplier_width: 8
       adder_width: 16

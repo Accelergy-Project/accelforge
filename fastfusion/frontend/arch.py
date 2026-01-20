@@ -21,6 +21,7 @@ from hwcomponents import (
     get_models,
     get_model,
 )
+import pydot
 
 from fastfusion.util._basetypes import (
     ParsableModel,
@@ -39,6 +40,7 @@ from fastfusion.frontend.renames import RankVariable, TensorName
 from fastfusion._version import assert_version, __version__
 from pydantic import Discriminator
 from fastfusion.util._basetypes import _uninstantiable
+from fastfusion.util.parallel import _SVGJupyterRender, _pydot_graph
 
 T = TypeVar("T", bound="ArchNode")
 
@@ -212,7 +214,7 @@ class Spatial(ParsableModel):
     applies.
     """
 
-    min_utilization: int | float | str = 0.0
+    min_usage: int | float | str = 0.0
     """ The minimum utilization of spatial instances, as a value from 0 to 1. A mapping
     is invalid if less than this porportion of this dimension's fanout is utilized.
     Mappers that support it (e.g., FFM) may, if no mappings satisfy this constraint,
@@ -223,6 +225,12 @@ class Spatial(ParsableModel):
     """ A set of tensors or a set expression representing tensors that must be reused
     across spatial iterations. Spatial loops may only be placed that reuse ALL tensors
     given here.
+    """
+
+    usage_scale: ParsesTo[int | float | str] = 1
+    """
+    This factor scales the usage in this dimension. For example, if usage_scale is 2 and
+    10/20 spatial instances are used, then the usage will be scaled to 20/20.
     """
 
     def _parse(self, symbol_table: dict[str, Any], location: str):
@@ -241,11 +249,11 @@ class Spatial(ParsableModel):
                 x._parse(symbol_table, location + ".loop_bounds")
                 for x in self.loop_bounds
             ],
-            min_utilization=parse_expression(
-                self.min_utilization,
+            min_usage=parse_expression(
+                self.min_usage,
                 symbol_table,
-                "min_utilization",
-                location + ".min_utilization",
+                "min_usage",
+                location + ".min_usage",
             ),
             reuse=eval_set_expression(
                 self.reuse,
@@ -311,7 +319,9 @@ class ComponentAttributes(AttributesWithEnergyLatency):
     this action's energy. Multiplies the calculated energy of each action.
     """
 
-    total_latency: str | int | float = "sum(*action2latency.values())"
+    total_latency: str | int | float = (
+        "sum(*action2latency.values()) / n_parallel_instances"
+    )
     """
     An expression representing the total latency of this component in seconds. This is
     used to calculate the latency of a given Einsum. Special variables available are the
@@ -334,11 +344,19 @@ class ComponentAttributes(AttributesWithEnergyLatency):
     For example, the following expression calculates latency assuming that each read or
     write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.
     """
+
     latency_scale: ParsesTo[int | float] = 1
     """
     The scale factor for the latency of this component. This is used to scale the
     latency of this component. For example, if the latency is 1 ns and the scale factor
     is 2, then the latency is 2 ns. Multiplies the calculated latency of each action.
+    """
+
+    n_parallel_instances: ParsesTo[int | float] = 1
+    """
+    The number of parallel instances of this component. Increasing parallel instances
+    will proportionally increase area and leakage, while reducing latency (unless
+    latency calculation is overridden).
     """
 
 
@@ -373,8 +391,10 @@ class ActionArguments(AttributesWithEnergyLatency):
     """
 
 
-class MemoryActionArguments(ActionArguments):
-    bits_per_action: ParsesTo[int | float] = 1
+class TensorHolderActionArguments(ActionArguments):
+    bits_per_action: ParsesTo[int | float] = (
+        "1 if attributes.bits_per_action is None else attributes.bits_per_action"
+    )
     """ The number of bits accessed in this action. For example, setting bits_per_action
     to 16 means that each call to this action yields 16 bits. """
 
@@ -391,7 +411,7 @@ class Action(ParsableModel):
 
 
 class TensorHolderAction(Action):
-    arguments: MemoryActionArguments = MemoryActionArguments()
+    arguments: TensorHolderActionArguments = TensorHolderActionArguments()
     """
     The arguments for this action. Passed to the component's model to calculate the
     energy and latency of the action.
@@ -692,6 +712,9 @@ class Component(Leaf):
         if attributes.leak_power_scale != 1:
             leak_power *= attributes.leak_power_scale
             messages.append(f"Scaling leak power by {attributes.leak_power_scale=}")
+        if attributes.n_parallel_instances != 1:
+            leak_power *= attributes.n_parallel_instances
+            messages.append(f"Scaling leak power by {attributes.n_parallel_instances=}")
         self.attributes.leak_power = leak_power
         return self
 
@@ -753,6 +776,9 @@ class Component(Leaf):
         if attributes.area_scale != 1:
             area *= attributes.area_scale
             messages.append(f"Scaling area by {attributes.area_scale=}")
+        if attributes.n_parallel_instances != 1:
+            area *= attributes.n_parallel_instances
+            messages.append(f"Scaling area by {attributes.n_parallel_instances=}")
         self.attributes.area = area
         return self
 
@@ -819,6 +845,11 @@ class Component(Leaf):
             if args.latency_scale != 1:
                 latency *= args.latency_scale
                 messages.append(f"Scaling {self.name} latency by {args.latency_scale=}")
+            if attributes.n_parallel_instances != 1:
+                latency /= attributes.n_parallel_instances
+                messages.append(
+                    f"Dividing {self.name} latency by {attributes.n_parallel_instances=}"
+                )
             action.arguments.latency = latency
         return self
 
@@ -922,23 +953,32 @@ class TensorHolderAttributes(ComponentAttributes):
     underscore-prefix attribute names. See `TODO: UNDERSCORE_PREFIX_DISCUSSION`.
     """
 
-    datawidth: ParsesTo[dict | int | float] = {"All": 1}
+    bits_per_value_scale: ParsesTo[dict | int | float] = {"All": 1}
     """
-    Number of bits per value stored in this `TensorHolder`. If this is a dictionary,
-    keys in the dictionary are parsed as expressions and may reference one or more
-    `Tensor`s.
+    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
+    this is a dictionary, keys in the dictionary are parsed as expressions and may
+    reference one or more tensors.
+    """
+
+    bits_per_action: ParsesTo[int | float | None] = None
+    """
+    The number of bits accessed in each of this component's actions. Overridden by
+    bits_per_action in the action arguments. If set here, acts as a default value for
+    the bits_per_action of all actions of this component.
     """
 
     def model_post_init(self, __context__=None) -> None:
-        if not isinstance(self.datawidth, dict):
-            self.datawidth = {"All": self.datawidth}
+        if not isinstance(self.bits_per_value_scale, dict):
+            self.bits_per_value_scale = {"All": self.bits_per_value_scale}
 
     def _parse_expressions(self, *args, **kwargs):
         class MyPostCall(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
-                if field == "datawidth":
+                if field == "bits_per_value_scale":
                     parsed = _parse_tensor2bits(
-                        parsed, location="datawidth", symbol_table=symbol_table
+                        parsed,
+                        location="bits_per_value_scale",
+                        symbol_table=symbol_table,
                     )
                 return parsed
 
@@ -1306,6 +1346,14 @@ class Hierarchical(Branch):
             return nodes, fanout
         return nodes
 
+    def render(self) -> str:
+        graph = _pydot_graph()
+        graph.add_node(pydot.Node("root", shape="box", label="TODO: Arch Render"))
+        return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
+
+    def _repr_svg_(self) -> str:
+        return self.render()
+
 
 class _ConstraintLambda:
     def __init__(
@@ -1349,10 +1397,10 @@ class _MinUtilizationConstraintLambda(_ConstraintLambda):
         self,
         target_mapping_nodes: list[Spatial],
         rank_variables: set[str],
-        min_utilization: float,
+        min_usage: float,
     ):
         super().__init__(None, target_mapping_nodes, rank_variables)
-        self.min_utilization = min_utilization
+        self.min_usage = min_usage
 
     def __call__(self, complete_indices: list[int], utilizations: np.ndarray) -> bool:
         # final = self.rank_variables.issubset(rank_variables)
@@ -1361,7 +1409,7 @@ class _MinUtilizationConstraintLambda(_ConstraintLambda):
             return np.ones(utilizations.shape[0], dtype=np.bool)
 
         # Some utilizations are already above the minimum. Return those.
-        result = utilizations >= self.min_utilization
+        result = utilizations >= self.min_usage
         if np.sum(result) > 0:
             return result
 
@@ -1370,7 +1418,7 @@ class _MinUtilizationConstraintLambda(_ConstraintLambda):
         return utilizations == max_utilization
 
     def pretty_str(self) -> str:
-        return f"Min utilization {self.min_utilization} {self._constrained_node_str()}"
+        return f"Min utilization {self.min_usage} {self._constrained_node_str()}"
 
 
 class Arch(Hierarchical):

@@ -18,11 +18,10 @@ component_class: SmartBufferSRAM
 # component_class, an error will be raised.
 attributes:
   _size: width * depth
-  _datawidth: 8 # 8 bits per value
 
   # These attributes are passed to the hwcomponents_library model. In general,
   # energy/area calculation passes every attribute it can to the model, except for
-  # those that the model doesn't recognize (like `size` or `datawidth`).
+  # those that the model doesn't recognize (like `size`).
   depth: 512
   width: 32
   n_banks: 32

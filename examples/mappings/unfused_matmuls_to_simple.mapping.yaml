@@ -35,5 +35,5 @@ mapping:
           initial_tile_shape: 1
       - !Compute
         einsum: Matmul{{i}}
-        compute: MAC
+        component: MAC
     {% endfor %}

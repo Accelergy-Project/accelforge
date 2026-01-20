@@ -26,28 +26,17 @@ depends on the number of accesses to the component. They may be accessed in two 
   written from a higher-level component.
 
 The number of actions incurred by accesses for each tensor are equal to the number of
-values accessed times the datawidth of the tensor (determined by that component's
-:py:class:`~fastfusion.frontend.arch.TensorHolderAttributes`), divided by the
-:py:class:`~fastfusion.frontend.arch.ActionArguments` ``bits_per_action`` attribute. For
-example, if 1024 values are accessed with a datawidth of 16 bits and ``bits_per_action``
-is 32, then 1024 * 16 / 32 = 512 actions are incurred.
+values accessed times the bits per value of the tensor (determined by the workload),
+divided by the :py:class:`~fastfusion.frontend.arch.ActionArguments` ``bits_per_action``
+attribute. For example, if 1024 values are accessed with a bits per value of 16 bits and
+``bits_per_action`` is 32, then 1024 * 16 / 32 = 512 actions are incurred.
 
 Read+Modify+Writes (RMWs) to a component are counted as a read and a write. The first
 read of output data is skipped because the value has not been written yet.
 
-By default, the ``datawidth`` and ``bits_per_action`` attributes are set to 1.
-Generally, it works to leave these as 1. For example:
-
-- If ``bits_per_action`` is 1, then each action accesses one bit, so we can define
-  actions in terms of bits accessed
-- If ``datawidth`` is 1 and ``bits_per_action`` is 1, then each action accesses one
-  value, so we can define actions in terms of values accessed. Additionally, ``size``
-  will then be in terms of number of values that can be held, rather than number of
-  bits.
-
-The latter case is the default, and you may often see ``datawidth`` and
-``bits_per_action`` un-set, ``size`` set to the number of values in the tensor, and
-actions defined in terms of values accessed rather than bits.
+By default, the ``bits_per_action`` attributes is set to 1, meaning that memory accesses
+are counted in terms of bits accessed unless ``bits_per_action`` is set to a different
+value.
 
 
 Calculating Latency from a Pmapping

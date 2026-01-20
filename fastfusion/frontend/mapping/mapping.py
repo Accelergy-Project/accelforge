@@ -507,13 +507,16 @@ class TensorHolder(MappingNode):
     """ The component object holding the tensors. """
 
     _must_keep_tensors: ParsableList[TensorName] = ParsableList()
-    """ Which tensor(s) the Mapper must keep here. """
+    """ Which tensor(s) the Mapper must keep here. Do not set this! Used internally by
+    the Mapper."""
 
     _backing: Set[TensorName] = set()
-    """ Which tensor(s) are backed by this node. """
+    """ Which tensor(s) are backed by this node. Do not set this! Used internally by
+    the Mapper."""
 
     _lower: bool = True
-    """ Whether this tensor holder can be lowered. """
+    """ Whether this tensor holder can be lowered. Do not set this! Used internally by
+    the Mapper."""
 
     persistent: bool = False
     """

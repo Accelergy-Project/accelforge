@@ -10,6 +10,7 @@ from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, Tensor
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend._workload_isl._symbolic import (
     get_stride_and_halo_of_einsum,
+    get_rank_variable_relevancy,
 )
 from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
@@ -40,7 +41,7 @@ def evaluate_mapping(spec: Spec):
         The specification of architecture, workload, and mapping.
     """
     spec = spec.calculate_component_area_energy_latency_leak(area=False)
-    flattened_arches = spec.get_flattened_architecture()
+    flattened_arches = spec._get_flattened_architecture()
     original_job = Job(
         spec=spec,
         metrics=spec.model.metrics,
@@ -66,6 +67,12 @@ def evaluate_mapping(spec: Spec):
         _add_backing_to_tensor_holders(pmapping)
         job.mapping = pmapping
         job.einsum_name = pmapping.nodes[-1].einsum
+        job.tensor_to_relevancy = {
+            tensor: get_rank_variable_relevancy(
+                job.spec.workload.einsums[job.einsum_name], tensor
+            )
+            for tensor in job.spec.workload.einsums[job.einsum_name].tensor_names
+        }
         einsum2jobs[job.einsum_name] = job
 
         symbol_table = spec.workload.get_constraint_symbol_table(job.einsum_name)
@@ -85,12 +92,12 @@ def evaluate_mapping(spec: Spec):
         df = {f"{job.einsum_name}<SEP>{key}": value for key, value in df.items()}
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
 
-        einsum = spec.workload.einsums[pmapping.nodes[-1].einsum]
+        einsum = spec.workload.einsums[job.einsum_name]
         rank_variable_to_ranks = {
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
         compatibility = Compatibility.from_mapping(
-            pmapping, einsum.tensor_names, rank_variable_to_ranks
+            job.mapping, einsum.tensor_names, rank_variable_to_ranks
         )
 
         einsum2pmappings[job.einsum_name] = [
@@ -99,7 +106,7 @@ def evaluate_mapping(spec: Spec):
                 PmappingDataframe(pd.DataFrame(df, columns=df.keys(), index=[0]), 1, 1),
             )
         ]
-        pmapping_objects[job.einsum_name] = {pmapping_id: pmapping}
+        pmapping_objects[job.einsum_name] = {pmapping_id: job.mapping}
 
     m = MultiEinsumPmappings(
         einsum2pmappings,

@@ -52,6 +52,8 @@ class Mappings:
         ``einsum_name`` is ``None``.
         """
         # TODO: this is not correct if there are recomputations.
+        if einsum_name is None:
+            return sum(get_num_computes(self.spec, e) for e in self.einsum_names)
         return get_num_computes(self.spec, einsum_name)
 
     def per_tensor_size(self) -> dict[TensorName, int]:

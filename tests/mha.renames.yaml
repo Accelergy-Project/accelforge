@@ -3,10 +3,10 @@ renames:
   - name: default
     tensor_accesses:
     - name: input
-      source: Inputs() & Intermediates()
+      source: Inputs & Intermediates
       expected_count: 1
     - name: output
-      source: Outputs()
+      source: Outputs
       expected_count: 1
     - name: weight
       source: ~(input | output)
@@ -17,10 +17,10 @@ renames:
       source: h
       expected_count: 1
     - name: parallel_rank
-      source: (output.rank_variables() & weight.rank_variables()) - head
+      source: (output.rank_variables & weight.rank_variables) - head
       expected_count: 1
     - name: reduced_rank
-      source: input.rank_variables() & weight.rank_variables() - head - output.rank_variables() - parallel_rank
+      source: input.rank_variables & weight.rank_variables - head - output.rank_variables - parallel_rank
       expected_count: 1
 
   - name: I
@@ -28,13 +28,13 @@ renames:
     - name: weight
       source: Nothing
     - name: input
-      source: Inputs()
+      source: Inputs
     {% if FFMT | default(false) %}
     - name: Intermediates
       source: Nothing
     {% endif %}
     rank_variables:
-    - {name: head, source: Nothing().rank_variables()}
+    - {name: head, source: Nothing.rank_variables}
     - {name: reduced_rank, source: b, expected_count: 1}
     - {name: parallel_rank, source: m, expected_count: 1}
 
@@ -57,9 +57,9 @@ renames:
 
   - name: FFA
     rank_variables:
-    - {name: head, source: Nothing().rank_variables()}
+    - {name: head, source: Nothing.rank_variables}
 
   - name: FFB
     rank_variables:
-    - {name: head, source: Nothing().rank_variables()}
+    - {name: head, source: Nothing.rank_variables}
 

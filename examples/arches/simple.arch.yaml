@@ -6,7 +6,6 @@ arch:
       # _underscore_prefixed --> Strict type check. If the model doesn't recognize the
       # field, it will throw an error.
       _size: inf
-      _datawidth: 1
       _leak_power: 0
       _area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
@@ -18,7 +17,6 @@ arch:
     name: GlobalBuffer
     attributes:
       _size: inf #100e6
-      _datawidth: 1
       _leak_power: 0
       _area: 0
     tensors: {keep: All}

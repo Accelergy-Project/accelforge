@@ -70,8 +70,8 @@ arch:
     constraints:
       tensors: {keep: Nothing}
       spatial:
-      - {name: X, reuse: output, min_utilization: 1 if len(All) > 2 else 0}
-      - {name: CGA, reuse: output, min_utilization: 1 if len(All) > 2 else 0}
+      - {name: X, reuse: output, min_usage: 1 if len(All) > 2 else 0}
+      - {name: CGA, reuse: output, min_usage: 1 if len(All) > 2 else 0}
 
   - !Memory
     name: SharedMemory
@@ -112,10 +112,10 @@ arch:
     constraints:
       tensors: {keep: Nothing}
       spatial:
-      - {name: reuse_nothing, reuse: output, min_utilization: 1}
-      - {name: reuse_input, reuse: input, min_utilization: 1}
-      - {name: reuse_output, reuse: output, min_utilization: 1}
-      - {name: reuse_weight, reuse: weight, min_utilization: 1}
+      - {name: reuse_nothing, reuse: output, min_usage: 1}
+      - {name: reuse_input, reuse: input, min_usage: 1}
+      - {name: reuse_output, reuse: output, min_usage: 1}
+      - {name: reuse_weight, reuse: weight, min_usage: 1}
 
   - !Compute
     name: MAC

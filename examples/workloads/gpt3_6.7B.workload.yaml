@@ -29,6 +29,8 @@ workload:
     J: 4096
     G: 4096
 
+  bits_per_value: {All: 8}
+
   einsums:
   - name: I
     # Copy operation means that we move the input tensor from one place to another
@@ -42,14 +44,14 @@ workload:
     # operations:
     #   map: {operation} if output = f(inputs), None if output = inputs
     #   reduce: {operation} if output = reduce(partial_outputA, partial_outputB, ...), None if not supported
-    #   populate: {operation} if initial_output = populate(), None if initial_output = first-generated partial output
+    #   populate: {operation} if initial_output = populate, None if initial_output = first-generated partial output
 
     # operations:
-    #   map: pass    # Alternatives: "mul", "relu", etc.
-    #   reduce: pass # Alternatives: "max", etc. Note: Pass means "give me whatever is the last value (mapping dependent)"
+    #   map: None    # Alternatives: "mul", "relu", etc.
+    #   reduce: None # Alternatives: "max", etc. Note: None means "give me whatever is the last value (mapping dependent)"
     #   # reduce: None  with strict checking: if there is a reduce, an error is thrown.
-    #   populate: pass
-    renames: {weight: Nothing(), input: Inputs(), output: Outputs()}
+    #   populate: None
+    renames: {weight: Nothing, input: Inputs, output: Outputs}
 
   - name: V
     tensor_accesses:
@@ -80,7 +82,7 @@ workload:
     tensor_accesses:
     - {name: QK, projection: [b, m, p, h]}
     - {name: QK_softmax, projection: [b, m, p, h], output: True}
-    renames: {weight: Nothing()}
+    renames: {weight: Nothing}
 
   - name: AV
     tensor_accesses:
@@ -112,10 +114,10 @@ renames:
   - name: default
     tensor_accesses:
     - name: input
-      source: Inputs() & Intermediates()
+      source: Inputs & Intermediates
       expected_count: 1
     - name: output
-      source: Outputs()
+      source: Outputs
       expected_count: 1
     - name: weight
       source: ~(input | output)

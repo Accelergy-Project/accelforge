@@ -36,7 +36,9 @@ def run_model(
         if isinstance(node, arch.TensorHolder):
             if isinstance(node, arch.Memory):
                 memory_to_size[node.name] = node.attributes.size
-        component_to_max_fanout[node.name] = {s.name: s.fanout for s in node.spatial}
+        component_to_max_fanout[node.name] = {
+            s.name: s.fanout / s.usage_scale for s in node.spatial
+        }
 
     df = {}
 
@@ -110,7 +112,7 @@ def run_model(
             df[f"action<SEP>{component}<SEP>{action_name}"] = count.total
 
     if metrics & Metrics.LATENCY:
-        df[f"Total<SEP>latency"] = overall_latency * n_instances
+        df["Total<SEP>latency"] = overall_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
@@ -123,7 +125,7 @@ def run_model(
             df[f"latency<SEP>{component}"] = cur_latency * n_instances
 
     if metrics & Metrics.ENERGY:
-        df[f"Total<SEP>energy"] = sum(energy.values()) * n_instances
+        df["Total<SEP>energy"] = sum(energy.values()) * n_instances
         for (component, action), energy in energy.items():
             df[f"energy<SEP>{component}<SEP>{action}"] = energy * n_instances
 
