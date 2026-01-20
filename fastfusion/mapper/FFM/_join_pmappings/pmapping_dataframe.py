@@ -426,7 +426,7 @@ class PmappingDataframe:
                 tb = compatibility_right.get_tensor_by_name(s)
                 for la, lb in zip(ta.loops, tb.loops):
                     check_match(la, lb, "initial_tile_shape")
-                    check_match(la, lb, "stride")
+                    check_match(la, lb, "tile_shape")
 
             for la, lb in zip(compatibility_left.loops, compatibility_right.loops):
                 check_match(la, lb, "calculated_n_iterations")
@@ -908,7 +908,7 @@ def row2pmappings(
                 tp: TilePattern = node.tile_pattern
                 node.tile_pattern = tp.update(
                     initial_tile_shape=acc(tp.initial_tile_shape),
-                    stride=acc(tp.tile_shape),
+                    tile_shape=acc(tp.tile_shape),
                 )
         pmappings.append(pmapping)
         pmapping._beautify_loops(rank_variable_bounds)

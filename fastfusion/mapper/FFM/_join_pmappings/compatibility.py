@@ -40,13 +40,6 @@ class Updatable:
         return replace(self, **kwargs)
 
 
-# class TilePattern(NamedTuple):
-#     stride: int
-#     initial: int
-#     def __str__(self) -> str:
-#         return f'<{self.tile_shape}, {self.initial}>'
-
-
 def _update_rename_dict(
     renames: dict[str, str],
     new_renames: dict[str, str],
@@ -110,7 +103,7 @@ class Loop(Updatable):
 
     def populate(self, nloop: int) -> "Loop":
         tile_pattern = TilePattern(
-            stride=stride2col(self.rank_name, nloop),
+            tile_shape=stride2col(self.rank_name, nloop),
             initial_tile_shape=initial2col(self.rank_name, nloop),
             calculated_n_iterations=iterations2col(nloop),
         )

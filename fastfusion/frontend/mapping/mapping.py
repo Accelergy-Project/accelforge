@@ -195,8 +195,8 @@ class TilePattern:
         Literal["symbol"] | sympy.Symbol | int | str | None | sympy.Expr
     ] = "symbol"
     """
-    The stride of the pattern. This is the number of indices by which the tile moves
-    each iteration.
+    The common tile shape of the pattern. This is the number of indices by which
+    the tile moves each iteration.
     """
 
     initial_tile_shape: ParsesTo[
@@ -215,7 +215,7 @@ class TilePattern:
 
     def _symbol_attrs(self) -> tuple[str, ...]:
         """The attributes that may be symbols."""
-        return ("stride", "initial_tile_shape", "calculated_n_iterations")
+        return ("tile_shape", "initial_tile_shape", "calculated_n_iterations")
 
     def __str__(self) -> str:
         return self.as_str()
@@ -232,7 +232,7 @@ class TilePattern:
 
     def update(self, **kwargs) -> "TilePattern":
         """Update the TilePattern with the given keyword arguments."""
-        return type(self)(**{**self.model_dump(), **kwargs})
+        return type(self)(**{**self.__dict__, **kwargs})
 
     def _symbol2str(self) -> "TilePattern":
         """
@@ -450,10 +450,10 @@ class Temporal(Loop):
 
     def _render_node_label(self, **kwargs) -> str:
         with_initial_tile_shape = True
-        with_stride = kwargs.get("with_stride", True)
+        with_tile_shape = kwargs.get("with_tile_shape", True)
         return (
             f"for {self.rank_variable} "
-            f"{self.tile_pattern.as_str(with_initial_tile_shape, with_stride)}"
+            f"{self.tile_pattern.as_str(with_initial_tile_shape, with_tile_shape)}"
         )
 
 
@@ -507,10 +507,10 @@ class Spatial(Loop):
 
     def _render_node_label(self, **kwargs) -> str:
         with_initial_tile_shape = kwargs.get("with_initial_tile_shape", True)
-        with_stride = kwargs.get("with_stride", True)
+        with_tile_shape = kwargs.get("with_tile_shape", True)
         return (
             f"S-{self.name}-for {self.rank_variable} "
-            f"{self.tile_pattern.as_str(with_initial_tile_shape, with_stride)}"
+            f"{self.tile_pattern.as_str(with_initial_tile_shape, with_tile_shape)}"
         )
 
 
@@ -1162,7 +1162,7 @@ class Nested(MappingNodeWithChildren):
                 continue
             node.tile_pattern = node.tile_pattern.update(
                 initial_tile_shape=safe_int_cast(node.tile_pattern.initial_tile_shape),
-                stride=safe_int_cast(node.tile_pattern.tile_shape),
+                tile_shape=safe_int_cast(node.tile_pattern.tile_shape),
             )
 
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
@@ -1582,7 +1582,7 @@ class Mapping(Nested):
     def _repr_svg_(self) -> str:
         return self.render()
 
-    def render_pydot(self, with_reservations=True, with_stride=True) -> pydot.Dot:
+    def render_pydot(self, with_reservations=True, with_tile_shape=True) -> pydot.Dot:
         """Renders the mapping as a Pydot graph. Returns an SVG string."""
         graph = _pydot_graph()
         # Enable HTML-like labels for color support
@@ -1592,7 +1592,7 @@ class Mapping(Nested):
         else:
             exclude_types = tuple()
         for node in self._render_make_children(exclude_types=exclude_types,
-                                               with_stride=with_stride):
+                                               with_tile_shape=with_tile_shape):
             graph.add_node(node)
 
         color_keys = set()
