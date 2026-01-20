@@ -908,7 +908,7 @@ def row2pmappings(
                 tp: TilePattern = node.tile_pattern
                 node.tile_pattern = tp.update(
                     initial_tile_shape=acc(tp.initial_tile_shape),
-                    stride=acc(tp.stride),
+                    stride=acc(tp.tile_shape),
                 )
         pmappings.append(pmapping)
         pmapping._beautify_loops(rank_variable_bounds)

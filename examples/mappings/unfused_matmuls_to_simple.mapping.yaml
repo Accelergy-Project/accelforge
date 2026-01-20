@@ -12,9 +12,7 @@ mapping:
   {% endfor %}
   - !Temporal
     rank_variable: m
-    tile_pattern:
-      stride: 1
-      initial_tile_shape: 1
+    tile_shape: 1
   - !Sequential
     nodes:
     {% for i in range(N_EINSUMS) %}
@@ -25,14 +23,10 @@ mapping:
         component: GlobalBuffer
       - !Temporal
         rank_variable: n{{i}}
-        tile_pattern:
-          stride: 1
-          initial_tile_shape: 1
+        tile_shape: 1
       - !Temporal
         rank_variable: n{{i+1}}
-        tile_pattern:
-          stride: 1
-          initial_tile_shape: 1
+        tile_shape: 1
       - !Compute
         einsum: Matmul{{i}}
         component: MAC

@@ -1,0 +1,106 @@
+workload:
+  version: "0.5"
+  shape:
+    {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
+    b: 0 <= b < {{BATCH_SIZE}}
+    pp0: 0 <= pp0 < 116
+    qp0: 0 <= qp0 < 116
+    cp0: 0 <= cp0 < 16
+    mp0: 0 <= mp0 < 16
+    pd0: 0 <= pd0 < 116
+    qd0: 0 <= qd0 < 116
+    cd0: 0 <= cd0 < 16
+    rd0: 0 <= rd0 < 3
+    sd0: 0 <= sd0 < 3
+
+    pp1: 0 <= pp1 < 56
+    qp1: 0 <= qp1 < 56
+    cp1: 0 <= cp1 < 24
+    mp1: 0 <= mp1 < 72
+    pd1: 0 <= pd1 < 56
+    qd1: 0 <= qd1 < 56
+    cd1: 0 <= cd1 < 72
+    rd1: 0 <= rd1 < 5
+    sd1: 0 <= sd1 < 5
+
+    pp2: 0 <= pp2 < 28
+    qp2: 0 <= qp2 < 28
+    cp2: 0 <= cp2 < 40
+    mp2: 0 <= mp2 < 120
+    pd2: 0 <= pd2 < 28
+    qd2: 0 <= qd2 < 28
+    cd2: 0 <= cd2 < 120
+    rd2: 0 <= rd2 < 3
+    sd2: 0 <= sd2 < 3
+
+  einsums:
+  - name: P0
+    tensor_accesses:
+    - {name: IP0, projection: [pp0, qp0, cp0, b]}
+    - {name: WP0, projection: [cp0, mp0]}
+    - {name: OP0, projection: [pp0, qp0, mp0, b], output: True}
+    renames: {input: IP0, output: OP0, weight: WP0}
+
+  - name: D0
+    tensor_accesses:
+    - name: ID0
+      projection:
+        PD0: pd0 + rd0
+        QD0: qd0 + sd0
+        CD0: cd0
+        B: b
+    - {name: WD0, projection: [rd0, sd0, cd0]}
+    - {name: OD0, projection: [pd0, qd0, cd0, b], output: True}
+    renames: {input: ID0, output: OD0, weight: WD0}
+
+  - name: P1
+    tensor_accesses:
+    - {name: IP1, projection: [pp1, qp1, cp1, b]}
+    - {name: WP1, projection: [cp1, mp1]}
+    - {name: OP1, projection: [pp1, qp1, mp1, b], output: True}
+    renames: {input: IP1, output: OP1, weight: WP1}
+
+  - name: D1
+    tensor_accesses:
+    - name: ID1
+      projection:
+        PD1: pd1 + rd1
+        QD1: qd1 + sd1
+        CD1: cd1
+        B: b
+    - {name: WD1, projection: [rd1, sd1, cd1]}
+    - {name: OD1, projection: [pd1, qd1, cd1, b], output: True}
+    renames: {input: ID1, output: OD1, weight: WD1}
+
+  - name: P2
+    tensor_accesses:
+    - {name: IP2, projection: [pp2, qp2, cp2, b]}
+    - {name: WP2, projection: [cp2, mp2]}
+    - {name: OP2, projection: [pp2, qp2, mp2, b], output: True}
+    renames: {input: IP2, output: OP2, weight: WP2}
+
+  - name: D2
+    tensor_accesses:
+    - name: ID2
+      projection:
+        PD2: pd2 + rd2
+        QD2: qd2 + sd2
+        CD2: cd2
+        B: b
+    - {name: WD2, projection: [rd2, sd2, cd2]}
+    - {name: OD2, projection: [pd2, qd2, cd2, b], output: True}
+    renames: {input: ID2, output: OD2, weight: WD2}
+
+renames:
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs() & Intermediates()
+      expected_count: 1
+    - name: output
+      source: Outputs()
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1

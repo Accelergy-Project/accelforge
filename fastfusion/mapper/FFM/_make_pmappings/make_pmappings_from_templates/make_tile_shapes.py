@@ -1288,8 +1288,8 @@ def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
         if isinstance(node, Loop) and node._fused:
             if isinstance(node.initial_tile_shape, Symbol):
                 keep_symbols.add(node.initial_tile_shape)
-            if isinstance(node.stride, Symbol):
-                keep_symbols.add(node.stride)
+            if isinstance(node.tile_shape, Symbol):
+                keep_symbols.add(node.tile_shape)
     return keep_symbols
 
 
@@ -1298,7 +1298,7 @@ def get_rank_var_to_fused_loops(
 ) -> dict[str, list[Symbol]]:
     rank_var_to_fused_loops: dict[str, list[Symbol]] = {}
     for node in [n for n in pmapping.nodes if isinstance(n, Loop) and n._fused]:
-        rank_var_to_fused_loops.setdefault(node.rank_variable, []).append(node.stride)
+        rank_var_to_fused_loops.setdefault(node.rank_variable, []).append(node.tile_shape)
     return rank_var_to_fused_loops
 
 
@@ -1312,7 +1312,7 @@ def set_last_tile_shape_to_one(pmapping):
 
     for last_node in rank_var_to_last_node.values():
         last_node.initial_tile_shape = None
-        last_node.stride = 1
+        last_node.tile_shape = 1
 
 
 # This was made only so we could do some counting of the time.
@@ -1392,8 +1392,8 @@ def _make_tile_shapes(job: "Job"):
     rank2symbols = {}
     for node in pmapping.nodes:
         if isinstance(node, (Temporal, Spatial)):
-            if node.stride in symbols:
-                rank2symbols.setdefault(node.rank_variable, []).append(node.stride)
+            if node.tile_shape in symbols:
+                rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
 
     max_loop_check_groups = [
         (job.spec.mapper.ffm.max_fused_loops, all_fused_loops),
@@ -1451,7 +1451,7 @@ def _make_tile_shapes(job: "Job"):
     for nloops, n in enumerate(
         node for node in job.mapping.nodes if isinstance(node, Loop) and node._fused
     ):
-        stride = n.tile_pattern.stride
+        stride = n.tile_pattern.tile_shape
         initial = (
             n.tile_pattern.initial_tile_shape
             if n.tile_pattern.initial_tile_shape is not None

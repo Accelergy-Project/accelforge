@@ -557,7 +557,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                             _ := current_node.tile_pattern.initial_tile_shape, int
                         )
                         and (_ != 0)
-                        and (_ == current_node.tile_pattern.stride)
+                        and (_ == current_node.tile_pattern.tile_shape)
                     ):
                         tiling: Tiling = add_new_tile_dim(
                             tiling,

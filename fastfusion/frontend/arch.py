@@ -40,7 +40,8 @@ from fastfusion.frontend.renames import RankVariable, TensorName
 from fastfusion._version import assert_version, __version__
 from pydantic import Discriminator
 from fastfusion.util._basetypes import _uninstantiable
-from fastfusion.util.parallel import _SVGJupyterRender, _pydot_graph
+from fastfusion.util.parallel import _SVGJupyterRender
+from fastfusion.util._visualization import _pydot_graph
 
 T = TypeVar("T", bound="ArchNode")
 

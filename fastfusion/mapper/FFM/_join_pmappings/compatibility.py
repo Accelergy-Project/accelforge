@@ -44,7 +44,7 @@ class Updatable:
 #     stride: int
 #     initial: int
 #     def __str__(self) -> str:
-#         return f'<{self.stride}, {self.initial}>'
+#         return f'<{self.tile_shape}, {self.initial}>'
 
 
 def _update_rename_dict(
@@ -75,7 +75,7 @@ class Loop(Updatable):
             Number | str | None,
         )
         assert isinstance(
-            self.tile_pattern.stride,
+            self.tile_pattern.tile_shape,
             Number | str | None,
         )
 
@@ -587,7 +587,7 @@ class Compatibility(Updatable):
         for t in self.tensors:
             for l in t.loops:
                 add(l.tile_pattern.initial_tile_shape)
-                add(l.tile_pattern.stride)
+                add(l.tile_pattern.tile_shape)
                 add(l.tile_pattern.calculated_n_iterations)
         return symbols
 

@@ -89,7 +89,7 @@ def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
         if loop.tile_shape is not None:
             cols.append(loop.tile_shape)
         elif loop.tile_pattern is not None:
-            cols.append(loop.tile_pattern.stride)
+            cols.append(loop.tile_pattern.tile_shape)
             cols.append(loop.tile_pattern.initial_tile_shape)
         else:
             raise ValueError(f"Can't find tile shape or tile pattern for loop {loop}")

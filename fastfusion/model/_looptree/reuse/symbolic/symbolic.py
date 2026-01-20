@@ -1190,7 +1190,7 @@ def get_stride_and_tile_shape(node: Loop, full_shape, n: int, info: AnalysisInfo
     rank = node.rank_variable
     rank_shape = full_shape[rank]
 
-    stride = node.stride
+    stride = node.tile_shape
     initial_tile_shape = node.initial_tile_shape
 
     # PERFECT:
@@ -1247,7 +1247,7 @@ def get_stride_and_tile_shape(node: Loop, full_shape, n: int, info: AnalysisInfo
     #         return make_possibly_different_last(tile_shape, factor, rank_shape)
 
     # elif node.tile_pattern is not None:
-    #     stride = node.tile_pattern.stride
+    #     stride = node.tile_pattern.tile_shape
     #     initial_tile_shape = node.tile_pattern.initial_tile_shape
     #     tile_shape = node.tile_pattern.tile_shape
 
@@ -1324,11 +1324,11 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
 
         # TODO: Check for 0 < shape < 1 for loop bound target
         if job.rank_variable_bounds[node.rank_variable] == 1:
-            node.stride = 1
-        elif node.stride == SYMBOL:
+            node.tile_shape = 1
+        elif node.tile_shape == SYMBOL:
             stride = sympy.symbols(f"stride{loop_idx}", positive=True, integer=True)
             symbols.append(stride)
-            node.stride = stride
+            node.tile_shape = stride
 
         # TODO: sometimes, a mapping is passed into the model twice.
         #       E.g., after calling mapper, the model is called again for more

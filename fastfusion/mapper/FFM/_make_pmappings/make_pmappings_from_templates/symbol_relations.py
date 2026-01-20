@@ -14,7 +14,7 @@ from fastfusion.frontend.mapping import (
 class SymbolRelations:
     def __init__(self):
         self.what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]] = []
-        self.stride_and_initial: list[tuple[Symbol | int, Symbol | int]] = []
+        self.tile_shape_and_initial: list[tuple[Symbol | int, Symbol | int]] = []
         self.delta_choices: list[tuple[Symbol, frozenset[int]]] = []
         self.bounds: tuple[tuple[Symbol, int, int], ...] = ()
 
@@ -26,8 +26,8 @@ class SymbolRelations:
 
     def is_stride(self, symbol: Symbol) -> bool:
         """Check if `symbol` is a stride."""
-        for stride, initial in self.stride_and_initial:
-            if stride == symbol:
+        for tile_shape, initial in self.tile_shape_and_initial:
+            if tile_shape == symbol:
                 return True
             if initial == symbol:
                 return False
@@ -35,26 +35,26 @@ class SymbolRelations:
 
     def is_initial_tile_shape(self, symbol: Symbol) -> bool:
         """Check if `symbol` is a initial tile shape."""
-        for stride, initial in self.stride_and_initial:
-            if stride == symbol:
+        for tile_shape, initial in self.tile_shape_and_initial:
+            if tile_shape == symbol:
                 return False
             if initial == symbol:
                 return True
         return False
 
-    def get_stride(self, symbol: Symbol) -> Symbol | int:
+    def get_tile_shape(self, symbol: Symbol) -> Symbol | int:
         """Get the stride corresponding to the initial tile shape `symbol`."""
-        for stride, initial in self.stride_and_initial:
+        for tile_shape, initial in self.tile_shape_and_initial:
             if initial == symbol:
-                return stride
+                return tile_shape 
         raise ValueError(f"Symbol {symbol} not found as initial in {self}")
 
     def get_initial(self, symbol: Symbol, none_if_fail: bool = False) -> Symbol | int:
-        for stride, initial in self.stride_and_initial:
-            if stride == symbol:
+        for tile_shape, initial in self.tile_shape_and_initial:
+            if tile_shape == symbol:
                 return initial
         if not none_if_fail:
-            raise ValueError(f"Symbol {symbol} not found as stride in {self}")
+            raise ValueError(f"Symbol {symbol} not found as tile_shape in {self}")
         else:
             return None
 
@@ -109,15 +109,15 @@ class SymbolRelations:
             # If we're a symbol and we've seen an outer loop with the same rank variable,
             # then we tile that one.
             if prev is not None:
-                relation.what_tiles_symbol.append((prev, node.stride))
-            last_seen_loop_per_rank_var[node.rank_variable] = node.stride
+                relation.what_tiles_symbol.append((prev, node.tile_shape))
+            last_seen_loop_per_rank_var[node.rank_variable] = node.tile_shape
 
             if (
                 isinstance(node.initial_tile_shape, Symbol)
-                and node.initial_tile_shape != node.stride
+                and node.initial_tile_shape != node.tile_shape
             ):
-                relation.stride_and_initial.append(
-                    (node.stride, node.initial_tile_shape)
+                relation.tile_shape_and_initial.append(
+                    (node.tile_shape, node.initial_tile_shape)
                 )
                 relation.delta_choices.append(
                     (

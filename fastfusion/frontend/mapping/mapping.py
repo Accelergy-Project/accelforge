@@ -4,6 +4,7 @@ in FastFusion.
 """
 
 import copy
+from dataclasses import dataclass
 import inspect
 import itertools
 import pydot
@@ -27,7 +28,7 @@ from typing import (
     override,
 )
 from collections.abc import Set
-from pydantic import ConfigDict, Discriminator, Tag
+from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
 from fastfusion.util._basetypes import (
@@ -188,8 +189,9 @@ class MappingNode(ParsableModel):
         return self.__str__()
 
 
-class TilePattern(ParsableModel):
-    stride: ParsesTo[
+@dataclass(frozen=True)
+class TilePattern:
+    tile_shape: ParsesTo[
         Literal["symbol"] | sympy.Symbol | int | str | None | sympy.Expr
     ] = "symbol"
     """
@@ -211,11 +213,6 @@ class TilePattern(ParsableModel):
     """ The number of iterations in the pattern. Do not set this! Used internally by the
     mapper. """
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        frozen=True,
-    )
-
     def _symbol_attrs(self) -> tuple[str, ...]:
         """The attributes that may be symbols."""
         return ("stride", "initial_tile_shape", "calculated_n_iterations")
@@ -223,14 +220,14 @@ class TilePattern(ParsableModel):
     def __str__(self) -> str:
         return self.as_str()
 
-    def as_str(self, with_initial_tile_shape=True, with_stride=True):
+    def as_str(self, with_initial_tile_shape=True, with_tile_shape=True):
         s = []
         if self.calculated_n_iterations not in (None, "symbol"):
             s.append(f"in [0..{self.calculated_n_iterations})")
         if with_initial_tile_shape and (self.initial_tile_shape not in (None, "symbol")):
             s.append(f"initial={self.initial_tile_shape}")
-        if with_stride and (self.stride not in (None, "symbol")):
-            s.append(f"stride={self.stride}")
+        if with_tile_shape and (self.tile_shape not in (None, "symbol")):
+            s.append(f"tile_shape={self.tile_shape}")
         return " ".join(s)
 
     def update(self, **kwargs) -> "TilePattern":
@@ -266,7 +263,7 @@ class TilePattern(ParsableModel):
         return all(getattr(self, x) == getattr(other, x) for x in self._symbol_attrs())
 
     def __hash__(self) -> int:
-        return hash((self.initial_tile_shape, self.stride))
+        return hash((self.initial_tile_shape, self.tile_shape))
 
     def _rename_to_match(
         self, other: "TilePattern"
@@ -321,8 +318,42 @@ class Loop(MappingNode):
     single rank variable, or a set of rank variables if the loop is shared between
     multiple Einsums. """
 
-    tile_pattern: ParsesTo[TilePattern] = TilePattern()
-    """ The tile pattern, which describes the shape of the tile at each iteration. """
+    tile_shape: ParsesTo[sympy.Symbol | sympy.Expr | int | str] = "symbol"
+    """
+    The (common) tile shape of the iteration. For example, if the iteration
+    space is range(6) and the tile shape is 3, then we create and iterate over
+    two tiles [0, 1, 2] and [3, 4, 5].
+
+    This attribute specifies the *common* tile shape because
+    `initial_tile_shape` may be specified.
+
+    For users writing YAML, the value should be an integer.
+
+    For those developing the mapper, the literal string "symbol" is often used
+    to tell the model to create a sympy symbol to use as the tile shape. Any
+    other string may be specified to explicitly request a variable name (later
+    converted to a sympy variable).
+    """
+
+    initial_tile_shape: ParsesTo[sympy.Symbol | sympy.Expr | int | str | None] = None
+    """
+    The shape of the first tile shape. This attribute is optional. If not
+    specified, all tiles have the same shape.
+
+    If specified, the initial tile shape may differ. For example, an initial
+    tile shape of 3 and tile shape of 2 creates the following tiles in the
+    iteration space: [0, 1, 2], [3, 4], [5, 6], ...
+
+    Similarly to tile shape, this value should be an integer when writing a
+    YAML input.
+
+    For those developing the mapper, this attribute can be a string. See
+    tile_shape for details.
+    """
+
+    _calculated_n_iterations: (
+        Literal["symbol"] | sympy.Symbol | sympy.Expr | int | str | None
+    ) = None
 
     _assume_perfect_factor: bool = True
     """ Whether the Mapper assumes that tile shapes perfectly divide tensor shapes and
@@ -379,38 +410,27 @@ class Loop(MappingNode):
         )
 
     @property
-    def initial_tile_shape(self) -> int | sympy.Symbol:
-        """The initial tile shape of this Loop's tile pattern. This is the shape
-        of the tile at the first iteration. Subsequent iterations may be smaller if they
-        overlap previous iterations."""
-        return self.tile_pattern.initial_tile_shape
+    def tile_pattern(self) -> TilePattern:
+        return TilePattern(
+            tile_shape=self.tile_shape,
+            initial_tile_shape=self.initial_tile_shape
+        )
 
-    @property
-    def stride(self) -> int | sympy.Symbol:
-        """The stride of this Loop's tile pattern. This is the number of indices
-        by which the tile moves each iteration."""
-        return self.tile_pattern.stride
+    @tile_pattern.setter
+    def tile_pattern(self, value: TilePattern):
+        self.tile_shape = value.tile_shape
+        self.initial_tile_shape = value.initial_tile_shape
 
     @property
     def calculated_n_iterations(self) -> int:
         """The number of iterations performed by this loop."""
-        return self.tile_pattern.calculated_n_iterations
-
-    @initial_tile_shape.setter
-    def initial_tile_shape(self, value: int | sympy.Symbol) -> None:
-        """Set the initial tile shape of this Loop's tile pattern."""
-        self.tile_pattern = self.tile_pattern.update(initial_tile_shape=value)
-
-    @stride.setter
-    def stride(self, value: int | sympy.Symbol) -> None:
-        """Set the stride of this Loop's tile pattern."""
-        self.tile_pattern = self.tile_pattern.update(stride=value)
+        return self._calculated_n_iterations
 
     @calculated_n_iterations.setter
     def calculated_n_iterations(self, value: int) -> None:
         """Set the number of iterations performed by this loop. Do not set this!
         This is calculated by the Mapper."""
-        self.tile_pattern = self.tile_pattern.update(calculated_n_iterations=value)
+        self._calculated_n_iterations = value
 
 
 class Temporal(Loop):
@@ -1112,21 +1132,21 @@ class Nested(MappingNodeWithChildren):
                 node2 = self.nodes[j]
                 if not isinstance(node2, Loop):
                     continue
-                if node2.stride is None:
+                if node2.tile_shape is None:
                     continue
                 if node2.rank_variable != node.rank_variable:
                     continue
-                prev_tile_shape = node2.stride
+                prev_tile_shape = node2.tile_shape
                 break
             if prev_tile_shape is None:
                 prev_tile_shape = rank_variable_bounds.get(node.rank_variable, None)
             if prev_tile_shape is not None:
-                if node.stride == prev_tile_shape:
+                if node.tile_shape == prev_tile_shape:
                     to_remove.append(i)
                     continue
-                elif node.stride is not None and prev_tile_shape is not None:
+                elif node.tile_shape is not None and prev_tile_shape is not None:
                     node.tile_pattern = node.tile_pattern.update(
-                        calculated_n_iterations=prev_tile_shape / node.stride,
+                        calculated_n_iterations=prev_tile_shape / node.tile_shape,
                     )
 
         def safe_int_cast(x: int | float | None) -> int | float | None:
@@ -1142,7 +1162,7 @@ class Nested(MappingNodeWithChildren):
                 continue
             node.tile_pattern = node.tile_pattern.update(
                 initial_tile_shape=safe_int_cast(node.tile_pattern.initial_tile_shape),
-                stride=safe_int_cast(node.tile_pattern.stride),
+                stride=safe_int_cast(node.tile_pattern.tile_shape),
             )
 
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
