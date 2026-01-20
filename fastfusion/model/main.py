@@ -41,7 +41,7 @@ def evaluate_mapping(spec: Spec):
         The specification of architecture, workload, and mapping.
     """
     spec = spec.calculate_component_area_energy_latency_leak(area=False)
-    flattened_arches = spec.get_flattened_architecture()
+    flattened_arches = spec._get_flattened_architecture()
     original_job = Job(
         spec=spec,
         metrics=spec.model.metrics,

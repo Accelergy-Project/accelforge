@@ -176,7 +176,7 @@ def _make_pmappings(
     if einsum_names is None:
         einsum_names = [e.name for e in spec.workload.einsums]
 
-    flattened_arches = parsed_spec.get_flattened_architecture()
+    flattened_arches = parsed_spec._get_flattened_architecture()
     for i, flattened_arch in enumerate(flattened_arches):
         logger.info(f"Flattened arch {i} uses compute {flattened_arch[-1].name}")
 

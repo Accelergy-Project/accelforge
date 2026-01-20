@@ -126,7 +126,7 @@ class Spec(ParsableModel):
         else:
             self = self.copy()
 
-        for arch in self.get_flattened_architecture():
+        for arch in self._get_flattened_architecture():
             fanout = 1
             for component in arch:
                 fanout *= component.get_fanout()
@@ -158,7 +158,7 @@ class Spec(ParsableModel):
 
         return self
 
-    def get_flattened_architecture(
+    def _get_flattened_architecture(
         self, compute_node: str | Compute | None = None
     ) -> list[list[Leaf]] | list[Leaf]:
         """
