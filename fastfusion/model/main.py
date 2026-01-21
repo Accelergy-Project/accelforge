@@ -38,18 +38,19 @@ def evaluate_mapping(spec: Spec):
         The specification of architecture, workload, and mapping.
     """
     original_job = Job(
-        spec=spec,
         metrics=spec.model.metrics,
         rank_variable_bounds=get_rank_variable_bounds_for_all_einsums(spec),
+        spec=spec,
     )
 
     einsum2pmappings = {}
     pmapping_objects = {}
     einsum2jobs = {}
     flattened_arches = []
+    assert not getattr(spec, "_parsed", False), "Spec must not be parsed before evaluating a mapping"
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         einsum_name = pmapping.nodes[-1].einsum
-        cur_spec = deepcopy(spec).calculate_component_area_energy_latency_leak(
+        cur_spec = spec.calculate_component_area_energy_latency_leak(
             einsum_name=einsum_name,
             area=False,
         )
@@ -80,13 +81,13 @@ def evaluate_mapping(spec: Spec):
         ]
 
         job.stride_and_halo = get_stride_and_halo_of_einsum(
-            job.einsum_name, spec.workload
+            job.einsum_name, cur_spec.workload
         )
         _, df, _, _, tensor2mapping = run_model(job)
         df = {f"{job.einsum_name}<SEP>{key}": value for key, value in df.items()}
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
 
-        einsum = spec.workload.einsums[job.einsum_name]
+        einsum = cur_spec.workload.einsums[job.einsum_name]
         rank_variable_to_ranks = {
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }

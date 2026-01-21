@@ -39,6 +39,7 @@ from fastfusion.util._basetypes import (
     # Retrieves information from YAML tags.
     _get_tag,
     _uninstantiable,
+    NoParse,
 )
 from fastfusion.frontend.workload import RankVariable, TensorName
 from fastfusion.util._visualization import ColorMap, _pydot_graph
@@ -466,7 +467,7 @@ class Spatial(Loop):
     component: str
     """ The component name across which different spatial iterations occur. """
 
-    component_object: Optional[arch.Leaf] = None
+    component_object: NoParse[arch.Leaf] = None
     """ The component object across which different spatial iterations occur. """
 
     _constrained_to_one: bool = False
@@ -523,7 +524,7 @@ class TensorHolder(MappingNode):
     component: str
     """ The name of the component holding the tensors. """
 
-    component_object: Optional[arch.Component] = None
+    component_object: NoParse[arch.Component] = None
     """ The component object holding the tensors. """
 
     _must_keep_tensors: ParsableList[TensorName] = ParsableList()
@@ -638,7 +639,7 @@ class Compute(MappingNode):
     component: str
     """ The name of the compute component performing the computation. """
 
-    component_object: Optional[arch.Compute] = None
+    component_object: NoParse[arch.Compute | None] = None
     """ The :class:`~fastfusion.frontend.arch.Compute` object performing the
     computation. """
 

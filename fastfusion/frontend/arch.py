@@ -1010,13 +1010,13 @@ def _parse_tensor2bits(
         all -= k
 
     if all:
-        raise ValueError(
+        raise ParseError(
             f"Missing bits_per_value_scale for {all}"
         )
 
-    for a, b in itertools.combinations(to_parse.keys(), 2):
+    for a, b in itertools.combinations(result.keys(), 2):
         if a & b:
-            raise ValueError(
+            raise ParseError(
                 f"bits_per_value_scale for {a} and {b} overlap"
             )
 
@@ -1049,6 +1049,11 @@ class TensorHolderAttributes(ComponentAttributes):
             self.bits_per_value_scale = {"All": self.bits_per_value_scale}
 
     def _parse_expressions(self, *args, **kwargs):
+        # Sometimes the same component object may appear in the mapping and the
+        # architecture, in which case we don't want parsing to happen twice.
+        if getattr(self, "_parsed", False):
+            return super()._parse_expressions(*args, **kwargs)
+
         class MyPostCall(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
                 if field == "bits_per_value_scale":
@@ -1581,12 +1586,14 @@ class Arch(Hierarchical):
         return leak_power
 
     def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+        outer_st = symbol_table
         class PostCallArch(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
                 if field == "attributes":
                     parsed_dump = parsed.model_dump()
                     symbol_table.update(parsed_dump)
                     symbol_table["arch_attributes"] = parsed_dump
+                    outer_st["arch_attributes"] = parsed_dump
                 return parsed
 
         cur_st = dict(symbol_table)

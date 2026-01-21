@@ -195,6 +195,39 @@ class _InferFromTag(Generic[*Ts]):
         )
 
 
+class NoParse(Generic[T]):
+    """A type skips parsing of the specified object."""
+
+    _class_name: str = "NoParse"
+
+    def __init__(self, value: T):
+        self._value = value
+        self._type = T
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: Callable
+    ) -> CoreSchema:
+        # Get the type parameter T from ParsesTo[T]
+        type_args = get_args(source_type)
+        if not type_args:
+            raise TypeError(
+                f"{cls._class_name} must be used with a type parameter, "
+                f"e.g. {cls._class_name}[int]"
+            )
+        target_type = type_args[0]
+
+        # Get the schema for the target type
+        target_schema = handler(target_type)
+
+        def validate_raw_string(value):
+            if isinstance(value, str) and is_literal_string(value):
+                return LiteralString(value)
+            # raise ValueError("Not a raw string")
+
+        # Create a union schema that either validates as raw string or normal validation
+        return target_schema
+
 class ParsesTo(Generic[T]):
     """A type that parses to the specified type T.
 
@@ -621,7 +654,7 @@ def _parse_field(
         else:
             parsed = value
 
-        if isinstance(parsed, Parsable):
+        if isinstance(parsed, Parsable) and origin is not NoParse:
             parsed, _ = parsed._parse_expressions(
                 symbol_table=symbol_table,
                 must_copy=must_copy,
