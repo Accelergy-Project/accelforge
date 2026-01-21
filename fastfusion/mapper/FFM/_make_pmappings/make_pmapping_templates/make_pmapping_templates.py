@@ -393,72 +393,6 @@ def iterate_mappings_constraints(
 
 
 # =================================================================================================
-# Make pmapping_groups
-# =================================================================================================
-def parse_flattened_arch(
-    job: Job,
-    symbol_table: dict[str, str],
-) -> list[arch.Leaf]:
-    flattened_arch = [n for n in job.flattened_arch]
-
-    def parse_tensor2bits(
-        to_parse: dict[str, Any],
-        location: str,
-        symbol_table: dict[str, str],
-        extra_error_message: str = "",
-        tensor_names: set[str] = None,
-    ) -> dict[str, Any]:
-        if tensor_names is None:
-            tensor_names = job.spec.workload.einsums[job.einsum_name].tensor_names
-
-        result = {}
-        if not isinstance(to_parse, dict):
-            raise ValueError(f"Expected a dict, got {type(to_parse)}: {to_parse}")
-        for key, value in to_parse.items():
-            key_parsed = eval_set_expression(
-                expression=key,
-                symbol_table=symbol_table,
-                expected_space=TensorName,
-                location=f"{location} {key}",
-            )
-            for k2 in key_parsed:
-                if k2 in result and result[k2] != value:
-                    raise ValueError(
-                        f"Multiple entries for {k2} in {location}: "
-                        f"{result[k2]} and {value}"
-                    )
-                result[k2] = value
-
-        for tensor_name in tensor_names:
-            if tensor_name not in result:
-                raise ValueError(
-                    f"Tensor {tensor_name} not found in {location}. "
-                    f"Available tensors: ({', '.join(result.keys())}). Original "
-                    f"expressions: ({', '.join(to_parse.keys())}). Symbol table:\n\t"
-                    + "\n\t".join(f"{k}: {v}" for k, v in symbol_table.items())
-                    + (f"\n{extra_error_message}" if extra_error_message else "")
-                )
-
-        return result
-
-    for i, node in enumerate(flattened_arch):
-        if not isinstance(node, arch.TensorHolder):
-            continue
-        node = copy.copy(node)
-        flattened_arch[i] = node
-        node.attributes = copy.copy(node.attributes)
-
-        tensor_names = set()
-        for m in job.mapping.nodes:
-            if isinstance(m, TensorHolder) and m.component == node.name:
-                tensors = m.tensors
-                tensors = {tensors} if isinstance(tensors, str) else set(tensors)
-                tensor_names.update(tensors)
-
-    return flattened_arch
-
-
-# =================================================================================================
 # Top level
 # =================================================================================================
 def make_pmapping_templates(job: Job) -> SameEinsumJobs:
@@ -494,7 +428,6 @@ def make_pmapping_templates(job: Job) -> SameEinsumJobs:
         new_job.mapping = mapping
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
-        new_job.flattened_arch = parse_flattened_arch(new_job, symbol_table)
         new_job.rank_variable_bounds = job.rank_variable_bounds
         new_job.stride_and_halo = stride_and_halo
         new_job.compatibility

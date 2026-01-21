@@ -22,9 +22,6 @@ from fastfusion.mapper.FFM.pmappings import MultiEinsumPmappings
 from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
     get_rank_variable_bounds_for_all_einsums,
 )
-from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
-    parse_flattened_arch,
-)
 from fastfusion.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import (
     run_model,
 )
@@ -40,31 +37,33 @@ def evaluate_mapping(spec: Spec):
     spec:
         The specification of architecture, workload, and mapping.
     """
-    spec = spec.calculate_component_area_energy_latency_leak(area=False)
-    flattened_arches = spec._get_flattened_architecture()
     original_job = Job(
         spec=spec,
         metrics=spec.model.metrics,
         rank_variable_bounds=get_rank_variable_bounds_for_all_einsums(spec),
-        flattened_arch=flattened_arches[0],
     )
-
-    resource2capacity = {}
-    for flattened_arch in flattened_arches:
-        for l in flattened_arch:
-            if isinstance(l, arch.Memory):
-                resource2capacity[l.name] = l.attributes.size
 
     einsum2pmappings = {}
     pmapping_objects = {}
     einsum2jobs = {}
+    flattened_arches = []
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
+        einsum_name = pmapping.nodes[-1].einsum
+        cur_spec = deepcopy(spec).calculate_component_area_energy_latency_leak(
+            einsum_name=einsum_name,
+            area=False,
+        )
+        flattened_arch = cur_spec._get_flattened_architecture(
+            compute_node=pmapping.nodes[-1].component
+        )
+        flattened_arches.append(flattened_arch)
         pmapping_id = uuid4()
         job = copy(original_job)
         pmapping.remove_reservations()
         pmapping.split_loop_with_multiple_rank_variables()
         pmapping.split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
+        job.spec = cur_spec
         job.mapping = pmapping
         job.einsum_name = pmapping.nodes[-1].einsum
         job.tensor_to_relevancy = {
@@ -75,11 +74,6 @@ def evaluate_mapping(spec: Spec):
         }
         einsum2jobs[job.einsum_name] = job
 
-        symbol_table = spec.workload._get_einsum_symbol_table(job.einsum_name)
-        flattened_arch = parse_flattened_arch(
-            job,
-            symbol_table,
-        )
         job.flattened_arch = flattened_arch
         job.memories_track_all = [
             m.name for m in flattened_arch if isinstance(m, Memory)
@@ -107,6 +101,12 @@ def evaluate_mapping(spec: Spec):
             )
         ]
         pmapping_objects[job.einsum_name] = {pmapping_id: job.mapping}
+
+    resource2capacity = {}
+    for flattened_arch in flattened_arch:
+        for l in flattened_arch:
+            if isinstance(l, arch.Memory):
+                resource2capacity[l.name] = l.attributes.size
 
     m = MultiEinsumPmappings(
         einsum2pmappings,

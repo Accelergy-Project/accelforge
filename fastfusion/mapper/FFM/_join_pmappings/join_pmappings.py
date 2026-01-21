@@ -173,7 +173,7 @@ def get_memories_to_track(
     )
 
     if not ignore:
-        return pmapping_groups
+        return pmapping_groups, ignore
 
     def remove_unneeded_columns(s: PmappingGroup):
         data = s.mappings.data
@@ -186,7 +186,7 @@ def get_memories_to_track(
         return PmappingGroup(
             s.compatibility,
             s.mappings.update(data=data[keep_cols], skip_pareto=not run_pareto),
-        )
+        ), ignore
 
     for a in sorted(always_below):
         print(f"Not tracking {a} because it is never reserved for multiple pmappings.")

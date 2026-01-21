@@ -282,7 +282,7 @@ class Spec(ParsableModel):
             if found[-1][-1].name != c:
                 raise ParseError(f"Compute node {c} not found in architecture")
 
-        return found if compute_node is None else [found[0]]
+        return found if compute_node is None else found[0]
 
 
 Specification = Spec

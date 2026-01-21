@@ -72,13 +72,13 @@ def get_per_tensor_size(spec: Spec) -> dict[TensorName, int]:
 
 
 def get_jobs(
-    spec_parsed_non_arch: Spec,
+    spec: Spec,
     metrics: Metrics,
     einsum_names: list[EinsumName],
     fail_if_no_pmappings_for_einsum: bool,
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
-    spec = spec_parsed_non_arch
+    spec = spec
 
     einsum2jobs = {}
     fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
@@ -286,20 +286,20 @@ def make_pmappings(
     if fail_if_no_pmappings_for_einsum is None:
         fail_if_no_pmappings_for_einsum = not can_combine_multiple_runs
 
-    spec_parsed_non_arch = spec._spec_parse_expressions(
+    spec = spec._spec_parse_expressions(
         _parse_arch=False,
         _parse_non_arch=True,
     )
 
     einsum2jobs = {}
     new_einsum2jobs = get_jobs(
-        spec_parsed_non_arch,
+        spec,
         metrics,
         einsum_names,
         fail_if_no_pmappings_for_einsum,
     )
     _fill_jobs_with_memories_to_track(
-        new_einsum2jobs, spec_parsed_non_arch, metrics, can_combine_multiple_runs
+        new_einsum2jobs, spec, metrics, can_combine_multiple_runs
     )
     for einsum_name, jobs in new_einsum2jobs.items():
         einsum2jobs.setdefault(einsum_name, {})
@@ -323,7 +323,7 @@ def make_pmappings(
     # random.shuffle(calls)
 
     pmapping_objects = {}
-    pmapping_groups = {einsum_name: [] for einsum_name in spec_parsed_non_arch.workload.einsum_names}
+    pmapping_groups = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
     return_jobs = {}
     for (
         einsum_name,
