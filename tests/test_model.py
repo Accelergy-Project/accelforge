@@ -31,7 +31,6 @@ class TestModel(unittest.TestCase):
         )
 
         result = evaluate_mapping(spec)
-        print(result.data)
 
 
 if __name__ == "__main__":

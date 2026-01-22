@@ -317,19 +317,12 @@ def insert_spatial_loops(
     nodes_with_fanout = [n for n in flattened_arch if n.get_fanout() > 1]
     arch_node_names = [n.name for n in flattened_arch]
 
-    # Place spatials above the first instance of the first memory BELOW each fanout
     for node in nodes_with_fanout:
-        insertion_point = 0
-        for i in range(len(mapping)):
-            if not isinstance(mapping[i], TensorHolder):
-                continue
-            if arch_node_names.index(mapping[i].component) >= arch_node_names.index(
-                node.name
-            ):
-                insertion_point = i
-                break
-        else:
-            insertion_point = len(mapping)
+        insertion_point = _idx_of_highest_tensor_holder_with_component_below_fanout(
+            node,
+            mapping,
+            arch_node_names
+        )
 
         rv = einsum.rank_variables
         for fanout_dim in node.spatial:
@@ -344,6 +337,21 @@ def insert_spatial_loops(
                     mapping.append(s)
                 else:
                     mapping.insert(insertion_point, s)
+
+
+def _idx_of_highest_tensor_holder_with_component_below_fanout(
+    fanout_node,
+    mapping,
+    arch_node_names
+):
+    for i in range(len(mapping)):
+        if not isinstance(mapping[i], TensorHolder):
+            continue
+        if arch_node_names.index(mapping[i].component) >= arch_node_names.index(
+            fanout_node.name
+        ):
+            return i
+    return len(mapping)
 
 
 def canonical_loop_orders(

@@ -1362,6 +1362,9 @@ class _ConstraintLambda:
         self._target_node_indices = None
         self._target_loop_indices = None
 
+    def __repr__(self):
+        return f"_ConstraintLambda({self.constraint}, {self.target_mapping_nodes}, {self.rank_variables})"
+
     def __call__(self, rank_variables: set[RankVariable], sizes: np.ndarray) -> bool:
         final = self.rank_variables.issubset(rank_variables)
         return self.constraint_lambda(final, sizes)

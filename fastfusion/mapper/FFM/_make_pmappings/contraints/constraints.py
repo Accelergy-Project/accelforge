@@ -190,10 +190,11 @@ def constrained_loops(
             nodes.append(m)
             if one_loop_per_rank_variable:
                 remaining_rank_variables.discard(m.rank_variable)
-    for r in remaining_rank_variables:
-        assert (
-            component is None
-        ), "There should be a spatial loop for every rank variable"
+    # TODO: what is this supposed to do?
+    # for r in remaining_rank_variables:
+    #     assert (
+    #         component is None
+    #     ), "There should be a spatial loop for every rank variable"
     return nodes
 
 

@@ -25,7 +25,10 @@ arch:
     spatial:
     - name: X
       fanout: 4
-      reuse: input
+      loop_bounds:
+      - expression: ~m
+        operator: ==
+        value: 1
 
   - !Compute
     name: MAC

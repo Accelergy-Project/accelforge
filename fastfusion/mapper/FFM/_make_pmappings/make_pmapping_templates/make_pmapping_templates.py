@@ -145,15 +145,13 @@ def remove_unordered_spatial_temporal_loops(
         if not isinstance(node, Spatial):
             continue
 
-        for j in range(len(mapping) - 1, i, -1):
-            n = mapping[j]
-            if (
-                isinstance(n, TensorHolder)
-                and fanouts[n.component] < fanouts[node.component]
-            ):
-                break
-
-        to_check = mapping[i + 1 : j]
+        last_idx_to_check = _idx_of_lowest_tensor_holder_with_component_above_fanout(
+            mapping,
+            i,
+            fanouts,
+            node
+        )
+        to_check = mapping[i + 1 : last_idx_to_check]
         to_remove = set()
         for n in to_check:
             if isinstance(n, Temporal):
@@ -173,6 +171,21 @@ def remove_unordered_spatial_temporal_loops(
     for combo in itertools.product(*disallowed_combinations):
         combo = set.union(set(), *combo)
         yield [n for n in mapping if id(n) not in combo]
+
+
+def _idx_of_lowest_tensor_holder_with_component_above_fanout(mapping, start_idx, fanouts, node):
+    """
+    Return idx of lowest tensor holder with component above fanout. If none
+    found, returns index right under start idx (start_idx + 1).
+    """
+    for j in range(len(mapping) - 1, start_idx, -1):
+        n = mapping[j]
+        if (
+            isinstance(n, TensorHolder)
+            and fanouts[n.component] < fanouts[node.component]
+        ):
+            return j
+    return start_idx + 1
 
 
 def pad_with_bottom_loops(mapping: list[MappingNode], einsum: Einsum):
