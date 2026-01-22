@@ -1,0 +1,37 @@
+# The YAML tag at the beginning of the component tells the parser what type of component
+# it is.
+!Memory
+
+name: GlobalBuffer
+
+# This component_class invokes the hwcomponents_library.SmartBufferSRAM model. The
+# component is a SRAM buffer with an address register that is updated on every
+# access to queue up the next data.
+component_class: SmartBufferSRAM
+
+# Attributes describe the component's properties. Underscore-prefixed fields go to this
+# library. The underscore prefix tells the parser that these fields are part of the
+# fastfusion spec, and should be strictly type-checked (like most other input
+# fields). Non-underscored attributes are loosely type checked.
+
+# If no hwcomponents model can be initialized with the given attributes and/or
+# component_class, an error will be raised.
+attributes:
+  _size: width * depth
+
+  # These attributes are passed to the hwcomponents_library model. In general,
+  # energy/area calculation passes every attribute it can to the model, except for
+  # those that the model doesn't recognize (like `size`).
+  depth: 512
+  width: 32
+  n_banks: 32
+  tech_node: 65e-9
+
+# Actions that the hwcomponents_library model must support. Like attributes,
+# non-underscored arguments are also loosely type-checked, and all arguments that
+# can are passed to the model's appropriate method (in this case, `read` or
+# `write`). The `_bits_per_action` argument is special because it determines how
+# many bits are transferred by each read or write.
+actions:
+- {name: read, arguments: {_bits_per_action: 64}}
+- {name: write, arguments: {_bits_per_action: 64}}

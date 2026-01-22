@@ -5,7 +5,6 @@
 # O4: Moves from local buffer to register
 
 mapping:
-  version: "0.5"
   nodes:
   - !Storage
     tensors: [O3]

@@ -1,5 +1,4 @@
 workload:
-  version: "0.5"
   shape:
     p0: 0 <= p0 < 7
     q0: 0 <= q0 < 7

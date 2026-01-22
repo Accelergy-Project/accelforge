@@ -5,8 +5,8 @@ from uuid import UUID
 from collections import defaultdict
 
 import sympy
-from fastfusion.frontend.mapping import Iteration, Mapping, Spatial, Temporal
-from fastfusion.frontend.workload.workload import EinsumName
+from fastfusion.frontend.mapping import Loop, Mapping, Spatial, Temporal
+from fastfusion.frontend.workload import EinsumName
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
 )
@@ -37,7 +37,7 @@ from fastfusion.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
     is_n_iterations_col,
 )
-from fastfusion.util.mathfuncs import _count_factorizations
+from fastfusion.util._mathfuncs import _count_factorizations
 
 
 def shift_reservations_by_null_loop_indices(
@@ -85,11 +85,11 @@ def get_equivalent_pmappings(
 
 def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
     cols = []
-    for loop in [l for l in mapping.nodes if isinstance(l, Iteration) and l._fused]:
+    for loop in [l for l in mapping.nodes if isinstance(l, Loop) and l._fused]:
         if loop.tile_shape is not None:
             cols.append(loop.tile_shape)
         elif loop.tile_pattern is not None:
-            cols.append(loop.tile_pattern.stride)
+            cols.append(loop.tile_pattern.tile_shape)
             cols.append(loop.tile_pattern.initial_tile_shape)
         else:
             raise ValueError(f"Can't find tile shape or tile pattern for loop {loop}")
@@ -154,7 +154,7 @@ def _count_loops(job: Job) -> tuple[list[int], list[int], dict[str, int]]:
         if cur_spatial_dim != spatial_dim:
             pop_loop()
             spatial_dim = cur_spatial_dim
-        if isinstance(node, Iteration):
+        if isinstance(node, Loop):
             cur_n_loops += 1
             if isinstance(node, Temporal):
                 rv_temporal_count[node.rank_variable] += 1
@@ -228,31 +228,35 @@ def make_pmappings_from_templates(
 
     for job in jobs_with_similar_compatibilities:
         try:
-            result = make_tile_shapes(job)
+            result, tensor2mapping = make_tile_shapes(job)
         except Exception as e:
             e.add_note(f"Einsum {jwsc.einsum_name} compatibility {job.compatibility}")
             raise
         job.compatibility = job.compatibility.populate_loops()
+
+        # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION TODO: Turn tensor2pmapping
+        # into per-tensor compatibility
+
         # This changes the pmapping count to include superfluous permutations
         # TODO: Add a multiplier for the permutations that we include in the fusion
         # piece, which are NOT known to be superfluous
 
         # prev = job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation
         # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
-        # a = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        # a = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
         # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
-        # b = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        # b = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
 
         # if a < b:
         #     job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
-        #     a = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        #     a = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
         #     job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
-        #     b = multiply_n_pmappings_by_permutations(job.total_pmappings, job)
+        #     b = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
         #     assert False
 
         # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = prev
-        job.total_pmappings = multiply_n_pmappings_by_permutations(
-            job.total_pmappings, job
+        job.n_total_pmappings = multiply_n_pmappings_by_permutations(
+            job.n_total_pmappings, job
         )
 
         result[MAPPING_COLUMN] = job.job_id
@@ -282,9 +286,9 @@ def make_pmappings_from_templates(
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
                 limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
-                total_pmappings=1,  # Unused for now, just making an initial Pareto
-                valid_pmappings=1,  # Unused for now, just making an initial Pareto
-                no_drop_reservations_for=job.no_drop_reservations_for,
+                n_total_pmappings=1,  # Unused for now, just making an initial Pareto
+                n_valid_pmappings=1,  # Unused for now, just making an initial Pareto
+                ignored_resources=job.ignored_resources,
             )
             for r in results
         ],
@@ -325,10 +329,10 @@ def make_pmappings_from_templates(
     )
     groups = list(df.groupby(["fused_loop_indices"]))
     total_pmappings_per_group = sum(
-        j.total_pmappings for j in jobs_with_similar_compatibilities
+        j.n_total_pmappings for j in jobs_with_similar_compatibilities
     ) / len(groups)
     valid_pmappings_per_group = sum(
-        j.valid_pmappings for j in jobs_with_similar_compatibilities
+        j.n_valid_pmappings for j in jobs_with_similar_compatibilities
     ) / len(groups)
 
     pmapping_groups = []
@@ -386,11 +390,11 @@ def make_pmappings_from_templates(
         partial_mappings = PmappingDataframe(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,
-            total_pmappings=total_pmappings_per_group,
-            valid_pmappings=valid_pmappings_per_group,
+            n_total_pmappings=total_pmappings_per_group,
+            n_valid_pmappings=valid_pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
-            no_drop_reservations_for=job.no_drop_reservations_for,
+            ignored_resources=job.ignored_resources,
         )
         pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
 

@@ -1,28 +1,70 @@
 from typing import Any, Annotated, Literal
 
 from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.util.basetypes import ParsableModel
-from fastfusion.version import assert_version, __version__
+from fastfusion.util._basetypes import ParsableModel
+from fastfusion._version import assert_version, __version__
 
 
 class FFM(ParsableModel):
     """Configuration for the Fast and Fusiest Mapper."""
 
-    version: Annotated[str, assert_version] = __version__
-    """ Version """
+    # version: Annotated[str, assert_version] = __version__
+    # """ Version """
 
     metrics: Metrics = Metrics.ENERGY
     """ Metrics used to optimize mappings. """
 
-    timeloop_style_even: bool = False
+    info_metrics: Metrics = Metrics.all_metrics()
+    """Metrics to be reported for final mappings."""
+
+    _timeloop_style_even: bool = False
     """ Timeloop-style even mappings must have, for each memory, at most two
         locations where storage nodes may be placed. """
 
     force_memory_hierarchy_order: bool = True
-    """ If set to true, storage nodes for lower-level memories must be placed below
-        storage nodes for higher-level memories. Note that this applies across different
-        tensors, and the storage nodes for the same tensor always obey this ordering.
-        """
+    """
+    If set to true, storage nodes for lower-level memories must be placed below storage
+    nodes for higher-level memories. For example, all MainMemory storage nodes must go
+    above all LocalBuffer storage nodes.
+
+    This constraint always applies to same-tensor storage nodes (e.g., MainMemory
+    reusing Output must go above LocalBuffer reusing Output); turning it off will
+    permit things like MainMemory reusing Output going above LocalBuffer reusing
+    Input.
+    """
+
+    out_of_order_hierarchy_explore_removing_spatials_for_more_temporals: bool = False
+    """
+    If force_memory_hierarchy_order is set to False or is set to False for any
+    particular component, and a spatial fanout ends up being raised above a storage node
+    that does not have that fanout, then there may be cases where a spatial loop is put
+    above a component that does not have the associated fanout.
+
+    When this happens, we may not put between the spatial and the storage node any
+    temporal loops that affect the same indexing expressions as the spatial loops.
+
+    For example, the following is not allowed:
+
+    Arch:
+
+    - Global Buffer
+    - 2x fanout
+    - Register
+
+    Mapping:
+
+    spatial-for-reg n in [0, 10):
+      [Register reuses input]
+        for n in [0, 2):
+          [Global Buffer reuses output]
+
+    By default, if there are spatial loops that are not constrained away, then the
+    mapper will not explore putting any temporal loops that conflict. In the above
+    example, it will never place the above temporal loop. If this is set to True, then
+    the mapper will explore removing the spatial loop in order to allow for the temporal
+    loop to be placed. In the above example, it will explore removing the spatial loop
+    in order to allow for the temporal loop to be placed.
+    """
 
     max_fused_loops_per_rank_variable: int = 1
     """ The maximum number of fused loops in a pmapping for a given rank variable. """
@@ -34,11 +76,22 @@ class FFM(ParsableModel):
     """ The maximum total loops in a pmapping. """
 
     max_loops_minus_ranks: float | int = float("inf")
-    """ The maximum total loops in a pmapping minus the number of ranks. For example,
-        3 means that the number of loops can be up to (the number of ranks + 3). """
+    """
+    The maximum total loops in a pmapping minus the number of ranks. For example,
+    3 means that the number of loops can be up to (the number of ranks + 3).
+    """
 
-    can_lower_first_memory: bool = False
-    """Whether the storage node of first memory can be lowered."""
+    _can_lower_outermost_memory: bool = False
+    """
+    Whether the storage node of outermost memory can be lowered. If set to True, the
+    mapper may exchange tiles of tensors via the outermost memory, instead of storing
+    full tensors. Set this to True to explore reducing outermost memory usage.
+
+    TODO: Also need to explore putting loops above the outermost memory then. This is
+    currently private because we may want to have a catch-all term like
+    "save_outermost_memory_usage".
+
+    """
 
     memory_limit: float | int = float("inf")
     """ The maximum memory limit for the mapper. """

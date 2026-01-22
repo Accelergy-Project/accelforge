@@ -1,6 +1,0 @@
-- name: default
-  spatial_mapping_hint:
-    D1:
-      - E
-    D2:
-      - P

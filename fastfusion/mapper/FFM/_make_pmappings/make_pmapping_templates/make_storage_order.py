@@ -1,22 +1,25 @@
 from collections.abc import Collection, Generator, Sequence
 from dataclasses import dataclass
 from itertools import product
+import logging
 from typing import Any
 
 import fastfusion.frontend.arch as arch
-from fastfusion.frontend.mapping import MappingNode, TensorHolder
-from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload.workload import TensorName, SymbolTable
-from fastfusion.util.parse_expressions import MATH_FUNCS
+from fastfusion.frontend.mapping import MappingNode, ProcessingStage, TensorHolder
+from fastfusion.frontend.spec import Spec
+from fastfusion.frontend.workload import TensorName, SymbolTable
+from fastfusion.util._parse_expressions import MATH_FUNCS
+from fastfusion.util._setexpressions import eval_set_expression
 
 from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_storages import (
     make_storage_choices_all_levels,
 )
-from fastfusion.frontend.workload.workload import EinsumName
+from fastfusion.frontend.workload import EinsumName
 
 
 def eval_enabled(component: arch.Component, symbol_table: SymbolTable) -> bool:
-    enabled = component.constraints.misc.enabled
+    enabled = component.enabled
+    symbol_table = {**symbol_table, **component.attributes.model_dump_non_none()}
     if isinstance(enabled, str):
         return eval(enabled, {"__builtins__": MATH_FUNCS}, symbol_table)
     if isinstance(enabled, bool):
@@ -31,8 +34,9 @@ def get_tensor_choices(
     einsum_name: EinsumName,
     nodes: list[arch.Memory],
     symbol_table: SymbolTable,
-    spec: Specification,
-) -> Generator[tuple[list[TensorHolder], Any], None, None]:
+    spec: Spec,
+    first_memory: arch.Memory,
+) -> Generator[tuple[list[TensorHolder], SymbolTable, arch.Compute], None, None]:
     nodes, compute = nodes[:-1], nodes[-1]
     while True:
         if not nodes:
@@ -40,12 +44,11 @@ def get_tensor_choices(
         if not isinstance(nodes[0], arch.Memory):
             nodes = nodes[1:]
             continue
-        if not eval_enabled(nodes[0], symbol_table):
+        assert isinstance(nodes[0].enabled, bool)
+        if not nodes[0].enabled:
             nodes = nodes[1:]
             continue
         break
-
-    first_tensor_holder = nodes[0]
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
@@ -61,21 +64,28 @@ def get_tensor_choices(
         is_copy_op=is_copy_op,
         persistent_tensors=persistent_tensors,
         seen_tensors=set(),
+        einsum_name=einsum_name,
     ):
+        x = [y for z in choice.values() for y in z]
+        logging.info(
+            f"\t\tUnordered storage choice: {", ".join(n.compact_str() for n in x)}"
+        )
         all_tensor_holders = [v2 for v in choice.values() for v2 in v]
 
         # Start out the mapping with the outermost memory name
         base_mapping = []
-        for node in list(all_tensor_holders[::-1]):
-            if node.component == first_tensor_holder.name:
-                all_tensor_holders.remove(node)
-                base_mapping.append(node)
+        # for node in list(all_tensor_holders[::-1]):
+        #     if node.component == first_tensor_holder.name:
+        #         all_tensor_holders.remove(node)
+        #         base_mapping.append(node)
 
         # Get the dataflow constraints for the mapping
         required_order = get_tensor_order_constraint(nodes, symbol_table, tensors)
 
-        # If the compute is not enabled, then this mapping is not valid
-        if not eval_enabled(compute, symbol_table):
+        symbol_table["arch_attributes"] = {}
+        cur_compute = compute._parse_expressions(symbol_table, location=f"arch.{compute.name}", must_parse_try_parse_to=True, must_copy=False)[0]
+        assert isinstance(cur_compute.enabled, bool)
+        if not cur_compute.enabled:
             continue
 
         for mapping in recursive_order_tensor_choices(
@@ -87,30 +97,29 @@ def get_tensor_choices(
             required_order,
             spec,
             is_copy_op,
+            first_memory,
         ):
-            yield mapping, symbol_table
+            yield mapping, symbol_table, cur_compute
 
 
 def get_tensor_order_constraint(nodes, symbol_table, tensors):
     required_order: dict[str, list[Order]] = {}
     for node in nodes:
-        constraint = node.constraints.dataflow._parse(
-            symbol_table, f"{node.name}.constraints.dataflow"
-        )
-        if constraint.tensor_order_options:
-            for order_constraint in constraint.tensor_order_options:
-                order = Order()
-                for together_tensors in order_constraint:
-                    in_mapping_together_tensors = [
-                        tensor for tensor in together_tensors if tensor in tensors
-                    ]
-                    if len(in_mapping_together_tensors) == 1:
-                        only_tensor = in_mapping_together_tensors[0]
-                        order.add_tensor(only_tensor)
-                    elif len(in_mapping_together_tensors) > 1:
-                        order.add_together_tensors(in_mapping_together_tensors)
-                if order.order:
-                    required_order.setdefault(node.name, []).append(order)
+        if isinstance(node, arch.Fanout):
+            continue
+        for order_constraint in node.tensors.tensor_order_options:
+            order = Order()
+            for together_tensors in order_constraint:
+                in_mapping_together_tensors = [
+                    tensor for tensor in together_tensors if tensor in tensors
+                ]
+                if len(in_mapping_together_tensors) == 1:
+                    only_tensor = in_mapping_together_tensors[0]
+                    order.add_tensor(only_tensor)
+                elif len(in_mapping_together_tensors) > 1:
+                    order.add_together_tensors(in_mapping_together_tensors)
+            if order.order:
+                required_order.setdefault(node.name, []).append(order)
     return required_order
 
 
@@ -121,8 +130,9 @@ def recursive_order_tensor_choices(
     nodes: list[arch.Memory],
     remaining_choices: list,
     required_order: list[list[TensorHolder]],
-    spec: Specification,
-    is_copy_op: bool = False,
+    spec: Spec,
+    is_copy_op: bool,
+    first_memory: arch.Memory,
 ) -> Generator[list[MappingNode], None, None]:
     def check_has_tensors(mapping: list[MappingNode]):
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
@@ -133,9 +143,9 @@ def recursive_order_tensor_choices(
         }
         if tensors_in_mapping != tensors:
             raise ValueError(
-                f"Einsum {einsum_name} has a mapping that is missing tensors. Ensure that "
-                f"there is a node storing each tensor in the Einsum. Missing tensors: "
-                f"{tensors - tensors_in_mapping}. Mapping:\n\t"
+                f"Einsum {einsum_name} has a pmapping template that is missing tensors. Ensure "
+                f"that there is a storage node storing each tensor in the Einsum. Missing "
+                f"tensors: {tensors - tensors_in_mapping}. Pmapping template:\n\t"
                 + "\n\t".join(m.compact_str() for m in mapping)
             )
 
@@ -145,7 +155,8 @@ def recursive_order_tensor_choices(
         yield mapping
         return
 
-    # If it's a copy op and we have the backing storage for every tensor, return immediately
+    # If it's a copy op and we have the backing storage for every tensor, return
+    # immediately
     if is_copy_op:
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
         if set().union(*[t._backing for t in tensor_holders]) == tensors:
@@ -156,9 +167,10 @@ def recursive_order_tensor_choices(
     for choice in sorted(remaining_choices, key=lambda x: x.compact_str()):
         mapping.append(choice)
         new_remaining = [c for c in remaining_choices if c != choice]
-        if valid_tensor_holder_order(
-            mapping, [n.name for n in nodes], required_order, spec
-        ):
+        valid, reason = valid_tensor_holder_order(
+            mapping, [n.name for n in nodes], required_order, spec, first_memory
+        )
+        if valid:
             yield from recursive_order_tensor_choices(
                 einsum_name,
                 tensors,
@@ -168,6 +180,13 @@ def recursive_order_tensor_choices(
                 required_order,
                 spec,
                 is_copy_op,
+                first_memory,
+            )
+        else:
+            logging.info(
+                "\t\t"
+                + " " * len(mapping)
+                + f"Invalid tensor holder order: {", ".join(n.compact_str() for n in mapping)}: {reason}"
             )
         mapping.pop()
 
@@ -176,7 +195,8 @@ def valid_tensor_holder_order(
     mapping: Sequence[TensorHolder],
     node_names: list[str],
     required_orders: dict[str, list["Order"]],
-    spec: Specification,
+    spec: Spec,
+    first_memory: arch.Memory,
 ):
     memory_to_satisfied_constraints: dict[str, set] = {}
     for i, m0 in enumerate(mapping):
@@ -191,17 +211,60 @@ def valid_tensor_holder_order(
             assert len(m0.tensors) == 1
             assert len(m1.tensors) == 1
 
-            if spec.mapper.ffm.force_memory_hierarchy_order and not either_persistent:
-                if i < j and s2_idx < s1_idx:
-                    return False
+            # If they're persistent they're forced to be at the top.
+            force_order = (
+                spec.mapper.ffm.force_memory_hierarchy_order and not either_persistent
+            )
+            force_order &= m0.component_object.tensors.force_memory_hierarchy_order
+            force_order &= m1.component_object.tensors.force_memory_hierarchy_order
+
+            # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION: The following line does
+            # not let backing storage be above in the mapping anything that is below it
+            # in the memory hierarchy. THIS IS NOT FUNDAMENTAL. If we remove this
+            # constraint, then the fused loops may be different across different backing
+            # storages, so we would need to update make_pmappings_from_templates.py to
+            # make compatibility from the mapping for each tensor.
+            force_order |= bool(m0._backing)
+
+            if force_order and i < j and s2_idx < s1_idx:
+                return (
+                    False,
+                    f"Memory {s1} is below memory {s2}, violating memory hierarchy order.",
+                )
+
+            s1_outermost = s1_persistent
+            s2_outermost = s2_persistent
+            if not spec.mapper.ffm._can_lower_outermost_memory:
+                s1_outermost |= s1 == first_memory.name
+                s2_outermost |= s2 == first_memory.name
 
             # Persistent tensors must be at the top of the hierarchy
-            if s2_persistent and not s1_persistent and s1_idx < s2_idx:
-                return False
+            if s2_outermost and not s1_outermost and i < j:
+                return (
+                    False,
+                    f"Outermost {m0.compact_str()}, persistent {s1_persistent} is below non-outermost {m1.compact_str()}, persistent {s2_persistent}.",
+                )
 
-            # Persistent tensors must be at the top of the hierarchy
-            if s1_persistent and not s2_persistent and s2_idx < s1_idx:
-                return False
+            # We don't really care about processing stage order, so just make it follow
+            # the regular memory hierarchy order. For processing stages at a given
+            # level, make them alphabetical.
+            if (
+                isinstance(m0, ProcessingStage)
+                and m0.component == m1.component
+                and m0.tensor < m1.tensor
+            ):
+                return (
+                    False,
+                    f"Processing stage {m0} is not ordered alphabetically by tensor; has tensor {m0.tensor} before {m1.tensor}",
+                )
+
+            # If there is a processing stage, don't explore order. If there's two
+            # back-to-back nodes and one is a processing stage, make them follow the
+            # memory hierarchy order.
+            if isinstance(m0, ProcessingStage) and s2_idx < s1_idx and i == j - 1:
+                return False, f"Processing stage {m0} is directly above {m1}"
+            if isinstance(m1, ProcessingStage) and s2_idx < s1_idx and i == j - 1:
+                return False, f"Processing stage {m1} is directly above {m0}"
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:
@@ -224,18 +287,19 @@ def valid_tensor_holder_order(
 
                         if idx_of_i_in_order > idx_of_j_in_order:
                             good = False
+                            reason = f"Tensor {t1} is before tensor {t2} in the order {order_choice}"
                             break
                     if not good:
                         memory_to_satisfied_constraints[s1].remove(order_idx)
 
                 if len(memory_to_satisfied_constraints[s1]) == 0:
-                    return False
+                    return False, reason
 
             if not (set(m0.tensors) & set(m1.tensors)):
                 continue
 
             if i < j and s2_idx < s1_idx:
-                return False
+                return False, f"{m0.compact_str()} is below {m1.compact_str()}"
 
             # If a tensor is stored in two levels back-to-back, then we should have
             # bypassed the outer TensorHolder if possible.
@@ -248,11 +312,19 @@ def valid_tensor_holder_order(
                     if s1_idx < s2_idx and not (
                         (set(m0._must_keep_tensors) & set(m1.tensors)) or either_backing
                     ):
-                        return False
+                        shared = set(m0._must_keep_tensors) & set(m1.tensors)
+                        return (
+                            False,
+                            f"{shared} stored in back-to-back storage nodes, and could have bypassed the outer one.",
+                        )
                     if s2_idx < s1_idx and not (
                         (set(m1._must_keep_tensors) & set(m0.tensors)) or either_backing
                     ):
-                        return False
+                        shared = set(m1._must_keep_tensors) & set(m0.tensors)
+                        return (
+                            False,
+                            f"{shared} is stored in back-to-back storage nodes, and could have bypassed the outer one.",
+                        )
 
     for i, m0 in enumerate(mapping):
         for j, m1 in enumerate(mapping[i:]):
@@ -271,7 +343,7 @@ def valid_tensor_holder_order(
                             continue
                 break
 
-    return True
+    return True, ""
 
 
 @dataclass(frozen=True)

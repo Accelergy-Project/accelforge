@@ -8,15 +8,16 @@ from typing import Literal, TypeVar
 from fastfusion.frontend.workload import TensorAccess, Workload
 from fastfusion.frontend.mapping import (
     Compute,
-    Iteration,
+    Loop,
     Mapping,
     Spatial,
     TensorHolder,
     Reservation as MappingReservation,
     Split as MappingSplit,
     TilePattern,
+    Loop as MappingLoop,
 )
-from fastfusion.frontend.renames import RankName, RankVariableName, TensorName
+from fastfusion.frontend.renames import Rank, RankVariable, TensorName
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
     make_fused_loop_col,
     stride2col,
@@ -24,7 +25,7 @@ from fastfusion.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 
-from fastfusion.util import expfmt, fzs
+from fastfusion.util import _expfmt, fzs
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -37,13 +38,6 @@ T = TypeVar("T", bound="Updatable")
 class Updatable:
     def update(self: T, **kwargs) -> T:
         return replace(self, **kwargs)
-
-
-# class TilePattern(NamedTuple):
-#     stride: int
-#     initial: int
-#     def __str__(self) -> str:
-#         return f'<{self.stride}, {self.initial}>'
 
 
 def _update_rename_dict(
@@ -61,12 +55,12 @@ def _update_rename_dict(
 
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
-    rank_name: RankName
+    rank_name: Rank
     tile_pattern: TilePattern | None
     is_spatial: bool
 
     def __post_init__(self):
-        assert isinstance(self.rank_name, RankName)
+        assert isinstance(self.rank_name, Rank)
         assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
         assert isinstance(
@@ -74,7 +68,7 @@ class Loop(Updatable):
             Number | str | None,
         )
         assert isinstance(
-            self.tile_pattern.stride,
+            self.tile_pattern.tile_shape,
             Number | str | None,
         )
 
@@ -90,8 +84,8 @@ class Loop(Updatable):
 
     def pydot_str(self):
         if self.is_spatial:
-            return f"S-for R{self.rank_name} size {expfmt(self.tile_pattern)}"
-        return f"for {self.rank_name} size {expfmt(self.tile_pattern)}"
+            return f"S-for R{self.rank_name} size {_expfmt(self.tile_pattern)}"
+        return f"for {self.rank_name} size {_expfmt(self.tile_pattern)}"
 
     def to_yaml(self):
         return {"type": "loop", **self.__dict__}
@@ -109,17 +103,17 @@ class Loop(Updatable):
 
     def populate(self, nloop: int) -> "Loop":
         tile_pattern = TilePattern(
-            stride=stride2col(self.rank_name, nloop),
+            tile_shape=stride2col(self.rank_name, nloop),
             initial_tile_shape=initial2col(self.rank_name, nloop),
             calculated_n_iterations=iterations2col(nloop),
         )
         return self.update(tile_pattern=tile_pattern)
 
-    def prepend_symbols(self, prepend: str) -> "Loop":
-        return self.update(tile_pattern=self.tile_pattern.prepend_symbols(prepend))
+    def _prepend_symbols(self, prepend: str) -> "Loop":
+        return self.update(tile_pattern=self.tile_pattern._prepend_symbols(prepend))
 
     def clear_symbolic_tile_patterns(self) -> "Loop":
-        return self.update(tile_pattern=self.tile_pattern.clear_symbols())
+        return self.update(tile_pattern=self.tile_pattern._clear_symbols())
 
     def make_fused_loop_symbols(self, prefix: str) -> tuple[dict[str, str], "Loop"]:
         r = {}
@@ -141,8 +135,8 @@ class Loop(Updatable):
     def add_n_iteration_symbols(self) -> "Loop":
         return self.update(tile_pattern=self.tile_pattern.add_n_iteration_symbols())
 
-    def rename_to_match(self, other: "Loop") -> tuple["Loop", dict[str, str]]:
-        new_tp, renames = self.tile_pattern.rename_to_match(other.tile_pattern)
+    def _rename_to_match(self, other: "Loop") -> tuple["Loop", dict[str, str]]:
+        new_tp, renames = self.tile_pattern._rename_to_match(other.tile_pattern)
         return self.update(rank_name=other.rank_name, tile_pattern=new_tp), renames
 
 
@@ -201,9 +195,9 @@ class TensorReservation(Updatable):
         loops = tuple(l for i, l in enumerate(self.loops) if i not in loop_indices)
         return self.update(loops=loops)
 
-    def prepend_symbols(self, prepend: str) -> "TensorReservation":
+    def _prepend_symbols(self, prepend: str) -> "TensorReservation":
         return self.update(
-            loops=tuple(l.prepend_symbols(prepend) for l in self.loops),
+            loops=tuple(l._prepend_symbols(prepend) for l in self.loops),
         )
 
     def clear_symbolic_tile_patterns(self) -> "TensorReservation":
@@ -227,13 +221,13 @@ class TensorReservation(Updatable):
             loops=tuple(l.add_n_iteration_symbols() for l in self.loops),
         )
 
-    def rename_to_match(
+    def _rename_to_match(
         self, other: "TensorReservation"
     ) -> tuple["TensorReservation", dict[str, str]]:
         renames = {}
         new_loops = []
         for l_mine, l_other in zip(self.loops, other.loops):
-            l_mine, new_renames = l_mine.rename_to_match(l_other)
+            l_mine, new_renames = l_mine._rename_to_match(l_other)
             _update_rename_dict(renames, new_renames)
             new_loops.append(l_mine)
         return self.update(loops=tuple(new_loops)), renames
@@ -318,7 +312,7 @@ class Compatibility(Updatable):
     def __len__(self) -> int:
         return self.max_above_loop_index
 
-    def rename_to_match(
+    def _rename_to_match(
         self, other: "Compatibility"
     ) -> tuple["Compatibility", dict[str, str]]:
         renames = {}
@@ -328,7 +322,7 @@ class Compatibility(Updatable):
         tensors = []
         for t in self.tensors:
             other_t = other.get_tensor_by_name(t.name)
-            t, new_renames = t.rename_to_match(other_t)
+            t, new_renames = t._rename_to_match(other_t)
             tensors.append(t)
             _update_rename_dict(renames, new_renames)
 
@@ -388,7 +382,7 @@ class Compatibility(Updatable):
         self,
         right: "Compatibility",
         live_tensors: set[str],
-        mixable_ranks: dict[RankName, set[RankName]],
+        mixable_ranks: dict[Rank, set[Rank]],
     ) -> "Compatibility":
         self_freed = self.clear_dead_tensors(live_tensors)
         right_freed = right.clear_dead_tensors(live_tensors)
@@ -505,9 +499,9 @@ class Compatibility(Updatable):
         cls,
         mapping: Mapping,
         tensors: set[TensorName],
-        rank_variable_to_ranks: dict[TensorName, dict[RankVariableName, RankName]],
+        rank_variable_to_ranks: dict[TensorName, dict[RankVariable, Rank]],
     ) -> "Compatibility":
-
+        # TODO: update compatibility to handle spatial-for loop per-tensor update
         tensor_indices = []
         split_above_loop_indices = []
         reservation_indices = []
@@ -526,7 +520,7 @@ class Compatibility(Updatable):
                 tensor_indices.append(i)
             elif isinstance(n, MappingSplit):
                 split_above_loop_indices.append(n_seen_loops)
-            elif isinstance(n, Iteration):
+            elif isinstance(n, MappingLoop):
                 n_seen_loops += 1
                 n_fused_loops += bool(backing_remaining)
             elif isinstance(n, TensorHolder):
@@ -540,18 +534,20 @@ class Compatibility(Updatable):
         ), f"Tensors {backing_remaining} not found in mapping"
 
         def get_rank(rank_variable, tensor):
-            rv = rank_variable_to_ranks[tensor][rank_variable]
+            rv = rank_variable_to_ranks[tensor].get(rank_variable, set())
             assert (
-                len(rv) == 1
+                len(rv) <= 1
             ), f"Rank variable {rank_variable} indexes into multiple ranks {rv} for tensor {tensor} "
-            return next(iter(rv))
+            return next(iter(rv), Rank("NO RANK. RECOMPUTED."))
 
-        def make_loops(above_index: int, tensor_name: TensorName) -> list[Iteration]:
-            loops = [n for n in mapping.nodes[:above_index] if isinstance(n, Iteration)]
+        def make_loops(above_index: int, tensor_name: TensorName) -> list[MappingLoop]:
+            loops = [
+                n for n in mapping.nodes[:above_index] if isinstance(n, MappingLoop)
+            ]
             loops = [
                 Loop(
                     rank_name=get_rank(n.rank_variable, tensor_name),
-                    tile_pattern=n.tile_pattern.symbol2str(),
+                    tile_pattern=n.tile_pattern._symbol2str(),
                     is_spatial=isinstance(n, Spatial),
                 )
                 for n in loops
@@ -584,7 +580,7 @@ class Compatibility(Updatable):
         for t in self.tensors:
             for l in t.loops:
                 add(l.tile_pattern.initial_tile_shape)
-                add(l.tile_pattern.stride)
+                add(l.tile_pattern.tile_shape)
                 add(l.tile_pattern.calculated_n_iterations)
         return symbols
 
@@ -608,9 +604,9 @@ class Compatibility(Updatable):
             reservation_indices=reservation_indices,
         )
 
-    def prepend_symbols(self, prepend: str) -> "Compatibility":
+    def _prepend_symbols(self, prepend: str) -> "Compatibility":
         return self.update(
-            tensors=fzs(t.prepend_symbols(prepend) for t in self.tensors)
+            tensors=fzs(t._prepend_symbols(prepend) for t in self.tensors)
         )
 
     def clear_tile_patterns_and_reservation_indices(self) -> "Compatibility":
@@ -642,7 +638,7 @@ class Compatibility(Updatable):
             tensors=fzs(t.add_n_iteration_symbols() for t in self.tensors)
         )
 
-    def _is_valid(self, mixable_ranks: dict[RankName, set[RankName]]) -> bool:
+    def _is_valid(self, mixable_ranks: dict[Rank, set[Rank]]) -> bool:
         # Mixable ranks: Ranks that may be co-iterated by a single loop.
         ranks_at_each_loop_index = []
         for i in range(self.n_loops):

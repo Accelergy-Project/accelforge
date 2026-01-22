@@ -1,0 +1,73 @@
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    attributes:
+      _size: inf
+      _leak_power: 0
+      _area: 0 # Don't include off-chip DRAM area
+    actions:
+      # Upper end of the range from the TPU paper. The lower end came from their
+      # reference, and they said it left out some things.
+    - {name: read, arguments: {_energy: 7.03e-12, _latency: 1 / (8 * 614e9)}}
+    - {name: write, arguments: {_energy: 7.03e-12, _latency: 1 / (8 * 614e9)}}
+    tensors: {keep: ~Intermediates, may_keep: All}
+
+  - !Memory
+    name: GlobalBuffer
+    attributes:
+      _size: 1024*1024*128*8 # 128MB
+      _total_latency: max(read_latency, write_latency) # Separate ports
+      _leak_power: 0
+      _area: 112e-6 # 112 mm^2
+    actions:
+    - {name: read, arguments: {_energy: 1.88e-12, _latency: 1 / (8 * 2048e9)}}
+    - {name: write, arguments: {_energy: 2.36e-12, _latency: 1 / (8 * 1024e9)}}
+    tensors: {keep: ~MainMemory.tensors, may_keep: All}
+
+  - !Memory
+    name: LocalBuffer
+    spatial: [{name: Z, fanout: 4, may_reuse: Nothing}]
+    attributes:
+      _size: 1024*1024*4*8 # 4MB
+      _leak_power: 0
+      _area: 50e-6 # 50 mm^2. Very rough estimate based on die photo.
+    actions:
+    - {name: read, arguments: {_energy: 0.249e-12, _latency: 0}}
+    - {name: write, arguments: {_energy: 0.293e-12, _latency: 0}}
+    tensors: {keep: input | output}
+
+  - !Compute
+    name: ScalarUnit
+    attributes:
+      _area: 10e-6 # 10 um^2. Very rough estimate based on die photo.
+      _leak_power: 0
+    actions:
+    - {name: compute, arguments: {_energy: 0, _latency: 1 / 1.05e9 / 128}}
+    enabled: len(All) == 2
+
+  - !Fanout
+    name: ArrayFanout
+    spatial:
+    - {name: reuse_input, fanout: 128, may_reuse: input, reuse: input, min_usage: 1}
+    - {name: reuse_output, fanout: 128, may_reuse: output, reuse: output, min_usage: 1}
+
+  - !Memory
+    name: Register
+    attributes:
+      _size: inf
+      _area: 1e-11 # 10 um^2. Very rough estimate based on die photo.
+      _leak_power: 0
+    actions:
+    - {name: read, arguments: {_energy: 0, _latency: 0}}
+    - {name: write, arguments: {_energy: 0, _latency: 0}}
+    tensors: {keep: weight}
+
+  - !Compute
+    name: MAC
+    attributes:
+      _leak_power: 0
+      _area: 9e-11 # 90 um^2. Very rough estimate based on die photo.
+    actions:
+    - {name: compute, arguments: {_energy: 0.084e-12, _latency: 1 / 1.05e9}}
+    enabled: len(All) == 3

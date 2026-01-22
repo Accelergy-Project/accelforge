@@ -26,7 +26,6 @@ class TestBindingMapper(unittest.TestCase):
             binding: Binding = Binding.model_validate(spec["binding"])
 
             soln: Dict = spec["solution"]
-            assert binding.version == soln["version"]
 
             soln_node: Dict[str, str]
             binding_node: BindingNode

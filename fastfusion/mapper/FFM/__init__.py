@@ -1,4 +1,5 @@
-from fastfusion.mapper.FFM._interface.main import (
+from fastfusion.mapper.FFM.main import (
+    map_workload_to_arch,
     make_pmappings,
     join_pmappings,
     MultiEinsumPmappings,

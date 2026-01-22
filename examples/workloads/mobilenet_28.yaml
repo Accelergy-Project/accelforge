@@ -1,0 +1,81 @@
+workload:
+  rank_sizes:
+    {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
+    B: {{BATCH_SIZE}}
+    P0: 28
+    Q0: 28
+    N0: 24
+    T0: 192
+    N1: 24
+    P1: 28
+    Q1: 28
+    P2: 28
+    Q2: 28
+    T1: 192
+    N2: 24
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - name: PiecewiseA0
+    tensor_accesses:
+    - {name: T0, projection: [p0, q0, n0, b]}
+    - {name: WA0, projection: [n0, t0]}
+    - {name: TA0, projection: [p0, q0, t0, b], output: True}
+    renames: {input: T0, output: TA0, weight: WA0}
+
+  - name: Depthwise0
+    tensor_accesses:
+    - name: TA0
+      projection:
+        P0: p1 + r0
+        Q0: q1 + s0
+        T0: t0
+        B: b
+    - {name: WAB0, projection: [r0, s0, t0]}
+    - {name: TB0, projection: [p1, q1, t0, b], output: True}
+    shape: [0 <= r0 < 3, 0 <= s0 < 3]
+
+  - name: PiecewiseB0
+    tensor_accesses:
+    - {name: TB0, projection: [p1, q1, t0, b]}
+    - {name: WB0, projection: [t0, n1]}
+    - {name: T1, projection: [p1, q1, n1, b], output: True}
+
+  - name: PiecewiseA1
+    tensor_accesses:
+    - {name: T1, projection: [p1, q1, n1, b]}
+    - {name: WA1, projection: [n1, t1]}
+    - {name: TA1, projection: [p1, q1, t1, b], output: True}
+
+  - name: Depthwise1
+    tensor_accesses:
+    - name: TA1
+      projection:
+        P1: p2 + r1
+        Q1: q2 + s1
+        T1: t1
+        B: b
+    - {name: WAB1, projection: [r1, s1, t1]}
+    - {name: TB1, projection: [p2, q2, t1, b], output: True}
+    shape: [1 <= r1 < 3, 1 <= s1 < 3]
+
+  - name: PiecewiseB2
+    tensor_accesses:
+    - {name: TB1, projection: [p2, q2, t1, b]}
+    - {name: WB1, projection: [t1, n2]}
+    - {name: T2, projection: [p2, q2, n2, b], output: True}
+
+renames:
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs & Intermediates
+      expected_count: 1
+    - name: output
+      source: Outputs
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1

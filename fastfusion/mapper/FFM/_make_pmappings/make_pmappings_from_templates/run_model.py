@@ -2,11 +2,14 @@ from sympy import Symbol
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import TensorHolder
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
-from fastfusion.model.looptree.reuse.symbolic import (
+from fastfusion.model._looptree.reuse.symbolic import (
     analyze_reuse_and_add_reservations_to_mapping,
 )
-from fastfusion.model.looptree.energy import compute_energy_from_actions, gather_actions
-from fastfusion.model.looptree.latency.memory import component_latency
+from fastfusion.model._looptree.energy import (
+    compute_energy_from_actions,
+    gather_actions,
+)
+from fastfusion.model._looptree.latency.memory import component_latency
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,
@@ -15,7 +18,7 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
 from fastfusion.frontend.mapper.metrics import Metrics
 import sympy
 from numbers import Number
-from fastfusion.util.sympy.broadcast_max import Max
+from fastfusion.util._sympy.broadcast_max import Max
 
 
 def run_model(
@@ -33,7 +36,9 @@ def run_model(
         if isinstance(node, arch.TensorHolder):
             if isinstance(node, arch.Memory):
                 memory_to_size[node.name] = node.attributes.size
-        component_to_max_fanout[node.name] = {s.name: s.fanout for s in node.spatial}
+        component_to_max_fanout[node.name] = {
+            s.name: s.fanout / s.usage_scale for s in node.spatial
+        }
 
     df = {}
 
@@ -60,7 +65,7 @@ def run_model(
     actions = gather_actions(reuse, None, use_name=True)
     energy = compute_energy_from_actions(spec, actions, overall_latency)
 
-    fusable_tensors = workload.fusable_tensor_names
+    fusable_tensors = workload.tensor_names_used_in_multiple_einsums
     tensor_to_backing = {}
     for node in pmapping.nodes:
         if isinstance(node, TensorHolder):
@@ -69,7 +74,7 @@ def run_model(
                     tensor_to_backing[tensor] = node.component
 
     total_occupancy = {}
-    compute_unit = pmapping.nodes[-1].compute
+    compute_unit = pmapping.nodes[-1].component
 
     n_instances = workload.n_instances * workload.einsums[job.einsum_name].n_instances
 
@@ -102,8 +107,12 @@ def run_model(
                 running_total += occupancies[n_loop]
                 df[nameloop2col(memory, n_loop)] = running_total
 
+    if metrics & Metrics.ACTIONS:
+        for (component, action_name), count in actions.items():
+            df[f"action<SEP>{component}<SEP>{action_name}"] = count.total
+
     if metrics & Metrics.LATENCY:
-        df[f"Total<SEP>latency"] = overall_latency * n_instances
+        df["Total<SEP>latency"] = overall_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
@@ -116,7 +125,7 @@ def run_model(
             df[f"latency<SEP>{component}"] = cur_latency * n_instances
 
     if metrics & Metrics.ENERGY:
-        df[f"Total<SEP>energy"] = sum(energy.values()) * n_instances
+        df["Total<SEP>energy"] = sum(energy.values()) * n_instances
         for (component, action), energy in energy.items():
             df[f"energy<SEP>{component}<SEP>{action}"] = energy * n_instances
 
@@ -131,4 +140,10 @@ def run_model(
                 fanout / component_to_max_fanout[component][dim]
             )
 
-    return reuse.symbols, df, per_memory_usage_df, utilization_df
+    return (
+        reuse.symbols,
+        df,
+        per_memory_usage_df,
+        utilization_df,
+        reuse.tensor2mapping,
+    )

@@ -1,44 +1,40 @@
 arch:
-  version: "0.5"
   nodes:
   - !Memory
     name: main_memory
     attributes:
       _size: 1e9
       _datawidth: 8
-    constraints:
-      tensors: {keep: All()}
+    tensors: {keep: All}
     actions:
-    - {name: read, arguments: {energy: 0}}
-    - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: read, arguments: {_energy: 0}}
+    - {name: write, arguments: {_energy: 0}}
+    - {name: leak, arguments: {_energy: 0}}
 
   - !ProcessingStage
     name: ProcessingStage
     attributes:
       _datawidth: 8
       _direction: up_and_down
-    constraints:
-      tensors: {keep: All()}
+    tensors: {keep: All}
     actions:
-    - {name: read, arguments: {energy: 100}}
-    - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: read, arguments: {_energy: 100}}
+    - {name: write, arguments: {_energy: 0}}
+    - {name: leak, arguments: {_energy: 0}}
 
   - !Memory
     name: LocalBuffer
     attributes:
       _size: 1e9
       _datawidth: 8
-    constraints:
-      tensors: {keep: All()}
+    tensors: {keep: All}
     actions:
-    - {name: read, arguments: {energy: 0}}
-    - {name: write, arguments: {energy: 0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: read, arguments: {_energy: 0}}
+    - {name: write, arguments: {_energy: 0}}
+    - {name: leak, arguments: {_energy: 0}}
 
   - !Compute
     name: mac
     actions:
-    - {name: compute, arguments: {energy: 0.0}}
-    - {name: leak, arguments: {energy: 0}}
+    - {name: compute, arguments: {_energy: 0.0}}
+    - {name: leak, arguments: {_energy: 0}}

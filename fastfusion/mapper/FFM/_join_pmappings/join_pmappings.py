@@ -4,9 +4,24 @@ import logging
 import time
 from typing import Callable
 
-from fastfusion.accelerated_imports import pd
-from fastfusion.frontend.specification import Specification
+from fastfusion._accelerated_imports import pd
+from fastfusion.frontend.spec import Spec
+from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.mapper.metrics import Metrics
+from fastfusion.frontend.workload import EinsumName
+from fastfusion.mapper.FFM.mappings import Mappings
+from fastfusion.mapper.FFM.pmappings import MultiEinsumPmappings
+from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
+    compress_einsum2pmappings,
+    decompress_pmappings,
+)
+from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
+    get_rank_variable_bounds_for_all_einsums,
+)
+from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
+    row2pmappings,
+)
+from fastfusion.mapper.FFM._pareto_df.df_convention import MAPPING_COLUMN
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
     Compatibility,
@@ -14,34 +29,84 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
 from fastfusion.mapper.FFM._pareto_df.df_convention import col2nameloop
 from fastfusion.util import parallel, delayed
 
-prev_time = 0
-total_time = defaultdict(int)
+
+logger = logging.getLogger(__name__)
 
 
-def init_print_time():
-    global prev_time, total_time
-    prev_time = time.time()
-    total_time = defaultdict(int)
+class JoiningTimer:
+    def __init__(self):
+        self.prev_time = time.time()
+        self.total_time = defaultdict(int)
+
+    def print_time(self, what: str):
+        t = time.time() - self.prev_time
+        logger.info(f"{what}: {t:.2f} seconds")
+        self.total_time[what] += t
+        self.prev_time = time.time()
+
+    def log_total_time(self):
+        logger.info(f"\n======== Total time ========")
+        for k, v in self.total_time.items():
+            logger.info(f"{k}: {v:.2f} seconds")
+        total = sum(self.total_time.values())
+        if total > 60:
+            logger.info(f"\nTotal: {total:.2f} seconds ({total/60:.2f} minutes)")
+        else:
+            logger.info(f"\nTotal: {total:.2f} seconds")
+        logger.info(f"============================\n")
 
 
-def print_time(what: str):
-    global prev_time
-    t = time.time() - prev_time
-    logging.info(f"{what}: {t:.2f} seconds")
-    total_time[what] += t
-    prev_time = time.time()
+def clean_compress_and_join_pmappings(
+    spec: Spec,
+    pmappings: MultiEinsumPmappings,
+    require_all_einsums: bool = True,
+    _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+) -> Mappings:
+    einsum2pmappings = pmappings.einsum2pmappings
+    if not require_all_einsums:
+        einsum2pmappings = {
+            k: v
+            for k, v in pmappings.einsum2pmappings.items()
+            if k in pmappings.einsums_with_pmappings_generated
+        }
+    _check_einsum2pmappings_not_empty(einsum2pmappings, pmappings)
 
+    compressed, decompress_data = compress_einsum2pmappings(einsum2pmappings)
+    joined = join_pmappings(
+        compressed,
+        spec,
+        pmappings.resource2capacity,
+        _pmapping_row_filter_function=_pmapping_row_filter_function,
+    )
+    joined = decompress_pmappings(joined, decompress_data)
 
-def print_total_time():
-    logging.info(f"\n======== Total time ========")
-    for k, v in total_time.items():
-        logging.info(f"{k}: {v:.2f} seconds")
-    total = sum(total_time.values())
-    if total > 60:
-        logging.info(f"\nTotal: {total:.2f} seconds ({total/60:.2f} minutes)")
-    else:
-        logging.info(f"\nTotal: {total:.2f} seconds")
-    logging.info(f"============================\n")
+    for einsum_name in einsum2pmappings:
+        col = f"{einsum_name}<SEP>{MAPPING_COLUMN}"
+        joined.data[col] = joined.data[col].apply(
+            lambda x: pmappings.pmapping_objects[einsum_name][x]
+        )
+    joined._data = joined.data.fillna(0).reset_index(drop=True)
+
+    rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
+    einsum_names = list(einsum2pmappings.keys())
+    joined.data[f"Total<SEP>{MAPPING_COLUMN}"] = [
+        MappingFromRow(r, rank_variable_bounds, einsum_names)
+        for _, r in joined.data.iterrows()
+    ]
+    # Fill nans with 0. We might get missing columns for some mapping entries if there
+    # are energy entries for some pmappings but not others (e.g., one pmapping accesses
+    # DRAM while another doesn't.)
+    return Mappings(
+        spec,
+        list(
+            x
+            for x in list(einsum2pmappings.keys())
+            if x in pmappings.einsums_with_pmappings_generated
+        ),
+        joined.data,
+        total_mappings=joined.n_total_pmappings,
+        valid_mappings=joined.n_valid_pmappings,
+    )
 
 
 class PmappingsOneEinsum:
@@ -78,7 +143,7 @@ def get_memories_to_track(
 
     always_below = set(resource2capacity.keys())
     total_sizes = {}
-    no_drop_reservations_for = set()
+    ignored_resources = set()
 
     for _, einsum_pmapping_groups in pmapping_groups.items():
         max_sizes = {}
@@ -97,7 +162,7 @@ def get_memories_to_track(
 
                 # nloops < 0 means that the reservation will live through all Einsums
                 if nloops < 0:
-                    no_drop_reservations_for.add(name)
+                    ignored_resources.add(name)
 
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
@@ -108,7 +173,7 @@ def get_memories_to_track(
     )
 
     if not ignore:
-        return pmapping_groups
+        return pmapping_groups, ignore
 
     def remove_unneeded_columns(s: PmappingGroup):
         data = s.mappings.data
@@ -147,14 +212,14 @@ def get_memories_to_track(
 
 def join_pmappings(
     pmapping_groups: dict[str, list[PmappingGroup]],
-    spec: Specification,
+    spec: Spec,
     resource2capacity: dict[str, int],
     # Optimality-maintaining optimizations.
     skip_invalid: bool = True,
     combine_reservations: bool = True,
     lookahead_filter: bool = True,
     metrics: Metrics = None,
-    pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+    _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -171,15 +236,15 @@ def join_pmappings(
     metrics = spec.mapper.ffm.metrics
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
-    no_drop_reservations_for = set()
+    ignored_resources = set()
 
-    if pmapping_row_filter_function is not None:
+    if _pmapping_row_filter_function is not None:
         n = sum(len(s.mappings.data) for sg in pmapping_groups.values() for s in sg)
         pmapping_groups = {
             e: [
                 PmappingGroup(
                     s.compatibility,
-                    s.mappings.filter_rows(pmapping_row_filter_function),
+                    s.mappings.filter_rows(_pmapping_row_filter_function),
                 )
                 for s in pmapping_groups[e]
             ]
@@ -189,11 +254,11 @@ def join_pmappings(
         print(f"Filtered {n} -> {new_n} ({new_n / n:.2%} kept) pmappings")
 
     if drop_valid_reservations:
-        pmapping_groups, no_drop_reservations_for = get_memories_to_track(
+        pmapping_groups, ignored_resources = get_memories_to_track(
             pmapping_groups, resource2capacity
         )
 
-    mixable_ranks = spec.workload.get_mixable_ranks()
+    mixable_ranks = spec.workload._get_ranks_that_share_indexing_rank_variables()
 
     aliased_tensors = spec.workload.get_tensor_copies()
 
@@ -211,7 +276,8 @@ def join_pmappings(
     for einsum_name, s in pmapping_groups:
         if not s:
             raise ValueError(f"No pmappings for {einsum_name}")
-    init_print_time()
+
+    timer = JoiningTimer()
 
     pmgroups = [PmappingsOneEinsum(*s) for s in pmapping_groups]
 
@@ -285,7 +351,7 @@ def join_pmappings(
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
         t0 = time.time()
-    print_time(f"Initial consolidate and group")
+    timer.print_time(f"Initial consolidate and group")
 
     n_iterations = 0
     total_iterations = len(pmgroups)
@@ -311,7 +377,7 @@ def join_pmappings(
         nbuckets.append(len(left))
         # nmappings.append(sum(len(s.mappings.data) for s in left))
         right, right_einsum, right_tensors = grab_einsum_pmappings()
-        logging.info(f"Einsum {right_einsum} ({n_iterations}/{total_iterations})")
+        logger.info(f"Einsum {right_einsum} ({n_iterations}/{total_iterations})")
 
         partial_mapping_size += 1
 
@@ -405,8 +471,8 @@ def join_pmappings(
                         resource2capacity=resource2capacity,
                         drop_valid_reservations=drop_valid_reservations,
                         delay=DELAY,
-                        pmapping_row_filter_function=pmapping_row_filter_function,
-                        no_drop_reservations_for=no_drop_reservations_for,
+                        _pmapping_row_filter_function=_pmapping_row_filter_function,
+                        ignored_resources=ignored_resources,
                     )
                 )
                 t1 = time.time()
@@ -437,6 +503,26 @@ def join_pmappings(
             )
             estr += f"\nRight compatibility:\n\t" + "\n\t".join(
                 str(c) for c in right.keys()
+            )
+            raise ValueError(estr)
+
+        def no_match_lookahead_error(
+            combined: list[PmappingGroup],
+            next_keys: set[tuple[int, int, tuple[tuple[int, int], ...]]],
+        ):
+            estr = f"No match found for any group. Left and right joined successfully, "
+            estr += f"but will not be compatible with following Einsums.\n"
+            estr += f"Left compatibility:\n\t" + "\n\t".join(
+                str(s.compatibility) for g in left.values() for s, _ in g
+            )
+            estr += f"\nRight compatibility:\n\t" + "\n\t".join(
+                str(s.compatibility) for g in right.values() for s, _ in g
+            )
+            estr += f"\nCombined compatibility:\n\t" + "\n\t".join(
+                str(s.compatibility) for s in combined
+            )
+            estr += f"\nFollowing Einsum compatibility:\n\t" + "\n\t".join(
+                str(c) for c in next_keys
             )
             raise ValueError(estr)
 
@@ -471,7 +557,7 @@ def join_pmappings(
                         del combined[k]
                 if not combined:
                     PmappingGroup.group(prev_combined, next_right_tensors)
-                    raise_no_match_error()
+                    no_match_lookahead_error(prev_combined, next_keys)
 
                 combined = list(itertools.chain.from_iterable(combined.values()))
                 combined = [c[0] for c in combined]
@@ -492,13 +578,13 @@ def join_pmappings(
         if DELAY:
             mappings = parallel(
                 [c.mappings for c in combined],
-                pbar=f"Merging pmappings for {left_einsum} <--> {right_einsum} ({n_iterations}/{total_iterations})",
+                pbar=f"Joining pmappings for {left_einsum} <--> {right_einsum} ({n_iterations}/{total_iterations})",
                 return_as="generator",
             )
             for c, mapping in zip(combined, mappings):
                 c.mappings = mapping
                 cur_nmappings += c.n_pre_prune_mappings
-        print_time("Pmapping merging")
+        timer.print_time("Pmapping merging")
 
         prev_nmappings = cur_nmappings
         if not skip_invalid:
@@ -519,23 +605,23 @@ def join_pmappings(
         # ======================================================================
         # Print statements
         # ======================================================================
-        logging.info(
+        logger.info(
             f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}"
         )
 
         nmappings = sum(len(s.mappings.data) for s in combined)
         for_einsum_text = f"for Einsum {right_einsum}"
-        logging.info(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
+        logger.info(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
         # for c in combined:
         #     print(f"\t\t{c.compatibility}")
-        logging.info(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
-        logging.info(
+        logger.info(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
+        logger.info(
             f"\tMappings per group {for_einsum_text}: {nmappings / len(combined)}"
         )
-        logging.info(
+        logger.info(
             f"\tLargest left: {max(len(s2.mappings.data) for s in left.values() for s2, _ in s)}"
         )
-        logging.info(
+        logger.info(
             f"\tLargest right: {max(len(s2.mappings.data) for s in right.values() for s2, _ in s)}"
         )
 
@@ -555,7 +641,7 @@ def join_pmappings(
     assert len(s_final) == 1
     mappings = s_final[0].mappings
 
-    print_total_time()
+    timer.log_total_time()
     # if evaluations_tracker is not None and "Total_latency" in data.columns and "Total_energy" in data.columns:
     #     edp = data["Total_latency"] * data["Total_energy"]
     #     edp_min = edp.min()
@@ -566,25 +652,48 @@ def join_pmappings(
     return mappings
 
 
-def join_pmappings_no_skip_invalid(*args, **kwargs):
-    return join_pmappings(*args, skip_invalid=False, **kwargs)
+def _check_einsum2pmappings_not_empty(einsum2pmappings, pmappings):
+    for einsum_name, einsum_pmappings in einsum2pmappings.items():
+        total = sum(len(p.mappings.data) for p in einsum_pmappings)
+        n_compatibilities = len(einsum_pmappings)
+        logger.info(
+            f"Einsum {einsum_name} has {total} pmappings with {n_compatibilities} compatibilities"
+        )
+        if total == 0:
+            if einsum_name in pmappings.einsums_with_pmappings_generated:
+                raise ValueError(
+                    f"Einsum {einsum_name} has no pmappings. This likely means that "
+                    f"no pmappings satisfied constraints for the Einsum. Please check "
+                    f"the stats outputs from the MultiEinsumPmappings object."
+                )
+
+            raise ValueError(
+                f"Einsum {einsum_name} has no pmappings generated. It looks like you "
+                "may have used `make_pmappings` with `einsum_names` set. You may set "
+                "`require_all_einsums=False` to ignore this error and map only the "
+                "Einsums that have pmappings."
+            )
 
 
-def join_pmappings_no_combine_reservations(*args, **kwargs):
-    args = list(args)
-    if len(args[0]) == 16:
-        args[0] = {k: v for k, v in list(args[0].items())[:11]}
-    if len(args[0]) > 16:
-        args[0] = {k: v for k, v in list(args[0].items())[:2]}
-    return join_pmappings(*args, combine_reservations=False, **kwargs)
+class MappingFromRow:
+    def __init__(
+        self,
+        row: pd.Series,
+        rank_variable_bounds: dict[str, dict[str, int]],
+        einsum_names: list[EinsumName] | None = None,
+    ):
+        self.row = row
+        self.rank_variable_bounds = rank_variable_bounds
+        self.einsum_names = einsum_names
 
+    def __call__(self) -> Mapping:
+        return Mapping._from_pmappings(
+            row2pmappings(self.row, self.einsum_names, self.rank_variable_bounds),
+            rank_variable_bounds=self.rank_variable_bounds,
+        )
 
-def join_pmappings_no_either(*args, **kwargs):
-    args = list(args)
-    if len(args[0]) == 16:
-        args[0] = {k: v for k, v in list(args[0].items())[:11]}
-    if len(args[0]) > 16:
-        args[0] = {k: v for k, v in list(args[0].items())[:2]}
-    return join_pmappings(
-        *args, skip_invalid=False, combine_reservations=False, **kwargs
-    )
+    def _repr_svg_(self) -> str:
+        return self.render()
+
+    def render(self) -> str:
+        return self().render()

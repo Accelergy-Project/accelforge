@@ -4,9 +4,9 @@ from numbers import Number
 from sympy import Symbol
 
 from fastfusion.frontend.workload import Workload
-from fastfusion.frontend.workload._symbolic import get_stride_and_halo
+from fastfusion.frontend._workload_isl._symbolic import get_stride_and_halo
 from fastfusion.frontend.mapping import (
-    Iteration,
+    Loop,
     Mapping,
 )
 
@@ -14,7 +14,7 @@ from fastfusion.frontend.mapping import (
 class SymbolRelations:
     def __init__(self):
         self.what_tiles_symbol: list[tuple[Symbol | int, Symbol | int]] = []
-        self.stride_and_initial: list[tuple[Symbol | int, Symbol | int]] = []
+        self.tile_shape_and_initial: list[tuple[Symbol | int, Symbol | int]] = []
         self.delta_choices: list[tuple[Symbol, frozenset[int]]] = []
         self.bounds: tuple[tuple[Symbol, int, int], ...] = ()
 
@@ -26,8 +26,8 @@ class SymbolRelations:
 
     def is_stride(self, symbol: Symbol) -> bool:
         """Check if `symbol` is a stride."""
-        for stride, initial in self.stride_and_initial:
-            if stride == symbol:
+        for tile_shape, initial in self.tile_shape_and_initial:
+            if tile_shape == symbol:
                 return True
             if initial == symbol:
                 return False
@@ -35,26 +35,26 @@ class SymbolRelations:
 
     def is_initial_tile_shape(self, symbol: Symbol) -> bool:
         """Check if `symbol` is a initial tile shape."""
-        for stride, initial in self.stride_and_initial:
-            if stride == symbol:
+        for tile_shape, initial in self.tile_shape_and_initial:
+            if tile_shape == symbol:
                 return False
             if initial == symbol:
                 return True
         return False
 
-    def get_stride(self, symbol: Symbol) -> Symbol | int:
+    def get_tile_shape(self, symbol: Symbol) -> Symbol | int:
         """Get the stride corresponding to the initial tile shape `symbol`."""
-        for stride, initial in self.stride_and_initial:
+        for tile_shape, initial in self.tile_shape_and_initial:
             if initial == symbol:
-                return stride
+                return tile_shape 
         raise ValueError(f"Symbol {symbol} not found as initial in {self}")
 
     def get_initial(self, symbol: Symbol, none_if_fail: bool = False) -> Symbol | int:
-        for stride, initial in self.stride_and_initial:
-            if stride == symbol:
+        for tile_shape, initial in self.tile_shape_and_initial:
+            if tile_shape == symbol:
                 return initial
         if not none_if_fail:
-            raise ValueError(f"Symbol {symbol} not found as stride in {self}")
+            raise ValueError(f"Symbol {symbol} not found as tile_shape in {self}")
         else:
             return None
 
@@ -103,21 +103,21 @@ class SymbolRelations:
         relation = SymbolRelations()
         last_seen_loop_per_rank_var: dict[str, Symbol | int] = dict(shape)
         for node in pmapping.nodes:
-            if not isinstance(node, Iteration):
+            if not isinstance(node, Loop):
                 continue
             prev = last_seen_loop_per_rank_var.get(node.rank_variable, None)
             # If we're a symbol and we've seen an outer loop with the same rank variable,
             # then we tile that one.
             if prev is not None:
-                relation.what_tiles_symbol.append((prev, node.stride))
-            last_seen_loop_per_rank_var[node.rank_variable] = node.stride
+                relation.what_tiles_symbol.append((prev, node.tile_shape))
+            last_seen_loop_per_rank_var[node.rank_variable] = node.tile_shape
 
             if (
                 isinstance(node.initial_tile_shape, Symbol)
-                and node.initial_tile_shape != node.stride
+                and node.initial_tile_shape != node.tile_shape
             ):
-                relation.stride_and_initial.append(
-                    (node.stride, node.initial_tile_shape)
+                relation.tile_shape_and_initial.append(
+                    (node.tile_shape, node.initial_tile_shape)
                 )
                 relation.delta_choices.append(
                     (
@@ -144,13 +144,13 @@ def get_initial_delta_choices(einsum_name: str, workload: Workload):
     while stack:
         cur_chain = stack.pop()
         last_tensor, last_einsum = cur_chain[-1]
-        for tensor in last_einsum.output_tensors():
-            einsums_that_read_tensor = workload.einsums_that_read_tensor(tensor)
+        for tensor in last_einsum.output_tensor_names:
+            einsums_with_tensor_as_input = workload.einsums_with_tensor_as_input(tensor)
 
-            if len(einsums_that_read_tensor) == 0:
+            if len(einsums_with_tensor_as_input) == 0:
                 consumer_chains.append(cur_chain)
 
-            for next_einsum in einsums_that_read_tensor:
+            for next_einsum in einsums_with_tensor_as_input:
                 stack.append(cur_chain + [(tensor, next_einsum)])
 
     for chain in consumer_chains:

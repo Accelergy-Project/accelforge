@@ -1,5 +1,4 @@
 arch:
-  version: 0.4
   nodes:
   - !Component
     name: DRAM                 # offchip DRAM is the source of all datatypes
@@ -26,4 +25,4 @@ arch:
   - !Compute
     name: mac
     class: mac_compute
-    attributes: {num_pipline_stages: 2, datawidth: datawidth}
+    attributes: {num_pipline_stages: 2}

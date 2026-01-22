@@ -8,8 +8,8 @@ from paretoset import paretoset
 from joblib import delayed
 from sympy import factorint
 
-from fastfusion.accelerated_imports import np
-from fastfusion.util.util import parallel
+from fastfusion._accelerated_imports import np
+from fastfusion.util.parallel import parallel
 
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
     col_used_in_pareto,
@@ -182,7 +182,7 @@ def pareto_front_cupy_blockwise_sorted_recursive(X, block_size=2000):
 #     # return makepareto_time_compare(mappings)
 #     if columns is None:
 #         columns = [c for c in mappings.columns if col_used_in_pareto(c)]
-#     if accelerated_imports.ACCELERATED:
+#     if _accelerated_imports.ACCELERATED:
 #         mask = pareto_front_cupy_blockwise_sorted_recursive(mappings[columns].to_cupy())
 #         return mappings[mask]
 
@@ -317,7 +317,9 @@ def paretoset_grouped_dirty(df: pd.DataFrame, sense: list[str]):
     def _row_from_group(mins, group):
         per_col_mins = group.min(axis=0)
         per_col_maxs = group.max(axis=0)
-        good_row = group.iloc[np.argmin((group ** (1 / len(group.columns))).prod(axis=1))]
+        good_row = group.iloc[
+            np.argmin((group ** (1 / len(group.columns))).prod(axis=1))
+        ]
         return [mins, per_col_mins, per_col_maxs, good_row, group]
 
     groups = list(df.groupby(group_by))
@@ -336,11 +338,23 @@ def paretoset_grouped_dirty(df: pd.DataFrame, sense: list[str]):
     # print(f'Grouped into {n_groups} groups, {orig_size} -> {new_size} rows, {n_cols} columns. Remaining {len(keepcols)} columns')
 
     for groups in groups_by_diff.values():
-        for i, (mins_a, per_col_mins_a, per_col_maxs_a, good_row_a, group_a) in enumerate(groups):
+        for i, (
+            mins_a,
+            per_col_mins_a,
+            per_col_maxs_a,
+            good_row_a,
+            group_a,
+        ) in enumerate(groups):
             if group_a is None:
                 continue
 
-            for j, (mins_b, per_col_mins_b, per_col_maxs_b, good_row_b, group_b) in enumerate(groups):
+            for j, (
+                mins_b,
+                per_col_mins_b,
+                per_col_maxs_b,
+                good_row_b,
+                group_b,
+            ) in enumerate(groups):
                 if group_b is None or i == j:
                     continue
 
@@ -483,7 +497,9 @@ def makepareto_numpy(
             raise ValueError(f"Unknown goal: {goal}")
 
     if not to_pareto:
-        return mappings[:1]
+        n = np.zeros(mappings.shape[0], dtype=bool)
+        n[0] = True
+        return n
 
     df = pd.DataFrame(np.concatenate(to_pareto, axis=1), columns=range(len(to_pareto)))
 

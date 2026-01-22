@@ -2,38 +2,35 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 import logging
 from numbers import Number
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 from uuid import UUID, uuid4
 
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.mapping import (
-    Iteration,
     Mapping,
-    Reservation,
-    Spatial,
-    TilePattern,
 )
-from fastfusion.frontend.specification import Specification
-from fastfusion.frontend.workload._symbolic import Relevant, PartiallyRelevant
-from fastfusion.frontend.workload.workload import (
+from fastfusion.frontend.spec import Spec
+from fastfusion.frontend._workload_isl._symbolic import Relevant, PartiallyRelevant
+from fastfusion.frontend.workload import (
+    Einsum,
     EinsumName,
-    RankVariableName,
+    RankVariable,
+    SymbolTable,
     TensorName,
     Workload,
-    RankName,
+    Rank,
 )
 
 from fastfusion.frontend.mapper import Metrics
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
-    TensorReservation,
 )
 from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
-    ConstraintLambda,
+    _ConstraintLambda,
 )
-from fastfusion.util.util import expfmt, fzs
-from fastfusion.util.itertools import first
+from fastfusion.util.parallel import _expfmt
+from fastfusion.util._itertools import first
 from fastfusion.frontend.mapping import Reservation as ReservationNode
 
 
@@ -41,7 +38,7 @@ def make_compatibility(
     mapping: Mapping,
     fusable_tensors: set[TensorName],
     workload: Workload,
-    rank_variable_bounds: dict[RankVariableName, int],
+    rank_variable_bounds: dict[RankVariable, int],
     stride_and_halo,
 ) -> Compatibility:
 
@@ -54,15 +51,14 @@ def make_compatibility(
 
 @dataclass
 class Job:
-    spec: Specification | None
+    spec: Spec | None
     metrics: Metrics
-    rank_variable_bounds: dict[RankVariableName, int]
+    rank_variable_bounds: dict[RankVariable, int]
 
     job_id: UUID = field(default_factory=uuid4)
 
     stride_and_halo: (
-        dict[TensorName, dict[tuple[RankName, RankVariableName], tuple[int, int]]]
-        | None
+        dict[TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]] | None
     ) = None
     mapping: Mapping | None = None
     constraints: MappingConstraints | None = None
@@ -75,20 +71,26 @@ class Job:
     _compatibility: Compatibility | None = None
     memories_track_all: list[str] | None = None
     memories_track_pmappings_only: list[str] | None = None
-    no_drop_reservations_for: set[str] | None = None
+    ignored_resources: set[str] | None = None
     time_limit: float | int = float("inf")
     memory_limit: float | int = float("inf")
     messages: list[str] = field(default_factory=list)
     pmapping_keep_rates: dict[str, float] = field(default_factory=dict)
     tensor_to_relevancy: (
-        dict[TensorName, dict[RankVariableName, Relevant | PartiallyRelevant]] | None
+        dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]] | None
     ) = None
 
-    total_pmappings: int = 1
-    valid_pmappings: int = 1
-    evaluated_pmappings: int = 0
+    n_total_pmappings: int = 1
+    n_valid_pmappings: int = 1
+    n_evaluated_pmappings: int = 0
 
     _update_compatibility_with_tile_shapes_args: dict[str, Any] | None = None
+
+    symbol_table: SymbolTable | None = None
+
+    @property
+    def einsum(self) -> Einsum:
+        return self.spec.workload.einsums[self.einsum_name]
 
     @property
     def compatibility(self) -> Compatibility:
@@ -113,7 +115,7 @@ class Job:
         )
 
     def _make_compatibility_and_updater(self):
-        from fastfusion.model.looptree.reuse.symbolic import (
+        from fastfusion.model._looptree.reuse.symbolic import (
             quick_insert_reservation_nodes,
         )
 
@@ -146,7 +148,7 @@ class Job:
 
     def pretty_str(self) -> str:
         constraints = self.constraints.get_all_constraints()
-        node2constraints: dict[int, list[ConstraintLambda]] = {}
+        node2constraints: dict[int, list[_ConstraintLambda]] = {}
         for constraint in constraints:
             for target_index in constraint._target_node_indices:
                 l = node2constraints.setdefault(target_index, [])
@@ -172,19 +174,19 @@ class Job:
         for m in self.messages:
             s += f"\t{m}\n"
 
-        s += f"Total pmappings: {self.total_pmappings}\n"
-        s += f"Valid pmappings: {self.valid_pmappings}\n"
-        s += f"One in {expfmt(self.total_pmappings / self.valid_pmappings)} pmappings is valid\n"
-        s += f"Number of pmappings evaluated: {self.evaluated_pmappings}\n"
-        s += f"One in {expfmt(self.evaluated_pmappings / self.total_pmappings)} pmappings was evaluated\n"
+        s += f"Total pmappings: {self.n_total_pmappings}\n"
+        s += f"Valid pmappings: {self.n_valid_pmappings}\n"
+        s += f"One in {_expfmt(self.n_total_pmappings / self.n_valid_pmappings)} pmappings is valid\n"
+        s += f"Number of pmappings evaluated: {self.n_evaluated_pmappings}\n"
+        s += f"One in {_expfmt(self.n_evaluated_pmappings / self.n_total_pmappings)} pmappings was evaluated\n"
         s += f"Pmapping elimination reasons:\n"
         for cause, keep_rate in self.pmapping_keep_rates.items():
-            s += f"\t{cause} kept one in {expfmt(1/keep_rate)} pmappings\n"
+            s += f"\t{cause} kept one in {_expfmt(1/keep_rate)} pmappings\n"
         s += "=" * 80 + "\n"
         return s
 
     def set_total_pmappings(self, n_pmappings: int):
-        self.total_pmappings = n_pmappings
+        self.n_total_pmappings = n_pmappings
 
     def log_porp_pmappings_kept(
         self,
@@ -193,8 +195,11 @@ class Job:
         out_of: int = None,
     ):
         if out_of is not None:
-            n_kept = porp_kept * out_of + (self.total_pmappings - out_of)
-            porp_kept = n_kept / self.total_pmappings
+            n_kept = porp_kept * out_of + (self.n_total_pmappings - out_of)
+            porp_kept = n_kept / self.n_total_pmappings
+
+        if any(x == 0 for x in self.pmapping_keep_rates.values()):
+            return
 
         self.pmapping_keep_rates.setdefault(cause, 1)
         self.pmapping_keep_rates[cause] *= porp_kept
@@ -212,11 +217,11 @@ class Job:
 
 class SameSpecJobs(list[Job]):
     @property
-    def spec(self) -> Specification:
+    def spec(self) -> Spec:
         return first(self).spec
 
     @property
-    def rank_variable_bounds(self) -> dict[RankVariableName, int]:
+    def rank_variable_bounds(self) -> dict[RankVariable, int]:
         return first(self).rank_variable_bounds
 
     @property
@@ -239,7 +244,7 @@ class SameEinsumJobs(SameSpecJobs):
         return first(self).einsum_name
 
     @property
-    def rank_variable_bounds(self) -> dict[RankVariableName, int]:
+    def rank_variable_bounds(self) -> dict[RankVariable, int]:
         return first(self).rank_variable_bounds
 
     @property

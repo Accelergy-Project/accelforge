@@ -2,19 +2,19 @@ from math import isclose
 import unittest
 from pathlib import Path
 
-from fastfusion.frontend import Specification
+from fastfusion.frontend import Spec
 from fastfusion.frontend.mapping import Mapping
 from fastfusion.frontend.workload import Workload
 
 from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
-from fastfusion.model.looptree.accesses import (
+from fastfusion.model._looptree.accesses import (
     isl_buffer_accesses_from_buffet_actions,
     Accesses,
 )
-from fastfusion.model.looptree.energy import gather_actions
-from fastfusion.model.looptree.latency import get_latency
-from fastfusion.model.looptree.types import Buffet
-from fastfusion.model.looptree.reuse.symbolic import (
+from fastfusion.model._looptree.energy import gather_actions
+from fastfusion.model._looptree.latency import get_latency
+from fastfusion.model._looptree.types import Buffet
+from fastfusion.model._looptree.reuse.symbolic import (
     BuffetStats,
     analyze_reuse_and_add_reservations_to_mapping,
     Compute,
@@ -225,7 +225,7 @@ class TestSymbolicActions(unittest.TestCase):
 
 class TestSymbolicLatency(unittest.TestCase):
     def test_q_mapping(self):
-        spec = Specification.from_yaml(
+        spec = Spec.from_yaml(
             [
                 # Path(__file__).parent / 'Q_mapping.yaml',
                 Path(__file__).parent / "mha.yaml",
@@ -233,7 +233,7 @@ class TestSymbolicLatency(unittest.TestCase):
             ]
         )
         workload = spec.workload
-        architecture = spec.get_flattened_architecture()
+        architecture = spec._get_flattened_architecture()
         mapping = Mapping.from_yaml(Path(__file__).parent / "Q_mapping.yaml")
 
         result = analyze_reuse_and_add_reservations_to_mapping(

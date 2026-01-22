@@ -1,0 +1,59 @@
+workload:
+  # These rank sizes define the shapes of the tensors in the Einsum. Shapes are assumed
+  # to go from [0, size-1]. Indexes into a rank are omitted if out of range.
+  rank_sizes:
+    M: 128
+    N0: 128
+    N1: 128
+    N2: 128
+    N3: 128
+
+  # Alternatively, we can constrain each of the rank variables to be within a range. The
+  # values in this dictionary are ISL expressions, and the constraints apply to all
+  # Einsums that use these rank variables.
+  iteration_space_shape:
+    m:  0 <= m  < 128
+    n0: 0 <= n0 < 128
+    n1: 0 <= n1 < 128
+    n2: 0 <= n2 < 128
+    n3: 0 <= n3 < 128
+
+  # Describe the number of bits of each value of each tensor. This is a dictionary of
+  # set expressions to bits per value for the tensors given by those expressions. They
+  # can be overridden by the bits_per_value attribute of any tensor access.
+  bits_per_value: {All: 8}
+
+  # The Einsums in the workload.
+  einsums:
+  - name: Matmul1
+    tensor_accesses:
+    - {name: T0, projection: [m, n0]}
+    - {name: W0, projection: [n0, n1]}
+    - {name: T1, projection: [m, n1], output: True}
+    renames: {input: T0}
+
+  - name: Matmul2
+    tensor_accesses:
+    - {name: T1, projection: [m, n1]}
+    - {name: W1, projection: [n1, n2]}
+    - {name: T2, projection: [m, n2], output: True}
+
+  - name: Matmul3
+    tensor_accesses:
+    - {name: T2, projection: [m, n2]}
+    - {name: W2, projection: [n2, n3]}
+    - {name: T3, projection: [m, n3], output: True}
+
+renames:
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs & Intermediates
+      expected_count: 1
+    - name: output
+      source: Outputs
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1

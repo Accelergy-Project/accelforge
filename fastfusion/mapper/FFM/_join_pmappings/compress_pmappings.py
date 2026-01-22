@@ -1,8 +1,8 @@
 from typing import Any, NamedTuple
 
 from tqdm import tqdm
-from fastfusion.accelerated_imports import pd
-from fastfusion.frontend.workload.workload import EinsumName
+from fastfusion._accelerated_imports import pd
+from fastfusion.frontend.workload import EinsumName
 from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from fastfusion.mapper.FFM._pareto_df.df_convention import (
     COMPRESSED_INDEX,
@@ -11,7 +11,7 @@ from fastfusion.mapper.FFM._pareto_df.df_convention import (
     is_tensor_col,
 )
 from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
-from fastfusion.util.util import parallel, delayed
+from fastfusion.util.parallel import parallel, delayed
 
 
 class DecompressData(NamedTuple):

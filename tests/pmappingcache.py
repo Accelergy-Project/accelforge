@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from pathlib import Path
 
-from fastfusion.util.picklecache import PickleCache
+from fastfusion.util._picklecache import PickleCache
 
 
 TEST_PmappingGroup_DIR = Path(__file__).parent / "tmp" / "pmapping_cache"

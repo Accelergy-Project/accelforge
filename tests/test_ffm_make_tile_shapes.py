@@ -3,7 +3,7 @@ from pathlib import Path
 
 import time
 
-from fastfusion.frontend.specification import Specification, Mapping
+from fastfusion.frontend.spec import Spec, Mapping
 from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
 )
@@ -16,14 +16,14 @@ from fastfusion.frontend import arch
 class TestTileShapeExploration(unittest.TestCase):
     def test_pmapping(self):
         PARENT_DIR = Path(__file__).parent
-        specification = Specification.from_yaml(
+        spec = Spec.from_yaml(
             PARENT_DIR / "conv.workload.yaml", PARENT_DIR / "four_level.arch.yaml"
         )
-        specification = specification.calculate_component_energy_area(area=False)
+        spec = spec.calculate_component_area_energy_latency_leak(area=False)
 
         mapping = Mapping.from_yaml(PARENT_DIR / "conv_sym.mapping.yaml")
 
-        flattened_arch = specification.get_flattened_architecture()
+        flattened_arch = spec._get_flattened_architecture()
         memories_track_all = [
             m.name for m in flattened_arch if isinstance(m, arch.Memory)
         ]
@@ -32,7 +32,7 @@ class TestTileShapeExploration(unittest.TestCase):
         job = Job(
             mapping=mapping,
             constraints=MappingConstraints(),
-            spec=specification,
+            spec=spec,
             metrics=Metrics.LATENCY,
             job_id=0,
             rank_variable_bounds={},
@@ -40,8 +40,8 @@ class TestTileShapeExploration(unittest.TestCase):
             memories_track_pmappings_only=memories_track_pmappings_only,
         )
 
-        result = make_tile_shapes(job)
-        data, total_pmappings = result
+        result, _ = make_tile_shapes(job)
+        data, n_total_pmappings = result
         self.assertTrue("Total_latency" in data.columns)
 
 

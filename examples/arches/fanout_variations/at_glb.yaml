@@ -1,0 +1,32 @@
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    attributes:
+      _size: inf
+      _leak_power: 0
+      _area: 0
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, arguments: {_energy: 1, _latency: 0}}
+    - {name: write, arguments: {_energy: 1, _latency: 0}}
+
+  - !Memory
+    name: GlobalBuffer
+    attributes:
+      _size: inf #100e6
+      _leak_power: 0
+      _area: 0
+    tensors: {keep: All}
+    spatial:
+    - name: X
+      fanout: 4
+    actions:
+    - {name: read, arguments: {_energy: 0, _latency: 0}}
+    - {name: write, arguments: {_energy: 0, _latency: 0}}
+
+  - !Compute
+    name: MAC
+    attributes: {_leak_power: 0, _area: 0}
+    actions:
+    - {name: compute, arguments: {_energy: 0, _latency: 1}}

@@ -3,19 +3,20 @@ import copy
 import functools
 import itertools
 
-from typing import Callable, Iterable, Optional, Tuple, Union
+from typing import Callable, Iterable, Optional
 
 import sympy
 
-from fastfusion.frontend.mapping import Iteration, Nested, TilePattern
+from fastfusion.frontend.mapping import Nested, TilePattern
+from fastfusion.frontend.mapping import Loop as MappingLoop
 from fastfusion.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     Loop,
     TensorReservation,
 )
-from fastfusion.util import fzs
+from fastfusion.util._frozenset import fzs
 
-from fastfusion.accelerated_imports import pd
+from fastfusion._accelerated_imports import pd
 
 from fastfusion.mapper.FFM._pareto_df.df_convention import *
 from fastfusion.mapper.FFM._pareto_df.pareto import makepareto
@@ -57,8 +58,8 @@ class PmappingDataframe:
     def __init__(
         self,
         data: pd.DataFrame,
-        total_pmappings: float,
-        valid_pmappings: float,
+        n_total_pmappings: float,
+        n_valid_pmappings: float,
         skip_pareto: bool = False,
         fill_reservation_cols: set | str = fzs(),
         check_above_subset_below: bool = CHECK_CORRECTNESS,
@@ -66,7 +67,7 @@ class PmappingDataframe:
         next_shared_loop_index: int = None,
         parallelize_pareto: bool = False,
         limit_capacity_drop_valid_reservations: bool = True,
-        no_drop_reservations_for: set[str] = None,
+        ignored_resources: set[str] = None,
     ):
         self._data: pd.DataFrame = data
         self.right_reservations: dict[set] = None
@@ -74,19 +75,19 @@ class PmappingDataframe:
         self._prev_free_to_loop_index = None
         self._parallelize_pareto = parallelize_pareto
         self._make_reservations()
-        self.total_pmappings: float = total_pmappings
-        self.valid_pmappings: float = valid_pmappings
+        self.n_total_pmappings: float = n_total_pmappings
+        self.n_valid_pmappings: float = n_valid_pmappings
 
         if next_shared_loop_index is not None:
             assert (
-                no_drop_reservations_for is not None
-            ), "no_drop_reservations_for must be set if next_shared_loop_index is set"
+                ignored_resources is not None
+            ), "ignored_resources must be set if next_shared_loop_index is set"
             self.free_to_loop_index(loop_index=next_shared_loop_index)
             self.limit_capacity(
                 resource2capacity={},
                 next_shared_loop_index=next_shared_loop_index,
                 drop_valid_reservations=limit_capacity_drop_valid_reservations,
-                no_drop_reservations_for=no_drop_reservations_for,
+                ignored_resources=ignored_resources,
             )
             self._check_reservations()
 
@@ -284,7 +285,7 @@ class PmappingDataframe:
         level: int,
         left: bool = False,
         return_name_level_left: bool = False,
-    ) -> Optional[Union[str, Tuple[str, int, bool]]]:
+    ) -> str | tuple[str, int, bool] | None:
         reservations = self.left_reservations if left else self.right_reservations
         if (reservations := reservations.get(name, None)) is not None:
             while level >= -1:
@@ -375,10 +376,10 @@ class PmappingDataframe:
         compatibility_left: Compatibility,
         compatibility_right: Compatibility,
         compatibility_joined: Compatibility,
-        no_drop_reservations_for: set[str],
+        ignored_resources: set[str],
         resource2capacity: dict[str, int],
         drop_valid_reservations: bool = True,
-        pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+        _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> "PmappingDataframe":
         """
            A  B            A2
@@ -425,7 +426,7 @@ class PmappingDataframe:
                 tb = compatibility_right.get_tensor_by_name(s)
                 for la, lb in zip(ta.loops, tb.loops):
                     check_match(la, lb, "initial_tile_shape")
-                    check_match(la, lb, "stride")
+                    check_match(la, lb, "tile_shape")
 
             for la, lb in zip(compatibility_left.loops, compatibility_right.loops):
                 check_match(la, lb, "calculated_n_iterations")
@@ -477,11 +478,11 @@ class PmappingDataframe:
         df = df.drop(columns=dropcols)
 
         # Number of combinations
-        total_pmappings = self.total_pmappings * right.total_pmappings
-        valid_pmappings = self.valid_pmappings * right.valid_pmappings
+        n_total_pmappings = self.n_total_pmappings * right.n_total_pmappings
+        n_valid_pmappings = self.n_valid_pmappings * right.n_valid_pmappings
         scale_by = len(df) / max(1, len(self.data) * len(right.data))
-        total_pmappings *= scale_by
-        valid_pmappings *= scale_by
+        n_total_pmappings *= scale_by
+        n_valid_pmappings *= scale_by
 
         # Make sure everything is done in increasing loop order so we don't have
         # read-after-write hazards
@@ -553,8 +554,8 @@ class PmappingDataframe:
             df,
             skip_pareto=True,
             check_above_subset_below=False,
-            total_pmappings=total_pmappings,
-            valid_pmappings=valid_pmappings,
+            n_total_pmappings=n_total_pmappings,
+            n_valid_pmappings=n_valid_pmappings,
         )
         # Remove tensors that were allocated in both branches and got added
         # together.
@@ -567,6 +568,7 @@ class PmappingDataframe:
         result.adjust_reservations(
             alloc=live_to_alloc,
             free=list(itertools.chain(shared_to_free, duplicated_aliased_tensors)),
+            ignored_resources=ignored_resources,
         )
 
         if CHECK_CORRECTNESS:
@@ -579,11 +581,11 @@ class PmappingDataframe:
                 resource2capacity,
                 next_shared_loop_index,
                 drop_valid_reservations,
-                no_drop_reservations_for=no_drop_reservations_for,
+                ignored_resources=ignored_resources,
             )
         result.max_right_to_left()
-        if pmapping_row_filter_function is not None:
-            result = result.filter_rows(pmapping_row_filter_function)
+        if _pmapping_row_filter_function is not None:
+            result = result.filter_rows(_pmapping_row_filter_function)
         result.make_pareto()
         result._check_reservations()
 
@@ -634,11 +636,15 @@ class PmappingDataframe:
                 source = self.get_reservation_or_parent(resource, level - 1)
                 self.data[target] = size + (self.data[source] if source else 0)
 
+            # Assert all reservations are >= 0
+            assert (self.data[target] >= 0).all(), f"Negative reservation: {target}"
+
     @error_check_wrapper
     def adjust_reservations(
         self,
         alloc: Iterable[TensorReservation],
         free: Iterable[TensorReservation],
+        ignored_resources: set[str] = set(),
     ):
         alloc, free = list(alloc), list(free)
         all_resources = {t.resource_name for t in alloc} | {
@@ -646,6 +652,8 @@ class PmappingDataframe:
         }
         # Handle each resource separately
         for resource in all_resources:
+            if resource in ignored_resources:
+                continue
             cur_alloc = [t for t in alloc if t.resource_name == resource]
             cur_free = [t for t in free if t.resource_name == resource]
             if cur_alloc or cur_free:
@@ -671,8 +679,8 @@ class PmappingDataframe:
             concatenated.fillna(0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
             fill_reservation_cols=fill_cols,
-            total_pmappings=sum(p.total_pmappings for p in paretos),
-            valid_pmappings=sum(p.valid_pmappings for p in paretos),
+            n_total_pmappings=sum(p.n_total_pmappings for p in paretos),
+            n_valid_pmappings=sum(p.n_valid_pmappings for p in paretos),
         )
         return p
 
@@ -685,8 +693,8 @@ class PmappingDataframe:
             data=self.data,
             skip_pareto=skip_pareto,
             check_above_subset_below=False,
-            total_pmappings=self.total_pmappings,
-            valid_pmappings=self.valid_pmappings,
+            n_total_pmappings=self.n_total_pmappings,
+            n_valid_pmappings=self.n_valid_pmappings,
         )
         args.update(kwargs)
         return PmappingDataframe(**args)
@@ -704,7 +712,7 @@ class PmappingDataframe:
         resource2capacity: dict[str, Optional[int]],
         next_shared_loop_index: int = None,
         drop_valid_reservations: bool = True,
-        no_drop_reservations_for: set[str] = set(),
+        ignored_resources: set[str] = set(),
     ):
         resource2capacity = resource2capacity or {}
         dropcols = []
@@ -729,7 +737,7 @@ class PmappingDataframe:
                     l == 0
                     and next_shared_loop_index == -1
                     and drop_valid_reservations
-                    and resource not in no_drop_reservations_for
+                    and resource not in ignored_resources
                 ):
                     right_loops.discard(l)
                     dropcols.append(col)
@@ -747,7 +755,7 @@ class PmappingDataframe:
                 if (
                     l == 0
                     and drop_valid_reservations
-                    and resource not in no_drop_reservations_for
+                    and resource not in ignored_resources
                 ):
                     left_loops.discard(l)
                     dropcols.append(col)
@@ -793,16 +801,16 @@ class PmappingDataframe:
                 raise ValueError(error)
 
     def filter_rows(
-        self, pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None
+        self, _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None
     ) -> "PmappingDataframe":
-        if pmapping_row_filter_function is None:
+        if _pmapping_row_filter_function is None:
             return self.copy()
 
-        # s = pmapping_row_filter_function(self._data)
+        # s = _pmapping_row_filter_function(self._data)
         # if s.sum() > 0:
         #     print(f"Filter rate: {s.sum() / len(s):.2%}")
         return self.update(
-            data=self._data[pmapping_row_filter_function(self._data)].copy(),
+            data=self._data[_pmapping_row_filter_function(self._data)].copy(),
             skip_pareto=True,
         )
 
@@ -896,12 +904,12 @@ def row2pmappings(
                 s = s.name if isinstance(s, sympy.Symbol) else s
                 return row[f"{einsum_name}<SEP>{s}"] if isinstance(s, str) else s
 
-            if isinstance(node, Iteration):
+            if isinstance(node, MappingLoop):
                 tp: TilePattern = node.tile_pattern
                 node.tile_pattern = tp.update(
                     initial_tile_shape=acc(tp.initial_tile_shape),
-                    stride=acc(tp.stride),
+                    tile_shape=acc(tp.tile_shape),
                 )
         pmappings.append(pmapping)
-        pmapping.beautify_loops(rank_variable_bounds)
+        pmapping._beautify_loops(rank_variable_bounds)
     return pmappings
