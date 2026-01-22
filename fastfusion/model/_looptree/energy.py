@@ -1,57 +1,53 @@
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
-from typing import Any
+from numbers import Number
 from numbers import Real
 
 from fastfusion.frontend import arch
 from fastfusion.frontend.spec import Spec
 from fastfusion.model._looptree.reuse.symbolic import SymbolicAnalysisOutput
+from fastfusion.util._base_analysis_types import ActionCount, ActionKey, VerboseActionKey
 from fastfusion.frontend.workload import Workload
 from fastfusion.frontend.mapping import Mapping
 
 
-@dataclass
-class ActionCount:
-    total: Any
-    max_per_unit: Any
-
-    @staticmethod
-    def default():
-        return ActionCount(0, 0)
-
-
 def gather_actions(
-    looptree_results: SymbolicAnalysisOutput, bindings: dict[str, str], use_name=False
+    looptree_results: SymbolicAnalysisOutput,
+    bindings: dict[str, str],
+    verbose: bool = False,
+    use_name=False
 ):
     actions: dict[tuple[str, str], ActionCount] = {}
     compute_levels = set(c.level for c in looptree_results.compute_stats)
+
+    buffet_keyer = _get_buffet_keyer(verbose, use_name, bindings)
+    compute_keyer = _get_compute_keyer(verbose, use_name, bindings)
 
     for buffet, accesses in looptree_results.buffet_stats.items():
         if buffet.level in compute_levels:
             continue
 
-        buf = buffet.level
+        level = buffet.level
 
         if use_name:
-            buf = buf
+            level = level
         else:
-            buf = bindings[buf]
+            level = bindings[level]
 
-        key = (buf, "read")
-
+        key = buffet_keyer(buffet, "read")
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += accesses.net_total_read_actions()
         actions[key].max_per_unit += accesses.net_max_per_unit_read_actions()
 
-        key = (buf, "write")
+        key = buffet_keyer(buffet, "write")
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += accesses.net_total_write_actions()
         actions[key].max_per_unit += accesses.net_max_per_unit_write_actions()
 
     for compute, ops in looptree_results.compute_stats.items():
-        key = (compute.level, "compute")
+        key = compute_keyer(compute, "compute")
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += ops.total_ops
@@ -60,31 +56,71 @@ def gather_actions(
     return actions
 
 
+def _get_buffet_keyer(verbose, use_name, bindings):
+    if not verbose:
+        def get_buffet_key(buffet, action_name) -> ActionKey:
+            level = buffet.level
+            if use_name:
+                level = level
+            else:
+                level = bindings[level]
+            return ActionKey(level, action_name)
+    else:
+        def get_buffet_key(buffet, action_name) -> VerboseActionKey:
+            level = buffet.level
+            if use_name:
+                level = level
+            else:
+                level = bindings[level]
+            return VerboseActionKey(level, action_name, buffet.tensor, buffet.einsum)
+    return get_buffet_key
+
+
+def _get_compute_keyer(verbose, use_name, bindings):
+    if not verbose:
+        def compute_keyer(compute, action_name):
+            level = compute.level
+            if use_name:
+                level = level
+            else:
+                level = bindings[level]
+            return ActionKey(level, action_name)
+    else:
+        def compute_keyer(compute, action_name):
+            level = compute.level
+            if use_name:
+                level = level
+            else:
+                level = bindings[level]
+            return VerboseActionKey(level, action_name, None, compute.einsum)
+    return compute_keyer
+
+
 def compute_energy_from_actions(
     spec: Spec,
-    action_counts: MappingABC[(str, str), Real],
+    action_counts: MappingABC[ActionKey, Real],
     overall_latency: float,
-):
+) -> dict[ActionKey | VerboseActionKey, Number]:
     energy_result = {}
     components = {}
-    for (component, action), counts in action_counts.items():
+    for key, counts in action_counts.items():
         if counts.total == 0:
             continue
-        if component not in components:
-            components[component] = spec.arch.find(component)
-        component_obj = components[component]
+        if key.level not in components:
+            components[key.level] = spec.arch.find(key.level)
+        component_obj = components[key.level]
         try:
-            energy_per_ac = component_obj.actions[action].energy
+            energy_per_ac = component_obj.actions[key.action].arguments.energy
         except KeyError as e:
             raise KeyError(
-                f"Action {action} not found in component {component}. Action occurred "
+                f"Action {key.action} not found in component {key.component}. Action occurred "
                 f"{counts.total} times."
             ) from None
-        energy_result[(component, action)] = counts.total * energy_per_ac
+        energy_result[key] = counts.total * energy_per_ac
 
     for component_obj in spec.arch.get_nodes_of_type(arch.Component):
-        energy_result[(component_obj.name, "leak")] = (
-            component_obj.total_leak_power * overall_latency
+        energy_result[ActionKey(component_obj.name, "leak")] = (
+            component_obj.attributes.total_leak_power * overall_latency
         )
 
     return energy_result

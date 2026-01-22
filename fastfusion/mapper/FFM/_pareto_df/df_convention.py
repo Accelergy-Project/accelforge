@@ -3,6 +3,7 @@ import re
 
 from fastfusion.util._frozenset import fzs
 from fastfusion.frontend.workload import Rank
+from fastfusion.util._base_analysis_types import ActionKey, VerboseActionKey
 
 
 MAPPING_COLUMN = "mapping"
@@ -40,6 +41,58 @@ def partition_col(col, prefix, expected_len=None) -> list[str] | None:
             f"but got {len(col)}"
         )
     return col[1:]
+
+
+@dict_cached
+def action2col(action: ActionKey | VerboseActionKey) -> str:
+    if isinstance(action, VerboseActionKey):
+        return f"{action.einsum}<SEP>action<SEP>{action.level}<SEP>{action.tensor}<SEP>{action.action}"
+    elif isinstance(action, ActionKey):
+        return f"action<SEP>{action.level}<SEP>{action.action}"
+
+
+@dict_cached
+def col2action(colname: str) -> ActionKey | VerboseActionKey:
+    separated_names = colname.split("<SEP>")
+    if len(separated_names) == 3:
+        assert separated_names[0] == "action"
+        return ActionKey(separated_names[1], separated_names[2])
+    elif len(separated_names) == 4:
+        assert separated_names[1] == "action"
+        return VerboseActionKey(
+            separated_names[2],
+            separated_names[4],
+            separated_names[3],
+            separated_names[0]
+        )
+    else:
+        raise ValueError(f"bad column name: {colname}")
+
+
+@dict_cached
+def energy2col(action: ActionKey | VerboseActionKey) -> str:
+    if isinstance(action, VerboseActionKey):
+        return f"{action.einsum}<SEP>energy<SEP>{action.level}<SEP>{action.tensor}<SEP>{action.action}"
+    elif isinstance(action, ActionKey):
+        return f"energy<SEP>{action.level}<SEP>{action.action}"
+
+
+@dict_cached
+def col2energy(colname: str) -> ActionKey | VerboseActionKey:
+    separated_names = colname.split("<SEP>")
+    if len(separated_names) == 3:
+        assert separated_names[0] == "energy"
+        return ActionKey(separated_names[1], separated_names[2])
+    elif len(separated_names) == 4:
+        assert separated_names[1] == "energy"
+        return VerboseActionKey(
+            separated_names[2],
+            separated_names[4],
+            separated_names[3],
+            separated_names[0]
+        )
+    else:
+        raise ValueError(f"bad column name: {colname}")
 
 
 @dict_cached
