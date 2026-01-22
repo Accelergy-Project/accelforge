@@ -17,37 +17,27 @@ class Domain(ParsableModel):
     Represents an architecture dangling reference of the binding.
     """
 
+    _prefix: str
     name: str
-
+    dims: ParsableList[str]
+    
     @property
-    @abstractmethod
     def isl_space(self) -> isl.Space:
-        """Gets the domain as an isl.Space"""
-        raise NotImplementedError(f"{type(self)} has not implemented isl_space")
+        return isl.Space.create_from_names(
+            isl.DEFAULT_CONTEXT, set=self.dims
+        ).set_tuple_name(isl.dim_type.set, f"{self._prefix}_{self.name}_dims")
 
     @property
-    @abstractmethod
-    def isl_universe(self) -> isl.Set:
-        """Gets the domain as an isl.Set"""
-        raise NotImplementedError(f"{type(self)} has not implemented isl_universe")
+    def isl_universe(self) -> isl.Map:
+        return isl.Map.universe(self.isl_space)
 
 
 class LogicalDomain(Domain):
     """
     Represents the logical architecture domain space of logical dims × tensor ranks.
     """
-    ranks: ParsableList[str]
-    l_dims: ParsableList[str]
-
-    @property
-    def isl_space(self) -> isl.Space:
-        return isl.Space.create_from_names(
-            isl.DEFAULT_CONTEXT, in_=self.ranks, out=self.l_dims
-        ).set_tuple_name(isl.dim_type.out, f"l_{self.name}_dims")
-
-    @property
-    def isl_universe(self) -> isl.Map:
-        return isl.Map.universe(self.isl_space)
+    _prefix: str = 'l'
+    pass
 
 
 class PhysicalDomain(Domain):
@@ -55,18 +45,8 @@ class PhysicalDomain(Domain):
     Represents the logical architecture domain space of physical dims.
     The physical space is defined as the physical architecture dims.
     """
-
-    p_dims: ParsableList[str]
-
-    @property
-    def isl_space(self) -> isl.Space:
-        return isl.Space.create_from_names(
-            isl.DEFAULT_CONTEXT, set=self.p_dims
-        ).set_tuple_name(isl.dim_type.set, f"p_{self.name}_dims")
-
-    @property
-    def isl_universe(self) -> isl.Set:
-        return isl.Set.universe(self.isl_space)
+    _prefix: str = 'p'
+    pass
 
 
 class BindingNode(ParsableModel):
@@ -96,11 +76,8 @@ class BindingNode(ParsableModel):
         def islify_relation(key: str) -> isl.Map:
             """Converts a relation at a given key into isl"""
             relation: str = self.relations[key]
-            logical_space: isl.Space = self.logical.isl_space.set_tuple_name(
-                isl.dim_type.in_, f"{key}_ranks"
-            )
-
-            binding_space: isl.Space = logical_space.wrap().map_from_domain_and_range(
+            logical_space: isl.Space = self.logical.isl_space
+            binding_space: isl.Space = logical_space.map_from_domain_and_range(
                 range=self.physical.isl_space,
             )
 
