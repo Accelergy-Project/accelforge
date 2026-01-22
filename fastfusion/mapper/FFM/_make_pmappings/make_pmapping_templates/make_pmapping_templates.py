@@ -149,7 +149,7 @@ def remove_unordered_spatial_temporal_loops(
             n = mapping[j]
             if (
                 isinstance(n, TensorHolder)
-                and fanouts[n.component] <= fanouts[node.component]
+                and fanouts[n.component] < fanouts[node.component]
             ):
                 break
 
