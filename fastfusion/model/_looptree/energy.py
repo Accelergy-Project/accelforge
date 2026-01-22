@@ -110,7 +110,7 @@ def compute_energy_from_actions(
             components[key.level] = spec.arch.find(key.level)
         component_obj = components[key.level]
         try:
-            energy_per_ac = component_obj.actions[key.action].arguments.energy
+            energy_per_ac = component_obj.actions[key.action].energy
         except KeyError as e:
             raise KeyError(
                 f"Action {key.action} not found in component {key.component}. Action occurred "
