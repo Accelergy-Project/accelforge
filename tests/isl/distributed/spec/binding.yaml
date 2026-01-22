@@ -1,0 +1,26 @@
+-   binding:
+        version: 0.4
+        nodes:
+        -   logical:
+                name: weight_reg
+                dims: [i]
+            physical:
+                name: weight_reg
+                dims: [x, y]
+            relations:
+                tensorA: i = x + y * 2 # This is a dimension-major compression into the logical. It is bijective.
+                tensorB: i = x + y * 2 # This is a dimension-major compression into the logical. It is bijective.
+        -   logical:
+                name: GLB
+                dims: [i]
+            physical:
+                name: Scratchpad
+                dims: [x, y]
+            relations:
+                T0: x + |X| * y = m
+                W0: x = n0
+
+# TODO: example where logical components do not exist in the physical
+# Every binding creates a different buffet, so the physical PE may serve
+# as a logical PE and as a logical buffer, and that's creating diff buffets
+# Do not worry about mem mgmt for now.
