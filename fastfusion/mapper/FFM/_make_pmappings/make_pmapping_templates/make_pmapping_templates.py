@@ -68,7 +68,7 @@ def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
             mapping_new.append(
                 type(node)(
                     rank_variable=r,
-                    **node.model_dump(exclude={"rank_variable"}),
+                    **node.model_dump(exclude={"rank_variable"}, recursive=False),
                 )
             )
     return mapping_new

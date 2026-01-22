@@ -107,7 +107,7 @@ def evaluate_mapping(spec: Spec):
     for flattened_arch in flattened_arch:
         for l in flattened_arch:
             if isinstance(l, arch.Memory):
-                resource2capacity[l.name] = l.attributes.size
+                resource2capacity[l.name] = l.size
 
     m = MultiEinsumPmappings(
         einsum2pmappings,

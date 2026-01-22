@@ -1,0 +1,6 @@
+Change everything to Pythonic names
+technology -> tech_node & multiply by 1e-9
+ArrayContainer meshX fanouts -> array_reuse_input
+ArrayContainer meshY fanouts -> array_reuse_output
+other fanouts -> fastfusionic names
+GLOBAL_CYCLE_SECONDS -> cycle_period

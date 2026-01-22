@@ -132,7 +132,7 @@ def get_pmappings_data(
     flattened_architecture = flattened_architecture or spec.get_flattened_architecture()
     for l in flattened_architecture:
         if isinstance(l, arch.Memory):
-            resource2capacity[l.name] = l.attributes.size
+            resource2capacity[l.name] = l.size
 
     pairwise_equivalent_rank_variables = (
         spec.workload.get_pairwise_equivalent_rank_variables()

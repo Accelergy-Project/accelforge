@@ -48,7 +48,7 @@ class MapspaceGlobals:
         )
         for l in flattened_architecture:
             if isinstance(l, arch.Memory):
-                self.resource2capacity[l.name] = l.attributes.size
+                self.resource2capacity[l.name] = l.size
 
         self.objective_function_cols = objective_function_cols
         self.rank_translations = self._create_rank_translations(self.einsum2ranks)

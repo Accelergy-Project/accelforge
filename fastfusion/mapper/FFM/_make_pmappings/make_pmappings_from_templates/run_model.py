@@ -35,7 +35,7 @@ def run_model(
     for node in job.flattened_arch:
         if isinstance(node, arch.TensorHolder):
             if isinstance(node, arch.Memory):
-                memory_to_size[node.name] = node.attributes.size
+                memory_to_size[node.name] = node.size
         component_to_max_fanout[node.name] = {
             s.name: s.fanout / s.usage_scale for s in node.spatial
         }

@@ -17,19 +17,6 @@ from fastfusion.mapper.FFM._make_pmappings.make_pmapping_templates.make_storages
 from fastfusion.frontend.workload import EinsumName
 
 
-def eval_enabled(component: arch.Component, symbol_table: SymbolTable) -> bool:
-    enabled = component.enabled
-    symbol_table = {**symbol_table, **component.attributes.model_dump_non_none()}
-    if isinstance(enabled, str):
-        return eval(enabled, {"__builtins__": MATH_FUNCS}, symbol_table)
-    if isinstance(enabled, bool):
-        return enabled
-    raise ValueError(
-        f"enabled for {component.name} must be a bool or evaluate to a bool, "
-        f"got {type(enabled)}: {enabled}"
-    )
-
-
 def get_tensor_choices(
     einsum_name: EinsumName,
     nodes: list[arch.Memory],

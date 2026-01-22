@@ -85,7 +85,7 @@ def component_latency(
         component_obj = name2component[component]
         for action, count in actions.items():
             action_name = action.rsplit("_", 1)[0]
-            latency = component_obj.actions[action_name].arguments.latency
+            latency = component_obj.actions[action_name].latency
             component_to_action_latency[component][f"{action_name}_latency"] = (
                 latency * count
             )
@@ -105,13 +105,13 @@ def component_latency(
         symbol_table = {
             "action2latency": component_to_action_latency[component],
             **symbol_table_base,
-            **dict(name2component[component].attributes),
+            **dict(name2component[component]),
             **actions,
             **component_to_action_latency[component],
         }
-        if name2component[component].attributes.total_latency is not None:
+        if name2component[component].total_latency is not None:
             component_latency[component] = parse_expression(
-                name2component[component].attributes.total_latency,
+                name2component[component].total_latency,
                 symbol_table,
                 attr_name="latency",
                 location=component,

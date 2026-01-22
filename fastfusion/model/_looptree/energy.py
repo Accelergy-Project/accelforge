@@ -74,7 +74,7 @@ def compute_energy_from_actions(
             components[component] = spec.arch.find(component)
         component_obj = components[component]
         try:
-            energy_per_ac = component_obj.actions[action].arguments.energy
+            energy_per_ac = component_obj.actions[action].energy
         except KeyError as e:
             raise KeyError(
                 f"Action {action} not found in component {component}. Action occurred "
@@ -84,7 +84,7 @@ def compute_energy_from_actions(
 
     for component_obj in spec.arch.get_nodes_of_type(arch.Component):
         energy_result[(component_obj.name, "leak")] = (
-            component_obj.attributes.total_leak_power * overall_latency
+            component_obj.total_leak_power * overall_latency
         )
 
     return energy_result

@@ -168,17 +168,17 @@ def get_memory_to_size(
     for job in jobs:
         memories = [m for m in job.flattened_arch if isinstance(m, arch.Memory)]
         for m in memories:
-            resource2capacity.setdefault(m.name, m.attributes.size)
+            resource2capacity.setdefault(m.name, m.size)
             who_set.setdefault(m.name, job.einsum_name)
-            if resource2capacity[m.name] != m.attributes.size:
+            if resource2capacity[m.name] != m.size:
                 raise ValueError(
                     f"Memory {m.name} has different sizes depending on which Einsum "
                     f"is being mapped. Memory sizes should not depend on which Einsum "
                     f"is being mapped. Einsum {who_set[m.name]} set the size to "
                     f"{resource2capacity[m.name]}, but Einsum {job.einsum_name} set "
-                    f"the size to {m.attributes.size}."
+                    f"the size to {m.size}."
                 )
-            resource2capacity[m.name] = m.attributes.size
+            resource2capacity[m.name] = m.size
     return resource2capacity
 
 
@@ -230,7 +230,7 @@ def get_memories_to_track(
         max_bits_per_value_scale = 0
         for job in jobs:
             mem = job.spec.arch.find(m)
-            max_bits_per_value_scale = max(max_bits_per_value_scale, max(mem.attributes.bits_per_value_scale.values()))
+            max_bits_per_value_scale = max(max_bits_per_value_scale, max(mem.bits_per_value_scale.values()))
 
         if size >= total_tensor_sizes * max_bits_per_value * max_bits_per_value_scale:
             memories_track_all.remove(m)
