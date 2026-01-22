@@ -38,8 +38,13 @@ class InvertibleSet(BaseModel, Generic[T]):
 
     @property
     def bits_per_value(self) -> int:
+        if len(self.instance) != 1:
+            raise ValueError(
+                f"Can not access bits_per_value for a set with multiple elements: "
+                f"{self.instance}."
+            )
         if self._bits_per_value is None:
-            raise ValueError(f"Bits per value is not set for set {self.instance}.")
+            raise ValueError(f"Bits per value is not defined for set {self.instance}.")
         return self._bits_per_value
 
     @bits_per_value.setter

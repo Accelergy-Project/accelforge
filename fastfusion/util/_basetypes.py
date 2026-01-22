@@ -442,6 +442,7 @@ class Parsable(Generic[M]):
             value = getattr(self, field) if use_setattr else self[field]
             validator = self.get_validator(field)
             parsed = _parse_field(field, value, validator, symbol_table, self, **kwargs)
+
             for post_call in post_calls:
                 parsed = post_call(field, value, parsed, symbol_table)
             if use_setattr:
@@ -695,22 +696,19 @@ def _get_parsable_field_order(
     for field, value, validator in field_value_validator_triples:
         if field in order:
             continue
-        if get_origin(validator) is not ParsesTo:
-            order.append(field)
-            continue
-        if not isinstance(value, str) or is_literal_string(value):
+        if get_origin(validator) is not ParsesTo and not is_parsable(value, validator):
             order.append(field)
             continue
         to_sort.append((field, value))
 
-    # Put parsables last to maximize information available when parsing.
     field2validator = {f: v for f, v, _ in field_value_validator_triples}
-    field2value = {f: v for f, v, _ in field_value_validator_triples}
-    order = sorted(order, key=lambda f: not is_parsable(field2value[f], field2validator[f]), reverse=True)
 
     dependencies = {field: set() for field, _ in to_sort}
-    for field, value in to_sort:
-        for other_field, other_value in to_sort:
+    for other_field, other_value in to_sort:
+        # Can't have any dependencies if you're not going to be parsed
+        if not isinstance(other_value, str) or is_literal_string(other_value):
+            continue
+        for field, value in to_sort:
             if field != other_field:
                 if re.findall(r"\b" + re.escape(field) + r"\b", other_value):
                     dependencies[other_field].add(field)
@@ -733,7 +731,6 @@ def _get_parsable_field_order(
         else:
             order.append(can_add[0][0])
             to_sort.remove(can_add[0])
-            break
     return order
 
 class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):

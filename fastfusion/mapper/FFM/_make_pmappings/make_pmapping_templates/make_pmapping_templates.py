@@ -163,7 +163,8 @@ def remove_unordered_spatial_temporal_loops(
                     to_remove.add(id(n))
                     break
 
-        disallowed_combinations.append((set([id(node)]), to_remove))
+        if to_remove:
+            disallowed_combinations.append((set([id(node)]), to_remove))
 
     if not explore_unordered_spatial_loops:
         disallowed_combinations = [x[1:] for x in disallowed_combinations]
