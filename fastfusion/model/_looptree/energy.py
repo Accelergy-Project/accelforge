@@ -120,7 +120,7 @@ def compute_energy_from_actions(
 
     for component_obj in spec.arch.get_nodes_of_type(arch.Component):
         energy_result[ActionKey(component_obj.name, "leak")] = (
-            component_obj.attributes.total_leak_power * overall_latency
+            component_obj.total_leak_power * overall_latency
         )
 
     return energy_result
