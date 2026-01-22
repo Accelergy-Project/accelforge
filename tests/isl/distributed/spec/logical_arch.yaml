@@ -5,30 +5,25 @@ arch:
     name: DRAM                 # offchip DRAM is the source of all datatypes
     class: DRAM                # assume DRAM is large enough to store all the data, so no depth specification needed
     attributes:
-      datawidth: datawidth
-      width: 64                # width in bits
+      datawidth: 32
 
-  - !Container
-    name: PE
-    spatial: {meshX: 1, meshY: 2}
+  - !Component
+    name: GLB
+    class: SRAM
+    # TODO: attributes are placeholders.
+    attributes:
+      datawidth: 16
+      width: 128
+      size: 256
 
   # registers for the mac unit
-  - !Component
-    name: weight_reg
-    class: reg_storage
-    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
-
-  - !Component
-    name: input_activation_reg
-    class: reg_storage
-    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
-
-  - !Component
+  - !Memory
     name: output_activation_reg
     class: reg_storage
+    spatial: {meshI: 8}
     attributes: {depth: 1, datawidth: datawidth, width: datawidth}
 
-  - !Component
+  - !Compute
     name: mac
     class: mac_compute
     attributes: {num_pipline_stages: 2, datawidth: datawidth}

@@ -4,6 +4,7 @@ arch:
   nodes:
   - !Container
     name: system_arch
+    # TODO: attributes are placeholders.
     attributes:
       # Top-level attributes inherited by all components unless overridden
       technology: "45nm"
@@ -11,24 +12,15 @@ arch:
       datawidth: 16
 
   - !Network
-    name: L2
-    topology: Mesh
-    dims:
-      - x
-    constraints:
-      - 0 <= x < 2
-  - !Network
     name: L1
     topology: Mesh
-    dims:
+    spatial:
       - x
       - y
     constraints:
-      - 0 <= x < 1
-      - -1 <= y <= 1
-    port: |
-      {L2[x] -> L1[x', y'] : x = 1 and x' = 0 and y' = 0}
-
+      - -1 <= x < 2
+      - 0 <= y <= 16
+ 
   - !Component
     name: DRAM                 # offchip DRAM is the source of all datatypes
     class: DRAM                # assume DRAM is large enough to store all the data, so no depth specification needed
@@ -36,35 +28,26 @@ arch:
       datawidth: datawidth
       width: 64                # width in bits
     network:
-      level: L2
-      placement: "{ DRAM[i] -> L2[i] | i = 1 }"
+      level: L1
+      placement: "{ DRAM[i] -> L1[x, y] : i = 0 and x = 0 and y = 0 }"
 
-  - !Container
-    name: PE
+  # registers for the mac unit
+  - !Memory
+    name: Scratchpad
+    class: SRAM
+    attributes:
+      datawidth: 16
+      width: 16
+      size: 40
+      dims: [i, j]
+    spatial:
+      meshI: 2
+      meshJ: 16
     network:
       level: L1
       placement: |
-        {
-          PE[i, j] -> L1[x, y] :
-            j = y and x < 0 and i = -x - 1;
-            j = y and x > 0 and i = x;
-        }
-
-  # registers for the mac unit
-  - !Component
-    name: weight_reg
-    class: reg_storage
-    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
-
-  - !Component
-    name: input_activation_reg
-    class: reg_storage
-    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
-
-  - !Component
-    name: output_activation_reg
-    class: reg_storage
-    attributes: {depth: 1, datawidth: datawidth, width: datawidth}
+        meshJ = y and x < 0 and meshI = -x - 1;
+        meshJ = y and x > 0 and meshI = x;
 
   - !Component
     name: mac
