@@ -204,22 +204,23 @@ class Spec(ParsableModel):
                 assert isinstance(component, Component)
                 components.add(component.name)
                 orig: Component = self.arch.find(component.name)
+                c = component
                 if area:
-                    c = component.calculate_area(models)
+                    c = c.calculate_area(models)
                     orig.area = c.area
                     orig.total_area = c.area * fanout
                 if energy:
-                    c = component.calculate_action_energy(models)
+                    c = c.calculate_action_energy(models)
                     for a in c.actions:
                         orig_action = orig.actions[a.name]
                         orig_action.energy = a.energy
                 if latency:
-                    c = component.calculate_action_latency(models)
+                    c = c.calculate_action_latency(models)
                     for a in c.actions:
                         orig_action = orig.actions[a.name]
                         orig_action.latency = a.latency
                 if leak:
-                    c = component.calculate_leak_power(models)
+                    c = c.calculate_leak_power(models)
                     orig.leak_power = c.leak_power
                     orig.total_leak_power = c.leak_power * fanout
                 orig.component_modeling_log.extend(c.component_modeling_log)

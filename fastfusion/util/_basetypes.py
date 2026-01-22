@@ -827,6 +827,17 @@ class ParsableModel(_OurBaseModel, Parsable["ParsableModel"]):
 
     def __init__(self, **kwargs):
         required_type = kwargs.pop("type", None)
+
+        if self.model_config["extra"] == "forbid":
+            supported_fields = set(self.__class__.model_fields.keys())
+            for k in kwargs.keys():
+                if k not in supported_fields:
+                    raise ValueError(
+                        f"Field {k} is not supported for {self.__class__.__name__}. "
+                        f"Supported fields are:\n\t" +
+                        "\n\t".join(sorted(supported_fields)) + "\n",
+                    )
+
         super().__init__(**kwargs)
         if required_type is not None:
             if not isinstance(self, required_type):
