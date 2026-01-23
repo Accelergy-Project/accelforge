@@ -1,6 +1,6 @@
 import functools
 from fastfusion.util._parse_expressions import ParseError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_serializer
 from typing import Iterator, Optional, TypeVar, Generic, Any, Union
 from fastfusion.util._parse_expressions import MATH_FUNCS
 
@@ -25,10 +25,26 @@ class InvertibleSet(BaseModel, Generic[T]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @model_serializer
+    def _serialize_model(self):
+        """Custom serializer for InvertibleSet to avoid Pydantic serialization warnings."""
+        return {
+            'instance': list(self.instance),
+            'full_space': list(self.full_space),
+            'space_type': self.space_type.__name__,
+            'element_to_child_space': self.element_to_child_space,
+            '_bits_per_value': self._bits_per_value,
+        }
+
     @property
     def bits_per_value(self) -> int:
+        if len(self.instance) != 1:
+            raise ValueError(
+                f"Can not access bits_per_value for a set with multiple elements: "
+                f"{self.instance}."
+            )
         if self._bits_per_value is None:
-            raise ValueError(f"Bits per value is not set for set {self.instance}.")
+            raise ValueError(f"Bits per value is not defined for set {self.instance}.")
         return self._bits_per_value
 
     @bits_per_value.setter

@@ -468,7 +468,7 @@ class Einsum(ParsableModel):
         all_rank_variables = self.rank_variables
         for tensor in self.tensor_names:
             element_to_child_space[tensor] = InvertibleSet(
-                instance=all_rank_variables,
+                instance=self.tensor2rank_variables[tensor],
                 full_space=all_rank_variables,
                 space_type=RankVariable,
             )
@@ -516,6 +516,15 @@ class Einsum(ParsableModel):
             "Einsum": self.name,
             "Above": InvertibleSet(instance=(), **kwargs_tensors),
         }
+
+        for t in workload.tensor_names:
+            if t not in rename_symbol_table:
+                rename_symbol_table[t] = InvertibleSet(instance=(), **kwargs_tensors)
+
+        for r in workload.rank_variables:
+            if r not in rename_symbol_table:
+                rename_symbol_table[r] = InvertibleSet(instance=(), **kwargs_rank_variables)
+
         st = {**rename_symbol_table, **symbol_table}
 
         self: Einsum = self.model_copy()
@@ -532,18 +541,11 @@ class Einsum(ParsableModel):
 
         # Parse me!
         kwargs["must_parse_try_parse_to"] = True
-        try:
-            parsed, _ = super(self.__class__, self)._parse_expressions(
-                st,
-                *args,
-                **kwargs
-            )
-        except:
-            parsed, _ = super(self.__class__, self)._parse_expressions(
-                st,
-                *args,
-                **kwargs
-            )
+        parsed, _ = super(self.__class__, self)._parse_expressions(
+            st,
+            *args,
+            **kwargs
+        )
 
         # Update the renames with the new values
         for k, v in rename_symbol_table.items():
@@ -583,17 +585,7 @@ class Einsum(ParsableModel):
             if t.bits_per_value is None:
                 t.bits_per_value = bits_per_value[t.name]
 
-        for r in parsed.renames:
-            src: InvertibleSet = r.source
-            if isinstance(src, InvertibleSet) and len(src) == 1 and src.space_type == TensorName and next(iter(src)) in bits_per_value:
-                src.bits_per_value = bits_per_value[next(iter(src))]
-
-        for t in parsed.tensor_accesses:
-            assert t.bits_per_value is not None
-
         return parsed, symbol_table
-
-
 
 
 class Workload(ParsableModel):
@@ -793,6 +785,11 @@ class Workload(ParsableModel):
         """Returns the names of all tensors in the workload."""
         return {TensorName(t.name) for e in self.einsums for t in e.tensor_accesses}
 
+    @property
+    def rank_variables(self) -> set[RankVariable]:
+        """Returns the names of all rank variables in the workload."""
+        return {RankVariable(r) for e in self.einsums for r in e.rank_variables}
+
     def _repr_svg_(self) -> str:
         return self.render()
 
@@ -858,7 +855,7 @@ class Workload(ParsableModel):
         # Ensure bits_per_value is consistent across Einsums
         bits_per_value_per_einsum = {}
         bits_per_value = {}
-        for einsum in self.einsums:
+        for einsum in parsed.einsums:
             cur_bpv = {t.name: t.bits_per_value for t in einsum.tensor_accesses}
             # Check for consistency across Einsums
             for prev_einsum, prev_bpv in bits_per_value_per_einsum.items():
@@ -875,43 +872,18 @@ class Workload(ParsableModel):
             bits_per_value_per_einsum[einsum.name] = cur_bpv
             bits_per_value.update(cur_bpv)
 
+        for einsum in parsed.einsums:
+            for t, bpv in bits_per_value.items():
+                einsum.renames[t].source.bits_per_value = bpv
+
+                for r in einsum.renames:
+                    src: InvertibleSet = r.source
+                    if isinstance(src, InvertibleSet) and len(src) == 1 and src.space_type == TensorName and next(iter(src)) in bits_per_value:
+                        src.bits_per_value = bits_per_value[next(iter(src))]
+
         parsed._check_consistent_persistent()
 
         return parsed, symbol_table
-
-
-
-
-
-
-    def _get_einsum_symbol_table(
-        self,
-    ) -> SymbolTable | dict[EinsumName, SymbolTable]:
-        """
-        Return a table that maps symbols (e.g., Nothing, All, Inputs, X) to tensors or
-        rank variables.
-
-        Parameters
-        ----------
-        einsum_name : EinsumName | list[EinsumName]
-            The name of the Einsum for which to get the constraint symbol table. If a
-            list, a dictionary of all Einsum names in the list to symbol tables is
-            returned.
-        renames : Renames, optional
-            The renames to apply to the symbol table. If None, no renames are applied.
-
-        Returns
-        -------
-        SymbolTable | dict[EinsumName, SymbolTable]
-            A table that maps symbols (e.g., Nothing, All, Inputs, X) to tensors or rank
-            variables. If einsum_name is a list, a dictionary of all Einsum names in the
-            list to symbol tables is returned.
-
-        Raises
-        ------
-        ParseError
-            If the renames are invalid or any parsing fails.
-        """
 
     def _get_ranks_that_share_indexing_rank_variables(self) -> dict[Rank, set[Rank]]:
         """

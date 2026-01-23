@@ -24,12 +24,10 @@ arch:
   - !Memory
     name: MainMemory
     component_class: {{"cryo_bridge_dram" if AQFP else "DRAM"}}
-    attributes:
-      _size: 4 * b_per_GB # 4GB
-      _total_latency: (read_actions + write_actions) * width / 8 / 614e9 # 614 GB/s
-      _datawidth: 8
-      width: 8192
-      depth: size / width
+    size: 4 * b_per_GB # 4GB
+    total_latency: (read_actions + write_actions) * width / 8 / 614e9 # 614 GB/s
+    datawidth: 8
+    extra_attributes_for_component_model: {width: 8192, depth: size / width}
     actions:
     - {name: read, arguments: {_bits_per_action: width}}
     - {name: write, arguments: {_bits_per_action: width}}
@@ -38,12 +36,12 @@ arch:
   - !Memory
     name: GlobalBuffer
     component_class: {{"aqfp_reg_sr" if AQFP else "SRAM"}}
+    size: 60 * b_per_MB # 60 MB
+    datawidth: 8
+    # 2kB/cycle read, 1kB/cycle write
+    total_latency: max(read_actions / 8 * 2048, write_actions / 8 * 1024) * global_cycle_period * clock_derate
+    leak_power_scale: cooling_overhead
     attributes:
-      _size: 60 * b_per_MB # 60 MB
-      _datawidth: 8
-      # 2kB/cycle read, 1kB/cycle write
-      _total_latency: max(read_actions / 8 * 2048, write_actions / 8 * 1024) * global_cycle_period * clock_derate
-      _leak_power_scale: cooling_overhead
       width: 16384
       depth: size / width
       cell_bit_depth: 8

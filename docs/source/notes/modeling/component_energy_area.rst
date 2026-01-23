@@ -14,22 +14,22 @@ Component energy and area calculations will populate the following fields for ea
 component. If these fields are pre-specified, then they may be used as input to the
 energy and area calculations.
 
-- ``attributes.area``: :docstring:`fastfusion.frontend.arch.Component.attributes.area`
-- ``attributes.leak_power``: :docstring:`fastfusion.frontend.arch.Component.attributes.leak_power`
-- ``actions[<action name>].arguments.energy``: :docstring:`fastfusion.frontend.arch.ActionArguments.energy`
-- ``attributes.total_area``: :docstring:`fastfusion.frontend.arch.Component.attributes.total_area`
-- ``attributes.total_leak_power``: :docstring:`fastfusion.frontend.arch.Component.attributes.total_leak_power`
+- ``area``: :docstring:`fastfusion.frontend.arch.Component.area`
+- ``leak_power``: :docstring:`fastfusion.frontend.arch.Component.leak_power`
+- ``actions[<action name>].energy``: :docstring:`fastfusion.frontend.arch.Action.energy`
+- ``total_area``: :docstring:`fastfusion.frontend.arch.Component.total_area`
+- ``total_leak_power``: :docstring:`fastfusion.frontend.arch.Component.total_leak_power`
 - ``component_modeling_log``: :docstring:`fastfusion.frontend.arch.Component.component_modeling_log`
 - ``component_model``: :docstring:`fastfusion.frontend.arch.Component.component_model`
 
 Additionally, the following fields will affect the energy and area calculations:
 
-- ``attributes.energy``: :docstring:`fastfusion.frontend.arch.Component.attributes.energy`
-- ``attributes.energy_scale``: :docstring:`fastfusion.frontend.arch.Component.attributes.energy_scale`
-- ``attributes.leak_power_scale``: :docstring:`fastfusion.frontend.arch.Component.attributes.leak_power_scale`
-- ``attributes.area_scale``: :docstring:`fastfusion.frontend.arch.Component.attributes.area_scale`
-- ``attributes.n_parallel_instances``: :docstring:`fastfusion.frontend.arch.Component.attributes.n_parallel_instances`
-- ``actions[<action name>].arguments.energy_scale``: :docstring:`fastfusion.frontend.arch.ActionArguments.energy_scale`
+- ``energy``: :docstring:`fastfusion.frontend.arch.Component.energy`
+- ``energy_scale``: :docstring:`fastfusion.frontend.arch.Component.energy_scale`
+- ``leak_power_scale``: :docstring:`fastfusion.frontend.arch.Component.leak_power_scale`
+- ``area_scale``: :docstring:`fastfusion.frontend.arch.Component.area_scale`
+- ``n_parallel_instances``: :docstring:`fastfusion.frontend.arch.Component.n_parallel_instances`
+- ``actions[<action name>].energy_scale``: :docstring:`fastfusion.frontend.arch.Action.energy_scale`
 
 The energy and area of a all components in the architecture can be calculated by calling
 :py:meth:`~fastfusion.spec.Spec.calculate_component_area_energy_latency_leak`.
@@ -54,9 +54,8 @@ Specifying Energy and Area
 ---------------------------
 
 One way to specify the area and energy of each component is to directly set the
-``attributes.area``, ``attributes.leak_power``, or ``actions[<action
-name>].arguments.energy`` fields. The following example from the TPU v4i example
-architecture shows uses this approach:
+``area``, ``leak_power``, or ``actions[<action name>].energy`` fields. The following
+example from the TPU v4i example architecture shows uses this approach:
 
 .. include-yaml:: examples/arches/tpu_v4i_like.arch.yaml
    :startfrom: GlobalBuffer

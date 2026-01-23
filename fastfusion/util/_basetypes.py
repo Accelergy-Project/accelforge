@@ -442,6 +442,7 @@ class Parsable(Generic[M]):
             value = getattr(self, field) if use_setattr else self[field]
             validator = self.get_validator(field)
             parsed = _parse_field(field, value, validator, symbol_table, self, **kwargs)
+
             for post_call in post_calls:
                 parsed = post_call(field, value, parsed, symbol_table)
             if use_setattr:
@@ -591,6 +592,9 @@ def _parse_field(
 ):
     from fastfusion.util._setexpressions import InvertibleSet, eval_set_expression
 
+    def check_subclass(x, cls):
+        return isinstance(x, type) and issubclass(x, cls)
+
     try:
         # Get the origin type (ParsesTo or TryParseTo) and its arguments
         origin = get_origin(validator)
@@ -598,14 +602,14 @@ def _parse_field(
             try:
                 target_type = get_args(validator)[0]
                 parsed = value
-                if isinstance(target_type, tuple) and any(issubclass(t, InvertibleSet) for t in target_type):
+                if isinstance(target_type, tuple) and any(check_subclass(t, InvertibleSet) for t in target_type):
                     raise NotImplementedError(
                         f"InvertibleSet must be used directly, not as a part of a "
                         f"union, else this function must be updated."
                     )
 
                 # Check if validator is for InvertibleSet
-                if isinstance(target_type, type) and issubclass(target_type, InvertibleSet):
+                if check_subclass(target_type, InvertibleSet):
                     # Get the target type from the validator
 
                     # If the given type is a set, replace it with a string that'll parse
@@ -680,55 +684,56 @@ def _parse_field(
 def _get_parsable_field_order(
     order: tuple[str, ...], field_value_validator_triples: list[tuple[str, Any, type]]
 ) -> list[str]:
+
+    def is_parsable(value, validator):
+        if isinstance(value, Parsable):
+            return True
+        return False
+
     order = list(order)
     to_sort = []
+
     for field, value, validator in field_value_validator_triples:
         if field in order:
             continue
-        if get_origin(validator) is not ParsesTo:
-            order.append(field)
-            continue
-        if not isinstance(value, str) or is_literal_string(value):
+        if get_origin(validator) is not ParsesTo and not is_parsable(value, validator):
             order.append(field)
             continue
         to_sort.append((field, value))
 
+    field2validator = {f: v for f, v, _ in field_value_validator_triples}
+
     dependencies = {field: set() for field, _ in to_sort}
-    for field, value in to_sort:
-        for other_field, other_value in to_sort:
+    for other_field, other_value in to_sort:
+        # Can't have any dependencies if you're not going to be parsed
+        if not isinstance(other_value, str) or is_literal_string(other_value):
+            continue
+        for field, value in to_sort:
             if field != other_field:
                 if re.findall(r"\b" + re.escape(field) + r"\b", other_value):
                     dependencies[other_field].add(field)
 
     while to_sort:
-        for field, value in to_sort:
-            if all(dep in order for dep in dependencies[field]):
-                order.append(field)
-                to_sort.remove((field, value))
-                break
-        else:
+        can_add = [
+            (f, v) for f, v in to_sort if all(dep in order for dep in dependencies[f])
+        ]
+        if not can_add:
             raise ParseError(
                 f"Circular dependency detected in expressions. "
                 f"Fields: {', '.join(t[0] for t in to_sort)}"
             )
-
+        # Parsables last
+        for f, v in can_add:
+            if not is_parsable(v, field2validator[f]):
+                order.append(f)
+                to_sort.remove((f, v))
+                break
+        else:
+            order.append(can_add[0][0])
+            to_sort.remove(can_add[0])
     return order
 
-
-class _ModelWithUnderscoreFields(BaseModel, _FromYAMLAble, Mapping):
-    def __init__(self, **kwargs):
-        new_kwargs = {}
-        for field, value in kwargs.items():
-            if (
-                field.startswith("_")
-                and field not in self.__class__.model_fields
-                and field[1:] in self.__class__.model_fields
-            ):
-                new_kwargs[field[1:]] = value
-            else:
-                new_kwargs[field] = value
-        super().__init__(**new_kwargs)
-
+class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):
     # Exclude is supported OK, but makes the docs a lot longer because it's in so many
     # objects and has a very long type.
     def to_yaml(
@@ -774,6 +779,15 @@ class _ModelWithUnderscoreFields(BaseModel, _FromYAMLAble, Mapping):
     def model_dump_non_none(self, **kwargs):
         return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
 
+    def shallow_model_dump_non_none(self, **kwargs):
+        keys = self.get_fields()
+        if getattr(self, "__pydantic_extra__", None) is not None:
+            keys.extend([
+                k for k in self.__pydantic_extra__.keys() if k not in keys
+            ])
+
+        return {k: getattr(self, k) for k in keys if getattr(self, k) is not None}
+
     def __contains__(self, key: str) -> bool:
         try:
             self[key]
@@ -802,15 +816,10 @@ class _ModelWithUnderscoreFields(BaseModel, _FromYAMLAble, Mapping):
 
 
 @_uninstantiable
-class ParsableModel(_ModelWithUnderscoreFields, Parsable["ParsableModel"]):
+class ParsableModel(_OurBaseModel, Parsable["ParsableModel"]):
     """A model that will parse any fields that are given to it. When parsing, submodels
     will also be parsed if they support it. Parsing will parse any fields that are given
     as strings and do not match the expected type.
-
-    Underscore-prefixed fields will have type checking applied strictly, meaning that
-    even if this class or a subclass allows extra fields, underscore-prefixed fields
-    must be recognized directly. The leading underscore is removed before setting any
-    variable names.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -818,6 +827,17 @@ class ParsableModel(_ModelWithUnderscoreFields, Parsable["ParsableModel"]):
 
     def __init__(self, **kwargs):
         required_type = kwargs.pop("type", None)
+
+        if self.model_config["extra"] == "forbid":
+            supported_fields = set(self.__class__.model_fields.keys())
+            for k in kwargs.keys():
+                if k not in supported_fields:
+                    raise ValueError(
+                        f"Field {k} is not supported for {self.__class__.__name__}. "
+                        f"Supported fields are:\n\t" +
+                        "\n\t".join(sorted(supported_fields)) + "\n",
+                    )
+
         super().__init__(**kwargs)
         if required_type is not None:
             if not isinstance(self, required_type):
@@ -857,7 +877,7 @@ class ParsableModel(_ModelWithUnderscoreFields, Parsable["ParsableModel"]):
             **kwargs,
         )
 
-class NonParsableModel(_ModelWithUnderscoreFields):
+class NonParsableModel(_OurBaseModel):
     """A model that will not parse any fields."""
 
     model_config = ConfigDict(extra="forbid")
@@ -1032,11 +1052,6 @@ class ParsableDict(
 class ParseExtras(ParsableModel):
     """
     A model that will parse any extra fields that are given to it.
-
-    Underscore-prefixed fields will have type checking applied strictly, meaning that
-    even if this class or a subclass allows extra fields, underscore-prefixed fields
-    must be recognized directly. The leading underscore is removed before setting any
-    variable names.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -1045,17 +1060,3 @@ class ParseExtras(ParsableModel):
         if field not in self.__class__.model_fields:
             return ParsesTo[Any]
         return self.__class__.model_fields[field].annotation
-
-    def __init__(self, **kwargs):
-        new_kwargs = {}
-        for field, value in kwargs.items():
-            if field.startswith("_"):
-                field = field[1:]
-                if field not in self.__class__.model_fields:
-                    raise ValueError(
-                        f"Field {field} is not a known field for "
-                        f"{self.__class__.__name__}. Known fields are: "
-                        f"{', '.join(sorted(self.__class__.model_fields.keys()))}"
-                    )
-            new_kwargs[field] = value
-        super().__init__(**new_kwargs)

@@ -14,6 +14,8 @@ from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,
     firstlatency2col,
+    action2col,
+    energy2col,
 )
 from fastfusion.frontend.mapper.metrics import Metrics
 import sympy
@@ -35,7 +37,7 @@ def run_model(
     for node in job.flattened_arch:
         if isinstance(node, arch.TensorHolder):
             if isinstance(node, arch.Memory):
-                memory_to_size[node.name] = node.attributes.size
+                memory_to_size[node.name] = node.size
         component_to_max_fanout[node.name] = {
             s.name: s.fanout / s.usage_scale for s in node.spatial
         }
@@ -108,8 +110,12 @@ def run_model(
                 df[nameloop2col(memory, n_loop)] = running_total
 
     if metrics & Metrics.ACTIONS:
-        for (component, action_name), count in actions.items():
-            df[f"action<SEP>{component}<SEP>{action_name}"] = count.total
+        detailed_actions = gather_actions(reuse, None, verbose=True, use_name=True)
+        for key, count in detailed_actions.items():
+            df[action2col(key)] = count.total * n_instances
+        detailed_energy = compute_energy_from_actions(spec, detailed_actions, overall_latency)
+        for key, energy_val in detailed_energy.items():
+            df[energy2col(key)] = energy_val * n_instances
 
     if metrics & Metrics.LATENCY:
         df["Total<SEP>latency"] = overall_latency * n_instances
@@ -126,8 +132,8 @@ def run_model(
 
     if metrics & Metrics.ENERGY:
         df["Total<SEP>energy"] = sum(energy.values()) * n_instances
-        for (component, action), energy in energy.items():
-            df[f"energy<SEP>{component}<SEP>{action}"] = energy * n_instances
+        for key, energy in energy.items():
+            df[f"energy<SEP>{key.level}<SEP>{key.action}"] = energy * n_instances
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():

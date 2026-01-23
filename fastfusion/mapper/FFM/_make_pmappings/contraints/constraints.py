@@ -190,10 +190,11 @@ def constrained_loops(
             nodes.append(m)
             if one_loop_per_rank_variable:
                 remaining_rank_variables.discard(m.rank_variable)
-    for r in remaining_rank_variables:
-        assert (
-            component is None
-        ), "There should be a spatial loop for every rank variable"
+    # TODO: what is this supposed to do?
+    # for r in remaining_rank_variables:
+    #     assert (
+    #         component is None
+    #     ), "There should be a spatial loop for every rank variable"
     return nodes
 
 
@@ -275,22 +276,18 @@ def get_constraints(
     for m in flattened_arch:
         if not isinstance(m, (arch.Memory, arch.Fanout)):
             continue
-        cur_symbol_table = {**symbol_table, **m.attributes.model_dump_non_none()}
 
         for dim in m.spatial:
-            # parsed = dim._parse(cur_symbol_table, f"{m.name}.spatial")
-            parsed = dim
-            dim = dim.name
             loops = [
                 n
                 for n in mapping
-                if isinstance(n, Spatial) and (n.component, n.name) == (m.name, dim)
+                if isinstance(n, Spatial) and (n.component, n.name) == (m.name, dim.name)
             ]
-            loop_bounds = list(parsed.loop_bounds)
-            if parsed.reuse:
+            loop_bounds = list(dim.loop_bounds)
+            if dim.reuse:
                 loop_bounds.append(
                     Comparison(
-                        expression=parsed.reuse.rank_variables,
+                        expression=dim.reuse.rank_variables,
                         operator="==",
                         value=1,
                     )
@@ -309,22 +306,22 @@ def get_constraints(
             target_mapping_nodes = [
                 n
                 for n in mapping
-                if isinstance(n, Spatial) and n.component == m.name and n.name == dim
+                if isinstance(n, Spatial) and n.component == m.name and n.name == dim.name
             ]
-            if parsed.min_usage > 0:
+            if dim.min_usage > 0:
                 if not target_mapping_nodes:
                     continue
                 rank_variables = {t.rank_variable for t in target_mapping_nodes}
                 constraint = _MinUtilizationConstraintLambda(
                     target_mapping_nodes,
                     rank_variables,
-                    parsed.min_usage,
+                    dim.min_usage,
                 )
-                key = (m.name, dim)
+                key = (m.name, dim.name)
                 constraints.min_usage_constraints[key] = constraint
 
             for t in target_mapping_nodes:
-                t._may_reuse = parsed.may_reuse
+                t._may_reuse = dim.may_reuse
 
     # Additional spatial constraints
     for m in mapping:

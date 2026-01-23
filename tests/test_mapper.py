@@ -93,3 +93,8 @@ class TestMapperFanoutTwoMatmuls(TestFanout):
 
     def test_at_glb_with_fanout_node(self):
         self._run_with_arch("at_glb_with_fanout_node.yaml", n_einsums=2)
+
+
+class TestMapperFanoutConstraints(TestFanout):
+    def test_at_mac_constraints(self):
+        self._run_with_arch("at_mac_with_constraints.yaml")

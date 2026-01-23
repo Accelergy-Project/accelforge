@@ -147,12 +147,11 @@ class Spec(ParsableModel):
     ) -> "Spec":
         """
         Populates per-component area, energy, latency, and/or leak power. For each
-        component, populates the ``attributes.area``, ``attributes.total_area``,
-        ``attributes.leak_power`` and ``attributes.total_leak_power``. Additionally, for
-        each action of each component, populates the ``arguments.energy`` and
-        ``arguments.latency`` fields. Extends the ``component_modeling_log`` field with
-        log messages. Also populates the ``component_model`` attribute for each
-        component if not already set.
+        component, populates the ``area``, ``total_area``, ``leak_power`` and
+        ``total_leak_power``. Additionally, for each action of each component, populates
+        the ``<action>.energy`` and ``<action>.latency`` fields. Extends the
+        ``component_modeling_log`` field with log messages. Also populates the
+        ``component_model`` attribute for each component if not already set.
 
         Some architectures' attributes may depend on the workload. In that case, an
         Einsum name can be provided to populate those symbols with the Einsum's symbols
@@ -205,24 +204,25 @@ class Spec(ParsableModel):
                 assert isinstance(component, Component)
                 components.add(component.name)
                 orig: Component = self.arch.find(component.name)
+                c = component
                 if area:
-                    c = component.calculate_area(models)
-                    orig.attributes.area = c.attributes.area
-                    orig.attributes.total_area = c.attributes.area * fanout
+                    c = c.calculate_area(models)
+                    orig.area = c.area
+                    orig.total_area = c.area * fanout
                 if energy:
-                    c = component.calculate_action_energy(models)
+                    c = c.calculate_action_energy(models)
                     for a in c.actions:
                         orig_action = orig.actions[a.name]
-                        orig_action.arguments.energy = a.arguments.energy
+                        orig_action.energy = a.energy
                 if latency:
-                    c = component.calculate_action_latency(models)
+                    c = c.calculate_action_latency(models)
                     for a in c.actions:
                         orig_action = orig.actions[a.name]
-                        orig_action.arguments.latency = a.arguments.latency
+                        orig_action.latency = a.latency
                 if leak:
-                    c = component.calculate_leak_power(models)
-                    orig.attributes.leak_power = c.attributes.leak_power
-                    orig.attributes.total_leak_power = c.attributes.leak_power * fanout
+                    c = c.calculate_leak_power(models)
+                    orig.leak_power = c.leak_power
+                    orig.total_leak_power = c.leak_power * fanout
                 orig.component_modeling_log.extend(c.component_modeling_log)
                 orig.component_model = c.component_model
 

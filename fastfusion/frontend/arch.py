@@ -10,6 +10,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Self,
     TypeVar,
     Annotated,
     Type,
@@ -77,8 +78,6 @@ class ArchNodes(ParsableList):
     def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         class PostCallArchNode(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
-                # if isinstance(parsed, Container):
-                #     symbol_table.update(parsed.attributes)
                 symbol_table[parsed.name] = parsed
                 return parsed
 
@@ -277,31 +276,151 @@ class Spatial(ParsableModel):
     #     )
 
 
-class LeafAttributes(ParsableModel):
-    pass
+class Action(ParsableModel):
+    """
+    An action that may be performed by a component.
+    """
 
+    name: str
+    """ The name of this action. """
 
-class AttributesWithExtras(ParseExtras):
-    pass
-
-
-class AttributesWithEnergyLatency(AttributesWithExtras):
     energy: ParsesTo[int | float | None] = None
+    """
+    Dynamic energy of this action. Per-action energy is multiplied by the component's
+    energy_scale and the action's energy_scale.
+    """
+
     energy_scale: ParsesTo[int | float] = 1
+    """
+    The scale factor for dynamic energy of this action. Multiplies this action's energy
+    by this value.
+    """
+
+    latency: ParsesTo[int | float | None] = None
+    """
+    Latency of this action. Per-action latency is multiplied by the component's
+    latency_scale and the action's latency_scale.
+    """
+
     latency_scale: ParsesTo[int | float] = 1
+    """
+    The scale factor for dynamic latency of this action. Multiplies this action's
+    latency by this value.
+    """
+
+    extra_attributes_for_component_model: ParseExtras = ParseExtras()
+    """ Extra attributes to pass to the component model. In addition to all attributes
+    of this action, any extra attributes will be passed to the component model as
+    arguments to the component model's action. This can be used to define attributes
+    that are known to the component model, but not fastfusion, such as clock
+    frequency."""
+
+    def _attributes_for_component_model(self) -> dict[str, Any]:
+        return {
+            **self.shallow_model_dump_non_none(),
+            **self.extra_attributes_for_component_model.shallow_model_dump_non_none(),
+        }
 
 
-class ComponentAttributes(AttributesWithEnergyLatency):
+class TensorHolderAction(Action):
+    bits_per_action: ParsesTo[int | float] = (
+        "1 if bits_per_action is None else bits_per_action"
+    )
+    """ The number of bits accessed in this action. For example, setting bits_per_action
+    to 16 means that each call to this action yields 16 bits. """
+
+
+@_uninstantiable
+class Leaf(ArchNode):
+    """A leaf node in the architecture. This is an abstract class that represents any
+    node that is not a `Branch`."""
+
+    name: str
+    """ The name of this `Leaf`. """
+
+    spatial: ParsableList[Spatial] = ParsableList()
+    """
+    The spatial fanouts of this `Leaf`.
+
+    Spatial fanouts describe the spatial organization of components in the architecture.
+    A spatial fanout of size N for this node means that there are N instances of this
+    node. Multiple spatial fanouts lead to a multi-dimensional fanout. Spatial
+    constraints apply to the data exchange across these instances. Spatial fanouts
+    specified at this level also apply to lower-level `Leaf` nodes in the architecture.
+    """
+
+    def get_fanout(self) -> int:
+        """The spatial fanout of this node."""
+        return int(math.prod(x.fanout for x in self.spatial))
+
+
+_COMPONENT_MODEL_CACHE: dict[tuple, "Component"] = {}
+
+def _set_component_model_cache(key: tuple, value: "Component"):
+    while len(_COMPONENT_MODEL_CACHE) > 1000:
+        _COMPONENT_MODEL_CACHE.popitem(last=False)
+    _COMPONENT_MODEL_CACHE[key] = value
+
+
+class _ExtraAttrs(ParseExtras):
+    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+        if getattr(self, "_parsed", False):
+            return super()._parse_expressions(symbol_table, *args, **kwargs)
+
+        orig_symbol_table = dict(symbol_table)
+        if "arch_extra_attributes_for_all_component_models" not in orig_symbol_table:
+            raise ParseError(
+                "arch_extra_attributes_for_all_component_models is not set in the symbol "
+                "table. Was parsing called from the architecture on top?"
+            )
+
+        for k, v in orig_symbol_table["arch_extra_attributes_for_all_component_models"].items():
+            if getattr(self, k, None) is None:
+                setattr(self, k, v)
+
+        return super()._parse_expressions(symbol_table, *args, **kwargs)
+
+@_uninstantiable
+class Component(Leaf):
+    """A component object in the architecture. This is overridden by different
+    component types, such as `Memory` and `Compute`."""
+
+    name: str
+    """ The name of this `Component`. """
+
+    component_class: Optional[str] = None
+    """ The class of this `Component`. Used if an energy or area model needs to be
+    called for this `Component`. """
+
+    component_model: ComponentModel | None = None
+    """ The model to use for this `Component`. If not set, the model will be found with
+    `hwcomponents.get_models()`. If set, the `component_class` will be ignored. """
+
+    component_modeling_log: list[str] = []
+    """ A log of the energy and area calculations for this `Component`. """
+
+    actions: ParsableList[Action]
+    """ The actions that this `Component` can perform. """
+
+    enabled: TryParseTo[bool] = True
+    """ Whether this component is enabled. If the expression resolves to False, then
+    the component is disabled. This is parsed per-pmapping-template, so it is a function
+    of the tensors in the current Einsum. For example, you may say `len(All) >= 3` and
+    the component will only be enabled with Einsums with three or more tensors.
+    """
+
     area: ParsesTo[int | float | None] = None
     """
     The area of a single instance of this component in m^2. If set, area calculations
     will use this value.
     """
+
     total_area: ParsesTo[int | float | None] = None
     """
     The total area of all instances of this component in m^2. Do not set this value. It
     is calculated when the architecture's area is calculated.
     """
+
     area_scale: ParsesTo[int | float] = 1
     """
     The scale factor for the area of this comxponent. This is used to scale the area of
@@ -314,11 +433,13 @@ class ComponentAttributes(AttributesWithEnergyLatency):
     The leak power of a single instance of this component in W. If set, leak power
     calculations will use this value.
     """
+
     total_leak_power: ParsesTo[int | float | None] = None
     """
     The total leak power of all instances of this component in W. Do not set this value.
     It is calculated when the architecture's leak power is calculated.
     """
+
     leak_power_scale: ParsesTo[int | float] = 1
     """
     The scale factor for the leak power of this component. This is used to scale the
@@ -372,157 +493,13 @@ class ComponentAttributes(AttributesWithEnergyLatency):
     latency calculation is overridden).
     """
 
-
-class FanoutAttributes(LeafAttributes):
-    model_config = ConfigDict(extra="forbid")
-
-
-class ActionArguments(AttributesWithEnergyLatency):
-    """
-    Arguments for an action of a component.
-    """
-
-    energy: ParsesTo[int | float | None] = None
-    """
-    Dynamic energy of this action. Per-action energy is multiplied by the component's
-    attributes.energy_scale and the action's arguments.energy_scale.
-    """
-    energy_scale: ParsesTo[int | float] = 1
-    """
-    The scale factor for dynamic energy of this action. Multiplies this action's energy
-    by this value.
-    """
-    latency: ParsesTo[int | float | None] = None
-    """
-    Latency of this action. Per-action latency is multiplied by the component's
-    attributes.latency_scale and the action's arguments.latency_scale.
-    """
-    latency_scale: ParsesTo[int | float] = 1
-    """
-    The scale factor for dynamic latency of this action. Multiplies this action's
-    latency by this value.
-    """
-
-
-class TensorHolderActionArguments(ActionArguments):
-    bits_per_action: ParsesTo[int | float] = (
-        "1 if attributes.bits_per_action is None else attributes.bits_per_action"
-    )
-    """ The number of bits accessed in this action. For example, setting bits_per_action
-    to 16 means that each call to this action yields 16 bits. """
-
-
-class Action(ParsableModel):
-    name: str
-    """ The name of this action. """
-
-    arguments: ActionArguments = ActionArguments()
-    """
-    The arguments for this action. Passed to the component's model to calculate the
-    energy and latency of the action.
-    """
-
-
-class TensorHolderAction(Action):
-    arguments: TensorHolderActionArguments = TensorHolderActionArguments()
-    """
-    The arguments for this action. Passed to the component's model to calculate the
-    energy and latency of the action.
-    """
-
-
-@_uninstantiable
-class Leaf(ArchNode):
-    """A leaf node in the architecture. This is an abstract class that represents any
-    node that is not a `Branch`."""
-
-    name: str
-    """ The name of this `Leaf`. """
-
-    attributes: LeafAttributes = LeafAttributes()
-    """ The attributes of this `Leaf`. """
-
-    spatial: ParsableList[Spatial] = ParsableList()
-    """
-    The spatial fanouts of this `Leaf`.
-
-    Spatial fanouts describe the spatial organization of components in the architecture.
-    A spatial fanout of size N for this node means that there are N instances of this
-    node. Multiple spatial fanouts lead to a multi-dimensional fanout. Spatial
-    constraints apply to the data exchange across these instances. Spatial fanouts
-    specified at this level also apply to lower-level `Leaf` nodes in the architecture.
-    """
-
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
-        class PostCallLeaf(_PostCall):
-            def __call__(self, field, value, parsed, symbol_table):
-                if field == "attributes":
-                    symbol_table.update(parsed.model_dump())
-                return parsed
-
-        for k, v in symbol_table["arch_attributes"].items():
-            if k not in self.attributes:
-                try:
-                    self.attributes[k] = v
-                except ValueError:
-                    # OK if attribute dicts do not allow extra fields
-                    pass
-
-        parsed, symbol_table = super()._parse_expressions(
-            symbol_table,
-            *args,
-            **kwargs,
-            post_calls=(PostCallLeaf(),),
-            order=("attributes",)
-        )
-        symbol_table[self.name] = self
-        return parsed, symbol_table
-
-    def get_fanout(self) -> int:
-        """The spatial fanout of this node."""
-        return int(math.prod(x.fanout for x in self.spatial))
-
-
-_COMPONENT_MODEL_CACHE: dict[tuple, "Component"] = {}
-
-def _set_component_model_cache(key: tuple, value: "Component"):
-    while len(_COMPONENT_MODEL_CACHE) > 1000:
-        _COMPONENT_MODEL_CACHE.popitem(last=False)
-    _COMPONENT_MODEL_CACHE[key] = value
-
-@_uninstantiable
-class Component(Leaf):
-    """A component object in the architecture. This is overridden by different
-    component types, such as `Memory` and `Compute`."""
-
-    name: str
-    """ The name of this `Component`. """
-
-    component_class: Optional[str] = None
-    """ The class of this `Component`. Used if an energy or area model needs to be
-    called for this `Component`. """
-
-    component_model: ComponentModel | None = None
-    """ The model to use for this `Component`. If not set, the model will be found with
-    `hwcomponents.get_models()`. If set, the `component_class` will be ignored. """
-
-    component_modeling_log: list[str] = []
-    """ A log of the energy and area calculations for this `Component`. """
-
-    actions: ParsableList[Action]
-    """ The actions that this `Component` can perform. """
-
-    attributes: ComponentAttributes = ComponentAttributes()
-    """ The attributes of this `Component`. """
+    extra_attributes_for_component_model: _ExtraAttrs = _ExtraAttrs()
+    """ Extra attributes to pass to the component model. In addition to all attributes
+    of this component, any extra attributes will be passed to the component model. This
+    can be used to define attributes that are known to the component model, but not
+    fastfusion, such as the technology node."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    enabled: TryParseTo[bool] = True
-    """ Whether this component is enabled. If the expression resolves to False, then
-    the component is disabled. This is parsed per-pmapping-template, so it is a function
-    of the tensors in the current Einsum. For example, you may say `len(All) >= 3` and
-    the component will only be enabled with Einsums with three or more tensors.
-    """
 
     def _update_actions(self, new_actions: ParsableList[Action]):
         has_actions = set(x.name for x in self.actions)
@@ -550,16 +527,16 @@ class Component(Leaf):
                 f"component_class must be set to a valid string. "
                 f"Got {self.component_class}. This occurred because the model tried to "
                 "talk to hwcomponents, but was missing necessary attributes. If you do "
-                "not want to use hwcomponents models, ensure that attributes.area and "
-                "attributes.leak_power are set, as well as, for each action, "
-                f"arguments.energy and arguments.latency are set.{extra_info}",
+                "not want to use hwcomponents component_models, ensure that area and "
+                "leak_power are set, as well as, for each action, "
+                f"energy and latency are set.{extra_info}",
                 source_field=f"{self.name}.component_class",
             )
         return self.component_class
 
     def populate_component_model(
         self: T,
-        models: list[ComponentModel] | None = None,
+        component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
         trying_to_calculate: str = None,
     ) -> T:
@@ -572,7 +549,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        models : list[ComponentModel] | None
+        component_models : list[ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -588,20 +565,16 @@ class Component(Leaf):
             A copy of the component with the populated ``component_model`` attribute.
         """
         if not in_place:
-            self = self.model_copy()
-            self.attributes = self.attributes.model_copy()
-            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
-            for action in self.actions:
-                action.arguments = action.arguments.model_copy()
+            self: Self = self._copy_for_component_modeling()
 
         if self.component_model is None:
-            if models is None:
-                models = get_models()
+            if component_models is None:
+                component_models = get_models()
             estimation = get_model(
                 self.get_component_class(trying_to_calculate=trying_to_calculate),
-                self.attributes.model_dump(),
+                self._attributes_for_component_model(),
                 required_actions=list(x.name for x in self.actions),
-                models=models,
+                models=component_models,
                 _return_estimation_object=True,
             )
             self.component_model = estimation.value
@@ -609,15 +582,15 @@ class Component(Leaf):
         return self
 
     def calculate_action_energy(
-        self: T,
-        models: list[ComponentModel] | None = None,
+        self,
+        component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
-    ) -> T:
+    ) -> Self:
         """
         Calculates energy for each action of this component. If energy is set in the
-        arguments or attributes (with arguments taking precedence), that value will be
-        used. Otherwise, the energy will be calculated using hwcomponents. Populates,
-        for each action, the ``<action>.arguments.energy`` and field. Extends the
+        action or component (with action taking precedence), that value will be used.
+        Otherwise, the energy will be calculated using hwcomponents. Populates, for each
+        action, the ``<action>.energy`` and field. Extends the
         ``component_modeling_log`` field with log messages.
 
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
@@ -627,12 +600,13 @@ class Component(Leaf):
         area. If you call them yourself, note that string expressions may not be parsed
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
-        directly. Otherwise, you can call the ``Spec.calculate_component_area_energy_latency_leak``
-        and then grab components from the returned ``Spec``.
+        directly. Otherwise, you can call the
+        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components
+        from the returned ``Spec``.
 
         Parameters
         ----------
-        models : list[ComponentModel] | None
+        component_models : list[ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -645,56 +619,49 @@ class Component(Leaf):
             A copy of the component with the calculated energy.
         """
         if not in_place:
-            self = self.model_copy()
-            self.attributes = self.attributes.model_copy()
-            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
-            for action in self.actions:
-                action.arguments = action.arguments.model_copy()
+            self: Component = self._copy_for_component_modeling()
 
         messages = self.component_modeling_log
 
-        attributes = self.attributes
         for action in self.actions:
             messages.append(f"Calculating energy for {self.name} action {action.name}.")
-            args = action.arguments
-            if args.energy is not None:
-                energy = args.energy
-                messages.append(f"Setting {self.name} energy to {args.energy=}")
+            if action.energy is not None:
+                energy = action.energy
+                messages.append(f"Setting {self.name} energy to {action.energy=}")
             else:
                 self.populate_component_model(
-                    models,
+                    component_models,
                     in_place=True,
-                    trying_to_calculate=f"arguments.energy for action {action.name}",
+                    trying_to_calculate=f"energy for action {action.name}",
                 )
                 energy = self.component_model.try_call_arbitrary_action(
                     action_name=action.name,
                     _return_estimation_object=True,
-                    **{**attributes.model_dump(), **args.model_dump()},
+                    **{**self._attributes_for_component_model(), **action._attributes_for_component_model()},
                 )
                 messages.extend(energy.messages)
                 energy = energy.value[0]
-            if attributes.energy_scale != 1:
-                energy *= attributes.energy_scale
+            if self.energy_scale != 1:
+                energy *= self.energy_scale
                 messages.append(
-                    f"Scaling {self.name} energy by {attributes.energy_scale=}"
+                    f"Scaling {self.name} energy by {self.energy_scale=}"
                 )
-            if args.energy_scale != 1:
-                energy *= args.energy_scale
-                messages.append(f"Scaling {self.name} energy by {args.energy_scale=}")
-            action.arguments.energy = energy
+            if action.energy_scale != 1:
+                energy *= action.energy_scale
+                messages.append(f"Scaling {self.name} energy by {action.energy_scale=}")
+            action.energy = energy
         return self
 
     def calculate_leak_power(
-        self: T,
-        models: list[ComponentModel] | None = None,
+        self,
+        component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
-    ) -> T:
+    ) -> Self:
         """
         Calculates the leak power for this component. If leak power is set in the
-        arguments or attributes (with arguments taking precedence), that value will be
-        used. Otherwise, the leak power will be calculated using hwcomponents. Populates
-        ``attributes.leak_power`` field. Extends the ``component_modeling_log`` field with log
-        messages.
+        component, that value will be used. Otherwise, the leak power will be calculated
+        using hwcomponents. Populates ``leak_power`` field. Extends the
+        ``component_modeling_log`` field with log messages.
 
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
         attribute to find the model and populate the ``component_model`` attribute.
@@ -703,12 +670,13 @@ class Component(Leaf):
         area. If you call them yourself, note that string expressions may not be parsed
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
-        directly. Otherwise, you can call the ``Spec.calculate_component_area_energy_latency_leak``
-        and then grab components from the returned ``Spec``.
+        directly. Otherwise, you can call the
+        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components
+        from the returned ``Spec``.
 
         Parameters
         ----------
-        models : list[ComponentModel] | None
+        component_models : list[ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -717,64 +685,59 @@ class Component(Leaf):
 
         Returns
         -------
-        T
+        Self
             A copy of the component with the calculated energy.
         """
         if not in_place:
-            self = self.model_copy()
-            self.attributes = self.attributes.model_copy()
-            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
-            for action in self.actions:
-                action.arguments = action.arguments.model_copy()
+            self: Self = self._copy_for_component_modeling()
 
-        attributes = self.attributes
         messages = self.component_modeling_log
-        if attributes.leak_power is not None:
-            leak_power = attributes.leak_power
+        if self.leak_power is not None:
+            leak_power = self.leak_power
             messages.append(
-                f"Using predefined leak power value {attributes.leak_power=}"
+                f"Using predefined leak power value {self.leak_power=}"
             )
         else:
             self.populate_component_model(
-                models,
+                component_models,
                 in_place=True,
-                trying_to_calculate="attributes.leak_power",
+                trying_to_calculate="leak_power",
             )
             leak_power = self.component_model.leak_power
-        if attributes.leak_power_scale != 1:
-            leak_power *= attributes.leak_power_scale
-            messages.append(f"Scaling leak power by {attributes.leak_power_scale=}")
-        if attributes.n_parallel_instances != 1:
-            leak_power *= attributes.n_parallel_instances
-            messages.append(f"Scaling leak power by {attributes.n_parallel_instances=}")
-        self.attributes.leak_power = leak_power
+        if self.leak_power_scale != 1:
+            leak_power *= self.leak_power_scale
+            messages.append(f"Scaling leak power by {self.leak_power_scale=}")
+        if self.n_parallel_instances != 1:
+            leak_power *= self.n_parallel_instances
+            messages.append(f"Scaling leak power by {self.n_parallel_instances=}")
+        self.leak_power = leak_power
         return self
 
     def calculate_area(
-        self: T,
-        models: list[ComponentModel] | None = None,
+        self,
+        component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
-    ) -> T:
+    ) -> Self:
         """
-        Calculates the area for this component. If area is set in the attributes, that
+        Calculates the area for this component. If area is set in the component, that
         value will be used. Otherwise, the area will be calculated using the
-        hwcomponents library. Populates ``attributes.area`` field. Extends the
+        hwcomponents library. Populates ``area`` field. Extends the
         ``component_modeling_log`` field with log messages.
 
         Uses the ``component_model`` attribute, or, if not set, the ``component_class``
         attribute to find the model and populate the ``component_model`` attribute.
 
-        Note that these methods will be called by the Spec when calculating
-        energy and area. If you call them yourself, note that string expressions may not
-        be parsed because they need the Spec's global scope. If you are sure
-        that all necessary values are present and not a result of an expression, you can
-        call these directly. Otherwise, you can call the
-        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components from
-        the returned ``Spec``.
+        Note that these methods will be called by the Spec when calculating energy and
+        area. If you call them yourself, note that string expressions may not be parsed
+        because they need the Spec's global scope. If you are sure that all necessary
+        values are present and not a result of an expression, you can call these
+        directly. Otherwise, you can call the
+        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components
+        from the returned ``Spec``.
 
         Parameters
         ----------
-        models : list[ComponentModel] | None
+        component_models : list[ComponentModel] | None
             The models to use for area calculation. If not provided, the models will be
             found with `hwcomponents.get_models()`.
         in_place : bool
@@ -783,50 +746,45 @@ class Component(Leaf):
 
         Returns
         -------
-        T
+        Self
             A copy of the component with the calculated area.
         """
         if not in_place:
-            self = self.model_copy()
-            self.attributes = self.attributes.model_copy()
-            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
-            for action in self.actions:
-                action.arguments = action.arguments.model_copy()
+            self: Self = self._copy_for_component_modeling()
 
-        attributes = self.attributes
         messages = self.component_modeling_log
-        if attributes.area is not None:
-            area = attributes.area
-            messages.append(f"Using predefined area value {attributes.area=}")
+        if self.area is not None:
+            area = self.area
+            messages.append(f"Using predefined area value {self.area=}")
         else:
             self.populate_component_model(
-                models,
+                component_models,
                 in_place=True,
-                trying_to_calculate="attributes.area",
+                trying_to_calculate="area",
             )
             area = self.component_model.area
-        if attributes.area_scale != 1:
-            area *= attributes.area_scale
-            messages.append(f"Scaling area by {attributes.area_scale=}")
-        if attributes.n_parallel_instances != 1:
-            area *= attributes.n_parallel_instances
-            messages.append(f"Scaling area by {attributes.n_parallel_instances=}")
-        self.attributes.area = area
+        if self.area_scale != 1:
+            area *= self.area_scale
+            messages.append(f"Scaling area by {self.area_scale=}")
+        if self.n_parallel_instances != 1:
+            area *= self.n_parallel_instances
+            messages.append(f"Scaling area by {self.n_parallel_instances=}")
+        self.area = area
         return self
 
     def calculate_action_latency(
-        self: T,
-        models: list[ComponentModel] | None = None,
+        self,
+        component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
-    ) -> T:
+    ) -> Self:
         """
         Calculates the latency for each action by this component. Populates the
-        ``<action>.arguments.latency`` field. Extends the ``component_modeling_log`` field with
+        ``<action>.latency`` field. Extends the ``component_modeling_log`` field with
         log messages.
 
         Parameters
         ----------
-        models : list[ComponentModel] | None
+        component_models : list[ComponentModel] | None
             The models to use for latency calculation. If not provided, the models will be
             found with `hwcomponents.get_models()`.
         in_place : bool
@@ -835,70 +793,62 @@ class Component(Leaf):
 
         Returns
         -------
-        T
+        Self
             A copy of the component with the calculated latency for each action.
         """
         if not in_place:
-            self = self.model_copy()
-            self.attributes = self.attributes.model_copy()
-            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
-            for action in self.actions:
-                action.arguments = action.arguments.model_copy()
+            self: Self = self._copy_for_component_modeling()
 
         messages = self.component_modeling_log
 
-        attributes = self.attributes
         for action in self.actions:
             messages.append(
                 f"Calculating latency for {self.name} action {action.name}."
             )
-            args = action.arguments
-            if args.latency is not None:
-                latency = args.latency
-                messages.append(f"Setting {self.name} latency to {args.latency=}")
+            if action.latency is not None:
+                latency = action.latency
+                messages.append(f"Setting {self.name} latency to {action.latency=}")
             else:
                 self.populate_component_model(
-                    models,
+                    component_models,
                     in_place=True,
-                    trying_to_calculate=f"arguments.latency for action {action.name}",
+                    trying_to_calculate=f"latency for action {action.name}",
                 )
                 latency = self.component_model.try_call_arbitrary_action(
                     action_name=action.name,
                     _return_estimation_object=True,
-                    **{**attributes.model_dump(), **args.model_dump()},
+                    **{**self._attributes_for_component_model(), **action._attributes_for_component_model()},
                 )
                 messages.extend(latency.messages)
                 latency = latency.value[1]
-            if attributes.latency_scale != 1:
-                latency *= attributes.latency_scale
+            if self.latency_scale != 1:
+                latency *= self.latency_scale
                 messages.append(
-                    f"Scaling {self.name} latency by {attributes.latency_scale=}"
+                    f"Scaling {self.name} latency by {self.latency_scale=}"
                 )
-            if args.latency_scale != 1:
-                latency *= args.latency_scale
-                messages.append(f"Scaling {self.name} latency by {args.latency_scale=}")
-            if attributes.n_parallel_instances != 1:
-                latency /= attributes.n_parallel_instances
+            if action.latency_scale != 1:
+                latency *= action.latency_scale
+                messages.append(f"Scaling {self.name} latency by {action.latency_scale=}")
+            if self.n_parallel_instances != 1:
+                latency /= self.n_parallel_instances
                 messages.append(
-                    f"Dividing {self.name} latency by {attributes.n_parallel_instances=}"
+                    f"Dividing {self.name} latency by {self.n_parallel_instances=}"
                 )
-            action.arguments.latency = latency
+            action.latency = latency
         return self
 
     def calculate_area_energy_latency_leak(
-        self: T,
-        models: list[ComponentModel] | None = None,
+        self,
+        component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
         _use_cache: bool = False
-    ) -> T:
+    ) -> Self:
         """
         Calculates the area, energy, latency, and leak power for this component.
-        Populates the ``attributes.area``, ``attributes.total_area``,
-        ``attributes.leak_power``, ``attributes.total_leak_power``,
-        ``attributes.total_latency``, and ``component_modeling_log`` fields of this
-        component. Additionally, for each action, populates the
-        ``<action>.arguments.area``, ``<action>.arguments.energy``,
-        ``<action>.arguments.latency``, and ``<action>.arguments.leak_power`` fields.
+        Populates the ``area``, ``total_area``, ``leak_power``, ``total_leak_power``,
+        ``total_latency``, and ``component_modeling_log`` fields of this component.
+        Additionally, for each action, populates the ``<action>.area``,
+        ``<action>.energy``, ``<action>.latency``, and ``<action>.leak_power`` fields.
         Extends the ``component_modeling_log`` field with log messages.
 
         Note that these methods will be called by the Spec when calculating energy and
@@ -911,7 +861,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        models : list[ComponentModel] | None
+        component_models : list[ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -924,20 +874,16 @@ class Component(Leaf):
 
         Returns
         -------
-        T
+        Self
             The component with the calculated energy, area, and leak power.
         """
         if not in_place:
-            self: Component = self.model_copy()
-            self.attributes = self.attributes.model_copy()
-            self.actions = type(self.actions)([a.model_copy() for a in self.actions])
-            for action in self.actions:
-                action.arguments = action.arguments.model_copy()
+            self: Self = self._copy_for_component_modeling()
 
         if _use_cache and self.component_model is None:
             cachekey = (
                 self.component_class,
-                self.attributes,
+                self._attributes_for_component_model(),
                 self.actions,
             )
             if cachekey in _COMPONENT_MODEL_CACHE:
@@ -947,21 +893,27 @@ class Component(Leaf):
                 self.actions = component.actions
                 return self
 
-        self.calculate_area(models, in_place=True)
-        self.calculate_action_energy(models, in_place=True)
-        self.calculate_action_latency(models, in_place=True)
-        self.calculate_leak_power(models, in_place=True)
+        self.calculate_area(component_models, in_place=True)
+        self.calculate_action_energy(component_models, in_place=True)
+        self.calculate_action_latency(component_models, in_place=True)
+        self.calculate_leak_power(component_models, in_place=True)
         if _use_cache:
             _set_component_model_cache(cachekey, self)
         return self
 
+    def _attributes_for_component_model(self) -> dict[str, Any]:
+        return {
+            **self.shallow_model_dump_non_none(),
+            **self.extra_attributes_for_component_model.shallow_model_dump_non_none(),
+        }
 
-# class Container(Leaf):
-#     """A `Container` is an abstract node in the architecture that contains other nodes.
-#     For example, a P` may be a `Container` that contains `Memory`s and `Compute` units.
-#     """
-
-#     pass
+    def _copy_for_component_modeling(self) -> Self:
+        self: Component = self.model_copy()
+        self.extra_attributes_for_component_model = self.extra_attributes_for_component_model.model_copy()
+        self.actions = type(self.actions)([a.model_copy() for a in self.actions])
+        for action in self.actions:
+            action.extra_attributes_for_component_model = action.extra_attributes_for_component_model.model_copy()
+        return self
 
 
 MEMORY_ACTIONS = ParsableList[TensorHolderAction](
@@ -1021,57 +973,6 @@ def _parse_tensor2bits(
             )
 
     return {k2: v for k, v in result.items() for k2 in k}
-
-
-class TensorHolderAttributes(ComponentAttributes):
-    """
-    Attributes for a `TensorHolder`. `TensorHolder`s are components that hold tensors
-    (usually `Memory`s). When specifying these attributes, it is recommended to
-    underscore-prefix attribute names. See `TODO: UNDERSCORE_PREFIX_DISCUSSION`.
-    """
-
-    bits_per_value_scale: ParsesTo[dict] = {"All": 1}
-    """
-    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
-    this is a dictionary, keys in the dictionary are parsed as expressions and may
-    reference one or more tensors.
-    """
-
-    bits_per_action: ParsesTo[int | float | None] = None
-    """
-    The number of bits accessed in each of this component's actions. Overridden by
-    bits_per_action in the action arguments. If set here, acts as a default value for
-    the bits_per_action of all actions of this component.
-    """
-
-    def model_post_init(self, __context__=None) -> None:
-        if not isinstance(self.bits_per_value_scale, dict):
-            self.bits_per_value_scale = {"All": self.bits_per_value_scale}
-
-    def _parse_expressions(self, *args, **kwargs):
-        # Sometimes the same component object may appear in the mapping and the
-        # architecture, in which case we don't want parsing to happen twice.
-        if getattr(self, "_parsed", False):
-            return super()._parse_expressions(*args, **kwargs)
-
-        class MyPostCall(_PostCall):
-            def __call__(self, field, value, parsed, symbol_table):
-                if field == "bits_per_value_scale":
-                    parsed = _parse_tensor2bits(
-                        parsed,
-                        location="bits_per_value_scale",
-                        symbol_table=symbol_table,
-                    )
-                return parsed
-
-        return super()._parse_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
-
-
-class MemoryAttributes(TensorHolderAttributes):
-    """Attributes for a `Memory`."""
-
-    size: ParsesTo[int | float]
-    """ The size of this `Memory` in bits. """
 
 
 class Tensors(ParsableModel):
@@ -1238,19 +1139,46 @@ class TensorHolder(Component):
     actions: ParsableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `TensorHolder` can perform. """
 
-    attributes: TensorHolderAttributes = pydantic.Field(
-        default_factory=TensorHolderAttributes
-    )
-    """ The `TensorHolderAttributes` that describe this `TensorHolder`. """
-
     tensors: Tensors = Tensors()
     """
     Fields that control which tensor(s) are kept in this `TensorHolder` and in what
     order their nodes may appear in the mapping.
     """
 
+    bits_per_value_scale: ParsesTo[dict] = {"All": 1}
+    """
+    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
+    this is a dictionary, keys in the dictionary are parsed as expressions and may
+    reference one or more tensors.
+    """
+
+    bits_per_action: ParsesTo[int | float | None] = None
+    """
+    The number of bits accessed in each of this component's actions. Overridden by
+    bits_per_action in any action of this component. If set here, acts as a default
+    value for the bits_per_action of all actions of this component.
+    """
+
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(MEMORY_ACTIONS)
+
+    def _parse_expressions(self, *args, **kwargs):
+        # Sometimes the same component object may appear in the mapping and the
+        # architecture, in which case we don't want parsing to happen twice.
+        if getattr(self, "_parsed", False):
+            return super()._parse_expressions(*args, **kwargs)
+
+        class MyPostCall(_PostCall):
+            def __call__(self, field, value, parsed, symbol_table):
+                if field == "bits_per_value_scale":
+                    parsed = _parse_tensor2bits(
+                        parsed,
+                        location="bits_per_value_scale",
+                        symbol_table=symbol_table,
+                    )
+                return parsed
+
+        return super()._parse_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
 
 
 class Fanout(Leaf):
@@ -1258,31 +1186,16 @@ class Fanout(Leaf):
     Creates a spatial fanout, and doesn't do anything else.
     """
 
-    attributes: FanoutAttributes = pydantic.Field(default_factory=FanoutAttributes)
-    """ Fanout attributes. Zero energy, leak power, area, and latency. """
-
 
 class Memory(TensorHolder):
     """A `Memory` is a `TensorHolder` that stores data over time, allowing for temporal
     reuse."""
 
-    attributes: "MemoryAttributes" = pydantic.Field(default_factory=MemoryAttributes)
-    """ The attributes of this `Memory`. """
+    size: ParsesTo[int | float]
+    """ The size of this `Memory` in bits. """
 
     actions: ParsableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
-
-
-class ProcessingStageAttributes(TensorHolderAttributes):
-    """Attributes for a `ProcessingStage`."""
-
-    direction: Literal["up", "down", "up_and_down"]
-    """
-    The direction in which data flows through this `ProcessingStage`. If "up", then data
-    flows from below `TensorHolder`, through this `ProcessingStage` (plus paying
-    associated costs), and then to the next `TensorHolder` above it. Other data
-    movements are assumed to avoid this ProcessingStage.
-    """
 
 
 class ProcessingStage(TensorHolder):
@@ -1299,10 +1212,13 @@ class ProcessingStage(TensorHolder):
     zero.
     """
 
-    attributes: ProcessingStageAttributes = pydantic.Field(
-        default_factory=ProcessingStageAttributes
-    )
-    """ The attributes of this `ProcessingStage`. """
+    direction: Literal["up", "down", "up_and_down"]
+    """
+    The direction in which data flows through this `ProcessingStage`. If "up", then data
+    flows from below `TensorHolder`, through this `ProcessingStage` (plus paying
+    associated costs), and then to the next `TensorHolder` above it. Other data
+    movements are assumed to avoid this ProcessingStage.
+    """
 
     actions: ParsableList[TensorHolderAction] = PROCESSING_STAGE_ACTIONS
     """ The actions that this `ProcessingStage` can perform. """
@@ -1311,18 +1227,9 @@ class ProcessingStage(TensorHolder):
         self._update_actions(PROCESSING_STAGE_ACTIONS)
 
 
-class ComputeAttributes(ComponentAttributes):
-    """Attributes for a `Compute`."""
-
-    pass
-
-
 class Compute(Component):
     actions: ParsableList[Action] = COMPUTE_ACTIONS
     """ The actions that this `Compute` can perform. """
-
-    attributes: ComputeAttributes = pydantic.Field(default_factory=ComputeAttributes)
-    """ The attributes of this `Compute`. """
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
@@ -1455,6 +1362,9 @@ class _ConstraintLambda:
         self._target_node_indices = None
         self._target_loop_indices = None
 
+    def __repr__(self):
+        return f"_ConstraintLambda({self.constraint}, {self.target_mapping_nodes}, {self.rank_variables})"
+
     def __call__(self, rank_variables: set[RankVariable], sizes: np.ndarray) -> bool:
         final = self.rank_variables.issubset(rank_variables)
         return self.constraint_lambda(final, sizes)
@@ -1506,13 +1416,12 @@ class _MinUtilizationConstraintLambda(_ConstraintLambda):
 
 
 class Arch(Hierarchical):
-    # version: Annotated[str, assert_version] = __version__
-    # """ The version of the architecture spec. """
+    """ Top-level architecture specification. """
 
-    attributes: AttributesWithExtras = AttributesWithExtras()
+    extra_attributes_for_all_component_models: ParseExtras = ParseExtras()
     """
-    The attributes of the architecture. These values are available to all components in
-    the architecture.
+    Extra attributes to pass to all component models. This can be used to pass global
+    attributes, such as technology node or clock period, to every component model.
     """
 
     @property
@@ -1550,7 +1459,7 @@ class Arch(Hierarchical):
             A dictionary of component names to their total area in m^2.
         """
         area = {
-            node.name: node.attributes.total_area
+            node.name: node.total_area
             for node in self.get_nodes_of_type(Component)
         }
         for k, v in area.items():
@@ -1573,7 +1482,7 @@ class Arch(Hierarchical):
             A dictionary of component names to their total leak power in W.
         """
         leak_power = {
-            node.name: node.attributes.total_leak_power
+            node.name: node.total_leak_power
             for node in self.get_nodes_of_type(Component)
         }
         for k, v in leak_power.items():
@@ -1587,13 +1496,14 @@ class Arch(Hierarchical):
 
     def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         outer_st = symbol_table
+
         class PostCallArch(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
-                if field == "attributes":
-                    parsed_dump = parsed.model_dump()
+                if field == "extra_attributes_for_all_component_models":
+                    parsed_dump = parsed.shallow_model_dump_non_none()
                     symbol_table.update(parsed_dump)
-                    symbol_table["arch_attributes"] = parsed_dump
-                    outer_st["arch_attributes"] = parsed_dump
+                    symbol_table["arch_extra_attributes_for_all_component_models"] = parsed_dump
+                    outer_st["arch_extra_attributes_for_all_component_models"] = parsed_dump
                 return parsed
 
         cur_st = dict(symbol_table)
@@ -1602,7 +1512,11 @@ class Arch(Hierarchical):
             cur_st[node.name] = node
 
         parsed, _ = super()._parse_expressions(
-            cur_st, *args, **kwargs, post_calls=(PostCallArch(),), order=("attributes",)
+            cur_st,
+            *args,
+            **kwargs,
+            post_calls=(PostCallArch(),),
+            order=("extra_attributes_for_all_component_models",),
         )
         return parsed, symbol_table
 

@@ -20,6 +20,16 @@ arch:
     - {name: read, energy: 0, latency: 0}
     - {name: write, energy: 0, latency: 0}
 
+  - !Fanout
+    name: MACArray
+    spatial:
+    - name: X
+      fanout: 4
+      loop_bounds:
+      - expression: ~m
+        operator: ==
+        value: 1
+
   - !Compute
     name: MAC
     leak_power: 0

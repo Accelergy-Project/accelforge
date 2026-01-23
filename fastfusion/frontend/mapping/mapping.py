@@ -414,13 +414,15 @@ class Loop(MappingNode):
     def tile_pattern(self) -> TilePattern:
         return TilePattern(
             tile_shape=self.tile_shape,
-            initial_tile_shape=self.initial_tile_shape
+            initial_tile_shape=self.initial_tile_shape,
+            calculated_n_iterations=self.calculated_n_iterations,
         )
 
     @tile_pattern.setter
     def tile_pattern(self, value: TilePattern):
         self.tile_shape = value.tile_shape
         self.initial_tile_shape = value.initial_tile_shape
+        self.calculated_n_iterations = value.calculated_n_iterations
 
     @property
     def calculated_n_iterations(self) -> int:

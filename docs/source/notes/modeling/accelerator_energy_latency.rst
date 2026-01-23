@@ -42,12 +42,12 @@ value.
 Calculating Latency from a Pmapping
 -----------------------------------
 
-The :py:obj:`~fastfusion.frontend.arch.ComponentAttributes.latency` of a component, defined
-in the class's `attributes.latency` field, is a Python expression that is evaluated
-using the component's actions.
+The total latency of a component, defined in the class's
+:py:obj:`~fastfusion.frontend.arch.Component.total_latency` field, is a Python
+expression that is evaluated using the component's actions.
 
-The :py:obj:`~fastfusion.frontend.arch.ComponentAttributes.latency` field is
-:docstring-lower:`fastfusion.frontend.arch.ComponentAttributes.latency`
+The :py:obj:`~fastfusion.frontend.arch.Component.total_latency` field is
+:docstring-lower:`fastfusion.frontend.arch.Component.total_latency`
 
 
 Calculating Area and Leak Power
