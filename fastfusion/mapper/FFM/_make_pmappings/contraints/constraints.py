@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 from typing import List
 from fastfusion._accelerated_imports import np
 from fastfusion.frontend._workload_isl._symbolic import PartiallyRelevant, Relevant
@@ -90,23 +91,42 @@ class MappingConstraints:
                     loop_index -= 1
 
     def clear_constrained_to_one(
-        self, mapping: list["MappingNode"]
+        self, mapping: list["MappingNode"], einsum_name: EinsumName
     ) -> list["MappingNode"]:
         # Not constrained to one --> Can't remove
+        node2constraints = defaultdict(list)
         do_not_remove = set()
         for c in self.tile_shape_constraints:
             for t in c.target_mapping_nodes:
+                node2constraints[id(t)].append(c)
                 do_not_remove.add(id(t))
         for c in self.loop_bounds_constraints:
             if not c.constraint._constrained_to_one():
                 for t in c.target_mapping_nodes:
+                    node2constraints[id(t)].append(c)
                     do_not_remove.add(id(t))
 
         # Constrained to one --> remove iff not in do_not_remove
         to_remove = set()
         for c in self.loop_bounds_constraints:
             if c.constraint._constrained_to_one():
-                my_remove = set(id(t) for t in c.target_mapping_nodes) - do_not_remove
+                my_remove = set(id(t) for t in c.target_mapping_nodes)
+                if my_remove & do_not_remove:
+                    loops = [n for n in mapping if id(n) in my_remove]
+                    p = len(loops) == 1
+                    loops = (", ".join(n.compact_str() for n in loops)).strip()
+                    isare = "is" if p else "are"
+                    all_others = ", ".join(
+                        str(c2) for c2 in node2constraints[id(t)] if c2 != c
+                    )
+                    logging.warning(
+                        f"For Einsum {einsum_name}, loop{'s' * (not p)} {loops} "
+                        f"{isare} set to be removed by {c} and also appear{'s' * p} in "
+                        f"{all_others}. The loop{'s' * (not p)} will not be removed "
+                        f"from the mapping, but it may be subject to conflicting "
+                        f"constraints."
+                    )
+
                 c.target_mapping_nodes = [
                     t for t in c.target_mapping_nodes if id(t) not in my_remove
                 ]
@@ -290,6 +310,7 @@ def get_constraints(
                         value=1,
                     )
                 )
+                loop_bounds[-1]._str_repr = f"reuse {set(dim.reuse)}"
 
             # Loop bounds constraints
             if loop_bounds:
@@ -334,6 +355,6 @@ def get_constraints(
                 )
             )
 
-    mapping = constraints.clear_constrained_to_one(mapping)
+    mapping = constraints.clear_constrained_to_one(mapping, einsum_name)
 
     return mapping, constraints
