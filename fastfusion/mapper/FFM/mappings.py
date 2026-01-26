@@ -1,3 +1,4 @@
+from collections import defaultdict
 from fastfusion.frontend import arch
 from fastfusion.frontend.spec import Spec
 from fastfusion.frontend.workload import EinsumName
@@ -93,8 +94,6 @@ class Mappings:
     def __getitem__(self, key: str | int) -> Union[pd.Series, "Mappings"]:
         if isinstance(key, int):
             return self._update(data=pd.DataFrame(self.data.iloc[key]).T)
-        if len(self) == 1:
-            return self.data[key].iloc[0]
         return self.data[key]
 
     def __len__(self):
@@ -102,32 +101,6 @@ class Mappings:
 
     def __iter__(self):
         return iter(self.data)
-
-    def per_component_energy(self) -> dict[tuple[EinsumName, str, str], float]:
-        """
-        Returns a dictionary of: {(Einsum name, Component name, Action name): Energy}
-        for each Einsum, Component, Action tuple. Some combinations may not be present
-        if zeros have been dropped or components are not used by a particular Einsum.
-        """
-        per_component_energy = {}
-        for col in self.data.columns:
-            if col.endswith("component_energy"):
-                einsum_name, component, action, *_ = col.split("_")
-                per_component_energy[(einsum_name, component, action)] = self.data[col]
-        return self.data
-
-    def per_component_latency(self) -> dict[tuple[EinsumName, str], float]:
-        """
-        Returns a dictionary of: {(Einsum name, Component name): Latency}. Some
-        combinations may not be present if zeros have been dropped or components are not
-        used by a particular Einsum.
-        """
-        per_component_latency = {}
-        for col in self.data.columns:
-            if col.endswith("latency") and col != "Total_latency":
-                einsum_name, component, *_ = col.split("_")
-                per_component_latency[(einsum_name, component)] = self.data[col]
-        return per_component_latency
 
     def _get_cols(self, key: str) -> list[str]:
         found_index = None
@@ -192,6 +165,10 @@ class Mappings:
         return self._update(
             data=self.data[list(col_renames.keys())].rename(columns=col_renames)
         )
+
+    def _get_keys_of_length(self, length: int) -> list[str]:
+        cols = [c for c in self.columns if len(c.split("<SEP>")) == length]
+        return cols
 
     def drop(self, *keys: str) -> "Mappings":
         """
@@ -372,3 +349,89 @@ class Mappings:
                 f"mappings[i].render() instead, for some integer 0 <= i < {len(self)}."
             )
         return self.data.iloc[0][f"Total<SEP>mapping"].render()
+
+    def energy(
+        self: "Mappings",
+        per_einsum: bool = False,
+        per_component: bool = False,
+        per_tensor: bool = False,
+        per_action: bool = False,
+        value_if_one_mapping: bool = True
+    ) -> dict[tuple[str, ...], float | list[float]] | float | list[float]:
+        """
+        Returns the energy consumed. A dictionary is returned with keys that are tuples of
+        (Einsum name, Component name, Tensor name, Action name), with any of these being
+        omitted if the corresponding parameter is not set to True. If no parameters are set
+        to True, a float or a list of floats is returned.
+
+        NOTE: Leak power is not per-tensor. If per_tensor is True, then the tensor name for
+        leak will be None.
+
+        Parameters
+        ----------
+        per_einsum:
+            If True, then the energy will be divided by the number of computes for each
+            Einsum.
+        per_component:
+            If True, then the energy will be divided by the number of components for each
+            Einsum.
+        per_tensor:
+            If True, then the energy will be divided by the number of tensors for each
+            Einsum.
+        per_action:
+            If True, then the energy will be divided by the number of actions for each
+            component.
+        value_if_one_mapping:
+            If True and there is only one mapping, then values in the returned dictionary
+            will be a single value, rather than a list of values. Otherwise, they will
+            always be a list of values.
+
+        Returns
+        -------
+        dict[tuple[str, ...], float | list[float]] | float | list[float]:
+            A dictionary with the energy consumed for each Einsum, Component, Tensor, and
+            Action. Keys are tuples of (Einsum name, Component name, Tensor name, Action
+            name), with any of these being omitted if the corresponding parameter is not
+            set to True.
+        """
+
+        energy = self.access("energy")
+
+        result = {}
+        for einsum in self.einsum_names:
+            einsum_accessed = energy.access(einsum)
+            for tensor in self.spec.workload.einsums[einsum].tensor_names:
+                tensor_accessed = einsum_accessed.access(tensor)
+                for col in tensor_accessed._get_keys_of_length(2):
+                    component, action = col.split("<SEP>")
+                    result[(einsum, component, tensor, action)] = tensor_accessed[col]
+            for col in einsum_accessed._get_keys_of_length(2):
+                component, action = col.split("<SEP>")
+                if action == "leak":
+                    result[(einsum, component, None, action)] = einsum_accessed[col]
+
+        keep_indices = []
+        if per_einsum:
+            keep_indices.append(0)
+        if per_component:
+            keep_indices.append(1)
+        if per_tensor:
+            keep_indices.append(2)
+        if per_action:
+            keep_indices.append(3)
+
+        if not keep_indices:
+            v = sum(result.values())
+            if value_if_one_mapping and len(self.data) == 1:
+                return v.iloc[0]
+            return v
+
+        new_result = defaultdict(float)
+        for key, value in result.items():
+            newkey = tuple(key[i] for i in keep_indices)
+            new_result[newkey] += value
+
+        if value_if_one_mapping and len(self.data) == 1:
+            return {k: v.iloc[0] for k, v in new_result.items()}
+
+        return new_result
