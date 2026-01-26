@@ -32,16 +32,6 @@ def run_model(
     is_copy_op = job.is_copy_operation
     workload = spec.workload
 
-    component_to_max_fanout = {}
-    memory_to_size = {}
-    for node in job.flattened_arch:
-        if isinstance(node, arch.TensorHolder):
-            if isinstance(node, arch.Memory):
-                memory_to_size[node.name] = node.size
-        component_to_max_fanout[node.name] = {
-            s.name: s.fanout / s.usage_scale for s in node.spatial
-        }
-
     df = {}
 
     reuse = analyze_reuse_and_add_reservations_to_mapping(job)
@@ -64,8 +54,42 @@ def run_model(
             )
         )
 
+    component_to_max_fanout = {}
+    component_to_usage_scale = {}
+    memory_to_size = {}
+    component_to_non_power_gated_porp = {}
+    non_power_gated_instances = 1
+    for node in job.flattened_arch:
+        if isinstance(node, arch.TensorHolder):
+            if isinstance(node, arch.Memory):
+                memory_to_size[node.name] = node.size
+        component_to_max_fanout[node.name] = {s.name: s.fanout for s in node.spatial}
+        component_to_usage_scale[node.name] = {
+            s.name: s.usage_scale for s in node.spatial
+        }
+
+    usage_df = {}
+    unscaled_usage = {}
+    for (component, einsum), per_dim_fanout in reuse.fanout.items():
+        for dim, fanout in per_dim_fanout.items():
+            usage = fanout / component_to_max_fanout[component][dim]
+            usage_df[f"usage<SEP>{component}<SEP>{dim}"] = (
+                usage * component_to_usage_scale[component][dim]
+            )
+            unscaled_usage.setdefault(component, {})[dim] = usage
+
+    for node in job.flattened_arch:
+        for s in node.spatial:
+            if s.power_gateable:
+                non_power_gated_instances *= unscaled_usage.get(node.name, {}).get(
+                    s.name, 1
+                )
+        component_to_non_power_gated_porp[node.name] = non_power_gated_instances
+
     actions = gather_actions(reuse, None, use_name=True)
-    energy = compute_energy_from_actions(spec, actions, overall_latency)
+    energy = compute_energy_from_actions(
+        spec, actions, overall_latency, component_to_non_power_gated_porp
+    )
 
     fusable_tensors = workload.tensor_names_used_in_multiple_einsums
     tensor_to_backing = {}
@@ -114,7 +138,7 @@ def run_model(
         for key, count in detailed_actions.items():
             df[action2col(key)] = count.total * n_instances
         detailed_energy = compute_energy_from_actions(
-            spec, detailed_actions, overall_latency
+            spec, detailed_actions, overall_latency, component_to_non_power_gated_porp
         )
         for key, energy_val in detailed_energy.items():
             df[energy2col(key)] = energy_val * n_instances
@@ -141,17 +165,10 @@ def run_model(
     for memory, occupancies in total_occupancy.items():
         per_memory_usage_df[memory] = sum(occupancies.values()) / memory_to_size[memory]
 
-    utilization_df = {}
-    for (component, einsum), per_dim_fanout in reuse.fanout.items():
-        for dim, fanout in per_dim_fanout.items():
-            utilization_df[f"utilization<SEP>{component}<SEP>{dim}"] = (
-                fanout / component_to_max_fanout[component][dim]
-            )
-
     return (
         reuse.symbols,
         df,
         per_memory_usage_df,
-        utilization_df,
+        usage_df,
         reuse.tensor2mapping,
     )

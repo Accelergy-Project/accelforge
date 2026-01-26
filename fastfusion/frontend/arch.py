@@ -1,5 +1,6 @@
 import copy
 import itertools
+import logging
 import math
 from numbers import Number
 import re
@@ -126,6 +127,10 @@ class Comparison(ParsableModel):
     value: ParsesTo[int]
     """ The value to compare against. """
 
+    _str_repr: str = None
+    """ A string to print for this comparison when __str__ is called. If None, a default
+    string will be used. """
+
     def _parse_expressions(self, *args, **kwargs):
         result, symbol_table = super()._parse_expressions(*args, **kwargs)
         if len(result.expression) == 1 and "product" in result.operator:
@@ -204,6 +209,11 @@ class Comparison(ParsableModel):
             f"Unknown operator: {self.operator}. Known operators: {list(operator_to_wrapper.keys())}"
         )
 
+    def __str__(self) -> str:
+        if self._str_repr is not None:
+            return self._str_repr
+        return f"({sorted(self.expression)}) {self.operator} ({self.value})"
+
 
 class Spatial(ParsableModel):
     """A one-dimensional spatial fanout in the architecture."""
@@ -224,25 +234,36 @@ class Spatial(ParsableModel):
     """ Bounds for loops over this dimension. This is a list of :class:`~.Comparison`
     objects, all of which must be satisfied by the loops to which this constraint
     applies.
+
+    Note: Loops may be removed if they are constrained to only one iteration.
     """
 
     min_usage: int | float | str = 0.0
-    """ The minimum utilization of spatial instances, as a value from 0 to 1. A mapping
+    """ The minimum usage of spatial instances, as a value from 0 to 1. A mapping
     is invalid if less than this porportion of this dimension's fanout is utilized.
     Mappers that support it (e.g., FFM) may, if no mappings satisfy this constraint,
-    return the highest-utilization mappings.
+    return the highest-usage mappings.
     """
 
     reuse: TryParseTo[InvertibleSet[TensorName]] = "Nothing"
     """ A set of tensors or a set expression representing tensors that must be reused
     across spatial iterations. Spatial loops may only be placed that reuse ALL tensors
     given here.
+
+    Note: Loops may be removed if they do not reuse a tensor given here and they do not
+    appear in another loop bound constraint.
     """
 
     usage_scale: ParsesTo[int | float | str] = 1
     """
     This factor scales the usage in this dimension. For example, if usage_scale is 2 and
     10/20 spatial instances are used, then the usage will be scaled to 20/20.
+    """
+
+    power_gateable: ParsesTo[bool] = False
+    """
+    Whether this spatial fanout has power gating. If True, then unused spatial instances
+    will be power gated if not used by a particular Einsum.
     """
 
     # def _parse(self, symbol_table: dict[str, Any], location: str):
@@ -317,8 +338,8 @@ class Action(ParsableModel):
 
     def _attributes_for_component_model(self) -> dict[str, Any]:
         return {
-            **self.shallow_model_dump_non_none(),
-            **self.extra_attributes_for_component_model.shallow_model_dump_non_none(),
+            **self.shallow_model_dump(),
+            **self.extra_attributes_for_component_model.shallow_model_dump(),
         }
 
 
@@ -356,6 +377,7 @@ class Leaf(ArchNode):
 
 _COMPONENT_MODEL_CACHE: dict[tuple, "Component"] = {}
 
+
 def _set_component_model_cache(key: tuple, value: "Component"):
     while len(_COMPONENT_MODEL_CACHE) > 1000:
         _COMPONENT_MODEL_CACHE.popitem(last=False)
@@ -374,11 +396,14 @@ class _ExtraAttrs(ParseExtras):
                 "table. Was parsing called from the architecture on top?"
             )
 
-        for k, v in orig_symbol_table["arch_extra_attributes_for_all_component_models"].items():
+        for k, v in orig_symbol_table[
+            "arch_extra_attributes_for_all_component_models"
+        ].items():
             if getattr(self, k, None) is None:
                 setattr(self, k, v)
 
         return super()._parse_expressions(symbol_table, *args, **kwargs)
+
 
 @_uninstantiable
 class Component(Leaf):
@@ -437,7 +462,8 @@ class Component(Leaf):
     total_leak_power: ParsesTo[int | float | None] = None
     """
     The total leak power of all instances of this component in W. Do not set this value.
-    It is calculated when the architecture's leak power is calculated.
+    It is calculated when the architecture's leak power is calculated. If instances are
+    power gated, actual leak power may be less than this value.
     """
 
     leak_power_scale: ParsesTo[int | float] = 1
@@ -453,9 +479,7 @@ class Component(Leaf):
     this action's energy. Multiplies the calculated energy of each action.
     """
 
-    total_latency: str | int | float = (
-        "sum(*action2latency.values()) / n_parallel_instances"
-    )
+    total_latency: str | int | float = "sum(*action2latency.values())"
     """
     An expression representing the total latency of this component in seconds. This is
     used to calculate the latency of a given Einsum. Special variables available are the
@@ -534,6 +558,13 @@ class Component(Leaf):
             )
         return self.component_class
 
+    def _is_dummy(self) -> bool:
+        return (
+            self.component_model is None
+            and self.component_class is not None
+            and self.component_class.lower() == "dummy"
+        )
+
     def populate_component_model(
         self: T,
         component_models: list[ComponentModel] | None = None,
@@ -566,6 +597,9 @@ class Component(Leaf):
         """
         if not in_place:
             self: Self = self._copy_for_component_modeling()
+
+        if self._is_dummy():
+            return self
 
         if self.component_model is None:
             if component_models is None:
@@ -628,6 +662,9 @@ class Component(Leaf):
             if action.energy is not None:
                 energy = action.energy
                 messages.append(f"Setting {self.name} energy to {action.energy=}")
+            elif self._is_dummy():
+                energy = 0
+                messages.append('Component is "Dummy". Setting energy to 0.')
             else:
                 self.populate_component_model(
                     component_models,
@@ -637,19 +674,25 @@ class Component(Leaf):
                 energy = self.component_model.try_call_arbitrary_action(
                     action_name=action.name,
                     _return_estimation_object=True,
-                    **{**self._attributes_for_component_model(), **action._attributes_for_component_model()},
+                    **{
+                        **self._attributes_for_component_model(),
+                        **action._attributes_for_component_model(),
+                    },
                 )
                 messages.extend(energy.messages)
                 energy = energy.value[0]
             if self.energy_scale != 1:
                 energy *= self.energy_scale
-                messages.append(
-                    f"Scaling {self.name} energy by {self.energy_scale=}"
-                )
+                messages.append(f"Scaling {self.name} energy by {self.energy_scale=}")
             if action.energy_scale != 1:
                 energy *= action.energy_scale
                 messages.append(f"Scaling {self.name} energy by {action.energy_scale=}")
             action.energy = energy
+            if action.energy < 0:
+                logging.warning(
+                    f"Component {self.name} action {action.name} has negative energy: "
+                    f"{action.energy=}"
+                )
         return self
 
     def calculate_leak_power(
@@ -694,9 +737,10 @@ class Component(Leaf):
         messages = self.component_modeling_log
         if self.leak_power is not None:
             leak_power = self.leak_power
-            messages.append(
-                f"Using predefined leak power value {self.leak_power=}"
-            )
+            messages.append(f"Using predefined leak power value {self.leak_power=}")
+        elif self._is_dummy():
+            leak_power = 0
+            messages.append("Component is dummy. Setting leak power to 0.")
         else:
             self.populate_component_model(
                 component_models,
@@ -711,6 +755,10 @@ class Component(Leaf):
             leak_power *= self.n_parallel_instances
             messages.append(f"Scaling leak power by {self.n_parallel_instances=}")
         self.leak_power = leak_power
+        if self.leak_power < 0:
+            logging.warning(
+                f"Component {self.name} has negative leak power: {self.leak_power}"
+            )
         return self
 
     def calculate_area(
@@ -756,6 +804,9 @@ class Component(Leaf):
         if self.area is not None:
             area = self.area
             messages.append(f"Using predefined area value {self.area=}")
+        elif self._is_dummy():
+            area = 0
+            messages.append("Component is dummy. Setting area to 0.")
         else:
             self.populate_component_model(
                 component_models,
@@ -770,6 +821,8 @@ class Component(Leaf):
             area *= self.n_parallel_instances
             messages.append(f"Scaling area by {self.n_parallel_instances=}")
         self.area = area
+        if self.area < 0:
+            logging.warning(f"Component {self.name} has negative area: {self.area}")
         return self
 
     def calculate_action_latency(
@@ -808,6 +861,9 @@ class Component(Leaf):
             if action.latency is not None:
                 latency = action.latency
                 messages.append(f"Setting {self.name} latency to {action.latency=}")
+            elif self._is_dummy():
+                latency = 0
+                messages.append("Component is dummy. Setting latency to 0.")
             else:
                 self.populate_component_model(
                     component_models,
@@ -817,31 +873,39 @@ class Component(Leaf):
                 latency = self.component_model.try_call_arbitrary_action(
                     action_name=action.name,
                     _return_estimation_object=True,
-                    **{**self._attributes_for_component_model(), **action._attributes_for_component_model()},
+                    **{
+                        **self._attributes_for_component_model(),
+                        **action._attributes_for_component_model(),
+                    },
                 )
                 messages.extend(latency.messages)
                 latency = latency.value[1]
             if self.latency_scale != 1:
                 latency *= self.latency_scale
-                messages.append(
-                    f"Scaling {self.name} latency by {self.latency_scale=}"
-                )
+                messages.append(f"Scaling {self.name} latency by {self.latency_scale=}")
             if action.latency_scale != 1:
                 latency *= action.latency_scale
-                messages.append(f"Scaling {self.name} latency by {action.latency_scale=}")
+                messages.append(
+                    f"Scaling {self.name} latency by {action.latency_scale=}"
+                )
             if self.n_parallel_instances != 1:
                 latency /= self.n_parallel_instances
                 messages.append(
                     f"Dividing {self.name} latency by {self.n_parallel_instances=}"
                 )
             action.latency = latency
+            if action.latency < 0:
+                logging.warning(
+                    f"Component {self.name} action {action.name} has negative latency: "
+                    f"{action.latency}"
+                )
         return self
 
     def calculate_area_energy_latency_leak(
         self,
         component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
-        _use_cache: bool = False
+        _use_cache: bool = False,
     ) -> Self:
         """
         Calculates the area, energy, latency, and leak power for this component.
@@ -903,16 +967,20 @@ class Component(Leaf):
 
     def _attributes_for_component_model(self) -> dict[str, Any]:
         return {
-            **self.shallow_model_dump_non_none(),
-            **self.extra_attributes_for_component_model.shallow_model_dump_non_none(),
+            **self.shallow_model_dump(),
+            **self.extra_attributes_for_component_model.shallow_model_dump(),
         }
 
     def _copy_for_component_modeling(self) -> Self:
         self: Component = self.model_copy()
-        self.extra_attributes_for_component_model = self.extra_attributes_for_component_model.model_copy()
+        self.extra_attributes_for_component_model = (
+            self.extra_attributes_for_component_model.model_copy()
+        )
         self.actions = type(self.actions)([a.model_copy() for a in self.actions])
         for action in self.actions:
-            action.extra_attributes_for_component_model = action.extra_attributes_for_component_model.model_copy()
+            action.extra_attributes_for_component_model = (
+                action.extra_attributes_for_component_model.model_copy()
+            )
         return self
 
 
@@ -938,9 +1006,7 @@ COMPUTE_ACTIONS = ParsableList(
 
 
 def _parse_tensor2bits(
-    to_parse: dict[str, Any],
-    location: str,
-    symbol_table: dict[str, Any]
+    to_parse: dict[str, Any], location: str, symbol_table: dict[str, Any]
 ) -> dict[str, Any]:
     result = {}
     for key, value in to_parse.items():
@@ -962,15 +1028,11 @@ def _parse_tensor2bits(
         all -= k
 
     if all:
-        raise ParseError(
-            f"Missing bits_per_value_scale for {all}"
-        )
+        raise ParseError(f"Missing bits_per_value_scale for {all}")
 
     for a, b in itertools.combinations(result.keys(), 2):
         if a & b:
-            raise ParseError(
-                f"bits_per_value_scale for {a} and {b} overlap"
-            )
+            raise ParseError(f"bits_per_value_scale for {a} and {b} overlap")
 
     return {k2: v for k, v in result.items() for k2 in k}
 
@@ -985,7 +1047,8 @@ class Tensors(ParsableModel):
     """
     A set expression describing which tensors must be kept in this
     :class:`fastfusion.frontend.arch.TensorHolder`. If this is not defined, then all
-    tensors must be kept.
+    tensors must be kept. Any tensors that are in ``back`` will also be added to
+    ``keep``.
     """
 
     may_keep: TryParseTo[InvertibleSet[TensorName]] = (
@@ -996,6 +1059,13 @@ class Tensors(ParsableModel):
     :class:`fastfusion.frontend.arch.TensorHolder`. The mapper will explore both keeping
     and not keeping each of these tensors. If this is not defined, then all tensors may
     be kept.
+    """
+
+    back: TryParseTo[InvertibleSet[TensorName]] = "Nothing"
+    """
+    A set expression describing which tensors must be backed by this
+    :class:`fastfusion.frontend.arch.TensorHolder`. If this is not defined, then no
+    tensors must be backed.
     """
 
     tile_shape: ParsableList[Comparison] = []
@@ -1048,7 +1118,11 @@ class Tensors(ParsableModel):
             self.may_keep = "All" if keep == "<Defaults to Nothing>" else "~All"
         if keep == "<Defaults to Nothing>":
             self.keep = "Nothing"
-        parsed, symbol_table = super(self.__class__, self)._parse_expressions(*args, **kwargs)
+        parsed, symbol_table = super(self.__class__, self)._parse_expressions(
+            *args, **kwargs
+        )
+        parsed.keep |= parsed.back
+        parsed.may_keep -= parsed.back
 
         # Assert that there are no intersecting sets
         for order in parsed.tensor_order_options:
@@ -1375,18 +1449,31 @@ class _ConstraintLambda:
     def __bool__(self) -> bool:
         return bool(self.target_mapping_nodes)
 
+    def __str__(self) -> str:
+        return self.constraint.__str__()
+
 
 class _TileShapeConstraintLambda(_ConstraintLambda):
+    def __str__(self) -> str:
+        if self.constraint._str_repr is not None:
+            return self.constraint._str_repr
+        return "tile_shape " + super().__str__()
+
     def pretty_str(self) -> str:
         return f"Tile shape {self.constraint.operator} {self.constraint.value} {self._constrained_node_str()}"
 
 
 class _LoopBoundsConstraintLambda(_ConstraintLambda):
+    def __str__(self) -> str:
+        if self.constraint._str_repr is not None:
+            return self.constraint._str_repr
+        return "loop_bounds " + super().__str__()
+
     def pretty_str(self) -> str:
         return f"Loop bounds {self.constraint.operator} {self.constraint.value} {self._constrained_node_str()}"
 
 
-class _MinUtilizationConstraintLambda(_ConstraintLambda):
+class _MinUsageConstraintLambda(_ConstraintLambda):
     def __init__(
         self,
         target_mapping_nodes: list[Spatial],
@@ -1396,27 +1483,33 @@ class _MinUtilizationConstraintLambda(_ConstraintLambda):
         super().__init__(None, target_mapping_nodes, rank_variables)
         self.min_usage = min_usage
 
-    def __call__(self, complete_indices: list[int], utilizations: np.ndarray) -> bool:
+    def __call__(self, complete_indices: list[int], usages: np.ndarray) -> bool:
         # final = self.rank_variables.issubset(rank_variables)
         final = set(self._target_loop_indices).issubset(set(complete_indices))
         if not final:
-            return np.ones(utilizations.shape[0], dtype=np.bool)
+            return np.ones(usages.shape[0], dtype=np.bool)
 
-        # Some utilizations are already above the minimum. Return those.
-        result = utilizations >= self.min_usage
+        # Some usages are already above the minimum. Return those.
+        result = usages >= self.min_usage
         if np.sum(result) > 0:
             return result
 
         # Nobody is amove the minimum. Return the best we can do.
-        max_utilization = np.max(utilizations, axis=0)
-        return utilizations == max_utilization
+        max_usage = np.max(usages, axis=0)
+        return usages == max_usage
 
     def pretty_str(self) -> str:
-        return f"Min utilization {self.min_usage} {self._constrained_node_str()}"
+        return f"Min usage {self.min_usage} {self._constrained_node_str()}"
 
 
 class Arch(Hierarchical):
-    """ Top-level architecture specification. """
+    """Top-level architecture specification."""
+
+    arch_globals_dependent_on_workload: ParseExtras = ParseExtras()
+    """
+    Attributes that are dependent on the workload. This is parsed first in the
+    architecture, and symbols here are available to the rest of the architecture.
+    """
 
     extra_attributes_for_all_component_models: ParseExtras = ParseExtras()
     """
@@ -1459,8 +1552,7 @@ class Arch(Hierarchical):
             A dictionary of component names to their total area in m^2.
         """
         area = {
-            node.name: node.total_area
-            for node in self.get_nodes_of_type(Component)
+            node.name: node.total_area for node in self.get_nodes_of_type(Component)
         }
         for k, v in area.items():
             if v is None:
@@ -1499,11 +1591,15 @@ class Arch(Hierarchical):
 
         class PostCallArch(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
-                if field == "extra_attributes_for_all_component_models":
-                    parsed_dump = parsed.shallow_model_dump_non_none()
+                if field == "arch_globals_dependent_on_workload":
+                    parsed_dump = parsed.shallow_model_dump()
                     symbol_table.update(parsed_dump)
-                    symbol_table["arch_extra_attributes_for_all_component_models"] = parsed_dump
-                    outer_st["arch_extra_attributes_for_all_component_models"] = parsed_dump
+                    symbol_table["arch_globals_dependent_on_workload"] = parsed_dump
+                if field == "extra_attributes_for_all_component_models":
+                    parsed_dump = parsed.shallow_model_dump()
+                    symbol_table["arch_extra_attributes_for_all_component_models"] = (
+                        parsed_dump
+                    )
                 return parsed
 
         cur_st = dict(symbol_table)
@@ -1516,7 +1612,10 @@ class Arch(Hierarchical):
             *args,
             **kwargs,
             post_calls=(PostCallArch(),),
-            order=("extra_attributes_for_all_component_models",),
+            order=(
+                "arch_globals_dependent_on_workload",
+                "extra_attributes_for_all_component_models",
+            ),
         )
         return parsed, symbol_table
 

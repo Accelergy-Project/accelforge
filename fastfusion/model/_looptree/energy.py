@@ -1,9 +1,12 @@
+from collections import defaultdict
 from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
+import logging
 from numbers import Number
 from numbers import Real
 
 from fastfusion.frontend import arch
+from fastfusion.frontend.mapping.mapping import MappingNode
 from fastfusion.frontend.spec import Spec
 from fastfusion.model._looptree.reuse.symbolic import SymbolicAnalysisOutput
 from fastfusion.util._base_analysis_types import (
@@ -112,7 +115,14 @@ def compute_energy_from_actions(
     spec: Spec,
     action_counts: MappingABC[ActionKey, Real],
     overall_latency: float,
+    component_to_non_power_gated_porp: dict[str, int] = None,
 ) -> dict[ActionKey | VerboseActionKey, Number]:
+    if component_to_non_power_gated_porp is None:
+        logging.warning(
+            "No component_to_non_power_gated_porp provided, will not account for power gating."
+        )
+        component_to_non_power_gated_porp = {}
+
     energy_result = {}
     components = {}
     for key, counts in action_counts.items():
@@ -132,7 +142,9 @@ def compute_energy_from_actions(
 
     for component_obj in spec.arch.get_nodes_of_type(arch.Component):
         energy_result[ActionKey(component_obj.name, "leak")] = (
-            component_obj.total_leak_power * overall_latency
+            component_obj.total_leak_power
+            * overall_latency
+            * component_to_non_power_gated_porp.get(component_obj.name, 1)
         )
 
     return energy_result

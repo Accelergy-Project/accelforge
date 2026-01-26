@@ -106,6 +106,10 @@ def make_tensor_choices_one_level(
             elif t in must_keep:
                 nodes[-1]._must_keep_tensors = [t]
 
+        # Check if it's backing all required tensors
+        if node.tensors.back - nodes[-1]._backing:
+            continue
+
         yield nodes, new_symbol_table, new_seen_tensors
 
 
