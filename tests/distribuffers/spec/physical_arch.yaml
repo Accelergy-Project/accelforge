@@ -6,7 +6,7 @@ arch:
     attributes:
       # Top-level attributes inherited by all components unless overridden
       technology: "45nm"
-      global_cycle_seconds: 1e-9
+      cycle_period: 1e-9
 
   - !Network
     name: L2

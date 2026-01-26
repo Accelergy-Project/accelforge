@@ -302,7 +302,6 @@ class Mappings:
                     n_computes = self.num_computes(einsum_name)
             # Check if the column can be converted to numeric
             try:
-                pd.to_numeric(new_df[col], errors="raise")
                 new_df[col] /= n_computes
             except (ValueError, TypeError):
                 # Skip columns that can't be converted to numeric
@@ -357,7 +356,7 @@ class Mappings:
         per_tensor: bool = False,
         per_action: bool = False,
         value_if_one_mapping: bool = True
-    ) -> dict[tuple[str, ...], float | list[float]] | float | list[float]:
+    ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
         """
         Returns the energy consumed. A dictionary is returned with keys that are tuples of
         (Einsum name, Component name, Tensor name, Action name), with any of these being
@@ -411,14 +410,9 @@ class Mappings:
                     result[(einsum, component, None, action)] = einsum_accessed[col]
 
         keep_indices = []
-        if per_einsum:
-            keep_indices.append(0)
-        if per_component:
-            keep_indices.append(1)
-        if per_tensor:
-            keep_indices.append(2)
-        if per_action:
-            keep_indices.append(3)
+        for i, idx in enumerate([per_einsum, per_component, per_tensor, per_action]):
+            if idx:
+                keep_indices.append(i)
 
         if not keep_indices:
             v = sum(result.values())
@@ -430,8 +424,12 @@ class Mappings:
         for key, value in result.items():
             newkey = tuple(key[i] for i in keep_indices)
             new_result[newkey] += value
+        result = new_result
+
+        if len(keep_indices) == 1:
+            result = {k[0]: v for k, v in result.items()}
 
         if value_if_one_mapping and len(self.data) == 1:
-            return {k: v.iloc[0] for k, v in new_result.items()}
+            return {k: v.iloc[0] for k, v in result.items()}
 
-        return new_result
+        return result
