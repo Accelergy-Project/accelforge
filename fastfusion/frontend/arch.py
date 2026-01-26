@@ -1121,8 +1121,11 @@ class Tensors(ParsableModel):
         parsed, symbol_table = super(self.__class__, self)._parse_expressions(
             *args, **kwargs
         )
-        parsed.keep |= parsed.back
-        parsed.may_keep -= parsed.back
+        if isinstance(parsed.back, InvertibleSet):
+            if isinstance(parsed.keep, InvertibleSet):
+                parsed.keep |= parsed.back
+            if isinstance(parsed.may_keep, InvertibleSet):
+                parsed.may_keep -= parsed.back
 
         # Assert that there are no intersecting sets
         for order in parsed.tensor_order_options:

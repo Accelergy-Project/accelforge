@@ -720,7 +720,7 @@ def insert_reservation_nodes(
 
 def label_fused_loops(mapping: List[MappingNode], fusable_tensors: set[TensorName]):
     last_backer = -1
-    assert isinstance(fusable_tensors, set)
+    assert isinstance(fusable_tensors, set), f"Fusable tensors must be a set, got {type(fusable_tensors)}"
 
     for i, node in enumerate(mapping):
         if not isinstance(node, TensorHolder) or isinstance(node, Reservation):

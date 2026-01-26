@@ -73,7 +73,7 @@ def run_model(
     for (component, einsum), per_dim_fanout in reuse.fanout.items():
         for dim, fanout in per_dim_fanout.items():
             usage = fanout / component_to_max_fanout[component][dim]
-            usage_df[f"usage<SEP>{component}<SEP>{dim}"] = (
+            usage_df[f"usage<SEP>spatial<SEP>{component}<SEP>{dim}"] = (
                 usage * component_to_usage_scale[component][dim]
             )
             unscaled_usage.setdefault(component, {})[dim] = usage
@@ -163,7 +163,8 @@ def run_model(
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():
-        per_memory_usage_df[memory] = sum(occupancies.values()) / memory_to_size[memory]
+        key = f"usage<SEP>memory<SEP>{memory}"
+        per_memory_usage_df[key] = sum(occupancies.values()) / memory_to_size[memory]
 
     return (
         reuse.symbols,

@@ -56,9 +56,12 @@ def make_tensor_choices_one_level(
         e.add_field(f"Einsum {einsum_name} arch.{node.name}.tensors")
         raise e
 
-    must_keep = tensors.to_my_space(node.tensors.keep)
+    must_keep = tensors.to_my_space(node.tensors.keep | node.tensors.back)
     may_keep = tensors.to_my_space(node.tensors.may_keep)
     may_keep -= must_keep
+
+    if seen_tensors & set(node.tensors.back):
+        return
 
     if must_keep - tensors:
         raise KeyError(
@@ -105,10 +108,6 @@ def make_tensor_choices_one_level(
                 nodes[-1].persistent = t in persistent_tensors
             elif t in must_keep:
                 nodes[-1]._must_keep_tensors = [t]
-
-        # Check if it's backing all required tensors
-        if node.tensors.back - nodes[-1]._backing:
-            continue
 
         yield nodes, new_symbol_table, new_seen_tensors
 

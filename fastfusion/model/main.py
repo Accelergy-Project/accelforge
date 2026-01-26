@@ -88,6 +88,11 @@ def evaluate_mapping(spec: Spec):
         job.stride_and_halo = get_stride_and_halo_of_einsum(
             job.einsum_name, cur_spec.workload
         )
+        job.fusable_tensors = set(
+            job.spec.workload.tensor_names_used_in_multiple_einsums
+            & set(job.tensor_to_relevancy)
+        )
+
         _, df, _, _, tensor2mapping = run_model(job)
         df = {f"{job.einsum_name}<SEP>{key}": value for key, value in df.items()}
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id

@@ -6,7 +6,7 @@ from fastfusion.frontend._workload_isl._symbolic import PartiallyRelevant, Relev
 import fastfusion.frontend.arch as arch
 from fastfusion.frontend.arch import (
     Comparison,
-    _MinUtilizationConstraintLambda,
+    _MinUsageConstraintLambda,
     _TileShapeConstraintLambda,
     _LoopBoundsConstraintLambda,
     _ConstraintLambda,
@@ -31,9 +31,9 @@ class MappingConstraints:
     def __init__(self):
         self.tile_shape_constraints: list[_TileShapeConstraintLambda] = []
         self.loop_bounds_constraints: list[_LoopBoundsConstraintLambda] = []
-        self.min_usage_constraints: dict[
-            tuple[str, str], _MinUtilizationConstraintLambda
-        ] = {}
+        self.min_usage_constraints: dict[tuple[str, str], _MinUsageConstraintLambda] = (
+            {}
+        )
 
     def get_all_constraints(self) -> list[_ConstraintLambda]:
         return (
@@ -54,14 +54,14 @@ class MappingConstraints:
         self,
         component_name: str,
         name: str,
-        utilization: np.ndarray,
+        usage: np.ndarray,
         complete_indices: list[int],
     ):
         if (component_name, name) not in self.min_usage_constraints:
-            return np.ones(utilization.shape[0], dtype=np.bool)
+            return np.ones(usage.shape[0], dtype=np.bool)
 
         return self.min_usage_constraints[(component_name, name)](
-            complete_indices, utilization
+            complete_indices, usage
         )
 
     def set_loop_indices(self, nodes: list[MappingNode]):
@@ -70,7 +70,7 @@ class MappingConstraints:
             c._target_node_indices = [nodes.index(t) for t in c.target_mapping_nodes]
             c._target_loop_indices = [loops.index(t) for t in c.target_mapping_nodes]
 
-        # Min utilization constraints also depend on the loop ABOVE the target loop
+        # Min usage constraints also depend on the loop ABOVE the target loop
         # because the loop above determines the number of tiles
         for c in self.min_usage_constraints.values():
             # Rank variables must be unique between mapping nodes
@@ -153,7 +153,7 @@ class MappingConstraints:
         s += "Loop bounds constraints:\n"
         for c in self.loop_bounds_constraints:
             s += f"\t{all_constraints.index(c)} {c.pretty_str()}\n"
-        s += "Min utilization constraints:\n"
+        s += "Min usage constraints:\n"
         for c in self.min_usage_constraints.values():
             s += f"\t{all_constraints.index(c)} {c.pretty_str()}\n"
         return s
@@ -321,7 +321,7 @@ def get_constraints(
                         constraint = _LoopBoundsConstraintLambda(c, new_nodes, exp)
                         constraints.loop_bounds_constraints.append(constraint)
 
-            # Min utilization constraints
+            # Min usage constraints
             target_mapping_nodes = [
                 n
                 for n in mapping
@@ -333,7 +333,7 @@ def get_constraints(
                 if not target_mapping_nodes:
                     continue
                 rank_variables = {t.rank_variable for t in target_mapping_nodes}
-                constraint = _MinUtilizationConstraintLambda(
+                constraint = _MinUsageConstraintLambda(
                     target_mapping_nodes,
                     rank_variables,
                     dim.min_usage,

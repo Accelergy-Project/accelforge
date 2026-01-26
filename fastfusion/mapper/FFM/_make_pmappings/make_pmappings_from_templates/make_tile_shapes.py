@@ -1361,7 +1361,7 @@ def _make_tile_shapes(job: "Job"):
         symbols,
         symbolic_df,
         per_memory_usage_df,
-        utilization_df,
+        usage_df,
         tensor2mapping,
     ) = run_model(job)
 
@@ -1427,9 +1427,9 @@ def _make_tile_shapes(job: "Job"):
             )
 
     # ==================================================================================
-    # Memory usage and utilization constraints.
+    # Memory usage and usage constraints.
     # ==================================================================================
-    for k, v in {**per_memory_usage_df, **utilization_df}.items():
+    for k, v in {**per_memory_usage_df, **usage_df}.items():
         # If we only track for pmappings, we only care if it's valid. If we track for
         # all, we care about the value too.
 
@@ -1437,9 +1437,9 @@ def _make_tile_shapes(job: "Job"):
         if k in job.memories_track_pmappings_only:
             only_care_if_valid = True
 
-        # TODO: Update check to see if we may be sharing utilization with other
+        # TODO: Update check to see if we may be sharing usage with other
         # pmappings in parallel/pipeline.
-        if k in utilization_df:
+        if k in usage_df:
             only_care_if_valid = True
 
         objectives.append(
@@ -1511,7 +1511,7 @@ def _make_tile_shapes(job: "Job"):
     try:
         compiled_df = compile_dict(symbols, symbolic_df)
         compiled_per_memory_usage_df = compile_dict(symbols, per_memory_usage_df)
-        compiled_utilization_df = compile_dict(symbols, utilization_df)
+        compiled_usage_df = compile_dict(symbols, usage_df)
     except Exception as e:
         print("Compilation failed for this mapping:")
         for node in pmapping.nodes:
