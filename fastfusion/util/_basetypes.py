@@ -554,6 +554,17 @@ class _FromYAMLAble:
             c = cls(**rval, **kwargs)
         except Exception as e:
             pass
+
+        if c is None and rval is None:
+            if top_key is not None:
+                raise ValueError(
+                    f"No data to parse from {files} with top key {top_key}. Is there "
+                    f"content under the top key {top_key}?"
+                )
+            raise ValueError(
+                f"No data to parse from {files}. Is there content  in the file(s)?"
+            )
+
         if c is None and len(rval) == 1:
             logging.warning(
                 f"Trying to parse a single element dictionary as a {cls.__name__}. "
@@ -783,12 +794,15 @@ class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):
     def model_dump_non_none(self, **kwargs):
         return {k: v for k, v in self.model_dump(**kwargs).items() if v is not None}
 
-    def shallow_model_dump_non_none(self, **kwargs):
+    def shallow_model_dump(self, include_None: bool = False, **kwargs):
         keys = self.get_fields()
         if getattr(self, "__pydantic_extra__", None) is not None:
             keys.extend([k for k in self.__pydantic_extra__.keys() if k not in keys])
 
-        return {k: getattr(self, k) for k in keys if getattr(self, k) is not None}
+        if not include_None:
+            keys = [k for k in keys if getattr(self, k) is not None]
+
+        return {k: getattr(self, k) for k in keys}
 
     def __contains__(self, key: str) -> bool:
         try:
@@ -843,7 +857,15 @@ class ParsableModel(_OurBaseModel, Parsable["ParsableModel"]):
 
         super().__init__(**kwargs)
         if required_type is not None:
-            if not isinstance(self, required_type):
+            try:
+                passed_check = isinstance(self, required_type)
+            except TypeError:
+                raise TypeError(
+                    f"Error checking required type. Was given type argument "
+                    f"{required_type} a valid type?"
+                ) from None
+
+            if not passed_check:
                 raise TypeError(
                     f"type field {required_type} does not match"
                     f"{self.__class__.__name__}"
