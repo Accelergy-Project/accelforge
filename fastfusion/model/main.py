@@ -119,7 +119,13 @@ def evaluate_mapping(
         )
 
         _, df, _, _, tensor2mapping = run_model(job)
-        df = {f"{job.einsum_name}<SEP>{key}": value for key, value in df.items()}
+        new_df = {}
+        for key, value in df.items():
+            if "Total" in key:
+                new_df[key] = value
+            else:
+                new_df[f"{job.einsum_name}<SEP>{key}"] = value
+        df = new_df
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
 
         einsum = cur_spec.workload.einsums[job.einsum_name]
