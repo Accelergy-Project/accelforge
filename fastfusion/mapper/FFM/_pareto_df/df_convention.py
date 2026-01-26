@@ -54,7 +54,7 @@ def action2col(action: ActionKey | VerboseActionKey) -> str:
 @dict_cached
 def col2action(colname: str) -> ActionKey | VerboseActionKey:
     separated_names = colname.split("<SEP>")
-    if len(separated_names) == 3:
+    if len(separated_names) == 4:
         assert separated_names[0] == "action"
         return ActionKey(separated_names[1], separated_names[2])
     elif len(separated_names) == 5:
@@ -80,10 +80,10 @@ def energy2col(action: ActionKey | VerboseActionKey) -> str:
 @dict_cached
 def col2energy(colname: str) -> ActionKey | VerboseActionKey:
     separated_names = colname.split("<SEP>")
-    if len(separated_names) == 3:
-        assert separated_names[0] == "energy"
-        return ActionKey(separated_names[1], separated_names[2])
-    elif len(separated_names) == 4:
+    if len(separated_names) == 4:
+        assert separated_names[1] == "energy", colname
+        return ActionKey(separated_names[2], separated_names[3])
+    elif len(separated_names) == 5:
         assert separated_names[1] == "energy"
         return VerboseActionKey(
             separated_names[2],
