@@ -72,7 +72,11 @@ def map_workload_to_arch(
         local_spec.model.metrics = local_spec.mapper.ffm.info_metrics
         local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"]()
         # BUG: Mapping._from_pmappings create mappings that cannot be evaluated!
-        this_mapping = evaluate_mapping(local_spec)
+        this_mapping = evaluate_mapping(
+            local_spec,
+            flattened_arches=mappings.flattened_arches,
+            parsed_specs=mappings.parsed_specs,
+        )
         new_mapping_data.append(this_mapping.data)
 
     mappings.data = pd.concat(new_mapping_data)
@@ -184,6 +188,14 @@ def _make_pmappings(
     jobs_flattened = [j for jobs in einsum2jobs.values() for j in jobs]
     resource2capacity = pmapper.get_memory_to_size(jobs_flattened)
 
+    flattened_arches = {}
+    parsed_specs = {}
+    for einsum_name, jobs in einsum2jobs.items():
+        for job in jobs:
+            compute_name = job.flattened_arch[-1].name
+            flattened_arches[(einsum_name, compute_name)] = job.flattened_arch
+            parsed_specs[einsum_name] = job.spec
+
     m = MultiEinsumPmappings(
         pmapping_groups,
         pmapping_objects,
@@ -193,6 +205,8 @@ def _make_pmappings(
         einsums_with_pmappings_generated=set(
             einsum_names if einsum_names else spec.workload.einsum_names
         ),
+        flattened_arches=flattened_arches,
+        parsed_specs=parsed_specs,
     )
 
     return m

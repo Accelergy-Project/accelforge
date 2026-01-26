@@ -5,6 +5,7 @@ import pandas as pd
 
 from fastfusion.frontend import arch
 from fastfusion.frontend.arch import Memory
+from fastfusion.frontend.renames import EinsumName
 from fastfusion.frontend.spec import Mapping, Spec
 from fastfusion.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder
 from fastfusion.frontend.workload import Workload
@@ -14,7 +15,11 @@ from fastfusion.frontend._workload_isl._symbolic import (
 )
 
 
-def evaluate_mapping(spec: Spec):
+def evaluate_mapping(
+    spec: Spec,
+    flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
+    parsed_specs: dict[EinsumName, Spec] | None = None,
+):
     """
     Evaluate a mapping.
 
@@ -22,6 +27,15 @@ def evaluate_mapping(spec: Spec):
     ----------
     spec:
         The specification of architecture, workload, and mapping.
+    flattened_arches:
+        A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
+        contain the parsed and flattened architecture node for that particular Einsum
+        and compute combination. If provided, then these will be used instead of
+        re-parsing the architecture.
+    parsed_specs:
+        A dictionary of Einsum names to parsed specifications. These contain the parsed
+        specification for that particular Einsum. If provided, then these will be used
+        instead of re-parsing the specification.
     """
     from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
     from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import (
@@ -40,6 +54,10 @@ def evaluate_mapping(spec: Spec):
     )
     from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
 
+    assert (parsed_specs is not None) == (
+        flattened_arches is not None
+    ), f"Provide either flattened_arches or parsed_specs, not both."
+
     original_job = Job(
         metrics=spec.model.metrics,
         rank_variable_bounds=get_rank_variable_bounds_for_all_einsums(spec),
@@ -49,27 +67,34 @@ def evaluate_mapping(spec: Spec):
     einsum2pmappings = {}
     pmapping_objects = {}
     einsum2jobs = {}
-    flattened_arches = []
     assert not getattr(
         spec, "_parsed", False
     ), "Spec must not be parsed before evaluating a mapping"
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         einsum_name = pmapping.nodes[-1].einsum
-        cur_spec = spec.calculate_component_area_energy_latency_leak(
-            einsum_name=einsum_name,
-            area=False,
-        )
-        flattened_arch = cur_spec._get_flattened_architecture(
-            compute_node=pmapping.nodes[-1].component
-        )
-        flattened_arches.append(flattened_arch)
+        compute_name = pmapping.nodes[-1].component
         pmapping_id = uuid4()
         job = copy(original_job)
+
+        if flattened_arches is not None:
+            flattened_arch = flattened_arches[(einsum_name, compute_name)]
+            cur_spec = parsed_specs[einsum_name]
+
+        else:
+            cur_spec = spec.calculate_component_area_energy_latency_leak(
+                einsum_name=einsum_name,
+                area=False,
+            )
+            flattened_arch = cur_spec._get_flattened_architecture(
+                compute_node=pmapping.nodes[-1].component
+            )
+
+        job.spec = cur_spec
         pmapping.remove_reservations()
         pmapping.split_loop_with_multiple_rank_variables()
         pmapping.split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
-        job.spec = cur_spec
+
         job.mapping = pmapping
         job.einsum_name = pmapping.nodes[-1].einsum
         job.tensor_to_relevancy = {
@@ -89,7 +114,7 @@ def evaluate_mapping(spec: Spec):
             job.einsum_name, cur_spec.workload
         )
         job.fusable_tensors = set(
-            job.spec.workload.tensor_names_used_in_multiple_einsums
+            cur_spec.workload.tensor_names_used_in_multiple_einsums
             & set(job.tensor_to_relevancy)
         )
 
@@ -126,6 +151,8 @@ def evaluate_mapping(spec: Spec):
         einsum2jobs,
         can_combine_multiple_runs=True,
         einsums_with_pmappings_generated=spec.workload.einsum_names,
+        flattened_arches=flattened_arches,
+        parsed_specs=parsed_specs,
     )
 
     return clean_compress_and_join_pmappings(spec, m)

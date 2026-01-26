@@ -1,3 +1,4 @@
+from fastfusion.frontend import arch
 from fastfusion.frontend.spec import Spec
 from fastfusion.frontend.workload import EinsumName
 from fastfusion._accelerated_imports import pd
@@ -30,6 +31,13 @@ class Mappings:
     valid_mappings:
         The number of valid mappings that have been explored in order to get the
         mappings in the dataframe, equal to the valid mapspace size.
+    flattened_arches:
+        A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
+        contain the parsed and flattened architecture node for that particular Einsum
+        and compute combination.
+    parsed_specs:
+        A dictionary of Einsum names to parsed specifications. These contain the parsed
+        specification for that particular Einsum.
     """
 
     def __init__(
@@ -39,12 +47,18 @@ class Mappings:
         data: pd.DataFrame,
         total_mappings: int,
         valid_mappings: int,
+        flattened_arches: dict[(EinsumName, str), list[arch.Leaf]],
+        parsed_specs: dict[EinsumName, Spec],
     ):
         self.spec: Spec = spec
         self.einsum_names: list[EinsumName] = einsum_names
         self.data: pd.DataFrame = data
         self.total_mappings: int = total_mappings
         self.valid_mappings: int = valid_mappings
+        self.flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] = (
+            flattened_arches
+        )
+        self.parsed_specs: dict[EinsumName, Spec] = parsed_specs
 
     def num_computes(self, einsum_name: EinsumName | None = None) -> int:
         """
@@ -70,6 +84,8 @@ class Mappings:
             data=self.data,
             total_mappings=self.total_mappings,
             valid_mappings=self.valid_mappings,
+            flattened_arches=self.flattened_arches,
+            parsed_specs=self.parsed_specs,
         )
         data.update(kwargs)
         return Mappings(**data)
