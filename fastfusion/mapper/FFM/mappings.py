@@ -9,6 +9,7 @@ from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
     get_per_tensor_size,
 )
 from typing import Union
+import numpy as np
 
 
 class Mappings:
@@ -358,40 +359,37 @@ class Mappings:
         value_if_one_mapping: bool = True
     ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
         """
-        Returns the energy consumed. A dictionary is returned with keys that are tuples of
-        (Einsum name, Component name, Tensor name, Action name), with any of these being
-        omitted if the corresponding parameter is not set to True. If no parameters are set
-        to True, a float or a list of floats is returned.
+        Returns the energy consumed. A dictionary is returned with keys that are tuples
+        of (Einsum name, Component name, Tensor name, Action name), with any of these
+        being omitted if the corresponding parameter is not set to True. If neither of
+        the per_... parameters are set to True, a float or a list of floats is returned.
 
-        NOTE: Leak power is not per-tensor. If per_tensor is True, then the tensor name for
-        leak will be None.
+        NOTE: Leak power is not per-tensor. If per_tensor is True, then the tensor name
+        for leak will be None.
 
         Parameters
         ----------
         per_einsum:
-            If True, then the energy will be divided by the number of computes for each
-            Einsum.
+            If True, then the energy will reported per-Einsum.
         per_component:
-            If True, then the energy will be divided by the number of components for each
-            Einsum.
+            If True, then the energy will reported per-component.
         per_tensor:
-            If True, then the energy will be divided by the number of tensors for each
-            Einsum.
+            If True, then the energy will reported per-tensor.
         per_action:
-            If True, then the energy will be divided by the number of actions for each
-            component.
+            If True, then the energy will reported per-action.
         value_if_one_mapping:
-            If True and there is only one mapping, then values in the returned dictionary
-            will be a single value, rather than a list of values. Otherwise, they will
-            always be a list of values.
+            If True and there is only one mapping, then values in the returned
+            dictionary will be a single value, rather than a list of values. Otherwise,
+            they will always be a list of values.
 
         Returns
         -------
         dict[tuple[str, ...], float | list[float]] | float | list[float]:
-            A dictionary with the energy consumed for each Einsum, Component, Tensor, and
-            Action. Keys are tuples of (Einsum name, Component name, Tensor name, Action
-            name), with any of these being omitted if the corresponding parameter is not
-            set to True.
+            A dictionary with the energy consumed for each Einsum, Component, Tensor,
+            and Action. Keys are tuples of (Einsum name, Component name, Tensor name,
+            Action name), with any of these being omitted if the corresponding parameter
+            is not set to True. If none of the per_... parameters are set to True, a
+            float or a list of floats is returned.
         """
 
         energy = self.access("energy")
@@ -431,5 +429,82 @@ class Mappings:
 
         if value_if_one_mapping and len(self.data) == 1:
             return {k: v.iloc[0] for k, v in result.items()}
+
+        return result
+
+    def latency(
+        self: "Mappings",
+        per_einsum: bool = False,
+        per_component: bool = False,
+        value_if_one_mapping: bool = True
+    ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
+        """
+        Returns the latency consumed. A dictionary is returned with keys that are tuples
+        of (Einsum name, Component name), with either being omitted if the corresponding
+        parameter is not set to True. If neither of the per_... parameters are set to
+        True, a float or a list of floats is returned.
+
+        NOTE: If per-Einsum is False and per-component is True, then the latency of each
+        component will be summed across all Einsums. THE TOTAL LATENCY MAY BE GREATER
+        THAN THE MAX OF THE PER-COMPONENT LATENCIES. This is because different
+        components can be the bottleneck for different Einsums.
+
+        Parameters
+        ----------
+        per_einsum:
+            If True, then the latency will reported per-Einsum.
+        per_component:
+            If True, then the latency will reported per-component.
+        value_if_one_mapping:
+            If True and there is only one mapping, then values in the returned
+            dictionary will be a single value, rather than a list of values. Otherwise,
+            they will always be a list of values.
+
+        Returns
+        -------
+        dict[tuple[str, ...], float | list[float]] | float | list[float]:
+            A dictionary with the latency for each Einsum+Component pair. Keys are
+            tuples of (Einsum name, Component name), with either being omitted if the
+            corresponding parameter is not set to True. If neither of the per_...
+            parameters are set to True, a float or a list of floats is returned.
+        """
+
+        energy = self.access("latency")
+
+        result = {}
+        for einsum in self.einsum_names:
+            einsum_accessed = energy.access(einsum)
+            for component in einsum_accessed._get_keys_of_length(1):
+                result[(einsum, component)] = einsum_accessed[component]
+
+        # If not per-component, aggregate into the per-Einsum latency
+        if not per_component:
+            new_result = {}
+            for (einsum, component), value in result.items():
+                if einsum not in new_result:
+                    new_result[einsum] = value
+                else:
+                    new_result[einsum] = np.maximum(new_result[einsum], value)
+            result = new_result
+
+        if not per_einsum:
+            # Not per-Einsum and per-component: for each component, sum across Einsums
+            if per_component:
+                new_result = {}
+                for (einsum, component), value in result.items():
+                    if component not in new_result:
+                        new_result[component] = value
+                    else:
+                        new_result[component] += value
+                result = new_result
+
+            # Not per-Einsum and not per-component: sum into a single value
+            else:
+                result = np.sum(list(result.values()))
+
+        if value_if_one_mapping and len(self.data) == 1:
+            if isinstance(result, dict):
+                return {k: v.iloc[0] for k, v in result.items()}
+            return result # Numpy sum already pulls out the number
 
         return result
