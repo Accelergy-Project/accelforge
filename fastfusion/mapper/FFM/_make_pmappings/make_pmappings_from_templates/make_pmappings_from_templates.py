@@ -262,11 +262,11 @@ def make_pmappings_from_templates(
         result[MAPPING_COLUMN] = job.job_id
         cols_to_drop = []
         for col in result.columns:
-            if (
-                is_reservation_col(col)
-                and col2nameloop(col)[0] in job.memories_track_pmappings_only
-            ):
-                cols_to_drop.append(col)
+            if is_reservation_col(col):
+                resource = col2nameloop(col)[0]
+                if resource in job.memories_track_pmappings_only:
+                    cols_to_drop.append(col)
+                assert resource not in job.ignored_resources, "Should have been ignored"
         result.drop(columns=cols_to_drop, inplace=True)
         results.append(result)
 
@@ -285,10 +285,12 @@ def make_pmappings_from_templates(
                 r,
                 skip_pareto=True,
                 next_shared_loop_index=next_shared_loop_index,
-                limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
                 n_total_pmappings=1,  # Unused for now, just making an initial Pareto
                 n_valid_pmappings=1,  # Unused for now, just making an initial Pareto
                 ignored_resources=job.ignored_resources,
+                # False because we may have lifetimes that stretch through this Einsum
+                # due to data dependencies, not loops
+                limit_capacity_drop_valid_reservations=False,
             )
             for r in results
         ],
@@ -382,10 +384,7 @@ def make_pmappings_from_templates(
                 msg += "\n"
             raise RuntimeError(f"negative energy:\n{msg}")
 
-        # TODO: Redundant capacity checks because limit_capacity is called. We want it
-        # so we can drop dead reservations though.
         # Skip pareto because we already did it above
-        # prev_len = len(mappings)
         next_shared_loop_index_this_group = compatibility.n_loops - 1
         partial_mappings = PmappingDataframe(
             mappings,
@@ -393,8 +392,10 @@ def make_pmappings_from_templates(
             n_total_pmappings=total_pmappings_per_group,
             n_valid_pmappings=valid_pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
-            limit_capacity_drop_valid_reservations=limit_capacity_drop_valid_reservations,
             ignored_resources=job.ignored_resources,
+            # False because we may have lifetimes that stretch through this Einsum
+            # due to data dependencies, not loops
+            limit_capacity_drop_valid_reservations=False,
         )
         pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
 
