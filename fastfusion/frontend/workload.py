@@ -858,15 +858,15 @@ class Workload(ParsableModel):
             cur_bpv = {t.name: t.bits_per_value for t in einsum.tensor_accesses}
             # Check for consistency across Einsums
             for prev_einsum, prev_bpv in bits_per_value_per_einsum.items():
-                for t0, t1 in itertools.product(cur_bpv.keys(), prev_bpv.keys()):
-                    b0 = cur_bpv[t0]
-                    b1 = prev_bpv[t1]
+                shared_keys = set(cur_bpv.keys()) & set(prev_bpv.keys())
+                for t in shared_keys:
+                    b0 = cur_bpv[t]
+                    b1 = prev_bpv[t]
                     if b0 != b1:
                         raise ValueError(
-                            f"Tensor {t0} has bits per value {b0} in Einsum "
-                            f"{einsum.name} and {b1} in Einsum {prev_einsum}. "
-                            "Bits per value must be consistent across all Einsums that "
-                            "access a tensor."
+                            f"Tensor {t} has bits per value {b0} in Einsum {einsum.name} "
+                            f"and {b1} in Einsum {prev_einsum}. Bits per value must be "
+                            "consistent across all Einsums that access a tensor."
                         )
             bits_per_value_per_einsum[einsum.name] = cur_bpv
             bits_per_value.update(cur_bpv)
