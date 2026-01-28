@@ -188,13 +188,13 @@ libraries/*
 !libraries/.gitkeep
 
 
-docs/source/fastfusion.frontend.mapper.rst
-docs/source/fastfusion.frontend.workload.rst
-docs/source/fastfusion.mapper.rst
-docs/source/fastfusion.util.rst
-docs/source/fastfusion.frontend.rst
-docs/source/fastfusion.mapper.FFM.rst
-docs/source/fastfusion.rst
+docs/source/accelforge.frontend.mapper.rst
+docs/source/accelforge.frontend.workload.rst
+docs/source/accelforge.mapper.rst
+docs/source/accelforge.util.rst
+docs/source/accelforge.frontend.rst
+docs/source/accelforge.mapper.FFM.rst
+docs/source/accelforge.rst
 
 *_wip
 .vscode

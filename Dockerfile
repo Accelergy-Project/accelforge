@@ -13,14 +13,14 @@ ARG BUILD_VERSION
 # Labels
 LABEL org.label-schema.schema-version="1.0"
 LABEL org.label-schema.build-date=$BUILD_DATE
-LABEL org.label-schema.name="FastFusion Infrastructure"
-LABEL org.label-schema.description="Infrastructure FastFusion"
-LABEL org.label-schema.url="https://github.com/Accelergy-Project/fastfusion/"
-LABEL org.label-schema.vcs-url="https://github.com/Accelergy-Project/fastfusion"
+LABEL org.label-schema.name="AccelForge Infrastructure"
+LABEL org.label-schema.description="Infrastructure AccelForge"
+LABEL org.label-schema.url="https://github.com/Accelergy-Project/accelforge/"
+LABEL org.label-schema.vcs-url="https://github.com/Accelergy-Project/accelforge"
 LABEL org.label-schema.vcs-ref=$VCS_REF
 LABEL org.label-schema.vendor="Author Here"
 LABEL org.label-schema.version=$BUILD_VERSION
-LABEL org.label-schema.docker.cmd="docker run -it --rm -v ~/workspace:/home/workspace fastfusion/fastfusion-infrastructure"
+LABEL org.label-schema.docker.cmd="docker run -it --rm -v ~/workspace:/home/workspace accelforge/accelforge-infrastructure"
 
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -77,7 +77,7 @@ RUN pip install jupyterlab ipywidgets
 
 EXPOSE 8888
 
-CMD bash -c "if ! pip list | grep -q 'fastfusion'; then cd /home/workspace && pip install -e .; fi && \
+CMD bash -c "if ! pip list | grep -q 'accelforge'; then cd /home/workspace && pip install -e .; fi && \
     jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root \
     --NotebookApp.token='' --NotebookApp.notebook_dir=/home/workspace/notebooks"
 

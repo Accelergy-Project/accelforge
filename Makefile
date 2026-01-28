@@ -44,7 +44,7 @@ install-islpy:
 	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && pip3 install .
 
 build-docker:
-	docker build -t fastfusion/fastfusion-infrastructure .
+	docker build -t accelforge/accelforge-infrastructure .
 
 run-docker:
 	docker-compose up
@@ -54,7 +54,7 @@ generate-docs:
     # pip install sphinx-autobuild sphinx_autodoc_typehints sphinx-rtd-theme
 	# rm -r docs/_build
 	# sphinx-build -nW docs/source docs/_build/html
-	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ fastfusion
+	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ accelforge
 	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild -a docs/source docs/_build/html
 
-	# LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ fastfusion ; rm -r docs/_build/html ; LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild -a docs/source docs/_build/html
+	# LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ accelforge ; rm -r docs/_build/html ; LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild -a docs/source docs/_build/html

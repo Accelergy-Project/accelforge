@@ -1,4 +1,4 @@
-import fastfusion as ff
+import accelforge as af
 import os
 
 THIS_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -9,7 +9,7 @@ def get_spec(
     arch_name: str,
     compare_with_arch_name: str | None = None,
     add_dummy_main_memory: bool = False,
-) -> ff.Spec:
+) -> af.Spec:
     """
     Gets the spec for the given architecture. If `compare_with_arch_name` is given, the
     variables_iso will be grabbed from `compare_with_arch_name` in order to match
@@ -25,7 +25,7 @@ def get_spec(
 
     Returns
     -------
-    spec: ff.Spec
+    spec: af.Spec
         The spec for the given architecture.
     """
     if compare_with_arch_name is None:
@@ -35,10 +35,10 @@ def get_spec(
 
     arch_name = os.path.join(THIS_SCRIPT_DIR, f"{arch_name}.yaml")
     compare_with_name = os.path.join(THIS_SCRIPT_DIR, f"{compare_with_name}.yaml")
-    variables = ff.Variables.from_yaml(arch_name, top_key="variables")
-    arch = ff.Arch.from_yaml(arch_name, top_key="arch")
-    workload = ff.Workload.from_yaml(arch_name, top_key="workload")
-    spec = ff.Spec(arch=arch, variables=variables, workload=workload)
+    variables = af.Variables.from_yaml(arch_name, top_key="variables")
+    arch = af.Arch.from_yaml(arch_name, top_key="arch")
+    workload = af.Workload.from_yaml(arch_name, top_key="workload")
+    spec = af.Spec(arch=arch, variables=variables, workload=workload)
 
     spec.config.expression_custom_functions.append(
         os.path.join(THIS_SCRIPT_DIR, "_include_functions.py")
@@ -47,7 +47,7 @@ def get_spec(
         os.path.join(THIS_SCRIPT_DIR, "components/*.py")
     )
     if add_dummy_main_memory:
-        main_memory = ff.arch.Memory(
+        main_memory = af.arch.Memory(
             name="MainMemory",
             component_class="Dummy",
             size=float("inf"),

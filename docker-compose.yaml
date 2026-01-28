@@ -1,7 +1,7 @@
 services:
   tutorial:
-    hostname: fastfusion
-    image: fastfusion/fastfusion-infrastructure
+    hostname: accelforge
+    image: accelforge/accelforge-infrastructure
     ports:
       - 8888:8888
     volumes:

@@ -2,10 +2,10 @@ Arithmetic and Parsing
 ======================
 
 Objects can include expressions that are parsed when the
-:py:class:`~fastfusion.frontend.spec.Spec` is parsed. Parsing occurs when the
-:py:func:`~fastfusion.frontend.spec.Spec` is going to be used to model the energy, area,
+:py:class:`~accelforge.frontend.spec.Spec` is parsed. Parsing occurs when the
+:py:func:`~accelforge.frontend.spec.Spec` is going to be used to model the energy, area,
 or latency of an accelerator, such as when the
-:py:func:`~fastfusion.frontend.spec.Spec.calculate_component_area_energy_latency_leak` method is
+:py:func:`~accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak` method is
 called.
 
 To-be-parsed expressions can include Python code, and supported
@@ -15,7 +15,7 @@ functions from the ``math`` standard library (*e.g.,* ``log2``, ``ceil``).
 The scope available for parsing includes the following in order of increasing
 precedence:
 
-- Variables defined in a top-level :py:class:`~fastfusion.frontend.variables.Variables`
+- Variables defined in a top-level :py:class:`~accelforge.frontend.variables.Variables`
   object.
 - Variables defined in outer-level YAML objects. Dictionary keys can be referenced by
   names, and list entries by index. The dot syntax can be used to access dictionaries;
@@ -48,7 +48,7 @@ Additionally, values can be set directly in Python code. For example:
 
 .. code-block:: python
 
-  from fastfusion.frontend.arch import ComponentAttributes
+  from accelforge.frontend.arch import ComponentAttributes
   attributes = ComponentAttributes(
     value1=123,
     value2="value1 + 5"

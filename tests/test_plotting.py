@@ -1,10 +1,10 @@
 import unittest
 from pathlib import Path
 
-from fastfusion.frontend.spec import Spec
-from fastfusion.model.main import evaluate_mapping
-from fastfusion.util.parallel import set_n_parallel_jobs
-from fastfusion.plotting.mappings import plot_energy_comparison, plot_energy_breakdown, plot_action_breakdown
+from accelforge.frontend.spec import Spec
+from accelforge.model.main import evaluate_mapping
+from accelforge.util.parallel import set_n_parallel_jobs
+from accelforge.plotting.mappings import plot_energy_comparison, plot_energy_breakdown, plot_action_breakdown
 
 set_n_parallel_jobs(1)
 

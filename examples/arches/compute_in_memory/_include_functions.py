@@ -1,9 +1,9 @@
-import fastfusion as ff
+import accelforge as af
 
 
-def get_array_fanout_reuse_input(spec: ff.Spec) -> int:
+def get_array_fanout_reuse_input(spec: af.Spec) -> int:
     n_rows = 1
-    for leaf in spec.arch.get_nodes_of_type(ff.arch.Leaf):
+    for leaf in spec.arch.get_nodes_of_type(af.arch.Leaf):
         if "array_reuse_input" in leaf.spatial:
             fanout = leaf.spatial["array_reuse_input"]["fanout"]
             assert isinstance(fanout, (int, float)), f"fanout {leaf.name}.spatial.array_reuse_input.fanout is not a number"
@@ -11,9 +11,9 @@ def get_array_fanout_reuse_input(spec: ff.Spec) -> int:
     return n_rows
 
 
-def get_array_fanout_reuse_output(spec: ff.Spec) -> int:
+def get_array_fanout_reuse_output(spec: af.Spec) -> int:
     n_cols = 1
-    for leaf in spec.arch.get_nodes_of_type(ff.arch.Leaf):
+    for leaf in spec.arch.get_nodes_of_type(af.arch.Leaf):
         if "array_reuse_output" in leaf.spatial:
             fanout = leaf.spatial["array_reuse_output"]["fanout"]
             assert isinstance(fanout, (int, float)), f"fanout {leaf.name}.spatial.array_reuse_output.fanout is not a number"
@@ -21,7 +21,7 @@ def get_array_fanout_reuse_output(spec: ff.Spec) -> int:
     return n_cols
 
 
-def get_array_fanout_total(spec: ff.Spec) -> int:
+def get_array_fanout_total(spec: af.Spec) -> int:
     return get_array_fanout_reuse_input(spec) * get_array_fanout_reuse_output(spec)
 
 

@@ -15,8 +15,8 @@ Run the following:
 
 ```bash
 # Clone and enter the repo
-git clone https://github.com/Accelergy-Project/fastfusion.git
-cd fastfusion
+git clone https://github.com/Accelergy-Project/accelforge.git
+cd accelforge
 
 make install-hwcomponents  # Install hwcomponents component models
 pip3 install -e .          # Install this package

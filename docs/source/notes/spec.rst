@@ -1,10 +1,10 @@
 Input Specifications
 ====================
 
-The :py:class:`~fastfusion.frontend.spec.Spec` class is the main class that contains all
+The :py:class:`~accelforge.frontend.spec.Spec` class is the main class that contains all
 inputs to this framework. It includes the following:
 
-.. include-attrs:: fastfusion.frontend.spec.Spec
+.. include-attrs:: accelforge.frontend.spec.Spec
 
 Some of the Spec's inputs are described in the following sections:
 

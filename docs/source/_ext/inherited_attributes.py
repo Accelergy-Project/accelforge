@@ -196,8 +196,8 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
         name = getattr(cls, '__name__', '')
         module = getattr(cls, '__module__', '')
 
-        # Ignore if not part of fastfusion package
-        if module and not module.startswith('fastfusion'):
+        # Ignore if not part of accelforge package
+        if module and not module.startswith('accelforge'):
             return True
 
         # Check against ignore list using just the class name

@@ -4,7 +4,7 @@ Mapping Specification
 =====================
 A *mapping* is the scheduling (in both time and space) of operations in every computation step in a workload
 on an architecture [eyeriss]_ [timeloop]_ [efficient_processing_of_dnn]_.
-Mappings in FastFusion is written in LoopTree notation [looptree]_ (in Python and YAML equivalents).
+Mappings in AccelForge are written in LoopTree notation [looptree]_ (in Python and YAML equivalents).
 This documentation covers the LoopTree notation, and how to write LoopTrees in YAML (and the equivalent Python class).
 
 
@@ -43,7 +43,7 @@ The following can be seen in LoopTrees:
 
 LoopTrees in YAML
 -----------------
-Here, we discuss how a LoopTree mapping can be written as YAML text, and used as input/output to FastFusion.
+Here, we discuss how a LoopTree mapping can be written as YAML text, and used as input/output to AccelForge.
 
 As a YAML text, each node is a YAML dictionary with a tag representing its node types.
 For example, a compute node has the following format:

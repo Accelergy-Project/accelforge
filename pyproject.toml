@@ -3,9 +3,9 @@ requires = ["setuptools>=80.9.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fastfusion"
+name = "accelforge"
 version = "0.0.1"
-description = "FastFusion"
+description = "AccelForge"
 authors = [
     {name = "Michael Gilbert", email = "gilbertm@mit.edu"},
     {name = "Tanner Andrulis", email = "andrulis@mit.edu"}

@@ -3,7 +3,7 @@
 Workload and Renames Specification
 ==================================
 
-The :py:class:`~fastfusion.frontend.workload` object describes a cascade of
+The :py:class:`~accelforge.frontend.workload` object describes a cascade of
 Einsums. An Einsum, described in ..., can represent a variety of tensor algebra kernels,
 and a cascade of Einsums is a list of Einsums with data dependencies.
 
@@ -14,15 +14,15 @@ The following is an example workload for three back-to-back matrix multiplicatio
 
 The top-level Workload spec has the following attributes:
 
-.. include-attrs:: fastfusion.frontend.workload
+.. include-attrs:: accelforge.frontend.workload
 
 Each Einsum in the workload represents a single Einsum with the following attributes:
 
-.. include-attrs:: fastfusion.frontend.workload.Einsum
+.. include-attrs:: accelforge.frontend.workload.Einsum
 
 And each tensor access has the following attributes:
 
-.. include-attrs:: fastfusion.frontend.workload.TensorAccess
+.. include-attrs:: accelforge.frontend.workload.TensorAccess
 
 Workloads include *ranks* and *rank variables*. Ranks are the dimensions of the tensors
 in the Einsum, while rank variables are variables that index into these ranks. Generally
@@ -69,7 +69,7 @@ of the following:
 
 
 Additionally, you may define a separate top-level
-:py:class:`~fastfusion.frontend.renames.Renames` object with structure mirroring the
+:py:class:`~accelforge.frontend.renames.Renames` object with structure mirroring the
 workload. For example, one is in the bottom of the following workload:
 
 .. include:: ../../../../examples/workloads/gpt3_6.7B.workload.yaml

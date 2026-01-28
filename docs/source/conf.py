@@ -7,7 +7,7 @@ import locale
 locale.setlocale(locale.LC_ALL, 'C.UTF-8')
 
 # -- Project information -----------------------------------------------------
-project = 'fastfusion'
+project = 'accelforge'
 author = 'Tanner Andrulis, Michael Gilbert'
 release = '0.1.0'
 

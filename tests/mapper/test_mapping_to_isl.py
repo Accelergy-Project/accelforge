@@ -9,11 +9,11 @@ import unittest
 
 import islpy as isl
 
-from fastfusion.frontend.workload import Workload
-from fastfusion.frontend.mapping import Mapping
+from accelforge.frontend.workload import Workload
+from accelforge.frontend.mapping import Mapping
 
-from fastfusion.model._looptree.reuse.isl.mapping_to_isl import analyze_mapping
-from fastfusion.model._looptree.reuse.isl.mapping_to_isl.types import (
+from accelforge.model._looptree.reuse.isl.mapping_to_isl import analyze_mapping
+from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
     MappingAnalysisResult,
 )
 

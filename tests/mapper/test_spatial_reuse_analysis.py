@@ -6,14 +6,14 @@ import unittest
 
 import islpy as isl
 
-from fastfusion.frontend.mapping import MappingNode
-from fastfusion.model._looptree.reuse.isl.mapping_to_isl.types import (
+from accelforge.frontend.mapping import MappingNode
+from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
     Fill,
     Occupancy,
     SpatialTag,
     TemporalTag,
 )
-from fastfusion.model._looptree.reuse.isl.spatial import (
+from accelforge.model._looptree.reuse.isl.spatial import (
     SimpleLinkTransferModel,
     TransferInfo,
 )

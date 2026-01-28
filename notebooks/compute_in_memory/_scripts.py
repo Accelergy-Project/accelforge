@@ -9,13 +9,13 @@ sys.path.append(
 )
 
 from _load_spec import get_spec as _get_spec
-import fastfusion as ff
+import accelforge as af
 
 def display_markdown(markdown):
     display(Markdown(markdown))
 
 
-def get_spec(name: str, add_dummy_main_memory: bool = False) -> ff.Spec:
+def get_spec(name: str, add_dummy_main_memory: bool = False) -> af.Spec:
     return _get_spec(name, add_dummy_main_memory=add_dummy_main_memory)
 
 # import difflib
@@ -93,7 +93,7 @@ def display_important_variables(name: str):
     def pfmat(key, value, note=""):
         result.append(f"- *{key}*: {value} {note if note else ''}")
 
-    s: ff.Spec = get_spec(name)
+    s: af.Spec = get_spec(name)
     s.calculate_component_area_energy_latency_leak(einsum_name=s.workload.einsums[0].name)
 
     def getvalue(key):

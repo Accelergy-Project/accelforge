@@ -14,7 +14,7 @@ component_class: SmartBufferSRAM
 size: 512 * 32
 
 # Sometimes, hwcomponents models require additional attributes that are not part of the
-# fastfusion spec. These can be passed to the component models through the
+# accelforge spec. These can be passed to the component models through the
 # extra_attributes_for_component_model field.
 extra_attributes_for_component_model:
   depth: 512

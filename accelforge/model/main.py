@@ -1,0 +1,222 @@
+from copy import copy, deepcopy
+from uuid import uuid4
+
+import pandas as pd
+
+from accelforge.frontend import arch
+from accelforge.frontend.arch import Memory
+from accelforge.frontend.renames import EinsumName
+from accelforge.frontend.spec import Mapping, Spec
+from accelforge.frontend.mapping import Compute, Split, Nested, NodeList, TensorHolder
+from accelforge.frontend.workload import Workload
+from accelforge.frontend._workload_isl._symbolic import (
+    get_stride_and_halo_of_einsum,
+    get_rank_variable_relevancy,
+)
+
+
+def evaluate_mapping(
+    spec: Spec,
+    flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
+    parsed_specs: dict[EinsumName, Spec] | None = None,
+):
+    """
+    Evaluate a mapping.
+
+    Parameters
+    ----------
+    spec:
+        The specification of architecture, workload, and mapping.
+    flattened_arches:
+        A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
+        contain the parsed and flattened architecture node for that particular Einsum
+        and compute combination. If provided, then these will be used instead of
+        re-parsing the architecture.
+    parsed_specs:
+        A dictionary of Einsum names to parsed specifications. These contain the parsed
+        specification for that particular Einsum. If provided, then these will be used
+        instead of re-parsing the specification.
+    """
+    from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
+    from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
+        PmappingDataframe,
+    )
+    from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
+    from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
+        clean_compress_and_join_pmappings,
+    )
+    from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
+    from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
+        get_rank_variable_bounds_for_all_einsums,
+    )
+    from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import (
+        run_model,
+    )
+    from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
+
+    assert (parsed_specs is not None) == (
+        flattened_arches is not None
+    ), f"Provide either flattened_arches or parsed_specs, not both."
+
+    original_job = Job(
+        metrics=spec.model.metrics,
+        rank_variable_bounds=get_rank_variable_bounds_for_all_einsums(spec),
+        spec=spec,
+    )
+
+    einsum2pmappings = {}
+    pmapping_objects = {}
+    einsum2jobs = {}
+    assert not getattr(
+        spec, "_parsed", False
+    ), "Spec must not be parsed before evaluating a mapping"
+    for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
+        einsum_name = pmapping.nodes[-1].einsum
+        compute_name = pmapping.nodes[-1].component
+        pmapping_id = uuid4()
+        job = copy(original_job)
+
+        if flattened_arches is not None:
+            flattened_arch = flattened_arches[(einsum_name, compute_name)]
+            cur_spec = parsed_specs[einsum_name]
+
+        else:
+            cur_spec = spec.calculate_component_area_energy_latency_leak(
+                einsum_name=einsum_name,
+                area=False,
+            )
+            flattened_arch = cur_spec._get_flattened_architecture(
+                compute_node=pmapping.nodes[-1].component
+            )
+
+        job.spec = cur_spec
+        pmapping.remove_reservations()
+        pmapping.split_loop_with_multiple_rank_variables()
+        pmapping.split_tensor_holders_with_multiple_tensors()
+        _add_backing_to_tensor_holders(pmapping)
+
+        job.mapping = pmapping
+        job.einsum_name = pmapping.nodes[-1].einsum
+        job.tensor_to_relevancy = {
+            tensor: get_rank_variable_relevancy(
+                job.spec.workload.einsums[job.einsum_name], tensor
+            )
+            for tensor in job.spec.workload.einsums[job.einsum_name].tensor_names
+        }
+        einsum2jobs[job.einsum_name] = job
+
+        job.flattened_arch = flattened_arch
+        job.memories_track_all = [
+            m.name for m in flattened_arch if isinstance(m, Memory)
+        ]
+
+        job.stride_and_halo = get_stride_and_halo_of_einsum(
+            job.einsum_name, cur_spec.workload
+        )
+        job.fusable_tensors = set(
+            cur_spec.workload.tensor_names_used_in_multiple_einsums
+            & set(job.tensor_to_relevancy)
+        )
+
+        _, df, _, _, tensor2mapping = run_model(job)
+        new_df = {}
+        for key, value in df.items():
+            if "Total" in key:
+                new_df[key] = value
+            else:
+                new_df[f"{job.einsum_name}<SEP>{key}"] = value
+        df = new_df
+        df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
+
+        einsum = cur_spec.workload.einsums[job.einsum_name]
+        rank_variable_to_ranks = {
+            t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
+        }
+        compatibility = Compatibility.from_mapping(
+            job.mapping, einsum.tensor_names, rank_variable_to_ranks
+        )
+
+        einsum2pmappings[job.einsum_name] = [
+            PmappingGroup(
+                compatibility,
+                PmappingDataframe(pd.DataFrame(df, columns=df.keys(), index=[0]), 1, 1),
+            )
+        ]
+        pmapping_objects[job.einsum_name] = {pmapping_id: job.mapping}
+
+    m = MultiEinsumPmappings(
+        einsum2pmappings,
+        pmapping_objects,
+        einsum2jobs,
+        can_combine_multiple_runs=True,
+        einsums_with_pmappings_generated=spec.workload.einsum_names,
+        flattened_arches=flattened_arches,
+        parsed_specs=parsed_specs,
+    )
+
+    return clean_compress_and_join_pmappings(spec, m)
+
+
+def _add_backing_to_tensor_holders(pmapping: Mapping):
+    seen_tensors = set()
+    for node in pmapping.nodes:
+        if isinstance(node, TensorHolder):
+            new_tensors = set(node.tensors) - seen_tensors
+            node._backing = new_tensors
+            seen_tensors.update(new_tensors)
+
+
+def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
+    """
+    A DFS-like algorithm to split a mapping into pmappings at Split nodes.
+
+    DFS has to be modified because the tree has list of nodes for nested nodes
+    instead of links to children.
+    """
+    dfs_stack: list[NodeList] = [mapping.nodes]
+    cur_pmapping = []
+
+    while dfs_stack:
+        # nodes_segment is a list of nested nodes with a Split or Compute at the end.
+        nodes_segment = dfs_stack.pop()
+        assert isinstance(nodes_segment[-1], (Split, Compute))
+
+        cur_pmapping.append(nodes_segment[:-1])
+
+        last_node = nodes_segment[-1]
+        if isinstance(last_node, Split):
+            for segment in last_node.nodes:
+                assert isinstance(segment, Nested)
+                dfs_stack.append(segment.nodes)
+        else:
+            assert isinstance(last_node, Compute)
+
+            mapping = Mapping()
+            mapping.nodes = deepcopy(
+                [n for ns in cur_pmapping for n in ns] + [last_node]
+            )
+            _remove_storage_of_unrelevant_tensors(mapping, workload)
+            yield mapping
+
+            cur_pmapping.pop()  # Remove the last segment
+
+
+def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload):
+    """
+    Remove tensors from Storage nodes that are not relevant to the Einsum being
+    mapped.
+    """
+    einsum_name = pmapping.nodes[-1].einsum
+    einsum = workload.einsums[einsum_name]
+    relevant_tensors = set(t.name for t in einsum.tensor_accesses)
+
+    new_nodes = []
+    for node in pmapping.nodes:
+        if isinstance(node, TensorHolder):
+            node.tensors = [t for t in node.tensors if t in relevant_tensors]
+            if node.tensors:
+                new_nodes.append(node)
+        else:
+            new_nodes.append(node)
+
+    pmapping.nodes = new_nodes

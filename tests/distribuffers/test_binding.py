@@ -5,7 +5,7 @@ from typing import Dict, List
 from islpy import DEFAULT_CONTEXT, Map
 
 import yaml
-from fastfusion.frontend._binding import Binding, BindingNode
+from accelforge.frontend._binding import Binding, BindingNode
 
 TESTS_DIR = Path(__file__).parent / "spec" / "binding"
 

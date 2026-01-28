@@ -1,7 +1,7 @@
-fastfusion
+accelforge
 ==========
 
 .. toctree::
    :maxdepth: 4
 
-   fastfusion
+   accelforge
