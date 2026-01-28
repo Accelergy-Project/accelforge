@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Anything titled "* copy"
+* copy*
+
 # Distribution / packaging
 .Python
 build/
@@ -192,3 +195,6 @@ docs/source/fastfusion.util.rst
 docs/source/fastfusion.frontend.rst
 docs/source/fastfusion.mapper.FFM.rst
 docs/source/fastfusion.rst
+
+*_wip
+.vscode

@@ -1,0 +1,233 @@
+# @inproceedings{10.1109/ISCA.2016.12,
+# author = {Shafiee, Ali and Nag, Anirban and Muralimanohar, Naveen and Balasubramonian, Rajeev and Strachan, John Paul and Hu, Miao and Williams, R. Stanley and Srikumar, Vivek},
+# title = {ISAAC: a convolutional neural network accelerator with in-situ analog arithmetic in crossbars},
+# year = {2016},
+# isbn = {9781467389471},
+# publisher = {IEEE Press},
+# url = {https://doi.org/10.1109/ISCA.2016.12},
+# doi = {10.1109/ISCA.2016.12},
+# abstract = {A number of recent efforts have attempted to design accelerators for popular machine learning algorithms, such as those involving convolutional and deep neural networks (CNNs and DNNs). These algorithms typically involve a large number of multiply-accumulate (dot-product) operations. A recent project, DaDianNao, adopts a near data processing approach, where a specialized neural functional unit performs all the digital arithmetic operations and receives input weights from adjacent eDRAM banks.This work explores an in-situ processing approach, where memristor crossbar arrays not only store input weights, but are also used to perform dot-product operations in an analog manner. While the use of crossbar memory as an analog dot-product engine is well known, no prior work has designed or characterized a full-fledged accelerator based on crossbars. In particular, our work makes the following contributions: (i) We design a pipelined architecture, with some crossbars dedicated for each neural network layer, and eDRAM buffers that aggregate data between pipeline stages. (ii) We define new data encoding techniques that are amenable to analog computations and that can reduce the high overheads of analog-to-digital conversion (ADC). (iii) We define the many supporting digital components required in an analog CNN accelerator and carry out a design space exploration to identify the best balance of memristor storage/compute, ADCs, and eDRAM storage on a chip. On a suite of CNN and DNN workloads, the proposed ISAAC architecture yields improvements of 14.8\texttimes{}, 5.5\texttimes{}, and 7.5\texttimes{} in throughput, energy, and computational density (respectively), relative to the state-of-the-art DaDianNao architecture.},
+# booktitle = {Proceedings of the 43rd International Symposium on Computer Architecture},
+# pages = {14–26},
+# numpages = {13},
+# keywords = {CNN, DNN, accelerator, analog, memristor, neural},
+# location = {Seoul, Republic of Korea},
+# series = {ISCA '16}
+# }
+
+{{include_text('_include.yaml')}}
+{{add_to_path('./memory_cells')}}
+
+arch:
+  arch_globals_dependent_on_workload:
+    <<: *variables_global
+    # ===========================================================================
+    # Encoding-dependent parameters
+    # ===========================================================================
+    encoded_input_bits:  input_bits
+    encoded_weight_bits: weight_bits
+    encoded_output_bits: output_bits
+
+    input_encoding_func: offset_encode_hist
+    weight_encoding_func: offset_encode_hist
+
+    # For accuracy model. Can in-array accumulation include signed values?
+    # Signed accumulation not compatible with offset encoding (since offset
+    # encoding makes values non-negative).
+    signed_sum_across_inputs: False
+    signed_sum_across_weights: False
+
+    # ===========================================================================
+    # Architecture & CiM Array Structure
+    # ===========================================================================
+    # DEFINITIONS:
+    # - Cell: Smallest structure capable of storing memory. Note that a cell may
+    #         store more than one bit. For example, a cell consisting of a RRAM
+    #         device may store >1 bits, while a cell consisting of an SRAM
+    #         bitcell may store only 1 bit.
+    # - CiM Unit: Smallest structure capable of computing an analog MAC.
+    # - CiM Unit Width Cells:
+    #     Number of CiM unit cells that are accessed as one. These cells receive
+    #     one analog input and compute one analog MAC per timestep.
+    # - CiM Unit Depth Cells:
+    #     Number of independent groups of "CiM Unit Width" cells that form a CiM
+    #     unit. Each of these groups is indepently addressible and operates in
+    #     must be activated in a different timestep than the others.
+    cim_unit_width_cells:  1
+    cim_unit_depth_cells:  1
+    bits_per_cell:         2
+
+    # ===========================================================================
+    # Data Converters
+    # ===========================================================================
+    adc_resolution: 8
+    voltage_dac_resolution: 1
+    temporal_dac_resolution: 1
+
+    n_adc_per_bank: 1
+
+    # ===========================================================================
+    # Hardware
+    # ===========================================================================
+    cycle_period: 1e-9
+    read_pulse_width: 1e-9
+
+  extra_attributes_for_all_component_models:
+    <<: *cim_component_attributes
+    tech_node: tech_node
+    cycle_period: cycle_period
+
+  nodes:
+  - !Memory # Input buffer
+    name: InputBuffer
+    tensors: {keep: input}
+    size: MultiArrayFanout.get_fanout() * array_parallel_inputs * supported_input_bits
+    component_class: SmartBufferSRAM
+
+  - !Memory # Output buffer
+    name: OutputBuffer
+    tensors: {keep: output}
+    size: MultiArrayFanout.get_fanout() * array_parallel_outputs // min_weight_slices * supported_output_bits * 2
+    component_class: SmartBufferSRAM
+
+  - !ProcessingStage # Shift+add sums outputs from multiple slices
+    name: ShiftAdd
+    tensors: {keep: output}
+    direction: up
+    n_parallel_instances: MultiArrayFanout.get_fanout() # Match throughput with arrays
+    bits_per_action: output_bits / n_sliced_psums # n_sliced_psums reads to get an output
+    component_class: ISAACShiftAdd
+    extra_attributes_for_component_model:
+      n_bits: supported_output_bits
+      shift_register_n_bits: supported_output_bits * 2
+
+  - !Fanout # array: Independent array with memory elements and peripherals.
+    name: MultiArrayFanout
+    spatial:
+     - name: array
+       fanout: 8
+
+  - !ProcessingStage # ADC
+    name: ADC
+    tensors: {keep: output}
+    direction: up
+    bits_per_action: output_bits / n_sliced_psums # n_sliced_psums reads to get an output
+    component_class: ADC
+    energy_scale: adc_energy_scale
+    area_scale: adc_area_scale
+    extra_attributes_for_component_model:
+      throughput_scale: 1 / 100 # 100 cycles to process all outputs
+      throughput: 1 / cycle_period * cols_active_at_once * throughput_scale
+      n_bits: adc_resolution
+
+  - !ProcessingStage # Row drivers feed inputs onto the rows of the array
+    name: RowDrivers
+    tensors: {keep: input}
+    direction: down
+    bits_per_action: input_bits / n_input_slices # n_input_slices reads to send an input
+    component_class: ArrayRowDrivers
+
+  - !ProcessingStage # Column drivers precharge the array columns
+    name: ColumnDrivers
+    tensors: {keep: output}
+    direction: up
+    bits_per_action: output_bits / n_sliced_psums # n_sliced_psums reads to get an output
+    component_class: ArrayColumnDrivers
+
+  - !Fanout
+    name: ArrayFanout
+    spatial:
+    - name: array_reuse_input # Special name that determines array size
+      fanout: 128
+      may_reuse: input
+      reuse: input
+      min_usage: 1
+      usage_scale: n_weight_slices
+    - name: array_reuse_output # Special name that determines array size
+      fanout: 128
+      may_reuse: output
+      reuse: output
+      min_usage: 1
+
+  # This is the CiM unit that stores weights and computes MACs. Each CiM unit stores a
+  # different weight slice of up to cim_unit_width_cells bits. It may also store up to
+  # cim_unit_depth_cells independently-addressable weight slices, but may only compute
+  # MACs on one slice at a time. One of these components represents a collection of CiM
+  # units, that together hold one weight.
+  - !Memory
+    name: CimUnit
+    tensors: {keep: weight, no_refetch_from_above: weight, force_memory_hierarchy_order: False}
+    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell * n_weight_slices
+    # Requires (n_weight_slices * n_input_slices) = n_sliced_psums reads to fully use
+    # one weight
+    bits_per_action: weight.bits_per_value / n_sliced_psums
+    # Bind together n_weight_slices instances to hold one weight
+    n_parallel_instances: n_weight_slices
+    component_class: MemoryCell
+    extra_attributes_for_component_model:
+      n_instances: cim_unit_width_cells * cim_unit_depth_cells
+
+  # We account for compute energy in the CimUnit reads
+  - !Compute
+    name: FreeCompute
+    component_class: Dummy
+    enabled: len(All) == 3
+
+# These variables pertain to the workload, microarch, and circuits. They should
+# be matched between architectures when comparing for a fair comparison.
+# Furthermore, this file should follow the same format for all architectures
+# such that we can mix and match architectures with different iso files.
+variables:
+  # ===========================================================================
+  # Workload, microarch, circuits. Things that should be matched
+  # between architectures when comparing.
+  # ===========================================================================
+  # Set by CiM processor if these values are available in the workload.
+  # Otherwise, use the defaults here.
+  inputs_hist: [0, 0, 0, 3, 1, 0, 0]
+  weights_hist: [0, 1, 3, 4, 3, 1, 0]
+  outputs_hist: inputs_hist
+
+  ## Microarch ----------------------------------------------------------------
+  supported_input_bits: 8        # Maximum input bits supported by the arch.
+  supported_weight_bits: 8       # Maximum weight bits supported by the arch.
+  supported_output_bits: 8       # Maximum output bits supported by the arch.
+  min_supported_input_bits: 1    # Minimum input bits supported by the arch.
+  min_supported_weight_bits: 2   # Minimum weight bits supported by the arch.
+  min_supported_output_bits: 1   # Minimum output bits supported by the arch.
+
+  # Circuits ------------------------------------------------------------------
+  voltage: 1
+  tech_node: 32e-9 # nm
+  cell_config: "{{find_path('rram_isaac_isca_2016.yaml')}}"
+  voltage_energy_scale: voltage ** 2
+  voltage_latency_scale: voltage
+
+  # Calibration ---------------------------------------------------------------
+  adc_energy_scale: 1
+  adc_area_scale: 1
+  row_col_drivers_area_scale: 1
+
+
+# This workload is sized to get peak throughput & energy efficiency.
+workload:
+  rank_sizes:
+    M: 1
+    N: 16 * 8
+    K: 128
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: input, projection: [m, k], bits_per_value: 16}
+    - {name: weight, projection: [k, n], bits_per_value: 16}
+    - {name: output, projection: [m, n], output: True, bits_per_value: 16}
+
+  - name: Matmul2
+    tensor_accesses:
+    - {name: input2, projection: [m, k], bits_per_value: 32}
+    - {name: weight2, projection: [k, n], bits_per_value: 32}
+    - {name: output2, projection: [m, n], output: True, bits_per_value: 32}
+    renames: {input: input2, weight: weight2, output: output2}
+
+renames: {} # Not needed for this workload
