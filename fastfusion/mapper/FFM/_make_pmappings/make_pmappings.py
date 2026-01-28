@@ -170,7 +170,9 @@ def get_memories_to_track(
     memories_track_all = set()
     for einsum, jobs in einsum2jobs.items():
         for job in jobs:
-            memories_track_all.update(m.name for m in job.flattened_arch if isinstance(m, arch.Memory))
+            memories_track_all.update(
+                m.name for m in job.flattened_arch if isinstance(m, arch.Memory)
+            )
 
     memories_track_pmappings_only = []
     ignored_resources = set()

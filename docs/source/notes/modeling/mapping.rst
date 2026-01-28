@@ -1,6 +1,11 @@
 Mapping with Fast & Fusiest
 ===========================
 
+
+
+TODO: UPDATE THIS DOC AND THE NOTEBOOK WITH MAP_WORKLOAD_TO_ARCH!!!
+
+
 Mapping workloads onto accelerators uses the Fast and Fusiest Mapper (FFM), which
 includes of two parts:
 

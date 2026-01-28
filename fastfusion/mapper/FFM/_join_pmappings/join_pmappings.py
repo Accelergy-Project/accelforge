@@ -178,10 +178,7 @@ def get_memories_to_track(
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
 
-    ignore = (
-        set(t for t, s in total_sizes.items() if s <= 1)
-        | always_below
-    )
+    ignore = set(t for t, s in total_sizes.items() if s <= 1) | always_below
 
     if not ignore:
         return pmapping_groups, ignore

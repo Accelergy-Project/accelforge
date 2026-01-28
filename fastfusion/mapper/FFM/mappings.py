@@ -356,7 +356,7 @@ class Mappings:
         per_component: bool = False,
         per_tensor: bool = False,
         per_action: bool = False,
-        value_if_one_mapping: bool = True
+        value_if_one_mapping: bool = True,
     ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
         """
         Returns the energy consumed. A dictionary is returned with keys that are tuples
@@ -436,7 +436,7 @@ class Mappings:
         self: "Mappings",
         per_einsum: bool = False,
         per_component: bool = False,
-        value_if_one_mapping: bool = True
+        value_if_one_mapping: bool = True,
     ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
         """
         Returns the latency consumed. A dictionary is returned with keys that are tuples
@@ -505,6 +505,6 @@ class Mappings:
         if value_if_one_mapping and len(self.data) == 1:
             if isinstance(result, dict):
                 return {k: v.iloc[0] for k, v in result.items()}
-            return result # Numpy sum already pulls out the number
+            return result  # Numpy sum already pulls out the number
 
         return result

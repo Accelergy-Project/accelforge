@@ -30,8 +30,8 @@ def plot_latency_comparison(
 def plot_action_breakdown(
     mappings: Iterable[Mappings] | Mappings,
     separate_by: Sequence[str],
-    stack_by: Sequence[str]=None,
-    labels: Iterable[str]=None,
+    stack_by: Sequence[str] = None,
+    labels: Iterable[str] = None,
 ):
     """
     Plot actions breakdown.
@@ -54,7 +54,9 @@ def plot_action_breakdown(
     """
     if stack_by is None:
         stack_by = ["action"]
-    fig, axes = _plot_breakdown(mappings, labels, separate_by, stack_by, "action", col2action)
+    fig, axes = _plot_breakdown(
+        mappings, labels, separate_by, stack_by, "action", col2action
+    )
     axes[0].set_ylabel("Actions")
     return fig, axes
 
@@ -62,8 +64,8 @@ def plot_action_breakdown(
 def plot_energy_breakdown(
     mappings: Iterable[Mappings] | Mappings,
     separate_by: Sequence[str],
-    stack_by: Sequence[str]=None,
-    labels: Iterable[str]=None,
+    stack_by: Sequence[str] = None,
+    labels: Iterable[str] = None,
 ):
     """
     Plot energy breakdown.
@@ -83,7 +85,9 @@ def plot_energy_breakdown(
         A list that has elements in {"einsum", "tensor", "component", "action"}.
         Different components in a stacked bar will be created based on `stack_by`.
     """
-    fig, axes = _plot_breakdown(mappings, labels, separate_by, stack_by, "energy", col2energy)
+    fig, axes = _plot_breakdown(
+        mappings, labels, separate_by, stack_by, "energy", col2energy
+    )
     axes[0].set_ylabel("Energy (pJ)")
     return fig, axes
 
@@ -96,7 +100,9 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
     if n_axes == 1:
         axes = [axes]
 
-    labels = labels+"-" if labels is not None else [f"{i}-" for i in range(len(mappings))]
+    labels = (
+        labels + "-" if labels is not None else [f"{i}-" for i in range(len(mappings))]
+    )
     assert len(labels) == len(mappings)
 
     if len(separate_by) == 0:
@@ -105,7 +111,9 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
     idx = 0
     for label, df in zip(labels, (m.data for m in mappings)):
         colnames = [c for c in df.columns if col_keyword in c and "Total" not in c]
-        bar_components = list(_get_bar_components(colnames, keyer, separate_by, stack_by))
+        bar_components = list(
+            _get_bar_components(colnames, keyer, separate_by, stack_by)
+        )
 
         for j, (_key, row) in enumerate(df.iterrows()):
             ax = axes[idx]
@@ -121,7 +129,7 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
                     if not stack_name in label2heights:
                         label2heights[stack_name] = []
             for label in label2heights:
-                label2heights[label] = [0]*len(bars)
+                label2heights[label] = [0] * len(bars)
 
             for name, constituents in bar_components:
                 bar_i = bars.index(name)
@@ -144,7 +152,6 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
     return fig, axes
 
 
-
 def plot_energy_comparison(mappings: Iterable[Mappings] | Mappings, labels=None):
     """
     Plot energy comparison of multiple mappings.
@@ -165,7 +172,7 @@ def _plot_column_comparison(mappings, labels, colname):
     fig, ax = plt.subplots()
 
     mappings = [mappings] if isinstance(mappings, Mappings) else list(mappings)
-    labels = labels+"-" if labels is not None else [""] * len(mappings)
+    labels = labels + "-" if labels is not None else [""] * len(mappings)
     assert len(labels) == len(mappings)
 
     for label, df in zip(labels, (m.data for m in mappings)):
@@ -188,7 +195,13 @@ def _get_bar_components(colnames, keyer, separate_by, stack_by=None):
         split_colnames.append([key.einsum, key.level, key.tensor, key.action, c])
     transposed_colnames = zip(*split_colnames)
     df = pd.DataFrame(
-        {k: v for k, v in zip(["einsum", "component", "tensor", "action", "colname"], transposed_colnames)}
+        {
+            k: v
+            for k, v in zip(
+                ["einsum", "component", "tensor", "action", "colname"],
+                transposed_colnames,
+            )
+        }
     )
 
     result = []

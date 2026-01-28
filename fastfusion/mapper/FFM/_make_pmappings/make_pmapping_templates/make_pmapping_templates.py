@@ -79,7 +79,9 @@ def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
 # =================================================================================================
 # Iterate over mappings
 # =================================================================================================
-def place_missing_temporal_loops(mapping: List[MappingNode], einsum: Einsum, flattened_arch: list[arch.Leaf]):
+def place_missing_temporal_loops(
+    mapping: List[MappingNode], einsum: Einsum, flattened_arch: list[arch.Leaf]
+):
     """
     Adds temporal loops to the mapping to fill in any rank variables that are missing.
     This may occur if there are no points where it'd be helpful to add a non-fused loop,
@@ -318,7 +320,12 @@ def iterate_mappings_no_constraints(
     fusable_tensors = job.fusable_tensors
 
     for mapping, symbol_table, compute in get_tensor_choices(
-        einsum_name, flattened_arch, symbol_table, spec, first_memory, fusable_tensors,
+        einsum_name,
+        flattened_arch,
+        symbol_table,
+        spec,
+        first_memory,
+        fusable_tensors,
     ):
         logging.info(
             "\tGenerated tensor choices: " + ", ".join(m.compact_str() for m in mapping)

@@ -58,6 +58,7 @@ IMPERFECT = False
 
 PRINT_FORMULAS = False
 
+
 @dataclass(eq=True, frozen=True)
 class Compute:
     einsum: str
@@ -564,20 +565,24 @@ def analyze_reuse_and_add_reservations_to_mapping(
     result.tensor2mapping = tensor2mapping
 
     if PRINT_FORMULAS:
-        print(f'Mapping:')
+        print(f"Mapping:")
         for node in mapping:
-            print(f'\t{node.compact_str()}')
+            print(f"\t{node.compact_str()}")
 
         for buffet, stats in result.buffet_stats.items():
-            print(f'Einsum {buffet.einsum} tensor {buffet.tensor} level {buffet.level}')
-            print(f'\tTotal reads to parent: {stats.total_reads_to_parent}')
-            print(f'\tTotal writes to parent: {stats.total_writes_to_parent}')
-            print(f'\tMax per parent reads to parent: {stats.max_per_parent_reads_to_parent}')
-            print(f'\tMax per parent writes to parent: {stats.max_per_parent_writes_to_parent}')
-            print(f'\tTotal reads to peer: {stats.total_reads_to_peer}')
-            print(f'\tTotal writes to peer: {stats.total_writes_to_peer}')
-            print(f'\tMax per unit reads to peer: {stats.max_per_unit_reads_to_peer}')
-            print(f'\tMax per unit writes to peer: {stats.max_per_unit_writes_to_peer}')
+            print(f"Einsum {buffet.einsum} tensor {buffet.tensor} level {buffet.level}")
+            print(f"\tTotal reads to parent: {stats.total_reads_to_parent}")
+            print(f"\tTotal writes to parent: {stats.total_writes_to_parent}")
+            print(
+                f"\tMax per parent reads to parent: {stats.max_per_parent_reads_to_parent}"
+            )
+            print(
+                f"\tMax per parent writes to parent: {stats.max_per_parent_writes_to_parent}"
+            )
+            print(f"\tTotal reads to peer: {stats.total_reads_to_peer}")
+            print(f"\tTotal writes to peer: {stats.total_writes_to_peer}")
+            print(f"\tMax per unit reads to peer: {stats.max_per_unit_reads_to_peer}")
+            print(f"\tMax per unit writes to peer: {stats.max_per_unit_writes_to_peer}")
 
     return result
 
@@ -738,7 +743,9 @@ def insert_reservation_nodes(
 
 def label_fused_loops(mapping: List[MappingNode], fusable_tensors: set[TensorName]):
     last_backer = -1
-    assert isinstance(fusable_tensors, set), f"Fusable tensors must be a set, got {type(fusable_tensors)}"
+    assert isinstance(
+        fusable_tensors, set
+    ), f"Fusable tensors must be a set, got {type(fusable_tensors)}"
 
     for i, node in enumerate(mapping):
         if not isinstance(node, TensorHolder) or isinstance(node, Reservation):

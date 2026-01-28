@@ -81,7 +81,7 @@ def run_model(
     )
     if symbolic.PRINT_FORMULAS:
         for k, v in energy.items():
-            print(f'{k}: {v}')
+            print(f"{k}: {v}")
 
     fusable_tensors = workload.tensor_names_used_in_multiple_einsums
     tensor_to_backing = {}
@@ -123,7 +123,9 @@ def run_model(
         for n_loop in n_loop_options:
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
-                df[nameloop2col(memory, n_loop)] = running_total / memory_to_size[memory]
+                df[nameloop2col(memory, n_loop)] = (
+                    running_total / memory_to_size[memory]
+                )
 
     if metrics & Metrics.ACTIONS:
         detailed_actions = gather_actions(reuse, None, verbose=True, use_name=True)
@@ -153,8 +155,11 @@ def run_model(
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():
-        key = f"usage<SEP>memory<SEP>{memory}"
-        per_memory_usage_df[key] = sum(occupancies.values()) / memory_to_size[memory]
+        if job.ignored_resources is not None and memory not in job.ignored_resources:
+            key = f"usage<SEP>memory<SEP>{memory}"
+            per_memory_usage_df[key] = (
+                sum(occupancies.values()) / memory_to_size[memory]
+            )
 
     return (
         reuse.symbols,

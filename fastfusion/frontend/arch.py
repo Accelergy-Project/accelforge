@@ -1133,7 +1133,9 @@ class Tensors(ParsableModel):
                 for j, s1 in enumerate(order):
                     if i == j:
                         continue
-                    if not isinstance(s0, InvertibleSet) or not isinstance(s1, InvertibleSet):
+                    if not isinstance(s0, InvertibleSet) or not isinstance(
+                        s1, InvertibleSet
+                    ):
                         continue
                     if s0 & s1:
                         raise ValueError(

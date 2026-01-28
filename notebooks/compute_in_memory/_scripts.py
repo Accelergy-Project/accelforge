@@ -258,7 +258,7 @@ def bar_stacked(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(x_categories)
+    ax.set_xticklabels(x_categories, rotation=45, ha='right')
     ax.legend()
     ax.grid(axis='y', alpha=0.3)
 
@@ -301,7 +301,39 @@ def bar_comparison(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.set_xticks(x)
-    ax.set_xticklabels(categories)
+    ax.set_xticklabels(categories, rotation=45, ha='right')
     ax.legend()
     ax.grid(axis='y', alpha=0.3)
 
+
+def bar(
+    data: dict[str, float],
+    xlabel: str,
+    ylabel: str,
+    title: str,
+    ax: plt.Axes,
+):
+    """Create a simple bar chart from a dictionary.
+
+    Args:
+        data: Dict mapping category names to values
+        xlabel: Label for x-axis
+        ylabel: Label for y-axis
+        title: Chart title
+        ax: Matplotlib axes to plot on
+    """
+    import numpy as np
+
+    categories = list(data.keys())
+    values = list(data.values())
+
+    x = np.arange(len(categories))
+    ax.bar(x, values)
+
+    # Set labels and formatting
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xticks(x)
+    ax.set_xticklabels(categories, rotation=45, ha='right')
+    ax.grid(axis='y', alpha=0.3)
