@@ -20,7 +20,7 @@
 
 arch:
   variables:
-    <<: [*variables_global, *cim_component_attributes]
+    <<: *variables_global
     # ===========================================================================
     # Encoding-dependent parameters
     # ===========================================================================
