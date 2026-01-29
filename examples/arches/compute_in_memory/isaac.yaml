@@ -19,8 +19,8 @@
 {{add_to_path('./memory_cells')}}
 
 arch:
-  arch_globals_dependent_on_workload:
-    <<: *variables_global
+  variables:
+    <<: [*variables_global, *cim_component_attributes]
     # ===========================================================================
     # Encoding-dependent parameters
     # ===========================================================================
@@ -73,7 +73,6 @@ arch:
     read_pulse_width: 1e-9
 
   extra_attributes_for_all_component_models:
-    <<: *cim_component_attributes
     tech_node: tech_node
     cycle_period: cycle_period
 

@@ -22,7 +22,7 @@
 {{add_to_path('./memory_cells')}}
 
 arch:
-  arch_globals_dependent_on_workload:
+  variables:
     <<: *variables_global
 
     # ===========================================================================
