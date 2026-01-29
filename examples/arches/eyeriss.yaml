@@ -14,7 +14,9 @@ arch:
     component_class: SmartBufferSRAM
     size: 1024 * 1024 # 1Mb
     # 32 reads and writes per cycle, 200MHz. Note that the bits per read/write is the
-    # bits per action set below.
+    # bits per action set below. This is optional, and if it is omitted, then the total
+    # latency is the sum of the latencies of all actions, and action latency is taken
+    # from the component models.
     total_latency: (read_actions + write_actions) / 32 / 200e6
     extra_attributes_for_component_model: {n_banks: 32}
     actions:
@@ -32,34 +34,19 @@ arch:
     name: InputScratchpad
     component_class: SmartBufferSRAM
     size: 12 * 16 # 12 16b entries
-    # One read, one write per cycle, 200MHz. Note bits per action is set below.
-    total_latency: max(read_actions / 200e6 + write_actions / 200e6)
     tensors: {keep: input}
-    actions:
-    - {name: read, bits_per_action: 16}
-    - {name: write, bits_per_action: 16}
 
   - !Memory # Weight scratchpad
     name: WeightScratchpad
     component_class: SmartBufferSRAM
     size: 192 * 16 # 12 16b entries
-    # One read, one write per cycle, 200MHz. Note bits per action is set below.
-    total_latency: max(read_actions / 200e6 + write_actions / 200e6)
     tensors: {keep: weight}
-    actions:
-    - {name: read, bits_per_action: 16}
-    - {name: write, bits_per_action: 16}
 
   - !Memory # Output scratchpad
     name: OutputScratchpad
     component_class: SmartBufferSRAM
     size: 16 * 16 # 16 16b entries
-    # One read, one write per cycle, 200MHz. Note bits per action is set below.
-    total_latency: max(read_actions / 200e6 + write_actions / 200e6)
     tensors: {keep: output}
-    actions:
-    - {name: read, bits_per_action: 16}
-    - {name: write, bits_per_action: 16}
 
   - !Compute # MAC unit
     name: MAC

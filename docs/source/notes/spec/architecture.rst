@@ -13,8 +13,8 @@ A flattened architecture is a hierarchy of components with a
 are supported:
 
 - :py:class:`~accelforge.frontend.arch.Memory` components store and reuse data.
-- :py:class:`~accelforge.frontend.arch.ProcessingStage` components perform some
-  non-compute action (*e.g.,* quantizing or transferring data).
+- :py:class:`~accelforge.frontend.arch.Toll` components perform some non-compute action
+  (*e.g.,* quantizing or transferring data) and charge for data passing through them.
 - :py:class:`~accelforge.frontend.arch.Compute` components performs the Einsum's
   computation.
 

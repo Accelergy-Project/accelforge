@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 import accelforge.frontend.arch as arch
-from accelforge.frontend.mapping import MappingNode, ProcessingStage, TensorHolder
+from accelforge.frontend.mapping import MappingNode, Toll, TensorHolder
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.workload import TensorName, SymbolTable
 from accelforge.util._parse_expressions import MATH_FUNCS
@@ -247,11 +247,11 @@ def valid_tensor_holder_order(
                     f"Outermost {m0.compact_str()}, persistent {s1_persistent} is below non-outermost {m1.compact_str()}, persistent {s2_persistent}.",
                 )
 
-            # We don't really care about processing stage order, so just make it follow
-            # the regular memory hierarchy order. For processing stages at a given
-            # level, make them alphabetical.
+            # We don't really care about toll order, so just make it follow the regular
+            # memory hierarchy order. For tolls at a given level, make them
+            # alphabetical.
             if (
-                isinstance(m0, ProcessingStage)
+                isinstance(m0, Toll)
                 and m0.component == m1.component
                 and m0.tensor < m1.tensor
             ):
@@ -260,12 +260,11 @@ def valid_tensor_holder_order(
                     f"Processing stage {m0} is not ordered alphabetically by tensor; has tensor {m0.tensor} before {m1.tensor}",
                 )
 
-            # If there is a processing stage, don't explore order. If there's two
-            # back-to-back nodes and one is a processing stage, make them follow the
-            # memory hierarchy order.
-            if isinstance(m0, ProcessingStage) and s2_idx < s1_idx and i == j - 1:
+            # If there is a toll, don't explore order. If there's two back-to-back nodes
+            # and one is a toll, make them follow the memory hierarchy order.
+            if isinstance(m0, Toll) and s2_idx < s1_idx and i == j - 1:
                 return False, f"Processing stage {m0} is directly above {m1}"
-            if isinstance(m1, ProcessingStage) and s2_idx < s1_idx and i == j - 1:
+            if isinstance(m1, Toll) and s2_idx < s1_idx and i == j - 1:
                 return False, f"Processing stage {m1} is directly above {m0}"
 
             if s1 == s2 and s1 in required_orders and i != j:

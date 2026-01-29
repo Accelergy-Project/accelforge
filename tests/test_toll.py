@@ -27,10 +27,10 @@ PARENT_DIR = Path(__file__).parent
 
 
 class TestProcessingStage(unittest.TestCase):
-    def test_processing_stage(self):
+    def test_toll(self):
         spec = Spec.from_yaml(
             [
-                Path(__file__).parent / "processing_stage.arch.yaml",
+                Path(__file__).parent / "toll.arch.yaml",
                 Path(__file__).parent / "matmul.workload.yaml",
             ]
         )

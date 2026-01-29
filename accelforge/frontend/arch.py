@@ -1214,7 +1214,7 @@ class Tensors(ParsableModel):
 class TensorHolder(Component):
     """
     A `TensorHolder` is a component that holds tensors. These are usually `Memory`s,
-    but can also be `ProcessingStage`s.
+    but can also be `Toll`s.
     """
 
     actions: ParsableList[TensorHolderAction] = MEMORY_ACTIONS
@@ -1279,30 +1279,30 @@ class Memory(TensorHolder):
     """ The actions that this `Memory` can perform. """
 
 
-class ProcessingStage(TensorHolder):
-    """A `ProcessingStage` is a `TensorHolder` that does not store data over time, and
+class Toll(TensorHolder):
+    """A `Toll` is a `TensorHolder` that does not store data over time, and
     therefore does not allow for temporal reuse. Use this as a toll that charges reads
     and writes every time a piece of data moves through it.
 
-    Every write to a `ProcessingStage` is immediately written to the next `Memory`
+    Every write to a `Toll` is immediately written to the next `Memory`
     (which may be above or below depending on where the write came from), and same for
     reads.
 
-    The access counts of a `ProcessingStage` are only included in the "read" action.
-    Each traversal through the `ProcessingStage` is counted as a read. Writes are always
+    The access counts of a `Toll` are only included in the "read" action.
+    Each traversal through the `Toll` is counted as a read. Writes are always
     zero.
     """
 
     direction: Literal["up", "down", "up_and_down"]
     """
-    The direction in which data flows through this `ProcessingStage`. If "up", then data
-    flows from below `TensorHolder`, through this `ProcessingStage` (plus paying
+    The direction in which data flows through this `Toll`. If "up", then data
+    flows from below `TensorHolder`, through this `Toll` (plus paying
     associated costs), and then to the next `TensorHolder` above it. Other data
-    movements are assumed to avoid this ProcessingStage.
+    movements are assumed to avoid this Toll.
     """
 
     actions: ParsableList[TensorHolderAction] = PROCESSING_STAGE_ACTIONS
-    """ The actions that this `ProcessingStage` can perform. """
+    """ The actions that this `Toll` can perform. """
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(PROCESSING_STAGE_ACTIONS)
@@ -1327,7 +1327,7 @@ class Branch(ArchNode):
             Union[
                 Annotated[Compute, Tag("Compute")],
                 Annotated[Memory, Tag("Memory")],
-                Annotated[ProcessingStage, Tag("ProcessingStage")],
+                Annotated[Toll, Tag("Toll")],
                 Annotated[Fanout, Tag("Fanout")],
                 Annotated["Parallel", Tag("Parallel")],
                 Annotated["Hierarchical", Tag("Hierarchical")],

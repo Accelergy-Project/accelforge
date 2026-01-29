@@ -63,7 +63,7 @@ NodeList: TypeAlias = ParsableList[
             Annotated["Nested", Tag("Nested")],
             Annotated["Reservation", Tag("Reservation")],
             Annotated["Mapping", Tag("Mapping")],
-            Annotated["ProcessingStage", Tag("ProcessingStage")],
+            Annotated["Toll", Tag("Toll")],
         ],
         Discriminator(_get_tag),
     ]
@@ -613,10 +613,10 @@ class Storage(TensorHolder):
         return super()._merge(other)
 
 
-class ProcessingStage(TensorHolder):
+class Toll(TensorHolder):
     """
-    A ProcessingStage :class:`~.TensorHolder` that acts as a pass-through, where data is
-    not reused but incurs accesses into this ProcessingStage.
+    A Toll :class:`~.TensorHolder` that acts as a pass-through, where data is
+    not reused but incurs accesses into this Toll.
     """
 
     def _render_node_shape(self) -> str:
@@ -628,9 +628,9 @@ class ProcessingStage(TensorHolder):
     def __str__(self, color_map: ColorMap = None) -> str:
         tensors = self.tensors
         if color_map is not None:
-            format_list = [f"{self.component} processes"] + list(tensors)
+            format_list = [f"{self.component} passes"] + list(tensors)
             return color_map.format_list(format_list)
-        return f"{self.component} processes {', '.join(tensors)}"
+        return f"{self.component} passes {', '.join(tensors)}"
 
 
 class Compute(MappingNode):
@@ -845,11 +845,11 @@ class MappingNodeWithChildren(MappingNode):
         ]
         self.nodes = ParsableList([x for g in groups for x in g])
 
-    def _remove_reservations_for_processing_stages(self) -> None:
-        processing_stages = self.get_nodes_of_type(ProcessingStage)
-        processing_stage_names = set(ps.component for ps in processing_stages)
+    def _remove_reservations_for_tolls(self) -> None:
+        tolls = self.get_nodes_of_type(Toll)
+        toll_names = set(ps.component for ps in tolls)
         reservations = self.get_nodes_of_type(Reservation)
-        remove = [r for r in reservations if r.resource in processing_stage_names]
+        remove = [r for r in reservations if r.resource in toll_names]
         self.clear_nodes(*remove)
 
 
@@ -1686,7 +1686,7 @@ class Mapping(Nested):
         mapping._consolidate_tensor_holders()
         mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
-        mapping._remove_reservations_for_processing_stages()
+        mapping._remove_reservations_for_tolls()
         return mapping
 
         # import mermaid as md

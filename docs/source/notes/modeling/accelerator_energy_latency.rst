@@ -17,7 +17,7 @@ incurred by most :py:class:`~accelforge.frontend.arch.Component`\ s depends on t
 component type, the workload, and the mapping.
 
 For :py:class:`~accelforge.frontend.arch.Memory` and
-:py:class:`~accelforge.frontend.arch.ProcessingStage` components, the number of actions
+:py:class:`~accelforge.frontend.arch.Toll` components, the number of actions
 depends on the number of accesses to the component. They may be accessed in two ways:
 
 - ``read``: The component is read from a lower-level component, or output values are read

@@ -90,7 +90,7 @@ arch:
     size: MultiArrayFanout.get_fanout() * array_parallel_outputs // min_weight_slices * supported_output_bits * 2
     component_class: SmartBufferSRAM
 
-  - !ProcessingStage # Shift+add sums outputs from multiple slices
+  - !Toll # Shift+add sums outputs from multiple slices
     name: ShiftAdd
     tensors: {keep: output}
     direction: up
@@ -107,7 +107,7 @@ arch:
      - name: array
        fanout: 8
 
-  - !ProcessingStage # ADC
+  - !Toll # ADC
     name: ADC
     tensors: {keep: output}
     direction: up
@@ -120,14 +120,14 @@ arch:
       throughput: 1 / cycle_period * cols_active_at_once * throughput_scale
       n_bits: adc_resolution
 
-  - !ProcessingStage # Row drivers feed inputs onto the rows of the array
+  - !Toll # Row drivers feed inputs onto the rows of the array
     name: RowDrivers
     tensors: {keep: input}
     direction: down
     bits_per_action: input_bits / n_input_slices # n_input_slices reads to send an input
     component_class: ArrayRowDrivers
 
-  - !ProcessingStage # Column drivers precharge the array columns
+  - !Toll # Column drivers precharge the array columns
     name: ColumnDrivers
     tensors: {keep: output}
     direction: up

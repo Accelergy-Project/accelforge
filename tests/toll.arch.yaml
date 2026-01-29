@@ -11,8 +11,8 @@ arch:
     - {name: write, arguments: {_energy: 0}}
     - {name: leak, arguments: {_energy: 0}}
 
-  - !ProcessingStage
-    name: ProcessingStage
+  - !Toll
+    name: Toll
     attributes:
       _datawidth: 8
       _direction: up_and_down

@@ -7,7 +7,7 @@ from enum import Enum
 import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import (
     MappingNode,
-    ProcessingStage,
+    Toll,
     Temporal,
     Spatial,
     TensorHolder,
@@ -97,11 +97,11 @@ def insert_temporal_loops(
     for node in flattened_arch:
         fanouts[node.name] = (fanout := fanout * node.get_fanout())
 
-    def _get_next_storages(i: int, pstage_allowed: bool = False) -> list[TensorHolder]:
+    def _get_next_storages(i: int, toll_allowed: bool = False) -> list[TensorHolder]:
         for j in range(i + 1, len(split_mapping)):
             assert len(split_mapping[j]) <= 1
-            # We don't add loops before processing stages
-            if isinstance(split_mapping[j][0], ProcessingStage) and not pstage_allowed:
+            # We don't add loops before tolls since they don't reuse things
+            if isinstance(split_mapping[j][0], Toll) and not toll_allowed:
                 continue
             return split_mapping[j]
         return []
@@ -115,7 +115,7 @@ def insert_temporal_loops(
         # =============================================================================
 
         next_storages = _get_next_storages(i)
-        next_anything = _get_next_storages(i, pstage_allowed=True)
+        next_anything = _get_next_storages(i, toll_allowed=True)
 
         for s in prev_storages:
             # No tensor holders must mix backing/non-backing tensors.
@@ -176,13 +176,13 @@ def insert_temporal_loops(
             pass
         else:
 
-            # Optimality-preserving optimization: Loops below processing stages aren't
-            # helpful because there is no storage. Ctrl-F for
+            # Optimality-preserving optimization: Loops below tolls aren't helpful
+            # because there is no storage. Ctrl-F for
             # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if we may put another
             # node's spatial loops below this one, because lowering would add move the
             # spatials down, which would constrain the temporals due to spatial-temporal
             # crossing.
-            if isinstance(prev_storages[0], ProcessingStage):
+            if isinstance(prev_storages[0], Toll):
                 rank_variables &= set()
 
             # Generally we want to only use rank variables that are irrelevant to the
@@ -249,7 +249,7 @@ def insert_temporal_loops(
             elif someone_elses_spatials_may_be_placed_below:
                 lowering_choices.append((False,))
             # Processing stage. Lowering doesn't matter. Don't lower.
-            elif isinstance(s, ProcessingStage):
+            elif isinstance(s, Toll):
                 lowering_choices.append((False,))
             # Previous is backing and there's partially-relevant rank variables. May
             # want to lower to reduce memory footprint, or raise to reduce number of

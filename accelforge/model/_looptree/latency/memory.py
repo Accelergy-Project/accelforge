@@ -62,7 +62,7 @@ def component_latency(
                 buffet_stats.max_per_unit_read_actions
                 - buffet_stats.min_per_unit_skipped_first_read_actions
             )
-            if not isinstance(name2component[component], arch.ProcessingStage):
+            if not isinstance(name2component[component], arch.Toll):
                 actions["write_actions"] += (
                     buffet_stats.max_per_unit_write_actions
                     - buffet_stats.min_per_unit_skipped_first_write_actions

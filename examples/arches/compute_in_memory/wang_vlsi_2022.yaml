@@ -92,7 +92,7 @@ arch:
     cycle_period: cycle_period
 
   nodes:
-  - !ProcessingStage # DAC converts digital inputs to analog voltages
+  - !Toll # DAC converts digital inputs to analog voltages
     name: DAC
     tensors: {keep: input}
     direction: down
@@ -106,14 +106,14 @@ arch:
       bit_distribution: input_bit_distribution
       hist: hist_to_magnitude(inputs_hist)
 
-  - !ProcessingStage # Row drivers feed inputs onto the rows of the array
+  - !Toll # Row drivers feed inputs onto the rows of the array
     name: RowDrivers
     tensors: {keep: input}
     direction: down
     bits_per_action: input_bits / n_input_slices # n_input_slices reads to send an input
     component_class: ArrayRowDrivers
 
-  - !ProcessingStage # Weight drivers write weights to the array
+  - !Toll # Weight drivers write weights to the array
     name: WeightDrivers
     tensors: {keep: weight & Above} # Only program the weights if they're not backed in the CiM units
     direction: down
@@ -121,7 +121,7 @@ arch:
     bits_per_action: weight_bits / n_weight_slices # n_weight_slices writes to send a weight
     extra_attributes_for_component_model: {<<: [*weight_drivers_attributes]}
 
-  - !ProcessingStage # Select different sets of weights each timestep
+  - !Toll # Select different sets of weights each timestep
     name: SelectWordlineDrivers
     tensors: {keep: input}
     direction: down
@@ -131,7 +131,7 @@ arch:
       # Unlike normal row drivers, this is always fully asserted to select a row
       average_input_value: 1
 
-  - !ProcessingStage # Column readout (ADC)
+  - !Toll # Column readout (ADC)
     name: ADC
     tensors: {keep: output}
     direction: up
@@ -144,7 +144,7 @@ arch:
       throughput_scale: 1 # 1 cycle to process all outputs
       throughput: 1 / cycle_period * cols_active_at_once * throughput_scale
 
-  - !ProcessingStage # Column drivers
+  - !Toll # Column drivers
     name: ColumnDrivers
     tensors: {keep: output}
     direction: up
@@ -163,7 +163,7 @@ arch:
 
   # Column bandwidth limiter to limit write speed (only one value can be written per
   # column per cycle)
-  - !ProcessingStage
+  - !Toll
     name: ColumnBandwidthLimiter
     # Keep weight and output tensors. Don't keep anything if it doesn't leave the array.
     tensors: {keep: (weight | output) & Above}
@@ -208,7 +208,7 @@ arch:
     # NeuroSim-returned results are too high for this component, so override the latency
     actions: [{name: read, latency: cycle_period}]
 
-  - !ProcessingStage # Digital port of the C-2C multiplier. Weights enter here.
+  - !Toll # Digital port of the C-2C multiplier. Weights enter here.
     name: C2CMultiplier
     tensors: {keep: input}
     direction: down
@@ -221,7 +221,7 @@ arch:
       b_bit_distribution:   weight_bit_distribution
       unit_capacitance:     2e-15
 
-  - !ProcessingStage # Analog port of the C-2C multiplier. Inputs enter here.
+  - !Toll # Analog port of the C-2C multiplier. Inputs enter here.
     name: C2CMultiplierPortB
     tensors: {keep: weight}
     direction: down

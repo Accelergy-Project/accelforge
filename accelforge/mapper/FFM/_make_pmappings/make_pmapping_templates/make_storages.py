@@ -4,7 +4,7 @@ from itertools import chain, combinations
 import logging
 
 import accelforge.frontend.arch as arch
-from accelforge.frontend.mapping import Storage, TensorHolder, ProcessingStage
+from accelforge.frontend.mapping import Storage, TensorHolder, Toll
 from accelforge.frontend.workload import TensorName, SymbolTable
 
 from accelforge.util._parse_expressions import ParseError
@@ -34,8 +34,8 @@ def make_tensor_choices_one_level(
 
     if isinstance(node, arch.Memory):
         target_type = Storage
-    elif isinstance(node, arch.ProcessingStage):
-        target_type = ProcessingStage
+    elif isinstance(node, arch.Toll):
+        target_type = Toll
     elif isinstance(node, arch.Dummy):
         yield [], symbol_table, set(seen_tensors)
         return

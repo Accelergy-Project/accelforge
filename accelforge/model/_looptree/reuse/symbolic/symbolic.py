@@ -6,7 +6,7 @@ from accelforge.frontend.mapping import (
     Mapping,
     Nested,
     Pipeline,
-    ProcessingStage,
+    Toll,
     Reservation,
     Sequential,
     Spatial,
@@ -28,7 +28,7 @@ from accelforge.frontend.mapping import (
     Reservation,
     Loop,
     TensorHolder,
-    ProcessingStage,
+    Toll,
 )
 from accelforge.frontend.workload import (
     Workload,
@@ -776,7 +776,7 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SymbolicAnalysi
         Storage: analyze_storage,
         Reservation: analyze_reservation,
         mapping_spec.Compute: analyze_compute,
-        ProcessingStage: analyze_processing_stage,
+        Toll: analyze_toll,
     }
     if type(node) not in class2analysis_function:
         raise TypeError(f"Unknown node type {type(node)}")
@@ -1124,7 +1124,7 @@ def analyze_storage(
     return child_result
 
 
-def analyze_processing_stage(node_idx, current_shape, info: AnalysisInfo):
+def analyze_toll(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
