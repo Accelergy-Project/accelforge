@@ -9,16 +9,14 @@ name: GlobalBuffer
 # access to queue up the next data.
 component_class: SmartBufferSRAM
 
-# Fields can be parsed as expressions. The size field is given in bits, and we write
-# here that it is 512 × 32 bits.
-size: 512 * 32
+# Set the size to 16384 bits (64 bits wide, 256 deep)
+size: 16384
 
 # Sometimes, hwcomponents models require additional attributes that are not part of the
 # accelforge spec. These can be passed to the component models through the
 # extra_attributes_for_component_model field.
 extra_attributes_for_component_model:
-  depth: 512
-  width: size // depth
+  width: 64
   n_banks: 32
   tech_node: 65e-9
 
@@ -28,6 +26,9 @@ extra_attributes_for_component_model:
 # transferred by each read or write. Additionally, to pass extra attributes to the
 # component model as arguments, actions also have a extra_attributes_for_component_model
 # field.
+
+# For many component models, energy and latency are measured per-bit, so bits_per_action
+# may be omitted in these cases.
 actions:
 - {name: read, bits_per_action: 64}
 - {name: write, bits_per_action: 64}

@@ -1303,7 +1303,7 @@ class TensorHolder(Component):
 
         class MyPostCall(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
-                if field == "bits_per_value_scale":
+                if field == "bits_per_value_scale" and kwargs.get("must_parse_try_parse_to", False):
                     parsed = _parse_tensor2bits(
                         parsed,
                         location="bits_per_value_scale",
