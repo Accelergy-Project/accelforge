@@ -202,7 +202,7 @@ def valid_tensor_holder_order(
 ):
     memory_to_satisfied_constraints: dict[str, set] = {}
     for i, m0 in enumerate(mapping):
-        for j, m1 in enumerate(mapping[i + 1:]):
+        for j, m1 in enumerate(mapping[i + 1 :]):
             j += i + 1
 
             s1, s2 = m0.component, m1.component
@@ -250,9 +250,16 @@ def valid_tensor_holder_order(
             # If they're both the first memory and we can't lower the outermost memory,
             # then relative order doesn't matter because we can't have any loops between
             # them.
-            if s1 == first_memory.name and s2 == first_memory.name and not spec.mapper.ffm._can_lower_outermost_memory:
+            if (
+                s1 == first_memory.name
+                and s2 == first_memory.name
+                and not spec.mapper.ffm._can_lower_outermost_memory
+            ):
                 if sorted(m0.tensors) < sorted(m1.tensors):
-                    return False, f"Force alphabetical order for storage in outermost memory. {m0.compact_str()} is before {m1.compact_str()}."
+                    return (
+                        False,
+                        f"Force alphabetical order for storage in outermost memory. {m0.compact_str()} is before {m1.compact_str()}.",
+                    )
                 # Ignore the following constraints
                 continue
 

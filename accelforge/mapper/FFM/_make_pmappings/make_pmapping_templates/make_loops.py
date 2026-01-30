@@ -354,7 +354,6 @@ def _tensors_seen_above_point(idx, mapping):
     return seen_tensors
 
 
-
 def _idx_of_highest_tensor_holder_with_component_below_fanout(
     fanout_node, mapping, arch_node_names
 ):

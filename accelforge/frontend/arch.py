@@ -1303,7 +1303,9 @@ class TensorHolder(Component):
 
         class MyPostCall(_PostCall):
             def __call__(self, field, value, parsed, symbol_table):
-                if field == "bits_per_value_scale" and kwargs.get("must_parse_try_parse_to", False):
+                if field == "bits_per_value_scale" and kwargs.get(
+                    "must_parse_try_parse_to", False
+                ):
                     parsed = _parse_tensor2bits(
                         parsed,
                         location="bits_per_value_scale",
@@ -1341,7 +1343,9 @@ class Memory(TensorHolder):
 
     def __str__(self) -> str:
         """String representation of the Memory node."""
-        return f"{self.name} (size: {self.size})" + self._spatial_str(include_newline=False)
+        return f"{self.name} (size: {self.size})" + self._spatial_str(
+            include_newline=False
+        )
 
     def _render_node_label(self) -> str:
         """The label for a Pydot node."""
@@ -1462,7 +1466,9 @@ class _Parallel(Branch):
 
         return nodes, fanout if return_fanout else nodes
 
-    def _parent2child_names(self, parent_name: str = None) -> tuple[list[tuple[str, str]], str]:
+    def _parent2child_names(
+        self, parent_name: str = None
+    ) -> tuple[list[tuple[str, str]], str]:
         edges = []
         for child in self.nodes:
             # If child is transparent, recursively get its edges
@@ -1538,13 +1544,17 @@ class Hierarchical(Branch):
             return nodes, fanout
         return nodes
 
-    def _parent2child_names(self, parent_name: str = None) -> tuple[list[tuple[str, str]], str]:
+    def _parent2child_names(
+        self, parent_name: str = None
+    ) -> tuple[list[tuple[str, str]], str]:
         edges = []
         current_parent_name = parent_name
 
         for node in self.nodes:
             if isinstance(node, (Hierarchical, _Parallel, Fork)):
-                child_edges, last_child_name = node._parent2child_names(current_parent_name)
+                child_edges, last_child_name = node._parent2child_names(
+                    current_parent_name
+                )
                 edges.extend(child_edges)
                 if last_child_name is not None:
                     current_parent_name = last_child_name
@@ -1596,7 +1606,9 @@ class Fork(Hierarchical):
     sibling after the Fork.
     """
 
-    def _parent2child_names(self, parent_name: str = None) -> tuple[list[tuple[str, str]], str]:
+    def _parent2child_names(
+        self, parent_name: str = None
+    ) -> tuple[list[tuple[str, str]], str]:
         edges = []
 
         # Process children as a hierarchical stack within the fork
@@ -1606,7 +1618,9 @@ class Fork(Hierarchical):
             # If this node is a Hierarchical, _Parallel, or Fork, it's transparent
             if isinstance(node, (Hierarchical, _Parallel, Fork)):
                 # Get edges from the child and its last node
-                child_edges, last_child_name = node._parent2child_names(current_parent_name)
+                child_edges, last_child_name = node._parent2child_names(
+                    current_parent_name
+                )
                 edges.extend(child_edges)
                 # The last child of this branch becomes the new parent for subsequent nodes
                 if last_child_name is not None:
