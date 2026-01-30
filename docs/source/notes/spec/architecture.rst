@@ -21,7 +21,7 @@ are supported:
 In the architecture file, each component is represented by a YAML dictionary. Component
 types are preceded by the ``!`` character. An example architecture is shown below:
 
-.. include:: ../../../../examples/arches/tpu_v4i_like.arch.yaml
+.. include:: ../../../../examples/arches/tpu_v4i.arch.yaml
    :code: yaml
 
 
@@ -53,15 +53,12 @@ Sub-Branches
 
 .. _sub-branches:
 
-Sub-branches in the architecture can represent different execution paths. The following
-branch types are supported:
-
-- :py:class:`~accelforge.frontend.arch.Parallel` represents multiple parallel branches,
-  one of which is executed.
-- :py:class:`~accelforge.frontend.arch.Hierarchical` represents a single hierarchy,
-  where each node is a parent of the following nodes.
-
-Sub-branches are written with the following syntax:
+Sub-branches in the architecture can represent different execution paths. The primary
+`~accelforge.frontend.arch.Arch` class is a `~accelforge.frontend.arch.Hierarchical`
+node, which represents a single hierarchy where each node is a parent of the following
+nodes. Additionally, `~accelforge.frontend.arch.Fork` can branch off from the main
+hierarchy. to represent alternate compute paths. They may be written with the following
+syntax:
 
 .. code-block:: yaml
 
@@ -71,37 +68,39 @@ Sub-branches are written with the following syntax:
   - !Memory
     ...
 
-  - !Parallel
+  - !Fork
     nodes:
-    - !Hierarchical
-      nodes:
-      - ... # First-branch nodes
-    - !Hierarchical
-      nodes:
-      - ... # Second-branch nodes
+    - !Memory
+      ...
+    # This compute is the final node in the Fork. The Fork is terminated afterwards
+    # (because we end the list), and the main hierarchy continues.
+    - !Compute
+      ...
 
-  # If more nodes go down here, they are children of the outer-level node, not the
-  !Parallel node.
+  # Continuing the main hierarchy
   - !Memory
     ...
 
-The top-level :py:class:`~accelforge.frontend.arch.Arch` is a
-:py:class:`~accelforge.frontend.arch.Hierarchical`.
+  - !Compute
+    ...
+
 
 
 Spatial Fanouts
 ---------------
 
 Spatial fanouts describe the spatial organization of components in the architecture. Any
-component may have spatial fanouts, and fanouts are allowed in any dimension. For
-example, in the architecture above, the ``LocalBuffer`` component has a size-4 spatial
-fanout in the ``Z`` dimension, meaning that there are 4 instances of the component. All
-child components are duplicated in the ``Z`` dimension as well.
+component may have spatial fanouts, and fanouts are allowed in any dimension. While any
+:py:class:`~accelforge.frontend.arch.Leaf` node can instantiate spatial fanouts, it is
+often convenient to use the dedicated :py:class:`~accelforge.frontend.arch.Fanout`
+class.
 
-The ``ArrayFanout`` component also has a spatial fanout in two dimensions, the
-``reuse_input`` and ``reuse_output`` dimensions.
-:py:class:`~accelforge.frontend.arch.Fanout` components can be used to instantiate
-spatial fanouts.
+When a fanout is instantiated, the given component, alongside all of its children, are
+duplicated in the given dimension(s). For example, in the TPU v4i architecture above,
+the `LocalBuffer` component has a size-4 spatial fanout in the `Z` dimension, meaning
+that there are 4 instances of the component. The register component has both the size-4
+`Z` fanout spatial fanout, as well as two size-128 spatial fanouts in the `reuse_input`
+and `reuse_output` dimensions, respectively.
 
 Reuse in spatial dimensions may be controlled with the ``may_reuse`` keyword, which
 takes in a set expression that is parsed according to :ref:`set-expressions`. In the
@@ -109,7 +108,7 @@ example, nothing is reused spatially betweeen ``LocalBuffer`` instances, while i
 and outputs are reused across registers in the ``reuse_input`` and ``reuse_output``
 dimensions, respectively. Additionally, the ``reuse`` keyword can be used to force
 reuse; for example, ``reuse: input`` means that all spatial instances must use the
-same input values, else the mapping will be invalid.
+same input values, otherwise the mapping will be invalid.
 
 Spatial fanouts support the following keywords:
 

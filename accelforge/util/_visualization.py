@@ -2,7 +2,7 @@ import pydot
 
 
 def _pydot_graph() -> pydot.Dot:
-    graph = pydot.Dot(graph_type="graph", rankdir="TD", ranksep=0.2)
+    graph = pydot.Dot(graph_type="graph", rankdir="TD", ranksep=0.1)
     graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
     graph.set_edge_defaults(fontname="Arial", fontsize="10")
     return graph

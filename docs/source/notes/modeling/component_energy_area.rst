@@ -57,7 +57,7 @@ One way to specify the area and energy of each component is to directly set the
 ``area``, ``leak_power``, or ``actions[<action name>].energy`` fields. The following
 example from the TPU v4i example architecture shows uses this approach:
 
-.. include-yaml:: examples/arches/tpu_v4i_like.arch.yaml
+.. include-yaml:: examples/arches/tpu_v4i.arch.yaml
    :startfrom: GlobalBuffer
    :same-indent:
 

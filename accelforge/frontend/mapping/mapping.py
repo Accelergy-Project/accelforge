@@ -116,7 +116,7 @@ class MappingNode(ParsableModel):
             shape=self._render_node_shape(),
             style="filled",
             fillcolor=self._render_node_color(),
-            margin=0,
+            margin=0.05,
         )
 
     def _parent2next(self) -> "MappingNode":
@@ -1412,7 +1412,7 @@ class Nested(MappingNodeWithChildren):
         return type(self)(nodes=mapping)
 
 
-class Parallel(Split):
+class _Parallel(Split):
     """
     A :class:`~.Split` where each branch operates at the same time in different
     spatially-organized hardware.
