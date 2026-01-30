@@ -1400,9 +1400,10 @@ def _make_tile_shapes(job: "Job"):
         targets = []
         for i in c._target_loop_indices:
             n = loops[i]
-            size = what_tiles_symbol.get_outer_tiles(n.tile_shape, none_if_fail=True)
-            if size is None:
-                size = what_tiles_symbol.get_max_size(n.tile_shape)
+            size = job.rank_variable_bounds[n.rank_variable]
+            for l in loops[:i]:
+                if l.rank_variable == n.rank_variable:
+                    size = l.tile_shape
             targets.append(size / n.tile_shape)
 
         # targets = [loops[i]._calculated_n_iterations for i in c._target_loop_indices]
@@ -1546,20 +1547,23 @@ def _make_tile_shapes(job: "Job"):
                 raise ValueError(f"Negative energy for {key}: {val}")
 
     # Some initial tile shapes are invalid
-    for nloops, n in enumerate(
-        node for node in job.mapping.nodes if isinstance(node, Loop) and node._fused
-    ):
+    for nloops, n in enumerate(loops):
+        if not n._fused:
+            break
         stride = n.tile_pattern.tile_shape
         initial = (
             n.tile_pattern.initial_tile_shape
             if n.tile_pattern.initial_tile_shape is not None
             else stride
         )
-        outer_stride = what_tiles_symbol.get_outer_tiles(stride)
-        outer_initial = what_tiles_symbol.get_initial(outer_stride, none_if_fail=True)
-        outer_stride = (
-            df[outer_stride.name] if isinstance(outer_stride, Symbol) else outer_stride
-        )
+        outer_stride = job.rank_variable_bounds[n.rank_variable]
+        outer_initial = job.rank_variable_bounds[n.rank_variable]
+        for l in loops[:nloops]:
+            if l.rank_variable == n.rank_variable:
+                outer_stride = l.tile_shape
+                outer_initial = l.initial_tile_shape
+                if outer_initial is None:
+                    outer_initial = outer_stride
 
         outer_initial = (
             df[outer_initial.name]

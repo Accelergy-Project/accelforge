@@ -42,21 +42,36 @@ class SymbolRelations:
                 return True
         return False
 
-    def get_tile_shape(self, symbol: Symbol) -> Symbol | int:
+    def get_tile_shape(
+        self, symbol: Symbol, none_if_fail: bool = False
+    ) -> Symbol | int:
         """Get the stride corresponding to the initial tile shape `symbol`."""
+        found = None
         for tile_shape, initial in self.tile_shape_and_initial:
             if initial == symbol:
-                return tile_shape
+                if found is None:
+                    found = tile_shape
+                elif found != tile_shape:
+                    raise ValueError(
+                        f"Symbol {symbol} has both {found} and {tile_shape} as initial"
+                    )
+        if found is not None or none_if_fail:
+            return found
         raise ValueError(f"Symbol {symbol} not found as initial in {self}")
 
     def get_initial(self, symbol: Symbol, none_if_fail: bool = False) -> Symbol | int:
+        found = None
         for tile_shape, initial in self.tile_shape_and_initial:
             if tile_shape == symbol:
-                return initial
-        if not none_if_fail:
-            raise ValueError(f"Symbol {symbol} not found as tile_shape in {self}")
-        else:
-            return None
+                if found is None:
+                    found = initial
+                elif found != initial:
+                    raise ValueError(
+                        f"Symbol {symbol} has both {found} and {initial} as tile_shape"
+                    )
+        if found is not None or none_if_fail:
+            return found
+        raise ValueError(f"Symbol {symbol} not found as tile_shape in {self}")
 
     def get_delta_choices(self, symbol: Symbol) -> frozenset[int]:
         """Get the possible initial deltas for the rank variable represented by `symbol`."""
@@ -69,22 +84,34 @@ class SymbolRelations:
         self, symbol: Symbol, none_if_fail: bool = False
     ) -> Symbol | int | None:
         """Get tiles within the tile represented by `symbol`."""
+        found = None
         for tiled_by, what_tiles in self.what_tiles_symbol:
             if tiled_by == symbol:
-                return what_tiles
-        if none_if_fail:
-            return None
+                if found is None:
+                    found = what_tiles
+                elif found != what_tiles:
+                    raise ValueError(
+                        f"Symbol {symbol} is tiled by both {found} and {what_tiles}"
+                    )
+        if found is not None or none_if_fail:
+            return found
         raise ValueError(f"Symbol {symbol} not found in {self}")
 
     def get_outer_tiles(
         self, symbol: Symbol, none_if_fail: bool = False
     ) -> Symbol | int | None:
         """Get the tile that contain the tile represented by `symbol`."""
+        found = None
         for tiled_by, what_tiles in self.what_tiles_symbol:
             if what_tiles == symbol:
-                return tiled_by
-        if none_if_fail:
-            return None
+                if found is None:
+                    found = tiled_by
+                elif found != tiled_by:
+                    raise ValueError(
+                        f"Symbol {symbol} tiles both {tiled_by} and {what_tiles}"
+                    )
+        if found is not None or none_if_fail:
+            return found
         raise ValueError(f"Symbol {symbol} not found in {self}")
 
     def get_max_size(self, symbol: Symbol) -> Number:
