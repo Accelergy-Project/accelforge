@@ -291,7 +291,7 @@ def get_constraints(
 
     # Spatial constraints
     for m in flattened_arch:
-        if not isinstance(m, (arch.Memory, arch.Fanout)):
+        if not isinstance(m, arch.Leaf):
             continue
 
         for dim in m.spatial:
