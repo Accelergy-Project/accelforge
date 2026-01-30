@@ -66,7 +66,9 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 # RUN cd islpy && LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH ./build-with-barvinok.sh /usr/local
 
 # RUN make install-islpy
-RUN make install-hwcomponents
+ENV CC=gcc
+ENV CXX=g++
+RUN make install-hwcomponents CC=gcc CXX=g++
 
 # Install jupyterlab and ipywidgets
 RUN pip install jupyterlab ipywidgets

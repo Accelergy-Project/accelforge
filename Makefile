@@ -1,8 +1,3 @@
-CXX := g++
-CC  := gcc
-export CXX
-export CC
-
 NTL_VER := 11.5.1
 BARVINOK_VER := 0.41.8
 ISLPY_VER := 2024.2
