@@ -118,11 +118,26 @@ Tensor Holders
 --------------
 
 Tensor holders, which include :py:class:`~accelforge.frontend.arch.Memory` and
-:py:class:`~accelforge.frontend.arch.Fanout` components, hold tensors. Each of them
-support extra attributes in their ``attributes`` field, so check
-:py:class:`~accelforge.frontend.arch.MemoryAttributes` and
-:py:class:`~accelforge.frontend.arch.FanoutAttributes` for more information on the
-attributes that they support.
+:py:class:`~accelforge.frontend.arch.Toll` components, hold tensors.
+
+
+:docstring:`accelforge.frontend.arch.Memory`.
+
+:docstring:`accelforge.frontend.arch.Toll`.
+
+:docstring:`accelforge.frontend.arch.Memory` and
+:docstring:`accelforge.frontend.arch.Toll` support the following fields:
+
+.. include-attrs:: accelforge.frontend.arch.TensorHolder
+
+Additionally, :py:class:`~accelforge.frontend.arch.Memory` objects include:
+
+.. include-attrs-except:: accelforge.frontend.arch.Memory accelforge.frontend.arch.TensorHolder
+
+:py:class:`~accelforge.frontend.arch.Toll` objects also include:
+
+.. include-attrs-except:: accelforge.frontend.arch.Toll accelforge.frontend.arch.TensorHolder
+
 
 Additionally, they have an additional ``tensors`` field, which is used to define the
 tensors that are held by the component. They are represented by the
