@@ -108,6 +108,13 @@ class IncludeAttrs(Directive):
                 if doc:
                     attrs[field_name]['doc'] = doc
 
+        # --- Look up inheritance chain for missing docstrings ---
+        for attr_name in list(attrs.keys()):
+            if attrs[attr_name]['doc'] is None:
+                doc = self._find_docstring_in_mro(obj, attr_name)
+                if doc:
+                    attrs[attr_name]['doc'] = doc
+
         # --- Pydantic v1 fields ---
         if hasattr(obj, "__fields__"):
             for field_name, field in obj.__fields__.items():
@@ -133,6 +140,13 @@ class IncludeAttrs(Directive):
                     doc = field.description
                     if doc:
                         attrs[field_name]['doc'] = doc
+
+        # --- Look up inheritance chain for missing docstrings ---
+        for attr_name in list(attrs.keys()):
+            if attrs[attr_name]['doc'] is None:
+                doc = self._find_docstring_in_mro(obj, attr_name)
+                if doc:
+                    attrs[attr_name]['doc'] = doc
 
         # --- Build bullet list ---
         if not attrs:
@@ -174,6 +188,45 @@ class IncludeAttrs(Directive):
 
         return [bullet_list]
 
+    def _find_docstring_in_mro(self, obj, attr_name):
+        """Find docstring for an attribute by walking the MRO."""
+        for base_class in inspect.getmro(obj):
+            # Try Pydantic v2 first
+            if hasattr(base_class, "model_fields"):
+                if attr_name in base_class.model_fields:
+                    field = base_class.model_fields[attr_name]
+                    doc = field.description or (field.json_schema_extra or {}).get("description")
+                    if doc:
+                        return doc
+
+            # Try Pydantic v1
+            if hasattr(base_class, "__fields__"):
+                if attr_name in base_class.__fields__:
+                    field = base_class.__fields__[attr_name]
+                    if hasattr(field, "description") and field.description:
+                        return field.description
+
+            # Try AST parsing for inline docstrings
+            try:
+                source = inspect.getsource(base_class)
+                tree = ast.parse(source)
+
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        for i, item in enumerate(node.body):
+                            if isinstance(item, ast.AnnAssign):
+                                if isinstance(item.target, ast.Name) and item.target.id == attr_name:
+                                    # Check if next item is a docstring
+                                    if i + 1 < len(node.body):
+                                        next_item = node.body[i + 1]
+                                        if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                            if isinstance(next_item.value.value, str):
+                                                return next_item.value.value.strip()
+            except (OSError, TypeError, SyntaxError):
+                pass
+
+        return None
+
     def _should_skip_attr(self, attr_name):
         """Check if an attribute should be skipped."""
         return (
@@ -209,5 +262,240 @@ class IncludeAttrs(Directive):
         return str(type_hint)
 
 
+class IncludeAttrsExcept(Directive):
+    """Include attributes for all fields except those from specified base classes."""
+    required_arguments = 2  # main class and classes to exclude
+
+    def run(self):
+        main_class_name = self.arguments[0]
+        exclude_class_names = self.arguments[1:]
+
+        # Get the main class
+        main_class = self._get_class(main_class_name)
+        if main_class is None:
+            return []
+
+        # Get the exclude classes
+        exclude_classes = []
+        for name in exclude_class_names:
+            cls = self._get_class(name)
+            if cls:
+                exclude_classes.append(cls)
+
+        # Get all fields from the main class
+        main_attrs = self._get_class_attrs(main_class)
+
+        # Get all fields from exclude classes
+        exclude_fields = set()
+        for exclude_class in exclude_classes:
+            exclude_attrs = self._get_class_attrs(exclude_class)
+            exclude_fields.update(exclude_attrs.keys())
+
+        # Filter to only fields unique to main class
+        unique_fields = {k: v for k, v in main_attrs.items() if k not in exclude_fields}
+
+        if not unique_fields:
+            return []
+
+        # Build the output using same format as IncludeAttrs
+        bullet_list = nodes.bullet_list()
+        for attr_name in sorted(unique_fields.keys()):
+            attr_info = unique_fields[attr_name]
+            list_item = nodes.list_item()
+            para = nodes.paragraph()
+
+            # Attribute name as :py:attr: role for clickable links
+            from sphinx.addnodes import pending_xref
+            refnode = pending_xref(
+                '',
+                refdomain='py',
+                reftype='attr',
+                reftarget=main_class_name + '.' + attr_name,
+                refwarn=True
+            )
+            refnode += nodes.literal('', attr_name, classes=['xref', 'py', 'py-attr'])
+            para += refnode
+
+            # Docstring
+            if attr_info['doc']:
+                para += nodes.Text(f": {attr_info['doc']}")
+
+            list_item += para
+            bullet_list += list_item
+
+        return [bullet_list]
+
+    def _get_class(self, fqname):
+        """Get a class from a fully qualified name."""
+        parts = fqname.split(".")
+
+        # Import the module
+        module = None
+        for i in range(len(parts), 0, -1):
+            try:
+                module = importlib.import_module(".".join(parts[:i]))
+                rest = parts[i:]
+                break
+            except ImportError:
+                continue
+
+        if module is None:
+            return None
+
+        obj = module
+        for part in rest:
+            if hasattr(obj, part):
+                obj = getattr(obj, part)
+            else:
+                return None
+
+        return obj if inspect.isclass(obj) else None
+
+    def _get_class_attrs(self, obj):
+        """Get all attributes from a class with their metadata."""
+        attrs = {}
+
+        if not inspect.isclass(obj):
+            return attrs
+
+        # Get annotations
+        annotations = getattr(obj, "__annotations__", {})
+
+        # Extract inline docstrings using AST
+        try:
+            source = inspect.getsource(obj)
+            tree = ast.parse(source)
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    for i, item in enumerate(node.body):
+                        if isinstance(item, ast.AnnAssign):
+                            if isinstance(item.target, ast.Name):
+                                attr_name = item.target.id
+
+                                if self._should_skip_attr(attr_name):
+                                    continue
+
+                                if attr_name not in attrs:
+                                    attrs[attr_name] = {'type': None, 'default': None, 'doc': None}
+
+                                if attr_name in annotations:
+                                    attrs[attr_name]['type'] = annotations[attr_name]
+
+                                if item.value is not None:
+                                    try:
+                                        attrs[attr_name]['default'] = ast.unparse(item.value)
+                                    except:
+                                        attrs[attr_name]['default'] = repr(item.value)
+
+                                # Check for inline docstring
+                                if i + 1 < len(node.body):
+                                    next_item = node.body[i + 1]
+                                    if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                        if isinstance(next_item.value.value, str):
+                                            attrs[attr_name]['doc'] = next_item.value.value.strip()
+        except (OSError, TypeError, SyntaxError):
+            pass
+
+        # Pydantic v2 fields
+        if hasattr(obj, "model_fields"):
+            for field_name, field in obj.model_fields.items():
+                if self._should_skip_attr(field_name):
+                    continue
+
+                if field_name not in attrs:
+                    attrs[field_name] = {'type': None, 'default': None, 'doc': None}
+
+                if hasattr(field, "annotation"):
+                    attrs[field_name]['type'] = field.annotation
+
+                if hasattr(field, "default") and field.default is not None:
+                    attrs[field_name]['default'] = repr(field.default)
+                elif hasattr(field, "default_factory") and field.default_factory is not None:
+                    attrs[field_name]['default'] = f"{field.default_factory.__name__}()"
+
+                doc = field.description or (field.json_schema_extra or {}).get("description")
+                if doc:
+                    attrs[field_name]['doc'] = doc
+
+        # Pydantic v1 fields
+        if hasattr(obj, "__fields__"):
+            for field_name, field in obj.__fields__.items():
+                if self._should_skip_attr(field_name):
+                    continue
+
+                if field_name not in attrs:
+                    attrs[field_name] = {'type': None, 'default': None, 'doc': None}
+
+                if hasattr(field, "outer_type_"):
+                    attrs[field_name]['type'] = field.outer_type_
+
+                if hasattr(field, "default") and field.default is not None:
+                    attrs[field_name]['default'] = repr(field.default)
+                elif hasattr(field, "default_factory") and field.default_factory is not None:
+                    attrs[field_name]['default'] = f"{field.default_factory.__name__}()"
+
+                if hasattr(field, "description"):
+                    doc = field.description
+                    if doc:
+                        attrs[field_name]['doc'] = doc
+
+        # Look up inheritance chain for missing docstrings
+        for attr_name in list(attrs.keys()):
+            if attrs[attr_name]['doc'] is None:
+                doc = self._find_docstring_in_mro(obj, attr_name)
+                if doc:
+                    attrs[attr_name]['doc'] = doc
+
+        return attrs
+
+    def _find_docstring_in_mro(self, obj, attr_name):
+        """Find docstring for an attribute by walking the MRO."""
+        for base_class in inspect.getmro(obj):
+            # Try Pydantic v2 first
+            if hasattr(base_class, "model_fields"):
+                if attr_name in base_class.model_fields:
+                    field = base_class.model_fields[attr_name]
+                    doc = field.description or (field.json_schema_extra or {}).get("description")
+                    if doc:
+                        return doc
+
+            # Try Pydantic v1
+            if hasattr(base_class, "__fields__"):
+                if attr_name in base_class.__fields__:
+                    field = base_class.__fields__[attr_name]
+                    if hasattr(field, "description") and field.description:
+                        return field.description
+
+            # Try AST parsing for inline docstrings
+            try:
+                source = inspect.getsource(base_class)
+                tree = ast.parse(source)
+
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        for i, item in enumerate(node.body):
+                            if isinstance(item, ast.AnnAssign):
+                                if isinstance(item.target, ast.Name) and item.target.id == attr_name:
+                                    # Check if next item is a docstring
+                                    if i + 1 < len(node.body):
+                                        next_item = node.body[i + 1]
+                                        if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                            if isinstance(next_item.value.value, str):
+                                                return next_item.value.value.strip()
+            except (OSError, TypeError, SyntaxError):
+                pass
+
+        return None
+
+    def _should_skip_attr(self, attr_name):
+        """Check if an attribute should be skipped."""
+        return (
+            attr_name.startswith('_') or
+            attr_name in ('type', 'version')
+        )
+
+
 def setup(app):
     app.add_directive("include-attrs", IncludeAttrs)
+    app.add_directive("include-attrs-except", IncludeAttrsExcept)

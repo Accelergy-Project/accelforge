@@ -12,10 +12,14 @@ author = 'Tanner Andrulis, Michael Gilbert'
 release = '0.1.0'
 
 # -- HTML output -------------------------------------------------------------
-html_theme = 'sphinx_rtd_theme'
+# html_theme = 'sphinx_rtd_theme'
 # html_theme = 'furo'
-# html_theme = 'pydata_sphinx_theme'
+html_theme = 'pydata_sphinx_theme'
+# html_theme = 'sphinx_book_theme'
 # pip3 install sphinx-furo-theme
+
+html_static_path = ['_static']
+html_logo = '_static/logo.svg'
 
 extensions = [
     'sphinx.ext.autodoc',            # Pull docstrings

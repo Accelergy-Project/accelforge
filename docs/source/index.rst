@@ -7,81 +7,59 @@ given these specifications, quickly finds optimal fused mappings to program the
 workloads onto the architectures.
 
 AccelForge is based on multiple other projects. If you use AccelForge in your work,
-please refer to :doc:`notes/citation` for how to cite the relevant projects.
+please refer to :doc:`guide/citation` for how to cite the relevant projects.
 
+Quick Start
+-----------
 
-This page includes the following:
-
-.. contents::
-   :depth: 1
-   :local:
-   :backlinks: none
-
-Installation
-------------
-
-For native installation, install the package from PyPI:
+New to AccelForge? Start with the :doc:`guide/guide` for installation instructions,
+examples, and an introduction to key concepts.
 
 .. code-block:: bash
 
    pip install accelforge
 
-Examples
---------
-
-Example notebooks can be found by cloning the repository and navigating to the
-``notebooks/examples`` directory.
-
-.. code-block:: bash
-
-   git clone https://github.com/Accelergy-Project/accelforge.git
-   cd accelforge/notebooks/examples
-   jupyter notebook
-
-Additionally, example input files can be found in the ``examples`` directory.
-
-.. code-block:: bash
-
-   git clone https://github.com/Accelergy-Project/accelforge.git
-   cd accelforge/examples
-   ls
-
-
-Documentation Overview
-----------------------
-
-Documentation is organized into the following sections:
-
-- :doc:`Input Specifications <notes/spec>` - Overview of the inputs to accelforge,
-  including specifications of architectures, workloads, and mappings.
-- :doc:`Modeling <notes/modeling>` - How AccelForge models the energy, area, and latency
-  of an accelerator running a workload.
-- :doc:`Citation <notes/citation>` - How to cite AccelForge in your work
-- :doc:`Definitions <notes/definitions>` - Definitions of key concepts in AccelForge
-- :doc:`Parsing <notes/parsing>` - Parsing of input specifications
-- :doc:`Frequently Asked Questions <notes/faqs>` - Frequently asked questions about AccelForge
-
-API Reference
+Documentation
 -------------
 
-The complete API reference is available in the :doc:`modules` section, which includes:
+**User Guide**
 
-- :doc:`accelforge.frontend <accelforge.frontend>` - The input specifications for accelforge
-- :doc:`accelforge.mapper <accelforge.mapper>` - Algorithms that map workloads onto architectures
-- :doc:`accelforge.util <accelforge.util>` - Utility functions and helpers
+The :doc:`guide/guide` contains everything you need to get started with AccelForge,
+including installation, tutorials, and core concepts.
 
-For detailed API documentation, see the :doc:`modules` section.
+**API Reference**
 
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference
-   :hidden:
-
-   modules
+The :doc:`modules` provides detailed documentation of all AccelForge modules, classes,
+and functions.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Documentation
-   :glob:
+   :caption: User Guide
+   :hidden:
 
-   notes/*
+   guide/guide
+   modules
+
+**Citing AccelForge**
+
+If you use AccelForge in your work, please refer to :doc:`guide/citation` for how to cite
+the relevant projects.
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Citing AccelForge
+   :hidden:
+
+   guide/citation
+
+**Contributing to AccelForge**
+
+We welcome contributions to AccelForge! This guide outlines the standards and practices
+for contributing to the project.
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contributing to AccelForge
+   :hidden:
+
+   guide/contributing

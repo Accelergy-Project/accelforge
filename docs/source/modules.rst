@@ -1,4 +1,4 @@
-accelforge
+API Reference
 ==========
 
 .. toctree::

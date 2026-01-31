@@ -63,8 +63,8 @@ The following are available expressions. In addition to the below, Python keywor
 are available witout import (*e.g.,* ``min``) are also available
 
 - ``ceil``: :py:func:`math.ceil`
-- ``comb``: `math.comb`
-- ``copysign``: `math.copysign`
+- ``comb``: :py:func:`math.comb`
+- ``copysign``: :py:func:`math.copysign`
 - ``fabs``: :py:func:`math.fabs`
 - ``factorial``: :py:func:`math.factorial`
 - ``floor``: :py:func:`math.floor`

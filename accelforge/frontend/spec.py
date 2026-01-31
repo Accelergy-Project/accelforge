@@ -298,4 +298,22 @@ class Spec(ParsableModel):
         return found if compute_node is None else found[0]
 
 
+    def map_workload_to_arch(self) -> "Mappings":
+        """
+        Maps the workload to the architecture using the Fast and Fusiest Mapper (FFM).
+
+        Parameters
+        ----------
+        self: Spec
+            The specification to map the workload to the architecture.
+
+        Returns
+        -------
+        Mappings
+            The mappings of the workload to the architecture.
+        """
+        from accelforge.mapper.FFM.main import map_workload_to_arch
+        return map_workload_to_arch(self)
+
+
 Specification = Spec

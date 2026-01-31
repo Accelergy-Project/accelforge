@@ -1,5 +1,5 @@
-Citing This Work
-================
+Citing AccelForge
+=================
 
 **Please cite all of the following papers if you use this work.** This work is the
 combination of the following:
