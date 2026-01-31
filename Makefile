@@ -3,7 +3,20 @@ BARVINOK_VER := 0.41.8
 ISLPY_VER := 2024.2
 
 LIB_DIR := libraries
+DOCKER_EXE ?= docker
+DOCKER_NAME ?= accelforge-infra
 
+VERSION := 0.1
+
+USER    := timeloopaccelergy
+REPO    := accelforge-infra
+
+NAME    := ${USER}/${REPO}
+TAG     := $$(git log -1 --pretty=%h)
+IMG     := ${NAME}:${TAG}
+
+ALTTAG  := latest
+ALTIMG  := ${NAME}:${ALTTAG}
 
 .PHONY: install-hwcomponents install-ntl install-barvinok install-islpy
 
@@ -43,8 +56,22 @@ install-islpy:
 	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && ./configure.py --use-barvinok --isl-inc-dir=/usr/local/include --isl-lib-dir=/usr/local/lib --no-use-shipped-isl --no-use-shipped-imath
 	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && pip3 install .
 
-build-docker:
-	docker build -t accelforge/accelforge-infrastructure .
+# Build and tag docker image
+build-amd64:
+	"${DOCKER_EXE}" build ${BUILD_FLAGS} --platform linux/amd64 \
+          --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+          --build-arg VCS_REF=${TAG} \
+          --build-arg BUILD_VERSION=${VERSION} \
+          -t ${IMG}-amd64 .
+	"${DOCKER_EXE}" tag ${IMG}-amd64 ${ALTIMG}-amd64
+
+build-arm64:
+	"${DOCKER_EXE}" build ${BUILD_FLAGS} --platform linux/arm64 \
+          --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+          --build-arg VCS_REF=${TAG} \
+          --build-arg BUILD_VERSION=${VERSION} \
+          -t ${IMG}-arm64 .
+	"${DOCKER_EXE}" tag ${IMG}-arm64 ${ALTIMG}-arm64
 
 run-docker:
 	docker-compose up
