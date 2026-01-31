@@ -5,6 +5,7 @@ import pandas as pd
 
 from accelforge.frontend import arch
 from accelforge.frontend.arch import Memory
+from accelforge.frontend.mapping.mapping import MappingNodeWithChildren
 from accelforge.frontend.renames import EinsumName
 from accelforge.frontend.spec import Mapping, Spec
 from accelforge.frontend.mapping import (
@@ -81,6 +82,14 @@ def evaluate_mapping(
         spec, "_parsed", False
     ), "Spec must not be parsed before evaluating a mapping"
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
+        seen_temporal = False
+        from accelforge.frontend.mapping import Temporal, Storage
+        for node in pmapping.nodes:
+            if isinstance(node, Temporal):
+                seen_temporal = True
+            is_main_memory = isinstance(node, Storage) and node.component == "MainMemory"
+            assert not (seen_temporal and is_main_memory), "BUG"
+
         einsum_name = pmapping.nodes[-1].einsum
         compute_name = pmapping.nodes[-1].component
         pmapping_id = uuid4()
@@ -100,10 +109,27 @@ def evaluate_mapping(
             )
 
         job.spec = cur_spec
+
+        seen_temporal = False
+        from accelforge.frontend.mapping import Temporal, Storage
+        for node in pmapping.nodes:
+            if isinstance(node, Temporal):
+                seen_temporal = True
+            is_main_memory = isinstance(node, Storage) and node.component == "MainMemory"
+            assert not (seen_temporal and is_main_memory), "BUG"
+
         pmapping.remove_reservations()
         pmapping.split_loop_with_multiple_rank_variables()
         pmapping.split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
+
+        seen_temporal = False
+        from accelforge.frontend.mapping import Temporal, Storage
+        for node in pmapping.nodes:
+            if isinstance(node, Temporal):
+                seen_temporal = True
+            is_main_memory = isinstance(node, Storage) and node.component == "MainMemory"
+            assert not (seen_temporal and is_main_memory), "BUG"
 
         job.mapping = pmapping
         job.einsum_name = pmapping.nodes[-1].einsum
@@ -193,6 +219,25 @@ def _add_backing_to_tensor_holders(pmapping: Mapping):
             seen_tensors.update(new_tensors)
 
 
+def _split_mapping_worker(node: MappingNodeWithChildren):
+    if isinstance(node, Split):
+        for subnodes in node.nodes:
+            yield from _split_mapping_worker(subnodes)
+        return
+
+    assert isinstance(node, Nested), "BUG"
+
+    for n in node.nodes[:-1]:
+        assert not isinstance(n, MappingNodeWithChildren), "BUG"
+
+    if not isinstance(node.nodes[-1], MappingNodeWithChildren):
+        yield node.nodes
+        return
+
+    for subnodes in _split_mapping_worker(node.nodes[-1]):
+        yield node.nodes[:-1] + subnodes
+
+
 def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
     """
     A DFS-like algorithm to split a mapping into pmappings at Split nodes.
@@ -200,32 +245,10 @@ def _split_mapping_to_pmappings(mapping: Mapping, workload: Workload):
     DFS has to be modified because the tree has list of nodes for nested nodes
     instead of links to children.
     """
-    dfs_stack: list[NodeList] = [mapping.nodes]
-    cur_pmapping = []
-
-    while dfs_stack:
-        # nodes_segment is a list of nested nodes with a Split or Compute at the end.
-        nodes_segment = dfs_stack.pop()
-        assert isinstance(nodes_segment[-1], (Split, Compute))
-
-        cur_pmapping.append(nodes_segment[:-1])
-
-        last_node = nodes_segment[-1]
-        if isinstance(last_node, Split):
-            for segment in last_node.nodes:
-                assert isinstance(segment, Nested)
-                dfs_stack.append(segment.nodes)
-        else:
-            assert isinstance(last_node, Compute)
-
-            mapping = Mapping()
-            mapping.nodes = deepcopy(
-                [n for ns in cur_pmapping for n in ns] + [last_node]
-            )
-            _remove_storage_of_unrelevant_tensors(mapping, workload)
-            yield mapping
-
-            cur_pmapping.pop()  # Remove the last segment
+    for nodes in _split_mapping_worker(mapping):
+        mapping = Mapping(nodes=deepcopy(nodes))
+        _remove_storage_of_unrelevant_tensors(mapping, workload)
+        yield mapping
 
 
 def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload):
