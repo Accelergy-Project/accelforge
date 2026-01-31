@@ -13,6 +13,7 @@ from accelforge.frontend._workload_isl._symbolic import (
     get_stride_and_halo_of_einsum,
     get_rank_variable_relevancy,
 )
+from accelforge.mapper.FFM._pareto_df.df_convention import tensor2col
 
 
 def evaluate_mapping(
@@ -120,11 +121,11 @@ def evaluate_mapping(
 
         _, df, _, _, tensor2mapping = run_model(job)
         new_df = {}
+        tensor_cols = set(tensor2col(tensor) for tensor in job.fusable_tensors)
         for key, value in df.items():
-            if "Total" in key:
-                new_df[key] = value
-            else:
-                new_df[f"{job.einsum_name}<SEP>{key}"] = value
+            if not ("Total" in key or key in tensor_cols):
+                key = f"{job.einsum_name}<SEP>{key}"
+            new_df[key] = value
         df = new_df
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
 
@@ -143,6 +144,13 @@ def evaluate_mapping(
             )
         ]
         pmapping_objects[job.einsum_name] = {pmapping_id: job.mapping}
+
+    # Restore the original order
+    einsum2pmappings = {
+        einsum_name: einsum2pmappings[einsum_name]
+        for einsum_name in spec.workload.einsum_names
+        if einsum_name in einsum2pmappings
+    }
 
     return clean_compress_and_join_pmappings(
         MultiEinsumPmappings(
