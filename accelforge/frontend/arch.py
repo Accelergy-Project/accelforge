@@ -1556,6 +1556,10 @@ class Hierarchical(Branch):
                 edges.extend(child_edges)
                 if last_child_name is not None:
                     current_parent_name = last_child_name
+            elif isinstance(node, Compute):
+                # Compute nodes branch off to the side like a Fork
+                if current_parent_name is not None:
+                    edges.append((current_parent_name, node._render_node_name()))
             else:
                 if current_parent_name is not None:
                     edges.append((current_parent_name, node._render_node_name()))
