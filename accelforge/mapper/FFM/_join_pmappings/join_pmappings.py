@@ -602,6 +602,9 @@ def join_pmappings(
                 cur_nmappings += c.n_pre_prune_mappings
         timer.print_time("Pmapping merging")
 
+        if not any(len(s.mappings.data) for s in combined):
+            raise ValueError(f"No mappings found for {left_einsum} <--> {right_einsum}")
+
         prev_nmappings = cur_nmappings
         if not skip_invalid:
             left_nmappings = sum(len(s.mappings.data) for k in left.values() for s in k)
