@@ -1404,7 +1404,6 @@ T = TypeVar("T")
 
 @_uninstantiable
 class Branch(ArchNode):
-    # nodes: ArchNodes[_InferFromTag[Compute, Memory, "Hierarchical"]] = ArchNodes()
     nodes: ArchNodes[
         Annotated[
             Union[
