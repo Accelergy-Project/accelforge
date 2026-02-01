@@ -15,13 +15,13 @@ Definitions
     unit.
 
   Dataflow
-    The order in which a mappings iterates over tiles, noting that tiles may be abstract
-    before the mapping is fully defined. :term:`Tile` for more information.
+    The order in which a mappings iterates over tiles, noting that :term:`tiles<Tile>`
+    may be abstract before the mapping is fully defined.
 
   Dataplacement
     Which tile(s) are stored in each memory level of the accelerator, and for what time
-    period, noting that tiles and time periods may be abstract before the mapping is fully
-    defined. See :term:`Tile`. for more information.
+    period, noting that :term:`tiles<Tile>` and time periods may be abstract before the
+    mapping is fully defined.
 
   Einsum
     An Einsum is a computation step that executes using tensors. It includes two
@@ -32,6 +32,10 @@ Definitions
 
   Mapping
     A *mapping* is a schedule that maps operations and data movement onto the hardware.
+
+  Loop
+    A loop is a bounded iteration over a rank variable with a given shape and/or
+    pattern. Loops in AccelForge are the for loops in mappings.
 
   Pmapping
     A *partial mapping*, or *pmapping*, is a :term:`Mapping` of a subset of the workload
@@ -57,12 +61,15 @@ Definitions
 
   Tensor
     A tensor is a multi-dimensional array of data. Tensors are produced and consumed by
-    :term:`Einsum`\ s. A tensor's shape is parameterized by its :term:`Rank`\ s.
+    :term:`Einsums<Einsum>`. A tensor's shape is parameterized by its
+    :term:`ranks<Rank>`.
 
   Tile
-    TODO
+    A subset of a tensor or operation space that is accessed by a set of
+    :term:`loops<Loop>` in the mapping. If the loops are paratmeterized by variables for
+    their bounds, then tile shapes are abstract.
 
   Workload
-    A workload is a cascade of :term:`Einsum`\ s that are executed by the architecture.
-    :term:`Einsum`\ s produce and consume :term:`Tensor`\ s, which are exchanged between
-    one another.
+    A workload is a cascade of :term:`Einsums<Einsum>` that are executed by the
+    architecture. :term:`Einsums<Einsum>` produce and consume :term:`tensors<Tensor>`,
+    which are exchanged between one another.
