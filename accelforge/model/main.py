@@ -165,13 +165,16 @@ def evaluate_mapping(
             pmapping.nodes, job, df, job.rank_variable_bounds
         )
         compatibility = Compatibility.from_mapping(
-            job.mapping, einsum.tensor_names, rank_variable_to_ranks
+            job.mapping,
+            job.fusable_tensors,
+            rank_variable_to_ranks,
         )
         symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
             einsum_name
         )
         for k, v in symbol_renames.items():
             df[v] = df.pop(k)
+
 
         new_df = {}
         for key, value in df.items():
