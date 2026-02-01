@@ -8,3 +8,14 @@ import accelforge.frontend.renames as renames
 import accelforge.frontend.spec as spec
 import accelforge.frontend.variables as variables
 import accelforge.frontend.workload as workload
+
+__all__ = [
+    "arch",
+    "config",
+    "mapping",
+    "renames",
+    "spec",
+    "variables",
+    "workload",
+    "Spec",
+]

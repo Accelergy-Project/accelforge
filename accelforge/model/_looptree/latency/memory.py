@@ -12,7 +12,7 @@ from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 from accelforge.model._looptree.types import Buffet
 
 from accelforge.model._looptree.reuse.symbolic import BuffetStats
-from accelforge.util._parse_expressions import MATH_FUNCS, parse_expression
+from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
 from accelforge.util._sympy.broadcast_max import Max, Min
 import sympy as sp
 
@@ -110,7 +110,7 @@ def component_latency(
             **component_to_action_latency[component],
         }
         if name2component[component].total_latency is not None:
-            component_latency[component] = parse_expression(
+            component_latency[component] = eval_expression(
                 name2component[component].total_latency,
                 symbol_table,
                 attr_name="latency",

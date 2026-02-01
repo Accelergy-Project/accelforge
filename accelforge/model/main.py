@@ -26,7 +26,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
 def evaluate_mapping(
     spec: Spec,
     flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
-    parsed_specs: dict[EinsumName, Spec] | None = None,
+    evaluated_specs: dict[EinsumName, Spec] | None = None,
 ):
     """
     Evaluate a mapping.
@@ -37,11 +37,11 @@ def evaluate_mapping(
         The specification of architecture, workload, and mapping.
     flattened_arches:
         A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
-        contain the parsed and flattened architecture node for that particular Einsum
+        contain the evaluated and flattened architecture node for that particular Einsum
         and compute combination. If provided, then these will be used instead of
         re-parsing the architecture.
-    parsed_specs:
-        A dictionary of Einsum names to parsed specifications. These contain the parsed
+    evaluated_specs:
+        A dictionary of Einsum names to evaluated specifications. These contain the evaluated
         specification for that particular Einsum. If provided, then these will be used
         instead of re-parsing the specification.
     """
@@ -65,9 +65,9 @@ def evaluate_mapping(
     )
     from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 
-    assert (parsed_specs is not None) == (
+    assert (evaluated_specs is not None) == (
         flattened_arches is not None
-    ), f"Provide either flattened_arches or parsed_specs, not both."
+    ), f"Provide either flattened_arches or evaluated_specs, not both."
 
     original_job = Job(
         metrics=spec.model.metrics,
@@ -79,8 +79,8 @@ def evaluate_mapping(
     pmapping_objects = {}
     einsum2jobs = {}
     assert not getattr(
-        spec, "_parsed", False
-    ), "Spec must not be parsed before evaluating a mapping"
+        spec, "_evaluated", False
+    ), "Spec must not be evaluated before evaluating a mapping"
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         seen_temporal = False
         from accelforge.frontend.mapping import Temporal, Storage
@@ -97,7 +97,7 @@ def evaluate_mapping(
 
         if flattened_arches is not None:
             flattened_arch = flattened_arches[(einsum_name, compute_name)]
-            cur_spec = parsed_specs[einsum_name]
+            cur_spec = evaluated_specs[einsum_name]
 
         else:
             cur_spec = spec.calculate_component_area_energy_latency_leak(
@@ -205,7 +205,7 @@ def evaluate_mapping(
             can_combine_multiple_runs=True,
             einsums_with_pmappings_generated=spec.workload.einsum_names,
             flattened_arches=flattened_arches,
-            parsed_specs=parsed_specs,
+            evaluated_specs=evaluated_specs,
         )
     )
 

@@ -25,7 +25,6 @@ is described in the following:
    :maxdepth: 1
 
    parsing/arithmetic_parsing
-   parsing/setexpressions
 
 Additionally, inputs can be specified with YAML files using an extend YAML syntax, which
 is described in the following:

@@ -1,12 +1,12 @@
 from typing import Annotated
 
 from pydantic import ConfigDict
-from accelforge.util._basetypes import ParsableModel, ParseExtras, ParsesTo
+from accelforge.util._basetypes import EvalableModel, EvalExtras, EvalsTo
 from accelforge._version import assert_version, __version__
 
 
-class Variables(ParseExtras):
+class Variables(EvalExtras):
     """
     Variables that can be used in parsing. All variables defined here can be referenced
-    elsewhere in any of the Spec's parsed expressions.
+    elsewhere in any of the Spec's evaluated expressions.
     """

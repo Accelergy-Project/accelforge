@@ -281,27 +281,27 @@ def load_yaml(
     :param path: string that specifies the path of the YAML file to be loaded
     :param data: dictionary that contains the data to be rendered
     :param include_dirs: list of directories to search for included files
-    :return: parsed YAML content or YAML object
+    :return: evaluated YAML content or YAML object
     """
     with LockAcquirer():
         data = {k: v for k, v in data.items()} if data is not None else {}
         path = os.path.abspath(os.path.realpath(path))
         try:
-            parsed, data, include_dirs = load_file_and_includes(
+            evaluated, data, include_dirs = load_file_and_includes(
                 path, data, include_dirs
             )
         except Exception as e:
             e.add_note(f"Error loading YAML file {path}")
             raise
         try:
-            result = merge_check(get_yaml(path, data).load(parsed))
+            result = merge_check(get_yaml(path, data).load(evaluated))
             return result
         except Exception as e:
             global ERRCOUNT
-            failpath = f"/tmp/yaml_parse_error{ERRCOUNT}.yaml"
+            failpath = f"/tmp/yamleval_error{ERRCOUNT}.yaml"
             ERRCOUNT += 1
             with open(failpath, "w") as f:
-                f.write(parsed)
+                f.write(evaluated)
             e.add_note(
                 f"Error parsing YAML file {path}. Offending file written to "
                 f"{failpath}"
@@ -512,7 +512,7 @@ class YAMLFileLoader:
         from relative_file_path
         :param self: YAML constructor object
         :param node: YAML node object
-        :return: parsed YAML content
+        :return: evaluated YAML content
         """
         x = constructor.construct_scalar(node)
         found = self.include_data
@@ -546,7 +546,7 @@ class YAMLFileLoader:
         from relative_file_path
         :param self: YAML constructor object
         :param node: YAML node object
-        :return: parsed YAML content
+        :return: evaluated YAML content
         """
         filepath = constructor.construct_scalar(node)
         if filepath[-1] == ",":
@@ -564,7 +564,7 @@ class YAMLFileLoader:
         file from relative_file_path
         :param self: YAML constructor object
         :param node: YAML node object
-        :return: list of parsed YAML contents
+        :return: list of evaluated YAML contents
         """
         filepath = constructor.construct_scalar(node)
         if filepath[-1] == ",":

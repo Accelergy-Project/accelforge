@@ -18,8 +18,7 @@ Creating a Spec
 ---------------
 
 Before we dive into the mapper, we need to set up a
-:py:class:`~accelforge.frontend.spec.Spec` object with the input
-spec. We can initialize
+:py:class:`~accelforge.frontend.spec.Spec` object with the input spec. We can initialize
 :py:class:`~accelforge.frontend.spec.Spec` objects from YAML files.
 
 .. include-notebook:: notebooks/tutorials/mapper.ipynb
@@ -27,8 +26,8 @@ spec. We can initialize
    :language: python
 
 We can set optimization metrics for the mapper by setting the `spec.mapper.ffm.metrics`
-attribute to one of the :py:class:`~accelforge.mapper.Metrics` enum values or a
-logical OR (|) of multiple values.
+attribute to one of the :py:class:`~accelforge.frontend.mapper.metrics.Metrics` enum
+values or a logical OR (|) of multiple values.
 
 The following optimization metrics are available:
 

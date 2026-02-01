@@ -13,6 +13,14 @@ import os
 from tqdm import tqdm
 import numpy as np
 
+__all__ = [
+    "set_n_parallel_jobs",
+    "get_n_parallel_jobs",
+    "is_using_parallel_processing",
+    "parallel",
+    "delayed"
+]
+
 PARALLELIZE = True
 N_PARALLEL_PROCESSES = os.cpu_count()
 

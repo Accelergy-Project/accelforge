@@ -33,9 +33,9 @@ import sympy
 
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
-    ParsableModel,
-    ParsableList,
-    ParsesTo,
+    EvalableModel,
+    EvalableList,
+    EvalsTo,
     # Retrieves information from YAML tags.
     _get_tag,
     _uninstantiable,
@@ -50,7 +50,7 @@ from accelforge.frontend import arch
 T = TypeVar("T", bound="MappingNode")
 """TypeVar T: Restricts the allowable types to types of MappingNodes."""
 
-NodeList: TypeAlias = ParsableList[
+NodeList: TypeAlias = EvalableList[
     Annotated[
         Union[
             Annotated["Split", Tag("Split")],
@@ -69,7 +69,7 @@ NodeList: TypeAlias = ParsableList[
     ]
 ]
 """
-TypeAlias NodeList: ParsableList that can contain and discriminate between
+TypeAlias NodeList: EvalableList that can contain and discriminate between
 MappingNodes of different types.
 """
 
@@ -81,7 +81,7 @@ _NO_JOIN_MAPPING_VISUALIZATION = False
 
 
 @_uninstantiable
-class MappingNode(ParsableModel):
+class MappingNode(EvalableModel):
     """
     Represents a Node in the Mapping, which can be a loop, a storage node, a compute
     node, etc.
@@ -182,7 +182,7 @@ class MappingNode(ParsableModel):
         # Read the *raw* attribute without descriptor binding,
         h = inspect.getattr_static(cls, "__hash__", None)
         # Replace if unhashable (None) or if it's just BaseModel’s default.
-        if h is None or h is ParsableModel.__hash__:
+        if h is None or h is EvalableModel.__hash__:
             cls.__hash__ = MappingNode.__hash__
 
     def compact_str(self) -> str:
@@ -192,7 +192,7 @@ class MappingNode(ParsableModel):
 
 @dataclass(frozen=True)
 class TilePattern:
-    tile_shape: ParsesTo[
+    tile_shape: EvalsTo[
         Literal["symbol"] | sympy.Symbol | int | str | None | sympy.Expr
     ] = "symbol"
     """
@@ -200,7 +200,7 @@ class TilePattern:
     the tile moves each iteration.
     """
 
-    initial_tile_shape: ParsesTo[
+    initial_tile_shape: EvalsTo[
         Literal["symbol"] | sympy.Symbol | int | None | str | sympy.Expr
     ] = "symbol"
     """
@@ -321,7 +321,7 @@ class Loop(MappingNode):
     single rank variable, or a set of rank variables if the loop is shared between
     multiple Einsums. """
 
-    tile_shape: ParsesTo[sympy.Symbol | sympy.Expr | int | str] = "symbol"
+    tile_shape: EvalsTo[sympy.Symbol | sympy.Expr | int | str] = "symbol"
     """
     The (common) tile shape of the iteration. For example, if the iteration
     space is range(6) and the tile shape is 3, then we create and iterate over
@@ -338,7 +338,7 @@ class Loop(MappingNode):
     converted to a sympy variable).
     """
 
-    initial_tile_shape: ParsesTo[sympy.Symbol | sympy.Expr | int | str | None] = None
+    initial_tile_shape: EvalsTo[sympy.Symbol | sympy.Expr | int | str | None] = None
     """
     The shape of the first tile shape. This attribute is optional. If not
     specified, all tiles have the same shape.
@@ -522,7 +522,7 @@ class Spatial(Loop):
 class TensorHolder(MappingNode):
     """A node that represents a hardware Component holding a set of tensors."""
 
-    tensors: ParsableList[TensorName]
+    tensors: EvalableList[TensorName]
     """ The names of the tensors being held in this node. """
 
     component: str
@@ -531,7 +531,7 @@ class TensorHolder(MappingNode):
     component_object: NoParse[arch.Component] = None
     """ The component object holding the tensors. """
 
-    _must_keep_tensors: ParsableList[TensorName] = ParsableList()
+    _must_keep_tensors: EvalableList[TensorName] = EvalableList()
     """ Which tensor(s) the Mapper must keep here. Do not set this! Used internally by
     the Mapper."""
 
@@ -666,7 +666,7 @@ class MappingNodeWithChildren(MappingNode):
     A :class:`~.MappingNode` that also has child nodes.
     """
 
-    nodes: NodeList = ParsableList()
+    nodes: NodeList = EvalableList()
     """ The child nodes. """
 
     @override
@@ -711,7 +711,7 @@ class MappingNodeWithChildren(MappingNode):
             if isinstance(node, MappingNodeWithChildren):
                 node.clear_nodes_of_type(types)
             new_nodes.append(node)
-        self.nodes = ParsableList(new_nodes)
+        self.nodes = EvalableList(new_nodes)
 
     def clear_nodes(self, *nodes: MappingNode) -> None:
         """Removes nodes that equal any of the given nodes."""
@@ -724,7 +724,7 @@ class MappingNodeWithChildren(MappingNode):
             if isinstance(node, MappingNodeWithChildren):
                 node.clear_nodes(*nodes)
             new_nodes.append(node)
-        self.nodes = ParsableList(new_nodes)
+        self.nodes = EvalableList(new_nodes)
 
     def _consolidate_tensor_holders(self) -> None:
         new_nodes = []
@@ -747,7 +747,7 @@ class MappingNodeWithChildren(MappingNode):
             if isinstance(node, MappingNodeWithChildren):
                 node._consolidate_tensor_holders()
         assert new_nodes, "BUG"
-        self.nodes = ParsableList(new_nodes)
+        self.nodes = EvalableList(new_nodes)
 
     def _consolidate_reservations(self) -> None:
         new_nodes = []
@@ -768,7 +768,7 @@ class MappingNodeWithChildren(MappingNode):
             if isinstance(node, MappingNodeWithChildren):
                 node._consolidate_reservations()
         assert new_nodes, "BUG"
-        self.nodes = ParsableList(new_nodes)
+        self.nodes = EvalableList(new_nodes)
 
     def _elevate_persistent_nodes_above_splits(self) -> None:
         new_nodes: list[MappingNode] = []
@@ -780,7 +780,7 @@ class MappingNodeWithChildren(MappingNode):
             if isinstance(node, MappingNodeWithChildren):
                 node._elevate_persistent_nodes_above_splits()
             new_nodes.append(node)
-        self.nodes = ParsableList(new_nodes)
+        self.nodes = EvalableList(new_nodes)
 
     def _elevate_tensor_holders_above_splits(self) -> None:
         new_nodes: list[MappingNode] = []
@@ -792,7 +792,7 @@ class MappingNodeWithChildren(MappingNode):
             if isinstance(node, MappingNodeWithChildren):
                 node._elevate_tensor_holders_above_splits()
             new_nodes.append(node)
-        self.nodes = ParsableList(new_nodes)
+        self.nodes = EvalableList(new_nodes)
 
     def _propagate_reservations_between_splits(self) -> None:
         for node in self.nodes:
@@ -843,7 +843,7 @@ class MappingNodeWithChildren(MappingNode):
             + [x for x in g if isinstance(x, (Reservation))]
             for g in groups
         ]
-        self.nodes = ParsableList([x for g in groups for x in g])
+        self.nodes = EvalableList([x for g in groups for x in g])
 
     def _remove_reservations_for_tolls(self) -> None:
         tolls = self.get_nodes_of_type(Toll)
@@ -1446,7 +1446,7 @@ class Sequential(Split):
 class Reservation(MappingNode):
     """A node that reserves a hardware resource for a specific task."""
 
-    purposes: ParsableList[str]
+    purposes: EvalableList[str]
     """ The reasons for reserving the resource. """
 
     resource: str

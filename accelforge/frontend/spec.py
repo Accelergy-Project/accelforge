@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from accelforge.frontend.mapper.mapper import Mapper
 from accelforge.frontend.renames import EinsumName, Renames
-from accelforge.util._parse_expressions import ParseError, ParseExpressionsContext
+from accelforge.util._eval_expressions import EvaluationError, ParseExpressionsContext
 from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Fanout
 
 from accelforge.frontend.workload import Workload
@@ -14,14 +14,14 @@ import hwcomponents
 
 from accelforge._accelerated_imports import pd
 from typing import Any, Callable, Dict, Optional, Self, TYPE_CHECKING
-from accelforge.util._basetypes import ParsableModel
+from accelforge.util._basetypes import EvalableModel
 from pydantic import Field
 
 if TYPE_CHECKING:
     from accelforge.mapper.FFM.mappings import Mappings
 
 
-class Spec(ParsableModel):
+class Spec(EvalableModel):
     """The top-level spec of all of the inputs to this package."""
 
     arch: Arch = Arch()
@@ -51,18 +51,18 @@ class Spec(ParsableModel):
     model: Model = Model()
     """Configures the model used to evaluate mappings."""
 
-    def _parse_expressions(
+    def _eval_expressions(
         self,
         einsum_name: EinsumName | None = None,
         **kwargs,
     ) -> tuple[Self, dict[str, Any]]:
-        raise NotImplementedError("Call _spec_parse_expressions instead.")
+        raise NotImplementedError("Call _spec_eval_expressions instead.")
 
-    def _spec_parse_expressions(
+    def _spec_eval_expressions(
         self,
         einsum_name: EinsumName | None = None,
-        _parse_arch: bool = True,
-        _parse_non_arch: bool = True,
+        eval_arch: bool = True,
+        eval_non_arch: bool = True,
     ) -> Self:
         """
         Parse all string expressions in the spec into concrete values.
@@ -73,79 +73,79 @@ class Spec(ParsableModel):
             Optional Einsum name to populate symbols with the Einsum's symbols from the
             workload. If None, only some symbols may be populated from the workload.
 
-        _parse_arch: bool = True
-            Whether to parse the architecture.
+        eval_arch: bool = True
+            Whether to evaluate expressions in the the architecture.
 
-        _parse_non_arch: bool = True
-            Whether to parse the non-architecture fields.
+        eval_non_arch: bool = True
+            Whether to evaluate expressions in the non-architecture fields.
 
         Returns
         -------
         Self
-            The parsed specification.
+            The evaluated specification.
 
         Raises
         ------
-        ParseError
-            If any field fails to parse; the error is annotated with the field path.
+        EvaluationError
+            If any field fails to evaluate; the error is annotated with the field path.
         """
         st = {}
         st["spec"] = self
         with ParseExpressionsContext(self):
-            already_parsed = {}
+            already_evaluated = {}
 
-            parsed_variables = self.variables
-            if _parse_non_arch:
+            evaluated_variables = self.variables
+            if eval_non_arch:
                 try:
-                    parsed_variables, st = self.variables._parse_expressions(st)
-                except ParseError as e:
+                    evaluated_variables, st = self.variables._eval_expressions(st)
+                except EvaluationError as e:
                     e.add_field("Spec().variables")
                     raise e
-            already_parsed["variables"] = parsed_variables
-            st.update(parsed_variables)
-            st["variables"] = parsed_variables
+            already_evaluated["variables"] = evaluated_variables
+            st.update(evaluated_variables)
+            st["variables"] = evaluated_variables
 
-            parsed_renames = self.renames
-            if _parse_non_arch:
+            evaluated_renames = self.renames
+            if eval_non_arch:
                 try:
-                    parsed_renames, st = self.renames._parse_expressions(st)
-                except ParseError as e:
+                    evaluated_renames, st = self.renames._eval_expressions(st)
+                except EvaluationError as e:
                     e.add_field("Spec().renames")
                     raise e
-            already_parsed["renames"] = parsed_renames
-            st["renames"] = parsed_renames
+            already_evaluated["renames"] = evaluated_renames
+            st["renames"] = evaluated_renames
 
-            parsed_workload = self.workload
-            if _parse_non_arch:
+            evaluated_workload = self.workload
+            if eval_non_arch:
                 try:
-                    parsed_workload, st = self.workload._parse_expressions(
-                        st, renames=parsed_renames
+                    evaluated_workload, st = self.workload._eval_expressions(
+                        st, renames=evaluated_renames
                     )
-                except ParseError as e:
+                except EvaluationError as e:
                     e.add_field("Spec().workload")
                     raise e
-            already_parsed["workload"] = parsed_workload
-            st["workload"] = parsed_workload
+            already_evaluated["workload"] = evaluated_workload
+            st["workload"] = evaluated_workload
 
             if einsum_name is not None:
-                renames = parsed_workload.einsums[einsum_name].renames
+                renames = evaluated_workload.einsums[einsum_name].renames
                 st.update(**{k.name: k.source for k in renames})
             else:
-                st.update(parsed_workload.empty_renames())
+                st.update(evaluated_workload.empty_renames())
 
-            if _parse_arch:
-                parsed_arch, st = self.arch._parse_expressions(st)
+            if eval_arch:
+                evaluated_arch, st = self.arch._eval_expressions(st)
             else:
-                parsed_arch = self.arch
-            st["arch"] = parsed_arch
-            already_parsed["arch"] = parsed_arch
+                evaluated_arch = self.arch
+            st["arch"] = evaluated_arch
+            already_evaluated["arch"] = evaluated_arch
 
-            parsed_spec, _ = super()._parse_expressions(
+            evaluated_spec, _ = super()._eval_expressions(
                 st,
-                already_parsed=already_parsed,
+                already_evaluated=already_evaluated,
             )
-            parsed_spec._parsed = True
-            return parsed_spec
+            evaluated_spec._evaluated = True
+            return evaluated_spec
 
     def calculate_component_area_energy_latency_leak(
         self,
@@ -196,11 +196,11 @@ class Spec(ParsableModel):
 
         components = set()
         try:
-            if not getattr(self, "_parsed", False):
-                self = self._spec_parse_expressions(einsum_name=einsum_name)
+            if not getattr(self, "_evaluated", False):
+                self = self._spec_eval_expressions(einsum_name=einsum_name)
             else:
                 self = self.copy()
-        except ParseError as e:
+        except EvaluationError as e:
             if "arch" in e.message:
                 e.add_note(
                     "If this error seems to be caused by a missing symbol that depends on \n"
@@ -274,22 +274,22 @@ class Spec(ParsableModel):
         Raises
         ------
         AssertionError
-            If the spec has not been parsed.
-        ParseError
+            If the spec has not been evaluated.
+        EvaluationError
             If there are duplicate names or the requested compute node cannot be found.
         """
-        # Assert that we've been parsed
+        # Assert that we've been evaluated
         assert getattr(
-            self, "_parsed", False
-        ), "Spec must be parsed before getting flattened architecture"
+            self, "_evaluated", False
+        ), "Spec must be evaluated before getting flattened architecture"
         if einsum_name is not None:
-            self = self._spec_parse_expressions(einsum_name=einsum_name)
+            self = self._spec_eval_expressions(einsum_name=einsum_name)
 
         all_leaves = self.arch.get_nodes_of_type(Leaf)
         found_names = set()
         for leaf in all_leaves:
             if leaf.name in found_names:
-                raise ParseError(f"Duplicate name in architecture: {leaf.name}")
+                raise EvaluationError(f"Duplicate name in architecture: {leaf.name}")
             found_names.add(leaf.name)
 
         found = []
@@ -303,7 +303,7 @@ class Spec(ParsableModel):
         for c in compute_nodes:
             found.append(self.arch._flatten(c))
             if found[-1][-1].name != c:
-                raise ParseError(f"Compute node {c} not found in architecture")
+                raise EvaluationError(f"Compute node {c} not found in architecture")
 
         # These can't be pickled if they use dynamically-loaded code
         for f in found:

@@ -1,8 +1,8 @@
 from accelforge.frontend.mapper.metrics import Metrics
-from accelforge.util._basetypes import ParsableModel
+from accelforge.util._basetypes import EvalableModel
 
 
-class Model(ParsableModel):
+class Model(EvalableModel):
     """Configuration for the model."""
 
     metrics: Metrics = Metrics.all_metrics()

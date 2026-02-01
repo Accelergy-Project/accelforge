@@ -2,13 +2,12 @@ from typing import Annotated, Callable, Optional
 
 from pydantic import ConfigDict
 from hwcomponents import ComponentModel
-from accelforge.util._basetypes import ParsableDict, ParsableList, ParsableModel
+from accelforge.util._basetypes import EvalableDict, EvalableList, EvalableModel
 from accelforge._version import assert_version, __version__
 from platformdirs import user_config_dir
 import logging
 import os
 import sys
-
 
 USER_CUSTOM_CONFIG_PATH_VAR = "ACCELFORGE_CONFIG_PATH"
 
@@ -33,16 +32,16 @@ def get_config() -> "Config":
     return Config.from_yaml(f)
 
 
-class Config(ParsableModel):
+class Config(EvalableModel):
     # version: Annotated[str, assert_version] = __version__
 
-    expression_custom_functions: ParsableList[str | Callable] = ParsableList()
+    expression_custom_functions: EvalableList[str | Callable] = EvalableList()
     """
     A list of functions to use while parsing expressions. These can either be functions
     or paths to Python files that contain the functions. If a path is provided, then all
-    functions in the file will be added to the parser.
+    functions in the file will be added to the evaluator.
     """
-    component_models: ParsableList[str | ComponentModel] = ParsableList()
+    component_models: EvalableList[str | ComponentModel] = EvalableList()
     """
     A list of hwcomponents models to use for the energy and area calculations. These can
     either be paths to Python files that contain the models, or `hwcomponents`

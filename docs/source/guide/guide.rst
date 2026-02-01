@@ -152,7 +152,6 @@ Additional Resources
 - :doc:`../modules` - Complete API reference
 - :doc:`definitions` - Definitions of key terms
 - :doc:`faqs` - Frequently asked questions
-- :doc:`parsing` - Details on parsing expressions
 - :doc:`citation` - How to cite AccelForge
 - :doc:`contributing` - Contributing guidelines
 
@@ -174,6 +173,3 @@ If you encounter issues or have questions:
    modeling
    definitions
    faqs
-   parsing
-   citation
-   contributing

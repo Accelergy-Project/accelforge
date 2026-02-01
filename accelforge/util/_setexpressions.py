@@ -1,8 +1,8 @@
 import functools
-from accelforge.util._parse_expressions import ParseError
+from accelforge.util.exceptions import EvaluationError
 from pydantic import BaseModel, ConfigDict, model_serializer
 from typing import Iterator, Optional, TypeVar, Generic, Any, Union
-from accelforge.util._parse_expressions import MATH_FUNCS
+from accelforge.util._eval_expressions import MATH_FUNCS
 
 T = TypeVar("T")
 
@@ -257,7 +257,7 @@ def eval_set_expression(
             v = str(v)
             return v if len(v) <= 100 else v[:100] + "..."
 
-        err = ParseError(
+        err = EvaluationError(
             f'{e}. Set expression: "{expression}". Symbol table:\n\t'
             + "\n\t".join(f"{k}: {strformat(v)}" for k, v in symbol_table.items())
         )

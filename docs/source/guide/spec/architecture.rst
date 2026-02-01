@@ -107,7 +107,7 @@ and ``reuse_output`` dimensions, respectively.
 
 Reuse in spatial dimensions may be controlled with the
 :py:attr:`~accelforge.frontend.arch.Spatial.may_reuse` keyword, which takes in a set
-expression that is parsed according to the set expression section of the :ref:`Set
+expression that is evaluated according to the set expression section of the :ref:`Set
 Expressions <set-expressions>` guide. In the example, nothing is reused spatially
 betweeen ``LocalBuffer`` instances, while inputs and outputs are reused across registers
 in the ``reuse_input`` and ``reuse_output`` dimensions, respectively. Additionally, the
@@ -146,7 +146,7 @@ Additionally, :py:class:`~accelforge.frontend.arch.Memory` objects include:
 
 Additionally, they have an additional ``tensors`` field, which is used to define the
 tensors that are held by the component. They are represented by the
-:py:class:`~accelforge.frontend.constraints.Tensors` class, which supports the following
+:py:class:`~accelforge.frontend.arch.Tensors` class, which supports the following
 fields:
 
-.. include-attrs:: accelforge.frontend.constraints.Tensors
+.. include-attrs:: accelforge.frontend.arch.Tensors

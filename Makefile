@@ -78,10 +78,8 @@ run-docker:
 
 .PHONY: generate-docs
 generate-docs:
-    # pip install sphinx-autobuild sphinx_autodoc_typehints sphinx-rtd-theme
-	# rm -r docs/_build
-	# sphinx-build -nW docs/source docs/_build/html
+    # pip install sphinx-autobuild sphinx_autodoc_typehints sphinx-copybutton pydata-sphinx-theme
+	rm -r docs/_build/html
+	rm docs/source/accelforge.*.rst
 	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ accelforge
 	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild -a docs/source docs/_build/html
-
-	# rm -r docs/_build/html ; rm docs/source/accelforge.*.rst ; LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ accelforge ; LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild -a docs/source docs/_build/html

@@ -73,6 +73,7 @@ arch:
     read_pulse_width: 1e-9
 
   extra_attributes_for_all_component_models:
+    <<: *cim_component_attributes
     tech_node: tech_node
     cycle_period: cycle_period
 
@@ -222,11 +223,5 @@ workload:
     - {name: weight, projection: [k, n], bits_per_value: 16}
     - {name: output, projection: [m, n], output: True, bits_per_value: 16}
 
-  - name: Matmul2
-    tensor_accesses:
-    - {name: input2, projection: [m, k], bits_per_value: 32}
-    - {name: weight2, projection: [k, n], bits_per_value: 32}
-    - {name: output2, projection: [m, n], output: True, bits_per_value: 32}
-    renames: {input: input2, weight: weight2, output: output2}
 
 renames: {} # Not needed for this workload

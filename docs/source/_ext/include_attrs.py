@@ -173,7 +173,7 @@ class IncludeAttrs(Directive):
                 link_target = f"{defining_class_name}.{attr_name}"
             else:
                 link_target = f"{fqname}.{attr_name}"
-            
+
             refnode = pending_xref(
                 '',
                 refdomain='py',
@@ -205,14 +205,14 @@ class IncludeAttrs(Directive):
     def _find_defining_class(self, obj, attr_name):
         """Find where attribute is first defined by checking __annotations__ in __dict__."""
         mro_list = list(inspect.getmro(obj))
-        
+
         # Walk MRO backwards to find first class that defines this in its own __annotations__
         for i in range(len(mro_list) - 1, -1, -1):
             base_class = mro_list[i]
             if '__annotations__' in base_class.__dict__:
                 if attr_name in base_class.__dict__['__annotations__']:
                     return base_class
-        
+
         return None
 
     def _find_docstring_in_mro(self, obj, attr_name):
@@ -488,14 +488,14 @@ class IncludeAttrsExcept(Directive):
     def _find_defining_class(self, obj, attr_name):
         """Find where attribute is first defined by checking __annotations__ in __dict__."""
         mro_list = list(inspect.getmro(obj))
-        
+
         # Walk MRO backwards to find first class that defines this in its own __annotations__
         for i in range(len(mro_list) - 1, -1, -1):
             base_class = mro_list[i]
             if '__annotations__' in base_class.__dict__:
                 if attr_name in base_class.__dict__['__annotations__']:
                     return base_class
-        
+
         return None
 
     def _find_docstring_in_mro(self, obj, attr_name):

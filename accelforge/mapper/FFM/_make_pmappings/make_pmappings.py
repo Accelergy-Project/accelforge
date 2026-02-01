@@ -89,10 +89,10 @@ def get_jobs(
     pbar = tqdm(einsum_names, desc=s)
     for einsum_name in pbar:
         pbar.set_description(s + einsum_name)
-        einsum2spec[einsum_name] = spec._spec_parse_expressions(
+        einsum2spec[einsum_name] = spec._spec_eval_expressions(
             einsum_name=einsum_name,
-            _parse_arch=True,
-            _parse_non_arch=False,
+            eval_arch=True,
+            eval_non_arch=False,
         ).calculate_component_area_energy_latency_leak(
             einsum_name=einsum_name,
             area=False,
@@ -278,9 +278,9 @@ def make_pmappings(
     if fail_if_no_pmappings_for_einsum is None:
         fail_if_no_pmappings_for_einsum = not can_combine_multiple_runs
 
-    spec = spec._spec_parse_expressions(
-        _parse_arch=False,
-        _parse_non_arch=True,
+    spec = spec._spec_eval_expressions(
+        eval_arch=False,
+        eval_non_arch=True,
     )
 
     einsum2jobs = {}

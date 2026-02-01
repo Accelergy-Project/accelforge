@@ -7,7 +7,7 @@ import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import Storage, TensorHolder, Toll
 from accelforge.frontend.workload import TensorName, SymbolTable
 
-from accelforge.util._parse_expressions import ParseError
+from accelforge.util.exceptions import EvaluationError
 from accelforge.util._setexpressions import InvertibleSet
 
 
@@ -46,13 +46,13 @@ def make_tensor_choices_one_level(
 
     node = copy.copy(node)
     try:
-        node.tensors: arch.Tensors = node.tensors._parse_expressions(
+        node.tensors: arch.Tensors = node.tensors._eval_expressions(
             symbol_table=symbol_table,
-            must_parse_try_parse_to=True,
+            musteval_tryeval_to=True,
             must_copy=False,
             location=f"arch.{node.name}.tensors",
         )[0]
-    except ParseError as e:
+    except EvaluationError as e:
         e.add_field(f"Einsum {einsum_name} arch.{node.name}.tensors")
         raise e
 

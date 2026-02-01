@@ -1,14 +1,14 @@
 Arithmetic and Parsing
 ======================
 
-Objects can include expressions that are parsed when the
-:py:class:`~accelforge.frontend.spec.Spec` is parsed. Parsing occurs when the
+Objects can include expressions that are evaluated when the
+:py:class:`~accelforge.frontend.spec.Spec` is evaluated. Parsing occurs when the
 :py:func:`~accelforge.frontend.spec.Spec` is going to be used to model the energy, area,
 or latency of an accelerator, such as when the
 :py:func:`~accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak` method is
 called.
 
-To-be-parsed expressions can include Python code, and supported
+To-be-evaluated expressions can include Python code, and supported
 operations include many standard library functions (*e.g.,* ``range``, ``min``) and
 functions from the ``math`` standard library (*e.g.,* ``log2``, ``ceil``).
 
@@ -23,7 +23,7 @@ precedence:
 - Variables defined in the current YAML object. Dictionary keys may reference each other
   as long as references are not cyclic.
 
-The following is an example of valid parsed data:
+The following is an example of valid evaluated data:
 
 .. code-block:: yaml
 
@@ -134,13 +134,14 @@ are available witout import (*e.g.,* ``min``) are also available
 - ``enumerate``: :py:func:`enumerate`
 - ``getcwd``: :py:func:`os.getcwd`
 - ``map``: :py:func:`map`
+
 .. _set-expressions:
 
 Set Expressions
 ===============
 
 In the architecture, set expressions may reference the tensors and rank variables of the
-specific Einsum being executed. Set expressions are parsed for each Einsum +
+specific Einsum being executed. Set expressions are evaluated for each Einsum +
 Flattened-Architecture (:ref:`flattening`) combination.
 
 As an example of a set expression, we can describe all tensors that are not
@@ -164,7 +165,7 @@ we may want to use input tensors if and only if there are three or fewer total t
 
     Inputs if len(All) > 3 else All
 
-Set expressions are parsed for every Einsum + Flattened-Architecture (:ref:`flattening`)
+Set expressions are evaluated for every Einsum + Flattened-Architecture (:ref:`flattening`)
 combination. The following set expressions are supported:
 
 - ``All``: All tensors used in the current Einsum.
@@ -184,12 +185,11 @@ Additionally, the following special variables are available:
   ``MemoryObject``.
 - ``<Any Tensor Name>``: Resolves to the tensor with the given name. If the tensor is
   not used in the current Einsum, then it resolves to the empty set.
-- ``Einsum``: The name of the currently-processed Einsum. May be used in expressions
-  such as ``Inputs if Einsum == "Conv" else All``.
-- ``EinsumObject``: For complex logic using the Einsum object directly.
+.. - ``Einsum``: The name of the currently-processed Einsum. May be used in expressions
+..   such as ``Inputs if Einsum == "Conv" else All``.
 - ``MemoryObject.Tensors``: The set of all tensors that are stored in the memory object.
-  Architectures are parsed from the top down, so this will only be available
-  ``MemoryObject`` has been parsed. Lower-level memory objects may reference upper-level
+  Architectures are evaluated from the top down, so this will only be available
+  ``MemoryObject`` has been evaluated. Lower-level memory objects may reference upper-level
   memory objects, but not vice versa. Additionally, this may not be used for energy and
   area calculations.
 

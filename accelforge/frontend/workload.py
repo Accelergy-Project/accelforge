@@ -13,10 +13,10 @@ import pydot
 from accelforge.util.parallel import _SVGJupyterRender
 
 from accelforge.util._basetypes import (
-    ParsableDict,
-    ParsableList,
-    ParsableModel,
-    ParsesTo,
+    EvalableDict,
+    EvalableList,
+    EvalableModel,
+    EvalsTo,
 )
 from accelforge.util._visualization import _pydot_graph
 from accelforge.frontend.renames import (
@@ -29,7 +29,8 @@ from accelforge.frontend.renames import (
     Rank,
     rename_list_factory,
 )
-from accelforge.util._parse_expressions import ParseError, parse_expression
+from accelforge.util.exceptions import EvaluationError
+from accelforge.util._eval_expressions import eval_expression
 from accelforge.util._setexpressions import InvertibleSet, eval_set_expression
 from accelforge._version import __version__
 
@@ -91,7 +92,7 @@ def isl_expression_has_variable(expression: str, variable: RankVariable) -> bool
 SymbolTable: TypeAlias = dict[str, InvertibleSet]
 
 
-class TensorAccess(ParsableModel):
+class TensorAccess(EvalableModel):
     """Information about how an Einsum accesses a tensor."""
 
     name: TensorName
@@ -239,7 +240,7 @@ def _projection_factory(projection: dict | list):
     return projection
 
 
-class Shape(ParsableList):
+class Shape(EvalableList):
     """
     Specifies valid values for the rank variables. This is a list of strings, each one
     an ISL expression. The total space is considered to be the logal AND of all the
@@ -254,7 +255,7 @@ class Shape(ParsableList):
         return set.union(*[set(re.findall(_ISL_REGEX, x)) for x in self])
 
 
-class Einsum(ParsableModel):
+class Einsum(EvalableModel):
     """
     Represents an Einsum, which is a single computation step in the workload. The Einsum
     includes a set of rank variables, which are used to index into tensors. Rank
@@ -268,7 +269,7 @@ class Einsum(ParsableModel):
 
     name: EinsumName
     """ The name of the Einsum. """
-    tensor_accesses: ParsableList[TensorAccess]
+    tensor_accesses: EvalableList[TensorAccess]
     """ The tensors accessed by this Einsum, and how they are accessed. """
     iteration_space_shape: Shape[str] = Shape()
     """
@@ -278,7 +279,7 @@ class Einsum(ParsableModel):
     example, if the global scope has "m: 0 <= m < 10" and the Einsum has "m" in its
     rank_variables, then "0 <= m < 10" will be appended to the iteration_space_shape.
     """
-    rank_sizes: ParsableDict[Rank, int] = ParsableDict()
+    rank_sizes: EvalableDict[Rank, int] = EvalableDict()
     """
     Sizes of ranks. This is a dictionary of rank names to sizes. Sizes are integers, and
     the rank's bounds are 0 <= rank < size. Accesses outside of these bounds are
@@ -480,7 +481,7 @@ class Einsum(ParsableModel):
             "Outputs": InvertibleSet(instance=(), **kwargs_tensors),
         }
 
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         workload: Workload = symbol_table["spec_workload"]
         renames: Renames = symbol_table["spec_renames"]
 
@@ -538,7 +539,7 @@ class Einsum(ParsableModel):
                 r: InvertibleSet(instance=(r,), **kwargs_rank_variables)
                 for r in all_rank_variables
             },
-            "Einsum": self.name,
+            # "Einsum": self.name,
             "Above": InvertibleSet(instance=(), **kwargs_tensors),
         }
 
@@ -567,13 +568,13 @@ class Einsum(ParsableModel):
                 self.renames.append(rank_variable_rename)
 
         # Parse me!
-        kwargs["must_parse_try_parse_to"] = True
-        parsed, _ = super(self.__class__, self)._parse_expressions(st, *args, **kwargs)
+        kwargs["musteval_tryeval_to"] = True
+        evaluated, _ = super(self.__class__, self)._eval_expressions(st, *args, **kwargs)
 
         # Update the renames with the new values
         for k, v in rename_symbol_table.items():
-            if k not in parsed.renames:
-                parsed.renames.append(Rename(name=k, source=v))
+            if k not in evaluated.renames:
+                evaluated.renames.append(Rename(name=k, source=v))
 
         # Parse the bits per value
         bits_per_value = dict()
@@ -587,7 +588,7 @@ class Einsum(ParsableModel):
             )
             for t in bpv:
                 if t in bits_per_value:
-                    raise ParseError(
+                    raise EvaluationError(
                         f"Tensor {t} is specified in multiple entries in the workload "
                         f"global bits_per_value dictionary.",
                         source_field=f"({k} AND {bpv_to_source[t]})",
@@ -595,9 +596,9 @@ class Einsum(ParsableModel):
                 bits_per_value[t] = v
                 bpv_to_source[t] = k
 
-        for t in parsed.tensor_accesses:
+        for t in evaluated.tensor_accesses:
             if t.bits_per_value is None and t.name not in bits_per_value:
-                raise ParseError(
+                raise EvaluationError(
                     f"Tensor {t.name} in Einsum does not have a bits per value "
                     f"specified. Ensure that the tensor is either covered by the set "
                     f"expressions in the workload.bits_per_value dictionary "
@@ -608,10 +609,10 @@ class Einsum(ParsableModel):
             if t.bits_per_value is None:
                 t.bits_per_value = bits_per_value[t.name]
 
-        return parsed, symbol_table
+        return evaluated, symbol_table
 
 
-class Workload(ParsableModel):
+class Workload(EvalableModel):
     """
     The workload specification as a cascade of Einsums, with each Einsum being a
     computation step in the workload.
@@ -620,10 +621,10 @@ class Workload(ParsableModel):
     # version: Annotated[str, assert_version] = __version__
     # """ The version of the workload specification. """
 
-    einsums: ParsableList[Einsum] = ParsableList()
+    einsums: EvalableList[Einsum] = EvalableList()
     """ The Einsums in the workload. """
 
-    iteration_space_shape: ParsableDict[RankVariable, str] = ParsableDict()
+    iteration_space_shape: EvalableDict[RankVariable, str] = EvalableDict()
     """
     Bounds of valid rank variable values. This is a dictionary of rank variable
     names to bounds of valid rank variable values. The bounds are specified as a string
@@ -632,7 +633,7 @@ class Workload(ParsableModel):
     that include that rank variable.
     """
 
-    rank_sizes: ParsableDict[Rank, ParsesTo[int]] = ParsableDict()
+    rank_sizes: EvalableDict[Rank, EvalsTo[int]] = EvalableDict()
     """
     Rank sizes. This is a dictionary of rank names to sizes. Sizes are integers, and the
     rank's bounds are 0 <= rank < size. Accesses outside of these bounds are skipped.
@@ -647,7 +648,7 @@ class Workload(ParsableModel):
     between each instance.
     """
 
-    bits_per_value: ParsableDict[str, int | str] = ParsableDict()
+    bits_per_value: EvalableDict[str, int | str] = EvalableDict()
     """
     Bits per value for each tensor. The workload-level bits_per_value is overridden if
     bits_per_action is specified for any given tensor access. This is a dictionary of
@@ -859,22 +860,22 @@ class Workload(ParsableModel):
                     graph.add_edge(edge)
         return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
 
-    def _parse_expressions(
+    def _eval_expressions(
         self, symbol_table: dict[str, Any], *args, renames: Renames, **kwargs
     ):
-        bpv, _ = self.bits_per_value._parse_expressions(symbol_table, *args, **kwargs)
+        bpv, _ = self.bits_per_value._eval_expressions(symbol_table, *args, **kwargs)
         new_st = {
             **symbol_table,
             "spec_workload": self,
             "spec_renames": renames,
             "workload_bits_per_value": bpv,
         }
-        parsed, new_st = super()._parse_expressions(new_st, *args, **kwargs)
+        evaluated, new_st = super()._eval_expressions(new_st, *args, **kwargs)
 
         # Ensure bits_per_value is consistent across Einsums
         bits_per_value_per_einsum = {}
         bits_per_value = {}
-        for einsum in parsed.einsums:
+        for einsum in evaluated.einsums:
             cur_bpv = {t.name: t.bits_per_value for t in einsum.tensor_accesses}
             # Check for consistency across Einsums
             for prev_einsum, prev_bpv in bits_per_value_per_einsum.items():
@@ -891,7 +892,7 @@ class Workload(ParsableModel):
             bits_per_value_per_einsum[einsum.name] = cur_bpv
             bits_per_value.update(cur_bpv)
 
-        for einsum in parsed.einsums:
+        for einsum in evaluated.einsums:
             for t, bpv in bits_per_value.items():
                 einsum.renames[t].source.bits_per_value = bpv
 
@@ -905,9 +906,9 @@ class Workload(ParsableModel):
                     ):
                         src.bits_per_value = bits_per_value[next(iter(src))]
 
-        parsed._check_consistent_persistent()
+        evaluated._check_consistent_persistent()
 
-        return parsed, symbol_table
+        return evaluated, symbol_table
 
     def _get_ranks_that_share_indexing_rank_variables(self) -> dict[Rank, set[Rank]]:
         """

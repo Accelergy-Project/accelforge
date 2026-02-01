@@ -1,14 +1,14 @@
 import copy
 from typing import Annotated, Any, TypeAlias
 from accelforge.util._basetypes import (
-    ParsableList,
-    ParsableModel,
-    ParsesTo,
-    TryParseTo,
+    EvalableList,
+    EvalableModel,
+    EvalsTo,
+    TryEvalTo,
     _PostCall,
 )
 from accelforge._version import assert_version, __version__
-from accelforge.util._parse_expressions import ParseError
+from accelforge.util.exceptions import EvaluationError
 from accelforge.util._setexpressions import InvertibleSet
 
 TensorName: TypeAlias = str
@@ -16,8 +16,7 @@ RankVariable: TypeAlias = str
 Rank: TypeAlias = str
 EinsumName: TypeAlias = str
 
-
-class Rename(ParsableModel):
+class Rename(EvalableModel):
     """
     A rename of something into something else.
     """
@@ -25,34 +24,34 @@ class Rename(ParsableModel):
     name: str
     """ The name of the thing to be renamed. This is a string representing the new name."""
 
-    source: TryParseTo[InvertibleSet[TensorName | RankVariable]]
-    """ The source of the rename. This is a set expression that can be parsed, yielding
+    source: TryEvalTo[InvertibleSet[TensorName | RankVariable]]
+    """ The source of the rename. This is a set expression that can be evaluated, yielding
     a set that can be referenced by the new name. """
 
-    expected_count: ParsesTo[int] | None = None
+    expected_count: EvalsTo[int] | None = None
     """
     The expected count of the source set expression. If this is set, then the source
     expression must resolve to the expected count or an error will be raised. Otherwise,
     any count (including zero for an empty set) is allowed.
     """
 
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
-        parsed, symbol_table = super()._parse_expressions(symbol_table, *args, **kwargs)
-        expected_count = parsed.expected_count
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+        evaluated, symbol_table = super()._eval_expressions(symbol_table, *args, **kwargs)
+        expected_count = evaluated.expected_count
         if (
             expected_count is not None
-            and isinstance(parsed.source, InvertibleSet)
-            and len(parsed.source) != expected_count
+            and isinstance(evaluated.source, InvertibleSet)
+            and len(evaluated.source) != expected_count
         ):
-            parsed, symbol_table = super()._parse_expressions(
+            evaluated, symbol_table = super()._eval_expressions(
                 symbol_table, *args, **kwargs
             )
-            raise ParseError(
-                f"Expected count is {parsed.expected_count}, but got "
-                f"{len(parsed.source)}: {parsed.source}",
+            raise EvaluationError(
+                f"Expected count is {evaluated.expected_count}, but got "
+                f"{len(evaluated.source)}: {evaluated.source}",
                 source_field="source",
             )
-        return parsed, symbol_table
+        return evaluated, symbol_table
 
 
 def rename_list_factory(rename_list: list | dict) -> "RenameList":
@@ -69,28 +68,28 @@ def rename_list_factory(rename_list: list | dict) -> "RenameList":
     )
 
 
-class RenameList(ParsableList[Rename]):
+class RenameList(EvalableList[Rename]):
     """A list of renames."""
 
     def __dict__(self) -> dict[str, Any]:
         return {r.name: r.source for r in self}
 
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
 
         cur_symbol_table = symbol_table.copy()
 
         class PostCallRenameList(_PostCall[Rename]):
-            def __call__(self, field, value, parsed, symbol_table):
-                symbol_table[parsed.name] = parsed.source
-                return parsed
+            def __call__(self, field, value, evaluated, symbol_table):
+                symbol_table[evaluated.name] = evaluated.source
+                return evaluated
 
-        new, _ = super()._parse_expressions(
+        new, _ = super()._eval_expressions(
             cur_symbol_table, *args, **kwargs, post_calls=(PostCallRenameList(),)
         )
         return new, symbol_table
 
 
-class EinsumRename(ParsableModel):
+class EinsumRename(EvalableModel):
     """
     Renames for a single Einsum.
     """
@@ -100,14 +99,14 @@ class EinsumRename(ParsableModel):
     Einsums, unless overridden. Overriding is specific to a single name, so every rename
     in the default must be overridden independently. """
 
-    tensor_accesses: ParsableList[Rename] = ParsableList()
+    tensor_accesses: EvalableList[Rename] = EvalableList()
     """ Renames for the tensor accesses of this Einsum. This may be given either as a
     dictionary ``{new_name: source_set_expression}`` expressions, or as a list of
     dictionaries, each one having the structure ``{name: new_name, source:
     source_set_expression, expected_count: 1}``, where expected count is optional for
     each and may be set to any integer. """
 
-    rank_variables: ParsableList[Rename] = ParsableList()
+    rank_variables: EvalableList[Rename] = EvalableList()
     """ Renames for the rank variables of this Einsum. This may be given either as a
     dictionary ``{new_name: source_set_expression}`` expressions, or as a list of
     dictionaries, each one having the structure ``{name: new_name, source:
@@ -122,7 +121,7 @@ class EinsumRename(ParsableModel):
         super().__init__(*args, **kwargs)
 
 
-class Renames(ParsableModel):
+class Renames(EvalableModel):
     # version: Annotated[str, assert_version] = __version__
     einsums: list[EinsumRename] = list()
     """

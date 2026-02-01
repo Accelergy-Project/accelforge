@@ -32,10 +32,10 @@ class MultiEinsumPmappings:
         Einsums for which pmappings were generated (or attempted to be generated).
     flattened_arches:
         A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
-        contain the parsed and flattened architecture node for that particular Einsum
+        contain the evaluated and flattened architecture node for that particular Einsum
         and compute combination.
-    parsed_specs:
-        A dictionary of Einsum names to parsed specifications. These contain the parsed
+    evaluated_specs:
+        A dictionary of Einsum names to evaluated specifications. These contain the evaluated
         specification for that particular Einsum.
     """
 
@@ -48,7 +48,7 @@ class MultiEinsumPmappings:
         can_combine_multiple_runs: bool,
         einsums_with_pmappings_generated: set[EinsumName],
         flattened_arches: dict[EinsumName, list[arch.Leaf]],
-        parsed_specs: dict[EinsumName, Spec],
+        evaluated_specs: dict[EinsumName, Spec],
     ):
         self.spec: Spec = spec
         self.einsum2pmappings: dict[EinsumName, list[PmappingGroup]] = einsum2pmappings
@@ -61,7 +61,7 @@ class MultiEinsumPmappings:
         self.flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] = (
             flattened_arches
         )
-        self.parsed_specs: dict[EinsumName, Spec] = parsed_specs
+        self.evaluated_specs: dict[EinsumName, Spec] = evaluated_specs
 
     def __or__(self, other: "MultiEinsumPmappings"):
         if not self.can_combine_multiple_runs or not other.can_combine_multiple_runs:
@@ -78,7 +78,7 @@ class MultiEinsumPmappings:
         self.einsums_with_pmappings_generated.update(
             other.einsums_with_pmappings_generated
         )
-        self.parsed_specs.update(other.parsed_specs)
+        self.evaluated_specs.update(other.evaluated_specs)
         self.flattened_arches.update(other.flattened_arches)
         return self
 
@@ -103,7 +103,7 @@ class MultiEinsumPmappings:
             can_combine_multiple_runs=self.can_combine_multiple_runs,
             einsums_with_pmappings_generated=self.einsums_with_pmappings_generated,
             flattened_arches=self.flattened_arches,
-            parsed_specs=self.parsed_specs,
+            evaluated_specs=self.evaluated_specs,
         )
 
     def drop_einsums(self, *einsums_with_pmappings_generated: EinsumName):
@@ -136,7 +136,8 @@ class MultiEinsumPmappings:
 
         Returns
         -------
-        A dictionary of keep rates for each cause of pmapping removal.
+        dict[EinsumName, dict[str, float]] | dict[str, float]
+            A dictionary of keep rates for each cause of pmapping removal.
         """
         result = {}
         einsum2npmappings = self.n_total_pmappings(per_einsum=True)
@@ -176,7 +177,8 @@ class MultiEinsumPmappings:
 
         Returns
         -------
-        The number of total pmappings in the mapspace.
+        int | dict[EinsumName, int]
+            The number of total pmappings in the mapspace.
         """
         result = {
             einsum_name: sum(job.n_total_pmappings for job in jobs)
@@ -200,7 +202,8 @@ class MultiEinsumPmappings:
 
         Returns
         -------
-        The number of valid pmappings in the mapspace.
+        int | dict[EinsumName, int]
+            The number of valid pmappings in the mapspace.
         """
         result = {
             einsum_name: sum(job.n_valid_pmappings for job in jobs)
@@ -224,7 +227,8 @@ class MultiEinsumPmappings:
 
         Returns
         -------
-        The number of Pareto-optimal pmappings in the mapspace.
+        int | dict[EinsumName, int]
+            The number of Pareto-optimal pmappings in the mapspace.
         """
         result = {
             einsum_name: sum(len(p) for p in pmappings)
@@ -249,7 +253,8 @@ class MultiEinsumPmappings:
 
         Returns
         -------
-        The number of evaluated pmappings in the mapspace.
+        int | dict[EinsumName, int]
+            The number of evaluated pmappings in the mapspace.
         """
 
         result = {
@@ -268,7 +273,8 @@ class MultiEinsumPmappings:
 
         Returns
         -------
-        A string representation of the number of pmappings in the mapspace.
+        str
+            A string representation of the number of pmappings in the mapspace.
         """
         if "Total" in self.einsum2pmappings:
             raise ValueError(

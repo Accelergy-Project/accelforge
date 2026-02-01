@@ -37,9 +37,9 @@ from typing import (
 )
 
 from accelforge.util import _yaml
-from accelforge.util._parse_expressions import (
-    parse_expression,
-    ParseError,
+from accelforge.util._eval_expressions import (
+    eval_expression,
+    EvaluationError,
     LiteralString,
     is_literal_string,
 )
@@ -53,8 +53,8 @@ T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 K = TypeVar("K")
 V = TypeVar("V")
-PM = TypeVar("PM", bound="ParsableModel")
-PL = TypeVar("PL", bound="ParsableList[Any]")
+PM = TypeVar("PM", bound="EvalableModel")
+PL = TypeVar("PL", bound="EvalableList[Any]")
 
 Ts = TypeVarTuple("Ts")
 
@@ -127,7 +127,7 @@ class NoParse(Generic[T]):
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: Callable
     ) -> CoreSchema:
-        # Get the type parameter T from ParsesTo[T]
+        # Get the type parameter T from EvalsTo[T]
         type_args = get_args(source_type)
         if not type_args:
             raise TypeError(
@@ -148,17 +148,17 @@ class NoParse(Generic[T]):
         return target_schema
 
 
-class ParsesTo(Generic[T]):
-    """A type that parses to the specified type T.
+class EvalsTo(Generic[T]):
+    """A type that evaluates to the specified type T.
 
     Example:
-        class Example(ParsableModel):
-            a: ParsesTo[int]  # Will parse string expressions to integers
-            b: ParsesTo[str]  # Will parse string expressions to strings
+        class Example(EvalableModel):
+            a: EvalsTo[int]  # Will evaluate string expressions to integers
+            b: EvalsTo[str]  # Will evaluate string expressions to strings
             c: str  # Regular string, no parsing
     """
 
-    _class_name: str = "ParsesTo"
+    _class_name: str = "EvalsTo"
 
     def __init__(self, value: str):
         self._value = value
@@ -181,7 +181,7 @@ class ParsesTo(Generic[T]):
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: Callable
     ) -> CoreSchema:
-        # Get the type parameter T from ParsesTo[T]
+        # Get the type parameter T from EvalsTo[T]
         type_args = get_args(source_type)
         if not type_args:
             raise TypeError(
@@ -222,13 +222,13 @@ class ParsesTo(Generic[T]):
         )
 
 
-class TryParseTo(ParsesTo, Generic[T]):
+class TryEvalTo(EvalsTo, Generic[T]):
     """
-    A type that tries to parse to the specified type T. If the parsing fails, the value
-    is returned as a string.
+    A type that tries to evaluate to the specified type T. If the evaluation fails, the
+    value is returned as a string.
     """
 
-    _class_name: str = "TryParseTo"
+    _class_name: str = "TryEvalTo"
 
     def __init__(self, value: str):
         super().__init__(value)
@@ -237,7 +237,7 @@ class TryParseTo(ParsesTo, Generic[T]):
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: Callable
     ) -> CoreSchema:
-        # Get the type parameter T from ParsesTo[T]
+        # Get the type parameter T from EvalsTo[T]
         type_args = get_args(source_type)
         if not type_args:
             raise TypeError(
@@ -285,8 +285,8 @@ if TYPE_CHECKING:
         from typing_extensions import TypeAliasType
 
         _T_alias = TypeVar("_T_alias")
-        ParsesTo = TypeAliasType("ParsesTo", _T_alias, type_params=(_T_alias,))
-        TryParseTo = TypeAliasType("TryParseTo", _T_alias, type_params=(_T_alias,))
+        EvalsTo = TypeAliasType("EvalsTo", _T_alias, type_params=(_T_alias,))
+        TryEvalTo = TypeAliasType("TryEvalTo", _T_alias, type_params=(_T_alias,))
     except Exception:
         # Best-effort fallback for type checkers that don't support TypeAliasType
         pass
@@ -298,12 +298,12 @@ class _PostCall(Generic[T]):
 
 
 @_uninstantiable
-class Parsable(Generic[M]):
-    """An abstract base class for parsing. Parsables support the `_parse_expressions`
-    method, which is used to parse the object from a string.
+class Evalable(Generic[M]):
+    """An abstract base class for evaluating. Evalables support the `_eval_expressions`
+    method, which is used to evaluate the object from a string.
     """
 
-    def _parse_expressions(
+    def _eval_expressions(
         self, symbol_table: dict[str, Any] = None, **kwargs
     ) -> tuple[M, dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement this method")
@@ -314,21 +314,21 @@ class Parsable(Generic[M]):
     def get_validator(self, field: str) -> type:
         raise NotImplementedError("Subclasses must implement this method")
 
-    def _parse_expressions_final(
+    def _eval_expressions_final(
         self,
         symbol_table: dict[str, Any],
         order: tuple[str, ...],
         post_calls: tuple[_PostCall[T], ...],
         use_setattr: bool = True,
-        already_parsed: dict[str, Any] | None = None,
+        already_evaluated: dict[str, Any] | None = None,
         **kwargs,
-    ) -> tuple["Parsable", dict[str, Any]]:
-        self._parsed = True
+    ) -> tuple["Evalable", dict[str, Any]]:
+        self._evaluated = True
 
-        if already_parsed is None:
-            already_parsed = {}
+        if already_evaluated is None:
+            already_evaluated = {}
 
-        fields = [f for f in self.get_fields() if f not in already_parsed]
+        fields = [f for f in self.get_fields() if f not in already_evaluated]
 
         field_order = _get_parsable_field_order(
             order,
@@ -344,13 +344,13 @@ class Parsable(Generic[M]):
         prev_symbol_table = symbol_table.copy()
         # for k, v in symbol_table.items():
         #     if isinstance(k, str) and k.startswith("global_") and v is None:
-        #         raise ParseError(
+        #         raise EvaluationError(
         #             f"Global variable {k} is required. Please set it in "
         #             f"either the attributes or an outer scope. Try setting it with "
         #             f"Spec.variables.{k} = [value]."
         #         )
 
-        for field, value in already_parsed.items():
+        for field, value in already_evaluated.items():
             symbol_table[field] = value
             if use_setattr:
                 setattr(self, field, value)
@@ -361,15 +361,15 @@ class Parsable(Generic[M]):
         for field in field_order:
             value = getattr(self, field) if use_setattr else self[field]
             validator = self.get_validator(field)
-            parsed = _parse_field(field, value, validator, symbol_table, self, **kwargs)
+            evaluated = eval_field(field, value, validator, symbol_table, self, **kwargs)
 
             for post_call in post_calls:
-                parsed = post_call(field, value, parsed, symbol_table)
+                evaluated = post_call(field, value, evaluated, symbol_table)
             if use_setattr:
-                setattr(self, field, parsed)
+                setattr(self, field, evaluated)
             else:
-                self[field] = parsed
-            symbol_table[field] = parsed
+                self[field] = evaluated
+            symbol_table[field] = evaluated
 
         for k, v in prev_symbol_table.items():
             if (
@@ -377,7 +377,7 @@ class Parsable(Generic[M]):
                 and k.startswith("global_")
                 and symbol_table.get(k, None) != v
             ):
-                raise ParseError(
+                raise EvaluationError(
                     f"Global variable {k} is already set to {v} in the outer scope. "
                     f"It cannot be changed to {symbol_table[k]}."
                 )
@@ -430,18 +430,18 @@ class _FromYAMLAble:
         rval = {}
         key2file = {}
         extra_elems = []
-        to_parse = []
+        toeval = []
         for f in files:
             globbed = [x for x in glob.glob(f) if os.path.isfile(x)]
             if not globbed:
                 raise FileNotFoundError(f"Could not find file {f}")
             for g in globbed:
-                if any(os.path.samefile(g, x) for x in to_parse):
+                if any(os.path.samefile(g, x) for x in toeval):
                     logging.info('Ignoring duplicate file "%s" in yaml load', g)
                 else:
-                    to_parse.append(g)
+                    toeval.append(g)
 
-        for f in to_parse:
+        for f in toeval:
             if not (
                 f.endswith(".yaml") or f.endswith(".jinja") or f.endswith(".jinja2")
             ):
@@ -511,13 +511,13 @@ class _FromYAMLAble:
         return c
 
 
-def _parse_field(
+def eval_field(
     field,
     value,
     validator,
     symbol_table,
     parent,
-    must_parse_try_parse_to: bool = False,
+    musteval_tryeval_to: bool = False,
     must_copy: bool = True,
     **kwargs,
 ):
@@ -527,12 +527,12 @@ def _parse_field(
         return isinstance(x, type) and issubclass(x, cls)
 
     try:
-        # Get the origin type (ParsesTo or TryParseTo) and its arguments
+        # Get the origin type (EvalsTo or TryEvalTo) and its arguments
         origin = get_origin(validator)
-        if origin is ParsesTo or origin is TryParseTo:
+        if origin is EvalsTo or origin is TryEvalTo:
             try:
                 target_type = get_args(validator)[0]
-                parsed = value
+                evaluated = value
                 if isinstance(target_type, tuple) and any(
                     check_subclass(t, InvertibleSet) for t in target_type
                 ):
@@ -561,17 +561,17 @@ def _parse_field(
                             expected_space=expected_element_type,
                             location=field,
                         )
-                    except ParseError as e:
-                        if origin is TryParseTo and not must_parse_try_parse_to:
+                    except EvaluationError as e:
+                        if origin is TryEvalTo and not musteval_tryeval_to:
                             return LiteralString(value)
                         raise
                 elif is_literal_string(value):
-                    parsed = LiteralString(value)
+                    evaluated = LiteralString(value)
                 else:
-                    parsed = parse_expression(value, symbol_table)
+                    evaluated = eval_expression(value, symbol_table)
 
-                if must_copy and id(parsed) == id(value):
-                    parsed = copy.deepcopy(parsed)
+                if must_copy and id(evaluated) == id(value):
+                    evaluated = copy.deepcopy(evaluated)
 
                 # Get the target type from the validator
                 target_any = (
@@ -579,31 +579,31 @@ def _parse_field(
                     or isinstance(target_type, tuple)
                     and Any in target_type
                 )
-                if not target_any and not isinstance(parsed, target_type):
-                    raise ParseError(
-                        f'{value} parsed to "{parsed}" with type {type(parsed).__name__}.'
+                if not target_any and not isinstance(evaluated, target_type):
+                    raise EvaluationError(
+                        f'{value} evaluated to "{evaluated}" with type {type(evaluated).__name__}.'
                         f" Expected {target_type}.",
                     )
-            except ParseError as e:
-                if origin is TryParseTo and not must_parse_try_parse_to:
+            except EvaluationError as e:
+                if origin is TryEvalTo and not musteval_tryeval_to:
                     return LiteralString(value)
                 raise
         else:
-            parsed = value
+            evaluated = value
 
-        if isinstance(parsed, Parsable) and origin is not NoParse:
-            parsed, _ = parsed._parse_expressions(
+        if isinstance(evaluated, Evalable) and origin is not NoParse:
+            evaluated, _ = evaluated._eval_expressions(
                 symbol_table=symbol_table,
                 must_copy=must_copy,
-                must_parse_try_parse_to=must_parse_try_parse_to,
+                musteval_tryeval_to=musteval_tryeval_to,
                 **kwargs,
             )
-            return parsed
-        elif isinstance(parsed, str):
-            return LiteralString(parsed)
+            return evaluated
+        elif isinstance(evaluated, str):
+            return LiteralString(evaluated)
         else:
-            return parsed
-    except ParseError as e:
+            return evaluated
+    except EvaluationError as e:
         try:
             e.add_field(parent[field].name)
         except:
@@ -619,7 +619,7 @@ def _get_parsable_field_order(
 ) -> list[str]:
 
     def is_parsable(value, validator):
-        if isinstance(value, Parsable):
+        if isinstance(value, Evalable):
             return True
         return False
 
@@ -629,7 +629,7 @@ def _get_parsable_field_order(
     for field, value, validator in field_value_validator_triples:
         if field in order:
             continue
-        if get_origin(validator) is not ParsesTo and not is_parsable(value, validator):
+        if get_origin(validator) is not EvalsTo and not is_parsable(value, validator):
             order.append(field)
             continue
         to_sort.append((field, value))
@@ -638,7 +638,7 @@ def _get_parsable_field_order(
 
     dependencies = {field: set() for field, _ in to_sort}
     for other_field, other_value in to_sort:
-        # Can't have any dependencies if you're not going to be parsed
+        # Can't have any dependencies if you're not going to be evaluated
         if not isinstance(other_value, str) or is_literal_string(other_value):
             continue
         for field, value in to_sort:
@@ -651,7 +651,7 @@ def _get_parsable_field_order(
             (f, v) for f, v in to_sort if all(dep in order for dep in dependencies[f])
         ]
         if not can_add:
-            raise ParseError(
+            raise EvaluationError(
                 f"Circular dependency detected in expressions. "
                 f"Fields: {', '.join(t[0] for t in to_sort)}"
             )
@@ -751,10 +751,11 @@ class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):
 
 
 @_uninstantiable
-class ParsableModel(_OurBaseModel, Parsable["ParsableModel"]):
-    """A model that will parse any fields that are given to it. When parsing, submodels
-    will also be parsed if they support it. Parsing will parse any fields that are given
-    as strings and do not match the expected type.
+class EvalableModel(_OurBaseModel, Evalable["EvalableModel"]):
+    """
+    A model that will evaluate any fields that are given to it. When evaluating,
+    submodels will also be evaluated if they support it. Evaluating will evaluate any
+    fields that are given as strings and do not match the expected type.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -793,7 +794,7 @@ class ParsableModel(_OurBaseModel, Parsable["ParsableModel"]):
     def get_validator(self, field: str) -> Type:
         if field in self.__class__.model_fields:
             return self.__class__.model_fields[field].annotation
-        return ParsesTo[Any]
+        return EvalsTo[Any]
 
     def get_fields(self) -> list[str]:
         fields = set(self.__class__.model_fields.keys())
@@ -801,28 +802,28 @@ class ParsableModel(_OurBaseModel, Parsable["ParsableModel"]):
             fields.update(self.__pydantic_extra__.keys())
         return sorted(fields)
 
-    def _parse_expressions(
+    def _eval_expressions(
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
         post_calls: tuple[_PostCall[T], ...] = (),
-        already_parsed: dict[str, Any] | None = None,
+        already_evaluated: dict[str, Any] | None = None,
         **kwargs,
     ) -> tuple[Self, dict[str, Any]]:
         new = self.model_copy()
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
         kwargs = dict(kwargs)
-        return new._parse_expressions_final(
+        return new._eval_expressions_final(
             symbol_table,
             order,
             post_calls,
             use_setattr=True,
-            already_parsed=already_parsed,
+            already_evaluated=already_evaluated,
             **kwargs,
         )
 
 
-class NonParsableModel(_OurBaseModel):
+class NonEvalableModel(_OurBaseModel):
     """A model that will not parse any fields."""
 
     model_config = ConfigDict(extra="forbid")
@@ -832,32 +833,32 @@ class NonParsableModel(_OurBaseModel):
         return Any
 
 
-class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
+class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
     """
-    A list that can be parsed from a string. ParsableList[T] means that a given string
-    can be parsed, yielding a list of objects of type T.
+    A list that can be evaluated from a string. EvalableList[T] means that a given string
+    can be evaluated, yielding a list of objects of type T.
     """
 
     def get_validator(self, field: str) -> Type:
         return T
 
-    def _parse_expressions(
+    def _eval_expressions(
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
         post_calls: tuple[_PostCall[T], ...] = (),
-        already_parsed: dict[str, Any] | None = None,
+        already_evaluated: dict[str, Any] | None = None,
         **kwargs,
-    ) -> tuple["ParsableList[T]", dict[str, Any]]:
-        new = ParsableList[T](x for x in self)
+    ) -> tuple["EvalableList[T]", dict[str, Any]]:
+        new = EvalableList[T](x for x in self)
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
         order = order + tuple(x for x in range(len(new)) if x not in order)
-        return new._parse_expressions_final(
+        return new._eval_expressions_final(
             symbol_table,
             order,
             post_calls,
             use_setattr=False,
-            already_parsed=already_parsed,
+            already_evaluated=already_evaluated,
             **kwargs,
         )
 
@@ -868,11 +869,11 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: Callable
     ) -> CoreSchema:
-        # Get the type parameter T from ParsableList[T]
+        # Get the type parameter T from EvalableList[T]
         type_args = get_args(source_type)
         if not type_args:
             raise TypeError(
-                f"ParsableList must be used with a type parameter, e.g. ParsableList[int]"
+                f"EvalableList must be used with a type parameter, e.g. EvalableList[int]"
             )
         item_type = type_args[0]
 
@@ -892,7 +893,7 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
             return super().__getitem__(key)  # type: ignore
 
         elif isinstance(key, slice):
-            return ParsableList[T](super().__getitem__(key))
+            return EvalableList[T](super().__getitem__(key))
 
         elif isinstance(key, str):
             found = None
@@ -934,11 +935,11 @@ class ParsableList(list[T], Parsable["ParsableList[T]"], Generic[T]):
         return type(self)(x for x in self)
 
 
-class ParsableDict(
-    dict[K, V], Parsable["ParsableDict[K, V]"], Generic[K, V], _FromYAMLAble
+class EvalableDict(
+    dict[K, V], Evalable["EvalableDict[K, V]"], Generic[K, V], _FromYAMLAble
 ):
-    """A dictionary that can be parsed from a string. ParsableDict[K, V] means that a
-    given string can be parsed, yielding a dictionary with keys of type K and values of
+    """A dictionary that can be evaluated from a string. EvalableDict[K, V] means that a
+    given string can be evaluated, yielding a dictionary with keys of type K and values of
     type V.
     """
 
@@ -948,22 +949,22 @@ class ParsableDict(
     def get_fields(self) -> list[str]:
         return sorted(self.keys())
 
-    def _parse_expressions(
+    def _eval_expressions(
         self,
         symbol_table: dict[str, Any] = None,
         order: tuple[str, ...] = (),
         post_calls: tuple[_PostCall[V], ...] = (),
-        already_parsed: dict[str, Any] | None = None,
+        already_evaluated: dict[str, Any] | None = None,
         **kwargs,
-    ) -> tuple["ParsableDict[K, V]", dict[str, Any]]:
-        new = ParsableDict[K, V](self)
+    ) -> tuple["EvalableDict[K, V]", dict[str, Any]]:
+        new = EvalableDict[K, V](self)
         symbol_table = symbol_table.copy() if symbol_table is not None else {}
-        return new._parse_expressions_final(
+        return new._eval_expressions_final(
             symbol_table,
             order,
             post_calls,
             use_setattr=False,
-            already_parsed=already_parsed,
+            already_evaluated=already_evaluated,
             **kwargs,
         )
 
@@ -971,11 +972,11 @@ class ParsableDict(
     def __get_pydantic_core_schema__(
         cls, source_type: Any, handler: Callable
     ) -> CoreSchema:
-        # Get the type parameters K and V from ParsableDict[K, V]
+        # Get the type parameters K and V from EvalableDict[K, V]
         type_args = get_args(source_type)
         if len(type_args) != 2:
             raise TypeError(
-                f"ParsableDict must be used with two type parameters, e.g. ParsableDict[str, int]"
+                f"EvalableDict must be used with two type parameters, e.g. EvalableDict[str, int]"
             )
         key_type, value_type = type_args
 
@@ -995,7 +996,7 @@ class ParsableDict(
         return type(self)({k: v for k, v in self.items()})
 
 
-class ParseExtras(ParsableModel):
+class EvalExtras(EvalableModel):
     """
     A model that will parse any extra fields that are given to it.
     """
@@ -1004,5 +1005,5 @@ class ParseExtras(ParsableModel):
 
     def get_validator(self, field: str) -> type:
         if field not in self.__class__.model_fields:
-            return ParsesTo[Any]
+            return EvalsTo[Any]
         return self.__class__.model_fields[field].annotation

@@ -1,7 +1,7 @@
 YAML Parsing
 ============
 
-AccelForge inputs can be parsed from YAML files. YAML parsing occurs once when YAML
+AccelForge inputs can be evaluated from YAML files. YAML parsing occurs once when YAML
 files are loaded into Python.
 
 We use an extended version of the standard YAML syntax, including the ``<<`` and ``<<<``
@@ -116,7 +116,7 @@ Jinja2 Templating
 
 We also support Jinja2 templating. To substitute Jinja2 variables, the
 ``jinja_parse_data`` argument can be passed to the
-:py:meth:`~accelforge.util.basetypes.FromYAMLAble.from_yaml` function. Additional Jinja2
+:py:meth:`~accelforge.util._basetypes._FromYAMLAble.from_yaml` function. Additional Jinja2
 functions are also supported, including:
 
 - ``add_to_path(path)``: Add a path to the search path for the ``include`` function.
@@ -140,7 +140,7 @@ functions are also supported, including:
 
 The following is a Jinja2 template cheat sheet:
 
-.. code-block:: yaml
+.. code-block:: jinja
 
   # Add files to be included in the environment
   {{add_to_path('path/to/some/dir')}}

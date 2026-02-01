@@ -8,7 +8,7 @@ import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import MappingNode, Toll, TensorHolder
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.workload import TensorName, SymbolTable
-from accelforge.util._parse_expressions import MATH_FUNCS
+from accelforge.util._eval_expressions import MATH_FUNCS
 from accelforge.util._setexpressions import eval_set_expression
 
 from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_storages import (
@@ -71,10 +71,10 @@ def get_tensor_choices(
         required_order = get_tensor_order_constraint(nodes, symbol_table, tensors)
 
         symbol_table["arch_attributes"] = {}
-        cur_compute = compute._parse_expressions(
+        cur_compute = compute._eval_expressions(
             symbol_table,
             location=f"arch.{compute.name}",
-            must_parse_try_parse_to=True,
+            musteval_tryeval_to=True,
             must_copy=False,
         )[0]
         assert isinstance(cur_compute.enabled, bool)

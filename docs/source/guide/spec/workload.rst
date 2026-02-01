@@ -9,7 +9,7 @@ and a cascade of Einsums is a list of Einsums with data dependencies.
 
 The following is an example workload for three back-to-back matrix multiplications:
 
-.. include:: ../../../../examples/workloads/three_matmuls.yaml
+.. include:: ../../../../examples/workloads/three_matmuls_annotated.yaml
    :code: yaml
 
 The top-level Workload spec has the following attributes:

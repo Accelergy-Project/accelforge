@@ -12,29 +12,13 @@ import os
 import keyword
 
 
-class ParseError(Exception):
-    def __init__(self, *args, source_field: Any = None, message: str = None, **kwargs):
-        self._fields = [source_field] if source_field is not None else []
-        if message is None and len(args) > 0:
-            message = args[0]
-        self.message = message
-        super().__init__(*args, **kwargs)
-
-    def add_field(self, field: Any):
-        self._fields.append(field)
-
-    def __str__(self) -> str:
-        s = f"{self.__class__.__name__} in {'.'.join(str(field) for field in self._fields[::-1])}"
-        if self.message is not None:
-            s += f": {self.message}"
-        if getattr(self, "__notes__", None):
-            s += f"\n\n{'\n\n'.join(self.__notes__)}"
-        return s
+# Import EvaluationError from public exceptions module
+from accelforge.util.exceptions import EvaluationError
 
 
 class LiteralString(str):
     """
-    A string literal that should not be parsed.
+    A string literal that should not be evaluated.
     """
 
     pass
@@ -122,7 +106,7 @@ MATH_FUNCS = {
 }
 SCRIPT_FUNCS = {}
 
-parse_expressions_local = threading.local()
+eval_expressions_local = threading.local()
 
 
 class OwnedLock:
@@ -145,7 +129,7 @@ class OwnedLock:
         return self._owner == threading.get_ident() and self.lock.locked()
 
 
-parse_expression_thread_lock = OwnedLock()
+eval_expression_thread_lock = OwnedLock()
 
 
 class ParseExpressionsContext:
@@ -154,15 +138,15 @@ class ParseExpressionsContext:
         self.grabbed_lock = False
 
     def __enter__(self):
-        if parse_expression_thread_lock.is_locked_by_current_thread():
+        if eval_expression_thread_lock.is_locked_by_current_thread():
             return
-        parse_expression_thread_lock.acquire()
-        parse_expressions_local.script_funcs = {}
+        eval_expression_thread_lock.acquire()
+        eval_expressions_local.script_funcs = {}
         for p in self.spec.config.expression_custom_functions:
             if isinstance(p, str):
-                parse_expressions_local.script_funcs.update(load_functions_from_file(p))
+                eval_expressions_local.script_funcs.update(load_functions_from_file(p))
             elif isinstance(p, Callable):
-                parse_expressions_local.script_funcs[p.__name__] = p
+                eval_expressions_local.script_funcs[p.__name__] = p
             else:
                 raise ValueError(f"Invalid expression custom function: {p}")
         self.grabbed_lock = True
@@ -170,8 +154,8 @@ class ParseExpressionsContext:
     def __exit__(self, exc_type, exc_value, traceback):
         if self.grabbed_lock:
             self.spec = None
-            del parse_expressions_local.script_funcs
-            parse_expression_thread_lock.release()
+            del eval_expressions_local.script_funcs
+            eval_expression_thread_lock.release()
 
 
 def cast_to_numeric(x: Any) -> int | float | bool:
@@ -200,7 +184,7 @@ def infostr_log_cache(infostr: str):
     logging.info(infostr)
 
 
-def parse_expression(
+def eval_expression(
     expression, symbol_table, attr_name: str = None, location: str = None
 ):
     try:
@@ -219,8 +203,8 @@ def parse_expression(
 
     FUNCTION_BINDINGS = {}
     FUNCTION_BINDINGS["__builtins__"] = None  # Safety
-    if hasattr(parse_expressions_local, "script_funcs"):
-        FUNCTION_BINDINGS.update(parse_expressions_local.script_funcs)
+    if hasattr(eval_expressions_local, "script_funcs"):
+        FUNCTION_BINDINGS.update(eval_expressions_local.script_funcs)
     FUNCTION_BINDINGS.update(MATH_FUNCS)
 
     try:
@@ -252,7 +236,7 @@ def parse_expression(
         errstr += f"Symbol table: "
         bindings = {}
         bindings.update(symbol_table)
-        bindings.update(getattr(parse_expressions_local, "script_funcs", {}))
+        bindings.update(getattr(eval_expressions_local, "script_funcs", {}))
         extras = []
         for k, v in bindings.items():
             if isinstance(v, Callable):
@@ -286,7 +270,7 @@ def parse_expression(
         success = False
 
     if not success:
-        raise ParseError(errstr)
+        raise EvaluationError(errstr)
 
     infostr_log_cache(infostr)
 

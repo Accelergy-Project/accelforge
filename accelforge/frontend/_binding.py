@@ -9,10 +9,10 @@ from typing import Dict, Tuple
 from pydantic import StrictFloat
 import islpy as isl
 
-from accelforge.util._basetypes import ParsableDict, ParsableList, ParsableModel
+from accelforge.util._basetypes import EvalableDict, EvalableList, EvalableModel
 
 
-class Domain(ParsableModel):
+class Domain(EvalableModel):
     """
     Represents an architecture dangling reference of the binding.
     """
@@ -38,7 +38,7 @@ class LogicalDomain(Domain):
     """
 
     ranks: Tuple[str] = ("c", "h", "w", "p", "q", "r", "s")
-    l_dims: ParsableList[str]
+    l_dims: EvalableList[str]
 
     @property
     def isl_space(self) -> isl.Space:
@@ -57,7 +57,7 @@ class PhysicalDomain(Domain):
     The physical space is defined as the physical architecture dims.
     """
 
-    p_dims: ParsableList[str]
+    p_dims: EvalableList[str]
 
     @property
     def isl_space(self) -> isl.Space:
@@ -70,7 +70,7 @@ class PhysicalDomain(Domain):
         return isl.Set.universe(self.isl_space)
 
 
-class BindingNode(ParsableModel):
+class BindingNode(EvalableModel):
     """
     How a logical architecture is implemented on a particular physical architecture
     for a particular hardware level. Represents a injection relation between points
@@ -82,7 +82,7 @@ class BindingNode(ParsableModel):
 
     logical: LogicalDomain
     physical: PhysicalDomain
-    relations: ParsableDict[str, str]
+    relations: EvalableDict[str, str]
 
     @property
     def isl_relations(self) -> Dict[str, isl.Map]:
@@ -119,11 +119,11 @@ class BindingNode(ParsableModel):
         return isl_relations
 
 
-class Binding(ParsableModel):
+class Binding(EvalableModel):
     """
     A collection of binding nodes that fully specifies a relation between the
     logical and physical space.
     """
 
     # version: StrictFloat
-    nodes: ParsableList[BindingNode]
+    nodes: EvalableList[BindingNode]

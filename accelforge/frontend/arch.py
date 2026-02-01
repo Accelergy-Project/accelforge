@@ -27,17 +27,18 @@ from hwcomponents import (
 import pydot
 
 from accelforge.util._basetypes import (
-    ParsableModel,
-    ParsableList,
-    ParseExtras,
-    ParsesTo,
-    TryParseTo,
+    EvalableModel,
+    EvalableList,
+    EvalExtras,
+    EvalsTo,
+    TryEvalTo,
     _PostCall,
     _get_tag,
 )
 import numpy as np
 
-from accelforge.util._parse_expressions import ParseError, parse_expression
+from accelforge.util.exceptions import EvaluationError
+from accelforge.util._eval_expressions import eval_expression
 from accelforge.util._setexpressions import InvertibleSet, eval_set_expression
 from accelforge.frontend.renames import RankVariable, TensorName
 
@@ -47,16 +48,40 @@ from accelforge.util._basetypes import _uninstantiable
 from accelforge.util.parallel import _SVGJupyterRender
 from accelforge.util._visualization import _pydot_graph
 
+__all__ = [
+    "Action",
+    "Arch",
+    "ArchNode",
+    "ArchNodes",
+    "Branch",
+    "Comparison",
+    "Component",
+    "Compute",
+    "Fanout",
+    "Fork",
+    "Hierarchical",
+    "Leaf",
+    "Memory",
+    "Spatial",
+    "TensorHolder",
+    "TensorHolderAction",
+    "Tensors",
+    "Toll",
+]
+
 T = TypeVar("T", bound="ArchNode")
 
 
-class ArchNode(ParsableModel):
+class ArchNode(EvalableModel):
     """A node in the architecture."""
 
     def find(self, name: str) -> "Leaf":
-        """
-        Finds a `Leaf` node with the given name.
-        :raises ValueError: If the `Leaf` node with the given name is not found.
+        """Finds a `Leaf` node with the given name.
+
+        Raises
+        ------
+        ValueError
+            If the `Leaf` node with the given name is not found.
         """
         if isinstance(self, Leaf) and getattr(self, "name", None) == name:
             return self
@@ -101,28 +126,28 @@ class ArchNode(ParsableModel):
         return [self._render_node()]
 
 
-class ArchNodes(ParsableList):
-    """A list of `ArchNode`s."""
+class ArchNodes(EvalableList):
+    """ A list of ArchNodes. """
 
     def __repr__(self):
         return f"{self.__class__.__name__}({super().__repr__()})"
 
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         class PostCallArchNode(_PostCall):
-            def __call__(self, field, value, parsed, symbol_table):
-                if isinstance(parsed, Leaf):
-                    symbol_table[parsed.name] = parsed
-                return parsed
+            def __call__(self, field, value, evaluated, symbol_table):
+                if isinstance(evaluated, Leaf):
+                    symbol_table[evaluated.name] = evaluated
+                return evaluated
 
         for i, node in enumerate(self):
             symbol_table[i] = node
 
-        return super()._parse_expressions(
+        return super()._eval_expressions(
             symbol_table, *args, **kwargs, post_calls=(PostCallArchNode(),)
         )
 
 
-class Comparison(ParsableModel):
+class Comparison(EvalableModel):
     """
     A comparison between a rank variable's bound and a value. A comparison is performed
     for each rank variable.
@@ -135,7 +160,7 @@ class Comparison(ParsableModel):
     mapping is only valid if A0 <= 10 and B0 <= 10.
     """
 
-    expression: TryParseTo[InvertibleSet[RankVariable]]
+    expression: TryEvalTo[InvertibleSet[RankVariable]]
     """ The expression to compare. This expression should resolve to a set of rank
     variables. A comparison is performed for each rank variable independently, and the
     result passes if and only if all comparisons pass. The LHS of each comparison is the
@@ -156,32 +181,18 @@ class Comparison(ParsableModel):
     - product> (product of all loop bounds is greater than)
     """
 
-    value: ParsesTo[int]
+    value: EvalsTo[int]
     """ The value to compare against. """
 
     _str_repr: str = None
     """ A string to print for this comparison when __str__ is called. If None, a default
     string will be used. """
 
-    def _parse_expressions(self, *args, **kwargs):
-        result, symbol_table = super()._parse_expressions(*args, **kwargs)
+    def _eval_expressions(self, *args, **kwargs):
+        result, symbol_table = super()._eval_expressions(*args, **kwargs)
         if len(result.expression) == 1 and "product" in result.operator:
             result.operator = result.operator.replace("product", "")
         return result, symbol_table
-
-    # def _parse(self, symbol_table: dict[str, Any], location: str):
-    #     # if len(self) != 3:
-    #     #     raise ValueError(f"Comparison can only have 3 elements. got {len(self)}")
-    #     new = type(self)(
-    #         expression=eval_set_expression(
-    #             self.expression, symbol_table, "rank_variables", location
-    #         ),
-    #         operator=self.operator,
-    #         value=self.value,
-    #     )
-    #     if len(new.expression) == 1 and "product" in new.operator:
-    #         new.operator = new.operator.replace("product", "")
-    #     return new
 
     def _constrained_to_one(self) -> bool:
         return self.value == 1 and self.operator in [
@@ -247,7 +258,7 @@ class Comparison(ParsableModel):
         return f"({sorted(self.expression)}) {self.operator} ({self.value})"
 
 
-class Spatial(ParsableModel):
+class Spatial(EvalableModel):
     """A one-dimensional spatial fanout in the architecture."""
 
     name: str
@@ -255,14 +266,14 @@ class Spatial(ParsableModel):
     The name of the dimension over which this spatial fanout is occurring (e.g., X or Y).
     """
 
-    fanout: ParsesTo[int]
+    fanout: EvalsTo[int]
     """ The size of this fanout. """
 
-    may_reuse: TryParseTo[InvertibleSet[TensorName]] = "All"
+    may_reuse: TryEvalTo[InvertibleSet[TensorName]] = "All"
     """ The tensors that can be reused spatially across instances of this fanout. This
-    expression will be parsed for each mapping template. """
+    expression will be evaluated for each mapping template. """
 
-    loop_bounds: ParsableList[Comparison] = ParsableList()
+    loop_bounds: EvalableList[Comparison] = EvalableList()
     """ Bounds for loops over this dimension. This is a list of :class:`~.Comparison`
     objects, all of which must be satisfied by the loops to which this constraint
     applies.
@@ -277,7 +288,7 @@ class Spatial(ParsableModel):
     return the highest-usage mappings.
     """
 
-    reuse: TryParseTo[InvertibleSet[TensorName]] = "Nothing"
+    reuse: TryEvalTo[InvertibleSet[TensorName]] = "Nothing"
     """ A set of tensors or a set expression representing tensors that must be reused
     across spatial iterations. Spatial loops may only be placed that reuse ALL tensors
     given here.
@@ -286,50 +297,20 @@ class Spatial(ParsableModel):
     appear in another loop bound constraint.
     """
 
-    usage_scale: ParsesTo[int | float | str] = 1
+    usage_scale: EvalsTo[int | float | str] = 1
     """
     This factor scales the usage in this dimension. For example, if usage_scale is 2 and
     10/20 spatial instances are used, then the usage will be scaled to 20/20.
     """
 
-    power_gateable: ParsesTo[bool] = False
+    power_gateable: EvalsTo[bool] = False
     """
     Whether this spatial fanout has power gating. If True, then unused spatial instances
     will be power gated if not used by a particular Einsum.
     """
 
-    # def _parse(self, symbol_table: dict[str, Any], location: str):
-    #     return type(self)(
-    #         name=self.name,
-    #         fanout=self.fanout,
-    #         may_reuse=set(
-    #             eval_set_expression(
-    #                 self.may_reuse,
-    #                 symbol_table,
-    #                 expected_space=TensorName,
-    #                 location=location + ".may_reuse",
-    #             )
-    #         ),
-    #         loop_bounds=[
-    #             x._parse(symbol_table, location + ".loop_bounds")
-    #             for x in self.loop_bounds
-    #         ],
-    #         min_usage=parse_expression(
-    #             self.min_usage,
-    #             symbol_table,
-    #             "min_usage",
-    #             location + ".min_usage",
-    #         ),
-    #         reuse=eval_set_expression(
-    #             self.reuse,
-    #             symbol_table,
-    #             "tensors",
-    #             location + ".reuse",
-    #         ),
-    #     )
 
-
-class Action(ParsableModel):
+class Action(EvalableModel):
     """
     An action that may be performed by a component.
     """
@@ -337,31 +318,31 @@ class Action(ParsableModel):
     name: str
     """ The name of this action. """
 
-    energy: ParsesTo[int | float | None] = None
+    energy: EvalsTo[int | float | None] = None
     """
     Dynamic energy of this action. Per-action energy is multiplied by the component's
     energy_scale and the action's energy_scale.
     """
 
-    energy_scale: ParsesTo[int | float] = 1
+    energy_scale: EvalsTo[int | float] = 1
     """
     The scale factor for dynamic energy of this action. Multiplies this action's energy
     by this value.
     """
 
-    latency: ParsesTo[int | float | None] = None
+    latency: EvalsTo[int | float | None] = None
     """
     Latency of this action. Per-action latency is multiplied by the component's
     latency_scale and the action's latency_scale.
     """
 
-    latency_scale: ParsesTo[int | float] = 1
+    latency_scale: EvalsTo[int | float] = 1
     """
     The scale factor for dynamic latency of this action. Multiplies this action's
     latency by this value.
     """
 
-    extra_attributes_for_component_model: ParseExtras = ParseExtras()
+    extra_attributes_for_component_model: EvalExtras = EvalExtras()
     """ Extra attributes to pass to the component model. In addition to all attributes
     of this action, any extra attributes will be passed to the component model as
     arguments to the component model's action. This can be used to define attributes
@@ -376,7 +357,7 @@ class Action(ParsableModel):
 
 
 class TensorHolderAction(Action):
-    bits_per_action: ParsesTo[int | float] = (
+    bits_per_action: EvalsTo[int | float] = (
         "1 if bits_per_action is None else bits_per_action"
     )
     """ The number of bits accessed in this action. For example, setting bits_per_action
@@ -391,7 +372,7 @@ class Leaf(ArchNode):
     name: str
     """ The name of this `Leaf`. """
 
-    spatial: ParsableList[Spatial] = ParsableList()
+    spatial: EvalableList[Spatial] = EvalableList()
     """
     The spatial fanouts of this `Leaf`.
 
@@ -436,14 +417,14 @@ def _set_component_model_cache(key: tuple, value: "Component"):
     _COMPONENT_MODEL_CACHE[key] = value
 
 
-class _ExtraAttrs(ParseExtras):
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
-        if getattr(self, "_parsed", False):
-            return super()._parse_expressions(symbol_table, *args, **kwargs)
+class _ExtraAttrs(EvalExtras):
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+        if getattr(self, "_evaluated", False):
+            return super()._eval_expressions(symbol_table, *args, **kwargs)
 
         orig_symbol_table = dict(symbol_table)
         if "arch_extra_attributes_for_all_component_models" not in orig_symbol_table:
-            raise ParseError(
+            raise EvaluationError(
                 "arch_extra_attributes_for_all_component_models is not set in the symbol "
                 "table. Was parsing called from the architecture on top?"
             )
@@ -454,7 +435,7 @@ class _ExtraAttrs(ParseExtras):
             if getattr(self, k, None) is None:
                 setattr(self, k, v)
 
-        return super()._parse_expressions(symbol_table, *args, **kwargs)
+        return super()._eval_expressions(symbol_table, *args, **kwargs)
 
 
 @_uninstantiable
@@ -476,56 +457,56 @@ class Component(Leaf):
     component_modeling_log: list[str] = []
     """ A log of the energy and area calculations for this `Component`. """
 
-    actions: ParsableList[Action]
+    actions: EvalableList[Action]
     """ The actions that this `Component` can perform. """
 
-    enabled: TryParseTo[bool] = True
+    enabled: TryEvalTo[bool] = True
     """ Whether this component is enabled. If the expression resolves to False, then
-    the component is disabled. This is parsed per-pmapping-template, so it is a function
+    the component is disabled. This is evaluated per-pmapping-template, so it is a function
     of the tensors in the current Einsum. For example, you may say `len(All) >= 3` and
     the component will only be enabled with Einsums with three or more tensors.
     """
 
-    area: ParsesTo[int | float | None] = None
+    area: EvalsTo[int | float | None] = None
     """
     The area of a single instance of this component in m^2. If set, area calculations
     will use this value.
     """
 
-    total_area: ParsesTo[int | float | None] = None
+    total_area: EvalsTo[int | float | None] = None
     """
     The total area of all instances of this component in m^2. Do not set this value. It
     is calculated when the architecture's area is calculated.
     """
 
-    area_scale: ParsesTo[int | float] = 1
+    area_scale: EvalsTo[int | float] = 1
     """
     The scale factor for the area of this comxponent. This is used to scale the area of
     this component. For example, if the area is 1 m^2 and the scale factor is 2, then
     the area is 2 m^2.
     """
 
-    leak_power: ParsesTo[int | float | None] = None
+    leak_power: EvalsTo[int | float | None] = None
     """
     The leak power of a single instance of this component in W. If set, leak power
     calculations will use this value.
     """
 
-    total_leak_power: ParsesTo[int | float | None] = None
+    total_leak_power: EvalsTo[int | float | None] = None
     """
     The total leak power of all instances of this component in W. Do not set this value.
     It is calculated when the architecture's leak power is calculated. If instances are
     power gated, actual leak power may be less than this value.
     """
 
-    leak_power_scale: ParsesTo[int | float] = 1
+    leak_power_scale: EvalsTo[int | float] = 1
     """
     The scale factor for the leak power of this component. This is used to scale the
     leak power of this component. For example, if the leak power is 1 W and the scale
     factor is 2, then the leak power is 2 W.
     """
 
-    energy_scale: ParsesTo[int | float] = 1
+    energy_scale: EvalsTo[int | float] = 1
     """
     The scale factor for dynamic energy of this component. For each action, multiplies
     this action's energy. Multiplies the calculated energy of each action.
@@ -548,21 +529,21 @@ class Component(Leaf):
     - `action2latency`: A dictionary of action names to their latency.
 
     Additionally, all component attributes are availble as variables, and all other
-    functions generally available in parsing. Note this expression is parsed after other
-    component attributes are parsed.
+    functions generally available in parsing. Note this expression is evaluated after other
+    component attributes are evaluated.
 
     For example, the following expression calculates latency assuming that each read or
     write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.
     """
 
-    latency_scale: ParsesTo[int | float] = 1
+    latency_scale: EvalsTo[int | float] = 1
     """
     The scale factor for the latency of this component. This is used to scale the
     latency of this component. For example, if the latency is 1 ns and the scale factor
     is 2, then the latency is 2 ns. Multiplies the calculated latency of each action.
     """
 
-    n_parallel_instances: ParsesTo[int | float] = 1
+    n_parallel_instances: EvalsTo[int | float] = 1
     """
     The number of parallel instances of this component. Increasing parallel instances
     will proportionally increase area and leakage, while reducing latency (unless
@@ -577,29 +558,32 @@ class Component(Leaf):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def _update_actions(self, new_actions: ParsableList[Action]):
+    def _update_actions(self, new_actions: EvalableList[Action]):
         has_actions = set(x.name for x in self.actions)
         for action in new_actions:
             if action.name not in has_actions:
                 self.actions.append(action)
 
     def get_component_class(self, trying_to_calculate: str = None) -> str:
-        """Returns the class of this `Component`.
+        """Returns the class of this Component.
 
         Parameters
         ----------
-        trying_to_parse : str, optional
+        trying_toeval : str, optional
             What was trying to be calculated using this component. If provided, the
             error message will be more specific.
 
-        :raises ParseError: If the `component_class` is not set.
+        Raises
+        ------
+        EvaluationError
+            If the component_class is not set.
         """
         extra_info = ""
         if trying_to_calculate is not None:
             extra_info = f" Occurred while trying to calculate {trying_to_calculate}."
 
         if self.component_class is None:
-            raise ParseError(
+            raise EvaluationError(
                 f"component_class must be set to a valid string. "
                 f"Got {self.component_class}. This occurred because the model tried to "
                 "talk to hwcomponents, but was missing necessary attributes. If you do "
@@ -632,7 +616,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        component_models : list[ComponentModel] | None
+        component_models : list[hwcomponents.ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -683,7 +667,7 @@ class Component(Leaf):
         attribute to find the model and populate the ``component_model`` attribute.
 
         Note that these methods will be called by the Spec when calculating energy and
-        area. If you call them yourself, note that string expressions may not be parsed
+        area. If you call them yourself, note that string expressions may not be evaluated
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
         directly. Otherwise, you can call the
@@ -692,7 +676,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        component_models : list[ComponentModel] | None
+        component_models : list[hwcomponents.ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -762,7 +746,7 @@ class Component(Leaf):
         attribute to find the model and populate the ``component_model`` attribute.
 
         Note that these methods will be called by the Spec when calculating energy and
-        area. If you call them yourself, note that string expressions may not be parsed
+        area. If you call them yourself, note that string expressions may not be evaluated
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
         directly. Otherwise, you can call the
@@ -771,7 +755,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        component_models : list[ComponentModel] | None
+        component_models : list[hwcomponents.ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -828,7 +812,7 @@ class Component(Leaf):
         attribute to find the model and populate the ``component_model`` attribute.
 
         Note that these methods will be called by the Spec when calculating energy and
-        area. If you call them yourself, note that string expressions may not be parsed
+        area. If you call them yourself, note that string expressions may not be evaluated
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
         directly. Otherwise, you can call the
@@ -837,7 +821,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        component_models : list[ComponentModel] | None
+        component_models : list[hwcomponents.ComponentModel] | None
             The models to use for area calculation. If not provided, the models will be
             found with `hwcomponents.get_models()`.
         in_place : bool
@@ -889,7 +873,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        component_models : list[ComponentModel] | None
+        component_models : list[hwcomponents.ComponentModel] | None
             The models to use for latency calculation. If not provided, the models will be
             found with `hwcomponents.get_models()`.
         in_place : bool
@@ -968,7 +952,7 @@ class Component(Leaf):
         Extends the ``component_modeling_log`` field with log messages.
 
         Note that these methods will be called by the Spec when calculating energy and
-        area. If you call them yourself, note that string expressions may not be parsed
+        area. If you call them yourself, note that string expressions may not be evaluated
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
         directly. Otherwise, you can call the
@@ -977,7 +961,7 @@ class Component(Leaf):
 
         Parameters
         ----------
-        component_models : list[ComponentModel] | None
+        component_models : list[hwcomponents.ComponentModel] | None
             The models to use for energy calculation. If not provided, the models will
             be found with `hwcomponents.get_models()`.
         in_place : bool
@@ -1036,7 +1020,7 @@ class Component(Leaf):
         return self
 
 
-MEMORY_ACTIONS = ParsableList[TensorHolderAction](
+MEMORY_ACTIONS = EvalableList[TensorHolderAction](
     [
         TensorHolderAction(name="read"),
         TensorHolderAction(name="write"),
@@ -1044,31 +1028,31 @@ MEMORY_ACTIONS = ParsableList[TensorHolderAction](
 )
 
 
-PROCESSING_STAGE_ACTIONS = ParsableList[TensorHolderAction](
+PROCESSING_STAGE_ACTIONS = EvalableList[TensorHolderAction](
     [
         TensorHolderAction(name="read"),
     ]
 )
 
-COMPUTE_ACTIONS = ParsableList(
+COMPUTE_ACTIONS = EvalableList(
     [
         Action(name="compute"),
     ]
 )
 
 
-def _parse_tensor2bits(
-    to_parse: dict[str, Any], location: str, symbol_table: dict[str, Any]
+def _eval_tensor2bits(
+    toeval: dict[str, Any], location: str, symbol_table: dict[str, Any]
 ) -> dict[str, Any]:
     result = {}
-    for key, value in to_parse.items():
-        key_parsed = eval_set_expression(
+    for key, value in toeval.items():
+        key_evaluated = eval_set_expression(
             expression=key,
             symbol_table=symbol_table,
             expected_space=TensorName,
             location=f"{location} key {key}",
         ).instance
-        result[key_parsed] = parse_expression(
+        result[key_evaluated] = eval_expression(
             expression=value,
             symbol_table=symbol_table,
             attr_name=key,
@@ -1080,22 +1064,22 @@ def _parse_tensor2bits(
         all -= k
 
     if all:
-        raise ParseError(f"Missing bits_per_value_scale for {all}")
+        raise EvaluationError(f"Missing bits_per_value_scale for {all}")
 
     for a, b in itertools.combinations(result.keys(), 2):
         if a & b:
-            raise ParseError(f"bits_per_value_scale for {a} and {b} overlap")
+            raise EvaluationError(f"bits_per_value_scale for {a} and {b} overlap")
 
     return {k2: v for k, v in result.items() for k2 in k}
 
 
-class Tensors(ParsableModel):
+class Tensors(EvalableModel):
     """
     Fields that control which tensor(s) are kept in a :py:class:`~.TensorHolder` and in
     what order their nodes may appear in the mapping.
     """
 
-    keep: TryParseTo[InvertibleSet[TensorName]] = "<Defaults to Nothing>"
+    keep: TryEvalTo[InvertibleSet[TensorName]] = "<Defaults to Nothing>"
     """
     A set expression describing which tensors must be kept in this
     :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then all
@@ -1103,7 +1087,7 @@ class Tensors(ParsableModel):
     ``keep``.
     """
 
-    may_keep: TryParseTo[InvertibleSet[TensorName]] = (
+    may_keep: TryEvalTo[InvertibleSet[TensorName]] = (
         "<Nothing if keep is defined, else All>"
     )
     """
@@ -1113,21 +1097,21 @@ class Tensors(ParsableModel):
     be kept.
     """
 
-    back: TryParseTo[InvertibleSet[TensorName]] = "Nothing"
+    back: TryEvalTo[InvertibleSet[TensorName]] = "Nothing"
     """
     A set expression describing which tensors must be backed by this
     :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then no
     tensors must be backed.
     """
 
-    tile_shape: ParsableList[Comparison] = []
+    tile_shape: EvalableList[Comparison] = []
     """
     The tile shape for each rank variable. This is given as a list of
     :class:`~.Comparison` objects, where each comparison must evaluate to True for a
     valid mapping.
     """
 
-    no_refetch_from_above: TryParseTo[InvertibleSet[TensorName]] = "~All"
+    no_refetch_from_above: TryEvalTo[InvertibleSet[TensorName]] = "~All"
     """
     The tensors that are not allowed to be refetched from above. This is given as a set
     of :class:`~.TensorName` objects or a set expression that resolves to them. These
@@ -1136,9 +1120,9 @@ class Tensors(ParsableModel):
     pieces (if they do not cause re-fetches of any piece).
     """
 
-    tensor_order_options: ParsableList[
-        ParsableList[TryParseTo[InvertibleSet[TensorName]]]
-    ] = ParsableList()
+    tensor_order_options: EvalableList[
+        EvalableList[TryEvalTo[InvertibleSet[TensorName]]]
+    ] = EvalableList()
     """
     Options for the order of tensor storage nodes in the mapping. This is given as a
     list-of-lists-of-sets. Each list-of-sets is a valid order of tensor storage nodes.
@@ -1163,24 +1147,24 @@ class Tensors(ParsableModel):
     but only applies to this tensor holder.
     """
 
-    def _parse_expressions(self, *args, **kwargs):
+    def _eval_expressions(self, *args, **kwargs):
         self = copy.copy(self)
         keep, may_keep = self.keep, self.may_keep
         if may_keep == "<Nothing if keep is defined, else All>":
             self.may_keep = "All" if keep == "<Defaults to Nothing>" else "~All"
         if keep == "<Defaults to Nothing>":
             self.keep = "Nothing"
-        parsed, symbol_table = super(self.__class__, self)._parse_expressions(
+        evaluated, symbol_table = super(self.__class__, self)._eval_expressions(
             *args, **kwargs
         )
-        if isinstance(parsed.back, InvertibleSet):
-            if isinstance(parsed.keep, InvertibleSet):
-                parsed.keep |= parsed.back
-            if isinstance(parsed.may_keep, InvertibleSet):
-                parsed.may_keep -= parsed.back
+        if isinstance(evaluated.back, InvertibleSet):
+            if isinstance(evaluated.keep, InvertibleSet):
+                evaluated.keep |= evaluated.back
+            if isinstance(evaluated.may_keep, InvertibleSet):
+                evaluated.may_keep -= evaluated.back
 
         # Assert that there are no intersecting sets
-        for order in parsed.tensor_order_options:
+        for order in evaluated.tensor_order_options:
             for i, s0 in enumerate(order):
                 for j, s1 in enumerate(order):
                     if i == j:
@@ -1194,82 +1178,15 @@ class Tensors(ParsableModel):
                             f"Intersecting entries in tensor_order_options: {s0} and {s1}"
                         )
 
-        return parsed, symbol_table
-
-    # def _parse_tensor_order_options(
-    #     self, symbol_table: dict[str, Any], location: str
-    # ) -> "Tensors":
-    #     result = type(self)(
-    #         tensor_order_options=[
-    #             [
-    #                 eval_set_expression(x, symbol_table, "tensors", location)
-    #                 for x in order_choice
-    #             ]
-    #             for order_choice in self.tensor_order_options
-    #         ],
-    #     )
-    #     # Assert that there are no intersecting sets
-    #     for order in result.tensor_order_options:
-    #         for i, s0 in enumerate(order):
-    #             for j, s1 in enumerate(order):
-    #                 if i == j:
-    #                     continue
-    #                 if s0 & s1:
-    #                     raise ValueError(
-    #                         f"Intersecting entries in dataflow constraint: {s0} and {s1}"
-    #                     )
-    #     return result
-
-    # def _parse_keep(self, symbol_table: dict[str, Any], location: str) -> "Tensors":
-    #     keep, may_keep = self.keep, self.may_keep
-    #     if may_keep == "<Nothing if keep is defined, else All>":
-    #         may_keep = "All" if keep == "<Defaults to Nothing>" else "~All"
-    #     if keep == "<Defaults to Nothing>":
-    #         keep = "Nothing"
-
-    #     may_keep_first = isinstance(keep, str) and re.findall(r"\bmay_keep\b", keep)
-    #     keep_first = isinstance(may_keep, str) and re.findall(r"\bkeep\b", may_keep)
-    #     if keep_first and may_keep_first:
-    #         raise ValueError(
-    #             f"Keep and may_keep reference each other: " f"{keep} and {may_keep}"
-    #         )
-
-    #     if may_keep_first:
-    #         may_keep = eval_set_expression(may_keep, symbol_table, "tensors", location)
-    #         symbol_table = copy.copy(symbol_table)
-    #         symbol_table["may_keep"] = may_keep
-    #         keep = eval_set_expression(keep, symbol_table, "tensors", location)
-    #         return type(self)(keep=keep, may_keep=may_keep)
-    #     else:
-    #         keep = eval_set_expression(keep, symbol_table, "tensors", location)
-    #         symbol_table = copy.copy(symbol_table)
-    #         symbol_table["keep"] = keep
-    #         may_keep = eval_set_expression(may_keep, symbol_table, "tensors", location)
-    #         return type(self)(keep=keep, may_keep=may_keep)
-
-    # def _parse_non_keep(self, symbol_table: dict[str, Any], location: str) -> "Tensors":
-    #     return type(self)(
-    #         tile_shape=[x._parse(symbol_table, location) for x in self.tile_shape],
-    #         no_refetch_from_above=eval_set_expression(
-    #             self.no_refetch_from_above, symbol_table, "tensors", location
-    #         ),
-    #         force_memory_hierarchy_order=parse_expression(
-    #             self.force_memory_hierarchy_order,
-    #             symbol_table,
-    #             "force_memory_hierarchy_order",
-    #             location,
-    #         ),
-    #     )
+        return evaluated, symbol_table
 
 
 @_uninstantiable
 class TensorHolder(Component):
-    """
-    A `TensorHolder` is a component that holds tensors. These are usually `Memory`s,
-    but can also be `Toll`s.
-    """
+    """ A TensorHolder is a component that holds tensors. These are usually Memories,
+    but can also be Tolls. """
 
-    actions: ParsableList[TensorHolderAction] = MEMORY_ACTIONS
+    actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `TensorHolder` can perform. """
 
     tensors: Tensors = Tensors()
@@ -1278,14 +1195,14 @@ class TensorHolder(Component):
     order their nodes may appear in the mapping.
     """
 
-    bits_per_value_scale: ParsesTo[dict] = {"All": 1}
+    bits_per_value_scale: EvalsTo[dict] = {"All": 1}
     """
     A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
-    this is a dictionary, keys in the dictionary are parsed as expressions and may
+    this is a dictionary, keys in the dictionary are evaluated as expressions and may
     reference one or more tensors.
     """
 
-    bits_per_action: ParsesTo[int | float | None] = None
+    bits_per_action: EvalsTo[int | float | None] = None
     """
     The number of bits accessed in each of this component's actions. Overridden by
     bits_per_action in any action of this component. If set here, acts as a default
@@ -1295,23 +1212,23 @@ class TensorHolder(Component):
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(MEMORY_ACTIONS)
 
-    def _parse_expressions(self, *args, **kwargs):
+    def _eval_expressions(self, *args, **kwargs):
         # Sometimes the same component object may appear in the mapping and the
         # architecture, in which case we don't want parsing to happen twice.
-        if getattr(self, "_parsed", False):
-            return super()._parse_expressions(*args, **kwargs)
+        if getattr(self, "_evaluated", False):
+            return super()._eval_expressions(*args, **kwargs)
 
         class MyPostCall(_PostCall):
-            def __call__(self, field, value, parsed, symbol_table):
+            def __call__(self, field, value, evaluated, symbol_table):
                 if field == "bits_per_value_scale":
-                    parsed = _parse_tensor2bits(
-                        parsed,
+                    evaluated = _eval_tensor2bits(
+                        evaluated,
                         location="bits_per_value_scale",
                         symbol_table=symbol_table,
                     )
-                return parsed
+                return evaluated
 
-        return super()._parse_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
+        return super()._eval_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
 
 
 class Fanout(Leaf):
@@ -1327,10 +1244,10 @@ class Memory(TensorHolder):
     """A `Memory` is a `TensorHolder` that stores data over time, allowing for temporal
     reuse."""
 
-    size: ParsesTo[int | float]
+    size: EvalsTo[int | float]
     """ The size of this `Memory` in bits. """
 
-    actions: ParsableList[TensorHolderAction] = MEMORY_ACTIONS
+    actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
 
     def _render_node_shape(self) -> str:
@@ -1372,7 +1289,7 @@ class Toll(TensorHolder):
     movements are assumed to avoid this Toll.
     """
 
-    actions: ParsableList[TensorHolderAction] = PROCESSING_STAGE_ACTIONS
+    actions: EvalableList[TensorHolderAction] = PROCESSING_STAGE_ACTIONS
     """ The actions that this `Toll` can perform. """
 
     def model_post_init(self, __context__=None) -> None:
@@ -1386,7 +1303,7 @@ class Toll(TensorHolder):
 
 
 class Compute(Component):
-    actions: ParsableList[Action] = COMPUTE_ACTIONS
+    actions: EvalableList[Action] = COMPUTE_ACTIONS
     """ The actions that this `Compute` can perform. """
 
     def model_post_init(self, __context__=None) -> None:
@@ -1459,7 +1376,7 @@ class _Parallel(Branch):
                     fanout *= new_fanout
                     break
         else:
-            raise ParseError(f"Compute node {compute_node} not found in parallel node")
+            raise EvaluationError(f"Compute node {compute_node} not found in parallel node")
 
         return nodes, fanout if return_fanout else nodes
 
@@ -1501,7 +1418,7 @@ class Hierarchical(Branch):
             try:
                 if isinstance(node, (Hierarchical, _Parallel)):
                     if isinstance(node, _Parallel) and i < len(self.nodes) - 1:
-                        raise ParseError(
+                        raise EvaluationError(
                             f"_Parallel node {node.name} must be the last node in a "
                             "hierarchical node"
                         )
@@ -1533,7 +1450,7 @@ class Hierarchical(Branch):
                     nodes.append(node)
                 else:
                     raise TypeError(f"Can't flatten {node}")
-            except ParseError as e:
+            except EvaluationError as e:
                 e.add_field(node)
                 raise e
 
@@ -1727,15 +1644,15 @@ class Arch(Hierarchical):
     `variables` field as well as symbols from the individual Einsum being processed.
     """
 
-    variables: ParseExtras = ParseExtras()
+    variables: EvalExtras = EvalExtras()
     """
-    Like the spec-level `variables` field, this field is parsed first and its contents
+    Like the spec-level `variables` field, this field is evaluated first and its contents
     can be referenced elsewhere in the architecture. Unlike the spec-level `variables`
-    field, this, like ther rest of the architecture, is parsed per-Einsum and can
+    field, this, like ther rest of the architecture, is evaluated per-Einsum and can
     reference Einsum-specific symbols.
     """
 
-    extra_attributes_for_all_component_models: ParseExtras = ParseExtras()
+    extra_attributes_for_all_component_models: EvalExtras = EvalExtras()
     """
     Extra attributes to pass to all component models. This can be used to pass global
     attributes, such as technology node or clock period, to every component model.
@@ -1810,33 +1727,33 @@ class Arch(Hierarchical):
                 )
         return leak_power
 
-    def _parse_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         outer_st = symbol_table
 
         class PostCallArch(_PostCall):
-            def __call__(self, field, value, parsed, symbol_table):
+            def __call__(self, field, value, evaluated, symbol_table):
                 if field == "variables":
                     # We're going to override the spec-level "variables", so make sure
                     # we copy over all the symbols from the spec-level "variables".
-                    parsed_dump = parsed.shallow_model_dump()
+                    evaluated_dump = evaluated.shallow_model_dump()
                     for k, v in symbol_table.get("variables", {}).items():
-                        if k not in parsed_dump:
-                            parsed_dump[k] = v
-                    symbol_table.update(parsed_dump)
-                    symbol_table["variables"] = parsed_dump
+                        if k not in evaluated_dump:
+                            evaluated_dump[k] = v
+                    symbol_table.update(evaluated_dump)
+                    symbol_table["variables"] = evaluated_dump
                 if field == "extra_attributes_for_all_component_models":
-                    parsed_dump = parsed.shallow_model_dump()
+                    evaluated_dump = evaluated.shallow_model_dump()
                     symbol_table["arch_extra_attributes_for_all_component_models"] = (
-                        parsed_dump
+                        evaluated_dump
                     )
-                return parsed
+                return evaluated
 
         cur_st = dict(symbol_table)
 
         for node in self.get_nodes_of_type(Leaf):
             cur_st[node.name] = node
 
-        parsed, _ = super()._parse_expressions(
+        evaluated, _ = super()._eval_expressions(
             cur_st,
             *args,
             **kwargs,
@@ -1846,7 +1763,7 @@ class Arch(Hierarchical):
                 "extra_attributes_for_all_component_models",
             ),
         )
-        return parsed, symbol_table
+        return evaluated, symbol_table
 
     def __getitem__(self, name: str) -> Leaf:
         return self.name2leaf(name)

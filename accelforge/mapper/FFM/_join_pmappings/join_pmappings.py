@@ -105,7 +105,7 @@ def clean_compress_and_join_pmappings(
         total_mappings=joined.n_total_pmappings,
         valid_mappings=joined.n_valid_pmappings,
         flattened_arches=pmappings.flattened_arches,
-        parsed_specs=pmappings.parsed_specs,
+        evaluated_specs=pmappings.evaluated_specs,
     )
 
 

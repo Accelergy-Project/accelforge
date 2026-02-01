@@ -53,7 +53,6 @@ from accelforge.mapper.FFM._pareto_df.df_convention import iterations2col
 
 import sympy
 
-
 SYMBOL = "symbol"
 IMPERFECT = False
 

@@ -41,9 +41,10 @@ def map_workload_to_arch(
         The Spec to map.
     einsum_names:
         The einsum names to map. If None, all einsums will be mapped.
-    can_combine_multiple_runs: Whether we would like to be able to combine multiple
-        make_pmappings runs. Having this as True allows you to do things like `pmappings
-        = make_pmappings(*args_a) | make_pmappings(*args_b)` but slows down execution.
+    can_combine_multiple_runs:
+        If True, allows combining multiple make_pmappings runs (e.g.
+        ``pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)``).
+        Set to False for faster execution.
     cache_dir:
         The directory to cache pmappings in. If None, no caching will be done.
     print_number_of_pmappings:
@@ -78,7 +79,7 @@ def map_workload_to_arch(
         this_mapping = evaluate_mapping(
             local_spec,
             flattened_arches=mappings.flattened_arches,
-            parsed_specs=mappings.parsed_specs,
+            evaluated_specs=mappings.evaluated_specs,
         )
         new_mapping_data.append(this_mapping.data)
 
@@ -105,10 +106,10 @@ def make_pmappings(
     einsum_names:
         The einsum names to generate pmappings for. If None, all einsums will be
         included.
-    can_combine_multiple_runs: Whether we would like to be able to combine multiple
-        make_pmappings runs. Having this as True allows you to do things like
-        `pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)` but slows
-        down execution.
+    can_combine_multiple_runs:
+        If True, allows combining multiple make_pmappings runs (e.g.
+        ``pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)``).
+        Set to False for faster execution.
     cache_dir:
         The directory to cache pmappings in. If None, no caching will be done.
     print_number_of_pmappings:
@@ -163,7 +164,8 @@ def join_pmappings(
 
     Returns
     -------
-    A Mappings object containing all valid, optimal mappings for the workload.
+    Mappings
+        A Mappings object containing all valid, optimal mappings for the workload.
     """
     return clean_compress_and_join_pmappings(
         pmappings, require_all_einsums, _pmapping_row_filter_function
@@ -186,12 +188,12 @@ def _make_pmappings(
     )
 
     flattened_arches = {}
-    parsed_specs = {}
+    evaluated_specs = {}
     for einsum_name, jobs in einsum2jobs.items():
         for job in jobs:
             compute_name = job.flattened_arch[-1].name
             flattened_arches[(einsum_name, compute_name)] = job.flattened_arch
-            parsed_specs[einsum_name] = job.spec
+            evaluated_specs[einsum_name] = job.spec
 
     m = MultiEinsumPmappings(
         spec,
@@ -203,7 +205,7 @@ def _make_pmappings(
             einsum_names if einsum_names else spec.workload.einsum_names
         ),
         flattened_arches=flattened_arches,
-        parsed_specs=parsed_specs,
+        evaluated_specs=evaluated_specs,
     )
 
     return m

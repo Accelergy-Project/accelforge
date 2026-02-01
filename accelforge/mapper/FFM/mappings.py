@@ -35,10 +35,10 @@ class Mappings:
         mappings in the dataframe, equal to the valid mapspace size.
     flattened_arches:
         A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These
-        contain the parsed and flattened architecture node for that particular Einsum
+        contain the evaluated and flattened architecture node for that particular Einsum
         and compute combination.
-    parsed_specs:
-        A dictionary of Einsum names to parsed specifications. These contain the parsed
+    evaluated_specs:
+        A dictionary of Einsum names to evaluated specifications. These contain the evaluated
         specification for that particular Einsum.
     """
 
@@ -50,7 +50,7 @@ class Mappings:
         total_mappings: int,
         valid_mappings: int,
         flattened_arches: dict[(EinsumName, str), list[arch.Leaf]],
-        parsed_specs: dict[EinsumName, Spec],
+        evaluated_specs: dict[EinsumName, Spec],
     ):
         self.spec: Spec = spec
         self.einsum_names: list[EinsumName] = einsum_names
@@ -60,7 +60,7 @@ class Mappings:
         self.flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] = (
             flattened_arches
         )
-        self.parsed_specs: dict[EinsumName, Spec] = parsed_specs
+        self.evaluated_specs: dict[EinsumName, Spec] = evaluated_specs
 
     def num_computes(self, einsum_name: EinsumName | None = None) -> int:
         """
@@ -87,7 +87,7 @@ class Mappings:
             total_mappings=self.total_mappings,
             valid_mappings=self.valid_mappings,
             flattened_arches=self.flattened_arches,
-            parsed_specs=self.parsed_specs,
+            evaluated_specs=self.evaluated_specs,
         )
         data.update(kwargs)
         return Mappings(**data)
@@ -156,7 +156,8 @@ class Mappings:
 
         Returns
         -------
-        A new Mappings object with only the given keys.
+        Mappings
+            A new Mappings object with only the given keys.
         """
         assert len(set(self.data.columns)) == len(
             self.data.columns
@@ -201,7 +202,8 @@ class Mappings:
 
         Returns
         -------
-        A new Mappings object with the given keys dropped from all columns.
+        Mappings
+            A new Mappings object with the given keys dropped from all columns.
         """
         assert len(set(self.data.columns)) == len(
             self.data.columns
@@ -270,8 +272,9 @@ class Mappings:
 
         Returns
         -------
-        A dictionary with the same keys as the columns of the dataframe, and values that
-        are either a single value or a list of values.
+        dict[str, list[float]]
+            A dictionary with the same keys as the columns of the dataframe, and values that
+            are either a single value or a list of values.
         """
         new = self.data.to_dict(orient="list")
         if value_if_one_mapping and len(self) == 1:
@@ -294,7 +297,8 @@ class Mappings:
 
         Returns
         -------
-        A new Mappings object with the per-compute evaluation results.
+        Mappings
+            A new Mappings object with the per-compute evaluation results.
         """
         new_df = self.data.copy()
         total_computes = self.num_computes()
@@ -343,11 +347,12 @@ class Mappings:
 
         Returns
         -------
-        An SVG string of the mapping.
+        str
+            An SVG string of the mapping.
 
         Raises
         ------
-        ValueError:
+        ValueError
             If there are multiple mappings and no index is provided.
         """
         if index is not None:
@@ -371,9 +376,9 @@ class Mappings:
         Returns the energy consumed. A dictionary is returned with keys that are tuples
         of (Einsum name, Component name, Tensor name, Action name), with any of these
         being omitted if the corresponding parameter is not set to True. If neither of
-        the per_... parameters are set to True, a float or a list of floats is returned.
+        the ``per_`` parameters are set to True, a float or a list of floats is returned.
 
-        NOTE: Leak power is not per-tensor. If per_tensor is True, then the tensor name
+        NOTE: Leak power is not per-tensor. If ``per_tensor`` is True, then the tensor name
         for leak will be None.
 
         Parameters
@@ -393,11 +398,11 @@ class Mappings:
 
         Returns
         -------
-        dict[tuple[str, ...], float | list[float]] | float | list[float]:
+        dict[tuple[str, ...], float | list[float]] | float | list[float]
             A dictionary with the energy consumed for each Einsum, Component, Tensor,
             and Action. Keys are tuples of (Einsum name, Component name, Tensor name,
             Action name), with any of these being omitted if the corresponding parameter
-            is not set to True. If none of the per_... parameters are set to True, a
+            is not set to True. If none of the ``per_`` parameters are set to True, a
             float or a list of floats is returned.
         """
 
@@ -450,7 +455,7 @@ class Mappings:
         """
         Returns the latency consumed. A dictionary is returned with keys that are tuples
         of (Einsum name, Component name), with either being omitted if the corresponding
-        parameter is not set to True. If neither of the per_... parameters are set to
+        parameter is not set to True. If neither of the ``per_`` parameters are set to
         True, a float or a list of floats is returned.
 
         NOTE: If per-Einsum is False and per-component is True, then the latency of each
@@ -471,10 +476,10 @@ class Mappings:
 
         Returns
         -------
-        dict[tuple[str, ...], float | list[float]] | float | list[float]:
+        dict[tuple[str, ...], float | list[float]] | float | list[float]
             A dictionary with the latency for each Einsum+Component pair. Keys are
             tuples of (Einsum name, Component name), with either being omitted if the
-            corresponding parameter is not set to True. If neither of the per_...
+            corresponding parameter is not set to True. If neither of the ``per_``
             parameters are set to True, a float or a list of floats is returned.
         """
 
