@@ -18,7 +18,7 @@ __all__ = [
     "get_n_parallel_jobs",
     "is_using_parallel_processing",
     "parallel",
-    "delayed"
+    "delayed",
 ]
 
 PARALLELIZE = True

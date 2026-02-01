@@ -569,7 +569,9 @@ class Einsum(EvalableModel):
 
         # Parse me!
         kwargs["musteval_tryeval_to"] = True
-        evaluated, _ = super(self.__class__, self)._eval_expressions(st, *args, **kwargs)
+        evaluated, _ = super(self.__class__, self)._eval_expressions(
+            st, *args, **kwargs
+        )
 
         # Update the renames with the new values
         for k, v in rename_symbol_table.items():

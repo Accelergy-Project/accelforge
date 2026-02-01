@@ -16,6 +16,7 @@ RankVariable: TypeAlias = str
 Rank: TypeAlias = str
 EinsumName: TypeAlias = str
 
+
 class Rename(EvalableModel):
     """
     A rename of something into something else.
@@ -36,7 +37,9 @@ class Rename(EvalableModel):
     """
 
     def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
-        evaluated, symbol_table = super()._eval_expressions(symbol_table, *args, **kwargs)
+        evaluated, symbol_table = super()._eval_expressions(
+            symbol_table, *args, **kwargs
+        )
         expected_count = evaluated.expected_count
         if (
             expected_count is not None

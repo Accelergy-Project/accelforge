@@ -43,7 +43,15 @@ dev = [
     "black",
     "flake8",
     "mypy",
+    "pydocstyle",
 ]
+
+# Warn when modules, classes, methods, or functions lack docstrings (run: pydocstyle .)
+[tool.pydocstyle]
+convention = "google"
+select = ["D100", "D101", "D102", "D103"]  # missing docstrings: module, class, method, function
+match = "(?!test_).*\\.py"
+match-dir = "(?!(\\.git|_build|docs))"
 
 [tool.setuptools.packages.find]
 where = ["."]

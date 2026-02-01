@@ -84,10 +84,13 @@ def evaluate_mapping(
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         seen_temporal = False
         from accelforge.frontend.mapping import Temporal, Storage
+
         for node in pmapping.nodes:
             if isinstance(node, Temporal):
                 seen_temporal = True
-            is_main_memory = isinstance(node, Storage) and node.component == "MainMemory"
+            is_main_memory = (
+                isinstance(node, Storage) and node.component == "MainMemory"
+            )
             assert not (seen_temporal and is_main_memory), "BUG"
 
         einsum_name = pmapping.nodes[-1].einsum
@@ -112,10 +115,13 @@ def evaluate_mapping(
 
         seen_temporal = False
         from accelforge.frontend.mapping import Temporal, Storage
+
         for node in pmapping.nodes:
             if isinstance(node, Temporal):
                 seen_temporal = True
-            is_main_memory = isinstance(node, Storage) and node.component == "MainMemory"
+            is_main_memory = (
+                isinstance(node, Storage) and node.component == "MainMemory"
+            )
             assert not (seen_temporal and is_main_memory), "BUG"
 
         pmapping.remove_reservations()
@@ -125,10 +131,13 @@ def evaluate_mapping(
 
         seen_temporal = False
         from accelforge.frontend.mapping import Temporal, Storage
+
         for node in pmapping.nodes:
             if isinstance(node, Temporal):
                 seen_temporal = True
-            is_main_memory = isinstance(node, Storage) and node.component == "MainMemory"
+            is_main_memory = (
+                isinstance(node, Storage) and node.component == "MainMemory"
+            )
             assert not (seen_temporal and is_main_memory), "BUG"
 
         job.mapping = pmapping
@@ -174,7 +183,6 @@ def evaluate_mapping(
         )
         for k, v in symbol_renames.items():
             df[v] = df.pop(k)
-
 
         new_df = {}
         for key, value in df.items():

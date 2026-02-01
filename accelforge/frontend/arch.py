@@ -127,7 +127,7 @@ class ArchNode(EvalableModel):
 
 
 class ArchNodes(EvalableList):
-    """ A list of ArchNodes. """
+    """A list of ArchNodes."""
 
     def __repr__(self):
         return f"{self.__class__.__name__}({super().__repr__()})"
@@ -1183,8 +1183,8 @@ class Tensors(EvalableModel):
 
 @_uninstantiable
 class TensorHolder(Component):
-    """ A TensorHolder is a component that holds tensors. These are usually Memories,
-    but can also be Tolls. """
+    """A TensorHolder is a component that holds tensors. These are usually Memories,
+    but can also be Tolls."""
 
     actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `TensorHolder` can perform. """
@@ -1376,7 +1376,9 @@ class _Parallel(Branch):
                     fanout *= new_fanout
                     break
         else:
-            raise EvaluationError(f"Compute node {compute_node} not found in parallel node")
+            raise EvaluationError(
+                f"Compute node {compute_node} not found in parallel node"
+            )
 
         return nodes, fanout if return_fanout else nodes
 

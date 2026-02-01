@@ -361,7 +361,9 @@ class Evalable(Generic[M]):
         for field in field_order:
             value = getattr(self, field) if use_setattr else self[field]
             validator = self.get_validator(field)
-            evaluated = eval_field(field, value, validator, symbol_table, self, **kwargs)
+            evaluated = eval_field(
+                field, value, validator, symbol_table, self, **kwargs
+            )
 
             for post_call in post_calls:
                 evaluated = post_call(field, value, evaluated, symbol_table)
