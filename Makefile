@@ -4,7 +4,7 @@ DOCKER_BUILD ?= ${DOCKER_EXE} buildx build --load
 
 VERSION := 0.1
 
-USER    := rengzheng
+USER    := timeloopaccelergy
 REPO    := accelforge
 
 NAME    := ${USER}/${REPO}
