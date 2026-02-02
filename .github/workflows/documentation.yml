@@ -1,0 +1,31 @@
+# https://medium.com/@ariassbustojonathan/automate-python-documentation-with-sphinx-for-github-3dda2ca690ec
+
+name: documentation
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - name: Install dependencies
+        run: |
+          pip install sphinx pydata-sphinx-theme myst-parser sphinx-autodoc-typehints sphinx-copybutton
+      - name: Sphinx build
+        run: |
+          pip install -e .
+          LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ --tocfile accelforge accelforge
+          LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-build -b html docs/source docs/build/html
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          publish_branch: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/build/html
+          force_orphan: true

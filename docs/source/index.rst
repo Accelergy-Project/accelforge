@@ -1,87 +1,70 @@
-FastFusion
+AccelForge
 ==========
 
-FastFusion is a framework to model tensor algebra accelerators. It includes flexible,
-user-defined specifications for components, architectures, and workloads, and, given
-these specifications, quickly finds optimal fused mappings to program the workloads onto
-the architectures.
+AccelForge is a framework to model and design tensor algebra and deep neural network
+accelerators.
 
-FastFusion is based on multiple other projects. If you use FastFusion in your work,
-please refer to :doc:`notes/citation` for how to cite the relevant projects.
+Quick Start
+-----------
 
+New to AccelForge? Start with the :doc:`guide/guide` for installation instructions,
+examples, and an introduction to key concepts.
 
-This page includes the following:
-
-.. contents::
-   :depth: 1
-   :local:
-   :backlinks: none
-
-Installation
-------------
-
-For native installation, install the package from PyPI:
+The ``accelforge`` repo includes tutorials and examples to help you get started.
 
 .. code-block:: bash
 
-   pip install fastfusion
-
-Examples
---------
-
-Example notebooks can be found by cloning the repository and navigating to the
-``notebooks/examples`` directory.
-
-.. code-block:: bash
-
-   git clone https://github.com/Accelergy-Project/fastfusion.git
-   cd fastfusion/notebooks/examples
+   pip install accelforge jupyterlab ipywidgets
+   git clone https://github.com/accelergy-project/accelforge.git
+   cd accelforge/notebooks/tutorials
    jupyter notebook
 
-Additionally, example input files can be found in the ``examples`` directory.
-
-.. code-block:: bash
-
-   git clone https://github.com/Accelergy-Project/fastfusion.git
-   cd fastfusion/examples
-   ls
-
-
-Documentation Overview
-----------------------
-
-Documentation is organized into the following sections:
-
-- :doc:`Input Specifications <notes/spec>` - Overview of the inputs to fastfusion,
-  including specifications of architectures, workloads, and mappings.
-- :doc:`Modeling <notes/modeling>` - How FastFusion models the energy, area, and latency
-  of an accelerator running a workload.
-- :doc:`Citation <notes/citation>` - How to cite FastFusion in your work
-- :doc:`Definitions <notes/definitions>` - Definitions of key concepts in FastFusion
-- :doc:`Parsing <notes/parsing>` - Parsing of input specifications
-- :doc:`Frequently Asked Questions <notes/faqs>` - Frequently asked questions about FastFusion
-
-API Reference
+Documentation
 -------------
 
-The complete API reference is available in the :doc:`modules` section, which includes:
+**User Guide**
 
-- :doc:`fastfusion.frontend <fastfusion.frontend>` - The input specifications for fastfusion
-- :doc:`fastfusion.mapper <fastfusion.mapper>` - Algorithms that map workloads onto architectures
-- :doc:`fastfusion.util <fastfusion.util>` - Utility functions and helpers
+The :doc:`guide/guide` contains everything you need to get started with AccelForge,
+including installation, tutorials, and core concepts.
 
-For detailed API documentation, see the :doc:`modules` section.
+**API Reference**
 
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference
-   :hidden:
-
-   modules
+The :doc:`modules` provides detailed documentation of all AccelForge modules, classes,
+and functions.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Documentation
-   :glob:
+   :caption: User Guide
+   :hidden:
 
-   notes/*
+   guide/guide
+   modules
+
+**Citing AccelForge**
+
+If you use AccelForge in your work, please refer to :doc:`guide/citation` for how to cite
+the relevant projects.
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Citing AccelForge
+   :hidden:
+
+   guide/citation
+
+**Contributing to AccelForge**
+
+We welcome contributions to AccelForge! If you'd like to contribute, please see
+:doc:`guide/contributing` for how to get started.
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contributing to AccelForge
+   :hidden:
+
+   guide/contributing
+
+**Source Code**
+
+The AccelForge source code is available on `GitHub
+<https://github.com/Accelergy-Project/accelforge>`_.

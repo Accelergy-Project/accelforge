@@ -3,14 +3,14 @@ from pathlib import Path
 
 import time
 
-from fastfusion.frontend.spec import Spec, Mapping
-from fastfusion.mapper.FFM._make_pmappings.contraints.constraints import (
+from accelforge.frontend.spec import Spec, Mapping
+from accelforge.mapper.FFM._make_pmappings.contraints.constraints import (
     MappingConstraints,
 )
-from fastfusion.mapper.FFM._make_pmappings.pmapper_job import Job
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings import make_tile_shapes
-from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.frontend import arch
+from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
+from accelforge.mapper.FFM._make_pmappings.make_pmappings import make_tile_shapes
+from accelforge.frontend.mapper.metrics import Metrics
+from accelforge.frontend import arch
 
 
 class TestTileShapeExploration(unittest.TestCase):

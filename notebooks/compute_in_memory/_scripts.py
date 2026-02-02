@@ -9,14 +9,14 @@ sys.path.append(
 )
 
 from _load_spec import get_spec as _get_spec
-import fastfusion as ff
+import accelforge as af
 
 def display_markdown(markdown):
     display(Markdown(markdown))
 
 
-def get_spec(name: str) -> ff.Spec:
-    return _get_spec(name)
+def get_spec(name: str, add_dummy_main_memory: bool = False) -> af.Spec:
+    return _get_spec(name, add_dummy_main_memory=add_dummy_main_memory)
 
 # import difflib
 # import re
@@ -93,41 +93,45 @@ def display_important_variables(name: str):
     def pfmat(key, value, note=""):
         result.append(f"- *{key}*: {value} {note if note else ''}")
 
-    s: ff.Spec = get_spec(name)
-    s = s._parse_expressions()[0]
+    s: af.Spec = get_spec(name)
+    s.calculate_component_area_energy_latency_leak(einsum_name=s.workload.einsums[0].name)
+
+    def getvalue(key):
+        return s.variables.get(key, s.arch.variables.get(key, None))
+
     for v in [
-        ("ARRAY_WORDLINES", "rows in the array"),
-        ("ARRAY_BITLINES", "columns in the array"),
+        ("array_wordlines", "rows in the array"),
+        ("array_bitlines", "columns in the array"),
         (
-            "ARRAY_PARALLEL_INPUTS",
+            "array_parallel_inputs",
             "input slice(s) consumed in each cycle.",
         ),
         (
-            "ARRAY_PARALLEL_WEIGHTS",
+            "array_parallel_weights",
             "weights slice(s) used for computation in each cycle.",
         ),
-        ("ARRAY_PARALLEL_OUTPUTS", "partial sums produced in each cycle."),
+        ("array_parallel_outputs", "partial sums produced in each cycle."),
         ("tech_node", "m"),
-        ("ADC_RESOLUTION", "bit(s)"),
-        ("DAC_RESOLUTION", "bit(s)"),
-        ("N_ADC_PER_BANK", "ADC(s)"),
-        ("SUPPORTED_INPUT_BITS", "bit(s)"),
-        ("SUPPORTED_OUTPUT_BITS", "bit(s)"),
-        ("SUPPORTED_WEIGHT_BITS", "bit(s)"),
-        ("BITS_PER_CELL", "bit(s)"),
+        ("adc_resolution", "bit(s)"),
+        ("dac_resolution", "bit(s)"),
+        ("n_adc_per_bank", "ADC(s)"),
+        ("supported_input_bits", "bit(s)"),
+        ("supported_output_bits", "bit(s)"),
+        ("supported_weight_bits", "bit(s)"),
+        ("bits_per_cell", "bit(s)"),
         (
-            "CIM_UNIT_WIDTH_CELLS",
+            "cim_unit_width_cells",
             "adjacent cell(s) in a wordline store bit(s) in one weight slice and process one input & output slice together",
         ),
         (
-            "CIM_UNIT_DEPTH_CELLS",
+            "cim_unit_depth_cells",
             "adjacent cell(s) in a bitline operate in separate cycles",
         ),
-        "CELL_CONFIG",
+        "cell_config",
         ("cycle_period", "second(s)"),
     ]:
         if isinstance(v, tuple):
-            pfmat(v[0], s.variables.get(v[0], None), v[1])
+            pfmat(v[0], getvalue(v[0]), v[1])
         else:
             pfmat(v, s.variables.get(v, None))
 
@@ -211,3 +215,125 @@ def display_important_variables(name: str):
 
 #     for a_line, b_line in zip(a, b):
 #         print(f"{a_line}   |   {b_line}")
+
+from math import isclose
+import matplotlib.pyplot as plt
+
+
+def bar_stacked(
+    data: dict[dict[str, float]],
+    xlabel: str,
+    ylabel: str,
+    title: str,
+    ax: plt.Axes,
+):
+    """Create a stacked bar chart from nested dictionary data.
+
+    Args:
+        data: Nested dict where outer keys are x-axis categories,
+              inner keys are stack categories, values are heights
+        xlabel: Label for x-axis
+        ylabel: Label for y-axis
+        title: Chart title
+        ax: Matplotlib axes to plot on
+    """
+    import numpy as np
+
+    # Get all categories
+    x_categories = list(data.keys())
+    stack_categories = list(set(k for inner_dict in data.values() for k in inner_dict.keys()))
+
+    # Prepare data for stacking
+    x_pos = np.arange(len(x_categories))
+    bottoms = np.zeros(len(x_categories))
+
+    # Plot each stack category
+    for stack_cat in stack_categories:
+        heights = [data[x_cat].get(stack_cat, 0) for x_cat in x_categories]
+        ax.bar(x_pos, heights, label=stack_cat, bottom=bottoms)
+        bottoms += heights
+
+    # Set labels and formatting
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(x_categories, rotation=45, ha='right')
+    ax.legend()
+    ax.grid(axis='y', alpha=0.3)
+
+
+def bar_comparison(
+    data_dict: dict[str, dict[str, float]],
+    xlabel: str,
+    ylabel: str,
+    title: str,
+    ax: plt.Axes,
+):
+    """Create grouped bar chart comparing multiple datasets.
+
+    Args:
+        data_dict: Dict where keys are series names (e.g., "Modeled", "Expected"),
+                   values are dicts mapping category to value
+        xlabel: Label for x-axis
+        ylabel: Label for y-axis
+        title: Chart title
+        ax: Matplotlib axes to plot on
+    """
+    import numpy as np
+
+    # Get categories (use first dataset's keys)
+    categories = list(next(iter(data_dict.values())).keys())
+    series_names = list(data_dict.keys())
+
+    # Set up bar positions
+    x = np.arange(len(categories))
+    width = 0.8 / len(series_names)  # Total width divided by number of series
+
+    # Plot each series
+    for i, series_name in enumerate(series_names):
+        offset = (i - len(series_names)/2 + 0.5) * width
+        values = [data_dict[series_name][cat] for cat in categories]
+        ax.bar(x + offset, values, width, label=series_name)
+
+    # Set labels and formatting
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xticks(x)
+    ax.set_xticklabels(categories, rotation=45, ha='right')
+    ax.legend()
+    ax.grid(axis='y', alpha=0.3)
+
+
+def bar(
+    data: dict[str, float],
+    xlabel: str,
+    ylabel: str,
+    title: str,
+    ax: plt.Axes,
+):
+    """Create a simple bar chart from a dictionary.
+
+    Args:
+        data: Dict mapping category names to values
+        xlabel: Label for x-axis
+        ylabel: Label for y-axis
+        title: Chart title
+        ax: Matplotlib axes to plot on
+    """
+    import numpy as np
+
+    categories = list(data.keys())
+    values = list(data.values())
+
+    x = np.arange(len(categories))
+    ax.bar(x, values)
+
+    # Set labels and formatting
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xticks(x)
+    ax.set_xticklabels(categories, rotation=45, ha='right')
+    ax.grid(axis='y', alpha=0.3)

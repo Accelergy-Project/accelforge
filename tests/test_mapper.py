@@ -1,9 +1,9 @@
 import unittest
 from pathlib import Path
 
-from fastfusion.frontend.spec import Spec
-from fastfusion.mapper import Metrics
-from fastfusion.mapper.FFM.main import map_workload_to_arch
+from accelforge.frontend.spec import Spec
+from accelforge.mapper import Metrics
+from accelforge.mapper.FFM.main import map_workload_to_arch
 
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
@@ -56,7 +56,7 @@ class TestFanout(ActionChecker):
             EXAMPLES_DIR / "workloads" / "matmuls.yaml",
             jinja_parse_data={"N_EINSUMS": n_einsums, "M": 64, "KN": 64},
         )
-        spec.mapper.ffm.metrics = Metrics.LATENCY
+        spec.mapper.metrics = Metrics.LATENCY
 
         result = map_workload_to_arch(spec)
         self._check_memory_actions_exist(spec, ["MainMemory", "GlobalBuffer"], result)

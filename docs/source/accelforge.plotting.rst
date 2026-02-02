@@ -1,0 +1,29 @@
+accelforge.plotting package
+===========================
+
+Submodules
+----------
+
+accelforge.plotting.mappings module
+-----------------------------------
+
+.. automodule:: accelforge.plotting.mappings
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.plotting.specs module
+--------------------------------
+
+.. automodule:: accelforge.plotting.specs
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: accelforge.plotting
+   :members:
+   :show-inheritance:
+   :undoc-members:

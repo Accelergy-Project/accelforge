@@ -5,7 +5,7 @@ from typing import Dict, List
 from islpy import DEFAULT_CONTEXT, Map
 from ruamel.yaml import YAML
 
-from fastfusion.frontend.binding import Binding, BindingNode
+from accelforge.frontend._binding import Binding, BindingNode
 
 TESTS_DIR = Path(__file__).parent / "spec" / "binding"
 yaml = YAML(typ="safe")

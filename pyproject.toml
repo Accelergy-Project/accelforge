@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=80.9.0", "wheel"]
+requires = ["setuptools>=80.9.0", "wheel", "setuptools-scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fastfusion"
-version = "0.0.1"
-description = "FastFusion"
+name = "accelforge"
+dynamic = ["version"]
+description = "AccelForge"
 authors = [
     {name = "Michael Gilbert", email = "gilbertm@mit.edu"},
     {name = "Tanner Andrulis", email = "andrulis@mit.edu"}
@@ -43,7 +43,15 @@ dev = [
     "black",
     "flake8",
     "mypy",
+    "pydocstyle",
 ]
+
+# Warn when modules, classes, methods, or functions lack docstrings (run: pydocstyle .)
+[tool.pydocstyle]
+convention = "google"
+select = ["D100", "D101", "D102", "D103"]  # missing docstrings: module, class, method, function
+match = "(?!test_).*\\.py"
+match-dir = "(?!(\\.git|_build|docs))"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -53,3 +61,8 @@ where = ["."]
 
 [project.scripts]
 # Add any console scripts here if needed
+
+[tool.setuptools_scm]
+write_to = "accelforge/_version.py"
+fallback_version = "1.0"
+# version_scheme and local_scheme defined in setup.py

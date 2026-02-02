@@ -1,60 +1,75 @@
-NTL_VER := 11.5.1
-BARVINOK_VER := 0.41.8
-ISLPY_VER := 2024.2
+DOCKER_EXE ?= docker
+DOCKER_NAME ?= accelforge
+DOCKER_BUILD ?= ${DOCKER_EXE} buildx build --load
 
-LIB_DIR := libraries
+VERSION := 0.1
 
+USER    := rengzheng
+REPO    := accelforge
 
-.PHONY: install-hwcomponents install-ntl install-barvinok install-islpy
+NAME    := ${USER}/${REPO}
+TAG     := $$(git log -1 --pretty=%h)
+IMG     := ${NAME}:${TAG}
 
+ALTTAG  := latest
+ALTIMG  := ${NAME}:${ALTTAG}
+
+# Install hwcomponents packages from PyPI for Docker builds.
+.PHONY: install-hwcomponents
 install-hwcomponents:
-	mkdir -p $(LIB_DIR)
-	# install hwcomponents from GitHub (pinned commit recommended)
-	git clone --depth 1 https://github.com/Accelergy-Project/hwcomponents.git $(LIB_DIR)/hwcomponents || true
-	cd $(LIB_DIR)/hwcomponents && make install-submodules
-	cd $(LIB_DIR)/hwcomponents && pip3 install .
+	python3 -m pip install --no-cache-dir hwcomponents hwcomponents-adc hwcomponents-cacti hwcomponents-library hwcomponents-neurosim
 
-install-ntl:
-	mkdir -p $(LIB_DIR)
-	# If the file does not exist, download it
-	if [ ! -f $(LIB_DIR)/ntl-$(NTL_VER).tar.gz ]; then \
-		wget -O $(LIB_DIR)/ntl-$(NTL_VER).tar.gz https://libntl.org/ntl-$(NTL_VER).tar.gz; \
-	fi
-	tar -xvzf $(LIB_DIR)/ntl-$(NTL_VER).tar.gz -C $(LIB_DIR)
-	cd $(LIB_DIR)/ntl-$(NTL_VER)/src && ./configure NTL_GMP_LIP=on SHARED=on NATIVE=off
-	cd $(LIB_DIR)/ntl-$(NTL_VER)/src && make -j$$(nproc) && make install
+# Login to docker hub
+login:
+	"${DOCKER_EXE}" login --username ${DOCKER_NAME} --password ${DOCKER_PASS}
 
-install-barvinok:
-	mkdir -p $(LIB_DIR)
-	if [ ! -f $(LIB_DIR)/barvinok-$(BARVINOK_VER).tar.gz ]; then \
-		wget -O $(LIB_DIR)/barvinok-$(BARVINOK_VER).tar.gz https://barvinok.sourceforge.io/barvinok-$(BARVINOK_VER).tar.gz; \
-	fi
-	tar -xvzf $(LIB_DIR)/barvinok-$(BARVINOK_VER).tar.gz -C $(LIB_DIR)
-	cd $(LIB_DIR)/barvinok-$(BARVINOK_VER) && ./configure --enable-shared-barvinok
-	cd $(LIB_DIR)/barvinok-$(BARVINOK_VER) && make -j$$(nproc) && make install
+# Build and tag docker image
+build-amd64:
+	${DOCKER_BUILD} ${BUILD_FLAGS} --platform linux/amd64 \
+          --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+          --build-arg VCS_REF=${TAG} \
+          --build-arg BUILD_VERSION=${VERSION} \
+          -t ${IMG}-amd64 \
+          -t ${ALTIMG}-amd64 .
 
-install-islpy:
-	mkdir -p $(LIB_DIR)
-	if [ ! -f $(LIB_DIR)/islpy-$(ISLPY_VER).tar.gz ]; then \
-		wget -O $(LIB_DIR)/islpy-$(ISLPY_VER).tar.gz https://github.com/inducer/islpy/archive/refs/tags/v$(ISLPY_VER).tar.gz; \
-	fi
-	tar -xvzf $(LIB_DIR)/islpy-$(ISLPY_VER).tar.gz -C $(LIB_DIR)
-	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && rm -f siteconf.py
-	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && ./configure.py --use-barvinok --isl-inc-dir=/usr/local/include --isl-lib-dir=/usr/local/lib --no-use-shipped-isl --no-use-shipped-imath
-	cd $(LIB_DIR)/islpy-$(ISLPY_VER) && pip3 install .
+build-arm64:
+	${DOCKER_BUILD} ${BUILD_FLAGS} --platform linux/arm64 \
+          --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+          --build-arg VCS_REF=${TAG} \
+          --build-arg BUILD_VERSION=${VERSION} \
+          -t ${IMG}-arm64 \
+          -t ${ALTIMG}-arm64 .
 
-build-docker:
-	docker build -t fastfusion/fastfusion-infrastructure .
+# Push docker image
+push-amd64:
+	@echo "Pushing ${NAME}:${ALTTAG}-amd64"
+	#Push Amd64 version
+	"${DOCKER_EXE}" push ${NAME}:${ALTTAG}-amd64
+	#Combine Amd64 version into multi-architecture docker image.
+	"${DOCKER_EXE}" manifest create \
+		${NAME}:${ALTTAG} \
+		--amend ${NAME}:${ALTTAG}-amd64 \
+	  --amend ${NAME}:${ALTTAG}-arm64
+	"${DOCKER_EXE}" manifest push ${NAME}:${ALTTAG}
+
+push-arm64:
+	@echo "Pushing ${NAME}:${ALTTAG}-arm64"
+	#Push Arm64 version
+	"${DOCKER_EXE}" push ${NAME}:${ALTTAG}-arm64
+	#Combine Arm64 version into multi-architecture docker image.
+	"${DOCKER_EXE}" manifest create \
+		${NAME}:${ALTTAG} \
+		--amend ${NAME}:${ALTTAG}-amd64 \
+	  --amend ${NAME}:${ALTTAG}-arm64
+	"${DOCKER_EXE}" manifest push ${NAME}:${ALTTAG}
 
 run-docker:
 	docker-compose up
 
 .PHONY: generate-docs
 generate-docs:
-    # pip install sphinx-autobuild sphinx_autodoc_typehints sphinx-rtd-theme
-	# rm -r docs/_build
-	# sphinx-build -nW docs/source docs/_build/html
-	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ fastfusion
+    # pip install sphinx-autobuild sphinx_autodoc_typehints sphinx-copybutton pydata-sphinx-theme
+	rm -r docs/_build/html
+	rm docs/source/accelforge.*.rst
+	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ --tocfile accelforge accelforge
 	LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild -a docs/source docs/_build/html
-
-	# LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-apidoc -f -o docs/source/ fastfusion ; rm -r docs/_build/html ; LC_ALL=C.UTF-8 LANG=C.UTF-8 sphinx-autobuild -a docs/source docs/_build/html

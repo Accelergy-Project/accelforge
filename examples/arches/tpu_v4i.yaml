@@ -25,7 +25,7 @@ arch:
 
   - !Memory
     name: LocalBuffer
-    spatial: [{name: Z, fanout: 4, may_reuse: Nothing}]
+    spatial: [{name: Z, fanout: 4, may_reuse: Nothing, min_usage: 1}]
     size: 1024*1024*4*8 # 4MB
     leak_power: 0
     area: 50e-6 # 50 mm^2. Very rough estimate based on die photo.
@@ -50,7 +50,7 @@ arch:
 
   - !Memory
     name: Register
-    size: inf
+    size: weight.bits_per_value if weight else 0
     area: 1e-11 # 10 um^2. Very rough estimate based on die photo.
     leak_power: 0
     actions:

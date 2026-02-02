@@ -36,7 +36,7 @@ workload:
     # Copy operation means that we move the input tensor from one place to another
     # without doing computation. This lets us copy the input tensor onto the accelerator
     # once and then use it in the Q, K, and V operations.
-    is_copy_operation: True    # no longer needed with `map` and `reduce` support
+    is_copy_operation: True
     tensor_accesses:
     - {name: I_in, projection: [b, m, d]}
     - {name: I, projection: [b, m, d], output: True}

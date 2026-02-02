@@ -1,12 +1,12 @@
 from pathlib import Path
 import unittest
 
-from fastfusion.frontend import Spec, Workload
+from accelforge.frontend import Spec, Workload
 
-from fastfusion.mapper import Metrics
-from fastfusion.mapper.FFM import make_pmappings
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings import make_pmappings
-from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import nameloop2col
+from accelforge.mapper import Metrics
+from accelforge.mapper.FFM import make_pmappings
+from accelforge.mapper.FFM._make_pmappings.make_pmappings import make_pmappings
+from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import nameloop2col
 
 from pmappingcache import make_pmapping_pickle_cache
 
@@ -21,7 +21,7 @@ class TestPmappingExploration(unittest.TestCase):
             PARENT_DIR / "mha.workload.yaml",
             PARENT_DIR / "mha.renames.yaml",
         )
-        spec.mapper.ffm.metrics = Metrics.ENERGY | Metrics.LATENCY
+        spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
         pmappings = make_pmappings(spec, ["Q"])
 
     def test_mha_full(self):

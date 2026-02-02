@@ -7,9 +7,9 @@ TODO: an automated way to check for correctness.
 import unittest
 from pathlib import Path
 
-from fastfusion.frontend.spec import Spec
-from fastfusion.model.main import evaluate_mapping
-from fastfusion.util.parallel import set_n_parallel_jobs
+from accelforge.frontend.spec import Spec
+from accelforge.model.main import evaluate_mapping
+from accelforge.util.parallel import set_n_parallel_jobs
 
 set_n_parallel_jobs(1)
 

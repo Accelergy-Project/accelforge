@@ -1,0 +1,38 @@
+mapping:
+  nodes:
+  - !Storage
+    component: OffChipBuffer
+    tensors: [I, WA, WB, B]
+  - !Storage
+    component: OnChipBuffer
+    tensors: [WA]
+  - !Temporal
+    rank_variable: nA
+    tile_shape: 1
+  - !Storage
+    component: OnChipBuffer
+    tensors: [A]
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Temporal
+        rank_variable: nI
+        tile_shape: 1
+      - !Storage
+        component: OnChipBuffer
+        tensors: [I]
+      - !Compute
+        einsum: EinsumA
+        component: ComputeUnit
+    - !Nested
+      nodes:
+      - !Temporal
+        rank_variable: nB
+        tile_shape: 1
+      - !Storage
+        component: OnChipBuffer
+        tensors: [B, WB]
+      - !Compute
+        einsum: EinsumB
+        component: ComputeUnit

@@ -1,0 +1,74 @@
+cim_component_attributes: &cim_component_attributes
+  # These are for NeuroSim
+  rows:                 array_wordlines
+  cols:                 array_bitlines
+  cols_active_at_once:  array_parallel_outputs
+  cell_config:          cell_config
+  average_input_value:  average_input_value
+  average_cell_value:   average_weight_value
+  voltage:              voltage
+  temporal_dac_bits:    temporal_dac_resolution
+  read_pulse_width:     read_pulse_width
+
+  # These are for the ADC plug-in. Set defaults for them
+  # so that if the user does not specify, we won't get
+  # an error.
+  resolution:       adc_resolution
+  n_adcs:           n_adc_per_bank
+  width:            encoded_output_bits
+
+# These will be applied to the weight drivers
+weight_drivers_attributes: &weight_drivers_attributes
+  <<: *cim_component_attributes
+  rows:                 array_wordlines
+  cols:                 array_bitlines
+  cols_active_at_once:  array_parallel_outputs
+  cell_config:          cell_config
+  average_input_value:  average_input_value
+  average_cell_value:   average_weight_value
+  cycle_seconds:        cycle_period
+  voltage:              voltage
+  temporal_dac_bits:    temporal_dac_resolution
+  sequential:           True
+  read_pulse_width:     0 # Irrelevant for weight programming
+
+variables_global: &variables_global
+  weight_bits: weight.bits_per_value
+  input_bits:  input.bits_per_value
+  output_bits: output.bits_per_value
+  array_parallel_inputs:  get_array_fanout_reuse_output(spec)
+  array_parallel_outputs: get_array_fanout_reuse_input(spec)
+  array_parallel_weights: get_array_fanout_total(spec)
+  array_wordlines: array_parallel_inputs * cim_unit_width_cells
+  array_bitlines: array_parallel_outputs * cim_unit_depth_cells
+  dac_resolution: max(voltage_dac_resolution, temporal_dac_resolution)
+  cols_active_at_once:  array_parallel_outputs
+
+  # Calculate the number of slices needed to store the input and weight bits and
+  # the number of bits in each slice
+  in_b: encoded_input_bits # Shorthands so the following lines aren't super long
+  w_b: encoded_weight_bits
+  max_input_bits_per_slice: min(dac_resolution, in_b)
+  max_weight_bits_per_slice: min(cim_unit_width_cells * bits_per_cell, w_b)
+
+  average_input_bits_per_slice: encoded_input_bits / n_input_slices
+  average_weight_bits_per_slice: encoded_weight_bits / n_weight_slices
+
+  # This is for the bitwise-multiplication of the input and weight slices
+  n_virtual_macs: max_input_bits_per_slice * max_weight_bits_per_slice * encoded_output_bits
+
+  # Calculate statistics for input and weight values and bits after encoding
+  ehtas: encoded_hist_to_avg_slice # Shorthands so the following lines aren't super long
+  in_enc_fn: input_encoding_func
+  w_enc_fn: weight_encoding_func
+  average_input_value:     ehtas(in_enc_fn(inputs_hist), in_b, max_input_bits_per_slice)
+  average_weight_value:    ehtas(w_enc_fn(weights_hist), w_b, max_weight_bits_per_slice)
+  input_bit_distribution:  ehtas(in_enc_fn(inputs_hist), in_b, 1, return_per_slice=True)
+  weight_bit_distribution: ehtas(w_enc_fn(weights_hist), w_b, 1, return_per_slice=True)
+
+  min_weight_slices: ceil(min_supported_weight_bits / bits_per_cell / cim_unit_width_cells)
+  min_input_slices: ceil(min_supported_input_bits / max_input_bits_per_slice)
+
+  n_input_slices:       max(ceil(in_b / max_input_bits_per_slice), min_input_slices)
+  n_weight_slices:      max(ceil(w_b / max_weight_bits_per_slice), min_weight_slices)
+  n_sliced_psums:       n_input_slices * n_weight_slices

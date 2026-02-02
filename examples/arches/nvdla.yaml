@@ -32,7 +32,7 @@ arch:
 
   - !Memory
     name: Register
-    size: weight.bits_per_value
+    size: weight.bits_per_value if weight else 1
     area: 0
     leak_power: 0
     actions:

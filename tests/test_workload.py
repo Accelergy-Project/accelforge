@@ -1,8 +1,8 @@
 from pathlib import Path
 import unittest
 
-from fastfusion.frontend import Workload
-from fastfusion.frontend.workload import *
+from accelforge.frontend import Workload
+from accelforge.frontend.workload import *
 
 
 class TestWorkload(unittest.TestCase):

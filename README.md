@@ -1,49 +1,24 @@
-# Fast & Fusiest & More
-This repository contains the code for the latest series of projects by Michael and
-Tanner, including:
+# AccelForge
 
-- Fast & Fusiest: Fast and Fusiest: A Fast and Optimal Fusing Mapper for Tensor Algebra
-  Accelerators
-- LoopForest: LoopForest: Exploring an Expanded Fusion Mapspace for Reduced Data
-  Movement and Memory Usage
+AccelForge is a framework to model and design tensor algebra accelerators. To learn
+more, see the [AccelForge website](https://accelergy-project.github.io/accelforge/).
+
+**Source Code**: The AccelForge source code is available on
+[GitHub](https://github.com/Accelergy-Project/accelforge).
+
+AccelForge uses [HWComponents](https://github.com/accelergy-project/hwcomponents)
+as a backend to model the area, energy, latency, and leak power of hardware components.
 
 ## Installation
 
-### Native
-
-Run the following:
+AccelForge is available on PyPI:
 
 ```bash
-# Clone and enter the repo
-git clone https://github.com/Accelergy-Project/fastfusion.git
-cd fastfusion
-
-make install-hwcomponents  # Install hwcomponents component models
-pip3 install -e .          # Install this package
+pip install accelforge
 ```
 
-### Docker
+## Notebooks and Examples
 
-```bash
-# Build the docker image
-make build-docker
-
-# Run the docker image
-make run-docker
-
-```
-
-Running the Docker container will mount the current directory as `/home/workspace`. A
-link to a Jupyterlab server will be posted to the terminal.
-
-Some additional installation will occur when you run the container for the first time.
-This is done inside the container so that you can update the package without rebuilding
-the container. If the install fails, you can run the following from inside the container
-to try again:
-```bash
-cd /home/workspace && pip install -e .
-```
-
-### Running the Examples
-
-Examples can be found in the `notebooks/examples` directory.
+Examples can be found in the [`notebooks`](notebooks) directoryin the [AccelForge
+repository](https://github.com/Accelergy-Project/accelforge). Examples of the input
+files can be found in the [`examples`](examples) directory.

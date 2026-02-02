@@ -1,0 +1,14 @@
+from accelforge.frontend.mapper.metrics import Metrics
+from accelforge.util._basetypes import EvalableModel
+
+
+class Model(EvalableModel):
+    """Configuration for the model."""
+
+    metrics: Metrics = Metrics.all_metrics()
+    """
+    Metrics to evaluate.
+
+    If using spec to call mapper, leave this configuration as is. The mapper
+    will make necessary configurations.
+    """

@@ -2,13 +2,13 @@ from pathlib import Path
 import pickle
 import unittest
 
-from fastfusion.frontend import Spec
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings import make_pmappings
-from fastfusion.mapper.FFM._join_pmappings.compatibility_util import (
+from accelforge.frontend import Spec
+from accelforge.mapper.FFM._make_pmappings.make_pmappings import make_pmappings
+from accelforge.mapper.FFM._join_pmappings.compatibility_util import (
     join_compatibilities,
     pmappings2untiled_compatibilities,
 )
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import join_pmappings
+from accelforge.mapper.FFM._join_pmappings.join_pmappings import join_pmappings
 
 from pmappingcache import make_pmapping_pickle_cache
 
