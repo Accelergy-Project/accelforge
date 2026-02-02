@@ -1,5 +1,5 @@
-from fastfusion.frontend.mapping import Loop, Temporal
-from fastfusion.mapper.FFM.deprecate_maybe.tags import Tags
+from accelforge.frontend.mapping import Loop, Temporal
+from accelforge.mapper.FFM.deprecate_maybe.tags import Tags
 
 from .util import get_fused_loops_per_tensor
 

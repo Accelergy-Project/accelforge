@@ -4,20 +4,20 @@ from math import ceil, exp, prod
 import random
 import threading
 import time
-from fastfusion._accelerated_imports import pd
-from fastfusion.mapper.simanneal.evalmapping import quick_join
-from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
-from fastfusion.mapper.FFM._join_pmappings.join_pmappings import PmappingGroup
-from fastfusion.mapper.FFM._join_pmappings.compatibility import (
+from accelforge._accelerated_imports import pd
+from accelforge.mapper.simanneal.evalmapping import quick_join
+from accelforge.mapper.simanneal.tracking import EvaluationsScoreTracker
+from accelforge.mapper.FFM._join_pmappings.join_pmappings import PmappingGroup
+from accelforge.mapper.FFM._join_pmappings.compatibility import (
     TensorReservation,
     Compatibility,
 )
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     MAPPING_COLUMN,
     PmappingDataframe,
 )
-from fastfusion.util._frozenset import fzs
-from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
+from accelforge.util._frozenset import fzs
+from accelforge.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 
 OBJECTIVE_COLUMN = None  # None -> Product
 

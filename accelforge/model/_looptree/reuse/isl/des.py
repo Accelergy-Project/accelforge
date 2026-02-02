@@ -22,7 +22,7 @@ class IslReuseAnalysisOutput:
 
 
 def deserialize_looptree_output(
-    looptree_output, isl_ctx: isl.Context  #: bindings.looptree.LooptreeResult,
+    looptree_output, isl_ctx: isl.Context  #: bindings._looptree._looptreeResult,
 ) -> IslReuseAnalysisOutput:
     output = IslReuseAnalysisOutput()
 

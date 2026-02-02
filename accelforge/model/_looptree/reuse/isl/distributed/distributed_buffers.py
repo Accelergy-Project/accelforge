@@ -7,11 +7,11 @@ import logging
 
 import islpy as isl
 
-from fastfusion.frontend.mapping import MappingNode
-from fastfusion.model.looptree.reuse.isl.isl_functions import dim_projector_mask
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import Fill, Occupancy
-from fastfusion.model.looptree.reuse.isl.spatial import (
+from accelforge.frontend.mapping import MappingNode
+from accelforge.model._looptree.reuse.isl.isl_functions import dim_projector_mask
+from accelforge.model._looptree.reuse.isl.mapping_to_isl import DUMP_ISL_IR
+from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import Fill, Occupancy
+from accelforge.model._looptree.reuse.isl.spatial import (
     Reads,
     Transfers,
     TransferInfo,

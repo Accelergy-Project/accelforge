@@ -2,10 +2,10 @@ import itertools
 
 from collections.abc import Iterable, Set
 
-from fastfusion.frontend.spec import Spec
-from fastfusion.frontend.workload import EinsumName, TensorName
-from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
-from fastfusion.mapper.FFM._join_pmappings.sim import SIM
+from accelforge.frontend.spec import Spec
+from accelforge.frontend.workload import EinsumName, TensorName
+from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
+from accelforge.mapper.FFM._join_pmappings.sim import SIM
 
 
 DO_PRINT = False

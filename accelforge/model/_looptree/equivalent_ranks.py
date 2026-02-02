@@ -1,4 +1,4 @@
-# from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
+# from bindings._looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
 
 class EquivalentGroups:

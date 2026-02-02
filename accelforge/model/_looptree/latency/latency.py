@@ -9,7 +9,7 @@ from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 
 from accelforge.util._sympy.broadcast_max import Max
 
-# from bindings.looptree import SpatialTag
+# from bindings._looptree import SpatialTag
 
 
 def get_latency(looptree_results, mapping, workload, flattened_arch):

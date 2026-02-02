@@ -12,8 +12,8 @@ class LoopTreeStatistics:
 
 
 def run_symbolic_model(mapping, workload, architecture):
-    from pytimeloop.looptree.reuse import analyze_reuse_and_add_reservations_to_mapping
-    from pytimeloop.looptree.energy import gather_actions
+    from pytimeloop._looptree.reuse import analyze_reuse_and_add_reservations_to_mapping
+    from pytimeloop._looptree.energy import gather_actions
 
     job = Job.make_job(mapping=mapping, workload=workload, architecture=architecture)
     result = analyze_reuse_and_add_reservations_to_mapping(job)
@@ -24,12 +24,12 @@ def run_symbolic_model(mapping, workload, architecture):
 def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     import islpy as isl
     from bindings.config import Config
-    from bindings.looptree import LooptreeModelApp, LooptreeWorkload
+    from bindings._looptree import LooptreeModelApp, LooptreeWorkload
     from pytimeloop.file import gather_yaml_configs
-    from pytimeloop.looptree.capacity import compute_capacity_usage
-    from pytimeloop.looptree.reuse._isl.des import deserialize_looptree_output
-    from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
-    from pytimeloop.looptree.latency import get_latency
+    from pytimeloop._looptree.capacity import compute_capacity_usage
+    from pytimeloop._looptree.reuse._isl.des import deserialize_looptree_output
+    from pytimeloop._looptree.energy import gather_actions, compute_energy_from_actions
+    from pytimeloop._looptree.latency import get_latency
     from pytimeloop.timeloopfe.v4fused import Spec
     from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 
@@ -73,12 +73,12 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
 
 def run_looptree_symbolic(config_dir, paths, tmp_path, bindings, call_accelergy):
     from bindings.config import Config
-    from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
+    from bindings._looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
     from pytimeloop.file import gather_yaml_configs
-    from pytimeloop.looptree.capacity import compute_capacity_usage
-    from pytimeloop.looptree.reuse import analyze_reuse_and_add_reservations_to_mapping
-    from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
-    from pytimeloop.looptree.latency import get_latency
+    from pytimeloop._looptree.capacity import compute_capacity_usage
+    from pytimeloop._looptree.reuse import analyze_reuse_and_add_reservations_to_mapping
+    from pytimeloop._looptree.energy import gather_actions, compute_energy_from_actions
+    from pytimeloop._looptree.latency import get_latency
     from pytimeloop.timeloopfe.v4fused import Spec
     from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
     from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job

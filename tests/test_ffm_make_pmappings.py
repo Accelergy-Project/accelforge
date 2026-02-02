@@ -21,7 +21,7 @@ class TestPmappingExploration(unittest.TestCase):
             PARENT_DIR / "mha.workload.yaml",
             PARENT_DIR / "mha.renames.yaml",
         )
-        spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
+        spec.mapper.ffm.metrics = Metrics.ENERGY | Metrics.LATENCY
         pmappings = make_pmappings(spec, ["Q"])
 
     def test_mha_full(self):

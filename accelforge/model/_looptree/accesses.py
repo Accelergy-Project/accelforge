@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, overload
 
-# from bindings.looptree import TemporalTag, SequentialTag, PipelineTemporalTag
+# from bindings._looptree import TemporalTag, SequentialTag, PipelineTemporalTag
 
 import islpy as isl
 

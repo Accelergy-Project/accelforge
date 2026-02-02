@@ -1,13 +1,13 @@
 from collections import defaultdict
 import pydot
 from typing import Any, Iterable
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     Compatibility,
     TensorReservation,
     Loop,
 )
-from fastfusion.util import _expfmt
-from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import col2nameloop
+from accelforge.util import _expfmt
+from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import col2nameloop
 
 PYDOT_NODE_DEFAULTS = {
     "shape": "box",

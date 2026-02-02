@@ -1,4 +1,4 @@
-from fastfusion.frontend.mapping import Reservation, Loop, Mapping
+from accelforge.frontend.mapping import Reservation, Loop, Mapping
 
 
 def get_fused_loops_per_tensor(

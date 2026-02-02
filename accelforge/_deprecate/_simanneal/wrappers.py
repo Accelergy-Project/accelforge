@@ -3,18 +3,18 @@ import copy
 import itertools
 import time
 from joblib import delayed
-from fastfusion._accelerated_imports import pd
-from fastfusion.frontend import arch
-from fastfusion.frontend.spec import Spec
-from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import (
+from accelforge._accelerated_imports import pd
+from accelforge.frontend import arch
+from accelforge.frontend.spec import Spec
+from accelforge.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
+from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingDataframe,
     is_reservation_col,
 )
-from fastfusion.mapper.simanneal.simanneal import MapspaceGlobals, _fuse_sims
-from fastfusion.mapper.simanneal.tracking import EvaluationsScoreTracker
-from fastfusion.util._frozenset import fzs
-from fastfusion.util.parallel import parallel, util
+from accelforge.mapper.simanneal.simanneal import MapspaceGlobals, _fuse_sims
+from accelforge.mapper.simanneal.tracking import EvaluationsScoreTracker
+from accelforge.util._frozenset import fzs
+from accelforge.util.parallel import parallel, util
 
 
 def mapping2sims(einsum_to_result: Compatibility):

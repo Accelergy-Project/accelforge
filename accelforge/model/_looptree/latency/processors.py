@@ -2,7 +2,7 @@ import pprint
 
 import islpy as isl
 
-# from bindings.looptree import PipelineSpatialTag
+# from bindings._looptree import PipelineSpatialTag
 # from pytimeloop._isl.sum import sum_until_idx, make_reduction_map
 # from pytimeloop._isl.qpolynomial import from_pw_qpolynomial_fold
 

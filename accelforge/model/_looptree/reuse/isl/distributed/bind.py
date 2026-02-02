@@ -1,9 +1,9 @@
 """Applies the binding layer into one that can be used for later analysis,"""
-from fastfusion.frontend.binding import Binding
-from fastfusion.frontend.mapping import Mapping
-from fastfusion.frontend.workload import Workload
+from accelforge.frontend.binding import Binding
+from accelforge.frontend.mapping import Mapping
+from accelforge.frontend.workload import Workload
 
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.analyze_mapping import (
+from accelforge.model._looptree.reuse.isl.mapping_to_isl.analyze_mapping import (
     occupancies_from_mapping,
     MappingAnalysisResult
 )

@@ -19,7 +19,7 @@ class Domain(EvalableModel):
 
     _prefix: str
     name: str
-    dims: ParsableList[str]
+    dims: EvalableList[str]
     
     @property
     def isl_space(self) -> isl.Space:
@@ -63,7 +63,7 @@ class BindingNode(EvalableModel):
     """The logical domain of the components being bound."""
     physical: PhysicalDomain
     """The physical location of the components being bound."""
-    relations: ParsableDict[str, str]
+    relations: EvalableDict[str, str]
     """A relation between each tensor and its logical domain to physical domain."""
 
     @property
@@ -106,7 +106,7 @@ class Binding(EvalableModel):
 
     version: StrictFloat
     """Version of the binding spec."""
-    nodes: ParsableList[BindingNode]
+    nodes: EvalableList[BindingNode]
     """Parts of the binding."""
 
 '''
@@ -169,7 +169,7 @@ class PhysicalComponent(ParsableModel):
 class PhysicalComponents(ParsableModel):
     """List of componenents on the physical chip."""
 
-    components: ParsableList[PhysicalComponent]
+    components: EvalableList[PhysicalComponent]
     """The components referred to."""
 
 
@@ -245,7 +245,7 @@ class PhysicalSpec(ParsableModel):
         # networks are connected.
 
 
-class LogicalComponent(ParsableDict):
+class LogicalComponent(EvalableDict):
     """Logical components of an accelerator."""
 
     name: str

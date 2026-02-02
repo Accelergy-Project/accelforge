@@ -8,7 +8,7 @@ from pathlib import Path
 
 import islpy as isl
 
-from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
+from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
     # Data movement descriptors.
     Fill,
     Occupancy,
@@ -17,10 +17,10 @@ from fastfusion.model.looptree.reuse.isl.mapping_to_isl.types import (
     SpatialTag,
     TemporalTag,
 )
-from fastfusion.model.looptree.reuse.isl.distributed.distributed_buffers import (
+from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import (
     HypercubeMulticastModel,
 )
-from fastfusion.model.looptree.reuse.isl.spatial import TransferInfo
+from accelforge.model._looptree.reuse.isl.spatial import TransferInfo
 from ..util import load_solutions
 
 

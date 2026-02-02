@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from bindings.looptree import LooptreeWorkload
+from bindings._looptree import LooptreeWorkload
 
 
 type Id = int

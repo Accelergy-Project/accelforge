@@ -1,11 +1,11 @@
 from collections import defaultdict
 import itertools
 import time
-from fastfusion._accelerated_imports import pd
-from fastfusion.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
-from fastfusion.mapper.simanneal.mapspaceglobals import MapspaceGlobals
-from fastfusion.util._frozenset import fzs
+from accelforge._accelerated_imports import pd
+from accelforge.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
+from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
+from accelforge.mapper.simanneal.mapspaceglobals import MapspaceGlobals
+from accelforge.util._frozenset import fzs
 
 
 def mapping2sims(einsum_to_result: Compatibility):

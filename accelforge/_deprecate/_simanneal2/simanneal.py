@@ -2,29 +2,29 @@ import inspect
 import os
 import random
 from typing import Callable, Generator
-from fastfusion import arch, util
-from fastfusion import Spec
-from fastfusion.frontend.mapper.metrics import Metrics
-from fastfusion.mapper.FFM.pmappings import MultiEinsumPmappings
-from fastfusion.mapper.FFM._join_pmappings.compress_pmappings import (
+from accelforge import arch, util
+from accelforge import Spec
+from accelforge.frontend.mapper.metrics import Metrics
+from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
+from accelforge.mapper.FFM._join_pmappings.compress_pmappings import (
     compress_einsum2pmappings,
     decompress_pmappings,
 )
-from fastfusion.frontend.workload import EinsumName
-from fastfusion.frontend.mapping import Mapping
-from fastfusion.mapper.FFM import PmappingGroup
-from fastfusion.mapper.FFM._pareto_df.df_convention import (
+from accelforge.frontend.workload import EinsumName
+from accelforge.frontend.mapping import Mapping
+from accelforge.mapper.FFM import PmappingGroup
+from accelforge.mapper.FFM._pareto_df.df_convention import (
     MAPPING_COLUMN,
     col2nameloop,
 )
-from fastfusion.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
-from fastfusion.mapper.FFM._make_pmappings.make_pmappings import (
+from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
+from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
     get_rank_variable_bounds_for_all_einsums,
 )
-from fastfusion._accelerated_imports import pd
+from accelforge._accelerated_imports import pd
 import joblib
-from fastfusion.mapper.FFM._join_pmappings.compatibility import Compatibility
-from fastfusion.mapper._simanneal2.tracking import EvaluationsScoreTracker
+from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
+from accelforge.mapper._simanneal2.tracking import EvaluationsScoreTracker
 
 # Simulated annealing algorithm
 # -----------------------------

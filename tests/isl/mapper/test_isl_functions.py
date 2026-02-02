@@ -6,7 +6,7 @@ import unittest
 
 import islpy as isl
 
-from fastfusion.model.looptree.reuse.isl.isl_functions import *
+from accelforge.model._looptree.reuse.isl.isl_functions import *
 
 class BasicIslFunctionTests(unittest.TestCase):
     """

@@ -1,9 +1,9 @@
 import matplotlib.axes as mpax
 import matplotlib.pyplot as plt
-from fastfusion._accelerated_imports import np
-from fastfusion._accelerated_imports import pd
+from accelforge._accelerated_imports import np
+from accelforge._accelerated_imports import pd
 
-from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
+from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 
 
 DATAFLOW_COLUMN = "dataflow"

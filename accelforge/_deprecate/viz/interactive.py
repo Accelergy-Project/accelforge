@@ -4,9 +4,9 @@ import plotly
 from IPython.display import SVG, display
 import plotly.graph_objs as go
 from ipywidgets import Output, VBox, HBox
-from fastfusion._accelerated_imports import pd
-from fastfusion.mapper.FFM._join_pmappings.pmapping_dataframe import row2pmappings
-from fastfusion.frontend.mapping import Mapping
+from accelforge._accelerated_imports import pd
+from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import row2pmappings
+from accelforge.frontend.mapping import Mapping
 
 
 def make_mapping(row, einsum_names, rank_variable_bounds):
