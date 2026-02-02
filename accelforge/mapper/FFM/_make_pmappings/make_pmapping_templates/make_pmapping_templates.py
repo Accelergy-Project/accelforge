@@ -338,14 +338,14 @@ def iterate_mappings_no_constraints(
             rank_variable_bounds,
             ranks_with_tile_pattern,
             spec.workload,
-            spec.mapper.ffm._can_lower_outermost_memory,
+            spec.mapper._can_lower_outermost_memory,
             flattened_arch,
-            spec.mapper.ffm.max_fused_loops,
+            spec.mapper.max_fused_loops,
         ):
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(mapping, einsum, flattened_arch)
             mapping = unpack_loops_to_rank_variables(mapping)
-            if spec.mapper.ffm._timeloop_style_even:
+            if spec.mapper._timeloop_style_even:
                 mapping = _timeloop_style_even(mapping)
 
             place_missing_temporal_loops(mapping, einsum, flattened_arch)
@@ -394,7 +394,7 @@ def iterate_mappings_constraints(
                 mapping,
                 flattened_arch,
                 spec.workload.einsums[einsum_name],
-                spec.mapper.ffm.out_of_order_hierarchy_explore_removing_spatials_for_more_temporals,
+                spec.mapper.out_of_order_hierarchy_explore_removing_spatials_for_more_temporals,
             ):
                 constraints.remove_missing_targets(mapping)
 
@@ -413,7 +413,7 @@ def iterate_mappings_constraints(
                 mapping._n_loop_orders = n_orders
                 yield mapping, constraints, symbol_table
                 n_yielded += 1
-                if n_yielded >= spec.mapper.ffm.max_pmapping_templates_per_einsum:
+                if n_yielded >= spec.mapper.max_pmapping_templates_per_einsum:
                     return
 
 
@@ -447,7 +447,7 @@ def make_pmapping_templates(job: Job) -> SameEinsumJobs:
     )
 
     jobs = SameEinsumJobs()
-    only_output_pmapping_index = job.spec.mapper.ffm._only_output_pmapping_with_index
+    only_output_pmapping_index = job.spec.mapper._only_output_pmapping_with_index
     for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
         if only_output_pmapping_index is not None and i != only_output_pmapping_index:
             continue

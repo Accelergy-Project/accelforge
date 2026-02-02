@@ -215,7 +215,7 @@ def valid_tensor_holder_order(
 
             # If they're persistent they're forced to be at the top.
             force_order = (
-                spec.mapper.ffm.force_memory_hierarchy_order and not either_persistent
+                spec.mapper.force_memory_hierarchy_order and not either_persistent
             )
             force_order &= m0.component_object.tensors.force_memory_hierarchy_order
             force_order &= m1.component_object.tensors.force_memory_hierarchy_order
@@ -236,7 +236,7 @@ def valid_tensor_holder_order(
 
             s1_outermost = s1_persistent
             s2_outermost = s2_persistent
-            if not spec.mapper.ffm._can_lower_outermost_memory:
+            if not spec.mapper._can_lower_outermost_memory:
                 s1_outermost |= s1 == first_memory.name
                 s2_outermost |= s2 == first_memory.name
 
@@ -253,7 +253,7 @@ def valid_tensor_holder_order(
             if (
                 s1 == first_memory.name
                 and s2 == first_memory.name
-                and not spec.mapper.ffm._can_lower_outermost_memory
+                and not spec.mapper._can_lower_outermost_memory
             ):
                 if sorted(m0.tensors) < sorted(m1.tensors):
                     return (
@@ -323,7 +323,7 @@ def valid_tensor_holder_order(
             either_backing = m0._backing & m1._backing
             if (
                 "redundant_dataplacements"
-                not in spec.mapper.ffm._count_option_for_mapsapce_size_evaluation
+                not in spec.mapper._count_option_for_mapsapce_size_evaluation
             ):
                 if i == j or i == j - 1:
                     if s1_idx < s2_idx and not (

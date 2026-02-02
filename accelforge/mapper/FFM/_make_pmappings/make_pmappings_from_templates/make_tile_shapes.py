@@ -1121,7 +1121,7 @@ def get_tile_shape_choices(
         symbols_non_enumerated_set = set(symbols) - set(symbols_enumerated)
         sym_enumerated_set = set(symbols_enumerated)
 
-        if job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation != ():
+        if job.spec.mapper._count_option_for_mapsapce_size_evaluation != ():
             choices_enumerated = choices_enumerated[:1, :]
             continue
 
@@ -1560,9 +1560,9 @@ def _make_tile_shapes(job: "Job"):
                 rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
 
     max_loop_check_groups = [
-        (job.spec.mapper.ffm.max_fused_loops, all_fused_loops),
+        (job.spec.mapper.max_fused_loops, all_fused_loops),
         *[
-            (job.spec.mapper.ffm.max_fused_loops_per_rank_variable, x)
+            (job.spec.mapper.max_fused_loops_per_rank_variable, x)
             for x in rank_var_to_fused_loops.values()
         ],
     ]

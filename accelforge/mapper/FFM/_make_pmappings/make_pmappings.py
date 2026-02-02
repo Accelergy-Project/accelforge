@@ -142,11 +142,11 @@ def get_jobs(
     total_jobs = sum(len(jobs) for jobs in einsum2jobs.values())
     n_procs = get_n_parallel_jobs()
     memory_limit = min(
-        spec.mapper.ffm.memory_limit, spec.mapper.ffm.memory_limit_per_process / n_procs
+        spec.mapper.memory_limit, spec.mapper.memory_limit_per_process / n_procs
     )
     time_limit = min(
-        spec.mapper.ffm.time_limit * n_procs / max(total_jobs, 1),
-        spec.mapper.ffm.time_limit_per_pmapping_template,
+        spec.mapper.time_limit * n_procs / max(total_jobs, 1),
+        spec.mapper.time_limit_per_pmapping_template,
     )
     for einsum_name, compatibility_jobs in einsum2jobs.items():
         total_jobs = sum(len(j) for j in compatibility_jobs.values())

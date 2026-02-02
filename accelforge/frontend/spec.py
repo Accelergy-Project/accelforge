@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from accelforge.frontend.mapper.mapper import Mapper
+from accelforge.frontend.mapper import FFM
 from accelforge.frontend.renames import EinsumName, Renames
 from accelforge.util._eval_expressions import EvaluationError, ParseExpressionsContext
 from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Fanout
@@ -45,7 +45,7 @@ class Spec(EvalableModel):
     by canonical names when writing architecture constraints. For example, workload
     tensors may be renamed to "input", "output", and "weight"."""
 
-    mapper: Mapper = Mapper()
+    mapper: FFM = FFM()
     """ Configures the mapper used to map the workload onto the architecture. """
 
     model: Model = Model()

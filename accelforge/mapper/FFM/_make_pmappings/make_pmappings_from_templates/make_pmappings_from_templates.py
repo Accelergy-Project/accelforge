@@ -165,7 +165,7 @@ def _count_loops(job: Job) -> tuple[list[int], list[int], dict[str, int]]:
 
 
 def multiply_n_pmappings_by_permutations(n_pmappings: int, job: Job) -> int:
-    option = job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation
+    option = job.spec.mapper._count_option_for_mapsapce_size_evaluation
     # if option == "normal":
     #     return n_pmappings
 
@@ -241,20 +241,20 @@ def make_pmappings_from_templates(
         # TODO: Add a multiplier for the permutations that we include in the fusion
         # piece, which are NOT known to be superfluous
 
-        # prev = job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation
-        # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
+        # prev = job.spec.mapper._count_option_for_mapsapce_size_evaluation
+        # job.spec.mapper._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
         # a = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
-        # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
+        # job.spec.mapper._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
         # b = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
 
         # if a < b:
-        #     job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
+        #     job.spec.mapper._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders_and_irrelevant_loops"
         #     a = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
-        #     job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
+        #     job.spec.mapper._count_option_for_mapsapce_size_evaluation = "redundant_loop_orders"
         #     b = multiply_n_pmappings_by_permutations(job.n_total_pmappings, job)
         #     assert False
 
-        # job.spec.mapper.ffm._count_option_for_mapsapce_size_evaluation = prev
+        # job.spec.mapper._count_option_for_mapsapce_size_evaluation = prev
         job.n_total_pmappings = multiply_n_pmappings_by_permutations(
             job.n_total_pmappings, job
         )

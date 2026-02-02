@@ -25,13 +25,13 @@ Before we dive into the mapper, we need to set up a
    :name: make_spec
    :language: python
 
-We can set optimization metrics for the mapper by setting the `spec.mapper.ffm.metrics`
+We can set optimization metrics for the mapper by setting the `spec.mapper.metrics`
 attribute to one of the :py:class:`~accelforge.frontend.mapper.metrics.Metrics` enum
 values or a logical OR (|) of multiple values.
 
 The following optimization metrics are available:
 
-.. include-attrs:: accelforge.mapper.FFM.Metrics
+.. include-attrs:: accelforge.mapper.Metrics
 
 Calling the Mapper
 ------------------

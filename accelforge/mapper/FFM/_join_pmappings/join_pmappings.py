@@ -239,7 +239,7 @@ def join_pmappings(
       memory 1 the next largest, and memory N is the smallest.
     """
 
-    metrics = spec.mapper.ffm.metrics
+    metrics = spec.mapper.metrics
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = set()

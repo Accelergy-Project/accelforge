@@ -73,7 +73,7 @@ def map_workload_to_arch(
     new_mapping_data = []
     for i in range(len(mappings.data)):
         local_spec = deepcopy(spec)
-        local_spec.model.metrics = local_spec.mapper.ffm.info_metrics
+        local_spec.model.metrics = local_spec.mapper.info_metrics
         local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"]()
         # BUG: Mapping._from_pmappings create mappings that cannot be evaluated!
         this_mapping = evaluate_mapping(
@@ -182,7 +182,7 @@ def _make_pmappings(
 
     pmapping_groups, pmapping_objects, einsum2jobs = pmapper.make_pmappings(
         spec,
-        metrics=spec.mapper.ffm.metrics,
+        metrics=spec.mapper.metrics,
         einsum_names=einsum_names,
         can_combine_multiple_runs=can_combine_multiple_runs,
     )

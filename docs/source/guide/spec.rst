@@ -15,6 +15,10 @@ Some of the Spec's inputs are described in the following sections:
    spec/mapping
    spec/workload
 
+Additionally, the :py:class:`~accelforge.frontend.mapper.FFM` class is used to configure
+the mapper through the :py:attr:`~accelforge.frontend.spec.Spec.mapper` attribute. Its
+usage is described in :doc:`modeling/mapping`.
+
 Input Parsing
 -------------
 

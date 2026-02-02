@@ -56,7 +56,7 @@ class TestFanout(ActionChecker):
             EXAMPLES_DIR / "workloads" / "matmuls.yaml",
             jinja_parse_data={"N_EINSUMS": n_einsums, "M": 64, "KN": 64},
         )
-        spec.mapper.ffm.metrics = Metrics.LATENCY
+        spec.mapper.metrics = Metrics.LATENCY
 
         result = map_workload_to_arch(spec)
         self._check_memory_actions_exist(spec, ["MainMemory", "GlobalBuffer"], result)
