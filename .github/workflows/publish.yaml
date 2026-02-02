@@ -34,8 +34,6 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          # Ensure accelforge is importable during build
-          export PYTHONPATH="${{ github.workspace }}:$PYTHONPATH"
           python -m build
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
