@@ -1,5 +1,6 @@
 DOCKER_EXE ?= docker
 DOCKER_NAME ?= accelforge
+DOCKER_BUILD ?= ${DOCKER_EXE} buildx build --load
 
 VERSION := 0.1
 
@@ -24,20 +25,20 @@ login:
 
 # Build and tag docker image
 build-amd64:
-	"${DOCKER_EXE}" build ${BUILD_FLAGS} --platform linux/amd64 \
+	${DOCKER_BUILD} ${BUILD_FLAGS} --platform linux/amd64 \
           --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
           --build-arg VCS_REF=${TAG} \
           --build-arg BUILD_VERSION=${VERSION} \
-          -t ${IMG}-amd64 .
-	"${DOCKER_EXE}" tag ${IMG}-amd64 ${ALTIMG}-amd64
+          -t ${IMG}-amd64 \
+          -t ${ALTIMG}-amd64 .
 
 build-arm64:
-	"${DOCKER_EXE}" build ${BUILD_FLAGS} --platform linux/arm64 \
+	${DOCKER_BUILD} ${BUILD_FLAGS} --platform linux/arm64 \
           --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
           --build-arg VCS_REF=${TAG} \
           --build-arg BUILD_VERSION=${VERSION} \
-          -t ${IMG}-arm64 .
-	"${DOCKER_EXE}" tag ${IMG}-arm64 ${ALTIMG}-arm64
+          -t ${IMG}-arm64 \
+          -t ${ALTIMG}-arm64 .
 
 # Push docker image
 push-amd64:
