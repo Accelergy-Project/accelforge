@@ -28,7 +28,7 @@ class TestSimpleLinkTransferModel(unittest.TestCase):
 
     def test_simple_link_transfer_model_sandbox(self):
         """Independent sanity check of `SimpleLinkTransferModel`."""
-        buffer: MappingNode = MappingNode()
+        buffer: MappingNode = ["used for reference checks"]
         fill: Fill = Fill(
             [TemporalTag(), SpatialTag(0, buffer), SpatialTag(1, buffer)],  # type: ignore
             isl.Map.read_from_str(
