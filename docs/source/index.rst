@@ -63,3 +63,8 @@ We welcome contributions to AccelForge! If you'd like to contribute, please see
    :hidden:
 
    guide/contributing
+
+**Source Code**
+
+The AccelForge source code is available on `GitHub
+<https://github.com/Accelergy-Project/accelforge>`_.

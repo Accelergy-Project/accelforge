@@ -162,6 +162,7 @@ If you encounter issues or have questions:
 
 - Check the :doc:`faqs` page
 - Review example files in the ``examples/`` directory
+- Browse the `source code on GitHub <https://github.com/Accelergy-Project/accelforge>`_
 - Open an issue on `GitHub <https://github.com/Accelergy-Project/accelforge>`_
 
 .. toctree::
