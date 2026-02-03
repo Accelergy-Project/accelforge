@@ -72,12 +72,30 @@ class Mappings:
             return sum(get_num_computes(self.spec, e) for e in self.einsum_names)
         return get_num_computes(self.spec, einsum_name)
 
-    def per_tensor_size(self) -> dict[TensorName, int]:
+    def per_tensor_size(self, return_n_elements: bool = False) -> dict[TensorName, int]:
         """
-        Returns a dictionary of: {Tensor name: Number of elements} for each tensor in
-        the spec.
+        Returns a dictionary of: {Tensor name: Number of bits} for each tensor in the
+        spec. If return_n_elements is true, then the number of elements is returned
+        instead of the number of bits.
+
+        Parameters
+        ----------
+        return_n_elements:
+            If True, then the number of elements is returned instead of the number of
+            bits.
+
+        Returns
+        -------
+        dict[TensorName, int]
+            A dictionary of: {Tensor name: Number of bits} for each tensor in the spec.
         """
-        return get_per_tensor_size(self.spec)
+        assert self.evaluated_specs is not None, (
+            "Can't get per-tensor size if no Einsums have been mapped."
+        )
+        return get_per_tensor_size(
+            next(iter(self.evaluated_specs.values())).workload,
+            return_n_elements=return_n_elements,
+        )
 
     def _update(self, **kwargs):
         data = dict(
