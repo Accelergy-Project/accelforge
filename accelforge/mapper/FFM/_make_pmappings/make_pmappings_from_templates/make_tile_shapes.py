@@ -376,6 +376,7 @@ def try_replace_single_term(
 ):
     return _try_replace_single_term(t, symbols_enumerated & t.free_symbols, bounds)
 
+
 @lru_cache(maxsize=10000)
 def _partition_formula(
     f: Expr,
@@ -1202,7 +1203,9 @@ def get_tile_shape_choices(
                 except (TypeError, ValueError):
                     pass
 
-            log_message("Partitioning formula", f"{objective.name}: {objective.formula}")
+            log_message(
+                "Partitioning formula", f"{objective.name}: {objective.formula}"
+            )
             goals = partition_formula(
                 objective.formula, sym_enumerated_set, what_tiles_symbol.bounds
             )

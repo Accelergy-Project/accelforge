@@ -1,9 +1,8 @@
 # AccelForge
 
 AccelForge is a framework to model and design tensor algebra accelerators. To learn
-more, see the [AccelForge website](https://accelergy-project.github.io/accelforge/).
-
-**Source Code**: The AccelForge source code is available on
+more, see the [AccelForge website](https://accelergy-project.github.io/accelforge/). The
+AccelForge source code is available on
 [GitHub](https://github.com/Accelergy-Project/accelforge).
 
 AccelForge uses [HWComponents](https://github.com/accelergy-project/hwcomponents)

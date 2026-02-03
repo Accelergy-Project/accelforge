@@ -89,9 +89,9 @@ class Mappings:
         dict[TensorName, int]
             A dictionary of: {Tensor name: Number of bits} for each tensor in the spec.
         """
-        assert self.evaluated_specs is not None, (
-            "Can't get per-tensor size if no Einsums have been mapped."
-        )
+        assert (
+            self.evaluated_specs is not None
+        ), "Can't get per-tensor size if no Einsums have been mapped."
         return get_per_tensor_size(
             next(iter(self.evaluated_specs.values())).workload,
             return_n_elements=return_n_elements,
