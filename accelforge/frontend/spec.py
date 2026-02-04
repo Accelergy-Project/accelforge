@@ -7,7 +7,7 @@ from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Fanout
 
 from accelforge.frontend.workload import Workload
 from accelforge.frontend.variables import Variables
-from accelforge.frontend.config import Config, get_config
+from accelforge.frontend.config import Config
 from accelforge.frontend.mapping import Mapping
 from accelforge.frontend.model import Model
 import hwcomponents
@@ -37,7 +37,7 @@ class Spec(EvalableModel):
     variables: Variables = Variables()
     """ Variables that can be referenced in other places in the spec. """
 
-    config: Config = Field(default_factory=get_config)
+    config: Config = Config()
     """ Configuration settings. """
 
     renames: Renames = Renames()

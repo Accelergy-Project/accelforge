@@ -155,7 +155,10 @@ def run_model(
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():
-        if job.ignored_resources is not None and memory not in job.ignored_resources:
+        ignored = (
+            job.ignored_resources is not None and memory not in job.ignored_resources
+        )
+        if not ignored or metrics & Metrics.ACTIONS:
             key = f"usage<SEP>memory<SEP>{memory}"
             per_memory_usage_df[key] = (
                 sum(occupancies.values()) / memory_to_size[memory]
