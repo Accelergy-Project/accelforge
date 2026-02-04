@@ -18,6 +18,6 @@ pip install accelforge
 
 ## Notebooks and Examples
 
-Examples can be found in the [`notebooks`](notebooks) directoryin the [AccelForge
+Examples can be found in the [`notebooks`](notebooks) directory in the [AccelForge
 repository](https://github.com/Accelergy-Project/accelforge). Examples of the input
 files can be found in the [`examples`](examples) directory.
