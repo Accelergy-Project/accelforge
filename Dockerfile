@@ -77,7 +77,6 @@ RUN pip install jupyterlab ipywidgets
 COPY . ./
 
 # Install accelforge
-ENV ACCELFORGE_CONFIG_PATH=/home/workspace/.accelforge/config.yaml
 RUN mkdir -p /home/workspace/.accelforge/
 RUN pip install -e .
 
