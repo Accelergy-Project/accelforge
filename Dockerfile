@@ -73,11 +73,13 @@ RUN make install-hwcomponents CC=gcc CXX=g++
 # Install jupyterlab and ipywidgets
 RUN pip install jupyterlab ipywidgets
 
+# Copy repository into image root workspace
+COPY . ./
+
 # Install accelforge
 ENV ACCELFORGE_CONFIG_PATH=/home/workspace/.accelforge/config.yaml
 RUN mkdir -p /home/workspace/.accelforge/
-RUN pip install accelforge
-# WORKDIR /home/workspace
+RUN pip install -e .
 
 # ENTRYPOINT ["/bin/bash"]
 
