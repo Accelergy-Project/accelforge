@@ -1197,7 +1197,11 @@ def get_tile_shape_choices(
                             choices_enumerated = choices_enumerated[valid]
                             choices_enumerated_float = choices_enumerated_float[valid]
                         elif complete:
-                            valid |= result == result.min()
+                            valid |= result == (
+                                result.min()
+                                if isinstance(result, np.ndarray)
+                                else result
+                            )
                             choices_enumerated = choices_enumerated[valid]
                             choices_enumerated_float = choices_enumerated_float[valid]
                 except (TypeError, ValueError):
