@@ -161,8 +161,10 @@ Support
 If you encounter issues or have questions:
 
 - Check the :doc:`faqs` page
-- Review `the AccelForge tutorials <https://github.com/Accelergy-Project/accelforge/tree/main/notebooks/tutorials>`_
-- Review `the AccelForge examples <https://github.com/Accelergy-Project/accelforge/tree/main/examples>`_
+- Review `the AccelForge tutorials
+  <https://github.com/Accelergy-Project/accelforge/tree/main/notebooks/tutorials>`_
+- Review `the AccelForge examples
+  <https://github.com/Accelergy-Project/accelforge/tree/main/examples>`_
 - Browse the `source code on GitHub <https://github.com/Accelergy-Project/accelforge>`_
 - Open an issue on `GitHub <https://github.com/Accelergy-Project/accelforge>`_
 
@@ -175,3 +177,31 @@ If you encounter issues or have questions:
    modeling
    definitions
    faqs
+   timeloop_compare
+
+AccelForge and Prior Work Timeloop
+----------------------------------
+
+AccelForge is inspired by and designed to be a successor to the Timeloop [1]_ project,
+and incorporates many of the same ideas, including:
+
+- Analytical modeling of energy, area, and latency
+- Component, architecture, workload, and mapping as separate objects
+- Automated mapping of workloads to architectures
+
+For users of Timeloop, AccelForge can be used as a faster Python-based alternative. Many
+of the features of Timeloop are supported by AccelForge, and input specifications are
+similar, though not identical.
+
+While AccelForge is under active development and will in the future have a superset of
+Timeloop's features, currently the two works have differing feature sets. For users who
+are considering migrating, please review the :doc:`timeloop_compare` page for a
+comparison of the features supported by each framework.
+
+References
+----------
+
+.. [1] A. Parashar et al., "Timeloop: A Systematic Approach to DNN Accelerator
+   Evaluation," 2019 IEEE International Symposium on Performance Analysis of Systems and
+   Software (ISPASS), Madison, WI, USA, 2019, pp. 304-315, doi:
+   10.1109/ISPASS.2019.00042. `Code Here <https://github.com/NVlabs/timeloop>`_
