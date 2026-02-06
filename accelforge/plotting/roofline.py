@@ -30,11 +30,11 @@ def plot_roofline(
 
     roofline_transition = _roofline_transition(bandwidth, computational_throughput)
     if max_computational_intensity is None:
-        max_computational_intensity = 2*roofline_transition
+        max_computational_intensity = 2 * roofline_transition
 
     ax.plot(
         [min_computational_intensity, roofline_transition],
-        [min_computational_intensity*bandwidth, computational_throughput],
+        [min_computational_intensity * bandwidth, computational_throughput],
     )
     ax.plot(
         [roofline_transition, max_computational_intensity],
@@ -45,4 +45,4 @@ def plot_roofline(
 
 
 def _roofline_transition(bandwidth, computation_throughput):
-    return computation_throughput/bandwidth
+    return computation_throughput / bandwidth

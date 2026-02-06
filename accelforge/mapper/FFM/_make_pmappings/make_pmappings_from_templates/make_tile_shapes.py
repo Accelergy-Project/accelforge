@@ -780,14 +780,23 @@ def coalesce_symbols(
             for s in formula.free_symbols:
                 g = latest(s).goal if s in latest() else None
                 if g in ["min", "max"]:
+                    log_message(
+                        "coalesce symbols", f"checking agreement with {s} and goal {g}"
+                    )
                     diff_result = diff_geq_leq_zero(formula, s, bounds)
                     if diff_result == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
                         this_goal = (~goal).goal
+                        log_message("coalesce symbols", f"diff result for {s} <= 0")
                     elif diff_result == ComparisonResult.ALWAYS_GEQ_THAN_ZERO:
                         this_goal = (goal).goal
+                        log_message("coalesce symbols", f"diff result for {s} >= 0")
                     elif diff_result == ComparisonResult.UNKNOWN:
+                        log_message(
+                            "coalesce symbols", f"diff result for {s} is unknown"
+                        )
                         break
                     elif diff_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
+                        log_message("coalesce symbols", f"diff result for {s} = 0")
                         this_goal = g  # Make it agree
                     else:
                         diff_geq_leq_zero(formula, s, bounds)
@@ -812,6 +821,10 @@ def coalesce_symbols(
                     )
                     update_symbol2goal(s, Goal("diff"), new_symbol2goal)
                 continue
+            log_message(
+                "coalesce symbols",
+                f"can't change formula: {formula}",
+            )
             update_symbol2goal(formula, goal, new_symbol2goal)
 
         changed = symbol2goal != new_symbol2goal
@@ -1153,7 +1166,6 @@ def get_tile_shape_choices(
             # If there's a max value, then check for validity
             # ==========================================================================
             complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
-            prev_size = choices_enumerated.shape[0]
             if objective.max_value is not None:
                 try:
                     # minimize_for_objective may raise a TypeError if there's unknown
@@ -1211,22 +1223,23 @@ def get_tile_shape_choices(
                 except (TypeError, ValueError):
                     pass
 
+        if choices_enumerated.shape[0] < 1000:
+            continue
+
+        for objective in list(objectives):
+            # ==========================================================================
+            # If there's a max value, then check for validity
+            # ==========================================================================
+            complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
+            prev_size = choices_enumerated.shape[0]
+
             log_message(
                 "Partitioning formula", f"{objective.name}: {objective.formula}"
             )
+
             goals = partition_formula(
                 objective.formula, sym_enumerated_set, what_tiles_symbol.bounds
             )
-            if any(g.goal == "diff" for g in goals.values()):
-                goals2 = partition_formula(
-                    sympy.expand(objective.formula),
-                    sym_enumerated_set,
-                    what_tiles_symbol.bounds,
-                )
-                goals = min(
-                    (goals, goals2),
-                    key=lambda x: sum(g.goal == "diff" for g in x.values()),
-                )
 
             porp = sum(valid) / max(1, choices_enumerated.shape[0])
             job.log_porp_pmappings_kept(
@@ -1236,6 +1249,7 @@ def get_tile_shape_choices(
             log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
             if complete:
                 objective.max_value = None  # We don't care anymore
+                objective.min_value = None
                 if objective.only_care_if_valid:
                     objectives.remove(objective)
                     log_message(f"Removed {objective.name} because it is always valid")
@@ -1251,9 +1265,6 @@ def get_tile_shape_choices(
         job.n_evaluated_pmappings += choices_enumerated.shape[0]
         if not choices_enumerated.shape[0]:
             return np.array([]).reshape(-1, len(symbols))
-
-        if choices_enumerated.shape[0] < 100:
-            continue
 
         # ==============================================================================
         # Coalesce symbols. This simplifies our tracked goals. It also breaks down
@@ -1553,8 +1564,17 @@ def _make_tile_shapes(job: "Job"):
         # If we only track for pmappings, we only care if it's valid. If we track for
         # all, we care about the value too.
 
+        split = k.split("<SEP>")
+        assert split[0] == "usage", f"invalid {split}"
+        if split[1] == "spatial":
+            assert len(split) == 4
+        elif split[1] == "memory":
+            assert len(split) == 3
+        else:
+            assert False, f"invalid {split}"
+
         only_care_if_valid = False
-        if k in job.memories_track_pmappings_only:
+        if split[2] in job.memories_track_pmappings_only:
             only_care_if_valid = True
 
         # TODO: Update check to see if we may be sharing usage with other
