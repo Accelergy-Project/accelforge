@@ -155,9 +155,7 @@ def run_model(
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():
-        ignored = (
-            job.ignored_resources is not None and memory not in job.ignored_resources
-        )
+        ignored = job.ignored_resources is not None and memory in job.ignored_resources
         if not ignored or metrics & Metrics.ACTIONS:
             key = f"usage<SEP>memory<SEP>{memory}"
             per_memory_usage_df[key] = (
