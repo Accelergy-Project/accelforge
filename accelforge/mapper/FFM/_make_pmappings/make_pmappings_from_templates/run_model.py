@@ -72,6 +72,8 @@ def run_model(
             usage = used_fanout.get(s.name, 1) / s.fanout
             scaled_usage = usage * s.usage_scale
             usage_df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
+            if metrics & Metrics.ACTIONS:
+                df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
             non_power_gated_instances *= usage
         component_to_non_power_gated_porp[node.name] = non_power_gated_instances
 
@@ -156,9 +158,13 @@ def run_model(
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():
         ignored = job.ignored_resources is not None and memory in job.ignored_resources
-        if not ignored or metrics & Metrics.ACTIONS:
-            key = f"usage<SEP>memory<SEP>{memory}"
+        key = f"usage<SEP>memory<SEP>{memory}"
+        if not ignored:
             per_memory_usage_df[key] = (
+                sum(occupancies.values()) / memory_to_size[memory]
+            )
+        if metrics & Metrics.ACTIONS:
+            df[key] = (
                 sum(occupancies.values()) / memory_to_size[memory]
             )
 

@@ -188,6 +188,9 @@ def evaluate_mapping(
         for key, value in df.items():
             if not col_used_in_joining(key):
                 key = f"{job.einsum_name}<SEP>{key}"
+            # Want usage both for joining & for per-einsum info
+            if key.startswith("usage<SEP>"):
+                new_df[f"{job.einsum_name}<SEP>{key}"] = value
             new_df[key] = value
         df = new_df
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
