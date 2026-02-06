@@ -8,6 +8,7 @@ arch:
     name: MainMemory
     component_class: lpddr4
     size: inf
+    tensors: {keep: ~Intermediates, may_keep: All}
 
   - !Memory
     name: GlobalBuffer

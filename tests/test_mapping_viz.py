@@ -4,8 +4,8 @@ LoopTrees so they can be inspected.
 
 TODO: an automated way to check for correctness.
 """
+
 import unittest
-from pathlib import Path
 
 from accelforge.frontend.spec import Spec
 from accelforge.model.main import evaluate_mapping
@@ -13,8 +13,7 @@ from accelforge.util.parallel import set_n_parallel_jobs
 
 set_n_parallel_jobs(1)
 
-
-EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
+from paths import EXAMPLES_DIR
 
 
 class TestModel(unittest.TestCase):
@@ -37,7 +36,11 @@ class TestModel(unittest.TestCase):
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
         result = evaluate_mapping(spec)
-        graph = result.data["Total<SEP>mapping"].iloc[0]().render_pydot(with_reservations=False)
+        graph = (
+            result.data["Total<SEP>mapping"]
+            .iloc[0]()
+            .render_pydot(with_reservations=False)
+        )
         # graph.write_png("without_reservations.png")
 
     def test_without_stride(self):
@@ -48,5 +51,9 @@ class TestModel(unittest.TestCase):
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
         result = evaluate_mapping(spec)
-        graph = result.data["Total<SEP>mapping"].iloc[0]().render_pydot(with_tile_shape=False)
+        graph = (
+            result.data["Total<SEP>mapping"]
+            .iloc[0]()
+            .render_pydot(with_tile_shape=False)
+        )
         # graph.write_png("without_stride.png")

@@ -81,11 +81,6 @@ Example Jupyter notebooks can be found by cloning the repository and navigating 
    cd accelforge/notebooks/tutorials
    jupyter notebook
 
-The tutorials include:
-
-- **mapper.ipynb** - Mapping workloads to architectures
-- **component_energy_area.ipynb** - Modeling component energy and area
-
 Example Input Files
 ~~~~~~~~~~~~~~~~~~~
 

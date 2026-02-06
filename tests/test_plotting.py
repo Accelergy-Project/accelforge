@@ -1,15 +1,17 @@
 import unittest
-from pathlib import Path
 
 from accelforge.frontend.spec import Spec
 from accelforge.model.main import evaluate_mapping
 from accelforge.util.parallel import set_n_parallel_jobs
-from accelforge.plotting.mappings import plot_energy_comparison, plot_energy_breakdown, plot_action_breakdown
+from accelforge.plotting.mappings import (
+    plot_energy_comparison,
+    plot_energy_breakdown,
+    plot_action_breakdown,
+)
 
 set_n_parallel_jobs(1)
 
-
-EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
+from paths import EXAMPLES_DIR
 
 
 class TestEnergyPlotting(unittest.TestCase):
@@ -51,7 +53,9 @@ class TestEnergyPlotting(unittest.TestCase):
 
         result = evaluate_mapping(spec)
 
-        fig, axes = plot_energy_breakdown([result, result], ["einsum", "component"], ["action"])
+        fig, axes = plot_energy_breakdown(
+            [result, result], ["einsum", "component"], ["action"]
+        )
         fig.tight_layout()
         fig.savefig("fig.png", dpi=400, bbox_inches="tight")
 

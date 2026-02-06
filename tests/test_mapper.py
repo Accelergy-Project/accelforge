@@ -1,12 +1,10 @@
 import unittest
-from pathlib import Path
 
 from accelforge.frontend.spec import Spec
 from accelforge.mapper import Metrics
 from accelforge.mapper.FFM.main import map_workload_to_arch
 
-
-EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
+from paths import EXAMPLES_DIR
 
 M_SHAPE = 64
 KN_SHAPE = 64
@@ -17,10 +15,12 @@ class ActionChecker(unittest.TestCase):
         for einsum_name in spec.workload.einsum_names:
             for memory_name in memory_names:
                 for memory_action in ["read", "write"]:
+                    k = f"{einsum_name}<SEP>action<SEP>{memory_name}<SEP>"
+                    matched = [col for col in result.data.columns if col.startswith(k)]
+                    matched = {x.split("<SEP>")[-1] for x in matched}
                     self.assertTrue(
-                        f"{einsum_name}<SEP>action<SEP>{memory_name}<SEP>{memory_action}" in result.data.columns,
-                        f"{einsum_name}<SEP>action<SEP>{memory_name}<SEP>{memory_action} "
-                        f"not found in {result.data.columns}"
+                        memory_action in matched,
+                        f"{einsum_name} {memory_name} {memory_action} not found in {result.data.columns}",
                     )
 
 
@@ -60,10 +60,13 @@ class TestFanout(ActionChecker):
 
         result = map_workload_to_arch(spec)
         self._check_memory_actions_exist(spec, ["MainMemory", "GlobalBuffer"], result)
-        self.assertEqual(
-            result.data["Matmul0<SEP>Total<SEP>latency"].iloc[0],
-            M_SHAPE*KN_SHAPE**2/self.FANOUT
+        latency = result.latency(per_einsum=True)
+        self.assertIn(
+            "Matmul0",
+            latency,
+            f"Matmul0 not in {latency}",
         )
+        self.assertEqual(latency["Matmul0"], M_SHAPE * KN_SHAPE**2 / self.FANOUT)
         return result
 
 
