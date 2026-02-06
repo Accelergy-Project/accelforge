@@ -266,6 +266,7 @@ class PmappingGroup:
         live_tensors: set[str] | Literal["All"],
         allow_different_compatibilies: bool = False,
         combine_reservations: bool = True,
+        print_progress: bool = True,
         pbar_postfix: str = "",
     ) -> list["PmappingGroup"]:
         pmapping_groups = [s for s in pmapping_groups if len(s.mappings.data) > 0]
@@ -294,7 +295,7 @@ class PmappingGroup:
                 for g in groups
                 if len(g) > 1
             ],
-            pbar=f"Grouping pmappings{pbar_postfix}",
+            pbar=f"Grouping pmappings{pbar_postfix}" if print_progress else None,
         )
         return groups_with_one + others + no_combine
 

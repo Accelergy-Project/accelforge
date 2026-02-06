@@ -94,10 +94,16 @@ def _expfmt(x):
     return x
 
 
+def _dict_job(key, f):
+    r = f[0](*f[1], **f[2])
+    return key, r
+
+
 def parallel(
     jobs: list[tuple[Callable, tuple, dict]],
     n_jobs: int = None,
     pbar: str = None,
+    pbar_position: int = 0,
     return_as: str = None,
 ) -> list[Any] | Generator[Any, None, None] | dict[Any, Any]:
     """
@@ -114,6 +120,9 @@ def parallel(
         jobs is set to the number of CPU cores.
     pbar : str, optional
         A label for a progress bar. If not provided, no progress bar is shown.
+    pbar_position : int, optional
+        The position of the progress bar. If not provided, the progress bar is shown at
+        the beginning of the output.
     return_as : Literal["list", "generator", "generator_unordered"], optional
         The type of return value. If not provided, the return value is a list.
 
@@ -130,21 +139,24 @@ def parallel(
         n_jobs = N_PARALLEL_PROCESSES
 
     if isinstance(jobs, dict):
-        assert return_as == None, "return_as is not supported for dict jobs"
-        r = zip(
-            jobs.keys(),
-            parallel(
-                jobs.values(),
+        assert return_as is None, "return_as is not supported for dict jobs"
+        result = {
+            k: v
+            for k, v in parallel(
+                [delayed(_dict_job)(k, v) for k, v in jobs.items()],
                 pbar=pbar,
-            ),
-        )
-        return {k: v for k, v in r}
+                return_as="generator_unordered",
+            )
+        }
+        return {k: result[k] for k in jobs}
 
     jobs = list(jobs)
 
     if n_jobs == 1 or len(jobs) == 1:
         if pbar:
-            jobs = tqdm(jobs, total=len(jobs), desc=pbar, leave=True)
+            jobs = tqdm(
+                jobs, total=len(jobs), desc=pbar, leave=True, position=pbar_position
+            )
         return [j[0](*j[1], **j[2]) for j in jobs]
 
     total_jobs = len(jobs)

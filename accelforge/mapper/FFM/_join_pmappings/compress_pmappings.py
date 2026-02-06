@@ -68,6 +68,7 @@ def _compress_pmapping_list(
 
 def compress_einsum2pmappings(
     einsum2pmappings: dict[EinsumName, list[PmappingGroup]],
+    print_progress: bool = True,
 ) -> tuple[dict[EinsumName, list[PmappingGroup]], DecompressData]:
     decompress_data = {}
     compressed_einsum2pmappings = {}
@@ -83,7 +84,9 @@ def compress_einsum2pmappings(
 
     name_order = [einsum_name for einsum_name in einsum2pmappings.keys()]
     for einsum_name, compressed, decompress in parallel(
-        jobs, pbar="Compressing pmappings", return_as="generator_unordered"
+        jobs,
+        pbar="Compressing pmappings" if print_progress else None,
+        return_as="generator_unordered",
     ):
         compressed_einsum2pmappings[einsum_name] = compressed
         decompress_data[einsum_name] = decompress

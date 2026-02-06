@@ -50,6 +50,10 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_mod
     run_model,
 )
 
+import getpass
+
+DEBUG = getpass.getuser() == "tanner"
+
 
 class ComparisonResult(Enum):
     ALWAYS_GEQ_THAN_ZERO = "ALWAYS_GEQ_THAN_ZERO"
@@ -1343,7 +1347,7 @@ def get_tile_shape_choices(
     # Return the choices
     # ==================================================================================
     t = time.time() - start_time
-    if t > 60:
+    if t > 60 and DEBUG:
         a = [
             f"Total time: {t:.2f}s",
             f"Pmapping: {job.mapping.compact_str()}",

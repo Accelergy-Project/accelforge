@@ -81,6 +81,7 @@ def get_jobs(
     metrics: Metrics,
     einsum_names: list[EinsumName],
     fail_if_no_pmappings_for_einsum: bool,
+    print_progress: bool,
 ) -> dict[EinsumName, dict[Compatibility, SameCompatibilityJobs]]:
 
     spec = spec
@@ -91,9 +92,10 @@ def get_jobs(
 
     einsum2spec: dict[EinsumName, Spec] = {}
     s = f"Getting energy, latency, and leak power for components running "
-    pbar = tqdm(einsum_names, desc=s)
+    pbar = tqdm(einsum_names, desc=s) if print_progress else einsum_names
     for einsum_name in pbar:
-        pbar.set_description(s + einsum_name)
+        if print_progress:
+            pbar.set_description(s + einsum_name)
         einsum2spec[einsum_name] = spec._spec_eval_expressions(
             einsum_name=einsum_name,
             eval_arch=True,
@@ -118,7 +120,7 @@ def get_jobs(
                 job_id=uuid.uuid4(),
                 fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
             )
-            for j in make_pmapping_templates(job):
+            for j in make_pmapping_templates(job, print_progress):
                 jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
 
         return einsum_name, jobs
@@ -128,7 +130,7 @@ def get_jobs(
             delayed(make_jobs_for_einsum)(einsum_name, spec)
             for einsum_name, spec in einsum2spec.items()
         ],
-        pbar="Generating jobs",
+        pbar="Generating jobs" if print_progress else None,
         return_as="generator",
     ):
         einsum2jobs.setdefault(einsum_name, {})
@@ -155,10 +157,12 @@ def get_jobs(
     )
     for einsum_name, compatibility_jobs in einsum2jobs.items():
         total_jobs = sum(len(j) for j in compatibility_jobs.values())
-        logging.warning(f"Einsum {einsum_name} has {total_jobs} pmapping templates:")
+        if print_progress:
+            print(f"Einsum {einsum_name} has {total_jobs} pmapping templates:")
         for job_list in compatibility_jobs.values():
             for job in job_list:
-                logging.warning(f"\t{job.mapping.compact_str()}")
+                if print_progress:
+                    print(f"\t{job.mapping.compact_str()}")
                 job.memory_limit = memory_limit
                 job.time_limit = time_limit
 
@@ -170,6 +174,7 @@ def get_memories_to_track(
     einsum2jobs: dict[EinsumName, list[Job]],
     metrics: Metrics,
     can_combine_multiple_runs: bool,
+    print_progress: bool = True,
 ) -> tuple[list[str], list[str]]:
 
     memories_track_all = set()
@@ -227,11 +232,12 @@ def get_memories_to_track(
 
         if usage <= 1:
             ignored_resources.add(memory)
-            print(
-                f"Not tracking memory {memory}. It is big enough to simultaneously "
-                f"hold every workload tensor that may be stored in it. Max possible "
-                f"usage: {usage * 100:.2f}%"
-            )
+            if print_progress:
+                print(
+                    f"Not tracking memory {memory}. It is big enough to simultaneously "
+                    f"hold every workload tensor that may be stored in it. Max "
+                    f"possible usage: {usage * 100:.2f}%"
+                )
             memories_track_all.remove(memory)
 
     # If the memory is below every backing tensor holder node, then we need it for the
@@ -253,10 +259,11 @@ def get_memories_to_track(
         if not must_track:
             memories_track_all.remove(m)
             memories_track_pmappings_only.append(m)
-            print(
-                f"Not tracking memory {m} across joining stages. It is never "
-                f"reserved across fused loop iterations."
-            )
+            if print_progress:
+                print(
+                    f"Not tracking memory {m} across joining stages. It is never "
+                    f"reserved across fused loop iterations."
+                )
 
     return memories_track_all, memories_track_pmappings_only, ignored_resources
 
@@ -267,6 +274,8 @@ def make_pmappings(
     metrics: Metrics = Metrics.ENERGY | Metrics.LATENCY,
     einsum_names: Optional[list[EinsumName]] = None,
     fail_if_no_pmappings_for_einsum: bool | None = None,
+    print_progress: bool = True,
+    one_pbar_only: bool = False,
 ) -> tuple[
     dict[EinsumName, list[PmappingGroup]],
     dict[EinsumName, dict[uuid.UUID, Mapping]],
@@ -279,6 +288,11 @@ def make_pmappings(
 
     if einsum_names is None:
         einsum_names = spec.workload.einsum_names
+
+    if one_pbar_only:
+        assert (
+            not print_progress
+        ), "print_progress must be False if one_pbar_only is True"
 
     if fail_if_no_pmappings_for_einsum is None:
         fail_if_no_pmappings_for_einsum = not can_combine_multiple_runs
@@ -294,9 +308,10 @@ def make_pmappings(
         metrics,
         einsum_names,
         fail_if_no_pmappings_for_einsum,
+        print_progress,
     )
     _fill_jobs_with_memories_to_track(
-        new_einsum2jobs, spec, metrics, can_combine_multiple_runs
+        new_einsum2jobs, spec, metrics, can_combine_multiple_runs, print_progress
     )
     for einsum_name, jobs in new_einsum2jobs.items():
         einsum2jobs.setdefault(einsum_name, {})
@@ -305,7 +320,7 @@ def make_pmappings(
                 compatibility, SameCompatibilityJobs()
             ).extend(job_list)
 
-    calls = _allocate_jobs(einsum2jobs)
+    calls = _allocate_jobs(einsum2jobs, print_progress)
 
     # Sort the calls by the length of the longest mapping in each job. We get long
     # poles with the long mappings, so we want to get them done early so we don't
@@ -329,7 +344,7 @@ def make_pmappings(
         jobs_with_similar_compatibilities,
     ) in parallel(
         calls,
-        pbar=f"Generating pmappings",
+        pbar=f"Generating pmappings" if print_progress or one_pbar_only else None,
         return_as="generator_unordered",
     ):
         pmapping_groups[einsum_name].extend(new_pmapping_groups)
@@ -343,6 +358,7 @@ def make_pmappings(
             pmapping_groups[einsum_name],
             "All",
             pbar_postfix=f" for {einsum_name}",
+            print_progress=print_progress,
         )
 
     return pmapping_groups, pmapping_objects, return_jobs
@@ -356,7 +372,7 @@ def _raise_error_if_no_pmappings(einsum2jobs):
             )
 
 
-def _allocate_jobs(einsum2jobs):
+def _allocate_jobs(einsum2jobs, print_progress: bool = True):
     calls = []
     for einsum_name, jobs in einsum2jobs.items():
         calls.extend(
@@ -372,10 +388,11 @@ def _allocate_jobs(einsum2jobs):
         and is_using_parallel_processing()
         and len(calls) < get_n_parallel_jobs() * 4
     ):
-        logging.warning(
-            f"Insufficient jobs available to utilize available threads. "
-            f"Splitting jobs into smaller chunks."
-        )
+        if print_progress:
+            print(
+                f"Insufficient jobs available to utilize available threads. "
+                f"Splitting jobs into smaller chunks."
+            )
         split = True
 
     if split:
@@ -396,6 +413,7 @@ def _fill_jobs_with_memories_to_track(
     spec,
     metrics,
     can_combine_multiple_runs,
+    print_progress,
 ):
     einsum2jobs_flattened = {
         e: [j for jobs in v.values() for j in jobs] for e, v in einsum2jobs.items()
@@ -407,6 +425,7 @@ def _fill_jobs_with_memories_to_track(
             einsum2jobs_flattened,
             metrics,
             can_combine_multiple_runs,
+            print_progress,
         )
     )
     for jobs in einsum2jobs_flattened.values():

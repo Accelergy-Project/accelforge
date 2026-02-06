@@ -220,7 +220,8 @@ def evaluate_mapping(
             einsums_with_pmappings_generated=spec.workload.einsum_names,
             flattened_arches=flattened_arches,
             evaluated_specs=evaluated_specs,
-        )
+        ),
+        print_progress=False,
     )
 
 

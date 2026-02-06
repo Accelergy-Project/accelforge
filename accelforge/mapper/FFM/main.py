@@ -28,6 +28,8 @@ def map_workload_to_arch(
     einsum_names: list[EinsumName] | None = None,
     can_combine_multiple_runs: bool = False,
     cache_dir: str | None = None,
+    one_pbar_only: bool = False,
+    print_progress: bool = True,
     print_number_of_pmappings: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ) -> Mappings:
@@ -42,11 +44,17 @@ def map_workload_to_arch(
     einsum_names:
         The einsum names to map. If None, all einsums will be mapped.
     can_combine_multiple_runs:
-        If True, allows combining multiple make_pmappings runs (e.g.
-        ``pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)``).
-        Set to False for faster execution.
+        If True, allows combining multiple make_pmappings runs (e.g. ``pmappings =
+        make_pmappings(*args_a) | make_pmappings(*args_b)``). Set to False for faster
+        execution.
     cache_dir:
         The directory to cache pmappings in. If None, no caching will be done.
+    one_pbar_only:
+        Whether to only print only a single progress bar. If this is True, then only a
+        progress bar will be created for making tile shapes, which is generally the
+        longest-running part of the mapping process.
+    print_progress:
+        Whether to print progress of the mapping process, including progress bars.
     print_number_of_pmappings:
         Whether to print the number of pmappings for each einsum.
     _pmapping_row_filter_function:
@@ -56,18 +64,25 @@ def map_workload_to_arch(
     """
     from accelforge.model.main import evaluate_mapping
 
+    if one_pbar_only:
+        print_progress = False
+        print_number_of_pmappings = False
+
     pmappings = make_pmappings(
         spec,
         einsum_names=einsum_names,
+        print_progress=print_progress,
         can_combine_multiple_runs=can_combine_multiple_runs,
         cache_dir=cache_dir,
         print_number_of_pmappings=print_number_of_pmappings,
+        one_pbar_only=one_pbar_only,
     )
 
     mappings = join_pmappings(
         pmappings,
         require_all_einsums=False,
         _pmapping_row_filter_function=_pmapping_row_filter_function,
+        print_progress=print_progress,
     )
 
     new_mapping_data = []
@@ -93,7 +108,9 @@ def make_pmappings(
     einsum_names: list[EinsumName] | None = None,
     can_combine_multiple_runs: bool = False,
     cache_dir: str | None = None,
+    print_progress: bool = True,
     print_number_of_pmappings: bool = True,
+    one_pbar_only: bool = False,
 ) -> MultiEinsumPmappings:
     """
     Creates pmappings for a spec. Pmappings must be joined together using
@@ -107,11 +124,17 @@ def make_pmappings(
         The einsum names to generate pmappings for. If None, all einsums will be
         included.
     can_combine_multiple_runs:
-        If True, allows combining multiple make_pmappings runs (e.g.
-        ``pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)``).
-        Set to False for faster execution.
+        If True, allows combining multiple make_pmappings runs (e.g. ``pmappings =
+        make_pmappings(*args_a) | make_pmappings(*args_b)``). Set to False for faster
+        execution.
     cache_dir:
         The directory to cache pmappings in. If None, no caching will be done.
+    one_pbar_only:
+        Whether to only print only a single progress bar. If this is True, then only a
+        progress bar will be created for making tile shapes, which is generally the
+        longest-running part of the mapping process.
+    print_progress:
+        Whether to print progress of the mapping process, including progress bars.
     print_number_of_pmappings:
         Whether to print the number of pmappings for each einsum.
 
@@ -122,6 +145,8 @@ def make_pmappings(
         spec=spec,
         einsum_names=einsum_names,
         can_combine_multiple_runs=can_combine_multiple_runs,
+        print_progress=print_progress,
+        one_pbar_only=one_pbar_only,
     )
     assert len(kwargs) == len(inspect.signature(_make_pmappings).parameters)
 
@@ -145,30 +170,35 @@ def join_pmappings(
     pmappings: MultiEinsumPmappings,
     require_all_einsums: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+    print_progress: bool = True,
 ) -> Mappings:
     """
-    Joins pmappings into a full mappings for the entire workload. Pmappings can
-    be generated using `make_pmappings`.
+    Joins pmappings into a full mappings for the entire workload. Pmappings can be
+    generated using `make_pmappings`.
 
     Parameters
     ----------
     pmappings:
         The pmappings to join.
     require_all_einsums:
-        If True, all einsums in the workload must have pmappings. If False, only
-        einsums that have pmappings will be included in the final mappings.
+        If True, all einsums in the workload must have pmappings. If False, only einsums
+        that have pmappings will be included in the final mappings.
     _pmapping_row_filter_function:
-        A function that takes in a row of the pmapping dataframe and returns
-        True if the row should be included in the final mappings, and False
-        otherwise. If None, all rows will be included.
-
+        A function that takes in a row of the pmapping dataframe and returns True if the
+        row should be included in the final mappings, and False otherwise. If None, all
+        rows will be included.
+    print_progress:
+        Whether to print progress of the mapping process, including progress bars.
     Returns
     -------
     Mappings
         A Mappings object containing all valid, optimal mappings for the workload.
     """
     return clean_compress_and_join_pmappings(
-        pmappings, require_all_einsums, _pmapping_row_filter_function
+        pmappings,
+        require_all_einsums,
+        _pmapping_row_filter_function,
+        print_progress=print_progress,
     )
 
 
@@ -176,6 +206,8 @@ def _make_pmappings(
     spec: Spec,
     einsum_names: list[EinsumName] | None = None,
     can_combine_multiple_runs: bool = False,
+    print_progress: bool = True,
+    one_pbar_only: bool = False,
 ) -> MultiEinsumPmappings:
     if einsum_names is None:
         einsum_names = [e.name for e in spec.workload.einsums]
@@ -185,6 +217,8 @@ def _make_pmappings(
         metrics=spec.mapper.metrics,
         einsum_names=einsum_names,
         can_combine_multiple_runs=can_combine_multiple_runs,
+        print_progress=print_progress,
+        one_pbar_only=one_pbar_only,
     )
 
     flattened_arches = {}

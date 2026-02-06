@@ -164,9 +164,7 @@ def run_model(
                 sum(occupancies.values()) / memory_to_size[memory]
             )
         if metrics & Metrics.ACTIONS:
-            df[key] = (
-                sum(occupancies.values()) / memory_to_size[memory]
-            )
+            df[key] = sum(occupancies.values()) / memory_to_size[memory]
 
     return (
         reuse.symbols,
