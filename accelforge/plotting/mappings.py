@@ -94,23 +94,24 @@ def plot_energy_breakdown(
 
 def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, keyer):
     mappings = [mappings] if isinstance(mappings, Mappings) else list(mappings)
-    n_axes = sum(map(len, (m.data for m in mappings)))
+    all_data = [m.data for m in mappings]
+    n_axes = sum(map(len, all_data))
 
-    fig, axes = plt.subplots(1, n_axes, sharey=True)
+    fig, axes = plt.subplots(1, n_axes, sharey=True, figsize=(n_axes*3, 4))
     if n_axes == 1:
         axes = [axes]
 
     if labels is not None:
         labels = [l + "-" for l in labels]
     else:
-        labels = [f"{i}-" for i in range(len(mappings))]
-    assert len(labels) == len(mappings)
+        labels = [f"{i}-" for i in range(len(all_data))]
+    assert len(labels) == len(all_data)
 
     if len(separate_by) == 0:
         raise ValueError("Missing categories by which to breakdown energy")
 
     idx = 0
-    for label, df in zip(labels, (m.data for m in mappings)):
+    for label, df in zip(labels, all_data):
         colnames = [c for c in df.columns if col_keyword in c and "Total" not in c]
         bar_components = list(
             _get_bar_components(colnames, keyer, separate_by, stack_by)
@@ -120,7 +121,7 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
             ax = axes[idx]
             idx += 1
 
-            ax.set_title(f"{label}mapping{j}")
+            ax.set_title(f"{label}m{j}")
 
             # Collect names of bars and initialize label2hieghts
             bars = []
@@ -182,16 +183,23 @@ def plot_energy_comparison(mappings: Iterable[Mappings] | Mappings, labels=None)
 
 
 def _plot_column_comparison(mappings, labels, colname):
-    fig, ax = plt.subplots()
-
     mappings = [mappings] if isinstance(mappings, Mappings) else list(mappings)
-    labels = labels + "-" if labels is not None else [""] * len(mappings)
+    all_data = [m.data for m in mappings]
+    n_bars = sum(map(len, all_data))
+
+    if labels is not None:
+        labels = [l + "-" for l in labels]
+    else:
+        labels = [f"{i}-" for i in range(len(mappings))]
     assert len(labels) == len(mappings)
 
-    for label, df in zip(labels, (m.data for m in mappings)):
-        bars = [f"{label}mapping{i}" for i in range(len(df))]
+    fig, ax = plt.subplots(figsize=(n_bars, 4))
+
+    for label, df in zip(labels, all_data):
+        bars = [f"{label}m{i}" for i in range(len(df))]
         heights = df[colname]
         ax.bar(bars, heights)
+        ax.set_xticks(bars, labels=bars, rotation=90)
 
     return fig, ax
 
