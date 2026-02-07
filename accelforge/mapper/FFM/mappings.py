@@ -10,6 +10,7 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
 )
 from typing import Union
 import numpy as np
+from numbers import Integral
 
 
 class Mappings:
@@ -110,8 +111,8 @@ class Mappings:
         data.update(kwargs)
         return Mappings(**data)
 
-    def __getitem__(self, key: str | int) -> Union[pd.Series, "Mappings"]:
-        if isinstance(key, int):
+    def __getitem__(self, key: str | Integral) -> Union[pd.Series, "Mappings"]:
+        if isinstance(key, Integral):
             return self._update(data=pd.DataFrame(self.data.iloc[key]).T)
         return self.data[key]
 
