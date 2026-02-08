@@ -199,7 +199,8 @@ class Spec(EvalableModel):
             if not getattr(self, "_evaluated", False):
                 self = self._spec_eval_expressions(einsum_name=einsum_name)
             else:
-                self = self.copy()
+                self = self.model_copy()
+                self.arch = self.arch.model_copy(deep=True)
         except EvaluationError as e:
             if "arch" in e.message:
                 e.add_note(
