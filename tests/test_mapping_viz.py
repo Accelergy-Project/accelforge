@@ -13,7 +13,10 @@ from accelforge.util.parallel import set_n_parallel_jobs
 
 set_n_parallel_jobs(1)
 
-from paths import EXAMPLES_DIR
+try:
+    from .paths import EXAMPLES_DIR
+except ImportError:
+    from paths import EXAMPLES_DIR
 
 
 class TestModel(unittest.TestCase):

@@ -97,7 +97,7 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
     all_data = [m.data for m in mappings]
     n_axes = sum(map(len, all_data))
 
-    fig, axes = plt.subplots(1, n_axes, sharey=True, figsize=(n_axes*3, 4))
+    fig, axes = plt.subplots(1, n_axes, sharey=True, figsize=(n_axes * 3, 4))
     if n_axes == 1:
         axes = [axes]
 

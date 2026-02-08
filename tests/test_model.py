@@ -4,7 +4,10 @@ from accelforge.frontend.spec import Spec
 from accelforge.model.main import evaluate_mapping
 from accelforge.util.parallel import set_n_parallel_jobs
 
-from paths import EXAMPLES_DIR
+try:
+    from .paths import EXAMPLES_DIR
+except ImportError:
+    from paths import EXAMPLES_DIR
 
 set_n_parallel_jobs(1)
 

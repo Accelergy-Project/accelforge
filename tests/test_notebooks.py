@@ -4,8 +4,11 @@ import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 from nbconvert.preprocessors.execute import CellExecutionError
 
-from paths import NOTEBOOKS_DIR
 
+try:
+    from .paths import NOTEBOOKS_DIR
+except ImportError:
+    from paths import NOTEBOOKS_DIR
 
 TUTORIALS_DIR = NOTEBOOKS_DIR / "tutorials"
 

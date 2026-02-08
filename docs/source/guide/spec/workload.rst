@@ -71,7 +71,7 @@ of the following:
 
 Additionally, you may define a separate top-level
 :py:class:`~accelforge.frontend.renames.Renames` object with structure mirroring the
-workload. For example, one is in the bottom of the following workload:
+workload. For example, one is in the bottom of the GPT3 6.7B example workload:
 
 .. include:: ../../../../examples/workloads/gpt3_6.7B.yaml
    :code: yaml
@@ -84,3 +84,65 @@ the above dictionary or list-of-dictionary rename formats.
 If an Einsum in the renames is named ``default``, then its renames are applied to every
 Einsum unless overridden. Overriding is specific to a single name, so every rename in
 the default must be overridden independently.
+
+Concise Einsum Notation
+-----------------------
+
+Einsums can be written using concise string notation instead of verbose YAML
+dictionaries. This allows you to concisely write the
+:py:attr:`~accelforge.frontend.workload.Einsum.tensor_accesses`,
+:py:attr:`~accelforge.frontend.workload.Einsum.renames` attributes in a single string.
+This notation does not cover all attributes, though it may be mixed with other
+attributes to fully specify the workload. Additionally, workload-level attributes such
+as :py:attr:`~accelforge.frontend.workload.Workload.bits_per_value` and
+:py:attr:`~accelforge.frontend.workload.Workload.persistent_tensors` can be used to set
+these attribtues for all Einsums in the workload, letting you use a concise notation for
+each Einsum.
+
+The following is an example of two equivalent workloads, written in both verbose and
+concise notation.
+
+.. code-block:: yaml
+
+  workload:
+    einsums:
+    # Concise version of the V Einsum.
+    #
+    # - The LHS of the equation is the output tensor name and projection. If not
+    #   otherwise specified, the output tensor name is the name of the Einsum.
+    # - The RHS of the equation are the input tensor names and projections.
+    - V[b, m, h, e] = I[b, m, d] * WV[h, e, d]
+    - name: V
+      tensor_accesses:
+      - {name: I, projection: [b, m, d]}
+      - {name: WV, projection: [h, e, d]}
+      - {name: V, projection: [b, m, h, e], output: True}
+
+    # Concise version of the QK Einsum. Notice that we used the M=p notation to support
+    # a projection dictionary. We can also use a name alias in parentheses to give a
+    # name alias to the tensor.
+    - QK(output)[b, m, p, h] = Q(input)[b, m, h, e] * K(weight)[b, M=p, h, e]
+    - name: QK
+      tensor_accesses:
+      - {name: Q, projection: [b, m, h, e]}
+      - {name: K, projection: { B: b, M: p, H: h, E: e }}
+      - {name: QK, projection: [b, m, p, h], output: True}
+      renames: {output: QK, weight: K, input: Q}
+
+    # To specify both the Einsum as a string as well as other attributes, we can use the
+    # einsum keyword. Then we can specify additional attributes in the same entry. Note
+    # that the einsum keyword will set the tensors and projections for the Einsum, and
+    # an error will be raised if these are specified again in the same entry.
+    - einsum: I[b, m, d] = I_in[b, m, d]
+      is_copy_operation: True
+      tensor_accesses: [{name: I_in, bits_per_value: 16}]
+    - name: I
+      is_copy_operation: True
+      tensor_accesses:
+      - {name: I_in, projection: [b, m, d], bits_per_value: 16}
+      - {name: I, projection: [b, m, d], output: True}
+
+Below is the concise notation equivalent of the GPT3 6.7B example workload:
+
+.. include:: ../../../../examples/workloads/gpt3_6.7B_concise.yaml
+   :code: yaml

@@ -7,7 +7,7 @@ tensor algebra accelerators.
 Features
 --------
 
-The following are features that AccelForge supports and Timeloop does not:
+The following are features **suppported by AccelForge, not Timeloop**:
 
 - **Uneven Mapping**: AccelForge supports uneven mapping [2]_, an optimization
   that allows for lower resource usage for accelerators' memories.
@@ -38,29 +38,42 @@ The following are features that AccelForge supports and Timeloop does not:
   Accelergy, and makes it significantly easier to write custom component models.
 - **Easy Installation**: AccelForge and dependencies are pip installable.
 
-The following features are supported by Timeloop, and currently work-in-progress in
-AccelForge:
+The following are features **supported by Timeloop, work-in-progress in AccelForge**:
 
 - **Sparsity**: Support for sparse tensors.
 - **Peer-to-Peer Communication**: Spatial instances at the same level of the memory
   hierarchy can share data without communicaiton with a higher-level memory.
 - **Layout Support**: Support for the costs of how data is laid out in memory.
 - **Skew in Model**: User-defined spatial skews that can split data between multiple
-  multiple spatial instances. The feature is present in AccelForge, but the API is not
-  yet implemented.
+  multiple spatial instances.
 - **Imperfect Mapping for $\sim 1-2 loop levels**: The mapper can explore imperfect
   mappings for a handful of loop levels, but becomes intractible for more loop levels.
+  This, as well as full imperfect mapping, is present in AccelForge, but the API is not
+  yet implemented.
 - **ISL-Based Model**: Timeloop supports high-fidelity modeling with ISL to generate the
   accesses for every spatial instance, while AccelForge uses a simpler and faster
   analytical model.
 
-The following are features that are not supported by Timeloop, and are currently
-work-in-progress in AccelForge:
+The following are features **work-in-progress in AccelForge, not supported by
+Timeloop**:
 
 - **Skew in Mapping**: Automatically deriving the best skew for a given workload and
   architecture.
 - **Full Imperfect Mapping**: The mapper can explore imperfect mappings for all loop
   levels.
+- **Einsum-Level Spatial Parallelism**: The mapper can parallelize Einsums across
+  spatial instances, rather than executing them sequentially.
+
+Migrating from Timeloop to AccelForge
+-------------------------------------
+
+The following steps can be taken to migrate from Timeloop to AccelForge:
+
+1. Install AccelForge using the instructions in the :doc:`./guide` page.
+2. Convert the Timeloop specification to an AccelForge specifications. AccelForge
+   specifications are generally simpler than Timeloop specifications.
+3. For any questions on the migration process, please open an issue on the
+   `AccelForge GitHub repository <https://github.com/Accelergy-Project/accelforge>`_.
 
 References
 ----------

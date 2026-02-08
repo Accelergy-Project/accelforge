@@ -28,7 +28,7 @@ class Rename(EvalableModel):
     """ The source of the rename. This is a set expression that can be evaluated, yielding
     a set that can be referenced by the new name. """
 
-    expected_count: EvalsTo[int] | None = None
+    expected_count: EvalsTo[int | None] = None
     """
     The expected count of the source set expression. If this is set, then the source
     expression must resolve to the expected count or an error will be raised. Otherwise,

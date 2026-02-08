@@ -22,8 +22,8 @@ class ActionChecker(unittest.TestCase):
                     self.assertTrue(
                         memory_action in matched,
                         f"{einsum_name} {memory_name} {memory_action} not found in {result.data.columns}",
-
                     )
+
 
 class TestMapper(ActionChecker, unittest.TestCase):
     def test_one_matmul(self):
@@ -53,14 +53,16 @@ class TestMapper(ActionChecker, unittest.TestCase):
                 "M": 64,
                 "KN": 64,
                 "MainMemoryEnergy": 10,
-                "GlobalBufferLatency": 1
+                "GlobalBufferLatency": 1,
             },
         )
         spec.mapper.metrics = Metrics.LATENCY | Metrics.ENERGY
         result = map_workload_to_arch(spec)
         self.assertTrue(
-            result.data["Matmul0<SEP>energy<SEP>GlobalBuffer<SEP>W0<SEP>read"].notna().all(),
-            "NaN found in mapper result"
+            result.data["Matmul0<SEP>energy<SEP>GlobalBuffer<SEP>W0<SEP>read"]
+            .notna()
+            .all(),
+            "NaN found in mapper result",
         )
         self._check_memory_actions_exist(spec, ["MainMemory"], result)
 
