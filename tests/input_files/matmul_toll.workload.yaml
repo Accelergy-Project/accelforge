@@ -1,0 +1,13 @@
+# Single matmul workload for Toll test. Dimensions match original: m=128, n0=64, n1=128.
+workload:
+  rank_sizes:
+    M: 128
+    N0: 64
+    N1: 128
+  bits_per_value: {All: 8}
+  einsums:
+  - name: Matmul1
+    tensor_accesses:
+    - {name: T0, projection: [m, n0]}
+    - {name: W0, projection: [n0, n1]}
+    - {name: T1, projection: [m, n1], output: true}

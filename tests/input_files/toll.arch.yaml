@@ -1,0 +1,26 @@
+arch:
+  nodes:
+  - !Memory
+    name: main_memory
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: All}
+
+  - !Toll
+    name: Toll
+    direction: up_and_down
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 100, latency: 0}
+
+  - !Memory
+    name: LocalBuffer
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: All}
+
+  - !Compute
+    name: mac
+    component_class: Dummy

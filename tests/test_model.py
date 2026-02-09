@@ -33,7 +33,7 @@ class TestModel(unittest.TestCase):
             energy_breakdown[("MainMemory", "T1")], M * KN * BITS_PER_VALUE
         )
         self.assertAlmostEqual(
-            energy_breakdown[("MainMemory", "W0")], M * KN**2 * BITS_PER_VALUE
+            energy_breakdown[("MainMemory", "W0")], KN**2 * BITS_PER_VALUE
         )
 
     def test_two_matmuls(self):
