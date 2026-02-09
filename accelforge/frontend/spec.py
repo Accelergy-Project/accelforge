@@ -7,7 +7,7 @@ from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Fanout
 
 from accelforge.frontend.workload import Workload
 from accelforge.frontend.variables import Variables
-from accelforge.frontend.config import Config, get_config
+from accelforge.frontend.config import Config
 from accelforge.frontend.mapping import Mapping
 from accelforge.frontend.model import Model
 import hwcomponents
@@ -37,7 +37,7 @@ class Spec(EvalableModel):
     variables: Variables = Variables()
     """ Variables that can be referenced in other places in the spec. """
 
-    config: Config = Field(default_factory=get_config)
+    config: Config = Config()
     """ Configuration settings. """
 
     renames: Renames = Renames()
@@ -199,7 +199,8 @@ class Spec(EvalableModel):
             if not getattr(self, "_evaluated", False):
                 self = self._spec_eval_expressions(einsum_name=einsum_name)
             else:
-                self = self.copy()
+                self = self.model_copy()
+                self.arch = self.arch.model_copy(deep=True)
         except EvaluationError as e:
             if "arch" in e.message:
                 e.add_note(
@@ -313,9 +314,19 @@ class Spec(EvalableModel):
 
         return found if compute_node is None else found[0]
 
+    def evaluate_mapping(self) -> Mappings:
+        """
+        Evaluate the mapping in the spec.
+        """
+        from accelforge.model import evaluate_mapping
+
+        return evaluate_mapping(self)
+
     def map_workload_to_arch(
         self,
         einsum_names: list[EinsumName] | None = None,
+        one_pbar_only: bool = False,
+        print_progress: bool = True,
         print_number_of_pmappings: bool = True,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> Mappings:
@@ -335,6 +346,12 @@ class Spec(EvalableModel):
             down execution.
         cache_dir:
             The directory to cache pmappings in. If None, no caching will be done.
+        one_pbar_only:
+            Whether to only print only a single progress bar. If this is True, then only
+            a progress bar will be created for making tile shapes, which is generally
+            the longest-running part of the mapping process.
+        print_progress:
+            Whether to print progress of the mapping process, including progress bars.
         print_number_of_pmappings:
             Whether to print the number of pmappings for each einsum.
         _pmapping_row_filter_function:
@@ -352,6 +369,8 @@ class Spec(EvalableModel):
         return map_workload_to_arch(
             self,
             einsum_names=einsum_names,
+            one_pbar_only=one_pbar_only,
+            print_progress=print_progress,
             print_number_of_pmappings=print_number_of_pmappings,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
         )

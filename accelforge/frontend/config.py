@@ -8,28 +8,6 @@ import logging
 import os
 import sys
 
-USER_CUSTOM_CONFIG_PATH_VAR = "ACCELFORGE_CONFIG_PATH"
-
-
-def get_config() -> "Config":
-    if USER_CUSTOM_CONFIG_PATH_VAR in os.environ:
-        f = os.environ[USER_CUSTOM_CONFIG_PATH_VAR]
-    elif hasattr(sys, "real_prefix") or (
-        hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
-    ):
-        f = os.path.join(sys.prefix, "accelforge", "config.yaml")
-    else:
-        f = os.path.join(user_config_dir("accelforge"), "config.yaml")
-
-    if not os.path.exists(f):
-        logging.warning(f"No configuration file found. Creating config file at {f}.")
-        os.makedirs(os.path.dirname(f), exist_ok=True)
-        config = Config()
-        config.to_yaml(f)
-
-    logging.warning(f"Loading configuration file from {f}")
-    return Config.from_yaml(f)
-
 
 class Config(EvalableModel):
     expression_custom_functions: EvalableList[str | Callable] = EvalableList()

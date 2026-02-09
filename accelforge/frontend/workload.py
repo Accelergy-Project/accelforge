@@ -239,6 +239,127 @@ def _projection_factory(projection: dict | list):
     return projection
 
 
+def _parse_einsum_entry(einsum_entry: dict) -> dict:
+    if not isinstance(einsum_entry, dict):
+        raise ValueError(
+            f"workload.einsums entries must be dicts, strings, or Einsum objects. "
+            f"Got {type(einsum_entry)}"
+        )
+    if "einsum" not in einsum_entry:
+        return einsum_entry
+
+    einsum_str = einsum_entry["einsum"]
+    parsed = _parse_einsum_string(einsum_str)
+
+    tensor_accesses = einsum_entry.get("tensor_accesses", [])
+    if not isinstance(tensor_accesses, list):
+        raise ValueError(f"tensor_accesses must be a list, got {type(tensor_accesses)}")
+
+    name2access = {ta["name"]: ta for ta in parsed["tensor_accesses"]}
+    for ta in tensor_accesses:
+        if isinstance(ta, TensorAccess):
+            ta = ta.model_dump()
+
+        if not isinstance(ta, dict):
+            raise ValueError(
+                f"tensor_accesses entries must be dicts or TensorAccess objects. "
+                f"Got {type(ta)}"
+            )
+        if (name := ta.get("name", None)) is None:
+            raise ValueError(f"tensor_accesses entry missing a name field. Got {ta}")
+        if name not in name2access:
+            raise ValueError(
+                f"tensor_accesses entry {name} not found in einsum string {einsum_str}"
+            )
+        for k, v in ta.items():
+            if k != "name" and k in name2access[name]:
+                raise ValueError(
+                    f"tensor_accesses entry {name} has set {k}, which is "
+                    f"already set by the einsum string {einsum_str}"
+                )
+            name2access[name][k] = v
+    parsed["tensor_accesses"] = list(name2access.values())
+
+    renames = rename_list_factory(einsum_entry.get("renames", {}))
+    for rename in renames:
+        if rename.name not in parsed["renames"]:
+            parsed["renames"][rename.name] = rename.source
+        else:
+            raise ValueError(
+                f"rename {rename.name} already exists in einsum string {einsum_str}"
+            )
+
+    return parsed
+
+
+def _parse_einsum_string(einsum_str: str) -> dict:
+    original = einsum_str
+    einsum_str = re.sub(r"\s+", "", einsum_str.strip())
+
+    if not einsum_str:
+        raise ValueError("Einsum string cannot be empty")
+
+    tensor_pattern = r"([A-Za-z_]\w*)(?:\(([A-Za-z_]\w*)\))?\[([^\]]*)\]"
+    full_pattern = rf"^({tensor_pattern})=(.+)$"
+    # Check for an equals symbol outside of brackets
+    eq_outside_brackets_pattern = r"^(.+)=(.+)$"
+
+    match = re.match(full_pattern, einsum_str)
+    if not match:
+        raise ValueError(f"Invalid einsum format: {original}")
+
+    tensor_accesses, renames = [], {}
+
+    def update(match: tuple, is_output: bool):
+        name, alt_name, proj = match
+        tensor_accesses.append(
+            {"name": name, "projection": _parse_projection(proj), "output": is_output}
+        )
+        if alt_name:
+            renames[alt_name] = name
+
+    output_name = match.group(2)
+    rhs = match.group(5)
+    input_matches = re.findall(tensor_pattern, rhs)
+    if not input_matches:
+        raise ValueError(f"No input tensors: {original}")
+
+    for m in input_matches:
+        update(m, False)
+
+    update((output_name, match.group(3), match.group(4)), True)
+
+    result = {
+        "name": output_name,
+        "tensor_accesses": tensor_accesses,
+        "renames": renames,
+    }
+    return result
+
+
+def _parse_projection(proj_str: str) -> dict | list:
+    proj_str = proj_str.strip()
+    if not proj_str:
+        raise ValueError("Projection cannot be empty")
+
+    parts = [p.strip() for p in proj_str.split(",")]
+
+    eq_pattern = re.compile(r"^([A-Za-z_]\w*)=([A-Za-z_]\w*)$")
+    id_pattern = re.compile(r"^[A-Za-z_]\w*$")
+
+    result = {}
+
+    for part in parts:
+        if (eq_match := eq_pattern.match(part)) is not None:
+            result[eq_match.group(1)] = eq_match.group(2)
+        elif id_pattern.match(part):
+            result[part.upper()] = part
+        else:
+            raise ValueError(f"Invalid projection element: {part}")
+
+    return result
+
+
 class Shape(EvalableList):
     """
     Specifies valid values for the rank variables. This is a list of strings, each one
@@ -610,6 +731,21 @@ class Einsum(EvalableModel):
             if t.bits_per_value is None:
                 t.bits_per_value = bits_per_value[t.name]
 
+        if symbol_table.get("workload_persistent_tensors", None):
+            rename_st_with_evaluated = {**st}
+            for rename in evaluated.renames:
+                rename_st_with_evaluated[rename.name] = rename.source
+
+            persistent_set = eval_set_expression(
+                expression=symbol_table["workload_persistent_tensors"],
+                symbol_table=rename_st_with_evaluated,
+                expected_space=TensorName,
+                location="(workload global persistent_tensors)",
+            )
+            for t in evaluated.tensor_accesses:
+                if t.name in persistent_set:
+                    t.persistent = True
+
         return evaluated, symbol_table
 
 
@@ -654,6 +790,25 @@ class Workload(EvalableModel):
     example, we may write "Inputs: 8" to set the bits per value to 8 for all input
     tensors, unless overridden.
     """
+
+    persistent_tensors: str | None = None
+    """
+    Set expression for identifying persistent tensors. Evaluated per-Einsum to mark
+    matching tensors as persistent. Example: "weight" or "~(Outputs | Intermediates)".
+    """
+
+    def __init__(self, **data):
+        if "einsums" in data and data["einsums"]:
+            processed_einsums = []
+            for einsum_entry in data["einsums"]:
+                if isinstance(einsum_entry, str):
+                    einsum_entry = {"einsum": einsum_entry}
+                elif isinstance(einsum_entry, Einsum):
+                    einsum_entry = einsum_entry.model_dump()
+                processed_einsums.append(_parse_einsum_entry(einsum_entry))
+            data["einsums"] = processed_einsums
+
+        super().__init__(**data)
 
     def model_post_init(self, __context__=None) -> None:
         self._validate()
@@ -867,6 +1022,7 @@ class Workload(EvalableModel):
             "spec_workload": self,
             "spec_renames": renames,
             "workload_bits_per_value": bpv,
+            "workload_persistent_tensors": self.persistent_tensors,
         }
         evaluated, new_st = super()._eval_expressions(new_st, *args, **kwargs)
 

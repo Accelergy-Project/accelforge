@@ -19,7 +19,7 @@ class Directory:
         if target_yaml.is_file():
             return target_yaml
 
-        raise ValueError("Not found: {target_stem} or {target_yaml}")
+        raise ValueError(f"Not found: {target_stem} or {target_yaml}")
 
     def iter(self):
         if not self.path.is_dir():

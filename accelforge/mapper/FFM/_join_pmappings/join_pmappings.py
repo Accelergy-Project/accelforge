@@ -60,6 +60,7 @@ def clean_compress_and_join_pmappings(
     pmappings: MultiEinsumPmappings,
     require_all_einsums: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+    print_progress: bool = True,
 ) -> Mappings:
     einsum2pmappings = pmappings.einsum2pmappings
     if not require_all_einsums:
@@ -70,11 +71,14 @@ def clean_compress_and_join_pmappings(
         }
     _check_einsum2pmappings_not_empty(einsum2pmappings, pmappings)
 
-    compressed, decompress_data = compress_einsum2pmappings(einsum2pmappings)
+    compressed, decompress_data = compress_einsum2pmappings(
+        einsum2pmappings, print_progress
+    )
     joined = join_pmappings(
         compressed,
         pmappings.spec,
         _pmapping_row_filter_function=_pmapping_row_filter_function,
+        print_progress=print_progress,
     )
     joined = decompress_pmappings(joined, decompress_data)
 
@@ -138,6 +142,7 @@ def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
 
 def get_memories_to_track(
     pmapping_groups: dict[str, list[PmappingGroup]],
+    print_progress: bool = True,
 ) -> tuple[dict[str, list[PmappingGroup]], set[str], set[str]]:
 
     always_below = set()
@@ -196,13 +201,17 @@ def get_memories_to_track(
         )
 
     for a in sorted(always_below):
-        print(f"Not tracking {a} because it is never reserved for multiple pmappings.")
+        if print_progress:
+            print(
+                f"Not tracking {a} because it is never reserved for multiple pmappings."
+            )
     for t, s in sorted(total_sizes.items(), key=lambda x: x[1], reverse=True):
         if s <= 1:
-            print(
-                f"Not tracking {t} because its size is enough for the sum of all "
-                f"reservations ({s * 100:.2f}% of the total)"
-            )
+            if print_progress:
+                print(
+                    f"Not tracking {t} because its size is enough for the sum of all "
+                    f"reservations ({s * 100:.2f}% of the total)"
+                )
             break
 
     new_pmapping_groups = {}
@@ -210,7 +219,11 @@ def get_memories_to_track(
         new_pmapping_groups[einsum_name] = list(
             parallel(
                 [delayed(remove_unneeded_columns)(s) for s in einsum_pmapping_groups],
-                pbar=f"Removing unneeded reservations for {einsum_name}",
+                pbar=(
+                    f"Removing unneeded reservations for {einsum_name}"
+                    if print_progress
+                    else None
+                ),
                 return_as="generator",
             )
         )
@@ -226,6 +239,7 @@ def join_pmappings(
     lookahead_filter: bool = True,
     metrics: Metrics = None,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+    print_progress: bool = True,
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -260,7 +274,9 @@ def join_pmappings(
         print(f"Filtered {n} -> {new_n} ({new_n / n:.2%} kept) pmappings")
 
     if drop_valid_reservations:
-        pmapping_groups, ignored_resources = get_memories_to_track(pmapping_groups)
+        pmapping_groups, ignored_resources = get_memories_to_track(
+            pmapping_groups, print_progress
+        )
 
     mixable_ranks = spec.workload._get_ranks_that_share_indexing_rank_variables()
 
@@ -308,7 +324,11 @@ def join_pmappings(
                 einsum_pmappings.pmapping_groups,
                 right_tensors,
                 parallelize=False,  # We're not pareto pruning, so parallelization doesn't help.
-                pbar=f"Inital consolidate {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
+                pbar=(
+                    f"Inital consolidate {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})"
+                    if print_progress
+                    else None
+                ),
             )
             continue
 
@@ -338,13 +358,18 @@ def join_pmappings(
             live_tensors,
             shared_tensors,
             parallelize=False,  # We're not pareto pruning, so parallelization doesn't help.
-            pbar=f"Inital consolidate {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
+            pbar=(
+                f"Inital consolidate {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})"
+                if print_progress
+                else None
+            ),
         )
         einsum_pmappings.pmapping_groups = PmappingGroup.combine_combineable(
             einsum_pmappings.pmapping_groups,
             left_tensors | right_tensors,
             combine_reservations=combine_reservations,
             pbar_postfix=f" for {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
+            print_progress=print_progress,
         )
         n_mappings["Post Intra-Layer"] += sum(
             len(s.mappings.data) for s in einsum_pmappings.pmapping_groups
@@ -412,6 +437,7 @@ def join_pmappings(
             left,
             live_tensors | right_tensors,
             combine_reservations=combine_reservations,
+            print_progress=print_progress,
         )
 
         # print_time(f"Combining")
@@ -594,7 +620,11 @@ def join_pmappings(
         if DELAY:
             mappings = parallel(
                 [c.mappings for c in combined],
-                pbar=f"Joining pmappings for {left_einsum} <--> {right_einsum} ({n_iterations}/{total_iterations})",
+                pbar=(
+                    f"Joining pmappings for {left_einsum} <--> {right_einsum} ({n_iterations}/{total_iterations})"
+                    if print_progress
+                    else None
+                ),
                 return_as="generator",
             )
             for c, mapping in zip(combined, mappings):
@@ -655,8 +685,12 @@ def join_pmappings(
     # Final consolidate and group
     # ======================================================================
     t0 = time.time()
-    left = PmappingGroup.left_consolidate(left, None, pbar="Final consolidate")
-    s_final = PmappingGroup.combine_combineable(left, set())
+    left = PmappingGroup.left_consolidate(
+        left, None, pbar="Final consolidate" if print_progress else None
+    )
+    s_final = PmappingGroup.combine_combineable(
+        left, set(), print_progress=print_progress
+    )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
 

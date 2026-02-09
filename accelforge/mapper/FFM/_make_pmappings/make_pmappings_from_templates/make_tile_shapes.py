@@ -50,6 +50,10 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_mod
     run_model,
 )
 
+import getpass
+
+DEBUG = getpass.getuser() == "tanner"
+
 
 class ComparisonResult(Enum):
     ALWAYS_GEQ_THAN_ZERO = "ALWAYS_GEQ_THAN_ZERO"
@@ -393,18 +397,22 @@ def _partition_formula(
     if not f.free_symbols & symbols_enumerated:
         return goals
 
+    if f.free_symbols.issubset(symbols_enumerated):
+        return {f: Goal("min")}
+
     def _try_replace_unknowns(t: Expr):
         for s in t.free_symbols - symbols_enumerated:
             if not affects_comparison(t, s, symbols_enumerated):
                 t = t.subs(s, 1)
         return t
 
-    def _recombine_terms(terms: list[Expr]):
+    def _recombine_terms(terms: list[Expr], transform_terms: bool = True):
         can_evaluate = []
         no_relation = []
         others = {}
         for t in terms:
-            t = _try_replace_unknowns(t)
+            if transform_terms:
+                t = _try_replace_unknowns(t)
             try:
                 if not t.free_symbols & symbols_enumerated:
                     continue
@@ -423,14 +431,34 @@ def _partition_formula(
         chosen = []
         if can_evaluate:
             chosen.append(type(f)(*can_evaluate))
+
         # Ignore no relation
         chosen.extend([x for v in others.values() for x in v])
 
         return chosen
 
-    if isinstance(f, (sympy.Max, sympy.Min, sympy.Add, sympy.ceiling)):
+    # NOTE: Recombine terms will partition the formula into terms. It also drops unknown
+    # terms from each of the given terms. We'll partition f(a,b,c,d) into a, b, c, d,
+    # then we'll transform them into a1, b1, c1, d1, then we'll recombine them into
+    # f(a1, b1, c1, d1). We must ensure that minimizing f(a1, b1, c1, d1) is the same as
+    # minimizing f(a,b,c,d). Min and max: can't transform terms, because if a1 < b1 but
+    # a > b, then it will mask which is biggest. Ceiling is OK because it's one term.
+    # Add and mul are OK to transform if we're sure that minimizing a1 also minimizes a,
+    # but for mul, we need to check the sign of terms, and if any signs are unknown, we
+    # don't know if we're minimizing or maximizing.
+
+    if isinstance(f, (sympy.Max, sympy.Min)):
+        # We can't just break this up, simplfy, and put back together because we have no
+        # guarantee, if we replace variables in the terms with constants, that the
+        # result will be the same, because it may change which term is the long pole.
+        terms = _recombine_terms(f.args, transform_terms=False)
+    elif isinstance(f, (sympy.Add, sympy.ceiling)):
+        # CAN break this up because if we can guarantee that for any settings of all the
+        # unknown terms, then if one known term is lower, the sum is lower.
         terms = _recombine_terms(f.args)
     elif isinstance(f, sympy.Mul):
+        # CAN break this up because if we can guarantee that for any settings of all the
+        # unknown terms, then if one known term is lower, the sum is lower.
         terms = _recombine_terms(f.args)
         # If the formula is a product:
         # - Divide the max value by the constant factors
@@ -747,29 +775,28 @@ def coalesce_symbols(
                     formula = 1 / formula
                     goal = ~goal
 
-            # # If a symbol does not affect the formula, we can remove it
-            # for s in formula.free_symbols:
-            #     diff_result = diff_geq_leq_zero(formula, s, bounds)
-            #     if diff_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
-            #         formula = formula.subs(s, 1)
-            #         log_message("coalesce symbols", f"dropping symbol based on derivative == 0: {s}: {formula}")
-            #         continue
-            #     else:
-            #         log_message("coalesce symbols", f"not dropping symbol based on derivative == 0: {s}: {formula}")
-
             # If a formula agrees entirely with other goals, then we can remove it
             disagrees = []
             for s in formula.free_symbols:
                 g = latest(s).goal if s in latest() else None
                 if g in ["min", "max"]:
+                    log_message(
+                        "coalesce symbols", f"checking agreement with {s} and goal {g}"
+                    )
                     diff_result = diff_geq_leq_zero(formula, s, bounds)
                     if diff_result == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
                         this_goal = (~goal).goal
+                        log_message("coalesce symbols", f"diff result for {s} <= 0")
                     elif diff_result == ComparisonResult.ALWAYS_GEQ_THAN_ZERO:
                         this_goal = (goal).goal
+                        log_message("coalesce symbols", f"diff result for {s} >= 0")
                     elif diff_result == ComparisonResult.UNKNOWN:
+                        log_message(
+                            "coalesce symbols", f"diff result for {s} is unknown"
+                        )
                         break
                     elif diff_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
+                        log_message("coalesce symbols", f"diff result for {s} = 0")
                         this_goal = g  # Make it agree
                     else:
                         diff_geq_leq_zero(formula, s, bounds)
@@ -794,6 +821,10 @@ def coalesce_symbols(
                     )
                     update_symbol2goal(s, Goal("diff"), new_symbol2goal)
                 continue
+            log_message(
+                "coalesce symbols",
+                f"can't change formula: {formula}",
+            )
             update_symbol2goal(formula, goal, new_symbol2goal)
 
         changed = symbol2goal != new_symbol2goal
@@ -1131,25 +1162,10 @@ def get_tile_shape_choices(
         # Create functions to Pareto using objectives
         # ==============================================================================
         for objective in list(objectives):
-            goals = partition_formula(
-                objective.formula, sym_enumerated_set, what_tiles_symbol.bounds
-            )
-            if any(g.goal == "diff" for g in goals.values()):
-                goals2 = partition_formula(
-                    sympy.expand(objective.formula),
-                    sym_enumerated_set,
-                    what_tiles_symbol.bounds,
-                )
-                goals = min(
-                    (goals, goals2),
-                    key=lambda x: sum(g.goal == "diff" for g in x.values()),
-                )
-
             # ==========================================================================
             # If there's a max value, then check for validity
             # ==========================================================================
             complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
-            prev_size = choices_enumerated.shape[0]
             if objective.max_value is not None:
                 try:
                     # minimize_for_objective may raise a TypeError if there's unknown
@@ -1197,11 +1213,33 @@ def get_tile_shape_choices(
                             choices_enumerated = choices_enumerated[valid]
                             choices_enumerated_float = choices_enumerated_float[valid]
                         elif complete:
-                            valid |= result == result.min()
+                            valid |= result == (
+                                result.min()
+                                if isinstance(result, np.ndarray)
+                                else result
+                            )
                             choices_enumerated = choices_enumerated[valid]
                             choices_enumerated_float = choices_enumerated_float[valid]
                 except (TypeError, ValueError):
                     pass
+
+        if choices_enumerated.shape[0] < 1000:
+            continue
+
+        for objective in list(objectives):
+            # ==========================================================================
+            # If there's a max value, then check for validity
+            # ==========================================================================
+            complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
+            prev_size = choices_enumerated.shape[0]
+
+            log_message(
+                "Partitioning formula", f"{objective.name}: {objective.formula}"
+            )
+
+            goals = partition_formula(
+                objective.formula, sym_enumerated_set, what_tiles_symbol.bounds
+            )
 
             porp = sum(valid) / max(1, choices_enumerated.shape[0])
             job.log_porp_pmappings_kept(
@@ -1211,12 +1249,15 @@ def get_tile_shape_choices(
             log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
             if complete:
                 objective.max_value = None  # We don't care anymore
+                objective.min_value = None
                 if objective.only_care_if_valid:
                     objectives.remove(objective)
                     log_message(f"Removed {objective.name} because it is always valid")
                     goals.clear()
 
-            log_message(f"formula", f"{objective.formula}", f"{goals}")
+            log_message(f"formula", f"{objective.formula}")
+            for k, v in goals.items():
+                log_message("formula", f"\t -> {k}: {v}")
 
             for symbol, goal in goals.items():
                 update_symbol2goal(symbol, goal)
@@ -1224,9 +1265,6 @@ def get_tile_shape_choices(
         job.n_evaluated_pmappings += choices_enumerated.shape[0]
         if not choices_enumerated.shape[0]:
             return np.array([]).reshape(-1, len(symbols))
-
-        if choices_enumerated.shape[0] < 100:
-            continue
 
         # ==============================================================================
         # Coalesce symbols. This simplifies our tracked goals. It also breaks down
@@ -1293,11 +1331,34 @@ def get_tile_shape_choices(
             )
             log_message("pareto", f"size {prev_size} -> {choices_enumerated.shape[0]}")
 
+        # expected_shapes = {
+        #     'stride0': 64,
+        #     'stride1': 128,
+        #     'stride2': 24,
+        #     'stride3': 24,
+        #     'stride4': 3,
+        #     'stride5': 3,
+        #     'stride6': 2,
+        #     'stride7': 24,
+        #     'stride8': 24,
+        #     'stride9': 3,
+        #     'stride12': 3,
+        #     'stride13': 128,
+        #     'stride14': 32
+        # }
+        # matched = np.ones(len(choices_enumerated), dtype=bool)
+        # for i, s in enumerate(symbols_enumerated):
+        #     s = str(s)
+        #     if s in expected_shapes:
+        #         cur_symbol = choices_enumerated[:, i]
+        #         matched &= cur_symbol == expected_shapes[s]
+        # assert np.sum(matched) > 0
+
     # ==================================================================================
     # Return the choices
     # ==================================================================================
     t = time.time() - start_time
-    if t > 60:
+    if t > 60 and DEBUG:
         a = [
             f"Total time: {t:.2f}s",
             f"Pmapping: {job.mapping.compact_str()}",
@@ -1503,8 +1564,17 @@ def _make_tile_shapes(job: "Job"):
         # If we only track for pmappings, we only care if it's valid. If we track for
         # all, we care about the value too.
 
+        split = k.split("<SEP>")
+        assert split[0] == "usage", f"invalid {split}"
+        if split[1] == "spatial":
+            assert len(split) == 4
+        elif split[1] == "memory":
+            assert len(split) == 3
+        else:
+            assert False, f"invalid {split}"
+
         only_care_if_valid = False
-        if k in job.memories_track_pmappings_only:
+        if split[2] in job.memories_track_pmappings_only:
             only_care_if_valid = True
 
         # TODO: Update check to see if we may be sharing usage with other

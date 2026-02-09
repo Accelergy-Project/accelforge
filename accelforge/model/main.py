@@ -78,9 +78,11 @@ def evaluate_mapping(
     einsum2pmappings = {}
     pmapping_objects = {}
     einsum2jobs = {}
-    assert not getattr(
-        spec, "_evaluated", False
-    ), "Spec must not be evaluated before evaluating a mapping"
+    s = (
+        "Spec must not be evaluated before evaluating a mapping. Was "
+        "this spec returned by spec.calculate_component_area_energy_latency_leak()?"
+    )
+    assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         seen_temporal = False
         from accelforge.frontend.mapping import Temporal, Storage
@@ -188,6 +190,9 @@ def evaluate_mapping(
         for key, value in df.items():
             if not col_used_in_joining(key):
                 key = f"{job.einsum_name}<SEP>{key}"
+            # Want usage both for joining & for per-einsum info
+            if key.startswith("usage<SEP>"):
+                new_df[f"{job.einsum_name}<SEP>{key}"] = value
             new_df[key] = value
         df = new_df
         df[f"{job.einsum_name}<SEP>mapping"] = pmapping_id
@@ -217,7 +222,8 @@ def evaluate_mapping(
             einsums_with_pmappings_generated=spec.workload.einsum_names,
             flattened_arches=flattened_arches,
             evaluated_specs=evaluated_specs,
-        )
+        ),
+        print_progress=False,
     )
 
 

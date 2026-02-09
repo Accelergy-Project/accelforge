@@ -34,7 +34,7 @@ workload:
         B: b
     - {name: WAB0, projection: [r0, s0, t0]}
     - {name: TB0, projection: [p1, q1, t0, b], output: True}
-    shape: [0 <= r0 < 3, 0 <= s0 < 3]
+    iteration_space_shape: [0 <= r0 < 3, 0 <= s0 < 3]
 
   - name: PiecewiseB0
     tensor_accesses:
@@ -58,7 +58,7 @@ workload:
         B: b
     - {name: WAB1, projection: [r1, s1, t1]}
     - {name: TB1, projection: [p2, q2, t1, b], output: True}
-    shape: [1 <= r1 < 3, 1 <= s1 < 3]
+    iteration_space_shape: [1 <= r1 < 3, 1 <= s1 < 3]
 
   - name: PiecewiseB2
     tensor_accesses:

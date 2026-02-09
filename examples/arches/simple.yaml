@@ -1,3 +1,6 @@
+{% set MainMemoryEnergy=MainMemoryEnergy | default(1) %}
+{% set GlobalBufferLatency=GlobalBufferLatency | default(0) %}
+
 arch:
   nodes:
   - !Memory
@@ -7,22 +10,22 @@ arch:
     area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: {{MainMemoryEnergy}}, latency: 0}
+    - {name: write, energy: {{MainMemoryEnergy}}, latency: 0}
 
   - !Memory
     name: GlobalBuffer
     size: inf #100e6
     leak_power: 0
     area: 0
-    tensors: {keep: All}
+    tensors: {keep: ~MainMemory, may_keep: All}
     actions:
-    - {name: read, energy: 0, latency: 0}
-    - {name: write, energy: 0, latency: 0}
+    - {name: read, energy: 1, latency: {{GlobalBufferLatency}}}
+    - {name: write, energy: 1, latency: {{GlobalBufferLatency}}}
 
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 0, latency: 1}
+    - {name: compute, energy: 1, latency: 1}

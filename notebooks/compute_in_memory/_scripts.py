@@ -11,12 +11,14 @@ sys.path.append(
 from _load_spec import get_spec as _get_spec
 import accelforge as af
 
+
 def display_markdown(markdown):
     display(Markdown(markdown))
 
 
 def get_spec(name: str, add_dummy_main_memory: bool = False) -> af.Spec:
     return _get_spec(name, add_dummy_main_memory=add_dummy_main_memory)
+
 
 # import difflib
 # import re
@@ -94,7 +96,9 @@ def display_important_variables(name: str):
         result.append(f"- *{key}*: {value} {note if note else ''}")
 
     s: af.Spec = get_spec(name)
-    s.calculate_component_area_energy_latency_leak(einsum_name=s.workload.einsums[0].name)
+    s.calculate_component_area_energy_latency_leak(
+        einsum_name=s.workload.einsums[0].name
+    )
 
     def getvalue(key):
         return s.variables.get(key, s.arch.variables.get(key, None))
@@ -241,7 +245,9 @@ def bar_stacked(
 
     # Get all categories
     x_categories = list(data.keys())
-    stack_categories = list(set(k for inner_dict in data.values() for k in inner_dict.keys()))
+    stack_categories = list(
+        set(k for inner_dict in data.values() for k in inner_dict.keys())
+    )
 
     # Prepare data for stacking
     x_pos = np.arange(len(x_categories))
@@ -258,9 +264,9 @@ def bar_stacked(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(x_categories, rotation=45, ha='right')
+    ax.set_xticklabels(x_categories, rotation=45, ha="right")
     ax.legend()
-    ax.grid(axis='y', alpha=0.3)
+    ax.grid(axis="y", alpha=0.3)
 
 
 def bar_comparison(
@@ -292,7 +298,7 @@ def bar_comparison(
 
     # Plot each series
     for i, series_name in enumerate(series_names):
-        offset = (i - len(series_names)/2 + 0.5) * width
+        offset = (i - len(series_names) / 2 + 0.5) * width
         values = [data_dict[series_name][cat] for cat in categories]
         ax.bar(x + offset, values, width, label=series_name)
 
@@ -301,9 +307,9 @@ def bar_comparison(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.set_xticks(x)
-    ax.set_xticklabels(categories, rotation=45, ha='right')
+    ax.set_xticklabels(categories, rotation=45, ha="right")
     ax.legend()
-    ax.grid(axis='y', alpha=0.3)
+    ax.grid(axis="y", alpha=0.3)
 
 
 def bar(
@@ -335,5 +341,5 @@ def bar(
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.set_xticks(x)
-    ax.set_xticklabels(categories, rotation=45, ha='right')
-    ax.grid(axis='y', alpha=0.3)
+    ax.set_xticklabels(categories, rotation=45, ha="right")
+    ax.grid(axis="y", alpha=0.3)

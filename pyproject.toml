@@ -44,6 +44,9 @@ dev = [
     "flake8",
     "mypy",
     "pydocstyle",
+    "nbconvert",
+    "nbformat",
+    "ipykernel",
 ]
 
 # Warn when modules, classes, methods, or functions lack docstrings (run: pydocstyle .)

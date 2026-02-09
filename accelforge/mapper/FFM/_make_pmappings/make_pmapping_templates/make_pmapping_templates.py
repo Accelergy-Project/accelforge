@@ -420,7 +420,7 @@ def iterate_mappings_constraints(
 # =================================================================================================
 # Top level
 # =================================================================================================
-def make_pmapping_templates(job: Job) -> SameEinsumJobs:
+def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsumJobs:
     compute_name = job.flattened_arch[-1].name
 
     job.tensor_to_relevancy = {
@@ -430,17 +430,19 @@ def make_pmapping_templates(job: Job) -> SameEinsumJobs:
         for tensor in job.spec.workload.einsums[job.einsum_name].tensor_names
     }
 
-    mappings_constraints = tqdm(
-        iterate_mappings_constraints(
-            job.spec,
-            job.einsum_name,
-            job.flattened_arch,
-            job.rank_variable_bounds,
-            job.tensor_to_relevancy,
-            job,
-        ),
-        desc=f"Generating pmapping templates for compute {compute_name} Einsum {job.einsum_name}",
+    mappings_constraints = iterate_mappings_constraints(
+        job.spec,
+        job.einsum_name,
+        job.flattened_arch,
+        job.rank_variable_bounds,
+        job.tensor_to_relevancy,
+        job,
     )
+    if print_progress:
+        mappings_constraints = tqdm(
+            mappings_constraints,
+            desc=f"Generating pmapping templates for compute {compute_name} Einsum {job.einsum_name}",
+        )
 
     stride_and_halo = get_stride_and_halo_of_einsum(
         job.einsum_name, job.spec.workload, job.rank_variable_bounds
