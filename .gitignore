@@ -190,5 +190,7 @@ libraries/*
 
 docs/source/accelforge.*.rst
 
+tests/*.png
+
 *_wip
 .vscode
