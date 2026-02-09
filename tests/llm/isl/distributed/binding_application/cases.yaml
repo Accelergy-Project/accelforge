@@ -1,0 +1,8 @@
+subfield: binding_application
+cases:
+  - id: binding_application_smoke_parse
+    prompt: "Load representative inputs for binding_application and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: binding_application_smoke_execute
+    prompt: "Execute one representative code path for binding_application and ensure it returns a non-empty result."
+    expected: "no_error"

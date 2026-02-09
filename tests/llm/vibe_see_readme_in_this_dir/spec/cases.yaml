@@ -1,0 +1,8 @@
+subfield: spec
+cases:
+  - id: spec_smoke_parse
+    prompt: "Load representative inputs for spec and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: spec_smoke_execute
+    prompt: "Execute one representative code path for spec and ensure it returns a non-empty result."
+    expected: "no_error"

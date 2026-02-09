@@ -1,0 +1,8 @@
+subfield: mapping_viz
+cases:
+  - id: mapping_viz_smoke_parse
+    prompt: "Load representative inputs for mapping_viz and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: mapping_viz_smoke_execute
+    prompt: "Execute one representative code path for mapping_viz and ensure it returns a non-empty result."
+    expected: "no_error"

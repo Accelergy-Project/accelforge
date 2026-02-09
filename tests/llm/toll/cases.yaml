@@ -1,0 +1,8 @@
+subfield: toll
+cases:
+  - id: toll_smoke_parse
+    prompt: "Load representative inputs for toll and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: toll_smoke_execute
+    prompt: "Execute one representative code path for toll and ensure it returns a non-empty result."
+    expected: "no_error"

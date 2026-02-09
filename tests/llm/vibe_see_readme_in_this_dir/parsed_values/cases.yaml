@@ -1,0 +1,8 @@
+subfield: parsed_values
+cases:
+  - id: parsed_values_smoke_parse
+    prompt: "Load representative inputs for parsed_values and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: parsed_values_smoke_execute
+    prompt: "Execute one representative code path for parsed_values and ensure it returns a non-empty result."
+    expected: "no_error"

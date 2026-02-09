@@ -1,0 +1,8 @@
+subfield: isl_functions
+cases:
+  - id: isl_functions_smoke_parse
+    prompt: "Load representative inputs for isl_functions and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: isl_functions_smoke_execute
+    prompt: "Execute one representative code path for isl_functions and ensure it returns a non-empty result."
+    expected: "no_error"

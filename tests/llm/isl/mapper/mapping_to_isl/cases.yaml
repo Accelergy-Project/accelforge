@@ -1,0 +1,8 @@
+subfield: mapping_to_isl
+cases:
+  - id: mapping_to_isl_smoke_parse
+    prompt: "Load representative inputs for mapping_to_isl and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: mapping_to_isl_smoke_execute
+    prompt: "Execute one representative code path for mapping_to_isl and ensure it returns a non-empty result."
+    expected: "no_error"

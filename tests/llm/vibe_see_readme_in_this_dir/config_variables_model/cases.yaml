@@ -1,0 +1,8 @@
+subfield: config_variables_model
+cases:
+  - id: config_variables_model_smoke_parse
+    prompt: "Load representative inputs for config_variables_model and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: config_variables_model_smoke_execute
+    prompt: "Execute one representative code path for config_variables_model and ensure it returns a non-empty result."
+    expected: "no_error"

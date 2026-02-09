@@ -1,0 +1,17 @@
+subfield: mapper
+cases:
+  - id: mapper_simple_one_matmul_metrics
+    prompt: "Run mapper on examples/arches/simple.yaml + matmuls (1 einsum) and validate access counts, total energy, total latency, and per-einsum/per-component energy and latency."
+    expected: "ground_truth.json::mapper_cases[simple_one_matmul]"
+  - id: mapper_simple_two_matmul_metrics
+    prompt: "Run mapper on examples/arches/simple.yaml + matmuls (2 einsums) and validate access counts, total energy, total latency, and per-einsum/per-component energy and latency."
+    expected: "ground_truth.json::mapper_cases[simple_two_matmul]"
+  - id: mapper_fanout_two_matmul_metrics
+    prompt: "Run mapper on examples/arches/fanout_variations/at_mac.yaml + matmuls (2 einsums) and validate access counts, total energy, total latency, and per-einsum/per-component energy and latency."
+    expected: "ground_truth.json::mapper_cases[fanout_at_mac_two_matmul]"
+  - id: mapper_simple_area
+    prompt: "Compute per-component area and total area for examples/arches/simple.yaml + matmuls."
+    expected: "ground_truth.json::area_cases[simple_area]"
+  - id: mapper_tpu_v4i_area
+    prompt: "Compute per-component area and total area for examples/arches/tpu_v4i.yaml + matmuls."
+    expected: "ground_truth.json::area_cases[tpu_v4i_area]"

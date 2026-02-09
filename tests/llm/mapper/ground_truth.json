@@ -1,0 +1,236 @@
+{
+  "area_cases": [
+    {
+      "arch": "examples/arches/simple.yaml",
+      "expected": {
+        "per_component_total_area": {
+          "GlobalBuffer": 0.0,
+          "MAC": 0.0,
+          "MainMemory": 0.0
+        },
+        "total_area": 0.0
+      },
+      "id": "simple_area",
+      "jinja": {
+        "KN": 64,
+        "M": 64,
+        "N_EINSUMS": 1
+      },
+      "workload": "examples/workloads/matmuls.yaml"
+    },
+    {
+      "arch": "examples/arches/tpu_v4i.yaml",
+      "expected": {
+        "per_component_total_area": {
+          "GlobalBuffer": 0.000112,
+          "LocalBuffer": 0.0002,
+          "MAC": 5.89824e-06,
+          "MainMemory": 0.0,
+          "Register": 6.5536e-07,
+          "ScalarUnit": 4e-05
+        },
+        "total_area": 0.0003585536
+      },
+      "id": "tpu_v4i_area",
+      "jinja": {
+        "KN": 8,
+        "M": 8,
+        "N_EINSUMS": 1
+      },
+      "workload": "examples/workloads/matmuls.yaml"
+    }
+  ],
+  "generated_with": "pyenv accelforge",
+  "mapper_cases": [
+    {
+      "arch": "examples/arches/simple.yaml",
+      "expected": {
+        "action_counts": {
+          "Matmul0<SEP>action<SEP>MAC<SEP>None<SEP>compute": 262144.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T0<SEP>read": 2097152.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T0<SEP>write": 0.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T1<SEP>read": 2064384.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T1<SEP>write": 2097152.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>W0<SEP>read": 2097152.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>W0<SEP>write": 0.0
+        },
+        "action_counts_per_component": {
+          "MAC": 262144.0,
+          "MainMemory": 8355840.0
+        },
+        "action_counts_per_einsum_component_action": {
+          "Matmul0|MAC|compute": 262144.0,
+          "Matmul0|MainMemory|read": 6258688.0,
+          "Matmul0|MainMemory|write": 2097152.0
+        },
+        "energy_per_einsum": {
+          "Matmul0": 8355840.0
+        },
+        "energy_per_einsum_component": {
+          "Matmul0|GlobalBuffer": 0.0,
+          "Matmul0|MAC": 0.0,
+          "Matmul0|MainMemory": 8355840.0
+        },
+        "latency_per_einsum": {
+          "Matmul0": 262144.0
+        },
+        "latency_per_einsum_component": {
+          "Matmul0|MAC": 262144.0,
+          "Matmul0|MainMemory": 0.0
+        },
+        "total_energy": 8355840.0,
+        "total_latency": 262144.0
+      },
+      "id": "simple_one_matmul",
+      "jinja": {
+        "KN": 64,
+        "M": 64,
+        "N_EINSUMS": 1
+      },
+      "workload": "examples/workloads/matmuls.yaml"
+    },
+    {
+      "arch": "examples/arches/simple.yaml",
+      "expected": {
+        "action_counts": {
+          "Matmul0<SEP>action<SEP>MAC<SEP>None<SEP>compute": 262144.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T0<SEP>read": 2097152.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T0<SEP>write": 0.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T1<SEP>read": 2064384.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T1<SEP>write": 2097152.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>W0<SEP>read": 2097152.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>W0<SEP>write": 0.0,
+          "Matmul1<SEP>action<SEP>MAC<SEP>None<SEP>compute": 262144.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>T1<SEP>read": 2097152.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>T1<SEP>write": 0.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>T2<SEP>read": 2064384.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>T2<SEP>write": 2097152.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>W1<SEP>read": 2097152.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>W1<SEP>write": 0.0
+        },
+        "action_counts_per_component": {
+          "MAC": 524288.0,
+          "MainMemory": 16711680.0
+        },
+        "action_counts_per_einsum_component_action": {
+          "Matmul0|MAC|compute": 262144.0,
+          "Matmul0|MainMemory|read": 6258688.0,
+          "Matmul0|MainMemory|write": 2097152.0,
+          "Matmul1|MAC|compute": 262144.0,
+          "Matmul1|MainMemory|read": 6258688.0,
+          "Matmul1|MainMemory|write": 2097152.0
+        },
+        "energy_per_einsum": {
+          "Matmul0": 8355840.0,
+          "Matmul1": 8355840.0
+        },
+        "energy_per_einsum_component": {
+          "Matmul0|GlobalBuffer": 0.0,
+          "Matmul0|MAC": 0.0,
+          "Matmul0|MainMemory": 8355840.0,
+          "Matmul1|GlobalBuffer": 0.0,
+          "Matmul1|MAC": 0.0,
+          "Matmul1|MainMemory": 8355840.0
+        },
+        "latency_per_einsum": {
+          "Matmul0": 262144.0,
+          "Matmul1": 262144.0
+        },
+        "latency_per_einsum_component": {
+          "Matmul0|MAC": 262144.0,
+          "Matmul0|MainMemory": 0.0,
+          "Matmul1|MAC": 262144.0,
+          "Matmul1|MainMemory": 0.0
+        },
+        "total_energy": 16711680.0,
+        "total_latency": 524288.0
+      },
+      "id": "simple_two_matmul",
+      "jinja": {
+        "KN": 64,
+        "M": 64,
+        "N_EINSUMS": 2
+      },
+      "workload": "examples/workloads/matmuls.yaml"
+    },
+    {
+      "arch": "examples/arches/fanout_variations/at_mac.yaml",
+      "expected": {
+        "action_counts": {
+          "Matmul0<SEP>action<SEP>GlobalBuffer<SEP>T0<SEP>read": 2097152.0,
+          "Matmul0<SEP>action<SEP>GlobalBuffer<SEP>T0<SEP>write": 32768.0,
+          "Matmul0<SEP>action<SEP>GlobalBuffer<SEP>T1<SEP>read": 491520.0,
+          "Matmul0<SEP>action<SEP>GlobalBuffer<SEP>T1<SEP>write": 524288.0,
+          "Matmul0<SEP>action<SEP>GlobalBuffer<SEP>W0<SEP>read": 2097152.0,
+          "Matmul0<SEP>action<SEP>GlobalBuffer<SEP>W0<SEP>write": 32768.0,
+          "Matmul0<SEP>action<SEP>MAC<SEP>None<SEP>compute": 262144.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T0<SEP>read": 32768.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>T0<SEP>write": 0.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>W0<SEP>read": 32768.0,
+          "Matmul0<SEP>action<SEP>MainMemory<SEP>W0<SEP>write": 0.0,
+          "Matmul1<SEP>action<SEP>GlobalBuffer<SEP>T1<SEP>read": 524288.0,
+          "Matmul1<SEP>action<SEP>GlobalBuffer<SEP>T1<SEP>write": 0.0,
+          "Matmul1<SEP>action<SEP>GlobalBuffer<SEP>T2<SEP>read": 2097152.0,
+          "Matmul1<SEP>action<SEP>GlobalBuffer<SEP>T2<SEP>write": 2097152.0,
+          "Matmul1<SEP>action<SEP>GlobalBuffer<SEP>W1<SEP>read": 2097152.0,
+          "Matmul1<SEP>action<SEP>GlobalBuffer<SEP>W1<SEP>write": 32768.0,
+          "Matmul1<SEP>action<SEP>MAC<SEP>None<SEP>compute": 262144.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>T2<SEP>read": 0.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>T2<SEP>write": 32768.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>W1<SEP>read": 32768.0,
+          "Matmul1<SEP>action<SEP>MainMemory<SEP>W1<SEP>write": 0.0
+        },
+        "action_counts_per_component": {
+          "GlobalBuffer": 12124160.0,
+          "MAC": 524288.0,
+          "MainMemory": 131072.0
+        },
+        "action_counts_per_einsum_component_action": {
+          "Matmul0|GlobalBuffer|read": 4685824.0,
+          "Matmul0|GlobalBuffer|write": 589824.0,
+          "Matmul0|MAC|compute": 262144.0,
+          "Matmul0|MainMemory|read": 65536.0,
+          "Matmul0|MainMemory|write": 0.0,
+          "Matmul1|GlobalBuffer|read": 4718592.0,
+          "Matmul1|GlobalBuffer|write": 2129920.0,
+          "Matmul1|MAC|compute": 262144.0,
+          "Matmul1|MainMemory|read": 32768.0,
+          "Matmul1|MainMemory|write": 32768.0
+        },
+        "energy_per_einsum": {
+          "Matmul0": 65536.0,
+          "Matmul1": 65536.0
+        },
+        "energy_per_einsum_component": {
+          "Matmul0|GlobalBuffer": 0.0,
+          "Matmul0|MAC": 0.0,
+          "Matmul0|MainMemory": 65536.0,
+          "Matmul1|GlobalBuffer": 0.0,
+          "Matmul1|MAC": 0.0,
+          "Matmul1|MainMemory": 65536.0
+        },
+        "latency_per_einsum": {
+          "Matmul0": 65536.0,
+          "Matmul1": 65536.0
+        },
+        "latency_per_einsum_component": {
+          "Matmul0|GlobalBuffer": 0.0,
+          "Matmul0|MAC": 65536.0,
+          "Matmul0|MainMemory": 0.0,
+          "Matmul1|GlobalBuffer": 0.0,
+          "Matmul1|MAC": 65536.0,
+          "Matmul1|MainMemory": 0.0
+        },
+        "total_energy": 131072.0,
+        "total_latency": 131072.0
+      },
+      "id": "fanout_at_mac_two_matmul",
+      "jinja": {
+        "KN": 64,
+        "M": 64,
+        "N_EINSUMS": 2
+      },
+      "workload": "examples/workloads/matmuls.yaml"
+    }
+  ]
+}

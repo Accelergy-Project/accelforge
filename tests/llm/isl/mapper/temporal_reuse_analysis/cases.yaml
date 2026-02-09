@@ -1,0 +1,8 @@
+subfield: temporal_reuse_analysis
+cases:
+  - id: temporal_reuse_analysis_smoke_parse
+    prompt: "Load representative inputs for temporal_reuse_analysis and ensure parsing or object construction succeeds."
+    expected: "no_error"
+  - id: temporal_reuse_analysis_smoke_execute
+    prompt: "Execute one representative code path for temporal_reuse_analysis and ensure it returns a non-empty result."
+    expected: "no_error"

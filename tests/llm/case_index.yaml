@@ -1,0 +1,56 @@
+subfields:
+  - name: isl/distributed/binding
+    cases_file: tests/llm/isl/distributed/binding/cases.yaml
+  - name: isl/distributed/binding_application
+    cases_file: tests/llm/isl/distributed/binding_application/cases.yaml
+  - name: isl/distributed/multicast
+    cases_file: tests/llm/isl/distributed/multicast/cases.yaml
+  - name: isl/mapper/isl_functions
+    cases_file: tests/llm/isl/mapper/isl_functions/cases.yaml
+  - name: isl/mapper/mapping_to_isl
+    cases_file: tests/llm/isl/mapper/mapping_to_isl/cases.yaml
+  - name: isl/mapper/spatial_reuse_analysis
+    cases_file: tests/llm/isl/mapper/spatial_reuse_analysis/cases.yaml
+  - name: isl/mapper/temporal_reuse_analysis
+    cases_file: tests/llm/isl/mapper/temporal_reuse_analysis/cases.yaml
+  - name: mapping_viz
+    cases_file: tests/llm/mapping_viz/cases.yaml
+  - name: model
+    cases_file: tests/llm/model/cases.yaml
+  - name: notebooks
+    cases_file: tests/llm/notebooks/cases.yaml
+  - name: plotting
+    cases_file: tests/llm/plotting/cases.yaml
+  - name: toll
+    cases_file: tests/llm/toll/cases.yaml
+  - name: vibe_see_readme_in_this_dir/api_gaps
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/api_gaps/cases.yaml
+  - name: vibe_see_readme_in_this_dir/arch_flattening
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/arch_flattening/cases.yaml
+  - name: vibe_see_readme_in_this_dir/component_fields
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/component_fields/cases.yaml
+  - name: vibe_see_readme_in_this_dir/config_variables_model
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/config_variables_model/cases.yaml
+  - name: vibe_see_readme_in_this_dir/evaluation
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/evaluation/cases.yaml
+  - name: vibe_see_readme_in_this_dir/mapping
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/mapping/cases.yaml
+  - name: vibe_see_readme_in_this_dir/parsed_values
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/parsed_values/cases.yaml
+  - name: vibe_see_readme_in_this_dir/renames
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/renames/cases.yaml
+  - name: vibe_see_readme_in_this_dir/rendering
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/rendering/cases.yaml
+  - name: vibe_see_readme_in_this_dir/spec
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/spec/cases.yaml
+  - name: vibe_see_readme_in_this_dir/workload_model
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/workload_model/cases.yaml
+  - name: vibe_see_readme_in_this_dir/workload_parser
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/workload_parser/cases.yaml
+  - name: vibe_see_readme_in_this_dir/workload_parsing
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/workload_parsing/cases.yaml
+  - name: vibe_see_readme_in_this_dir/yaml_and_expressions
+    cases_file: tests/llm/vibe_see_readme_in_this_dir/yaml_and_expressions/cases.yaml
+  - name: mapper
+    cases_file: tests/llm/mapper/cases.yaml
+    ground_truth_file: tests/llm/mapper/ground_truth.json
