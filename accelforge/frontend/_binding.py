@@ -20,7 +20,7 @@ class Domain(EvalableModel):
     _prefix: str
     name: str
     dims: EvalableList[str]
-    
+
     @property
     def isl_space(self) -> isl.Space:
         return isl.Space.create_from_names(
@@ -36,7 +36,8 @@ class LogicalDomain(Domain):
     """
     Represents the logical architecture domain space of logical dims × tensor ranks.
     """
-    _prefix: str = 'l'
+
+    _prefix: str = "l"
     pass
 
 
@@ -45,7 +46,8 @@ class PhysicalDomain(Domain):
     Represents the logical architecture domain space of physical dims.
     The physical space is defined as the physical architecture dims.
     """
-    _prefix: str = 'p'
+
+    _prefix: str = "p"
     pass
 
 
@@ -108,6 +110,7 @@ class Binding(EvalableModel):
     """Version of the binding spec."""
     nodes: EvalableList[BindingNode]
     """Parts of the binding."""
+
 
 '''
 class NetworkOnChip(ParsableModel):

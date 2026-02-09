@@ -21,6 +21,7 @@ from ..util import load_solutions
 
 TEST_CONFIG_PATH: Path = Path(__file__).parent / "configs"
 
+
 class TestMappingToIsl(unittest.TestCase):
     """
     Tests taking a `Mapping` and `Workload` and converting it into relevant isl
@@ -33,9 +34,13 @@ class TestMappingToIsl(unittest.TestCase):
         """
         # Loads in the CONV1D Config
         config_path: Path = TEST_CONFIG_PATH / "conv1d"
-        workload: Workload = Workload.from_yaml(config_path / "conv1d.workload.yaml")
+        workload: Workload = Workload.from_yaml(
+            config_path / "conv1d.workload.yaml", top_key="workload"
+        )
 
-        mapping: Mapping = Mapping.from_yaml(config_path / "conv1d.mapping.yaml")
+        mapping: Mapping = Mapping.from_yaml(
+            config_path / "conv1d.mapping.yaml", top_key="mapping"
+        )
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )
@@ -56,10 +61,12 @@ class TestMappingToIsl(unittest.TestCase):
         # Loads in the CONV1D Config
         config_path: Path = TEST_CONFIG_PATH / "two_conv1d"
         workload: Workload = Workload.from_yaml(
-            config_path / "two_conv1d.workload.yaml"
+            config_path / "two_conv1d.workload.yaml", top_key="workload"
         )
 
-        mapping: Mapping = Mapping.from_yaml(config_path / "two_conv1d.mapping.yaml")
+        mapping: Mapping = Mapping.from_yaml(
+            config_path / "two_conv1d.mapping.yaml", top_key="mapping"
+        )
         occupancies: MappingAnalysisResult = analyze_mapping.occupancies_from_mapping(
             mapping, workload
         )

@@ -21,6 +21,7 @@ from ..util import load_solutions
 
 TEST_CONFIG_PATH: Path = Path(__file__).parent / "configs"
 
+
 class TestMappingToIsl(unittest.TestCase):
     """
     Tests taking a `Mapping` and `Workload` and converting it into relevant isl

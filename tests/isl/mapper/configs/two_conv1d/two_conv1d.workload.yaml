@@ -1,5 +1,5 @@
 workload:
-  shape:
+  iteration_space_shape:
     ra: 0 <= ra < 3
     pa: 0 <= pa < 16
     rb: 0 <= rb < 3

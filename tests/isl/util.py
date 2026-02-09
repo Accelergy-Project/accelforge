@@ -7,6 +7,7 @@ import islpy as isl
 
 from ruamel.yaml import YAML
 
+
 def to_isl_maps(obj: str | list | dict) -> dict:
     """
     Given an object, attempt to reduce all strings in tree with isl.Map
@@ -26,10 +27,7 @@ def to_isl_maps(obj: str | list | dict) -> dict:
         if isinstance(obj, str):
             return isl.Map.read_from_str(isl.DEFAULT_CONTEXT, obj)
         if isinstance(obj, dict):
-            return {
-                k: (_to_isl_maps(v) if k != 'type' else v) 
-                for k, v in obj.items() 
-            }
+            return {k: (_to_isl_maps(v) if k != "type" else v) for k, v in obj.items()}
         if isinstance(obj, list):
             return [_to_isl_maps(v) for v in obj]
         return obj

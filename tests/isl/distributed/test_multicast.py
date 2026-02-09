@@ -66,9 +66,7 @@ class TestHypercubeMulticastModel(unittest.TestCase):
             fill: Fill = Fill(dim_tags, test["fill"])
             occ: Occupancy = Occupancy(dim_tags, test["occ"])
             dist_fn: isl.Map = test["dist_fn"]
-            multicast_model: HypercubeMulticastModel = HypercubeMulticastModel(
-                dist_fn
-            )
+            multicast_model: HypercubeMulticastModel = HypercubeMulticastModel(dist_fn)
 
             # Applies the model.
             info: TransferInfo = multicast_model.apply(0, fill, occ)

@@ -6,6 +6,7 @@ to total energy. This test loads an arch with a Toll between main_memory and
 LocalBuffer, runs the mapper, and checks that total energy is positive and
 reflects the Toll's read energy.
 """
+
 import unittest
 from pathlib import Path
 
@@ -27,7 +28,9 @@ class TestToll(unittest.TestCase):
         pmappings = make_pmappings(spec, print_progress=False)
         mappings = join_pmappings(pmappings, print_progress=False)
 
-        self.assertGreater(len(mappings.data), 0, "mapper should return at least one mapping")
+        self.assertGreater(
+            len(mappings.data), 0, "mapper should return at least one mapping"
+        )
 
         # Total energy column uses "<SEP>" as separator
         total_energy_col = "Total<SEP>energy"

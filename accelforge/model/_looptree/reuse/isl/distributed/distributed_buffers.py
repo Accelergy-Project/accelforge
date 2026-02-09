@@ -39,7 +39,7 @@ def identify_mesh_casts(
         space, corresponding to the `src` and `dst`, and returns the distance
         between the two points in terms of `hops`, a quantized atomic distance of
         data transmission cost.
-    
+
     Returns
     -------
     { [data] -> [dst -> src] } where { [dst] -> [data] } and { [src] -> [data] } are in
@@ -57,9 +57,11 @@ def identify_mesh_casts(
     data_presence: isl.Map = src_occupancy.reverse()
 
     # { [dst -> data] -> [dst -> src] } where src contains data.
-    fills_to_matches: isl.Map = fill_to_fill.uncurry( # { [[dst -> data] -> dst] -> data }
-                                ).apply_range(data_presence # { [[dst -> data] -> dst] -> src }
-                                ).curry() # { [[dst -> data] -> [dst -> src] }
+    fills_to_matches: isl.Map = (
+        fill_to_fill.uncurry()  # { [[dst -> data] -> dst] -> data }
+        .apply_range(data_presence)  # { [[dst -> data] -> dst] -> src }
+        .curry()
+    )  # { [[dst -> data] -> [dst -> src] }
     if DUMP_ISL_IR:
         logging.info(f"fills_to_matches: {fills_to_matches}")
 
@@ -68,13 +70,19 @@ def identify_mesh_casts(
     fill_min_dist: isl.Map = fills_to_matches.apply_range(dist_fn).lexmin()
     # Isolates the relevant minimal pairs.
     # { [dst -> data] -> [dst -> src] :.dst -> src is minimized distance }
-    minimal_pairs: isl.Map = fill_min_dist.apply_range(
-        # Note: Need to match fill -> min_dist with min_dist -> [fill -> match] as lexmin over
-        # fill and match will minimize distance over the tuple (src, dst, data), but that
-        # overconstrains the optimization as we want to minimize over distance (dst, data)
-        # only for all src.
-        fills_to_matches.range_map().apply_range(dist_fn).reverse()
-    ).range().unwrap()
+    minimal_pairs: isl.Map = (
+        fill_min_dist.apply_range(
+            # Note: Need to match fill -> min_dist with min_dist -> [fill -> match] as lexmin over
+            # fill and match will minimize distance over the tuple (src, dst, data), but that
+            # overconstrains the optimization as we want to minimize over distance (dst, data)
+            # only for all src.
+            fills_to_matches.range_map()
+            .apply_range(dist_fn)
+            .reverse()
+        )
+        .range()
+        .unwrap()
+    )
     if DUMP_ISL_IR:
         logging.info(f"minimal_pairs: {minimal_pairs}")
 
@@ -211,7 +219,7 @@ class HypercubeMulticastModel(TransferModel):
         mcns:
             Multicast networks grouped together by [srcs -> data] fulfilling
             [dsts -> data], where there is at least 1 src and 1 dst in each mcn.
-        
+
         Returns
         -------
         The upperbound of doing all the multicasts specified by the multicast

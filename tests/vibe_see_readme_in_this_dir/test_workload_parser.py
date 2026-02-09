@@ -9,8 +9,11 @@ from accelforge.frontend.workload import (
 from accelforge.frontend.spec import Spec
 
 try:
-    from .paths import EXAMPLES_DIR
+    from ..paths import EXAMPLES_DIR
 except ImportError:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent))
     from paths import EXAMPLES_DIR
 
 
