@@ -1083,9 +1083,6 @@ def get_tile_shape_choices(
                 f"BUG: symbol {symbol} is neither stride nor initial tile shape"
             )
 
-        # if not partitions:
-        #     return np.array([]).reshape(-1, len(symbols))
-
         prev_size = choices_enumerated.shape[0] if choices_enumerated is not None else 1
         choices_enumerated = np.concatenate(choices, axis=0)
         job.n_total_pmappings *= choices_enumerated.shape[0] / max(1, prev_size)
@@ -1223,10 +1220,26 @@ def get_tile_shape_choices(
                 except (TypeError, ValueError):
                     pass
 
+            porp = sum(valid) / max(1, choices_enumerated.shape[0])
+            job.log_porp_pmappings_kept(
+                f"{objective.name}",
+                sum(valid) / max(1, prev_size),
+            )
+            log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
+            if complete:
+                objective.max_value = None  # We don't care anymore
+                objective.min_value = None
+                if objective.only_care_if_valid:
+                    objectives.remove(objective)
+                    log_message(f"Removed {objective.name} because it is always valid")
+
+        if not choices_enumerated.shape[0]:
+            return np.array([]).reshape(-1, len(symbols))
+
         if choices_enumerated.shape[0] < 1000:
             continue
 
-        for objective in list(objectives):
+        for objective in objectives:
             # ==========================================================================
             # If there's a max value, then check for validity
             # ==========================================================================
@@ -1240,20 +1253,6 @@ def get_tile_shape_choices(
             goals = partition_formula(
                 objective.formula, sym_enumerated_set, what_tiles_symbol.bounds
             )
-
-            porp = sum(valid) / max(1, choices_enumerated.shape[0])
-            job.log_porp_pmappings_kept(
-                f"{objective.name}",
-                sum(valid) / max(1, prev_size),
-            )
-            log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
-            if complete:
-                objective.max_value = None  # We don't care anymore
-                objective.min_value = None
-                if objective.only_care_if_valid:
-                    objectives.remove(objective)
-                    log_message(f"Removed {objective.name} because it is always valid")
-                    goals.clear()
 
             log_message(f"formula", f"{objective.formula}")
             for k, v in goals.items():
