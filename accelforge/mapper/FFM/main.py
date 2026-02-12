@@ -18,6 +18,9 @@ from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
     _check_einsum2pmappings_not_empty,
 )
 from accelforge._accelerated_imports import pd
+from tqdm import tqdm
+
+from accelforge.util import delayed, parallel
 
 
 logger = logging.getLogger(__name__)
@@ -85,21 +88,27 @@ def map_workload_to_arch(
         print_progress=print_progress,
     )
 
-    new_mapping_data = []
-    for i in range(len(mappings.data)):
+    def eval_mapping(i, spec, mappings):
         local_spec = deepcopy(spec)
         local_spec.model.metrics = local_spec.mapper.info_metrics
         local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"]()
-        # BUG: Mapping._from_pmappings create mappings that cannot be evaluated!
         this_mapping = evaluate_mapping(
             local_spec,
             flattened_arches=mappings.flattened_arches,
             evaluated_specs=mappings.evaluated_specs,
         )
-        new_mapping_data.append(this_mapping.data)
+        return i, this_mapping.data
 
-    mappings.data = pd.concat(new_mapping_data).fillna(0)
+    results = [None] * len(mappings.data)
+    use_pbar = (print_progress or one_pbar_only) and len(mappings.data) > 1
+    for i, result in parallel(
+        [delayed(eval_mapping)(i, spec, mappings) for i in range(len(mappings.data))],
+        pbar="Evaluating chosen mappings in detail" if use_pbar else None,
+        return_as="generator_unordered",
+    ):
+        results[i] = result
 
+    mappings.data = pd.concat(results).fillna(0)
     return mappings
 
 
