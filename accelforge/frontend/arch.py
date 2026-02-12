@@ -1409,6 +1409,7 @@ class _Parallel(Branch):
 
 
 class Network(Branch, Component):
+    topology: str = "Mesh"
     def _flatten(
         self,
         compute_node: str,
@@ -1427,8 +1428,17 @@ class Network(Branch, Component):
         else:
             return nodes
 
-    def get_fanout(self):
-        return int(math.prod(x.fanout for x in self.spatial))
+    def _parent2child_names(self, parent_name: str=None):
+        raise NotImplementedError()
+
+    def _render_node(self):
+        raise NotImplementedError()
+
+    def _render_make_children(self):
+        raise NotImplementedError()
+
+    def render(self) -> str:
+        raise NotImplementedError()
 
 
 class Hierarchical(Branch):
