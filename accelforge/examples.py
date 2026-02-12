@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
@@ -18,6 +19,14 @@ class Directory:
         target_yaml = target_stem.with_suffix(".yaml")
         if target_yaml.is_file():
             return target_yaml
+
+        name_replaced = name.replace(".", "_")
+        name_yaml_replaced = target_yaml.stem.replace(".", "_")
+        for item in os.listdir(self.path):
+            stem = Path(item).stem
+            if stem.replace(".", "_") in [name_replaced, name_yaml_replaced]:
+                path = self.path / item
+                return Directory(path) if path.is_dir() else path
 
         raise ValueError(f"Not found: {target_stem} or {target_yaml}")
 
