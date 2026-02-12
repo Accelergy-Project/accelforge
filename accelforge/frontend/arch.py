@@ -61,6 +61,7 @@ __all__ = [
     "Hierarchical",
     "Leaf",
     "Memory",
+    "Network",
     "Spatial",
     "TensorHolder",
     "TensorHolderAction",
@@ -1325,6 +1326,7 @@ class Branch(ArchNode):
             Union[
                 Annotated[Compute, Tag("Compute")],
                 Annotated[Memory, Tag("Memory")],
+                Annotated["Network", Tag("Network")],
                 Annotated[Toll, Tag("Toll")],
                 Annotated[Fanout, Tag("Fanout")],
                 Annotated["_Parallel", Tag("_Parallel")],
@@ -1404,6 +1406,29 @@ class _Parallel(Branch):
             children = node._render_make_children()
             result.extend(child for child in children if child is not None)
         return result
+
+
+class Network(Branch, Component):
+    def _flatten(
+        self,
+        compute_node: str,
+        fanout: int = 1,
+        return_fanout: bool = False,
+    ) -> tuple[list[ArchNode], int] | list[ArchNode]:
+        if len(self.nodes) > 0:
+            raise EvaluationError(
+                "Flat network node (if nodes key is not empty) should not be "
+                "flattened. Are you passing a physical arch spec into the "
+                "mapper?"
+            )
+        nodes = []
+        if return_fanout:
+            return nodes, self.get_fanout()
+        else:
+            return nodes
+
+    def get_fanout(self):
+        return int(math.prod(x.fanout for x in self.spatial))
 
 
 class Hierarchical(Branch):
