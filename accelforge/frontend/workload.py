@@ -700,6 +700,8 @@ class Einsum(EvalableModel):
             if k not in evaluated.renames:
                 evaluated.renames.append(Rename(name=k, source=v))
 
+        st.update(**{k.name: k.source for k in evaluated.renames})
+
         # Parse the bits per value
         bits_per_value = dict()
         bpv_to_source = dict()
@@ -1037,7 +1039,11 @@ class Workload(EvalableModel):
             "workload_bits_per_value": bpv,
             "workload_persistent_tensors": self.persistent_tensors,
         }
-        evaluated, new_st = super()._eval_expressions(new_st, *args, **kwargs)
+        evaluated, new_st = super()._eval_expressions(
+            new_st,
+            *args,
+            **kwargs
+        )
 
         # Ensure bits_per_value is consistent across Einsums
         bits_per_value_per_einsum = {}
