@@ -5,9 +5,8 @@ import itertools
 from numbers import Number
 from typing import Literal, TypeVar
 
-from accelforge.frontend.workload import TensorAccess, Workload
+import pandas as pd
 from accelforge.frontend.mapping import (
-    Compute,
     Loop,
     Mapping,
     Spatial,
@@ -19,6 +18,7 @@ from accelforge.frontend.mapping import (
 )
 from accelforge.frontend.renames import Rank, RankVariable, TensorName
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    is_fused_loop_col,
     make_fused_loop_col,
     stride2col,
     initial2col,
@@ -651,3 +651,11 @@ class Compatibility(Updatable):
                 if r1 not in mixable_ranks[r2]:
                     return False
         return True
+
+    def clear_unrelated_columns(self, mappings: pd.DataFrame) -> "Compatibility":
+        my_symbols = set(self.symbols())
+        for c in my_symbols:
+            assert c in mappings.columns, f"Column {c} not found in mappings"
+        should_drop = lambda x: is_fused_loop_col(x) and x not in my_symbols
+        drop = [c for c in mappings.columns if should_drop(c)]
+        return mappings.drop(columns=drop)

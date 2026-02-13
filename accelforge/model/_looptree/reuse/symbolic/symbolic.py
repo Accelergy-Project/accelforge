@@ -471,6 +471,7 @@ def convert_to_copy(
 
 def analyze_reuse_and_add_reservations_to_mapping(
     job: Job,
+    add_reservations: bool = True,
 ) -> SymbolicAnalysisOutput:
     mapping = job.mapping.nodes
     workload = job.spec.workload
@@ -484,7 +485,8 @@ def analyze_reuse_and_add_reservations_to_mapping(
     else:
         tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
-    job.mapping = quick_insert_reservation_nodes(job)
+    if add_reservations:
+        job.mapping = quick_insert_reservation_nodes(job)
     # print(f'Job mapping: {job.mapping.compact_str()}')
     # for n in job.mapping.nodes:
     #     print(f'\t{n.compact_str()}')

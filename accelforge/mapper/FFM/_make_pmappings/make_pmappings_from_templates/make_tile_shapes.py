@@ -547,7 +547,7 @@ def append_vector(matrix: np.ndarray, vector: np.ndarray):
     max_val = max(np.max(a), np.max(b))
     min_val = min(np.min(a), np.min(b))
     assert min_val >= 0, f"min_val is {min_val}"
-
+    assert max_val <= 2**64, f"max_val is {max_val}"
     if max_val >= 2**32:
         dtype = np.uint64
     elif max_val >= 2**16:

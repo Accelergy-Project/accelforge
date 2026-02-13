@@ -4,7 +4,6 @@ from accelforge.frontend import arch
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.workload import EinsumName
 from accelforge._accelerated_imports import pd
-from accelforge.frontend.workload import TensorName
 from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
     get_num_computes,
     get_per_tensor_size,
@@ -40,8 +39,8 @@ class Mappings:
         contain the evaluated and flattened architecture node for that particular Einsum
         and compute combination.
     evaluated_specs:
-        A dictionary of Einsum names to evaluated specifications. These contain the evaluated
-        specification for that particular Einsum.
+        A dictionary of Einsum names to evaluated specifications. These contain the
+        evaluated specification for that particular Einsum.
     """
 
     def __init__(
@@ -249,15 +248,14 @@ class Mappings:
         for col in self.data.columns:
             if len(col.split("<SEP>")) != len(columns[0].split("<SEP>")):
                 raise ValueError(
-                    f"Can only sum columns with same-length keys. Try first calling "
-                    f'access("key") or drop("key") to make all columns '
-                    f"have the same number of keys."
+                    "Can only sum columns with same-length keys. Try first calling "
+                    'access("key") or drop("key") to make all columns '
+                    "have the same number of keys."
                 )
 
-        if any(k < 0 or k >= len(columns[0].split("<SEP>")) for k in keep_key_index):
-            raise ValueError(
-                f"Keep indices must be in the range [0, {len(columns[0].split('<SEP>'))})"
-            )
+        max_n = len(columns[0].split("<SEP>"))
+        if any(k < 0 or k >= max_n for k in keep_key_index):
+            raise ValueError(f"Keep indices must be in the range [0, {max_n})")
 
         target2sources = {}
         for col in columns:
@@ -293,13 +291,34 @@ class Mappings:
         Returns
         -------
         dict[str, list[float]]
-            A dictionary with the same keys as the columns of the dataframe, and values that
-            are either a single value or a list of values.
+            A dictionary with the same keys as the columns of the dataframe, and values
+            that are either a single value or a list of values.
         """
         new = self.data.to_dict(orient="list")
         if value_if_one_mapping and len(self) == 1:
             new = {k: v[0] for k, v in new.items()}
         return new
+
+    def items(
+        self, value_if_one_mapping: bool = True
+    ) -> list[tuple[str, float | list[float]]]:
+        """
+        Shorthand for ``to_dict().items()``. Casts this Mappings object to a dictionary,
+        then returns the items of the dictionary.
+
+        Parameters
+        ----------
+        value_if_one_mapping:
+            If True and there is only one mapping, then values in the returned list will
+            be a single value, rather than a list of values. Otherwise, they will always
+            be a list of values.
+
+        Returns
+        -------
+        list[tuple[str, float | list[float]]]
+            A list of tuples of (key, value).
+        """
+        return self.to_dict(value_if_one_mapping=value_if_one_mapping).items()
 
     def per_compute(self, per_einsum: bool = False) -> "Mappings":
         """
@@ -382,7 +401,7 @@ class Mappings:
                 f"Can only render a single mapping, but got {len(self)}. Try calling "
                 f"mappings[i].render() instead, for some integer 0 <= i < {len(self)}."
             )
-        return self.data.iloc[0][f"Total<SEP>mapping"].render()
+        return self.data.iloc[0]["Total<SEP>mapping"].render()
 
     def energy(
         self: "Mappings",
@@ -396,10 +415,11 @@ class Mappings:
         Returns the energy consumed. A dictionary is returned with keys that are tuples
         of (Einsum name, Component name, Tensor name, Action name), with any of these
         being omitted if the corresponding parameter is not set to True. If neither of
-        the ``per_`` parameters are set to True, a float or a list of floats is returned.
+        the ``per_`` parameters are set to True, a float or a list of floats is
+        returned.
 
-        NOTE: Leak power is not per-tensor. If ``per_tensor`` is True, then the tensor name
-        for leak will be None.
+        NOTE: Leak power is not per-tensor. If ``per_tensor`` is True, then the tensor
+        name for leak will be None.
 
         Parameters
         ----------
@@ -432,7 +452,7 @@ class Mappings:
         for einsum in self.einsum_names:
             einsum_accessed = energy.access(einsum, col_idx=0)
             # None for computes
-            for tensor in list[TensorName](
+            for tensor in list(
                 self.spec.workload.einsums[einsum].tensor_names
             ) + ["None"]:
                 tensor_accessed = einsum_accessed.access(tensor, col_idx=1)
@@ -467,7 +487,7 @@ class Mappings:
         if value_if_one_mapping and len(self.data) == 1:
             return {k: v.iloc[0] for k, v in result.items()}
 
-        return result
+        return {k: list(v) for k, v in result.items()}
 
     def latency(
         self: "Mappings",
@@ -544,4 +564,115 @@ class Mappings:
                 return {k: v.iloc[0] for k, v in result.items()}
             return result  # Numpy sum already pulls out the number
 
-        return result
+        return {k: list(v) for k, v in result.items()}
+
+    def resource_usage(
+        self,
+        value_if_one_mapping: bool = True,
+    ) -> dict[str, float | list[float]]:
+        """
+        Returns the usage of each resource in the mapping.
+
+        Parameters
+        ----------
+        value_if_one_mapping:
+            If True and there is only one mapping, then values in the returned
+            dictionary will be a single value, rather than a list of values. Otherwise,
+            they will always be a list of values.
+
+        Returns
+        -------
+        dict[str, float | list[float]]
+            A dictionary with the usage of each resource.
+        """
+        try:
+            reservations = self.access("reservation")
+        except KeyError:
+            raise ValueError(f"No reservations found in columns {sorted(self.columns)}")
+
+        usage = {}
+        for col in reservations._get_keys_of_length(3):
+            resource, _, _ = col.split("<SEP>")
+            if resource not in usage:
+                usage[resource] = 0
+            usage[resource] = np.maximum(usage[resource], reservations[col])
+
+        if value_if_one_mapping and len(self.data) == 1:
+            return {k: v.iloc[0] for k, v in usage.items()}
+        return {k: list(v) for k, v in usage.items()}
+
+    def actions(
+        self: "Mappings",
+        per_einsum: bool = False,
+        per_component: bool = True,
+        per_tensor: bool = False,
+        value_if_one_mapping: bool = True,
+    ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
+        """
+        Returns the number of actions performed in the mapping. A dictionary is returned
+        with keys that are tuples of (Einsum name, Component name, Tensor name, Action
+        name), with any of these being omitted if the corresponding parameter is not set
+        to True. If neither of the ``per_`` parameters are set to True, a float or a
+        list of floats is returned.
+
+        Parameters
+        ----------
+        per_einsum:
+            If True, then the number of actions will reported per-Einsum.
+        per_component:
+            If True, then the number of actions will reported per-component.
+        per_tensor:
+            If True, then the number of actions will reported per-tensor.
+        value_if_one_mapping:
+            If True and there is only one mapping, then values in the returned
+            dictionary will be a single value, rather than a list of values. Otherwise,
+            they will always be a list of values.
+
+        Returns
+        -------
+        dict[tuple[str, ...], float | list[float]] | float | list[float]
+            A dictionary with the number of actions performed for each Einsum,
+            Component, Tensor, and Action. Keys are tuples of (Einsum name, Component
+            name, Tensor name, Action name), with any of these being omitted if the
+            corresponding parameter is not set to True. If none of the ``per_``
+            parameters are set to True, a float or a list of floats is returned.
+        """
+
+        actions = self.access("action")
+
+        result = {}
+        for einsum in self.einsum_names:
+            einsum_accessed = actions.access(einsum, col_idx=0)
+            # None for computes
+            for tensor in list(
+                self.spec.workload.einsums[einsum].tensor_names
+            ) + ["None"]:
+                tensor_accessed = einsum_accessed.access(tensor, col_idx=1)
+                for col in tensor_accessed._get_keys_of_length(2):
+                    component, action = col.split("<SEP>")
+                    result[(einsum, component, tensor, action)] = tensor_accessed[col]
+
+        keep_indices = []
+        for i, idx in enumerate([per_einsum, per_component, per_tensor, True]):
+            if idx:
+                keep_indices.append(i)
+
+        if not keep_indices:
+            v = sum(result.values())
+            if value_if_one_mapping and len(self.data) == 1:
+                return v.iloc[0] if isinstance(v, pd.Series) else v
+            return v
+
+        new_result = defaultdict(float)
+        for key, value in result.items():
+            newkey = tuple(key[i] for i in keep_indices)
+            new_result[newkey] += value
+        result = new_result
+
+        if len(keep_indices) == 1:
+            result = {k[0]: v for k, v in result.items()}
+
+        if value_if_one_mapping and len(self.data) == 1:
+            return {k: v.iloc[0] for k, v in result.items()}
+
+        return {k: list(v) for k, v in result.items()}

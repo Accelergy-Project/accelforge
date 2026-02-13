@@ -81,6 +81,8 @@ def insert_temporal_loops(
     tensor2partially_relevant_rank_vars = (
         einsum.tensor2expression_indexing_rank_variables
     )
+    for k, v in tensor2partially_relevant_rank_vars.items():
+        tensor2partially_relevant_rank_vars[k] = v - tensor2fully_relevant_rank_vars[k]
     tensor2irrelevant_rank_vars = einsum.tensor2irrelevant_rank_variables
     tensor2rank_vars = einsum.tensor2rank_variables
     tensors = einsum.tensor_names
@@ -255,10 +257,12 @@ def insert_temporal_loops(
             # want to lower to reduce memory footprint, or raise to reduce number of
             # fused loops.
             elif s._backing and lowerable_backing and partially_relevant_to_previous:
+                assert False
                 lowering_choices.append((False, True))
                 permutable_partially_relevant |= partially_relevant_to_previous
             # No backing in previous. No cost to lowering. Lower all
             elif not s._backing:
+                # print(f'Can lower {s.tensors} in {s.component}')
                 lowering_choices.append((True,))
                 permutable_partially_relevant |= partially_relevant_to_previous
             # Previous TensorHolder is backing but not lowerable or there are no

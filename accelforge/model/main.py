@@ -84,17 +84,6 @@ def evaluate_mapping(
     )
     assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
-        seen_temporal = False
-        from accelforge.frontend.mapping import Temporal, Storage
-
-        for node in pmapping.nodes:
-            if isinstance(node, Temporal):
-                seen_temporal = True
-            is_main_memory = (
-                isinstance(node, Storage) and node.component == "MainMemory"
-            )
-            assert not (seen_temporal and is_main_memory), "BUG"
-
         einsum_name = pmapping.nodes[-1].einsum
         compute_name = pmapping.nodes[-1].component
         pmapping_id = uuid4()
@@ -114,36 +103,17 @@ def evaluate_mapping(
             )
 
         job.spec = cur_spec
+        job.einsum_name = pmapping.nodes[-1].einsum
+        job.stride_and_halo = get_stride_and_halo_of_einsum(
+            job.einsum_name, cur_spec.workload
+        )
 
-        seen_temporal = False
-        from accelforge.frontend.mapping import Temporal, Storage
-
-        for node in pmapping.nodes:
-            if isinstance(node, Temporal):
-                seen_temporal = True
-            is_main_memory = (
-                isinstance(node, Storage) and node.component == "MainMemory"
-            )
-            assert not (seen_temporal and is_main_memory), "BUG"
-
-        pmapping.remove_reservations()
-        pmapping.split_loop_with_multiple_rank_variables()
+        pmapping.split_reservations()
+        pmapping.split_loop_with_multiple_rank_variables(job.stride_and_halo)
         pmapping.split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
 
-        seen_temporal = False
-        from accelforge.frontend.mapping import Temporal, Storage
-
-        for node in pmapping.nodes:
-            if isinstance(node, Temporal):
-                seen_temporal = True
-            is_main_memory = (
-                isinstance(node, Storage) and node.component == "MainMemory"
-            )
-            assert not (seen_temporal and is_main_memory), "BUG"
-
         job.mapping = pmapping
-        job.einsum_name = pmapping.nodes[-1].einsum
         job.tensor_to_relevancy = {
             tensor: get_rank_variable_relevancy(
                 job.spec.workload.einsums[job.einsum_name], tensor
@@ -157,9 +127,6 @@ def evaluate_mapping(
             m.name for m in flattened_arch if isinstance(m, Memory)
         ]
 
-        job.stride_and_halo = get_stride_and_halo_of_einsum(
-            job.einsum_name, cur_spec.workload
-        )
         job.fusable_tensors = set(
             cur_spec.workload.tensor_names_used_in_multiple_einsums
             & set(job.tensor_to_relevancy)
@@ -169,7 +136,7 @@ def evaluate_mapping(
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
 
-        _, df, _, _, tensor2mapping = run_model(job)
+        _, df, _, _, tensor2mapping = run_model(job, add_reservations=False)
 
         # Calculate iteration counts and rank columns
         _calculate_iterations_and_rank_columns(
@@ -184,7 +151,18 @@ def evaluate_mapping(
             einsum_name
         )
         for k, v in symbol_renames.items():
-            df[v] = df.pop(k)
+            try:
+                df[v] = df.pop(k)
+            except:
+                Compatibility.from_mapping(
+                    job.mapping,
+                    job.fusable_tensors,
+                    rank_variable_to_ranks,
+                )
+                _calculate_iterations_and_rank_columns(
+                    job.mapping.nodes, job, df, job.rank_variable_bounds
+                )
+                raise
 
         new_df = {}
         for key, value in df.items():

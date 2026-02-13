@@ -135,12 +135,14 @@ class TensorAccess(EvalableModel):
         if isinstance(self.projection, ImpliedProjection):
             return f"{self.name}<sub>{subscript}</sub>"
 
-        string = [self.name]
+        string = []
         for k, v in self.projection.items():
-            if len(string) < len(self.projection):
-                string.append(f"<sup>{k},</sup><sub>{v},</sub>")
+            if v == k.lower():
+                string.append(v)
             else:
-                string.append(f"<sup>{k}</sup><sub>{v}</sub>")
+                string.append(f"{k}:{v}")
+        return f"{self.name}<sub>{','.join(string)}</sub>"
+
         return "".join(string)
 
     @property
@@ -533,7 +535,7 @@ class Einsum(EvalableModel):
             A string representation of this Einsum for use in a Pydot graph.
         """
         lhs_join = ",\n" if compress else " , "
-        rhs_join = " \n " if compress else "  "
+        rhs_join = " \n " if compress else "  ×  "
         lhs = lhs_join.join(
             [t._to_formatted_string() for t in self.tensor_accesses if t.output]
         )
@@ -974,6 +976,9 @@ class Workload(EvalableModel):
         """Renders the workload as a Pydot graph. Returns an SVG string."""
         graph = _pydot_graph()
 
+        # Set ranksep to 0.3
+        graph.set_ranksep(0.2)
+
         # Add all tensors as nodes (circles)
         tensors = []
         seen_tensor_names = set()
@@ -981,7 +986,9 @@ class Workload(EvalableModel):
             node = pydot.Node(
                 f"Einsum_{einsum.name}",
                 shape="box",
-                label=f"<{einsum._to_formatted_string(compress=True)}>",
+                label=f"<{einsum._to_formatted_string(compress=False)}>",
+                style="filled",
+                fillcolor="#E0EEFF",  # Same color as Compute nodes
             )
             graph.add_node(node)
             for tensor_access in einsum.tensor_accesses:
@@ -992,6 +999,8 @@ class Workload(EvalableModel):
                         f"Tensor_{tensor_access.name}",
                         shape="oval",
                         label=f"<{tensor_access._to_formatted_string()}>",
+                        style="filled",
+                        fillcolor="#D7FCD7",  # Same color as Storage nodes
                     )
                     graph.add_node(node)
 
@@ -1002,13 +1011,17 @@ class Workload(EvalableModel):
                 if tensor_access.output:
                     # Output tensor: einsum -> tensor
                     edge = pydot.Edge(
-                        f"Einsum_{einsum.name}", f"Tensor_{tensor_access.name}"
+                        f"Einsum_{einsum.name}",
+                        f"Tensor_{tensor_access.name}",
+                        dir="forward",
                     )
                     graph.add_edge(edge)
                 else:
                     # Input tensor: tensor -> einsum
                     edge = pydot.Edge(
-                        f"Tensor_{tensor_access.name}", f"Einsum_{einsum.name}"
+                        f"Tensor_{tensor_access.name}",
+                        f"Einsum_{einsum.name}",
+                        dir="forward",
                     )
                     graph.add_edge(edge)
         return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))

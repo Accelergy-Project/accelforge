@@ -365,12 +365,6 @@ def make_pmappings_from_templates(
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
         shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
 
-        symbols = compatibility.symbols()
-        dropcols = [
-            c for c in mappings.columns if is_fused_loop_col(c) and c not in symbols
-        ]
-        mappings = mappings.drop(columns=dropcols)
-
         energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
         if (mappings[energy_cols] < 0).any(axis=None):
             mapping_with_negative_energy = mappings[
@@ -385,6 +379,7 @@ def make_pmappings_from_templates(
 
         # Skip pareto because we already did it above
         next_shared_loop_index_this_group = compatibility.n_loops - 1
+        mappings = compatibility.clear_unrelated_columns(mappings)
         partial_mappings = PmappingDataframe(
             mappings,
             next_shared_loop_index=next_shared_loop_index_this_group,

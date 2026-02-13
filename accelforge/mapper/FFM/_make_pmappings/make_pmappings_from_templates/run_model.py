@@ -26,6 +26,7 @@ from accelforge.util._sympy.broadcast_max import Max
 
 def run_model(
     job: Job,
+    add_reservations: bool = True,
 ) -> tuple[list[Symbol], dict[str, float], dict[str, float], dict[str, float]]:
     pmapping = job.mapping
     spec = job.spec
@@ -35,7 +36,7 @@ def run_model(
 
     df = {}
 
-    reuse = analyze_reuse_and_add_reservations_to_mapping(job)
+    reuse = analyze_reuse_and_add_reservations_to_mapping(job, add_reservations=add_reservations)
 
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
     try:

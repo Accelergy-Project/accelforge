@@ -233,8 +233,9 @@ class SimAnnealMapping:
                         live_tensors_with_right=live_tensors | right_tensors,
                         aliased_tensors=self.mapspace_globals.aliased_tensors,
                         compatibility_joined=joined.compatibility.merge_next(
-                            s.compatibility, live_tensors,
-                            mixable_ranks=self.mapspace_globals.mixable_ranks
+                            s.compatibility,
+                            live_tensors,
+                            mixable_ranks=self.mapspace_globals.mixable_ranks,
                         ),
                         drop_valid_reservations=True,
                         delay=False,
@@ -334,7 +335,7 @@ def _join_pmappings(
         aliased_tensors=spec.workload.get_tensor_copies(),
         objective_function=objective_function,
         tracker=tracker,
-        mixable_ranks=spec.workload._get_ranks_that_share_indexing_rank_variables()
+        mixable_ranks=spec.workload._get_ranks_that_share_indexing_rank_variables(),
     )
 
     mappings = []
@@ -404,13 +405,17 @@ def join_pmappings(
     pop_size_per_thread = population_size // get_n_parallel_jobs()
 
     # Multiply by the number of einsums
-    print(f'Multiplying scale by {len(pmappings.einsum2pmappings)} for number of einsums')
+    print(
+        f"Multiplying scale by {len(pmappings.einsum2pmappings)} for number of einsums"
+    )
     tracker._scale_by *= len(pmappings.einsum2pmappings)
 
     # We allow FFM to query n_pareto_optimal_pmappings mappings from the mapspace, so we
     # scale by 1 / n_pareto_optimal_pmappings to get simanneal 1 evaluation = same
     # number of mappings as FFM
-    print(f'Multiplying scale by {1 / pmappings.n_pareto_optimal_pmappings()} for Pareto-optimal mapspace size')
+    print(
+        f"Multiplying scale by {1 / pmappings.n_pareto_optimal_pmappings()} for Pareto-optimal mapspace size"
+    )
     tracker._scale_by *= 1 / pmappings.n_pareto_optimal_pmappings()
 
     for einsum_name, einsum_pmappings in pmappings.einsum2pmappings.items():
@@ -444,7 +449,9 @@ def join_pmappings(
             # Count mappings with fewer loops as separate choices
             for subset in list(subsets):
                 for i in range(2 ** len(subset)):
-                    subsets.add(tuple(subset[j] for j in range(len(subset)) if i & (1 << j)))
+                    subsets.add(
+                        tuple(subset[j] for j in range(len(subset)) if i & (1 << j))
+                    )
 
             n_total += len(subsets) * n_pmappings * get_n_tile_shapes(s)
 
@@ -452,7 +459,7 @@ def join_pmappings(
     # shapes in one shot, which won't be the case if a simulated annealing mapper is
     # used to select the top part of the mapping. So scale to account for the number
     # that we get for free.
-    print(f'Multiplying scale by {n_total / n_evaluated} for number of total pmappings')
+    print(f"Multiplying scale by {n_total / n_evaluated} for number of total pmappings")
     tracker._scale_by *= n_total / n_evaluated
 
     def parallel_join(

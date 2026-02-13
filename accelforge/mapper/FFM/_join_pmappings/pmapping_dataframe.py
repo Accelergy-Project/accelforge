@@ -884,6 +884,11 @@ class PmappingDataframe:
     #     with open(to_file, "wb") as f:
     #         f.write(graph.create_png())
 
+    def clear_irrelevant_columns(self, compatibility: Compatibility) -> "PmappingDataframe":
+        return self.update(
+            data=compatibility.clear_unrelated_columns(self._data),
+            skip_pareto=True,
+        )
 
 def row2pmappings(
     row: pd.Series,

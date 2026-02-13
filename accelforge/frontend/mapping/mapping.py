@@ -593,10 +593,14 @@ class TensorHolder(MappingNode):
                 f"Components do not match: {self.component} != {other.component}"
             )
 
+        if self._lower != other._lower:
+            raise ValueError(f"Lower flags do not match: {self._lower} != {other._lower}")
+
         new = type(self)(
             tensors=self.tensors + other.tensors,
             component=self.component,
             component_object=self.component_object,
+            _lower=self._lower,
         )
         return new
 
@@ -1185,7 +1189,7 @@ class Nested(MappingNodeWithChildren):
         if prev is not None:
             result.append(prev)
 
-        return " ".join(node.compact_str() for node in result)
+        return " ".join(f"{node.compact_str()}" for node in result)
 
     def _get_single_tensor_mapping(
         self,
@@ -1519,14 +1523,29 @@ class Mapping(Nested):
     def remove_reservations(self):
         self.nodes = [n for n in self.nodes if not isinstance(n, Reservation)]
 
-    def split_loop_with_multiple_rank_variables(self):
+    def split_reservations(self):
+        new_nodes = []
+        for node in self.nodes:
+            if isinstance(node, Reservation):
+                for purpose in node.purposes:
+                    new_node = copy.copy(node)
+                    new_node.purposes = [purpose]
+                    new_nodes.append(new_node)
+            else:
+                new_nodes.append(node)
+        self.nodes = new_nodes
+
+    def split_loop_with_multiple_rank_variables(self, stride_and_halo: dict[str, tuple[int, int]]):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Loop) and isinstance(node.rank_variable, set):
-                for rank_variable in node.rank_variable:
-                    new_node = copy.copy(node)
-                    new_node.rank_variable = rank_variable
-                    new_nodes.append(new_node)
+                ranks_in_stride_and_halo = {
+                    r for r in node.rank_variable if r in stride_and_halo
+                }
+                assert len(ranks_in_stride_and_halo) == 1, f"Expected 1 rank in stride and halo, got {len(ranks_in_stride_and_halo)}"
+                new_node = copy.copy(node)
+                new_node.rank_variable = ranks_in_stride_and_halo.pop()
+                new_nodes.append(new_node)
             else:
                 new_nodes.append(node)
         self.nodes = new_nodes

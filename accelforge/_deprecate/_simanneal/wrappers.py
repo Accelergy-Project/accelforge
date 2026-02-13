@@ -201,7 +201,7 @@ def join_pmappings(
                     )
                     for _ in range(n_threads)
                 ],
-                n_jobs=get_n_parallel_jobs()
+                n_jobs=get_n_parallel_jobs(),
             )
             results = pd.concat([r[0] for r in results_and_trackers])
             break

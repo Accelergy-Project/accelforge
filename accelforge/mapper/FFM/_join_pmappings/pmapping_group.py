@@ -7,6 +7,10 @@ from joblib import delayed
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 
 from accelforge.mapper.FFM._join_pmappings.compatibility import *
+from accelforge.mapper.FFM._pareto_df.df_convention import (
+    is_fused_loop_col,
+    make_fused_loop_col,
+)
 from accelforge.util import parallel
 
 
@@ -18,6 +22,18 @@ class PmappingGroup:
             t.name: t for t in self.compatibility.tensors
         }
         self.n_pre_prune_mappings = 0
+
+        if isinstance(self.mappings, PmappingDataframe):
+            checked = set()
+            for s in self.compatibility.symbols():
+                checked.add(s)
+                assert (
+                    s in self.mappings.data.columns
+                ), f"Column {s} not found in mappings"
+
+            for col_name in self.mappings.data.columns:
+                if col_name not in checked and is_fused_loop_col(col_name):
+                    raise ValueError(f"Column {col_name} not found in compatibility")
 
     def compatibility_str(self):
         compatibility = ",".join(str(l) for l in self.compatibility.tensors)
@@ -252,7 +268,10 @@ class PmappingGroup:
                 if g:
                     pmgroups_remaining -= {id(s) for s, _ in g}
                     permuted = [
-                        PmappingGroup(s.compatibility.permute(lc), s.mappings)
+                        PmappingGroup(
+                            s.compatibility.permute(lc),
+                            s.mappings.clear_irrelevant_columns(s.compatibility),
+                        )
                         for s, lc in g
                     ]
                     new_grouped[c] = permuted
