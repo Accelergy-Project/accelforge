@@ -52,7 +52,6 @@ def _compress_pmapping_list(
             start_index,
         )
         compress = PmappingGroup(pmappings.compatibility, compress)
-        compressed.append(compress)
         return compress, decompress, start_index
 
     for pmapping in pmappings:
