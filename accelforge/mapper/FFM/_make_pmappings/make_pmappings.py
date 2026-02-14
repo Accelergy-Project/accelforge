@@ -191,16 +191,8 @@ def get_memories_to_track(
 
     # If we're combining the pmappings from multiple runs, we can't conclude anything
     # about the metrics to track
-    if can_combine_multiple_runs:
-        ignored_resources = memories_track_all
-        return (
-            memories_track_all,
-            memories_track_pmappings_only,
-            ignored_resources,
-        )
-
-    if metrics.RESOURCE_USAGE in metrics:
-        ignored_resources = memories_track_all
+    if can_combine_multiple_runs or metrics.RESOURCE_USAGE in metrics:
+        ignored_resources = set()
         return (
             memories_track_all,
             memories_track_pmappings_only,
