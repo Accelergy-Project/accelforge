@@ -1,0 +1,32 @@
+# This architecture is used to generate Orojenesis ski-slope that show the tradeoff
+# between the size of a memory and the minimum number of accesses to parent memories.
+# These trade-offs are introduced in "Mind the Gap: Attainable Data Movement and
+# Operational Intensity Bounds for Tensor Algorithms" by Qijing Huang, Po-An Tsai, Joel
+# S. Emer, Angshuman Parashar.
+
+# See the memory_size_vs_access_tradeoff.ipynb notebook for more details.
+
+arch:
+  nodes:
+  # Set main memory read and write energy to 1J/bit. Then, when we set the mapper to
+  # minimize energy, it will really just be minimizing the number of DRAM accesses.
+  - !Memory
+    name: MainMemory
+    component_class: Dummy
+    size: inf
+    actions: [{name: read, energy: 1}, {name: write, energy: 1}]
+    # Keep only intermediates -> allow fusion
+    tensors: {keep: ~Intermediates, may_keep: All}
+
+  # We'll set up the mapper to also optimize for global buffer usage. Note: Global
+  # buffer size can not be infinity (because usage would be forced to zero), but we make
+  # it large enough that it'll never reasonably be oversubscribed.
+  - !Memory
+    name: GlobalBuffer
+    component_class: Dummy
+    size: 1e12
+    tensors: {keep: All}
+
+  - !Compute
+    name: MAC
+    component_class: Dummy
