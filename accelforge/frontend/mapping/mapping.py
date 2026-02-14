@@ -1059,6 +1059,8 @@ class Nested(MappingNodeWithChildren):
                         my_loop_group.pop(i)
                         other_loop_group.pop(j)
                         break
+                if to_add is not None:
+                    break
 
             if to_add is None:
                 # TODO: This check for one is only to early catch bugs coming here. The
