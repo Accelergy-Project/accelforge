@@ -113,7 +113,9 @@ def evaluate_mapping(
         )
 
         pmapping.split_reservations()
-        pmapping.split_loop_with_multiple_rank_variables(job.stride_and_halo)
+        pmapping.split_loop_with_multiple_rank_variables(
+            job.stride_and_halo[einsum_name]
+        )
         pmapping.split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
 
@@ -140,7 +142,9 @@ def evaluate_mapping(
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
 
-        _, df, _, _, tensor2mapping = run_model(job, add_reservations=needs_reservations)
+        _, df, _, _, tensor2mapping = run_model(
+            job, add_reservations=needs_reservations
+        )
 
         # Calculate iteration counts and rank columns
         _calculate_iterations_and_rank_columns(

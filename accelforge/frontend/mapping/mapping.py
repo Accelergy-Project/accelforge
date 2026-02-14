@@ -806,6 +806,8 @@ class MappingNodeWithChildren(MappingNode):
             return
 
         for i, node1 in enumerate(self.nodes):
+            # + 2 because if it's in back-to-back branches, then there's nothing in
+            # between to add the reservation to.
             for j in range(i + 2, len(self.nodes)):
                 node2 = self.nodes[j]
                 reservations1 = node1.get_nodes_of_type(Reservation)
@@ -1542,11 +1544,10 @@ class Mapping(Nested):
 
     def split_loop_with_multiple_rank_variables(self, stride_and_halo: dict[str, tuple[int, int]]):
         new_nodes = []
+        my_rank_variables = set(x[1] for x in stride_and_halo)
         for node in self.nodes:
             if isinstance(node, Loop) and isinstance(node.rank_variable, set):
-                ranks_in_stride_and_halo = {
-                    r for r in node.rank_variable if r in stride_and_halo
-                }
+                ranks_in_stride_and_halo = node.rank_variable & my_rank_variables
                 assert len(ranks_in_stride_and_halo) == 1, f"Expected 1 rank in stride and halo, got {len(ranks_in_stride_and_halo)}"
                 new_node = copy.copy(node)
                 new_node.rank_variable = ranks_in_stride_and_halo.pop()
