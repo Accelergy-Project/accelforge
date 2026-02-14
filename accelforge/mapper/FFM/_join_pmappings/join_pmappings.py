@@ -638,9 +638,9 @@ def join_pmappings(
         timer.print_time("Pmapping merging")
 
         if not any(len(s.mappings.data) for s in combined):
-            for c in prev_combined:
-                x = c.mappings
-                x[0](*x[1], **x[2])
+            # for c in prev_combined:  # For debugging the joining
+            #     x = c.mappings
+            #     x[0](*x[1], **x[2])
             raise ValueError(f"No mappings found for {left_einsum} <--> {right_einsum}")
 
         prev_nmappings = cur_nmappings
