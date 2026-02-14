@@ -631,16 +631,15 @@ class PmappingDataframe:
         ):
             target = nameloop2col(resource, level, left=left)
             if target in self.data:
-                self.data.loc[:, target] += size
+                add_to_col(self.data, target, size)
                 continue
 
             # We're creating a new column, so copy allocations from any parents
             source = self.get_reservation_or_parent(resource, level - 1)
-            try:
-                self.data[target] = size + (self.data[source] if source else 0)
-            except:
-                source = self.get_reservation_or_parent(resource, level - 1)
-                self.data[target] = size + (self.data[source] if source else 0)
+            if source:
+                add_to_col(self.data, target, source)
+            else:
+                self.data[target] = size
 
             # Assert all reservations are >= 0
             assert (self.data[target] >= 0).all(), f"Negative reservation: {target}"
