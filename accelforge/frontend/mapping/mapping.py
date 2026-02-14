@@ -759,7 +759,7 @@ class MappingNodeWithChildren(MappingNode):
                 found = False
                 for n in new_nodes[::-1]:
                     if isinstance(n, Reservation) and n.resource == node.resource:
-                        n.purposes.extend(node.purposes)
+                        n.purposes.extend(n2 for n2 in node.purposes if n2 not in n.purposes)
                         found = True
                         break
                     if isinstance(n, Loop):
@@ -797,10 +797,10 @@ class MappingNodeWithChildren(MappingNode):
             new_nodes.append(node)
         self.nodes = EvalableList(new_nodes)
 
-    def _propagate_reservations_between_splits(self) -> None:
+    def _propagate_backing_reservations_between_splits(self) -> None:
         for node in self.nodes:
             if isinstance(node, MappingNodeWithChildren):
-                node._propagate_reservations_between_splits()
+                node._propagate_backing_reservations_between_splits()
 
         if not isinstance(self, Split):
             return
@@ -810,6 +810,9 @@ class MappingNodeWithChildren(MappingNode):
                 node2 = self.nodes[j]
                 reservations1 = node1.get_nodes_of_type(Reservation)
                 reservations2 = node2.get_nodes_of_type(Reservation)
+
+                reservations1 = [r for r in reservations1 if r._backing]
+                reservations2 = [r for r in reservations2 if r._backing]
 
                 shared_reservations = []
                 for reservation1 in reservations1:
@@ -1700,11 +1703,11 @@ class Mapping(Nested):
         mapping: Mapping = cls(nodes=pmappings[0].nodes)
         mapping._elevate_persistent_nodes_above_splits()
         mapping._elevate_tensor_holders_above_splits()
-        mapping._propagate_reservations_between_splits()
+        mapping._propagate_backing_reservations_between_splits()
         mapping._consolidate_tensor_holders()
         mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
-        mapping._remove_reservations_for_tolls()
+        # mapping._remove_reservations_for_tolls()
         return mapping
 
         # import mermaid as md
