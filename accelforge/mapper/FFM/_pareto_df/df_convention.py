@@ -1,6 +1,6 @@
 import functools
 import re
-
+import pandas as pd
 from accelforge.util import NUMPY_FLOAT_TYPE
 from accelforge.util._frozenset import fzs
 from accelforge.frontend.workload import Rank
@@ -212,9 +212,16 @@ def is_n_iterations_col(c: str) -> bool:
 def ensure_float_type(df, target, source):
     if target in df:
         target_type = df[target].dtype
-        source_type = df[source].dtype
-        if target_type != source_type:
+    else:
+        target_type = NUMPY_FLOAT_TYPE
+
+    if isinstance(source, pd.Series):
+        if target in df and target_type != source.dtype:
             df[target] = df[target].astype(NUMPY_FLOAT_TYPE)
+    elif source in df:
+        if target_type != df[source].dtype:
+            if target in df:
+                df[target] = df[target].astype(NUMPY_FLOAT_TYPE)
             df[source] = df[source].astype(NUMPY_FLOAT_TYPE)
 
 
@@ -227,6 +234,12 @@ def max_to_col(df, target, source):
     ensure_float_type(df, target, source)
     df.loc[:, target] = df[[target, source]].max(axis=1) if target in df else df[source]
 
+def add_to_col(df, target, source):
+    ensure_float_type(df, target, source)
+    if isinstance(source, pd.Series):
+        df[target] = df[target] + source
+    else:
+        df.loc[:, target] = df[target] + df[source] if target in df else df[source]
 
 def is_objective_col(c):
     return partition_col(c, "Total") is not None
