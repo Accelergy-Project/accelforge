@@ -10,6 +10,7 @@ from accelforge.frontend.renames import EinsumName
 from accelforge.frontend.spec import Mapping, Spec
 from accelforge.frontend.mapping import (
     Compute,
+    Reservation,
     Split,
     Nested,
     NodeList,
@@ -82,6 +83,9 @@ def evaluate_mapping(
         "Spec must not be evaluated before evaluating a mapping. Was "
         "this spec returned by spec.calculate_component_area_energy_latency_leak()?"
     )
+
+    needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
+
     assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         einsum_name = pmapping.nodes[-1].einsum
@@ -136,7 +140,7 @@ def evaluate_mapping(
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
 
-        _, df, _, _, tensor2mapping = run_model(job, add_reservations=False)
+        _, df, _, _, tensor2mapping = run_model(job, add_reservations=needs_reservations)
 
         # Calculate iteration counts and rank columns
         _calculate_iterations_and_rank_columns(
@@ -191,16 +195,17 @@ def evaluate_mapping(
     }
 
     return clean_compress_and_join_pmappings(
-        MultiEinsumPmappings(
-            spec,
-            einsum2pmappings,
-            pmapping_objects,
-            einsum2jobs,
-            can_combine_multiple_runs=True,
-            einsums_with_pmappings_generated=spec.workload.einsum_names,
+        pmappings=MultiEinsumPmappings(
+            spec=spec,
+            einsum2pmappings=einsum2pmappings,
+            pmapping_objects=pmapping_objects,
+            einsum2jobs=einsum2jobs,
+            can_combine_multiple_runs=False,
+            einsums_with_pmappings_generated=set(spec.workload.einsum_names),
             flattened_arches=flattened_arches,
             evaluated_specs=evaluated_specs,
         ),
+        metrics=spec.model.metrics,
         print_progress=False,
     )
 

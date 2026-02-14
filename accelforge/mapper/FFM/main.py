@@ -7,6 +7,7 @@ import logging
 
 from accelforge import arch
 from accelforge import Spec
+from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
 from accelforge.mapper.FFM.mappings import Mappings
 import accelforge.mapper.FFM._make_pmappings.make_pmappings as pmapper
@@ -86,6 +87,7 @@ def map_workload_to_arch(
         require_all_einsums=False,
         _pmapping_row_filter_function=_pmapping_row_filter_function,
         print_progress=print_progress,
+        metrics=spec.mapper.metrics,
     )
 
     def eval_mapping(i, spec, mappings):
@@ -107,6 +109,12 @@ def map_workload_to_arch(
         return_as="generator_unordered",
     ):
         results[i] = result
+
+    # for i, r in enumerate(results):
+    #     print(f'Result {i}')
+    #     for c in r.columns:
+    #         if "Total" in c or "reservation" in c:
+    #             print(f'\t{c}: {r[c]}')
 
     mappings.data = pd.concat(results).fillna(0)
     return mappings
@@ -177,6 +185,7 @@ def make_pmappings(
 
 def join_pmappings(
     pmappings: MultiEinsumPmappings,
+    metrics: Metrics,
     require_all_einsums: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     print_progress: bool = True,
@@ -198,15 +207,18 @@ def join_pmappings(
         rows will be included.
     print_progress:
         Whether to print progress of the mapping process, including progress bars.
+    metrics:
+        The metrics to optimize when joining pmappings.
     Returns
     -------
     Mappings
         A Mappings object containing all valid, optimal mappings for the workload.
     """
     return clean_compress_and_join_pmappings(
-        pmappings,
-        require_all_einsums,
-        _pmapping_row_filter_function,
+        pmappings=pmappings,
+        metrics=metrics,
+        require_all_einsums=require_all_einsums,
+        _pmapping_row_filter_function=_pmapping_row_filter_function,
         print_progress=print_progress,
     )
 

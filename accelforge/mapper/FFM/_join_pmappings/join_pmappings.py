@@ -58,6 +58,7 @@ class JoiningTimer:
 
 def clean_compress_and_join_pmappings(
     pmappings: MultiEinsumPmappings,
+    metrics: Metrics,
     require_all_einsums: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     print_progress: bool = True,
@@ -79,6 +80,7 @@ def clean_compress_and_join_pmappings(
         pmappings.spec,
         _pmapping_row_filter_function=_pmapping_row_filter_function,
         print_progress=print_progress,
+        metrics=metrics,
     )
     joined = decompress_pmappings(joined, decompress_data)
 
@@ -252,8 +254,9 @@ def join_pmappings(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
-
-    metrics = spec.mapper.metrics
+    # 0.6-14 1.0-10 0.8-12
+    # pmapping_groups['K'][0].mappings.data
+    # pmapping_groups['K'][1].mappings.data
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = set()
@@ -617,6 +620,8 @@ def join_pmappings(
         # ======================================================================
         # If we delayed the mapping merging, do it now.
         # ======================================================================
+        import copy
+        prev_combined = copy.deepcopy(combined)
         if DELAY:
             mappings = parallel(
                 [c.mappings for c in combined],
@@ -633,6 +638,9 @@ def join_pmappings(
         timer.print_time("Pmapping merging")
 
         if not any(len(s.mappings.data) for s in combined):
+            for c in prev_combined:
+                x = c.mappings
+                x[0](*x[1], **x[2])
             raise ValueError(f"No mappings found for {left_einsum} <--> {right_einsum}")
 
         prev_nmappings = cur_nmappings
@@ -693,6 +701,8 @@ def join_pmappings(
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
+    mappings.free_to_loop_index(-2)
+    mappings.make_pareto()
 
     timer.log_total_time()
     # if evaluations_tracker is not None and "Total_latency" in data.columns and "Total_energy" in data.columns:

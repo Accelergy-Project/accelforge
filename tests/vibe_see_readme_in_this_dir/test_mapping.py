@@ -541,7 +541,7 @@ class TestMapping(unittest.TestCase):
                 Compute(einsum="E", component="MAC"),
             ]
         )
-        m.split_loop_with_multiple_rank_variables()
+        m.split_loop_with_multiple_rank_variables(stride_and_halo={"m": (1, 0)})
         temporals = [n for n in m.nodes if isinstance(n, Temporal)]
         self.assertEqual(len(temporals), 2)
 
