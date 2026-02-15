@@ -382,7 +382,6 @@ class Compatibility(Updatable):
         self,
         right: "Compatibility",
         live_tensors: set[str],
-        mixable_ranks: dict[Rank, set[Rank]],
     ) -> "Compatibility":
         self_freed = self.clear_dead_tensors(live_tensors)
         right_freed = right.clear_dead_tensors(live_tensors)
@@ -404,9 +403,6 @@ class Compatibility(Updatable):
             reservation_indices=self_freed.reservation_indices
             | right_freed.reservation_indices,
         )
-
-        if mixable_ranks is not None and not joined._is_valid(mixable_ranks):
-            raise ValueError(f"Invalid rank mixing.")
 
         return joined
 
@@ -637,20 +633,6 @@ class Compatibility(Updatable):
         return self.update(
             tensors=fzs(t.add_n_iteration_symbols() for t in self.tensors)
         )
-
-    def _is_valid(self, mixable_ranks: dict[Rank, set[Rank]]) -> bool:
-        # Mixable ranks: Ranks that may be co-iterated by a single loop.
-        ranks_at_each_loop_index = []
-        for i in range(self.n_loops):
-            ranks_at_each_loop_index.append(
-                set(t.loops[i].rank_name for t in self.tensors if i < len(t.loops))
-            )
-
-        for ranks in ranks_at_each_loop_index:
-            for r1, r2 in itertools.combinations(ranks, 2):
-                if r1 not in mixable_ranks[r2]:
-                    return False
-        return True
 
     def clear_unrelated_columns(self, mappings: pd.DataFrame) -> "Compatibility":
         my_symbols = set(self.symbols())
