@@ -69,7 +69,6 @@ def shift_reservations_by_null_loop_indices(
     if len(mappings.columns) != len(mappings.columns.unique()):
         shift_reservations_by_null_loop_indices(prev, null_loop_indices)
         raise ValueError(f"Duplicate columns: {mappings.columns}")
-    assert len(mappings.columns) == len(mappings.columns.unique())
     return mappings
 
 

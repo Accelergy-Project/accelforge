@@ -123,7 +123,7 @@ def run_model(
         if memory not in job.memories_track_all:
             continue
         running_total = 0
-        for n_loop in n_loop_options:
+        for n_loop in sorted(n_loop_options):
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
                 df[nameloop2col(memory, n_loop)] = (
