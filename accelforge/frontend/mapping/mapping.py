@@ -1087,15 +1087,10 @@ class Nested(MappingNodeWithChildren):
                 assert len(my_loop_group) == 1 or len(other_loop_group) == 1
                 has_one, may_not_have_one = my_loop_group, other_loop_group
 
-                my_rv = set()
-                other_rv = set()
-                for m in my_loop_group:
-                    my_rv |= m.rank_variable if isinstance(m.rank_variable, set) else set([m.rank_variable])
-                for o in other_loop_group:
-                    other_rv |= o.rank_variable if isinstance(o.rank_variable, set) else set([o.rank_variable])
-
+                switched = False
                 if len(has_one) != 1:
                     has_one, may_not_have_one = other_loop_group, my_loop_group
+                    switched = True
 
                 l = copy.deepcopy(has_one.pop(0))
                 l.rank_variable = (
@@ -1113,6 +1108,11 @@ class Nested(MappingNodeWithChildren):
                 print(
                     f"Warning. Matching loops {l} and {l2}. Need rank variable translation here."
                 )
+
+                my_rv = l.rank_variable if isinstance(l.rank_variable, set) else set([l.rank_variable])
+                other_rv = l2.rank_variable if isinstance(l2.rank_variable, set) else set([l2.rank_variable])
+                if switched:
+                    my_rv, other_rv = other_rv, my_rv
 
                 may_not_have_one.remove(l2)
                 rv = l2.rank_variable
