@@ -759,12 +759,12 @@ class MappingNodeWithChildren(MappingNode):
                     if isinstance(n, Loop):
                         break
                     # Don't lift a storage above a storage for the same tensor
-                    if isinstance(n, TensorHolder) and set[TensorName](n.tensors) & set(
+                    if isinstance(n, TensorHolder) and set(n.tensors) & set(
                         node.tensors
                     ):
                         break
                     # Don't lift a storage above a reservation for the same tensor
-                    if isinstance(n, Reservation) and n.purpose in node.tensors:
+                    if isinstance(n, Reservation) and set(n.purposes) & set(node.tensors):
                         break
                 if not found:
                     new_nodes.append(node)
@@ -790,12 +790,10 @@ class MappingNodeWithChildren(MappingNode):
                     if isinstance(n, Loop):
                         break
                     # Don't lift a reservation above a reservation for the same tensor
-                    if isinstance(n, TensorHolder) and set[TensorName](n.tensors) & set(
-                        node.tensors
-                    ):
+                    if isinstance(n, TensorHolder) and set(node.purposes) & set(n.tensors):
                         break
                     # Don't lift a reservation above a storage for the same tensor
-                    if isinstance(n, Reservation) and n.purpose in node.tensors:
+                    if isinstance(n, Reservation) and set(n.purposes) & set(node.purposes):
                         break
                 if not found:
                     new_nodes.append(node)
@@ -1762,8 +1760,8 @@ class Mapping(Nested):
         mapping._elevate_persistent_nodes_above_splits()
         mapping._elevate_tensor_holders_above_splits()
         mapping._propagate_backing_reservations_between_splits()
-        # mapping._consolidate_tensor_holders()
-        # mapping._consolidate_reservations()
+        mapping._consolidate_tensor_holders()
+        mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
         # mapping._remove_reservations_for_tolls()
         return mapping
