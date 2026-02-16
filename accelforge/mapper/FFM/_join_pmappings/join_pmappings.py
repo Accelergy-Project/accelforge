@@ -1,3 +1,4 @@
+from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
 from collections import defaultdict
 import itertools
 import logging
@@ -281,8 +282,6 @@ def join_pmappings(
             pmapping_groups, print_progress
         )
 
-    mixable_ranks = spec.workload._get_ranks_that_share_indexing_rank_variables()
-
     aliased_tensors = spec.workload.get_tensor_copies()
 
     n_mappings = {}
@@ -478,11 +477,7 @@ def join_pmappings(
                 b: PmappingGroup
                 perm_a: list[int]
                 perm_b: list[int]
-                key_check = (
-                    id(a),
-                    id(b),
-                    tuple((pa, pb) for pa, pb in zip(perm_a, perm_b)),
-                )
+                key_check = (id(a), id(b))
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
@@ -494,7 +489,6 @@ def join_pmappings(
                     compatibility_joined = compatibility_a.merge_next(
                         compatibility_b,
                         live_tensors,
-                        mixable_ranks,
                     )
                     if DO_PRINT:
                         print(
@@ -515,6 +509,8 @@ def join_pmappings(
                         aliased_tensors,
                         compatibility_joined=compatibility_joined,
                         drop_valid_reservations=drop_valid_reservations,
+                        permuted_compatibility_left=compatibility_a,
+                        permuted_compatibility_right=compatibility_b,
                         delay=DELAY,
                         _pmapping_row_filter_function=_pmapping_row_filter_function,
                         ignored_resources=ignored_resources,
@@ -575,6 +571,7 @@ def join_pmappings(
         # Look ahead to the next Einsum and see if any of our groups will not
         # be able to merge with it. If so, we can drop them immediately.
         # ======================================================================
+        lookahead_filter = True
         if lookahead_filter:
             cur_tensors = left_tensors | right_tensors
             for next_pmapping_groups in pmgroups:
@@ -589,11 +586,15 @@ def join_pmappings(
                     ).clear_tile_patterns_and_reservation_indices()
                     for c in next_pmapping_groups.pmapping_groups
                 }
-                for k in list(combined):
-                    k_cleared = k.clear_dead_tensors(
-                        next_right_tensors
-                    ).clear_tile_patterns_and_reservation_indices()
-                    if k_cleared not in next_keys:
+                for k in list[PmappingGroup](combined):
+                    perms = k.make_equivalent_permutations()
+                    perms = [
+                        p[0]
+                        .clear_dead_tensors(next_right_tensors)
+                        .clear_tile_patterns_and_reservation_indices()
+                        for p in perms
+                    ]
+                    if not any(p in next_keys for p in perms):
                         if DO_PRINT:
                             for b, _ in combined[k]:
                                 print(

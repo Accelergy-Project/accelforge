@@ -113,9 +113,7 @@ def evaluate_mapping(
         )
 
         pmapping.split_reservations()
-        pmapping.split_loop_with_multiple_rank_variables(
-            job.stride_and_halo[einsum_name]
-        )
+        pmapping.split_loop_with_multiple_rank_variables(job.einsum_name)
         pmapping.split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
 

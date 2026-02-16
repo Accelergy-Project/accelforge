@@ -58,6 +58,8 @@ class PmappingGroup:
         aliased_tensors: dict[str, set[str]],
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
+        permuted_compatibility_left: Compatibility,
+        permuted_compatibility_right: Compatibility,
         drop_valid_reservations: bool = True,
         delay: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
@@ -88,8 +90,8 @@ class PmappingGroup:
             live_tensors_with_right,
             still_live_reservations,
             duplicated_aliased_tensors,
-            compatibility_left=self.compatibility,
-            compatibility_right=right.compatibility,
+            compatibility_left=permuted_compatibility_left,
+            compatibility_right=permuted_compatibility_right,
             compatibility_joined=compatibility_joined,
             drop_valid_reservations=drop_valid_reservations,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
@@ -218,6 +220,7 @@ class PmappingGroup:
         include_permutations: bool = False,
         clear_symbolic_tile_patterns: bool = False,
         try_permute_into_equivalent: bool = False,
+        # mixable_ranks: dict[Rank, set[Rank]] = None,
     ) -> (
         dict[Compatibility, list["PmappingGroup"]]
         | dict[Compatibility, list[tuple["PmappingGroup", list[int]]]]
@@ -252,6 +255,13 @@ class PmappingGroup:
                 assert (
                     len(k.reservation_indices) == 0
                 ), f"Extra reservation indices are not empty: {k.reservation_indices}"
+
+        # if mixable_ranks is not None:
+        #     new_grouped = {}
+        #     for c, g in grouped.items():
+        #         for c2 in c.get_equivalent_compatibilities(mixable_ranks):
+        #             new_grouped.setdefault(c2, []).extend(g)
+        #     grouped = new_grouped
 
         if try_permute_into_equivalent:
             assert not include_permutations
@@ -339,13 +349,14 @@ class PmappingGroup:
 
     @staticmethod
     def group(
-        pmapping_groups: list["PmappingGroup"], live_tensors: set[str]
+        pmapping_groups: list["PmappingGroup"], live_tensors: set[str]#, mixable_ranks: dict[Rank, set[Rank]] = None
     ) -> dict[tuple[Compatibility, ...], list[tuple["PmappingGroup", list[int]]]]:
         x = PmappingGroup._group(
             pmapping_groups,
             live_tensors,
             clear_tile_patterns_and_reservation_indices=True,
             include_permutations=True,
+            # mixable_ranks=mixable_ranks,
         )
         return x
 
