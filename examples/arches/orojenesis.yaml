@@ -18,9 +18,10 @@ arch:
     # Keep only intermediates -> allow fusion
     tensors: {keep: ~Intermediates, may_keep: All}
 
-  # We'll set up the mapper to also optimize for global buffer usage. Note: Global
-  # buffer size can not be infinity (because usage would be forced to zero), but we make
-  # it large enough that it'll never reasonably be oversubscribed.
+  # We'll set up the mapper to also optimize for global buffer usage. We make it large
+  # enough that it'll never reasonably be oversubscribed, then count the usage as the
+  # "size" of our global buffer. Note that we cannot set the size to infinity, as usage
+  # would be zero and there would be nothing to optimize for.
   - !Memory
     name: GlobalBuffer
     component_class: Dummy
