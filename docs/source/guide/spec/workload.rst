@@ -111,17 +111,20 @@ concise notation.
     # - The LHS of the equation is the output tensor name and projection. If not
     #   otherwise specified, the output tensor name is the name of the Einsum.
     # - The RHS of the equation are the input tensor names and projections.
+    # Concise
     - V[b, m, h, e] = I[b, m, d] * WV[h, e, d]
+    # Verbose
     - name: V
       tensor_accesses:
       - {name: I, projection: [b, m, d]}
       - {name: WV, projection: [h, e, d]}
       - {name: V, projection: [b, m, h, e], output: True}
 
-    # Concise version of the QK Einsum. Notice that we used the M=p notation to support
-    # a projection dictionary. We can also use a name alias in parentheses to give a
-    # name alias to the tensor.
-    - QK(output)[b, m, p, h] = Q(input)[b, m, h, e] * K(weight)[b, M=p, h, e]
+    # Concise version of the QK Einsum. Notice that we used the M: p notation to support
+    # a projection dictionary. Renames are specified separately in the renames section.
+    # Concise
+    - "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M: p, h, e]"
+    # Verbose
     - name: QK
       tensor_accesses:
       - {name: Q, projection: [b, m, h, e]}
@@ -133,14 +136,18 @@ concise notation.
     # einsum keyword. Then we can specify additional attributes in the same entry. Note
     # that the einsum keyword will set the tensors and projections for the Einsum, and
     # an error will be raised if these are specified again in the same entry.
+    # Concise
     - einsum: I[b, m, d] = I_in[b, m, d]
       is_copy_operation: True
       tensor_accesses: [{name: I_in, bits_per_value: 16}]
+      renames: {input: I_in, output: I}
+    # Verbose
     - name: I
       is_copy_operation: True
       tensor_accesses:
       - {name: I_in, projection: [b, m, d], bits_per_value: 16}
       - {name: I, projection: [b, m, d], output: True}
+      renames: {input: I_in, output: I}
 
 Below is the concise notation equivalent of the GPT3 6.7B example workload:
 

@@ -764,7 +764,9 @@ class MappingNodeWithChildren(MappingNode):
                     ):
                         break
                     # Don't lift a storage above a reservation for the same tensor
-                    if isinstance(n, Reservation) and set(n.purposes) & set(node.tensors):
+                    if isinstance(n, Reservation) and set(n.purposes) & set(
+                        node.tensors
+                    ):
                         break
                 if not found:
                     new_nodes.append(node)
@@ -790,10 +792,14 @@ class MappingNodeWithChildren(MappingNode):
                     if isinstance(n, Loop):
                         break
                     # Don't lift a reservation above a reservation for the same tensor
-                    if isinstance(n, TensorHolder) and set(node.purposes) & set(n.tensors):
+                    if isinstance(n, TensorHolder) and set(node.purposes) & set(
+                        n.tensors
+                    ):
                         break
                     # Don't lift a reservation above a storage for the same tensor
-                    if isinstance(n, Reservation) and set(n.purposes) & set(node.purposes):
+                    if isinstance(n, Reservation) and set(n.purposes) & set(
+                        node.purposes
+                    ):
                         break
                 if not found:
                     new_nodes.append(node)
