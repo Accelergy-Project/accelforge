@@ -490,14 +490,6 @@ class TestConciseEinsumExtras(unittest.TestCase):
         names = {ta["name"] for ta in parsed["tensor_accesses"]}
         self.assertEqual(names, {"A", "B", "C"})
 
-    def test_einsum_keyword_with_extra_renames(self):
-        entry = {
-            "einsum": "C[m, n] = A[m, k] * B[k, n]",
-            "renames": {"weight": "B"},
-        }
-        parsed = _parse_einsum_entry(entry)
-        self.assertEqual(parsed["renames"]["weight"], "B")
-
     def test_conflicting_tensor_access_attr_raises(self):
         """Setting projection in both einsum string and tensor_accesses is an error."""
         entry = {
@@ -511,15 +503,6 @@ class TestConciseEinsumExtras(unittest.TestCase):
         entry = {
             "einsum": "C[m, n] = A[m, k] * B[k, n]",
             "tensor_accesses": [{"name": "Z", "bits_per_value": 8}],
-        }
-        with self.assertRaises(ValueError):
-            _parse_einsum_entry(entry)
-
-    def test_duplicate_rename_raises(self):
-        """If the einsum string already defines a rename, adding the same raises."""
-        entry = {
-            "einsum": "C(output)[m, n] = A[m, k] * B[k, n]",
-            "renames": {"output": "C"},
         }
         with self.assertRaises(ValueError):
             _parse_einsum_entry(entry)
@@ -929,8 +912,8 @@ class TestParseProjectionDocExamples(unittest.TestCase):
     """Test _parse_projection for cases shown in the docs."""
 
     def test_mixed_implicit_and_explicit(self):
-        """Parsing 'b, M=p, h, e' yields a dict with mixed implicit/explicit."""
-        result = _parse_projection("b, M=p, h, e")
+        """Parsing 'b, M:p, h, e' yields a dict with mixed implicit/explicit."""
+        result = _parse_projection("b, M:p, h, e")
         self.assertEqual(result["B"], "b")
         self.assertEqual(result["M"], "p")
         self.assertEqual(result["H"], "h")
@@ -941,7 +924,7 @@ class TestParseProjectionDocExamples(unittest.TestCase):
         self.assertEqual(result, {"M": "m", "K": "k", "N": "n"})
 
     def test_all_explicit(self):
-        result = _parse_projection("Row=m, Col=n")
+        result = _parse_projection("Row:m, Col:n")
         self.assertEqual(result, {"Row": "m", "Col": "n"})
 
 

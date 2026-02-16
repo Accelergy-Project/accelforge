@@ -33,11 +33,11 @@ class TestParseProjection(unittest.TestCase):
         self.assertEqual(result, {"A": "a", "B": "b", "C": "c"})
 
     def test_explicit_equals_projection(self):
-        result = _parse_projection("B=b, M=p, H=h, E=e")
+        result = _parse_projection("B:b, M:p, H:h, E:e")
         self.assertEqual(result, {"B": "b", "M": "p", "H": "h", "E": "e"})
 
     def test_mixed_implicit_and_explicit(self):
-        result = _parse_projection("b, M=p, h, e")
+        result = _parse_projection("b, M:p, h, e")
         self.assertEqual(result, {"B": "b", "M": "p", "H": "h", "E": "e"})
 
     def test_single_element(self):
@@ -45,7 +45,7 @@ class TestParseProjection(unittest.TestCase):
         self.assertEqual(result, {"X": "x"})
 
     def test_single_explicit(self):
-        result = _parse_projection("X=y")
+        result = _parse_projection("X:y")
         self.assertEqual(result, {"X": "y"})
 
     def test_empty_raises_value_error(self):
@@ -193,7 +193,7 @@ class TestParseEinsumString(unittest.TestCase):
 
     def test_dict_projection(self):
         result = _parse_einsum_string(
-            "QK[b, m, p, h] = Q[b, m, h, e] * K[B=b, M=p, H=h, E=e]"
+            "QK[b, m, p, h] = Q[b, m, h, e] * K[B:b, M:p, H:h, E:e]"
         )
         k_tensor = result["tensor_accesses"][1]
         self.assertEqual(k_tensor["name"], "K")
@@ -203,20 +203,12 @@ class TestParseEinsumString(unittest.TestCase):
 
     def test_mixed_projection(self):
         result = _parse_einsum_string(
-            "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M=p, h, e]"
+            "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M:p, h, e]"
         )
         k_tensor = result["tensor_accesses"][1]
         expected = {"B": "b", "M": "p", "H": "h", "E": "e"}
         self.assertEqual(k_tensor["projection"], expected)
 
-    def test_with_renames_alias(self):
-        result = _parse_einsum_string(
-            "QK(output)[b, m, p, h] = Q(input)[b, m, h, e] * K(weight)[b, M=p, h, e]"
-        )
-        self.assertEqual(result["name"], "QK")
-        self.assertEqual(
-            result["renames"], {"output": "QK", "input": "Q", "weight": "K"}
-        )
 
     def test_copy_operation(self):
         result = _parse_einsum_string("I[b, m, d] = I_in[b, m, d]")
@@ -300,7 +292,7 @@ class TestParseEinsumEntry(unittest.TestCase):
 
     def test_entry_with_einsum_and_renames(self):
         entry = {
-            "einsum": "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M=p, h, e]",
+            "einsum": "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M:p, h, e]",
             "renames": {"weight": "K", "input": "Q"},
         }
         result = _parse_einsum_entry(entry)
@@ -374,16 +366,6 @@ class TestParseEinsumEntry(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             _parse_einsum_entry(entry)
-
-    def test_rename_already_in_einsum_string_raises(self):
-        """If the einsum string defines a rename alias and we try to add the same."""
-        entry = {
-            "einsum": "QK(output)[b] = Q(input)[b]",
-            "renames": {"output": "QK"},  # output is already set by alias
-        }
-        with self.assertRaises(ValueError) as ctx:
-            _parse_einsum_entry(entry)
-        self.assertIn("already exists", str(ctx.exception))
 
 
 if __name__ == "__main__":
