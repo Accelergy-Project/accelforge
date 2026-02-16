@@ -31,7 +31,7 @@ from collections.abc import Set
 from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
-from accelforge.frontend.renames import EinsumName
+from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
     EvalableModel,
@@ -758,6 +758,14 @@ class MappingNodeWithChildren(MappingNode):
                         break
                     if isinstance(n, Loop):
                         break
+                    # Don't lift a storage above a storage for the same tensor
+                    if isinstance(n, TensorHolder) and set[TensorName](n.tensors) & set(
+                        node.tensors
+                    ):
+                        break
+                    # Don't lift a storage above a reservation for the same tensor
+                    if isinstance(n, Reservation) and n.purpose in node.tensors:
+                        break
                 if not found:
                     new_nodes.append(node)
             else:
@@ -780,6 +788,14 @@ class MappingNodeWithChildren(MappingNode):
                         found = True
                         break
                     if isinstance(n, Loop):
+                        break
+                    # Don't lift a reservation above a reservation for the same tensor
+                    if isinstance(n, TensorHolder) and set[TensorName](n.tensors) & set(
+                        node.tensors
+                    ):
+                        break
+                    # Don't lift a reservation above a storage for the same tensor
+                    if isinstance(n, Reservation) and n.purpose in node.tensors:
                         break
                 if not found:
                     new_nodes.append(node)
@@ -1746,8 +1762,8 @@ class Mapping(Nested):
         mapping._elevate_persistent_nodes_above_splits()
         mapping._elevate_tensor_holders_above_splits()
         mapping._propagate_backing_reservations_between_splits()
-        mapping._consolidate_tensor_holders()
-        mapping._consolidate_reservations()
+        # mapping._consolidate_tensor_holders()
+        # mapping._consolidate_reservations()
         mapping._move_tensor_holders_above_reservations()
         # mapping._remove_reservations_for_tolls()
         return mapping
