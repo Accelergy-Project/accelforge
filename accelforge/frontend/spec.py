@@ -3,7 +3,7 @@ from __future__ import annotations
 from accelforge.frontend.mapper import FFM
 from accelforge.frontend.renames import EinsumName, Renames
 from accelforge.util._eval_expressions import EvaluationError, ParseExpressionsContext
-from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Fanout
+from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Container
 
 from accelforge.frontend.workload import Workload
 from accelforge.frontend.variables import Variables
@@ -215,7 +215,7 @@ class Spec(EvalableModel):
             fanout = 1
             for component in arch:
                 fanout *= component.get_fanout()
-                if component.name in components or isinstance(component, Fanout):
+                if component.name in components or isinstance(component, Container):
                     continue
                 assert isinstance(component, Component)
                 components.add(component.name)

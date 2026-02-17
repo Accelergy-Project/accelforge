@@ -10,7 +10,7 @@ arch:
     - {name: read, energy: 1, latency: 0}
     - {name: write, energy: 1, latency: 0}
 
-  - !Fanout
+  - !Container
     name: GlobalBufferArray
     spatial:
     - name: X

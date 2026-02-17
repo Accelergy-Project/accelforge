@@ -20,7 +20,7 @@ arch:
     - {name: read, energy: 0, latency: 0}
     - {name: write, energy: 0, latency: 0}
 
-  - !Fanout
+  - !Container
     name: MACArray
     spatial:
     - name: X

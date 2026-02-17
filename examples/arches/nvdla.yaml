@@ -24,8 +24,8 @@ arch:
     - {name: write, energy: 0.293e-12, latency: 1 / 128e9 / 8}
     tensors: {keep: All}
 
-  - !Fanout
-    name: ArrayFanout
+  - !Container
+    name: PE
     spatial:
     - {name: reuse_input, fanout: 32, may_reuse: input, reuse: input, min_usage: 1}
     - {name: reuse_output, fanout: 192, may_reuse: output, reuse: output, min_usage: 1}

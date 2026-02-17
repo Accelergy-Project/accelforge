@@ -99,7 +99,7 @@ def get_tensor_choices(
 def get_tensor_order_constraint(nodes, symbol_table, tensors):
     required_order: dict[str, list[Order]] = {}
     for node in nodes:
-        if isinstance(node, arch.Fanout):
+        if isinstance(node, arch.Container):
             continue
         for order_constraint in node.tensors.tensor_order_options:
             order = Order()

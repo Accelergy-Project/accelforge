@@ -152,7 +152,7 @@ arch:
     bits_per_action: output_bits / n_sliced_psums
     actions: [{name: read, latency: cycle_period / cols_active_at_once}]
 
-  - !Fanout
+  - !Container
     name: ColumnOfSubBanks
     spatial:
     - name: array_reuse_input # Special name that determines array size
@@ -181,7 +181,7 @@ arch:
     # One cycle period per "bit"
     actions: [{name: read, latency: cycle_period}]
 
-  - !Fanout # Each sub-bank receives a different input slice. Sub-banks share outputs.
+  - !Container # Each sub-bank receives a different input slice. Sub-banks share outputs.
     name: SubBank
     spatial:
     - name: array_reuse_output # Special name that determines array size

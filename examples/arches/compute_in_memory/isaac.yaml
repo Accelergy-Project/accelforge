@@ -101,7 +101,7 @@ arch:
       n_bits: supported_output_bits
       shift_register_n_bits: supported_output_bits * 2
 
-  - !Fanout # array: Independent array with memory elements and peripherals.
+  - !Container # array: Independent array with memory elements and peripherals.
     name: MultiArrayFanout
     spatial:
      - name: array
@@ -134,7 +134,7 @@ arch:
     bits_per_action: output_bits / n_sliced_psums # n_sliced_psums reads to get an output
     component_class: ArrayColumnDrivers
 
-  - !Fanout
+  - !Container
     name: ArrayFanout
     spatial:
     - name: array_reuse_input # Special name that determines array size

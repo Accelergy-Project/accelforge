@@ -25,8 +25,8 @@ arch:
     - {name: write, bits_per_action: 64}
     tensors: {keep: ~MainMemory, may_keep: All}
 
-  - !Fanout
-    name: ArrayFanout
+  - !Container
+    name: PE
     spatial:
     - {name: reuse_weight, fanout: 14, may_reuse: weight, reuse: weight, min_usage: 1}
     - {name: reuse_output, fanout: 12, may_reuse: output, reuse: output, min_usage: 1}
