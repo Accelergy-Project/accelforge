@@ -27,6 +27,14 @@ class DataMovementConnections:
     def get_dst(self, src: TensorHolder) -> Buffet | Compute:
         return self.src_to_dst[src]
 
+    @property
+    def sources(self) -> list[TensorHolder]:
+        return list(self.src_to_dst.keys())
+
+    @property
+    def destinations(self) -> list[TensorHolder]:
+        return list(self.dst_to_src.keys())
+
     @classmethod
     def from_pmapping(cls, pmapping):
         einsum_name = pmapping[-1].einsum
@@ -43,7 +51,8 @@ class DataMovementConnections:
                         src = None
                     tensor_to_last_src[tensor] = buffet
                     dst_to_src[buffet] = src
-                    src_to_dst[src] = buffet
+                    if src is not None:
+                        src_to_dst[src] = buffet
                     src_to_dst[buffet] = None
         result = DataMovementConnections()
         result.src_to_dst = src_to_dst

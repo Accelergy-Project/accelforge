@@ -1170,13 +1170,13 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     child_result.buffet_stats[buffet] = stats
 
     # Reservation nodes are the first to produce stats for a network
-    assert network not in child_result.network_stats
     network = Network(
         tensor,
         einsum_name,
         info.data_movement_connections.get_src(buffet),
         buffet
     )
+    assert network not in child_result.network_stats
     child_result.network_stats[network] = NetworkStats()
 
     fanout_key = (node.resource, einsum_name)
@@ -1219,13 +1219,14 @@ def analyze_compute(
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 
-        network = Network(
-            tensor,
-            einsum,
-            info.data_movement_connections.get_src(buffet),
-            buffet
-        )
-        result_accumulator.network_stats[network] = NetworkStats()
+        if buffet in info.data_movement_connections.destinations:
+            network = Network(
+                tensor,
+                einsum,
+                info.data_movement_connections.get_src(buffet),
+                buffet
+            )
+            result_accumulator.network_stats[network] = NetworkStats()
 
     return result_accumulator
 
