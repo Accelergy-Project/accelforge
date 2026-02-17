@@ -14,7 +14,7 @@ from pathlib import Path
 
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.workload import Workload, Einsum
-from accelforge.frontend.arch import Arch, Memory, Compute, Fanout, Toll
+from accelforge.frontend.arch import Arch, Memory, Compute, Container, Toll
 from accelforge.frontend.arch import Spatial as ArchSpatial
 from accelforge.frontend.renames import Renames, EinsumRename, Rename
 from accelforge.frontend.variables import Variables

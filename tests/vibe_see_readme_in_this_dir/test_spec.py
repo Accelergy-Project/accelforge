@@ -12,7 +12,7 @@ from pathlib import Path
 
 from accelforge.frontend.spec import Spec, Specification
 from accelforge.frontend.workload import Workload
-from accelforge.frontend.arch import Arch, Memory, Compute, Fanout, Fork
+from accelforge.frontend.arch import Arch, Memory, Compute, Container, Fork
 from accelforge.frontend.arch import Spatial as ArchSpatial
 from accelforge.frontend.config import Config
 from accelforge.frontend.variables import Variables

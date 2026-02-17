@@ -22,7 +22,7 @@ from accelforge.frontend.arch import (
     Fork,
     Memory,
     Compute,
-    Fanout,
+    Container,
     Toll,
     Leaf,
     Spatial as ArchSpatial,
@@ -632,7 +632,7 @@ class TestTPUArchParsed(unittest.TestCase):
         self.assertIsInstance(self.arch.find("ScalarUnit"), Compute)
 
     def test_array_fanout_is_fanout(self):
-        self.assertIsInstance(self.arch.find("ArrayFanout"), Fanout)
+        self.assertIsInstance(self.arch.find("ArrayFanout"), Container)
 
     def test_mac_is_compute(self):
         self.assertIsInstance(self.arch.find("MAC"), Compute)

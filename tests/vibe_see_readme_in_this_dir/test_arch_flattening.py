@@ -18,7 +18,7 @@ from accelforge.frontend.arch import (
     Fork,
     Memory,
     Compute,
-    Fanout,
+    Container,
     Toll,
     Leaf,
     Branch,
@@ -82,7 +82,7 @@ def _simple_workload():
 
 
 def _fork_arch():
-    """Arch with a fork: MainMemory -> GlobalBuffer -> Fork([ScalarUnit], [Fanout -> Register -> MAC])."""
+    """Arch with a fork: MainMemory -> GlobalBuffer -> Fork([ScalarUnit], [Container -> Register -> MAC])."""
     return Arch(
         nodes=[
             Memory(
@@ -115,7 +115,7 @@ def _fork_arch():
                     ),
                 ]
             ),
-            Fanout(
+            Container(
                 name="ArrayFanout",
                 spatial=[
                     {
@@ -224,7 +224,7 @@ class TestGetNodesOfType(unittest.TestCase):
 
     def test_get_fanout_in_fork_arch(self):
         arch = _fork_arch()
-        fanouts = list(arch.get_nodes_of_type(Fanout))
+        fanouts = list(arch.get_nodes_of_type(Container))
         self.assertEqual(len(fanouts), 1)
         self.assertEqual(fanouts[0].name, "ArrayFanout")
 

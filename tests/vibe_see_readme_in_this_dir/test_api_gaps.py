@@ -32,7 +32,7 @@ from accelforge.frontend.arch import (
     Component,
     Comparison,
     Compute,
-    Fanout,
+    Container,
     Memory,
     Tensors,
     TensorHolder,
@@ -495,7 +495,7 @@ arch:
     actions:
     - {name: read, energy: 1, latency: 0}
     - {name: write, energy: 1, latency: 0}
-  - !Fanout
+  - !Container
     name: Array
     spatial:
     - {name: X, fanout: 4}

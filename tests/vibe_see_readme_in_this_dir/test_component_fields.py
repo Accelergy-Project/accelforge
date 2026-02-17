@@ -21,7 +21,7 @@ from accelforge.frontend.arch import (
     Action,
     Arch,
     Compute,
-    Fanout,
+    Container,
     Memory,
     Toll,
     Spatial as ArchSpatial,
@@ -495,7 +495,7 @@ class TestArchUtilityMethods(unittest.TestCase):
 
 
 class TestArchWithFanout(unittest.TestCase):
-    """Test arch with Fanout node."""
+    """Test arch with Container node."""
 
     @classmethod
     def setUpClass(cls):
@@ -511,7 +511,7 @@ class TestArchWithFanout(unittest.TestCase):
 
     def test_fanout_found(self):
         fanout = self.spec.arch.find("GlobalBufferArray")
-        self.assertIsInstance(fanout, Fanout)
+        self.assertIsInstance(fanout, Container)
 
     def test_fanout_get_fanout(self):
         fanout = self.spec.arch.find("GlobalBufferArray")
