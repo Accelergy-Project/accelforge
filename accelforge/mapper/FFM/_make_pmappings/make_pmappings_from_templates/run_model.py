@@ -36,7 +36,9 @@ def run_model(
 
     df = {}
 
-    reuse = analyze_reuse_and_add_reservations_to_mapping(job, add_reservations=add_reservations)
+    reuse = analyze_reuse_and_add_reservations_to_mapping(
+        job, add_reservations=add_reservations
+    )
 
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
     try:

@@ -42,7 +42,7 @@ class TestEinsumStringParser(unittest.TestCase):
         self.assertTrue(output["output"])
 
     def test_einsum_with_dict_projection(self):
-        einsum_str = "QK[b, m, p, h] = Q[b, m, h, e] * K[B=b, M=p, H=h, E=e]"
+        einsum_str = "QK[b, m, p, h] = Q[b, m, h, e] * K[B:b, M:p, H:h, E:e]"
         result = _parse_einsum_string(einsum_str)
 
         self.assertEqual(result["name"], "QK")
@@ -56,7 +56,7 @@ class TestEinsumStringParser(unittest.TestCase):
 
     def test_einsum_with_mixed_projection(self):
         """Test parsing einsum with mixed-style projection using equals."""
-        einsum_str = "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M=p, h, e]"
+        einsum_str = "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M:p, h, e]"
         result = _parse_einsum_string(einsum_str)
 
         # Check the K tensor with mixed projection
@@ -86,13 +86,13 @@ class TestEinsumStringParser(unittest.TestCase):
         """Test that parsing fails when there's no equals sign."""
         with self.assertRaises(ValueError) as ctx:
             _parse_einsum_string("V[b, m, h, e]")
-        self.assertIn("Invalid einsum format:", str(ctx.exception))
+        self.assertIn("Invalid einsum format", str(ctx.exception))
 
     def test_einsum_malformed_no_brackets(self):
         """Test that parsing fails when brackets are missing."""
         with self.assertRaises(ValueError) as ctx:
             _parse_einsum_string("V = I * WV")
-        self.assertIn("Invalid einsum format:", str(ctx.exception))
+        self.assertIn("Invalid einsum format", str(ctx.exception))
 
     def test_einsum_malformed_empty_projection(self):
         """Test that parsing fails with empty projection."""
@@ -138,7 +138,7 @@ class TestInvalidInputs(unittest.TestCase):
         """Test that empty tensor names raise an error."""
         with self.assertRaises(ValueError) as ctx:
             _parse_einsum_string("[b, m] = I[b] * W[m]")
-        self.assertIn("Invalid einsum format:", str(ctx.exception))
+        self.assertIn("Invalid einsum format", str(ctx.exception))
 
     def test_projection_invalid_identifier(self):
         with self.assertRaises(ValueError):
@@ -313,7 +313,7 @@ class TestInvalidInputs(unittest.TestCase):
 
     def test_projection_equals_without_space(self):
         """Test mixed projection with no spaces around equals."""
-        result = _parse_einsum_string("V[b] = I[B=b]")
+        result = _parse_einsum_string("V[b] = I[B:b]")
         self.assertEqual(result["tensor_accesses"][0]["projection"], {"B": "b"})
 
     def test_multiple_asterisks(self):
@@ -341,13 +341,11 @@ class TestEinsumEntryParser(unittest.TestCase):
 
     def test_parse_dict_entry_with_einsum_key(self):
         entry = {
-            "einsum": "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M=p, h, e]",
-            "renames": {"weight": "K", "input": "Q"},
+            "einsum": "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M:p, h, e]",
         }
         result = _parse_einsum_entry(entry)
 
         self.assertEqual(result["name"], "QK")
-        self.assertEqual(result["renames"], {"weight": "K", "input": "Q"})
 
     def test_parse_dict_entry_full_format(self):
         entry = {

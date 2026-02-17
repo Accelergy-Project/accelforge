@@ -276,7 +276,7 @@ def get_constraints(
                 end_index += 1
 
             for i in range(start_index, end_index):
-                if isinstance(mapping[i], Loop) and not isinstance(
+                if isinstance(mapping[i], Temporal) and not isinstance(
                     tensor_to_relevancy[n][mapping[i].rank_variable], Relevant
                 ):
                     if mapping[i] not in nodes:

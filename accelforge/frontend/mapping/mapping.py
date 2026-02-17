@@ -31,7 +31,7 @@ from collections.abc import Set
 from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
-from accelforge.frontend.renames import EinsumName
+from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
     EvalableModel,
@@ -607,7 +607,9 @@ class TensorHolder(MappingNode):
             )
 
         if self._lower != other._lower:
-            raise ValueError(f"Lower flags do not match: {self._lower} != {other._lower}")
+            raise ValueError(
+                f"Lower flags do not match: {self._lower} != {other._lower}"
+            )
 
         new = type(self)(
             tensors=self.tensors + other.tensors,
@@ -756,6 +758,16 @@ class MappingNodeWithChildren(MappingNode):
                         break
                     if isinstance(n, Loop):
                         break
+                    # Don't lift a storage above a storage for the same tensor
+                    if isinstance(n, TensorHolder) and set(n.tensors) & set(
+                        node.tensors
+                    ):
+                        break
+                    # Don't lift a storage above a reservation for the same tensor
+                    if isinstance(n, Reservation) and set(n.purposes) & set(
+                        node.tensors
+                    ):
+                        break
                 if not found:
                     new_nodes.append(node)
             else:
@@ -772,10 +784,22 @@ class MappingNodeWithChildren(MappingNode):
                 found = False
                 for n in new_nodes[::-1]:
                     if isinstance(n, Reservation) and n.resource == node.resource:
-                        n.purposes.extend(n2 for n2 in node.purposes if n2 not in n.purposes)
+                        n.purposes.extend(
+                            n2 for n2 in node.purposes if n2 not in n.purposes
+                        )
                         found = True
                         break
                     if isinstance(n, Loop):
+                        break
+                    # Don't lift a reservation above a reservation for the same tensor
+                    if isinstance(n, TensorHolder) and set(node.purposes) & set(
+                        n.tensors
+                    ):
+                        break
+                    # Don't lift a reservation above a storage for the same tensor
+                    if isinstance(n, Reservation) and set(n.purposes) & set(
+                        node.purposes
+                    ):
                         break
                 if not found:
                     new_nodes.append(node)
@@ -1109,8 +1133,16 @@ class Nested(MappingNodeWithChildren):
                     f"Warning. Matching loops {l} and {l2}. Need rank variable translation here."
                 )
 
-                my_rv = l.rank_variable if isinstance(l.rank_variable, set) else set([l.rank_variable])
-                other_rv = l2.rank_variable if isinstance(l2.rank_variable, set) else set([l2.rank_variable])
+                my_rv = (
+                    l.rank_variable
+                    if isinstance(l.rank_variable, set)
+                    else set([l.rank_variable])
+                )
+                other_rv = (
+                    l2.rank_variable
+                    if isinstance(l2.rank_variable, set)
+                    else set([l2.rank_variable])
+                )
                 if switched:
                     my_rv, other_rv = other_rv, my_rv
 

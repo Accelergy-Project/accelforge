@@ -174,7 +174,17 @@ def parallel(
     if return_as in ["generator", "generator_unordered"]:
         return yield_results()
 
-    return list(yield_results())
+    # Coerce into generator_unordered so that the progress bar won't hang on one slow
+    # job.
+    def f(i, job):
+        return i, job[0](*job[1], **job[2])
+
+    jobs = [delayed(f)(i, job) for i, job in enumerate(jobs)]
+    results = [None] * total_jobs
+    args["return_as"] = "generator_unordered"
+    for i, result in yield_results():
+        results[i] = result
+    return results
 
 
 # import cProfile

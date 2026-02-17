@@ -433,12 +433,6 @@ class TestGPTConciseParsed(unittest.TestCase):
         i_einsum = self.wl.einsums["I"]
         self.assertEqual(i_einsum.input_tensor_names, {"I_in"})
 
-    def test_I_inline_renames(self):
-        """I einsum string: I(output)[b,m,d] = I_in(input)[b,m,d]"""
-        i_einsum = self.wl.einsums["I"]
-        renames_by_name = {r.name: r.source for r in i_einsum.renames}
-        self.assertEqual(renames_by_name["output"], "I")
-        self.assertEqual(renames_by_name["input"], "I_in")
 
     def test_I_projection_parsed_as_dict(self):
         """Concise einsum string projections are parsed by _parse_projection, which
@@ -463,15 +457,15 @@ class TestGPTConciseParsed(unittest.TestCase):
         self.assertEqual(v.output_tensor_names, {"V"})
 
     def test_QK_uses_dict_projection(self):
-        """QK: K(weight)[b, M=p, h, e] uses a dict projection for K."""
+        """QK: K[b, M:p, h, e] uses a dict projection for K."""
         qk = self.wl.einsums["QK"]
         k_ta = qk.tensor_accesses["K"]
-        # M=p is explicit, so it's not an ImpliedProjection
+        # M:p is explicit, so it's not an ImpliedProjection
         self.assertNotIsInstance(k_ta.projection, ImpliedProjection)
         self.assertEqual(k_ta.projection["M"], "p")
 
     def test_QK_Q_projection_is_dict(self):
-        """Q(input)[b, m, h, e] -- from a concise string, parsed as a plain dict."""
+        """Q[b, m, h, e] -- from a concise string, parsed as a plain dict."""
         qk = self.wl.einsums["QK"]
         q_ta = qk.tensor_accesses["Q"]
         self.assertNotIsInstance(q_ta.projection, ImpliedProjection)
@@ -479,15 +473,8 @@ class TestGPTConciseParsed(unittest.TestCase):
             dict(q_ta.projection), {"B": "b", "M": "m", "H": "h", "E": "e"}
         )
 
-    def test_QK_inline_renames(self):
-        """QK: Q(input), K(weight) -> renames: {input: Q, weight: K}"""
-        qk = self.wl.einsums["QK"]
-        renames_by_name = {r.name: r.source for r in qk.renames}
-        self.assertEqual(renames_by_name["input"], "Q")
-        self.assertEqual(renames_by_name["weight"], "K")
-
     def test_AV_dict_projection_V(self):
-        """AV: V(weight)[b, M=p, H=h, E=f]"""
+        """AV: V[b, M:p, H:h, E:f]"""
         av = self.wl.einsums["AV"]
         v_ta = av.tensor_accesses["V"]
         self.assertNotIsInstance(v_ta.projection, ImpliedProjection)

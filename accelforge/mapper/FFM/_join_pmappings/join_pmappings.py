@@ -219,16 +219,13 @@ def get_memories_to_track(
 
     new_pmapping_groups = {}
     for einsum_name, einsum_pmapping_groups in pmapping_groups.items():
-        new_pmapping_groups[einsum_name] = list(
-            parallel(
-                [delayed(remove_unneeded_columns)(s) for s in einsum_pmapping_groups],
-                pbar=(
-                    f"Removing unneeded reservations for {einsum_name}"
-                    if print_progress
-                    else None
-                ),
-                return_as="generator",
-            )
+        new_pmapping_groups[einsum_name] = parallel(
+            [delayed(remove_unneeded_columns)(s) for s in einsum_pmapping_groups],
+            pbar=(
+                f"Removing unneeded reservations for {einsum_name}"
+                if print_progress
+                else None
+            ),
         )
     return new_pmapping_groups, ignore
 
@@ -631,7 +628,6 @@ def join_pmappings(
                     if print_progress
                     else None
                 ),
-                return_as="generator",
             )
             for c, mapping in zip(combined, mappings):
                 c.mappings = mapping

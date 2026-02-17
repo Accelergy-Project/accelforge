@@ -148,7 +148,7 @@ class Mappings:
                 )
             found_index = cur_idx
             found.append("<SEP>".join(col))
-        return found
+        return found, found_index
 
     def access(self, *keys: str, col_idx: int | None = None) -> "Mappings":
         """
@@ -189,9 +189,17 @@ class Mappings:
 
         key = keys[0]
         col_renames = {}
-        for col in self._get_cols(key, col_idx=col_idx):
-            col_renames[col] = "<SEP>".join(c for c in col.split("<SEP>") if c != key)
+        cols, col_idx = self._get_cols(key, col_idx=col_idx)
+        for col in cols:
+            split = col.split("<SEP>")
+            new = "<SEP>".join(c for i, c in enumerate(split) if i != col_idx)
+            if new in col_renames:
+                raise ValueError(
+                    f"Removing {key} from {col} results in duplicate column name {new}"
+                )
+            col_renames[new] = col
 
+        col_renames = {v: k for k, v in col_renames.items()}
         return self._update(
             data=self.data[list(col_renames.keys())].rename(columns=col_renames)
         )
@@ -233,7 +241,8 @@ class Mappings:
                 self = self.drop(k)
             return self
 
-        return self._update(data=self.data.drop(columns=self._get_cols(keys[0])))
+        cols, _ = self._get_cols(keys[0])
+        return self._update(data=self.data.drop(columns=cols))
 
     def sum(self, keep_key_index: list[int] | int | None = None) -> "Mappings":
         if len(self.data.columns) == 1:
@@ -452,9 +461,9 @@ class Mappings:
         for einsum in self.einsum_names:
             einsum_accessed = energy.access(einsum, col_idx=0)
             # None for computes
-            for tensor in list(
-                self.spec.workload.einsums[einsum].tensor_names
-            ) + ["None"]:
+            for tensor in list(self.spec.workload.einsums[einsum].tensor_names) + [
+                "None"
+            ]:
                 tensor_accessed = einsum_accessed.access(tensor, col_idx=1)
                 for col in tensor_accessed._get_keys_of_length(2):
                     component, action = col.split("<SEP>")
@@ -644,9 +653,9 @@ class Mappings:
         for einsum in self.einsum_names:
             einsum_accessed = actions.access(einsum, col_idx=0)
             # None for computes
-            for tensor in list(
-                self.spec.workload.einsums[einsum].tensor_names
-            ) + ["None"]:
+            for tensor in list(self.spec.workload.einsums[einsum].tensor_names) + [
+                "None"
+            ]:
                 tensor_accessed = einsum_accessed.access(tensor, col_idx=1)
                 for col in tensor_accessed._get_keys_of_length(2):
                     component, action = col.split("<SEP>")

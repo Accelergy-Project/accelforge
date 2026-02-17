@@ -541,9 +541,11 @@ class TestMapping(unittest.TestCase):
                 Compute(einsum="E", component="MAC"),
             ]
         )
-        m.split_loop_with_multiple_rank_variables(stride_and_halo={"m": (1, 0)})
-        temporals = [n for n in m.nodes if isinstance(n, Temporal)]
-        self.assertEqual(len(temporals), 2)
+        m.nodes[0]._einsum_to_rank_variables["E"] = {"m"}
+        m.split_loop_with_multiple_rank_variables(einsum_name="E")
+        temporals = m.get_nodes_of_type(Temporal)
+        self.assertEqual(len(temporals), 1)
+        self.assertEqual(temporals[0].rank_variable, {"m"})
 
     def test_split_tensor_holders_with_multiple_tensors(self):
         m = Mapping(

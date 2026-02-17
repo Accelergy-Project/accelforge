@@ -209,6 +209,7 @@ def is_fused_loop_col(c: str) -> bool:
 def is_n_iterations_col(c: str) -> bool:
     return c.startswith("fused_loop<SEP>n_iterations")
 
+
 def ensure_float_type(df, target, source):
     if target in df:
         target_type = df[target].dtype
@@ -234,12 +235,14 @@ def max_to_col(df, target, source):
     ensure_float_type(df, target, source)
     df.loc[:, target] = df[[target, source]].max(axis=1) if target in df else df[source]
 
+
 def add_to_col(df, target, source):
     ensure_float_type(df, target, source)
     if isinstance(source, pd.Series):
         df[target] = df[target] + source
     else:
         df.loc[:, target] = df[target] + df[source] if target in df else df[source]
+
 
 def is_objective_col(c):
     return partition_col(c, "Total") is not None

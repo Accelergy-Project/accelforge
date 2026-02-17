@@ -349,7 +349,7 @@ class PmappingGroup:
 
     @staticmethod
     def group(
-        pmapping_groups: list["PmappingGroup"], live_tensors: set[str]#, mixable_ranks: dict[Rank, set[Rank]] = None
+        pmapping_groups: list["PmappingGroup"], live_tensors: set[str]
     ) -> dict[tuple[Compatibility, ...], list[tuple["PmappingGroup", list[int]]]]:
         x = PmappingGroup._group(
             pmapping_groups,

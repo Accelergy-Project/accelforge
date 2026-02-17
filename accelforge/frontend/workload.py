@@ -281,16 +281,7 @@ def _parse_einsum_entry(einsum_entry: dict) -> dict:
                 )
             name2access[name][k] = v
     parsed["tensor_accesses"] = list(name2access.values())
-
-    renames = rename_list_factory(einsum_entry.get("renames", {}))
-    for rename in renames:
-        if rename.name not in parsed["renames"]:
-            parsed["renames"][rename.name] = rename.source
-        else:
-            raise ValueError(
-                f"rename {rename.name} already exists in einsum string {einsum_str}"
-            )
-
+    parsed["renames"] = rename_list_factory(einsum_entry.get("renames", {}))
     return parsed
 
 
@@ -300,42 +291,40 @@ def _parse_einsum_string(einsum_str: str) -> dict:
 
     if not einsum_str:
         raise ValueError("Einsum string cannot be empty")
+    n = einsum_str.count("=")
+    if n != 1:
+        raise ValueError(
+            f"Invalid einsum format. Einsum string {original} has {n} equals signs. "
+            f"Each Einsum string must have exactly one equals sign."
+        )
 
-    tensor_pattern = r"([A-Za-z_]\w*)(?:\(([A-Za-z_]\w*)\))?\[([^\]]*)\]"
-    full_pattern = rf"^({tensor_pattern})=(.+)$"
-    # Check for an equals symbol outside of brackets
-    eq_outside_brackets_pattern = r"^(.+)=(.+)$"
+    tensor_pattern = r"([A-Za-z_]\w*)\[([^\]]*)\]"
+    full_pattern = rf"^{tensor_pattern}=(.+)$"
 
     match = re.match(full_pattern, einsum_str)
     if not match:
         raise ValueError(f"Invalid einsum format: {original}")
 
-    tensor_accesses, renames = [], {}
+    tensor_accesses = []
 
     def update(match: tuple, is_output: bool):
-        name, alt_name, proj = match
+        name, proj = match
         tensor_accesses.append(
             {"name": name, "projection": _parse_projection(proj), "output": is_output}
         )
-        if alt_name:
-            renames[alt_name] = name
 
-    output_name = match.group(2)
-    rhs = match.group(5)
+    output_name = match.group(1)
+    rhs = match.group(3)
     input_matches = re.findall(tensor_pattern, rhs)
     if not input_matches:
-        raise ValueError(f"No input tensors: {original}")
+        raise ValueError(f"No input tensors: {original}, {rhs}")
 
     for m in input_matches:
         update(m, False)
 
-    update((output_name, match.group(3), match.group(4)), True)
+    update((output_name, match.group(2)), True)
 
-    result = {
-        "name": output_name,
-        "tensor_accesses": tensor_accesses,
-        "renames": renames,
-    }
+    result = {"name": output_name, "tensor_accesses": tensor_accesses}
     return result
 
 
@@ -346,7 +335,7 @@ def _parse_projection(proj_str: str) -> dict | list:
 
     parts = [p.strip() for p in proj_str.split(",")]
 
-    eq_pattern = re.compile(r"^([A-Za-z_]\w*)=([A-Za-z_]\w*)$")
+    eq_pattern = re.compile(r"^([A-Za-z_]\w*):([A-Za-z_]\w*)$")
     id_pattern = re.compile(r"^[A-Za-z_]\w*$")
 
     result = {}
@@ -1039,11 +1028,7 @@ class Workload(EvalableModel):
             "workload_bits_per_value": bpv,
             "workload_persistent_tensors": self.persistent_tensors,
         }
-        evaluated, new_st = super()._eval_expressions(
-            new_st,
-            *args,
-            **kwargs
-        )
+        evaluated, new_st = super()._eval_expressions(new_st, *args, **kwargs)
 
         # Ensure bits_per_value is consistent across Einsums
         bits_per_value_per_einsum = {}

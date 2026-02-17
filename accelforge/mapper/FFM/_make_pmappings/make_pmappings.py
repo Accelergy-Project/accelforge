@@ -131,7 +131,6 @@ def get_jobs(
             for einsum_name, spec in einsum2spec.items()
         ],
         pbar="Generating jobs" if print_progress else None,
-        return_as="generator",
     ):
         einsum2jobs.setdefault(einsum_name, {})
         for compatibility, job_list in jobs.items():
