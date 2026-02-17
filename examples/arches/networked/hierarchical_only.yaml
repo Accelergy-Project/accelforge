@@ -25,9 +25,6 @@ arch:
     area: 0
     leak_power: 0
     actions: []
-    spatial:
-    - {name: X, fanout: 2}
-    - {name: Y, fanout: 2}
 
   - !Memory
     name: Scratchpad
@@ -38,15 +35,15 @@ arch:
     actions:
     - {name: read, energy: 0, latency: 0}
     - {name: write, energy: 0, latency: 0}
+    spatial:
+    - {name: X, fanout: 2}
+    - {name: Y, fanout: 2}
 
   - !Network
     name: MacArray
     area: 0
     leak_power: 0
     actions: []
-    spatial:
-    - {name: X, fanout: 2}
-    - {name: Y, fanout: 2}
 
   - !Compute
     name: MAC
@@ -54,3 +51,6 @@ arch:
     leak_power: 0
     actions:
     - {name: compute, energy: 0, latency: 0}
+    spatial:
+    - {name: X, fanout: 2}
+    - {name: Y, fanout: 2}

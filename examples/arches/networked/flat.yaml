@@ -12,7 +12,7 @@ arch:
 
   - !Network
     name: NoC
-    spatial:
+    shape:
     - {name: X, fanout: 4}
     - {name: Y, fanout: 4}
     actions: []

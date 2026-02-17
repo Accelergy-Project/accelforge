@@ -1409,7 +1409,9 @@ class _Parallel(Branch):
 
 
 class Network(Branch, Component):
+    shape: EvalableList[Spatial] = EvalableList()
     topology: str = "Mesh"
+
     def _flatten(
         self,
         compute_node: str,
