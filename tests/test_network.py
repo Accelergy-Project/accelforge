@@ -9,9 +9,11 @@ class TestParsing(TestCase):
             af.examples.arches.networked.hierarchical_only,
         )
         self.assertIn("PeArray", spec.arch.nodes)
-        self.assertEqual(spec.arch.nodes["PeArray"].get_fanout(), 4)
+        self.assertEqual(spec.arch.nodes["PeArray"].get_fanout(), 1)
+        self.assertIn("Scratchpad", spec.arch.nodes)
+        self.assertEqual(spec.arch.nodes["Scratchpad"].get_fanout(), 4)
         self.assertIn("MacArray", spec.arch.nodes)
-        self.assertEqual(spec.arch.nodes["MacArray"].get_fanout(), 4)
+        self.assertEqual(spec.arch.nodes["MacArray"].get_fanout(), 1)
 
         try:
             spec = spec.calculate_component_area_energy_latency_leak()
@@ -23,7 +25,7 @@ class TestParsing(TestCase):
             af.examples.arches.networked.flat,
         )
         self.assertIn("NoC", spec.arch.nodes)
-        self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 16)
+        self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)
         self.assertEqual(
             {n.name for n in spec.arch.get_nodes_of_type(af.spec.Leaf)},
             {'MainMemory', 'NoC', 'GlobalBuffer', 'RowBuffer', 'ColumnBuffer', 'DistributedBuffer', 'Scratchpad', 'MAC'}
