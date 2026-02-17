@@ -1603,7 +1603,6 @@ class Mapping(Nested):
 
     def split_loop_with_multiple_rank_variables(self, einsum_name: EinsumName):
         new_nodes = []
-        my_rank_variables = set(x[1] for x in stride_and_halo)
         for node in self.nodes:
             if isinstance(node, Loop) and isinstance(node.rank_variable, set):
                 if einsum_name not in node._einsum_to_rank_variables:

@@ -45,3 +45,5 @@ class Network:
     "The source of data."
     destination: ComponentName
     "The destination of data."
+    component: ComponentName = None
+    "The network component used to deliver the data."

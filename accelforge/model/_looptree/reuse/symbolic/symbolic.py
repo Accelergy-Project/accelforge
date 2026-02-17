@@ -99,8 +99,8 @@ def max_dict(a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
 
 @dataclass
 class NetworkStats:
-    buffet_to_total_hops: Any
-    buffet_to_max_hops: Any
+    total_hops: Any = field(default=0)
+    max_hops: Any = field(default=0)
 
 
 @dataclass
@@ -556,7 +556,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             tensor_to_backer_id=tensor_to_backer_id,
             is_copy_operation=is_copy_operation,
             job=job,
-            src_to_dst_movement=DataMovementConnections.from_pmapping(cur_mapping.nodes),
+            data_movement_connections=DataMovementConnections.from_pmapping(cur_mapping.nodes),
         )
         cur_result = analyze_node(0, job.rank_variable_bounds, info)
         if result is None:
@@ -1169,6 +1169,16 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     )
     child_result.buffet_stats[buffet] = stats
 
+    # Reservation nodes are the first to produce stats for a network
+    assert network not in child_result.network_stats
+    network = Network(
+        tensor,
+        einsum_name,
+        info.data_movement_connections.get_src(buffet),
+        buffet
+    )
+    child_result.network_stats[network] = NetworkStats()
+
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
         child_result.fanout[fanout_key] = {}
@@ -1208,6 +1218,14 @@ def analyze_compute(
             stats.min_per_parent_skipped_first_reads_to_parent = 1
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
+
+        network = Network(
+            tensor,
+            einsum,
+            info.data_movement_connections.get_src(buffet),
+            buffet
+        )
+        result_accumulator.network_stats[network] = NetworkStats()
 
     return result_accumulator
 
