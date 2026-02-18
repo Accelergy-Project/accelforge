@@ -10,6 +10,7 @@ from accelforge.frontend.variables import Variables
 from accelforge.frontend.config import Config
 from accelforge.frontend.mapping import Mapping
 from accelforge.frontend.model import Model
+from accelforge.frontend.sparse import SparseOptimizations
 import hwcomponents
 
 from accelforge._accelerated_imports import pd
@@ -50,6 +51,11 @@ class Spec(EvalableModel):
 
     model: Model = Model()
     """Configures the model used to evaluate mappings."""
+
+    sparse_optimizations: SparseOptimizations = SparseOptimizations()
+    """Sparse tensor optimization configuration. Specifies compressed
+    representation formats, gating/skipping at storage levels, and
+    compute-level optimizations."""
 
     def _eval_expressions(
         self,
