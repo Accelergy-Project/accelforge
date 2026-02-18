@@ -126,6 +126,9 @@ class TensorAccess(EvalableModel):
     bits_per_value: int | str | None = None
     """ Bits per value for this tensor. """
 
+    density: float | str | None = None
+    """ Density of nonzero values (0.0 to 1.0). None means dense (1.0). """
+
     def model_post_init(self, __context__=None) -> None:
         self.projection: ImpliedProjection = _projection_factory(self.projection)
 
@@ -724,6 +727,31 @@ class Einsum(EvalableModel):
             if t.bits_per_value is None:
                 t.bits_per_value = bits_per_value[t.name]
 
+        # Parse densities (same pattern as bits_per_value, but optional)
+        density_dict = dict()
+        density_to_source = dict()
+        for k, v in symbol_table.get("workload_densities", {}).items():
+            dens = eval_set_expression(
+                expression=k,
+                symbol_table=st,
+                expected_space=TensorName,
+                location=f"(workload global densities)[{k}]",
+            )
+            for t in dens:
+                if t in density_dict:
+                    raise EvaluationError(
+                        f"Tensor {t} is specified in multiple entries in the "
+                        f"workload global densities dictionary.",
+                        source_field=f"({k} AND {density_to_source[t]})",
+                    )
+                density_dict[t] = v
+                density_to_source[t] = k
+
+        for t in evaluated.tensor_accesses:
+            if t.density is None and t.name in density_dict:
+                t.density = density_dict[t.name]
+            # If still None, leave as None (means dense, 1.0)
+
         if symbol_table.get("workload_persistent_tensors", None):
             rename_st_with_evaluated = {**st}
             for rename in evaluated.renames:
@@ -782,6 +810,15 @@ class Workload(EvalableModel):
     set expressions to bits per value for the tensors given by those expressions. For
     example, we may write "Inputs: 8" to set the bits per value to 8 for all input
     tensors, unless overridden.
+    """
+
+    densities: EvalableDict[str, float | str] = EvalableDict()
+    """
+    Density of nonzero values for each tensor. Same pattern as bits_per_value:
+    a dictionary of set expressions to density values. For example,
+    "Inputs: 0.5" sets all input tensors to 50% density. Tensors without a density
+    are treated as dense (density = 1.0). Overridden if density is specified
+    on a per-tensor-access basis.
     """
 
     persistent_tensors: str | None = None
@@ -1021,11 +1058,13 @@ class Workload(EvalableModel):
         self, symbol_table: dict[str, Any], *args, renames: Renames, **kwargs
     ):
         bpv, _ = self.bits_per_value._eval_expressions(symbol_table, *args, **kwargs)
+        dens, _ = self.densities._eval_expressions(symbol_table, *args, **kwargs)
         new_st = {
             **symbol_table,
             "spec_workload": self,
             "spec_renames": renames,
             "workload_bits_per_value": bpv,
+            "workload_densities": dens,
             "workload_persistent_tensors": self.persistent_tensors,
         }
         evaluated, new_st = super()._eval_expressions(new_st, *args, **kwargs)
@@ -1063,6 +1102,28 @@ class Workload(EvalableModel):
                         and next(iter(src)) in bits_per_value
                     ):
                         src.bits_per_value = bits_per_value[next(iter(src))]
+
+        # Ensure density is consistent across Einsums
+        density_per_einsum = {}
+        for einsum in evaluated.einsums:
+            cur_dens = {
+                t.name: t.density
+                for t in einsum.tensor_accesses
+                if t.density is not None
+            }
+            for prev_einsum, prev_dens in density_per_einsum.items():
+                shared_keys = set(cur_dens.keys()) & set(prev_dens.keys())
+                for t in shared_keys:
+                    d0 = cur_dens[t]
+                    d1 = prev_dens[t]
+                    if d0 != d1:
+                        raise ValueError(
+                            f"Tensor {t} has density {d0} in Einsum "
+                            f"{einsum.name} and {d1} in Einsum "
+                            f"{prev_einsum}. Density must be consistent "
+                            "across all Einsums that access a tensor."
+                        )
+            density_per_einsum[einsum.name] = cur_dens
 
         evaluated._check_consistent_persistent()
 
