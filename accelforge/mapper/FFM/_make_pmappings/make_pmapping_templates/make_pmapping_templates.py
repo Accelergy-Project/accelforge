@@ -319,6 +319,11 @@ def iterate_mappings_no_constraints(
     symbol_table = {r.name: r.source for r in einsum.renames}
     fusable_tensors = job.fusable_tensors
 
+    fanouts = {}
+    fanout = 1
+    for node in flattened_arch:
+        fanouts[node.name] = (fanout := fanout * node.get_fanout())
+
     for mapping, symbol_table, compute in get_tensor_choices(
         einsum_name,
         flattened_arch,
@@ -326,6 +331,7 @@ def iterate_mappings_no_constraints(
         spec,
         first_memory,
         fusable_tensors,
+        fanouts,
     ):
         logging.info(
             "\tGenerated tensor choices: " + ", ".join(m.compact_str() for m in mapping)
@@ -341,6 +347,7 @@ def iterate_mappings_no_constraints(
             spec.mapper._can_lower_outermost_memory,
             flattened_arch,
             spec.mapper.max_fused_loops,
+            fanouts,
         ):
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(mapping, einsum, flattened_arch)

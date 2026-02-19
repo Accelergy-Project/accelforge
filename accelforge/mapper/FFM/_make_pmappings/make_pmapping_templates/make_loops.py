@@ -40,6 +40,7 @@ def insert_temporal_loops(
     _can_lower_outermost_memory: bool,
     flattened_arch: list[arch.Leaf],
     max_fused_loops: int,
+    fanouts: dict[str, int],
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -94,10 +95,6 @@ def insert_temporal_loops(
     seen_tensors = set()
     choices = []
     lowering_choices: list[tuple[bool, ...]] = []
-    fanouts = {}
-    fanout = 1
-    for node in flattened_arch:
-        fanouts[node.name] = (fanout := fanout * node.get_fanout())
 
     def _get_next_storages(i: int, toll_allowed: bool = False) -> list[TensorHolder]:
         for j in range(i + 1, len(split_mapping)):
