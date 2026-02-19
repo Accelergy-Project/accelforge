@@ -5,8 +5,8 @@ Tests for features documented in the guides but not covered by other test files:
   2. eval_expression: math functions, symbol table, precedence
   3. Set expressions: &, |, ~, -, builtins, .rank_variables, .bits_per_value
   4. Concise einsum: extra attrs via 'einsum' key, tensor_accesses extras
-  5. Arch: Comparison, Spatial.reuse, enabled, total_latency, Toll, Fanout
-  6. Fanout variations (spatial on Memory, standalone Fanout, loop_bounds)
+  5. Arch: Comparison, Spatial.reuse, enabled, total_latency, Toll, Container
+  6. Container variations (spatial on Memory, standalone Container, loop_bounds)
   7. Verbose GPT: persistent per-tensor, rank_variable renames
 """
 
@@ -30,7 +30,7 @@ from accelforge.frontend.arch import (
     Arch,
     Memory,
     Compute,
-    Fanout,
+    Container,
     Toll,
     Comparison,
     Spatial as ArchSpatial,
@@ -671,7 +671,7 @@ class TestEnabledField(unittest.TestCase):
 
 
 # ============================================================================
-# 6. Fanout variations
+# 6. Container variations
 # ============================================================================
 
 
@@ -690,7 +690,7 @@ class TestFanoutVariationsParsed(unittest.TestCase):
         self.assertEqual(gb.spatial[0].fanout, 4)
 
     def test_standalone_fanout_node(self):
-        """Standalone Fanout node (at_glb_with_fanout_node.yaml)."""
+        """Standalone Container node (at_glb_with_fanout_node.yaml)."""
         yaml_path = (
             EXAMPLES_DIR
             / "arches"
@@ -701,13 +701,13 @@ class TestFanoutVariationsParsed(unittest.TestCase):
             self.skipTest("YAML not found")
         spec = Spec.from_yaml(yaml_path)
         fanout = spec.arch.find("GlobalBufferArray")
-        self.assertIsInstance(fanout, Fanout)
+        self.assertIsInstance(fanout, Container)
         self.assertEqual(len(fanout.spatial), 1)
         self.assertEqual(fanout.spatial[0].name, "X")
         self.assertEqual(fanout.spatial[0].fanout, 4)
 
     def test_fanout_with_loop_bounds_constraint(self):
-        """Fanout with loop_bounds constraint (at_mac_with_constraints.yaml)."""
+        """Container with loop_bounds constraint (at_mac_with_constraints.yaml)."""
         yaml_path = (
             EXAMPLES_DIR
             / "arches"
@@ -718,7 +718,7 @@ class TestFanoutVariationsParsed(unittest.TestCase):
             self.skipTest("YAML not found")
         spec = Spec.from_yaml(yaml_path)
         fanout = spec.arch.find("MACArray")
-        self.assertIsInstance(fanout, Fanout)
+        self.assertIsInstance(fanout, Container)
         self.assertEqual(len(fanout.spatial), 1)
         spatial = fanout.spatial[0]
         self.assertEqual(spatial.name, "X")
@@ -731,7 +731,7 @@ class TestFanoutVariationsParsed(unittest.TestCase):
 
     def test_get_fanout_product(self):
         """Leaf.get_fanout() returns the product of spatial fanouts."""
-        fanout = Fanout(
+        fanout = Container(
             name="F",
             spatial=[
                 {"name": "X", "fanout": 4},

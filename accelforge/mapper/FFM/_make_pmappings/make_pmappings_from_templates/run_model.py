@@ -21,7 +21,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
 from accelforge.frontend.mapper.metrics import Metrics
 import sympy
 from numbers import Number
-from accelforge.util._sympy.broadcast_max import Max
+from accelforge.util._sympy.broadcast_max import MaxGeqZero
 
 
 def run_model(
@@ -42,7 +42,7 @@ def run_model(
 
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
     try:
-        overall_latency = Max(*latency.values()) if latency else 0
+        overall_latency = MaxGeqZero(*latency.values())
     except Exception as e:
         for k, v in latency.items():
             if not isinstance(v, (Number, sympy.Symbol, sympy.Expr)):
@@ -84,9 +84,6 @@ def run_model(
     energy = compute_energy_from_actions(
         spec, actions, overall_latency, component_to_non_power_gated_porp
     )
-    if symbolic.PRINT_FORMULAS:
-        for k, v in energy.items():
-            print(f"{k}: {v}")
 
     fusable_tensors = workload.tensor_names_used_in_multiple_einsums
     tensor_to_backing = {}
@@ -168,6 +165,14 @@ def run_model(
             )
         if metrics & Metrics.ACTIONS:
             df[key] = sum(occupancies.values()) / memory_to_size[memory]
+
+    if symbolic.PRINT_FORMULAS:
+        for k, v in energy.items():
+            print(f"{k}: {v}")
+        for k, v in usage_df.items():
+            print(f"{k}: {v}")
+        for k, v in df.items():
+            print(f"{k}: {v}")
 
     return (
         reuse.symbols,

@@ -172,6 +172,7 @@ class Hierarchical(Branch):
         return_fanout: bool = False,
     ):
         from accelforge.frontend.arch.components import Compute
+
         nodes = []
 
         for i, node in enumerate(self.nodes):
@@ -217,6 +218,7 @@ class Hierarchical(Branch):
         self, parent_name: str = None
     ) -> tuple[list[tuple[str, str]], str]:
         from accelforge.frontend.arch.components import Compute
+
         edges = []
         current_parent_name = parent_name
 

@@ -7,7 +7,7 @@ from accelforge.model._looptree.latency.processors import LATENCY_PROCESSORS
 from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
 from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 
-from accelforge.util._sympy.broadcast_max import Max
+from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero
 
 # from bindings._looptree import SpatialTag
 
@@ -52,7 +52,9 @@ def compute_summarized_latency(compute_stats, mapping, workload):
         if longest_compute_latency == 0:
             longest_compute_latency = stats.max_latency
         else:
-            longest_compute_latency = Max(longest_compute_latency, stats.max_latency)
+            longest_compute_latency = MaxGeqZero(
+                longest_compute_latency, stats.max_latency
+            )
     return longest_compute_latency
 
 

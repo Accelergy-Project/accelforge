@@ -22,7 +22,7 @@ from accelforge.frontend.arch import (
     Fork,
     Memory,
     Compute,
-    Fanout,
+    Container,
     Toll,
     Leaf,
     Spatial as ArchSpatial,
@@ -607,7 +607,7 @@ class TestTPUArchParsed(unittest.TestCase):
         cls.arch = cls.spec.arch
 
     def test_node_count(self):
-        # MainMemory, GlobalBuffer, LocalBuffer, ScalarUnit, ArrayFanout, Register, MAC
+        # MainMemory, GlobalBuffer, LocalBuffer, ScalarUnit, PE, Register, MAC
         self.assertEqual(len(self.arch.nodes), 7)
 
     def test_node_names_in_order(self):
@@ -619,7 +619,7 @@ class TestTPUArchParsed(unittest.TestCase):
                 "GlobalBuffer",
                 "LocalBuffer",
                 "ScalarUnit",
-                "ArrayFanout",
+                "PE",
                 "Register",
                 "MAC",
             ],
@@ -632,7 +632,7 @@ class TestTPUArchParsed(unittest.TestCase):
         self.assertIsInstance(self.arch.find("ScalarUnit"), Compute)
 
     def test_array_fanout_is_fanout(self):
-        self.assertIsInstance(self.arch.find("ArrayFanout"), Fanout)
+        self.assertIsInstance(self.arch.find("PE"), Container)
 
     def test_mac_is_compute(self):
         self.assertIsInstance(self.arch.find("MAC"), Compute)
@@ -684,18 +684,18 @@ class TestTPUArchParsed(unittest.TestCase):
         self.assertEqual(mac.enabled, "len(All) == 3")
 
     def test_array_fanout_spatial_count(self):
-        af = self.arch.find("ArrayFanout")
+        af = self.arch.find("PE")
         self.assertEqual(len(af.spatial), 2)
 
     def test_array_fanout_reuse_input(self):
-        af = self.arch.find("ArrayFanout")
+        af = self.arch.find("PE")
         ri = af.spatial[0]
         self.assertEqual(ri.name, "reuse_input")
         self.assertEqual(ri.fanout, 128)
         self.assertEqual(ri.may_reuse, "input")
 
     def test_array_fanout_reuse_output(self):
-        af = self.arch.find("ArrayFanout")
+        af = self.arch.find("PE")
         ro = af.spatial[1]
         self.assertEqual(ro.name, "reuse_output")
         self.assertEqual(ro.fanout, 128)

@@ -344,7 +344,7 @@ def consumer_based_tile_shape_inference(
         # For each tensor read by this einsum, tile that tensor's producers.
         for tensor in workload.einsums[einsum].input_tensor_names:
             producer_einsums: set[EinsumName] = {
-                e.name for e in workload.einsums[einsum].output_tensor_names
+                e for e in workload.einsums[einsum].output_tensor_names
             }
             if len(producer_einsums) > 1:
                 raise NotImplementedError(

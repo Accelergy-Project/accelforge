@@ -6,26 +6,23 @@ mapping:
   - !Temporal
     rank_variable: p
     # bound is 2
-    tile_pattern:
-      initial_tile_shape: 8
-      stride: 8
+    initial_tile_shape: 8
+    tile_shape: 8
   - !Storage
     tensors: [I, W, O]
     component: LocalBuffer
   - !Temporal
     rank_variable: p
     # bound is 8
-    tile_pattern:
-      initial_tile_shape: 1
-      stride: 1
+    initial_tile_shape: 1
+    tile_shape: 1
   - !Spatial
     rank_variable: r
     # bound is 3
-    tile_pattern:
-      initial_tile_shape: 1
-      stride: 1
+    initial_tile_shape: 1
+    tile_shape: 1
     component: MAC
     name: X
   - !Compute
     einsum: conv
-    compute: MAC
+    component: MAC

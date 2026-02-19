@@ -21,7 +21,7 @@ from accelforge.frontend.arch import (
     Hierarchical,
     Memory,
     Compute,
-    Fanout,
+    Container,
     Toll,
     Leaf,
 )

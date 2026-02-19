@@ -94,7 +94,7 @@ Spatial Fanouts
 Spatial fanouts describe the spatial organization of components in the architecture. Any
 component may have spatial fanouts, and fanouts are allowed in any dimension. While any
 :py:class:`~accelforge.frontend.arch.Leaf` node can instantiate spatial fanouts, it is
-often convenient to use the dedicated :py:class:`~accelforge.frontend.arch.Fanout`
+often convenient to use the dedicated :py:class:`~accelforge.frontend.arch.Container`
 class.
 
 When a fanout is instantiated, the given component, alongside all of its children, are

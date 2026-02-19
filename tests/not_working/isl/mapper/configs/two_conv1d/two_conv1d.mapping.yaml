@@ -6,9 +6,8 @@ mapping:
   - !Temporal
     rank_variable: pb
     # bound is 2
-    tile_pattern:
-      initial_tile_shape: 8
-      stride: 8
+    initial_tile_shape: 8
+    tile_shape: 8
   - !Storage
     tensors: [I, WA, A, WB, B]
     component: LocalBuffer
@@ -19,36 +18,32 @@ mapping:
       - !Temporal
         rank_variable: pa
         # bound is 8
-        tile_pattern:
-          initial_tile_shape: 1
-          stride: 1
+        initial_tile_shape: 1
+        tile_shape: 1
       - !Spatial
         rank_variable: ra
         # bound is 3
-        tile_pattern:
-          initial_tile_shape: 1
-          stride: 1
+        initial_tile_shape: 1
+        tile_shape: 1
         component: MAC
         name: X
       - !Compute
         einsum: convA
-        compute: MAC
+        component: MAC
     - !Nested
       nodes:
       - !Temporal
         rank_variable: pb
         # bound is 8
-        tile_pattern:
-          initial_tile_shape: 1
-          stride: 1
+        initial_tile_shape: 1
+        tile_shape: 1
       - !Spatial
         rank_variable: rb
         # bound is 3
-        tile_pattern:
-          initial_tile_shape: 1
-          stride: 1
+        initial_tile_shape: 1
+        tile_shape: 1
         component: MAC
         name: X
       - !Compute
         einsum: convB
-        compute: MAC
+        component: MAC

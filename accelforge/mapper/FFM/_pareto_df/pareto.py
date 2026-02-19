@@ -460,6 +460,8 @@ def makepareto_numpy(
         elif goal == "diff":
             to_pareto.append(mappings[:, c].reshape((-1, 1)))
             new_goals.append("diff")
+            if dirty and len(np.unique(to_pareto[-1])) > mappings.shape[0] / 2:
+                return np.ones(mappings.shape[0], dtype=bool)
         elif goal == "min_per_prime_factor":
             if not dirty:
                 # Paretoset tends to be faster with these as diffs. Tanner tried for a

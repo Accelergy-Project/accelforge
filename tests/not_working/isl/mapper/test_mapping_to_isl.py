@@ -3,6 +3,8 @@ Some non-exhaustive tests to make sure core functionality of the non-fusing and
 fusing portions of ISL tiling is not violated under changes.
 """
 
+from multiprocessing.sharedctypes import Value
+from islpy import Val
 from pathlib import Path
 from pprint import pformat
 import unittest
@@ -81,7 +83,13 @@ class TestMappingToIsl(unittest.TestCase):
                 soln = solns[repr(buffer)]
                 assert (
                     occupancy.map_ == soln
-                ), f"{buffer} should hold:\n{soln}\ninstead holds:\n{occupancy.map_}"
+                ), (
+                    f"{buffer} should hold:\n" +
+                    f"{soln}\n" +
+                    f"instead holds:\n"
+                    f"{occupancy.map_}\n" +
+                    '-'*3
+                )
             except (AssertionError, KeyError) as e:
                 errors.append(e)
             buffers_seen.add(repr(buffer))
@@ -95,4 +103,8 @@ class TestMappingToIsl(unittest.TestCase):
         except AssertionError as e:
             errors.append(e)
 
-        assert len(errors) == 0, pformat(errors)
+        if len(errors) != 0:
+            for e in errors:
+                print('#' * 15)
+                print(e)
+            raise ValueError("There were errors in the two_conv1d results (see logs)")

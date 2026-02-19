@@ -998,4 +998,3 @@ class Compute(Component, Leaf):
 
     def _render_node_color(self) -> str:
         return "#E0EEFF"
-

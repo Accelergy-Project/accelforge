@@ -45,7 +45,7 @@ from accelforge.model._looptree.reuse.symbolic.mapping_utils import (
 )
 
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
-from accelforge.util._sympy.broadcast_max import Min, Max
+from accelforge.util._sympy.broadcast_max import Min, Max, MaxGeqZero, MinGeqZero
 from accelforge.mapper.FFM._pareto_df.df_convention import iterations2col
 
 import sympy
@@ -86,13 +86,13 @@ def min_nonzero(a: Any, b: Any) -> Any:
         return b
     if b == 0:
         return a
-    return Min(a, b)
+    return MinGeqZero(a, b)
 
 
 def max_dict(a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
     new = {**a}
     for key, value in b.items():
-        new[key] = Max(new[key], value) if key in new else value
+        new[key] = MaxGeqZero(new[key], value) if key in new else value
     assert isinstance(new, dict)
     return new
 
@@ -186,11 +186,11 @@ class BuffetStats:
 
     def max(self, **kwargs: Any):
         for key, value in kwargs.items():
-            setattr(self, key, Max(getattr(self, key), value))
+            setattr(self, key, MaxGeqZero(getattr(self, key), value))
 
     def min(self, **kwargs: Any):
         for key, value in kwargs.items():
-            setattr(self, key, Min(getattr(self, key), value))
+            setattr(self, key, MinGeqZero(getattr(self, key), value))
 
     def __add__(self, other: "BuffetStats") -> "BuffetStats":
         new = copy.copy(self)
@@ -200,7 +200,9 @@ class BuffetStats:
                     new, attr, min_nonzero(getattr(self, attr), getattr(other, attr))
                 )
             elif attr.startswith("max_"):
-                setattr(new, attr, Max(getattr(self, attr), getattr(other, attr)))
+                setattr(
+                    new, attr, MaxGeqZero(getattr(self, attr), getattr(other, attr))
+                )
             elif attr.startswith("total_"):
                 setattr(new, attr, getattr(self, attr) + getattr(other, attr))
             elif getattr(self, attr) is None:
@@ -292,8 +294,10 @@ class ComputeStats:
 
     def combine_spatial(self, other: "ComputeStats"):
         self.total_ops += other.total_ops
-        self.max_per_unit_ops = Max(self.max_per_unit_ops, other.max_per_unit_ops)
-        self.max_latency = Max(self.max_latency, other.max_latency)
+        self.max_per_unit_ops = MaxGeqZero(
+            self.max_per_unit_ops, other.max_per_unit_ops
+        )
+        self.max_latency = MaxGeqZero(self.max_latency, other.max_latency)
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
         self.max_first_latency = max_dict(
@@ -339,7 +343,7 @@ class SymbolicAnalysisOutput:
                 previous.setdefault(k, {})
                 for k2, v2 in v.items():
                     if k2 in previous[k]:
-                        previous[k][k2] = Max(previous[k][k2], v2)
+                        previous[k][k2] = MaxGeqZero(previous[k][k2], v2)
                     else:
                         previous[k][k2] = v2
 
@@ -902,7 +906,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             if einsum not in result_accumulator.temporal_steps:
                 result_accumulator.temporal_steps[einsum] = child_steps
             else:
-                result_accumulator.temporal_steps[einsum] = Max(
+                result_accumulator.temporal_steps[einsum] = MaxGeqZero(
                     result_accumulator.temporal_steps[einsum], child_steps
                 )
 
@@ -1271,7 +1275,7 @@ def get_stride_and_tile_shape(node: Loop, full_shape, n: int, info: AnalysisInfo
             factor = rank_shape / stride
             return StrideAndShape(stride, RepeatedValue(stride, factor))
         else:
-            factor = sympy.ceiling(rank_shape / sympy.Min(stride, rank_shape))
+            factor = sympy.ceiling(rank_shape / sympy.MinGeqZero(stride, rank_shape))
             return make_possibly_different_last(stride, factor, rank_shape)
 
     middle_shape_factor = sympy.ceiling((rank_shape - initial_tile_shape) / stride)

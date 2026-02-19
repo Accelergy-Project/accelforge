@@ -21,7 +21,7 @@ from accelforge.frontend.arch import (
     Action,
     Arch,
     Compute,
-    Fanout,
+    Container,
     Memory,
     Toll,
     Spatial as ArchSpatial,
@@ -307,10 +307,10 @@ class TestTPUComponentFieldsParsed(unittest.TestCase):
         self.assertIn("max", gb.total_latency)
 
     def test_array_fanout_spatial(self):
-        """ArrayFanout has spatial fanouts for reuse."""
-        af = self.spec.arch.find("ArrayFanout")
-        self.assertGreater(len(af.spatial), 0)
-        spatial_names = [s.name for s in af.spatial]
+        """PE has spatial fanouts for reuse."""
+        pe = self.spec.arch.find("PE")
+        self.assertGreater(len(pe.spatial), 0)
+        spatial_names = [s.name for s in pe.spatial]
         self.assertIn("reuse_input", spatial_names)
         self.assertIn("reuse_output", spatial_names)
 
@@ -495,7 +495,7 @@ class TestArchUtilityMethods(unittest.TestCase):
 
 
 class TestArchWithFanout(unittest.TestCase):
-    """Test arch with Fanout node."""
+    """Test arch with Container node."""
 
     @classmethod
     def setUpClass(cls):
@@ -511,7 +511,7 @@ class TestArchWithFanout(unittest.TestCase):
 
     def test_fanout_found(self):
         fanout = self.spec.arch.find("GlobalBufferArray")
-        self.assertIsInstance(fanout, Fanout)
+        self.assertIsInstance(fanout, Container)
 
     def test_fanout_get_fanout(self):
         fanout = self.spec.arch.find("GlobalBufferArray")

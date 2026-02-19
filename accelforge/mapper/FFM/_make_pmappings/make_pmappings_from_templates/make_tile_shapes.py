@@ -45,7 +45,7 @@ from numbers import Number
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
     SymbolRelations,
 )
-from accelforge.util._sympy.broadcast_max import Max
+from accelforge.util._sympy.broadcast_max import MaxGeqZero, Max, Min, MinGeqZero
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import (
     run_model,
 )
@@ -85,7 +85,7 @@ def diff_geq_leq_zero(f: Expr, s: Symbol, bounds: tuple[tuple[Symbol, int, int],
             lambda expr: expr.is_Function and expr.func == sympy.ceiling,
             lambda expr: expr.args[0],
         )
-    return geq_leq_zero(diff(f, s), bounds)
+    return geq_leq_zero(diff(sympy.expand(f), s), bounds)
 
 
 @lru_cache(maxsize=10000)
@@ -712,25 +712,25 @@ def coalesce_symbols(
 
             # If it's a sum, remove any terms that are constant
             if isinstance(formula, sympy.Add):
+                keep = []
                 for term in formula.args:
-                    if len(term.free_symbols) == 0:
-                        formula = formula.subs(term, 0)
+                    if len(term.free_symbols) != 0:
+                        keep.append(term)
+                    else:
                         log_message("coalesce symbols", f"dropping constant: {term}")
-                        continue
-                if len(formula.args) == 1:
-                    formula = formula.args[0]
+                formula = type(formula)(*keep) if len(keep) > 1 else keep[0]
 
             # If it's a product, remove any terms that are constant
             if isinstance(formula, sympy.Mul):
+                keep = []
                 for term in formula.args:
-                    if len(term.free_symbols) == 0:
-                        formula = formula.subs(term, 1)
+                    if len(term.free_symbols) != 0:
+                        keep.append(term)
+                    else:
                         if term < 0:
                             goal = ~goal
                         log_message("coalesce symbols", f"dropping constant: {term}")
-                        continue
-                if len(formula.args) == 1:
-                    formula = formula.args[0]
+                formula = type(formula)(*keep) if len(keep) > 1 else keep[0]
 
             # If it's a function of a non-enumerated symbol or a symbol that we can't
             # compare and it won't affect comparisons, then we can drop it.
@@ -1202,6 +1202,10 @@ def get_tile_shape_choices(
         sym_enumerated_set = set(symbols_enumerated)
 
         if job.spec.mapper._count_option_for_mapsapce_size_evaluation != ():
+            log_message(
+                "Skipping because we're counting options for space size evaluation",
+                f"{choices_enumerated.shape[0]} -> 1",
+            )
             choices_enumerated = choices_enumerated[:1, :]
             continue
 
@@ -1304,9 +1308,13 @@ def get_tile_shape_choices(
                         )
 
         if not choices_enumerated.shape[0]:
+            log_message(
+                "Skipping because we have no choices",
+                f"size {choices_enumerated.shape[0]}",
+            )
             return np.array([]).reshape(-1, len(symbols))
 
-        if choices_enumerated.shape[0] < 1000:
+        if choices_enumerated.shape[0] < 1000 and symbols_remaining:
             continue
 
         for objective in objectives:
@@ -1426,6 +1434,10 @@ def get_tile_shape_choices(
     # ==================================================================================
     # Return the choices
     # ==================================================================================
+    if choices_enumerated is not None:
+        log_message(f"Returning choices", f"size {choices_enumerated.shape[0]}")
+    else:
+        log_message(f"Returning no choices")
     t = time.time() - start_time
     if t > 60 and DEBUG:
         a = [

@@ -1,38 +1,38 @@
 mapping_to_isl:
-  BufferTensorEinsum(buffer='MainMemory', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MainMemory', tensor='I', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { MainMemory_spacetime[] -> I[PI] : 0 <= PI < 18 }
-  BufferTensorEinsum(buffer='MainMemory', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MainMemory', tensor='WA', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { MainMemory_spacetime[] -> WA[RA] : 0 <= RA < 3 }
-  BufferTensorEinsum(buffer='LocalBuffer', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='I', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { LocalBuffer_spacetime[pb0=0] -> I[PI] : 0 <= PI < 12;
       LocalBuffer_spacetime[pb0=1] -> I[PI] : 10 <= PI < 18 }
-  BufferTensorEinsum(buffer='LocalBuffer', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='WA', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { LocalBuffer_spacetime[pb0] -> WA[RA] : 0 <= RA <= 2 and 0 <= pb0 < 2 }
-  BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { LocalBuffer_spacetime[pb0=0] -> A[PA] : 0 <= PA < 10;
       LocalBuffer_spacetime[pb0=1] -> A[PA] : 10 <= PA < 16 }
-  BufferTensorEinsum(buffer='MAC', tensor='I', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MAC', tensor='I', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { MAC_spacetime[pb0=0, 0, pa1, ra0] -> I[PI = pa1 + ra0] : 0 <= pa1 < 10 and 0 <= ra0 < 3;
       MAC_spacetime[pb0=1, 0, pa1, ra0] -> I[PA = 10 + pa1 + ra0] : 0 <= pa1 < 6 and 0 <= ra0 < 3 }
-  BufferTensorEinsum(buffer='MAC', tensor='WA', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MAC', tensor='WA', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { MAC_spacetime[pb0=0, 0, pa1, ra0] -> WA[RA=ra0] : 0 <= pa1 < 10 and 0 <= ra0 < 3;
       MAC_spacetime[pb0=1, 0, pa1, ra0] -> WA[RA=ra0] : 0 <= pa1 < 6 and 0 <= ra0 < 3 }
-  BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(type=None, einsum='convA', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(einsum='convA', component='MAC', component_object=None)): |
     { MAC_spacetime[pb0=0, 0, pa1, ra0] -> A[PA=pa1] : 0 <= pa1 < 10 and 0 <= ra0 < 3;
       MAC_spacetime[pb0=1, 0, pa1, ra0] -> A[PA=10 + pa1] : 0 <= pa1 < 6 and 0 <= ra0 < 3 }
-  BufferTensorEinsum(buffer='MainMemory', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MainMemory', tensor='WB', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { MainMemory_spacetime[] -> WB[RB] : 0 <= RB < 3 }
-  BufferTensorEinsum(buffer='MainMemory', tensor='B', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MainMemory', tensor='B', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { MainMemory_spacetime[] -> B[PB] : 0 <= PB < 16 }
-  BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='A', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { LocalBuffer_spacetime[pb0] -> A[PA] : 0 <= pb0 < 2 and 8pb0 <= PA <= 9 + 8pb0 }
-  BufferTensorEinsum(buffer='LocalBuffer', tensor='B', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='B', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { LocalBuffer_spacetime[pb0] -> B[PB] : 0 <= pb0 < 2 and 8pb0 <= PB < 8 + 8pb0 }
-  BufferTensorEinsum(buffer='LocalBuffer', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='LocalBuffer', tensor='WB', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { LocalBuffer_spacetime[pb0] -> WB[RB] : 0 <= pb0 < 2 and 0 <= RB <= 2 }
-  BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MAC', tensor='A', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { MAC_spacetime[pb0, 1, pb2, rb0] -> A[PA = 8pb0 + pb2 + rb0] : 0 <= pb0 <= 1 and 0 <= pb2 <= 7 and 0 <= rb0 <= 2 }
-  BufferTensorEinsum(buffer='MAC', tensor='WB', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MAC', tensor='WB', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { MAC_spacetime[pb0, 1, pb2, rb0] -> WB[RB = rb0] : 0 <= pb0 <= 1 and 0 <= pb2 <= 7 and 0 <= rb0 <= 2 }
-  BufferTensorEinsum(buffer='MAC', tensor='B', einsum=Compute(type=None, einsum='convB', compute='MAC', component_object=None)): |
+  BufferTensorEinsum(buffer='MAC', tensor='B', einsum=Compute(einsum='convB', component='MAC', component_object=None)): |
     { MAC_spacetime[pb0, 1, pb2, rb0] -> B[PB = 8pb0 + pb2] : 0 <= pb0 <= 1 and 0 <= pb2 <= 7 and 0 <= rb0 <= 2 }

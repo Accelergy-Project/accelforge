@@ -21,7 +21,7 @@ from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import
     HypercubeMulticastModel,
 )
 from accelforge.model._looptree.reuse.isl.spatial import TransferInfo
-from ..util import load_solutions
+from .util import load_solutions
 
 
 def construct_spacetime(dims: list) -> list[Tag]:

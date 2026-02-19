@@ -18,7 +18,7 @@ from accelforge.frontend.arch import (
     Fork,
     Memory,
     Compute,
-    Fanout,
+    Container,
     Toll,
     Leaf,
     Branch,
@@ -82,7 +82,7 @@ def _simple_workload():
 
 
 def _fork_arch():
-    """Arch with a fork: MainMemory -> GlobalBuffer -> Fork([ScalarUnit], [Fanout -> Register -> MAC])."""
+    """Arch with a fork: MainMemory -> GlobalBuffer -> Fork([ScalarUnit], [Container -> Register -> MAC])."""
     return Arch(
         nodes=[
             Memory(
@@ -115,8 +115,8 @@ def _fork_arch():
                     ),
                 ]
             ),
-            Fanout(
-                name="ArrayFanout",
+            Container(
+                name="PE",
                 spatial=[
                     {
                         "name": "reuse_input",
@@ -224,9 +224,9 @@ class TestGetNodesOfType(unittest.TestCase):
 
     def test_get_fanout_in_fork_arch(self):
         arch = _fork_arch()
-        fanouts = list(arch.get_nodes_of_type(Fanout))
+        fanouts = list(arch.get_nodes_of_type(Container))
         self.assertEqual(len(fanouts), 1)
-        self.assertEqual(fanouts[0].name, "ArrayFanout")
+        self.assertEqual(fanouts[0].name, "PE")
 
 
 # ============================================================================
@@ -391,7 +391,7 @@ class TestFlattenFromYAML(unittest.TestCase):
         result = evaluated._get_flattened_architecture(compute_node="MAC")
         names = [n.name for n in result]
         self.assertIn("Register", names)
-        self.assertIn("ArrayFanout", names)
+        self.assertIn("PE", names)
         self.assertEqual(names[-1], "MAC")
 
     def test_tpu_scalar_path_excludes_register(self):
@@ -404,7 +404,7 @@ class TestFlattenFromYAML(unittest.TestCase):
         result = evaluated._get_flattened_architecture(compute_node="ScalarUnit")
         names = [n.name for n in result]
         self.assertNotIn("Register", names)
-        self.assertNotIn("ArrayFanout", names)
+        self.assertNotIn("PE", names)
         self.assertEqual(names[-1], "ScalarUnit")
 
 
