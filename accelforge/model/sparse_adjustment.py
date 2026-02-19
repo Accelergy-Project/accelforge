@@ -11,13 +11,23 @@ Pipeline ordering (matches Sparseloop):
   Phase 4b: Propagate SAF to compute
   Phase 5: Compute classification (3-state ENZ/EZ/NE)
   Final: Recompute action counts from modified element counts
+
+Returns a tuple of:
+  - dict of sparse-specific ActionKey → ActionCount for gated/skipped/
+    metadata actions (only emitted when arch YAML declares the action name)
+  - dict of per-rank format info keyed by (tensor, level)
 """
 
+import math
+
 from accelforge.frontend import arch
+from accelforge.frontend.mapping import Temporal, Spatial, TensorHolder as MappingTensorHolder
 from accelforge.frontend.spec import Spec
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.model._looptree.reuse.symbolic import SymbolicAnalysisOutput
 from accelforge.model._looptree.types import Buffet
+from accelforge.model.sparse import compute_format_access_counts
+from accelforge.model.sparse_formats import compute_format_occupancy
 from accelforge.model.sparse_pipeline import (
     apply_format_compression,
     apply_local_saf_reads,
@@ -26,19 +36,172 @@ from accelforge.model.sparse_pipeline import (
     classify_compute,
     propagate_saf_reduction,
 )
+from accelforge.util._base_analysis_types import ActionCount, ActionKey
+
+
+def _has_action(spec: Spec, component_name: str, action_name: str) -> bool:
+    """Check if a component declares a specific action name in its arch."""
+    component_obj = spec.arch.find(component_name)
+    if component_obj is None:
+        return False
+    actions = component_obj.actions
+    # Support both EvalableList[Action] (real) and dict (mock/test)
+    if isinstance(actions, dict):
+        return action_name in actions
+    for a in actions:
+        if hasattr(a, "name") and a.name == action_name:
+            return True
+    return False
+
+
+def _emit(
+    sparse_actions: dict[ActionKey, ActionCount],
+    level: str,
+    action: str,
+    total: int | float,
+) -> None:
+    """Accumulate a sparse action count into the dict."""
+    key = ActionKey(level, action)
+    if key not in sparse_actions:
+        sparse_actions[key] = ActionCount.default()
+    sparse_actions[key].total += total
+    sparse_actions[key].max_per_unit += total
+
+
+def _get_tile_shape_at_level(
+    reuse: SymbolicAnalysisOutput,
+    job: Job,
+    tensor_name: str,
+    level_name: str,
+) -> dict[str, int]:
+    """Reconstruct per-dimension tile sizes at a storage level for a tensor.
+
+    Walks the per-tensor mapping nodes top-to-bottom, starting from
+    job.rank_variable_bounds, tracking current_shape at each Temporal/Spatial
+    node, and stops at the TensorHolder matching level_name.
+
+    Returns dict[rank_variable, tile_size]. Returns empty dict if the
+    tensor has no mapping entry (graceful for mock tests).
+    """
+    if not hasattr(reuse, "tensor2mapping") or not reuse.tensor2mapping:
+        return {}
+    if tensor_name not in reuse.tensor2mapping:
+        return {}
+    if not hasattr(job, "rank_variable_bounds") or not job.rank_variable_bounds:
+        return {}
+
+    mapping = reuse.tensor2mapping[tensor_name]
+    current_shape = dict(job.rank_variable_bounds)
+
+    for node in mapping.nodes:
+        if isinstance(node, (Temporal, Spatial)):
+            rv = node.rank_variable
+            if isinstance(rv, set):
+                # Multi-rank-variable node — skip (shouldn't happen for
+                # single-tensor mappings, but handle gracefully)
+                continue
+            ts = node.tile_shape
+            if isinstance(ts, int):
+                current_shape[rv] = ts
+        elif isinstance(node, MappingTensorHolder):
+            if node.component == level_name and tensor_name in node.tensors:
+                return current_shape
+
+    return current_shape
+
+
+def _get_dimension_sizes_for_tensor(
+    current_shape: dict[str, int],
+    einsum,
+    tensor_name: str,
+) -> list[int]:
+    """Map current_shape to per-tensor dimension sizes using ta.projection.
+
+    Returns list of sizes for non-trivial dimensions (size > 1) in projection
+    order (outer-to-inner). The length of this list = num_ranks for format
+    expansion.
+
+    Returns empty list if tensor or projection is not found.
+    """
+    ta = None
+    for t in einsum.tensor_accesses:
+        if t.name == tensor_name:
+            ta = t
+            break
+    if ta is None:
+        return []
+
+    projection = ta.projection
+    if not isinstance(projection, dict):
+        return []
+
+    sizes = []
+    for rank_name, rank_var_expr in projection.items():
+        # rank_var_expr is typically a simple variable name like "m"
+        # For compound expressions like "m+n", use the full shape product
+        rank_var = str(rank_var_expr).strip()
+        if rank_var in current_shape:
+            size = current_shape[rank_var]
+        else:
+            # Compound expression — skip this rank or use 1
+            size = 1
+        if size > 1:
+            sizes.append(size)
+
+    # If all dimensions are trivial (size 1), return [1] as minimum
+    if not sizes:
+        sizes = [1]
+
+    return sizes
+
+
+def _auto_derive_word_bits(
+    primitive: str,
+    dim_size: int,
+) -> tuple[int | None, int | None]:
+    """Auto-derive metadata/payload word bits for a rank primitive.
+
+    Returns (metadata_word_bits, payload_word_bits).
+    None means the field is not applicable for this primitive.
+    """
+    p = primitive.upper()
+    if p == "UOP":
+        # UOP: payload = ceil(log2(dim_size + 1)), no metadata
+        pw = max(1, math.ceil(math.log2(dim_size + 1))) if dim_size > 0 else 1
+        return None, pw
+    elif p == "B":
+        # Bitmask: 1 bit metadata, no payload
+        return 1, None
+    elif p == "CP":
+        # Coordinate Payload: metadata = ceil(log2(dim_size))
+        mw = max(1, math.ceil(math.log2(dim_size))) if dim_size > 1 else 1
+        return mw, None
+    elif p == "RLE":
+        # Run-length: metadata = ceil(log2(dim_size))
+        mw = max(1, math.ceil(math.log2(dim_size))) if dim_size > 1 else 1
+        return mw, None
+    return None, None
 
 
 def apply_sparse_adjustments(
     reuse: SymbolicAnalysisOutput,
     spec: Spec,
     job: Job,
-) -> None:
+) -> tuple[dict[ActionKey, ActionCount], dict]:
     """Apply sparse optimizations to reuse analysis results in-place.
 
     Modifies buffet_stats and compute_stats to reflect format compression,
     storage action filtering (SAF), and compute classification.
 
-    No-op when spec.sparse_optimizations has no targets.
+    Returns a tuple of:
+      - dict of sparse-specific action counts (gated_read, metadata_read,
+        gated_compute, skipped_compute, etc.).  Only actions declared in the
+        component's arch YAML are emitted.
+      - dict of per-rank format info keyed by (tensor, level), containing
+        rank_formats, rank_capacity, rank_access_counts, rank_word_bits.
+
+    No-op (returns empty dict, empty dict) when spec.sparse_optimizations
+    has no targets.
 
     Parameters
     ----------
@@ -49,9 +212,12 @@ def apply_sparse_adjustments(
     job : Job
         Job context with einsum info and flattened arch.
     """
+    sparse_actions: dict[ActionKey, ActionCount] = {}
+    per_rank_info: dict[tuple[str, str], dict] = {}
+
     sparse_opts = spec.sparse_optimizations
     if not sparse_opts.targets:
-        return
+        return sparse_actions, per_rank_info
 
     einsum_name = job.einsum_name
     workload = spec.workload
@@ -87,6 +253,28 @@ def apply_sparse_adjustments(
             continue
         if sparse_opts.get_formats_for(buffet.level, buffet.tensor):
             formatted_buffets.add((buffet.tensor, buffet.level))
+
+    # Save pre-SAF, pre-compression algorithmic counts for per-rank access
+    # count computation (needed by compute_format_access_counts).
+    pre_saf_child_reads: dict[tuple[str, str], int] = {}
+    pre_saf_fills: dict[tuple[str, str], int] = {}
+    for buffet, stats in reuse.buffet_stats.items():
+        if buffet.level in compute_levels:
+            continue
+        if (buffet.tensor, buffet.level) not in formatted_buffets:
+            continue
+        # Save this level's fills (reads to parent)
+        pre_saf_fills[(buffet.tensor, buffet.level)] = int(
+            stats.total_reads_to_parent
+        )
+        # Save child's reads (data served from this level to child)
+        child_key = _get_child_buffet_key(reuse, buffet, compute_levels)
+        if child_key is not None:
+            pre_saf_child_reads[(buffet.tensor, buffet.level)] = int(
+                reuse.buffet_stats[child_key].total_reads_to_parent
+            )
+        else:
+            pre_saf_child_reads[(buffet.tensor, buffet.level)] = 0
 
     for buffet, stats in reuse.buffet_stats.items():
         if (buffet.tensor, buffet.level) not in formatted_buffets:
@@ -156,6 +344,8 @@ def apply_sparse_adjustments(
     # ========================================================================
     # Collect SAF probabilities for propagation to compute
     saf_probs_for_compute = []  # list of (prob, kind) pairs
+    # Track SAF deltas per (level, tensor) for gated/skipped action emission
+    saf_deltas: dict[tuple[str, str], tuple[int, str]] = {}
 
     for buffet, stats in reuse.buffet_stats.items():
         if buffet.level in compute_levels:
@@ -167,10 +357,6 @@ def apply_sparse_adjustments(
                 continue
 
             # Compute SAF probability from condition_on tensors.
-            # Scalar compute: each access checks one element per condition
-            # tensor, so we use the per-element model (tile_shape=1).
-            # For tiled compute, this would need the product of shared-
-            # dimension tile sizes at the compute level.
             cond_densities = []
             for cond_tensor in opt.condition_on:
                 if cond_tensor not in tensor_info:
@@ -186,11 +372,6 @@ def apply_sparse_adjustments(
                 continue
 
             # Record for compute propagation (input tensors only).
-            # Output tensor SAFs (e.g., Z gating on [A,B]) reduce the
-            # output's own reads/writes but do NOT independently reduce
-            # compute — the input tensor SAFs already account for the
-            # compute reduction.  Propagating output SAFs would double-
-            # count the same condition.
             is_output_tensor = tensor_info[buffet.tensor]["is_output"]
             if not is_output_tensor:
                 saf_probs_for_compute.append((prob, opt.kind))
@@ -201,12 +382,15 @@ def apply_sparse_adjustments(
 
             if child_stats is not None:
                 # Reduce child's reads from this level
-                actual, _ = apply_local_saf_reads(
+                actual, delta = apply_local_saf_reads(
                     child_stats.total_reads_to_parent,
                     prob,
                     is_read_write=is_output,
                 )
                 child_stats.total_reads_to_parent = actual
+
+                # Track the delta for gated/skipped read emission
+                saf_deltas[(buffet.level, buffet.tensor)] = (delta, opt.kind)
 
                 actual_max, _ = apply_local_saf_reads(
                     child_stats.max_per_parent_reads_to_parent,
@@ -228,8 +412,28 @@ def apply_sparse_adjustments(
                     child_stats.max_per_parent_writes_to_parent = actual_w_max
 
     # ========================================================================
+    # Emit gated/skipped read actions from SAF deltas
+    # ========================================================================
+    for (level, tensor), (delta, kind) in saf_deltas.items():
+        if delta <= 0:
+            continue
+        if kind == "gating":
+            action_name = "gated_read"
+        elif kind in ("skipping", "position_skipping"):
+            action_name = "skipped_read"
+        else:
+            continue
+        if _has_action(spec, level, action_name):
+            _emit(sparse_actions, level, action_name, delta)
+
+    # ========================================================================
     # Phase 4b-5: Propagate SAF to compute & classify
     # ========================================================================
+
+    # Save pre-SAF compute totals for gated/skipped compute emission
+    pre_saf_compute: dict[str, int] = {}
+    for compute_key, compute_stats in reuse.compute_stats.items():
+        pre_saf_compute[compute_key.level] = compute_stats.total_ops
 
     # Propagate SAF reductions to compute operations
     for prob, _kind in saf_probs_for_compute:
@@ -267,10 +471,258 @@ def apply_sparse_adjustments(
                 compute_stats.max_per_unit_ops, result.random_compute
             )
 
+            # Emit gated/skipped compute actions
+            if result.gated_compute > 0 and _has_action(
+                spec, compute_key.level, "gated_compute"
+            ):
+                _emit(
+                    sparse_actions,
+                    compute_key.level,
+                    "gated_compute",
+                    result.gated_compute,
+                )
+            if result.skipped_compute > 0 and _has_action(
+                spec, compute_key.level, "skipped_compute"
+            ):
+                _emit(
+                    sparse_actions,
+                    compute_key.level,
+                    "skipped_compute",
+                    result.skipped_compute,
+                )
+
+    # ========================================================================
+    # Emit metadata actions from format info
+    # ========================================================================
+    per_rank_info = _emit_metadata_actions(
+        sparse_actions,
+        reuse,
+        spec,
+        job,
+        compute_levels,
+        formatted_buffets,
+        saf_deltas,
+        tensor_info,
+        pre_saf_child_reads,
+        pre_saf_fills,
+    )
+
     # ========================================================================
     # Recompute action counts from modified element counts
     # ========================================================================
     _recompute_action_counts(reuse, spec, job, compute_levels)
+
+    return sparse_actions, per_rank_info
+
+
+def _emit_metadata_actions(
+    sparse_actions: dict[ActionKey, ActionCount],
+    reuse: SymbolicAnalysisOutput,
+    spec: Spec,
+    job: Job,
+    compute_levels: set[str],
+    formatted_buffets: set[tuple[str, str]],
+    saf_deltas: dict[tuple[str, str], tuple[int, str]],
+    tensor_info: dict,
+    pre_saf_child_reads: dict[tuple[str, str], int],
+    pre_saf_fills: dict[tuple[str, str], int],
+) -> dict[tuple[str, str], dict]:
+    """Emit metadata_read/metadata_write actions with per-rank computation.
+
+    Uses per-rank format decomposition when tile shape info is available
+    (real pipeline). Falls back to flat logic when tile info is missing
+    (mock tests).
+
+    Returns per-rank info dict keyed by (tensor, level).
+    """
+    sparse_opts = spec.sparse_optimizations
+    einsum_name = job.einsum_name
+    workload = spec.workload
+    einsum = workload.einsums[einsum_name]
+
+    per_rank_info: dict[tuple[str, str], dict] = {}
+
+    for buffet, stats in reuse.buffet_stats.items():
+        if buffet.level in compute_levels:
+            continue
+        if (buffet.tensor, buffet.level) not in formatted_buffets:
+            continue
+
+        level = buffet.level
+        tensor = buffet.tensor
+
+        formats = sparse_opts.get_formats_for(level, tensor)
+        if not formats:
+            continue
+        fmt = formats[0]
+        fmt_name = (fmt.format or "").lower()
+
+        metadata_storage_width = fmt.metadata_storage_width
+
+        # Get the component's read bits_per_action for scaling
+        component_obj = spec.arch.find(level)
+        if component_obj is None or not isinstance(component_obj, arch.TensorHolder):
+            continue
+
+        read_bpa = component_obj.actions["read"].bits_per_action
+
+        # Get the child buffet to determine post-SAF read counts
+        child_key = _get_child_buffet_key(reuse, buffet, compute_levels)
+
+        # Post-SAF data reads served from this level to child
+        if child_key is not None:
+            post_saf_data_reads = reuse.buffet_stats[child_key].total_reads_to_parent
+        else:
+            post_saf_data_reads = 0
+
+        # Post-compression fills (current state)
+        post_fills = stats.total_reads_to_parent
+
+        # SAF delta for this (level, tensor)
+        saf_delta, _ = saf_deltas.get((level, tensor), (0, ""))
+
+        # ---- Compute per-rank info (informational columns) ----
+        current_shape = _get_tile_shape_at_level(reuse, job, tensor, level)
+        dimension_sizes = (
+            _get_dimension_sizes_for_tensor(current_shape, einsum, tensor)
+            if current_shape
+            else []
+        )
+
+        if dimension_sizes and any(d > 1 for d in dimension_sizes):
+            num_ranks = len(dimension_sizes)
+            density = tensor_info[tensor]["density"]
+            # Compute tensor_size from full bounds (all tensor dimensions)
+            full_shape = _get_dimension_sizes_for_tensor(
+                dict(job.rank_variable_bounds), einsum, tensor
+            )
+            tensor_size = 1
+            for d in (full_shape if full_shape else dimension_sizes):
+                tensor_size *= d
+            tile_shape = 1
+            for d in dimension_sizes:
+                tile_shape *= d
+
+            # Get per-rank format primitives
+            rank_format_objs = fmt.get_rank_formats(num_ranks)
+            rank_format_names = [rf.format for rf in rank_format_objs]
+
+            # Compute per-rank occupancy (capacity)
+            rank_occs, _ = compute_format_occupancy(
+                rank_format_names, dimension_sizes, density, tensor_size
+            )
+
+            # Compute per-rank access counts using pre-SAF algorithmic counts
+            alg_reads = pre_saf_child_reads.get((tensor, level), 0)
+            alg_fills = pre_saf_fills.get((tensor, level), 0)
+
+            rank_access = compute_format_access_counts(
+                rank_format_names,
+                dimension_sizes,
+                density,
+                tensor_size,
+                tile_shape,
+                alg_reads,
+                alg_fills,
+            )
+
+            # Auto-derive per-rank word bits
+            rank_word_bits = []
+            for rf_obj, prim, dim_sz in zip(
+                rank_format_objs, rank_format_names, dimension_sizes
+            ):
+                # YAML-specified word bits take precedence
+                if rf_obj.metadata_word_bits is not None:
+                    md_wb = rf_obj.metadata_word_bits
+                elif fmt.metadata_word_bits is not None:
+                    md_wb = fmt.metadata_word_bits
+                else:
+                    md_wb, _ = _auto_derive_word_bits(prim, dim_sz)
+
+                if rf_obj.payload_word_bits is not None:
+                    pl_wb = rf_obj.payload_word_bits
+                else:
+                    _, pl_wb = _auto_derive_word_bits(prim, dim_sz)
+
+                rank_word_bits.append({"metadata": md_wb, "payload": pl_wb})
+
+            # Store per-rank info (informational only)
+            per_rank_info[(tensor, level)] = {
+                "rank_formats": rank_format_names,
+                "rank_capacity": [
+                    (occ.metadata_units, occ.payload_units) for occ in rank_occs
+                ],
+                "rank_access_counts": rank_access,
+                "rank_word_bits": rank_word_bits,
+            }
+
+        # ---- Emit metadata_read/metadata_write actions (flat logic) ----
+        # Uses post-SAF/post-compression data read tracking for action keys.
+        # Per-rank columns are informational only.
+        metadata_word_bits = fmt.metadata_word_bits
+        if metadata_word_bits is None:
+            if fmt_name == "bitmask":
+                metadata_word_bits = 1
+            elif fmt_name in ("cp", "csr", "coo"):
+                metadata_word_bits = tensor_info[tensor]["bits_per_value"]
+            else:
+                continue
+
+        if metadata_storage_width is not None and metadata_storage_width > 0:
+            words_per_sram = metadata_storage_width // metadata_word_bits
+            if words_per_sram < 1:
+                words_per_sram = 1
+            metadata_read_scale = 1.0 / words_per_sram
+        else:
+            metadata_read_scale = metadata_word_bits / read_bpa
+
+        if fmt_name == "bitmask":
+            actual_metadata_reads = post_saf_data_reads + saf_delta
+            if metadata_storage_width is not None:
+                actual_metadata_reads = math.ceil(
+                    actual_metadata_reads * metadata_read_scale
+                )
+            if actual_metadata_reads > 0 and _has_action(
+                spec, level, "metadata_read"
+            ):
+                _emit(
+                    sparse_actions, level, "metadata_read", actual_metadata_reads
+                )
+
+            metadata_writes = post_fills
+            if metadata_storage_width is not None:
+                metadata_writes = math.ceil(
+                    metadata_writes * metadata_read_scale
+                )
+            if metadata_writes > 0 and _has_action(
+                spec, level, "metadata_write"
+            ):
+                _emit(sparse_actions, level, "metadata_write", metadata_writes)
+
+        elif fmt_name in ("cp", "csr", "coo"):
+            actual_metadata_reads = post_saf_data_reads
+            if metadata_storage_width is not None:
+                actual_metadata_reads = math.ceil(
+                    actual_metadata_reads * metadata_read_scale
+                )
+            if actual_metadata_reads > 0 and _has_action(
+                spec, level, "metadata_read"
+            ):
+                _emit(
+                    sparse_actions, level, "metadata_read", actual_metadata_reads
+                )
+
+            metadata_writes = post_fills
+            if metadata_storage_width is not None:
+                metadata_writes = math.ceil(
+                    metadata_writes * metadata_read_scale
+                )
+            if metadata_writes > 0 and _has_action(
+                spec, level, "metadata_write"
+            ):
+                _emit(sparse_actions, level, "metadata_write", metadata_writes)
+
+    return per_rank_info
 
 
 def _recompute_action_counts(

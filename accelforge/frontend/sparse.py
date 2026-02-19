@@ -70,6 +70,14 @@ class RepresentationFormat(EvalableModel):
     """Explicit per-rank format specification (expert mode).
     Ordered outer-to-inner."""
 
+    metadata_word_bits: Optional[int] = None
+    """Bits per metadata word. None = auto-derive from format:
+    bitmask → 1, cp/csr/coo → ceil(log2(fiber_shape))."""
+
+    metadata_storage_width: Optional[int] = None
+    """Physical SRAM width in bits for metadata word packing (e.g. 28).
+    None = skip physical packing (use logical counts)."""
+
     def get_rank_formats(self, num_ranks: Optional[int] = None) -> list[RankFormat]:
         """Return per-rank formats, auto-expanding if needed.
 
