@@ -237,6 +237,133 @@ class TestWorkloadDensitySpec(unittest.TestCase):
         self.assertIsNotNone(w.densities)
 
 
+class TestDensityPropagation(unittest.TestCase):
+    """Test that workload.densities propagates to TensorAccess.density
+    through the _spec_eval_expressions pipeline.
+
+    Uses real YAML files (matmuls example) so this exercises the actual
+    Spec evaluation path: Workload._eval_expressions -> Einsum._eval_expressions
+    -> density_dict resolution -> TensorAccess.density assignment.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent))
+        from paths import EXAMPLES_DIR
+        cls.EXAMPLES_DIR = EXAMPLES_DIR
+
+    def _load_spec(self):
+        """Load a single-matmul Spec (T0, W0 -> T1)."""
+        from accelforge.frontend.spec import Spec
+        return Spec.from_yaml(
+            self.EXAMPLES_DIR / "arches" / "simple.yaml",
+            self.EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            self.EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
+            jinja_parse_data={"N_EINSUMS": 1, "M": 8, "KN": 8},
+        )
+
+    def _get_densities(self, spec):
+        """Return {tensor_name: density} for the first Einsum."""
+        return {
+            ta.name: ta.density
+            for ta in spec.workload.einsums[0].tensor_accesses
+        }
+
+    def test_no_densities_all_none(self):
+        """Without densities set, all tensors have density=None."""
+        spec = self._load_spec()
+        evaluated = spec._spec_eval_expressions(einsum_name="Matmul0")
+        dens = self._get_densities(evaluated)
+        for name, d in dens.items():
+            self.assertIsNone(d, f"Tensor {name} should be None")
+
+    def test_workload_densities_per_tensor(self):
+        """densities: {T0: 0.3, W0: 0.5} -> T0=0.3, W0=0.5, T1=None."""
+        from accelforge.util._basetypes import EvalableDict
+        spec = self._load_spec()
+        spec.workload.densities = EvalableDict({"T0": 0.3, "W0": 0.5})
+        evaluated = spec._spec_eval_expressions(einsum_name="Matmul0")
+        dens = self._get_densities(evaluated)
+        self.assertEqual(dens["T0"], 0.3)
+        self.assertEqual(dens["W0"], 0.5)
+        self.assertIsNone(dens["T1"])
+
+    def test_workload_densities_all(self):
+        """densities: {All: 0.5} -> all tensors get density 0.5."""
+        from accelforge.util._basetypes import EvalableDict
+        spec = self._load_spec()
+        spec.workload.densities = EvalableDict({"All": 0.5})
+        evaluated = spec._spec_eval_expressions(einsum_name="Matmul0")
+        dens = self._get_densities(evaluated)
+        for name, d in dens.items():
+            self.assertEqual(d, 0.5, f"Tensor {name}")
+
+    def test_per_tensor_overrides_workload(self):
+        """Per-TensorAccess density overrides workload-level density."""
+        from accelforge.util._basetypes import EvalableDict
+        spec = self._load_spec()
+        spec.workload.densities = EvalableDict({"All": 0.5})
+        # Set per-tensor density on T0 before evaluation
+        for einsum in spec.workload.einsums:
+            for ta in einsum.tensor_accesses:
+                if ta.name == "T0":
+                    ta.density = 0.1
+        evaluated = spec._spec_eval_expressions(einsum_name="Matmul0")
+        dens = self._get_densities(evaluated)
+        self.assertEqual(dens["T0"], 0.1)   # per-tensor wins
+        self.assertEqual(dens["W0"], 0.5)   # from workload
+        self.assertEqual(dens["T1"], 0.5)   # from workload
+
+    def test_cross_einsum_consistency_ok(self):
+        """Two Einsums sharing a tensor with same density -> no error."""
+        from accelforge.frontend.spec import Spec
+        from accelforge.util._basetypes import EvalableDict
+        spec = Spec.from_yaml(
+            self.EXAMPLES_DIR / "arches" / "simple.yaml",
+            self.EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            self.EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
+            jinja_parse_data={"N_EINSUMS": 2, "M": 8, "KN": 8},
+        )
+        # T1 is shared between Matmul0 (output) and Matmul1 (input).
+        # Setting consistent density should work.
+        spec.workload.densities = EvalableDict({"T1": 0.5})
+        evaluated = spec._spec_eval_expressions(einsum_name="Matmul0")
+        # Should not raise
+        dens0 = {
+            ta.name: ta.density
+            for ta in evaluated.workload.einsums[0].tensor_accesses
+        }
+        dens1 = {
+            ta.name: ta.density
+            for ta in evaluated.workload.einsums[1].tensor_accesses
+        }
+        self.assertEqual(dens0["T1"], 0.5)
+        self.assertEqual(dens1["T1"], 0.5)
+
+    def test_cross_einsum_inconsistency_raises(self):
+        """Two Einsums sharing a tensor with different densities -> raises."""
+        from accelforge.frontend.spec import Spec
+        spec = Spec.from_yaml(
+            self.EXAMPLES_DIR / "arches" / "simple.yaml",
+            self.EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            self.EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
+            jinja_parse_data={"N_EINSUMS": 2, "M": 8, "KN": 8},
+        )
+        # T1 is shared. Set different densities per-Einsum.
+        for ta in spec.workload.einsums[0].tensor_accesses:
+            if ta.name == "T1":
+                ta.density = 0.3
+        for ta in spec.workload.einsums[1].tensor_accesses:
+            if ta.name == "T1":
+                ta.density = 0.7
+        with self.assertRaises(ValueError) as ctx:
+            spec._spec_eval_expressions(einsum_name="Matmul0")
+        self.assertIn("T1", str(ctx.exception))
+        self.assertIn("density", str(ctx.exception).lower())
+
+
 class TestDensityModelRepr(unittest.TestCase):
     """Test string representation."""
 
