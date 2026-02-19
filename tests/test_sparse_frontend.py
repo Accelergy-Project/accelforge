@@ -1,9 +1,11 @@
 """Tests for Phase 3: Sparse frontend specification parsing.
 
-Tests YAML parsing of sparse_optimizations, auto-expansion, and round-trip.
+Tests YAML parsing of sparse_optimizations, auto-expansion, round-trip,
+and YAML file loading per IMPLEMENTATION_PLAN.md Phase 3.
 """
 
 import unittest
+from pathlib import Path
 
 from accelforge.frontend.sparse import (
     RankFormat,
@@ -13,6 +15,16 @@ from accelforge.frontend.sparse import (
     SparseTarget,
     SparseOptimizations,
 )
+
+_SPARSE_DIR = Path(__file__).parent / "input_files" / "sparse"
+
+
+def _load_sparse_yaml(filename: str) -> SparseOptimizations:
+    """Load a sparse_optimizations YAML file into a SparseOptimizations object."""
+    from accelforge.util._yaml import load_yaml
+
+    data = load_yaml(str(_SPARSE_DIR / filename))
+    return SparseOptimizations(**data["sparse_optimizations"])
 
 
 class TestRepresentationFormat(unittest.TestCase):
@@ -330,6 +342,178 @@ class TestRankFormat(unittest.TestCase):
         self.assertEqual(rf.format, "CP")
         self.assertEqual(rf.metadata_word_bits, 14)
         self.assertEqual(rf.payload_word_bits, 0)
+
+
+class TestYAMLFileLoading(unittest.TestCase):
+    """Test loading sparse_optimizations from actual YAML files.
+
+    Per IMPLEMENTATION_PLAN.md Phase 3: parse buffer_compressed, buffer_gating,
+    buffer_skipping, bitmask, and coordinate_list YAML files.
+    """
+
+    def test_parse_buffer_compressed(self):
+        """Lab 4 buffer_compressed.yaml: UOP+CP at DRAM and Buffer."""
+        so = _load_sparse_yaml("buffer_compressed.yaml")
+        self.assertEqual(len(so.targets), 2)
+
+        # DRAM has format for A and B
+        dram_fmts_a = so.get_formats_for("DRAM", "A")
+        self.assertEqual(len(dram_fmts_a), 1)
+        ranks = dram_fmts_a[0].get_rank_formats()
+        self.assertEqual(len(ranks), 2)
+        self.assertEqual(ranks[0].format, "UOP")
+        self.assertEqual(ranks[1].format, "CP")
+
+        dram_fmts_b = so.get_formats_for("DRAM", "B")
+        self.assertEqual(len(dram_fmts_b), 1)
+
+        # Buffer has format for A and B
+        buf_fmts_a = so.get_formats_for("Buffer", "A")
+        self.assertEqual(len(buf_fmts_a), 1)
+        buf_fmts_b = so.get_formats_for("Buffer", "B")
+        self.assertEqual(len(buf_fmts_b), 1)
+
+        # No SAF or compute optimizations
+        self.assertEqual(len(so.get_action_optimizations_for("DRAM")), 0)
+        self.assertEqual(len(so.get_action_optimizations_for("Buffer")), 0)
+
+    def test_parse_buffer_gating(self):
+        """Lab 4 buffer_gating.yaml: gating at Buffer + MAC."""
+        so = _load_sparse_yaml("buffer_gating.yaml")
+        self.assertEqual(len(so.targets), 2)
+
+        # Buffer: gating SAF on Z conditioned on [A, B]
+        safs = so.get_action_optimizations_for("Buffer")
+        self.assertEqual(len(safs), 1)
+        self.assertEqual(safs[0].kind, "gating")
+        self.assertEqual(safs[0].target, "Z")
+        self.assertEqual(safs[0].condition_on, ["A", "B"])
+
+        # MAC: compute gating
+        cops = so.get_compute_optimizations_for("MAC")
+        self.assertEqual(len(cops), 1)
+        self.assertEqual(cops[0].kind, "gating")
+        self.assertEqual(cops[0].target, "Z")
+        self.assertEqual(cops[0].condition_on, ["A", "B"])
+
+        # No formats
+        self.assertEqual(len(so.get_formats_for("Buffer", "A")), 0)
+
+    def test_parse_buffer_skipping(self):
+        """Lab 4 buffer_skipping.yaml: UOP+CP format + skipping SAF."""
+        so = _load_sparse_yaml("buffer_skipping.yaml")
+
+        # DRAM and Buffer both have formats
+        self.assertTrue(so.has_format("DRAM", "A"))
+        self.assertTrue(so.has_format("Buffer", "A"))
+
+        # Buffer has skipping SAFs
+        safs = so.get_action_optimizations_for("Buffer")
+        self.assertEqual(len(safs), 3)
+        for saf in safs:
+            self.assertEqual(saf.kind, "skipping")
+
+        # Targets: A on [B], B on [A], Z on [A, B]
+        targets = {saf.target: saf.condition_on for saf in safs}
+        self.assertEqual(targets["A"], ["B"])
+        self.assertEqual(targets["B"], ["A"])
+        self.assertEqual(targets["Z"], ["A", "B"])
+
+    def test_parse_bitmask(self):
+        """fig1 bitmask.yaml: UOP+B format at BackingStorage+Buffer, gating."""
+        so = _load_sparse_yaml("bitmask.yaml")
+        self.assertEqual(len(so.targets), 3)
+
+        # BackingStorage: bitmask format for A and B
+        self.assertTrue(so.has_format("BackingStorage", "A"))
+        self.assertTrue(so.has_format("BackingStorage", "B"))
+        fmts_a = so.get_formats_for("BackingStorage", "A")
+        self.assertEqual(fmts_a[0].format, "bitmask")
+
+        # Buffer: bitmask format + gating SAF
+        self.assertTrue(so.has_format("Buffer", "A"))
+        buf_safs = so.get_action_optimizations_for("Buffer")
+        self.assertEqual(len(buf_safs), 2)
+        for saf in buf_safs:
+            self.assertEqual(saf.kind, "gating")
+
+        # Reg: gating on Z conditioned on [A, B]
+        reg_safs = so.get_action_optimizations_for("Reg")
+        self.assertEqual(len(reg_safs), 1)
+        self.assertEqual(reg_safs[0].target, "Z")
+        self.assertEqual(reg_safs[0].kind, "gating")
+
+    def test_parse_coordinate_list(self):
+        """fig1 coordinate_list.yaml: UOP+CP format + skipping SAF."""
+        so = _load_sparse_yaml("coordinate_list.yaml")
+        self.assertEqual(len(so.targets), 3)
+
+        # BackingStorage: csr format for A and B
+        fmts_a = so.get_formats_for("BackingStorage", "A")
+        self.assertEqual(fmts_a[0].format, "csr")
+
+        # Buffer: csr format + skipping SAF
+        buf_safs = so.get_action_optimizations_for("Buffer")
+        self.assertEqual(len(buf_safs), 2)
+        for saf in buf_safs:
+            self.assertEqual(saf.kind, "skipping")
+
+        # Reg: skipping on Z
+        reg_safs = so.get_action_optimizations_for("Reg")
+        self.assertEqual(len(reg_safs), 1)
+        self.assertEqual(reg_safs[0].kind, "skipping")
+
+    def test_coordinate_list_auto_expansion(self):
+        """csr format auto-expands to UOP+CP for 2 ranks."""
+        so = _load_sparse_yaml("coordinate_list.yaml")
+        fmts = so.get_formats_for("BackingStorage", "A")
+        ranks = fmts[0].get_rank_formats(num_ranks=2)
+        self.assertEqual(len(ranks), 2)
+        self.assertEqual(ranks[0].format, "UOP")
+        self.assertEqual(ranks[1].format, "CP")
+
+
+class TestRoundTripSerialize(unittest.TestCase):
+    """Test that parse -> dump -> re-parse produces identical results."""
+
+    def test_round_trip_bitmask(self):
+        """Parse bitmask.yaml, dump to dict, re-parse, verify identity."""
+        so = _load_sparse_yaml("bitmask.yaml")
+
+        # Dump to dict
+        dumped = so.model_dump()
+
+        # Re-parse from dict
+        so2 = SparseOptimizations(**dumped)
+
+        # Verify equivalence
+        self.assertEqual(len(so2.targets), len(so.targets))
+        for orig, reparsed in zip(so.targets, so2.targets):
+            self.assertEqual(orig.target, reparsed.target)
+            self.assertEqual(
+                len(orig.representation_format),
+                len(reparsed.representation_format),
+            )
+            self.assertEqual(
+                len(orig.action_optimization),
+                len(reparsed.action_optimization),
+            )
+            for ao_orig, ao_re in zip(
+                orig.action_optimization, reparsed.action_optimization
+            ):
+                self.assertEqual(ao_orig.kind, ao_re.kind)
+                self.assertEqual(ao_orig.target, ao_re.target)
+                self.assertEqual(ao_orig.condition_on, ao_re.condition_on)
+
+    def test_round_trip_coordinate_list(self):
+        """Parse coordinate_list.yaml, dump to dict, re-parse."""
+        so = _load_sparse_yaml("coordinate_list.yaml")
+        dumped = so.model_dump()
+        so2 = SparseOptimizations(**dumped)
+
+        self.assertEqual(len(so2.targets), len(so.targets))
+        for orig, reparsed in zip(so.targets, so2.targets):
+            self.assertEqual(orig.target, reparsed.target)
 
 
 if __name__ == "__main__":
