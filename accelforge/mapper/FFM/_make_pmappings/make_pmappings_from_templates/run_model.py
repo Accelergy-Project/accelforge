@@ -11,6 +11,7 @@ from accelforge.model._looptree.energy import (
     gather_actions,
 )
 from accelforge.model._looptree.latency.memory import component_latency
+from accelforge.model.sparse_adjustment import apply_sparse_adjustments
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,
@@ -57,6 +58,8 @@ def run_model(
                 [f"{k}: {type(v)} {str(v).strip()}" for k, v in latency.items()]
             )
         )
+    apply_sparse_adjustments(reuse, spec, job)
+
     memory_to_size = {}
     component_to_non_power_gated_porp = {}
     usage_df = {}

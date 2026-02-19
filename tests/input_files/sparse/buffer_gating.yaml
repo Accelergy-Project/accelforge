@@ -1,0 +1,13 @@
+sparse_optimizations:
+  targets:
+  - target: Buffer
+    action_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+
+  - target: MAC
+    compute_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]

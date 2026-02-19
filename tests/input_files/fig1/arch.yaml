@@ -1,0 +1,44 @@
+# AccelForge arch for fig1 format comparison setup.
+# Simplified energy model: energy=1 per action, Reg=0 (zero-cost register).
+# bits_per_action=8 makes read_scale=1 (action_count = element_count).
+# A/B are routed through Reg for sparse child-buffet support (SAF at Buffer
+# needs a child to reduce reads).
+
+arch:
+  nodes:
+  - !Memory
+    name: BackingStorage
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 1, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 1, bits_per_action: 8, latency: 0}
+
+  - !Memory
+    name: Buffer
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~BackingStorage, may_keep: All}
+    actions:
+    - {name: read, energy: 1, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 1, bits_per_action: 8, latency: 0}
+
+  - !Memory
+    name: Reg
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0, bits_per_action: 8, latency: 0}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 1, latency: 1}
