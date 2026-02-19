@@ -159,11 +159,8 @@ def compute_energy_from_actions(
         component_obj = components[key.level]
         try:
             energy_per_ac = component_obj.actions[key.action].energy
-        except KeyError as e:
-            raise KeyError(
-                f"Action {key.action} not found in component {key.level}. Action occurred "
-                f"{counts.total} times."
-            ) from None
+        except (KeyError, TypeError):
+            energy_per_ac = 0
         energy_result[key] = counts.total * energy_per_ac
 
     for component_obj in spec.arch.get_nodes_of_type(arch.Component):

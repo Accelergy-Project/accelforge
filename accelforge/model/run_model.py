@@ -59,7 +59,7 @@ def run_model(
                 [f"{k}: {type(v)} {str(v).strip()}" for k, v in latency.items()]
             )
         )
-    apply_sparse_adjustments(reuse, spec, job)
+    sparse_actions, per_rank_info = apply_sparse_adjustments(reuse, spec, job)
 
     used_fanout = {
         (component, dim): n
@@ -99,6 +99,8 @@ def run_model(
         df.update(spatial_usage_df)
 
     actions = gather_actions(reuse, None, use_name=True)
+    if sparse_actions:
+        actions.update(sparse_actions)
     energy = compute_energy_from_actions(
         spec, actions, overall_latency, component_to_non_power_gated_porp
     )
@@ -158,6 +160,8 @@ def run_model(
 
     if metrics & Metrics.ACTIONS:
         detailed_actions = gather_actions(reuse, None, verbose=True, use_name=True)
+        if sparse_actions:
+            detailed_actions.update(sparse_actions)
         for key, count in detailed_actions.items():
             df[action2col(key)] = count.total * n_instances
         detailed_energy = compute_energy_from_actions(
@@ -172,6 +176,21 @@ def run_model(
     simple_actions = gather_actions(reuse, None, verbose=False, use_name=True)
     for key, count in simple_actions.items():
         actions_df[action2col(key)] = count.total * n_instances
+
+        # Per-rank format columns (informational, pre-SAF logical counts)
+        for (tensor, level), info in per_rank_info.items():
+            rank_access = info.get("rank_access_counts")
+            rank_cap = info.get("rank_capacity", [])
+            for i, cap in enumerate(rank_cap):
+                md_cap, pl_cap = cap
+                df[f"format_capacity<SEP>{level}<SEP>{tensor}<SEP>rank{i}<SEP>metadata"] = md_cap
+                df[f"format_capacity<SEP>{level}<SEP>{tensor}<SEP>rank{i}<SEP>payload"] = pl_cap
+            if rank_access is not None:
+                for i in range(len(rank_access.rank_metadata_reads)):
+                    df[f"format_reads<SEP>{level}<SEP>{tensor}<SEP>rank{i}<SEP>metadata"] = rank_access.rank_metadata_reads[i]
+                    df[f"format_reads<SEP>{level}<SEP>{tensor}<SEP>rank{i}<SEP>payload"] = rank_access.rank_payload_reads[i]
+                    df[f"format_fills<SEP>{level}<SEP>{tensor}<SEP>rank{i}<SEP>metadata"] = rank_access.rank_metadata_fills[i]
+                    df[f"format_fills<SEP>{level}<SEP>{tensor}<SEP>rank{i}<SEP>payload"] = rank_access.rank_payload_fills[i]
 
     if metrics & Metrics.LATENCY:
         df["Total<SEP>latency"] = overall_latency * n_instances
