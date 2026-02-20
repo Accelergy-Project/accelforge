@@ -28,7 +28,7 @@ class TestParsing(TestCase):
         self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)
         self.assertEqual(
             {n.name for n in spec.arch.get_nodes_of_type(af.spec.Leaf)},
-            {'MainMemory', 'NoC', 'GlobalBuffer', 'RowBuffer', 'ColumnBuffer', 'DistributedBuffer', 'Scratchpad', 'MAC'}
+            {'MainMemory', 'GlobalBuffer', 'RowBuffer', 'ColumnBuffer', 'DistributedBuffer', 'Scratchpad', 'MAC'}
         )
 
         try:

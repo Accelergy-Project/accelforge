@@ -141,6 +141,7 @@ class Branch(ArchNode):
                 Annotated["Memory", Tag("Memory")],
                 Annotated["Toll", Tag("Toll")],
                 Annotated["Container", Tag("Container")],
+                Annotated["Network", Tag("Network")],
                 Annotated["Hierarchical", Tag("Hierarchical")],
                 Annotated["Fork", Tag("Fork")],
             ],
