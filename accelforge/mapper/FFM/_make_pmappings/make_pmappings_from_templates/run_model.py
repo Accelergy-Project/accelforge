@@ -77,7 +77,8 @@ def run_model(
             usage_df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
             if metrics & Metrics.ACTIONS:
                 df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
-            non_power_gated_instances *= usage
+            if s.power_gateable:
+                non_power_gated_instances *= usage
         component_to_non_power_gated_porp[node.name] = non_power_gated_instances
 
     actions = gather_actions(reuse, None, use_name=True)
