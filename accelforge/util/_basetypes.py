@@ -411,7 +411,7 @@ class _FromYAMLAble:
                 A dictionary of Jinja2 data to use when parsing the yaml files.
             top_key: Optional[str]
                 The top key to use when parsing the yaml files.
-            kwargs: Extra keyword arguments to be passed to the constructor.
+            kwargs: Extra keyword arguments to be passed to the Jinja2 parser.
 
         Returns:
             A dict containing the combined dictionaries.
@@ -419,6 +419,7 @@ class _FromYAMLAble:
 
         allfiles = []
         jinja_parse_data = jinja_parse_data or {}
+        jinja_parse_data = {**jinja_parse_data, **kwargs}
         for f in files:
             if isinstance(f, (list, tuple)):
                 if isinstance(f[0], Path):
@@ -473,7 +474,7 @@ class _FromYAMLAble:
         c = None
         exc = None
         try:
-            c = cls(**rval, **kwargs)
+            c = cls(**rval)
         except Exception as e:
             exc = e
 
