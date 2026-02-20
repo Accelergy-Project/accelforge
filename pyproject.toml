@@ -7,8 +7,8 @@ name = "accelforge"
 dynamic = ["version"]
 description = "AccelForge"
 authors = [
+    {name = "Tanner Andrulis", email = "tannerandrulis@gmail.com"},
     {name = "Michael Gilbert", email = "gilbertm@mit.edu"},
-    {name = "Tanner Andrulis", email = "andrulis@mit.edu"}
 ]
 readme = "README.md"
 requires-python = ">=3.8"
