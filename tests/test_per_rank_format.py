@@ -327,8 +327,8 @@ class TestCapacityComparisons(unittest.TestCase):
 # ===========================================================================
 
 
-class TestEnergyPipelineUnchanged(unittest.TestCase):
-    """Per-rank computation doesn't change metadata_read/write action counts."""
+class TestEnergyPipelinePerRank(unittest.TestCase):
+    """Per-rank model determines metadata_read/write action counts."""
 
     @classmethod
     def setUpClass(cls):
@@ -336,7 +336,12 @@ class TestEnergyPipelineUnchanged(unittest.TestCase):
         cls.coord_list = _load("sparse_coord_list_energy.yaml")
 
     def test_bitmask_buffer_metadata_read(self):
-        """Bitmask Buffer metadata_read = 15,214 (unchanged from Phase 8)."""
+        """Bitmask Buffer metadata_read = 15,214 (actual only, gating split).
+
+        Per-rank model: bitmask at Buffer has 1 non-trivial dim (k=128),
+        format=["B"]. For gating, only effectual iterations are charged at
+        full metadata_read rate. Gated iterations at gated_metadata_read.
+        """
         for c in self.bitmask.data.columns:
             if "action" in c and c.endswith("Buffer<SEP>metadata_read"):
                 self.assertEqual(int(self.bitmask.data[c].iloc[0]), 15214)
@@ -344,18 +349,21 @@ class TestEnergyPipelineUnchanged(unittest.TestCase):
         self.fail("metadata_read column not found")
 
     def test_bitmask_buffer_metadata_write(self):
-        """Bitmask Buffer metadata_write = 7,667 (unchanged from Phase 8)."""
+        """Bitmask Buffer metadata_write = 75,485 (per-rank: density-independent mask).
+
+        A fills=2,097,152 → packed 74,899. B fills=16,384 → packed 586.
+        """
         for c in self.bitmask.data.columns:
             if "action" in c and c.endswith("Buffer<SEP>metadata_write"):
-                self.assertEqual(int(self.bitmask.data[c].iloc[0]), 7667)
+                self.assertEqual(int(self.bitmask.data[c].iloc[0]), 75485)
                 return
         self.fail("metadata_write column not found")
 
     def test_coord_list_buffer_metadata_read(self):
-        """Coord list Buffer metadata_read = 10,816 (unchanged from Phase 8)."""
+        """Coord list Buffer metadata_read = 21,632 (per-rank: CP scales with ennz)."""
         for c in self.coord_list.data.columns:
             if "action" in c and c.endswith("Buffer<SEP>metadata_read"):
-                self.assertEqual(int(self.coord_list.data[c].iloc[0]), 10816)
+                self.assertEqual(int(self.coord_list.data[c].iloc[0]), 21632)
                 return
         self.fail("metadata_read column not found")
 

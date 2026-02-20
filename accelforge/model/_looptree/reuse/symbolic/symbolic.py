@@ -1095,10 +1095,12 @@ def analyze_storage(
             )
 
         if count_upward_movement:  # Me -> Parent
-            # Comment this to have the final writeback to a buffer hit both that buffer and
-            # go directly to the parent without incurring another read from the buffer.
-            stats.total_read_actions += stats.total_writes_to_parent * read_scale
-            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
+            # Output tensors: writeback reads not charged (Sparseloop convention).
+            # The data is drained on the last write without a separate read.
+            is_output_tensor = tensor in info.workload.einsums[einsum_name].output_tensor_names
+            if not is_output_tensor:
+                stats.total_read_actions += stats.total_writes_to_parent * read_scale
+                stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
 
         # ========================
         # Data exchanges with peer

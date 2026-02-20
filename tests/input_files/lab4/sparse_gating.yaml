@@ -1,0 +1,16 @@
+# Lab 4 gating: Z gated on [A, B] at Buffer + MAC compute gating
+# No compression — tensors stored uncompressed.
+
+sparse_optimizations:
+  targets:
+  - target: Buffer
+    action_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+
+  - target: MAC
+    compute_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]

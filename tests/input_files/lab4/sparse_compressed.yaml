@@ -1,0 +1,26 @@
+# Lab 4 compressed-only: CSR at BackingStorage+Buffer, no SAF
+# Tests format compression without action optimization.
+
+sparse_optimizations:
+  targets:
+  - target: BackingStorage
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4
+    - name: B
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4
+
+  - target: Buffer
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4
+    - name: B
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4

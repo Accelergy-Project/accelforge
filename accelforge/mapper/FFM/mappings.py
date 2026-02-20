@@ -470,8 +470,7 @@ class Mappings:
                     result[(einsum, component, tensor, action)] = tensor_accessed[col]
             for col in einsum_accessed._get_keys_of_length(2):
                 component, action = col.split("<SEP>")
-                if action == "leak":
-                    result[(einsum, component, None, action)] = einsum_accessed[col]
+                result[(einsum, component, None, action)] = einsum_accessed[col]
 
         keep_indices = []
         for i, idx in enumerate([per_einsum, per_component, per_tensor, per_action]):
@@ -660,6 +659,9 @@ class Mappings:
                 for col in tensor_accessed._get_keys_of_length(2):
                     component, action = col.split("<SEP>")
                     result[(einsum, component, tensor, action)] = tensor_accessed[col]
+            for col in einsum_accessed._get_keys_of_length(2):
+                component, action = col.split("<SEP>")
+                result[(einsum, component, None, action)] = einsum_accessed[col]
 
         keep_indices = []
         for i, idx in enumerate([per_einsum, per_component, per_tensor, True]):

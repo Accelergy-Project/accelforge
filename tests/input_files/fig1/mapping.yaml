@@ -30,13 +30,14 @@ mapping:
     tensors: [A]
     component: Buffer
 
-  # All tensors at Reg (Z for accumulation, A/B zero-cost for SAF child)
+  # Z at Reg for accumulation (0.49 pJ read/write)
   - !Storage
     tensors: [Z]
     component: Reg
+  # A,B at RegPassthrough (zero energy, needed for SAF child-buffet support)
   - !Storage
     tensors: [A, B]
-    component: Reg
+    component: RegPassthrough
 
   # k loop: 128 iterations, tile=1
   - !Temporal

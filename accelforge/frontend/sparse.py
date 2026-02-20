@@ -78,6 +78,10 @@ class RepresentationFormat(EvalableModel):
     """Physical SRAM width in bits for metadata word packing (e.g. 28).
     None = skip physical packing (use logical counts)."""
 
+    uop_payload_word_bits: Optional[int] = None
+    """Override payload_word_bits for auto-expanded UOP ranks.
+    None = auto-derive from dimension size. 0 = free (Sparseloop default)."""
+
     def get_rank_formats(self, num_ranks: Optional[int] = None) -> list[RankFormat]:
         """Return per-rank formats, auto-expanding if needed.
 
@@ -99,7 +103,13 @@ class RepresentationFormat(EvalableModel):
         from accelforge.model.sparse_formats import expand_format
 
         primitives = expand_format(self.format, num_ranks)
-        return [RankFormat(format=p) for p in primitives]
+        result = []
+        for p in primitives:
+            if p.upper() == "UOP" and self.uop_payload_word_bits is not None:
+                result.append(RankFormat(format=p, payload_word_bits=self.uop_payload_word_bits))
+            else:
+                result.append(RankFormat(format=p))
+        return result
 
 
 class ActionOptimization(EvalableModel):

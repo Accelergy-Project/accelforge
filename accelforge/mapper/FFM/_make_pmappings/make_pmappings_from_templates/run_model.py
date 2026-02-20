@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from sympy import Symbol
 import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import TensorHolder
@@ -22,7 +24,8 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
 from accelforge.frontend.mapper.metrics import Metrics
 import sympy
 from numbers import Number
-from accelforge.util._sympy.broadcast_max import MaxGeqZero
+from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
+from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero
 
 
 def run_model(
@@ -41,6 +44,7 @@ def run_model(
         job, add_reservations=add_reservations
     )
 
+    # Phase 1: Dense latency (before sparse adjustments)
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
     try:
         overall_latency = MaxGeqZero(*latency.values())
@@ -58,7 +62,27 @@ def run_model(
                 [f"{k}: {type(v)} {str(v).strip()}" for k, v in latency.items()]
             )
         )
-    sparse_actions, per_rank_info = apply_sparse_adjustments(reuse, spec, job)
+
+    sparse_actions, per_rank_info, latency_info = apply_sparse_adjustments(
+        reuse, spec, job
+    )
+
+    # Phase 2: Recompute latency AFTER sparse adjustments using per-tensor
+    # post-sparse action counts + gated deltas added back + metadata.
+    has_sparse_latency = (
+        latency_info["gated_read_action_deltas"]
+        or latency_info["metadata_read_actions"]
+        or latency_info["metadata_write_actions"]
+        or latency_info["compute_latency_ratio"] != 1.0
+    )
+    if has_sparse_latency:
+        latency = _compute_sparse_latency(
+            reuse, latency_info, job.flattened_arch, spec
+        )
+        try:
+            overall_latency = MaxGeqZero(*latency.values())
+        except Exception:
+            pass  # Fall back to dense latency on error
 
     memory_to_size = {}
     component_to_non_power_gated_porp = {}
@@ -203,3 +227,150 @@ def run_model(
         usage_df,
         reuse.tensor2mapping,
     )
+
+
+def _compute_sparse_latency(reuse, latency_info, flattened_arch, spec):
+    """Compute sparse-adjusted latency using post-sparse action counts.
+
+    Uses post-sparse buffet_stats (after _recompute_action_counts) which
+    already reflect SAF reductions. For gating, gated reads are added back
+    because they still consume port bandwidth (cycles consumed, energy saved).
+
+    Aggregates across all tensors per level (matching component_latency),
+    then evaluates total_latency once per component.
+
+    Metadata reads/writes are added at the level.
+
+    Compute latency is scaled by compute_latency_ratio (post-4b / pre-sparse).
+    """
+    component_latency_result = {}
+
+    symbol_table_base = {
+        **dict(spec.variables),
+        "variables": spec.variables,
+        "max": Max,
+        "min": sympy.Min,
+        "sum": sympy.Add,
+    }
+
+    name2component = {node.name: node for node in flattened_arch}
+
+    compute_obj = flattened_arch[-1]
+    if not isinstance(compute_obj, arch.Compute):
+        return {}
+
+    compute_levels = set(c.level for c in reuse.compute_stats)
+
+    # Aggregate post-sparse action counts per level (matching component_latency)
+    component_to_actions: dict[str, dict[str, float]] = defaultdict(
+        lambda: defaultdict(float)
+    )
+
+    # Per-tensor tracking for max-based latency (e.g., Reg with dedicated ports)
+    per_tensor_reads: dict[str, dict[str, float]] = defaultdict(
+        lambda: defaultdict(float)
+    )
+    per_tensor_writes: dict[str, dict[str, float]] = defaultdict(
+        lambda: defaultdict(float)
+    )
+
+    for buffet, stats in reuse.buffet_stats.items():
+        if buffet.level in compute_levels:
+            continue
+        component = buffet.level
+        if component not in name2component:
+            continue
+        node = name2component[component]
+        if not isinstance(node, arch.TensorHolder):
+            continue
+
+        # Ensure all declared actions have entries
+        for action in node.actions:
+            component_to_actions[component].setdefault(f"{action.name}_actions", 0)
+
+        # Post-sparse action counts (SAF already applied)
+        read_actions = stats.max_per_unit_read_actions
+        write_actions = stats.max_per_unit_write_actions
+
+        # For gating: add back gated deltas (gated reads consume BW)
+        lt_key = (component, buffet.tensor)
+        read_actions += latency_info["gated_read_action_deltas"].get(lt_key, 0)
+        write_actions += latency_info["gated_write_action_deltas"].get(lt_key, 0)
+
+        component_to_actions[component]["read_actions"] += read_actions
+        per_tensor_reads[component][buffet.tensor] += read_actions
+        if not isinstance(node, arch.Toll):
+            component_to_actions[component]["write_actions"] += write_actions
+            per_tensor_writes[component][buffet.tensor] += write_actions
+
+    # Add metadata actions per level (separate from data read/write —
+    # the total_latency expression adds them: e.g. "read_actions + metadata_read_actions")
+    for level, count in latency_info["metadata_read_actions"].items():
+        component_to_actions[level]["metadata_read_actions"] += count
+    for level, count in latency_info["metadata_write_actions"].items():
+        component_to_actions[level]["metadata_write_actions"] += count
+
+    # Compute latency: scale dense max_latency by compute_latency_ratio
+    dense_compute_latency = Max(
+        0, *[s.max_latency for s in reuse.compute_stats.values()]
+    )
+    ratio = latency_info["compute_latency_ratio"]
+    compute_actions = dense_compute_latency * ratio
+    component_to_actions[compute_obj.name]["compute_actions"] = compute_actions
+    for action in compute_obj.actions:
+        component_to_actions[compute_obj.name].setdefault(
+            f"{action.name}_actions", 0
+        )
+
+    # Compute per-tensor max for levels with dedicated ports (e.g., Reg)
+    for component in component_to_actions:
+        if per_tensor_reads[component]:
+            component_to_actions[component]["max_tensor_read_actions"] = max(
+                per_tensor_reads[component].values()
+            )
+        if per_tensor_writes[component]:
+            component_to_actions[component]["max_tensor_write_actions"] = max(
+                per_tensor_writes[component].values()
+            )
+
+    # Synthetic variables (not real actions — skip in action-latency loop)
+    _SYNTHETIC_ACTIONS = {"max_tensor_read_actions", "max_tensor_write_actions"}
+
+    # Evaluate total_latency expression per component
+    component_to_action_latency = defaultdict(dict)
+    for component, actions in component_to_actions.items():
+        node = name2component[component]
+        for action_name, count in actions.items():
+            if action_name in _SYNTHETIC_ACTIONS:
+                continue
+            aname = action_name.rsplit("_", 1)[0]
+            try:
+                lat = node.actions[aname].latency
+            except (KeyError, TypeError):
+                lat = 0
+            component_to_action_latency[component][f"{aname}_latency"] = (
+                lat * count
+            )
+
+    for component, actions in component_to_actions.items():
+        node = name2component[component]
+        symbol_table = {
+            "action2latency": component_to_action_latency[component],
+            **symbol_table_base,
+            **dict(node),
+            **actions,
+            **component_to_action_latency[component],
+        }
+        if node.total_latency is not None:
+            component_latency_result[component] = eval_expression(
+                node.total_latency,
+                symbol_table,
+                attr_name="latency",
+                location=component,
+            )
+        elif isinstance(node, arch.Compute):
+            component_latency_result[component] = sum(
+                component_to_action_latency[component].values()
+            )
+
+    return component_latency_result

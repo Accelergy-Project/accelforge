@@ -1,5 +1,5 @@
-# Fig1 bitmask format: UOP+B at BackingStorage+Buffer, gating SAF.
-# Matches Sparseloop fig1 d=0.1 bitmask configuration.
+# Fig1 bitmask format for latency tests (same as energy version).
+# Gating: gated reads still consume port bandwidth (cycles consumed).
 
 sparse_optimizations:
   targets:
@@ -7,18 +7,26 @@ sparse_optimizations:
     representation_format:
     - name: A
       format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
       uop_payload_word_bits: 0
     - name: B
       format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
       uop_payload_word_bits: 0
 
   - target: Buffer
     representation_format:
     - name: A
       format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
       uop_payload_word_bits: 0
     - name: B
       format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
       uop_payload_word_bits: 0
     action_optimization:
     - kind: gating
@@ -30,6 +38,12 @@ sparse_optimizations:
 
   - target: Reg
     action_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+
+  - target: MAC
+    compute_optimization:
     - kind: gating
       target: Z
       condition_on: [A, B]

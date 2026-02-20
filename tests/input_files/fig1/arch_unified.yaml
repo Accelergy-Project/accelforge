@@ -1,15 +1,16 @@
-# AccelForge arch for fig1 with realistic Sparseloop ERT values.
-# Includes sparse-specific actions (gated_read, metadata_read, etc.)
-# so that sparse energy tests can validate per-action energy.
+# Unified arch for fig1: ERT values + bandwidth-based latency + memory sizes.
+# Combines arch_energy.yaml + arch_latency.yaml into one file.
 # ERT values from ARTIFACT_EVALUATION.md section 2.10.
+# Memory sizes: BackingStorage=131072, Buffer=512, Reg=1 (in elements).
 
 arch:
   nodes:
   - !Memory
     name: BackingStorage
-    size: inf
+    size: 131072
     leak_power: 0
     area: 0
+    total_latency: "ceil(read_actions + metadata_read_actions)"
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
     - {name: read, energy: 32.2859, bits_per_action: 64, latency: 0}
@@ -18,9 +19,10 @@ arch:
 
   - !Memory
     name: Buffer
-    size: inf
+    size: 512
     leak_power: 0
     area: 0
+    total_latency: "ceil(max((read_actions + metadata_read_actions) / 2, (write_actions + metadata_write_actions) / 2))"
     tensors: {keep: ~BackingStorage, may_keep: All}
     actions:
     - {name: read, energy: 0.42568, bits_per_action: 8, latency: 0}
@@ -32,9 +34,10 @@ arch:
 
   - !Memory
     name: Reg
-    size: inf
+    size: 1
     leak_power: 0
     area: 0
+    total_latency: "max(max_tensor_read_actions, max_tensor_write_actions)"
     tensors: {keep: All}
     actions:
     - {name: read, energy: 0.49, bits_per_action: 8, latency: 0}
@@ -42,9 +45,10 @@ arch:
 
   - !Memory
     name: RegPassthrough
-    size: inf
+    size: 1
     leak_power: 0
     area: 0
+    total_latency: "0"
     tensors: {keep: All}
     actions:
     - {name: read, energy: 0, bits_per_action: 8, latency: 0}
