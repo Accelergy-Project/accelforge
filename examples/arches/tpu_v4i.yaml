@@ -43,7 +43,7 @@ arch:
     enabled: len(All) == 2
 
   - !Container
-    name: PE
+    name: ProcessingElement
     spatial:
     - {name: reuse_input, fanout: 128, may_reuse: input, reuse: input, min_usage: 1}
     - {name: reuse_output, fanout: 128, may_reuse: output, reuse: output, min_usage: 1}

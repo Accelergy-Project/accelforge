@@ -146,6 +146,11 @@ The following is a Jinja2 template cheat sheet:
   {{add_to_path('path/to/some/dir')}}
   {{add_to_path('path/to/some/other/dir')}}
 
+  # Set defaults for variables. If these are not overridden by jinja parse data, then
+  # they will take on the values specified here.
+  {% set var1 = var1 | default(5) %}
+  {% set var2 = var2 | default(var1 + 1) %}
+
   variables:
     var1: 5
     var3: "{{cwd()}}/some_file.yaml" # {{cwd()}} is the directory of this file

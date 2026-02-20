@@ -37,12 +37,12 @@ arch:
       placement: "{ DRAM[i] -> L2[i] | i = 1 }"
 
   - !Container
-    name: PE
+    name: ProcessingElement
     network:
       level: L1
       placement: |
         {
-          PE[i, j] -> L1[x, y] :
+          ProcessingElement[i, j] -> L1[x, y] :
             j = y and x < 0 and i = -x - 1;
             j = y and x > 0 and i = x;
         }

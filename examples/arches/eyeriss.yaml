@@ -6,7 +6,7 @@ arch:
   nodes: # Top-level is hierarchical
   - !Memory # DRAM main memory
     name: MainMemory
-    component_class: lpddr4
+    component_class: LPDDR4
     size: inf
     tensors: {keep: ~Intermediates, may_keep: All}
 
@@ -26,7 +26,7 @@ arch:
     tensors: {keep: ~MainMemory, may_keep: All}
 
   - !Container
-    name: PE
+    name: ProcessingElement
     spatial:
     - {name: reuse_weight, fanout: 14, may_reuse: weight, reuse: weight, min_usage: 1}
     - {name: reuse_output, fanout: 12, may_reuse: output, reuse: output, min_usage: 1}

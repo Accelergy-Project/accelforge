@@ -4,6 +4,7 @@ from math import ceil, log2, prod
 import copy
 import re
 import resource
+from sympy.core.symbol import Symbol
 import time
 from typing import Callable, Iterator, Optional
 from sympy import Expr, Symbol, factorint, lambdify
@@ -147,7 +148,10 @@ def partition_heaviside(f: Expr) -> tuple[Expr, ...]:
 
 @lru_cache(maxsize=10000)
 def _compare_to_zero(
-    f: Expr, bounds: tuple[tuple[Symbol, int, int], ...], check_lt_zero: bool
+    f: Expr,
+    bounds: tuple[tuple[Symbol, int, int], ...],
+    check_lt_zero: bool,
+    terms_do_not_cross_zero: bool = False,
 ) -> bool:
     """
     Returns True if the function may possibly be less than zero or greater than zero.
@@ -183,9 +187,9 @@ def _compare_to_zero(
 
     min_check, max_check = (any, all) if check_lt_zero else (all, any)
     if isinstance(f, sympy.Min):
-        return min_check(_compare_to_zero(g, bounds, check_lt_zero) for g in f.args)
+        return min_check(_compare_to_zero(g, bounds, check_lt_zero, terms_do_not_cross_zero) for g in f.args)
     if isinstance(f, sympy.Max):
-        return max_check(_compare_to_zero(g, bounds, check_lt_zero) for g in f.args)
+        return max_check(_compare_to_zero(g, bounds, check_lt_zero, terms_do_not_cross_zero) for g in f.args)
 
     # Tried this on one workload and had marginally faster speeds with choosing the
     # symbol that appears the least times. Also tried the symbol that appears the most
@@ -204,12 +208,13 @@ def _compare_to_zero(
         return True
 
     if isinstance(f_range, sympy.FiniteSet):
-        return any(_compare_to_zero(f2, bounds, check_lt_zero) for f2 in f_range)
+        return any(_compare_to_zero(f2, bounds, check_lt_zero, terms_do_not_cross_zero) for f2 in f_range)
     else:
         return _compare_to_zero(
             f_range.left if check_lt_zero else f_range.right,
             bounds,
             check_lt_zero,
+            terms_do_not_cross_zero,
         )
 
 
@@ -217,10 +222,29 @@ def _compare_to_zero(
 def geq_leq_zero(
     f: Expr,
     bounds: tuple[tuple[Symbol, int, int], ...],
+    terms_do_not_cross_zero: bool = False,
 ):
+    if terms_do_not_cross_zero:
+        # Try plugging in the min for everything and see if that works
+        min_f = f.subs({s: lo for s, lo, hi in bounds})
+        if min_f > 0:
+            return ComparisonResult.ALWAYS_GEQ_THAN_ZERO
+        if min_f < 0:
+            return ComparisonResult.ALWAYS_LEQ_THAN_ZERO
+        # Try plugging in the max for everything and see if that works
+        max_f = f.subs({s: hi for s, lo, hi in bounds})
+        if max_f > 0:
+            return ComparisonResult.ALWAYS_GEQ_THAN_ZERO
+        if max_f < 0:
+            return ComparisonResult.ALWAYS_LEQ_THAN_ZERO
+
     # return geq_leq_than_zero(f, bounds)
-    lt_zero = _compare_to_zero(f, bounds, check_lt_zero=True)
-    gt_zero = _compare_to_zero(f, bounds, check_lt_zero=False)
+    lt_zero = _compare_to_zero(f, bounds, check_lt_zero=True, terms_do_not_cross_zero=terms_do_not_cross_zero)
+    if terms_do_not_cross_zero and lt_zero:
+        return ComparisonResult.ALWAYS_LEQ_THAN_ZERO
+    gt_zero = _compare_to_zero(f, bounds, check_lt_zero=False, terms_do_not_cross_zero=terms_do_not_cross_zero)
+    if terms_do_not_cross_zero and gt_zero:
+        return ComparisonResult.ALWAYS_GEQ_THAN_ZERO
 
     if lt_zero and gt_zero:
         return ComparisonResult.UNKNOWN
@@ -322,6 +346,7 @@ class Objective:
         min_value: float = None,
         inclusive: bool = True,
         try_best_if_none_reaches_min: bool = False,
+        terms_do_not_cross_zero: bool = False,
     ):
         if isinstance(formula, Number):
             formula = sympy.Number(formula)
@@ -335,7 +360,7 @@ class Objective:
             assert max_value is not None or min_value is not None
         self.inclusive: bool = inclusive
         self.try_best_if_none_reaches_min: bool = try_best_if_none_reaches_min
-
+        self.terms_do_not_cross_zero: bool = terms_do_not_cross_zero
 
 def is_constant(f: Expr) -> bool:
     try:
@@ -380,12 +405,12 @@ def try_replace_single_term(
 ):
     return _try_replace_single_term(t, symbols_enumerated & t.free_symbols, bounds)
 
-
 @lru_cache(maxsize=10000)
 def _partition_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
+    terms_do_not_cross_zero: bool = False,
 ) -> dict[Symbol, Goal]:
     goals: dict[Symbol, Goal] = {}
 
@@ -433,7 +458,7 @@ def _partition_formula(
             chosen.append(type(f)(*can_evaluate))
 
         # Ignore no relation
-        chosen.extend([x for v in others.values() for x in v])
+        chosen.extend(type(f)(*x) for x in others.values())
 
         return chosen
 
@@ -446,7 +471,7 @@ def _partition_formula(
     # Add and mul are OK to transform if we're sure that minimizing a1 also minimizes a,
     # but for mul, we need to check the sign of terms, and if any signs are unknown, we
     # don't know if we're minimizing or maximizing.
-
+    negate = False
     if isinstance(f, (sympy.Max, sympy.Min)):
         # We can't just break this up, simplfy, and put back together because we have no
         # guarantee, if we replace variables in the terms with constants, that the
@@ -465,7 +490,7 @@ def _partition_formula(
         # - For non-constant factors, if they're >1 then we can keep the max.
         #   Otherwise we have to drop it.
         for t in f.args:
-            geq_result = geq_leq_zero(t, bounds)
+            geq_result = geq_leq_zero(t, bounds, terms_do_not_cross_zero=terms_do_not_cross_zero)
             if geq_result == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
                 negate = not negate
             elif geq_result == ComparisonResult.UNKNOWN:
@@ -476,9 +501,7 @@ def _partition_formula(
             elif geq_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
                 pass
             else:
-                raise ValueError(
-                    f"Comparison result {geq_result} is not a valid comparison result"
-                )
+                raise ValueError(f"Comparison result {geq_result} is invalid")
     else:
         terms = [_try_replace_unknowns(f)]
 
@@ -525,8 +548,9 @@ def partition_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
+    terms_do_not_cross_zero: bool = False,
 ) -> dict[Symbol, Goal]:
-    return _partition_formula(f, fzs(symbols_enumerated & f.free_symbols), bounds)
+    return _partition_formula(f, fzs(symbols_enumerated & f.free_symbols), bounds, terms_do_not_cross_zero)
 
 
 def get_possible_factor_sizes(n: int, imperfect: bool = False) -> list[int]:
@@ -588,7 +612,6 @@ def affects_comparison(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
     delta = simplify(delta)
     if s not in delta.free_symbols:
         return False
-
     return True
 
 
@@ -1239,7 +1262,8 @@ def get_tile_shape_choices(
                     choices_enumerated = choices_enumerated[valid]
                     choices_enumerated_float = choices_enumerated_float[valid]
                 except (TypeError, ValueError):
-                    pass
+                    # Everyone valid (for counting purposes)
+                    valid = [choices_enumerated.shape[0]]
 
                 porp = sum(valid) / max(1, choices_enumerated.shape[0])
                 job.log_porp_pmappings_kept(
@@ -1290,7 +1314,8 @@ def get_tile_shape_choices(
                             choices_enumerated = choices_enumerated[valid]
                             choices_enumerated_float = choices_enumerated_float[valid]
                 except (TypeError, ValueError):
-                    pass
+                    # Everyone valid (for counting purposes)
+                    valid = [choices_enumerated.shape[0]]
 
                 porp = sum(valid) / max(1, choices_enumerated.shape[0])
                 job.log_porp_pmappings_kept(
@@ -1329,7 +1354,7 @@ def get_tile_shape_choices(
             )
 
             goals = partition_formula(
-                objective.formula, sym_enumerated_set, what_tiles_symbol.bounds
+                objective.formula, sym_enumerated_set, what_tiles_symbol.bounds, objective.terms_do_not_cross_zero
             )
 
             log_message(f"formula", f"{objective.formula}")
@@ -1498,6 +1523,20 @@ def call_compiled_objective(f, *args):
     return f(*args)
 
 
+def _clean_energy_columns(df: dict, metrics: Metrics):
+    # The model outputs separated dynamic energy and leak energy because it's easier for
+    # tile shape exploration. Combine them if needed and generate the total energy
+    # column.
+    if metrics & Metrics.ENERGY:
+        leak = df.pop("Total<SEP>leak_energy")
+        dynamic = df.pop("Total<SEP>dynamic_energy")
+        df["Total<SEP>energy"] = leak + dynamic
+        if metrics & Metrics.LEAK_ENERGY:
+            df["Total<SEP>leak_energy"] = leak
+        if metrics & Metrics.DYNAMIC_ENERGY:
+            df["Total<SEP>dynamic_energy"] = dynamic
+
+
 def _calculate_iterations_and_rank_columns(
     pmapping: list[MappingNode], job: "Job", df: pd.DataFrame, shape: dict[str, int]
 ):
@@ -1586,6 +1625,10 @@ def _make_tile_shapes(job: "Job"):
     rank_var_to_fused_loops = get_rank_var_to_fused_loops(pmapping, shape)
     all_fused_loops = set(sum(rank_var_to_fused_loops.values(), []))
 
+    assert Metrics.ACTIONS not in job.metrics, (
+        "Actions are not yet supported as an optimization metric for the mapper."
+    )
+
     objectives = []
 
     # ==================================================================================
@@ -1636,6 +1679,7 @@ def _make_tile_shapes(job: "Job"):
                     max_value=max_value,
                     min_value=min_value,
                     inclusive=inclusive,
+                    terms_do_not_cross_zero=True,
                 )
             )
 
@@ -1671,6 +1715,7 @@ def _make_tile_shapes(job: "Job"):
                 symbols=symbols,
                 only_care_if_valid=only_care_if_valid,
                 max_value=1,
+                terms_do_not_cross_zero=True,
             )
         )
 
@@ -1690,9 +1735,13 @@ def _make_tile_shapes(job: "Job"):
                 only_care_if_valid=True,
                 min_value=constraint.min_usage,
                 try_best_if_none_reaches_min=True,
+                terms_do_not_cross_zero=True,
             )
         )
 
+    # ==================================================================================
+    # Other objectives.
+    # ==================================================================================
     for k, v in symbolic_df.items():
         if "Total" not in k:
             continue
@@ -1702,6 +1751,7 @@ def _make_tile_shapes(job: "Job"):
                 name=k,
                 formula=v,
                 symbols=symbols,
+                terms_do_not_cross_zero="energy" in k or "latency" in k,
             )
         )
 
@@ -1763,6 +1813,9 @@ def _make_tile_shapes(job: "Job"):
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative energy for {key}: {val}")
 
+    # They come out separated from the model because it's easier for tile shape
+    # exploration to handle. Now combine them back together.
+    _clean_energy_columns(df, job.metrics)
     _calculate_iterations_and_rank_columns(pmapping.nodes, job, df, shape)
 
     try:
@@ -1771,7 +1824,7 @@ def _make_tile_shapes(job: "Job"):
         df = pd.DataFrame(df, columns=df.keys(), index=[0])
     assert not df.isna().any().any()
 
-    energy_cols = [c for c in df.columns if "Total<SEP>energy" in c]
+    energy_cols = [c for c in df.columns if "energy" in c]
     if (df[energy_cols] < 0).any(axis=None):
         mapping_with_negative_energy = df[(df[energy_cols] < 0).any(axis=1)]
         print(df.columns)

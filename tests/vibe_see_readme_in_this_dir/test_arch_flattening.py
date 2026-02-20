@@ -116,7 +116,7 @@ def _fork_arch():
                 ]
             ),
             Container(
-                name="PE",
+                name="ProcessingElement",
                 spatial=[
                     {
                         "name": "reuse_input",
@@ -226,7 +226,7 @@ class TestGetNodesOfType(unittest.TestCase):
         arch = _fork_arch()
         fanouts = list(arch.get_nodes_of_type(Container))
         self.assertEqual(len(fanouts), 1)
-        self.assertEqual(fanouts[0].name, "PE")
+        self.assertEqual(fanouts[0].name, "ProcessingElement")
 
 
 # ============================================================================
@@ -391,7 +391,7 @@ class TestFlattenFromYAML(unittest.TestCase):
         result = evaluated._get_flattened_architecture(compute_node="MAC")
         names = [n.name for n in result]
         self.assertIn("Register", names)
-        self.assertIn("PE", names)
+        self.assertIn("ProcessingElement", names)
         self.assertEqual(names[-1], "MAC")
 
     def test_tpu_scalar_path_excludes_register(self):
@@ -404,7 +404,7 @@ class TestFlattenFromYAML(unittest.TestCase):
         result = evaluated._get_flattened_architecture(compute_node="ScalarUnit")
         names = [n.name for n in result]
         self.assertNotIn("Register", names)
-        self.assertNotIn("PE", names)
+        self.assertNotIn("ProcessingElement", names)
         self.assertEqual(names[-1], "ScalarUnit")
 
 

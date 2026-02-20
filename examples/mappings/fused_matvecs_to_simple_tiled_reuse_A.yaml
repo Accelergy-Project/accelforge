@@ -1,0 +1,38 @@
+mapping:
+  nodes:
+  - !Storage
+    tensors: [A, B, C, Y, Z]
+    component: MainMemory
+  - !Storage
+    tensors: [A]
+    component: GlobalBuffer
+  - !Temporal
+    rank_variable: ny
+    tile_shape: 1
+  - !Storage
+    tensors: [Y]
+    component: GlobalBuffer
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [B]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: na
+        tile_shape: 1
+      - !Compute
+        einsum: Y
+        component: MAC
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [C, Z]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: nz
+        tile_shape: 1
+      - !Compute
+        einsum: Z
+        component: MAC

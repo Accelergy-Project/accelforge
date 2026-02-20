@@ -25,7 +25,7 @@ arch:
     tensors: {keep: All}
 
   - !Container
-    name: PE
+    name: ProcessingElement
     spatial:
     - {name: reuse_input, fanout: 32, may_reuse: input, reuse: input, min_usage: 1}
     - {name: reuse_output, fanout: 192, may_reuse: output, reuse: output, min_usage: 1}

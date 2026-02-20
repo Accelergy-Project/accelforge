@@ -1,0 +1,11 @@
+workload:
+  iteration_space_shape:
+    na: 0 <= na < 4
+    ny: 0 <= ny < 3
+    nz: 0 <= nz < 4
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - Y[ny] = A[na]*B[na,ny]
+  - Z[nz] = Y[ny]*C[ny,nz]

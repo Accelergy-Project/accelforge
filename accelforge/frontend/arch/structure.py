@@ -285,28 +285,5 @@ class Fork(Hierarchical):
     def _parent2child_names(
         self, parent_name: str = None
     ) -> tuple[list[tuple[str, str]], str]:
-        edges = []
-
-        # Process children as a hierarchical stack within the fork
-        current_parent_name = parent_name
-
-        for node in self.nodes:
-            # If this node is a Hierarchical, or Fork, it's transparent
-            if isinstance(node, (Hierarchical, Fork)):
-                # Get edges from the child and its last node
-                child_edges, last_child_name = node._parent2child_names(
-                    current_parent_name
-                )
-                edges.extend(child_edges)
-                # The last child of this branch becomes the new parent for subsequent nodes
-                if last_child_name is not None:
-                    current_parent_name = last_child_name
-            else:
-                if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name()))
-
-                # Update parent for next iteration within the fork
-                current_parent_name = node._render_node_name()
-
-        # Return the original parent as the exit node so next sibling continues from parent
+        edges, _ = super()._parent2child_names(parent_name)
         return edges, parent_name

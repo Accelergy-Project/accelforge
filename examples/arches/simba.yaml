@@ -1,0 +1,58 @@
+arch:
+  extra_attributes_for_all_component_models: {tech_node: 16e-9}
+  nodes: # Top-level is hierarchical
+  - !Memory # DRAM main memory
+    name: MainMemory
+    component_class: LPDDR4
+    size: inf
+    tensors: {keep: ~Intermediates, may_keep: All}
+
+  - !Memory # Global buffer for inputs & outputs
+    name: GlobalBuffer
+    component_class: SmartBufferSRAM
+    size: 524288 # 64kB
+    extra_attributes_for_component_model:
+      n_banks: 2
+      n_rw_ports: 2
+    tensors: {keep: input | output}
+
+  - !Container
+    name: ProcessingElement
+    spatial: [{name: reuse_all, fanout: 16, min_usage: 1}]
+
+  - !Memory
+    name: InputBuffer
+    component_class: SmartBufferSRAM
+    size: 65536 # 8kB
+    tensors: {keep: input}
+
+  - !Memory
+    name: WeightBuffer
+    component_class: SmartBufferSRAM
+    size: 262144 # 32kB
+    extra_attributes_for_component_model: {n_banks: 8}
+    tensors: {keep: weight}
+
+  - !Memory
+    name: AccumulationBuffer
+    component_class: SmartBufferSRAM
+    size: 24576 # 3kB
+    bits_per_value_scale: {All: 3}
+    tensors: {keep: output}
+
+  - !Container
+    name: VectorMAC
+    spatial:
+    - {name: reuse_output, fanout: 8, min_usage: 1, may_reuse: output, reuse: output}
+    - {name: reuse_all, fanout: 8, min_usage: 1}
+
+  - !Memory
+    name: Register
+    size: weight.bits_per_value if weight else 0
+    component_class: Dummy
+    tensors: {keep: weight}
+
+  - !Compute # MAC unit
+    name: MAC
+    component_class: IntMAC
+    extra_attributes_for_component_model: {multiplier_width: 8, adder_width: 16}

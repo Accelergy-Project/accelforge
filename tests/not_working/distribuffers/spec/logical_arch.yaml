@@ -7,7 +7,7 @@ arch:
       width: 64                # width in bits
 
   - !Container
-    name: PE
+    name: ProcessingElement
     spatial: {meshX: 1, meshY: 2}
 
   # registers for the mac unit

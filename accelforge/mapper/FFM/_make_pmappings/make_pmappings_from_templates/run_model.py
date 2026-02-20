@@ -77,7 +77,8 @@ def run_model(
             usage_df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
             if metrics & Metrics.ACTIONS:
                 df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
-            non_power_gated_instances *= usage
+            if s.power_gateable:
+                non_power_gated_instances *= usage
         component_to_non_power_gated_porp[node.name] = non_power_gated_instances
 
     actions = gather_actions(reuse, None, use_name=True)
@@ -152,8 +153,13 @@ def run_model(
                     max_first_latency * n_instances
                 )
 
-    if metrics & Metrics.ENERGY:
-        df["Total<SEP>energy"] = sum(energy.values()) * n_instances
+    if metrics.includes_dynamic_energy():
+        dynamic_energy = [e for k, e in energy.items() if k.action != "leak"]
+        df["Total<SEP>dynamic_energy"] = sum(dynamic_energy) * n_instances
+
+    if metrics.includes_leak_energy():
+        leak_energy = [e for k, e in energy.items() if k.action == "leak"]
+        df["Total<SEP>leak_energy"] = sum(leak_energy) * n_instances
 
     per_memory_usage_df = {}
     for memory, occupancies in total_occupancy.items():

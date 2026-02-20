@@ -381,7 +381,7 @@ class Mappings:
     def _repr_svg_(self) -> str:
         return self.render()
 
-    def render(self, index: int | None = None) -> str:
+    def render(self, index: int | None = None, **kwargs) -> str:
         """
         Renders the mapping as a Pydot graph. Returns an SVG string. This is only
         supported if there is a single mapping; if there are multiple mappings, then
@@ -392,6 +392,8 @@ class Mappings:
         index:
             The index of the mapping to render. If None and there are multiple mappings,
             then an error is raised.
+        kwargs:
+            Keyword arguments passed to Mapping.render()
 
         Returns
         -------
@@ -404,13 +406,23 @@ class Mappings:
             If there are multiple mappings and no index is provided.
         """
         if index is not None:
-            self = self[index]
+            self = self.data.iloc[index]["Total<SEP>mapping"].render(**kwargs)
         if len(self) != 1:
             raise ValueError(
                 f"Can only render a single mapping, but got {len(self)}. Try calling "
                 f"mappings[i].render() instead, for some integer 0 <= i < {len(self)}."
             )
-        return self.data.iloc[0]["Total<SEP>mapping"].render()
+        return self.data.iloc[0]["Total<SEP>mapping"].render(**kwargs)
+
+    def mapping(self, index: int | None = None):
+        if len(self) != 1 and index is None:
+            raise ValueError(
+                f"Can return a single mapping, but got {len(self)}. Try calling "
+                f"mappings[i].mapping() or mappings.mapping(i) instead, for some "
+                f"integer 0 <= i < {len(self)}."
+            )
+        index = index if index is not None else 0
+        return self.data.iloc[index]["Total<SEP>mapping"]()
 
     def energy(
         self: "Mappings",

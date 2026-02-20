@@ -307,8 +307,8 @@ class TestTPUComponentFieldsParsed(unittest.TestCase):
         self.assertIn("max", gb.total_latency)
 
     def test_array_fanout_spatial(self):
-        """PE has spatial fanouts for reuse."""
-        pe = self.spec.arch.find("PE")
+        """ProcessingElement has spatial fanouts for reuse."""
+        pe = self.spec.arch.find("ProcessingElement")
         self.assertGreater(len(pe.spatial), 0)
         spatial_names = [s.name for s in pe.spatial]
         self.assertIn("reuse_input", spatial_names)

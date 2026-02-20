@@ -174,8 +174,8 @@ If you encounter issues or have questions:
    faqs
    timeloop_compare
 
-AccelForge and Prior Work Timeloop
-----------------------------------
+Migrating from Timeloop
+-----------------------
 
 AccelForge is inspired by and designed to be a successor to the Timeloop [1]_ project,
 and incorporates many of the same ideas, including:
