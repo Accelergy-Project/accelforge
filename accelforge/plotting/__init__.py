@@ -5,4 +5,5 @@ __all__ = [
     "mappings",
     "specs",
     "roofline",
+    "plotting",
 ]
