@@ -25,12 +25,12 @@
             -
                 tensorA: |
                     {
-                        l_PE_dims[i] -> p_PE_dims[x, y] :
+                        l_ProcessingElement_dims[i] -> p_ProcessingElement_dims[x, y] :
                         i = x + 2y
                     }
                 tensorB: |
                     {
-                        l_PE_dims[i] -> p_PE_dims[x, y] :
+                        l_ProcessingElement_dims[i] -> p_ProcessingElement_dims[x, y] :
                         i = x + (y * 2)
                     }
             -
