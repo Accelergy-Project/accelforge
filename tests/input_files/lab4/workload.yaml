@@ -1,0 +1,18 @@
+# Lab 4 workload: Z[m,n] = A[m,k] * B[k,n]
+# M=K=N=8, density A=0.25, density B=0.5
+# Total computes = 512, effectual = 64
+
+workload:
+  iteration_space_shape:
+    m: 0 <= m < 8
+    n: 0 <= n < 8
+    k: 0 <= k < 8
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - name: SpMSpM
+    tensor_accesses:
+    - {name: A, projection: [m, k], density: 0.25}
+    - {name: B, projection: [n, k], density: 0.5}
+    - {name: Z, projection: [m, n], output: true}

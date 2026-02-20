@@ -8,23 +8,27 @@ sparse_optimizations:
     representation_format:
     - name: A
       format: csr
-      metadata_word_bits: 7
+      metadata_word_bits: 14
       metadata_storage_width: 28
+      uop_payload_word_bits: 0
     - name: B
       format: csr
-      metadata_word_bits: 7
+      metadata_word_bits: 14
       metadata_storage_width: 28
+      uop_payload_word_bits: 0
 
   - target: Buffer
     representation_format:
     - name: A
       format: csr
-      metadata_word_bits: 7
+      metadata_word_bits: 14
       metadata_storage_width: 28
+      uop_payload_word_bits: 0
     - name: B
       format: csr
-      metadata_word_bits: 7
+      metadata_word_bits: 14
       metadata_storage_width: 28
+      uop_payload_word_bits: 0
     action_optimization:
     - kind: skipping
       target: A

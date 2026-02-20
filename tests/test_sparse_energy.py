@@ -121,10 +121,11 @@ class TestDenseEnergyBaseline(unittest.TestCase):
         self.assertAlmostEqual(a_read + b_read, expected, places=2)
 
     def test_backing_storage_read_energy(self):
-        """BackingStorage read energy: A=2,097,152 + B=16,384 reads."""
+        """BackingStorage read energy: bpa=64 → A=262,144 + B=2,048 vector reads."""
         a_read = _get_energy(self.result, "BackingStorage", "A", "read")
         b_read = _get_energy(self.result, "BackingStorage", "B", "read")
-        expected = (2_097_152 + 16_384) * ERT["BackingStorage_read"]
+        # bpa=64 → read_scale=8/64=0.125 → actions = elements/8
+        expected = (2_097_152 + 16_384) / 8 * ERT["BackingStorage_read"]
         self.assertAlmostEqual(a_read + b_read, expected, places=2)
 
     def test_no_sparse_actions(self):
@@ -149,20 +150,25 @@ class TestBitmaskEnergy(unittest.TestCase):
     # --- MAC ---
 
     def test_mac_effectual_compute_energy(self):
-        """Bitmask MAC effectual compute energy = 223 * 0.5608."""
+        """Bitmask MAC effectual compute energy = 21,632 * 0.5608.
+
+        Fix 3: classify_compute receives pre-SAF total (2,097,152), so
+        effectual = effectual_operations(2,097,152, d_A, d_B) = 21,632.
+        """
         computes = _get_action(self.result, "MAC", "None", "compute")
-        self.assertEqual(computes, 223)
+        self.assertEqual(computes, 21_632)
         expected = computes * ERT["MAC_compute"]
         actual = _get_energy(self.result, "MAC", "None", "compute")
         self.assertAlmostEqual(actual, expected, places=2)
 
-    def test_mac_gated_compute_energy(self):
-        """Bitmask MAC gated compute energy = 21,409 * 0.03642."""
+    def test_mac_no_gated_compute(self):
+        """Bitmask MAC gated_compute = 0 when storage SAF covers condition.
+
+        Storage-level gating at Buffer already prevents ineffectual iterations
+        from reaching MAC. The MAC only sees effectual computes.
+        """
         gated = _get_sparse_action(self.result, "MAC", "gated_compute")
-        self.assertEqual(int(gated), 21_409)
-        expected = gated * ERT["MAC_gated_compute"]
-        actual = _get_sparse_energy(self.result, "MAC", "gated_compute")
-        self.assertAlmostEqual(actual, expected, places=2)
+        self.assertEqual(int(gated), 0)
 
     # --- Buffer ---
 
@@ -178,7 +184,13 @@ class TestBitmaskEnergy(unittest.TestCase):
         self.assertAlmostEqual(actual, expected, places=4)
 
     def test_buffer_metadata_read_action_count(self):
-        """Bitmask Buffer metadata_read count = 15,214."""
+        """Bitmask Buffer metadata_read count = 15,214 (actual only).
+
+        Per-rank model: bitmask metadata at Buffer has 1 non-trivial dim
+        (k=128), format=["B"]. For gating, only effectual iterations are
+        charged at full metadata_read rate. Gated iterations are charged
+        separately at gated_metadata_read rate (near-zero).
+        """
         count = _get_sparse_action(self.result, "Buffer", "metadata_read")
         self.assertEqual(int(count), 15_214)
 
@@ -189,10 +201,24 @@ class TestBitmaskEnergy(unittest.TestCase):
         actual = _get_sparse_energy(self.result, "Buffer", "metadata_read")
         self.assertAlmostEqual(actual, expected, places=2)
 
+    def test_buffer_gated_metadata_read_action_count(self):
+        """Bitmask Buffer gated_metadata_read = 134,584 (gated iterations).
+
+        Gated metadata reads at near-zero gated_metadata_read rate (0.00002 pJ).
+        """
+        count = _get_sparse_action(self.result, "Buffer", "gated_metadata_read")
+        self.assertEqual(int(count), 134_584)
+        expected = count * ERT["Buffer_gated_metadata_read"]
+        actual = _get_sparse_energy(self.result, "Buffer", "gated_metadata_read")
+        self.assertAlmostEqual(actual, expected, places=4)
+
     def test_buffer_metadata_write_energy(self):
-        """Bitmask Buffer metadata_write energy = 7,667 * 1.42366."""
+        """Bitmask Buffer metadata_write energy = 75,485 * 1.42366.
+
+        Per-rank model: A fills=2,097,152 → packed 74,899, B fills=16,384 → 586.
+        """
         count = _get_sparse_action(self.result, "Buffer", "metadata_write")
-        self.assertEqual(int(count), 7_667)
+        self.assertEqual(int(count), 75_485)
         expected = count * ERT["Buffer_metadata_write"]
         actual = _get_sparse_energy(self.result, "Buffer", "metadata_write")
         self.assertAlmostEqual(actual, expected, places=2)
@@ -200,9 +226,14 @@ class TestBitmaskEnergy(unittest.TestCase):
     # --- BackingStorage ---
 
     def test_backing_storage_metadata_read_energy(self):
-        """Bitmask BackingStorage metadata_read energy = 7,667 * 14.0361."""
+        """Bitmask BackingStorage metadata_read energy = 75,485 * 14.0361.
+
+        Per-rank model at BS: 2 non-trivial dims → ["UOP", "B"]. With
+        uop_payload_word_bits=0, UOP payload reads contribute zero bits.
+        Only bitmask (B) metadata contributes. A: 74,899, B: 586.
+        """
         count = _get_sparse_action(self.result, "BackingStorage", "metadata_read")
-        self.assertEqual(int(count), 7_667)
+        self.assertEqual(int(count), 75_485)
         expected = count * ERT["BackingStorage_metadata_read"]
         actual = _get_sparse_energy(self.result, "BackingStorage", "metadata_read")
         self.assertAlmostEqual(actual, expected, places=2)
@@ -223,9 +254,13 @@ class TestCoordListEnergy(unittest.TestCase):
     # --- MAC (skipping = zero energy for skipped computes) ---
 
     def test_mac_effectual_compute_energy(self):
-        """Coord list MAC effectual compute energy = 223 * 0.5608."""
+        """Coord list MAC effectual compute energy = 21,632 * 0.5608.
+
+        Fix 3: classify_compute receives pre-SAF total (2,097,152), so
+        effectual = effectual_operations(2,097,152, d_A, d_B) = 21,632.
+        """
         computes = _get_action(self.result, "MAC", "None", "compute")
-        self.assertEqual(computes, 223)
+        self.assertEqual(computes, 21_632)
         expected = computes * ERT["MAC_compute"]
         actual = _get_energy(self.result, "MAC", "None", "compute")
         self.assertAlmostEqual(actual, expected, places=2)
@@ -243,18 +278,18 @@ class TestCoordListEnergy(unittest.TestCase):
         self.assertEqual(gated, 0)
 
     def test_buffer_metadata_read_count(self):
-        """Coord list Buffer metadata_read = 10,816."""
+        """Coord list Buffer metadata_read = 21,632 (metadata_word_bits=14, packing=28/14=2)."""
         count = _get_sparse_action(self.result, "Buffer", "metadata_read")
-        self.assertEqual(int(count), 10_816)
+        self.assertEqual(int(count), 21_632)
 
     def test_buffer_metadata_write_count(self):
-        """Coord list Buffer metadata_write = 53,664."""
+        """Coord list Buffer metadata_write = 107,328 (metadata_word_bits=14, packing=28/14=2)."""
         count = _get_sparse_action(self.result, "Buffer", "metadata_write")
-        self.assertEqual(int(count), 53_664)
+        self.assertEqual(int(count), 107_328)
 
     def test_buffer_metadata_write_energy(self):
-        """Coord list Buffer metadata_write energy = 53,664 * 1.42366."""
-        count = 53_664
+        """Coord list Buffer metadata_write energy = 107,328 * 1.42366."""
+        count = 107_328
         expected = count * ERT["Buffer_metadata_write"]
         actual = _get_sparse_energy(self.result, "Buffer", "metadata_write")
         self.assertAlmostEqual(actual, expected, places=2)
@@ -262,9 +297,14 @@ class TestCoordListEnergy(unittest.TestCase):
     # --- BackingStorage ---
 
     def test_backing_storage_metadata_read_energy(self):
-        """Coord list BackingStorage metadata_read energy = 53,664 * 14.0361."""
+        """Coord list BackingStorage metadata_read energy = 107,328 * 14.0361.
+
+        Per-rank model at BS: 2 non-trivial dims → ["UOP", "CP"]. With
+        uop_payload_word_bits=0, UOP payload reads contribute zero bits.
+        Only CP metadata contributes. A: ~106,496, B: ~832.
+        """
         count = _get_sparse_action(self.result, "BackingStorage", "metadata_read")
-        self.assertEqual(int(count), 53_664)
+        self.assertEqual(int(count), 107_328)
         expected = count * ERT["BackingStorage_metadata_read"]
         actual = _get_sparse_energy(self.result, "BackingStorage", "metadata_read")
         self.assertAlmostEqual(actual, expected, places=2)
@@ -276,7 +316,7 @@ class TestCoordListEnergy(unittest.TestCase):
 
 
 class TestEnergyComparisons(unittest.TestCase):
-    """Total energy ordering: coord_list > bitmask (CP metadata overhead)."""
+    """Total energy ordering at d=0.1: coord_list > bitmask."""
 
     @classmethod
     def setUpClass(cls):
@@ -292,21 +332,24 @@ class TestEnergyComparisons(unittest.TestCase):
         """Coord list total energy < dense total energy."""
         self.assertLess(_total_energy(self.coord_list), _total_energy(self.dense))
 
-    def test_coord_list_more_than_bitmask(self):
-        """Coord list total energy > bitmask total energy.
+    def test_bitmask_less_than_coord_list(self):
+        """Bitmask total energy < coord list total energy at d=0.1.
 
-        CP/CSR metadata has more bits per coordinate (7 vs 1) and more
-        metadata accesses, resulting in higher metadata energy overhead.
+        At d=0.1, coord_list's BS-level metadata overhead (UOP payload +
+        CP coordinates with 2 ranks) exceeds bitmask's density-independent
+        Buffer metadata. There is a crossover at ~d=0.05: below that,
+        bitmask is more expensive (density-independent mask >> sparse CP).
         """
-        self.assertGreater(
-            _total_energy(self.coord_list), _total_energy(self.bitmask)
+        self.assertLess(
+            _total_energy(self.bitmask), _total_energy(self.coord_list)
         )
 
     def test_bitmask_metadata_energy_less_than_coord_list(self):
-        """Bitmask metadata energy < coord list metadata energy.
+        """Bitmask total metadata energy < coord list total metadata energy.
 
-        Bitmask: 1 bit per element, packed 28:1 → fewer physical accesses.
-        CSR: 7 bits per coordinate, packed 4:1 → more physical accesses.
+        Although bitmask has MORE Buffer metadata (density-independent mask),
+        coord_list has MORE BS metadata (2-rank CSR with UOP payload).
+        At d=0.1, the BS difference dominates: CL total metadata > BM total.
         """
         bm_meta = (
             _get_sparse_energy(self.bitmask, "Buffer", "metadata_read")

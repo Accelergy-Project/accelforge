@@ -115,12 +115,12 @@ class TestDenseBaseline(unittest.TestCase):
     # --- Reg (zero-cost pass-through for A/B, accumulator for Z) ---
 
     def test_reg_z_reads(self):
-        """Dense: Reg Z reads = M*N*K = 2,097,152.
+        """Dense: Reg Z reads = M*N*(K-1) = 2,080,768.
 
-        Sparseloop reference: 2,080,768 (= M*N*(K-1) due to first-read skipping).
-        AccelForge does not model first-read skipping → 2,097,152.
+        First accumulation along k doesn't read old Z (initialized to 0).
+        Matches Sparseloop reference: 2,080,768.
         """
-        self.assertEqual(_get_action(self.result, "Reg", "Z", "read"), 2_097_152)
+        self.assertEqual(_get_action(self.result, "Reg", "Z", "read"), 2_080_768)
 
     def test_reg_z_writes(self):
         """Dense: Reg Z writes = M*N*K = 2,097,152.
@@ -129,21 +129,21 @@ class TestDenseBaseline(unittest.TestCase):
         """
         self.assertEqual(_get_action(self.result, "Reg", "Z", "write"), 2_097_152)
 
-    def test_reg_a_reads(self):
-        """Dense: Reg A reads = M*N*K = 2,097,152 (pass-through)."""
-        self.assertEqual(_get_action(self.result, "Reg", "A", "read"), 2_097_152)
+    def test_regpassthrough_a_reads(self):
+        """Dense: RegPassthrough A reads = M*N*K = 2,097,152 (pass-through)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "A", "read"), 2_097_152)
 
-    def test_reg_a_writes(self):
-        """Dense: Reg A writes = M*N*K = 2,097,152 (fills from Buffer A)."""
-        self.assertEqual(_get_action(self.result, "Reg", "A", "write"), 2_097_152)
+    def test_regpassthrough_a_writes(self):
+        """Dense: RegPassthrough A writes = M*N*K = 2,097,152 (fills from Buffer A)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "A", "write"), 2_097_152)
 
-    def test_reg_b_reads(self):
-        """Dense: Reg B reads = M*N*K = 2,097,152 (pass-through)."""
-        self.assertEqual(_get_action(self.result, "Reg", "B", "read"), 2_097_152)
+    def test_regpassthrough_b_reads(self):
+        """Dense: RegPassthrough B reads = M*N*K = 2,097,152 (pass-through)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "B", "read"), 2_097_152)
 
-    def test_reg_b_writes(self):
-        """Dense: Reg B writes = M*N*K = 2,097,152 (fills from Buffer B)."""
-        self.assertEqual(_get_action(self.result, "Reg", "B", "write"), 2_097_152)
+    def test_regpassthrough_b_writes(self):
+        """Dense: RegPassthrough B writes = M*N*K = 2,097,152 (fills from Buffer B)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "B", "write"), 2_097_152)
 
 
 # ===========================================================================
@@ -239,18 +239,14 @@ class TestBitmaskSparse(unittest.TestCase):
     # --- Reg Z (accumulator) ---
 
     def test_reg_z_reads(self):
-        """Bitmask Reg Z reads = 21,632.
+        """Bitmask Reg Z reads = 21,463.
 
         Z SAF at Reg (gating on [A,B]): prob = 1 - d_A*d_B = 0.98968...
-        AccelForge: floor(2,097,152 * 0.98968...) = 2,075,520 gated.
-        actual = 2,097,152 - 2,075,520 = 21,632.
-
-        Sparseloop reference: 21,463. Differs because Sparseloop applies
-        first-read skipping (base = M*N*(K-1) = 2,080,768) and ceil rounding
-        for read-write reads. AccelForge uses base = M*N*K = 2,097,152
-        and floor rounding.
+        Base = M*N*(K-1) = 2,080,768 (first-k read skipped).
+        apply_local_saf_reads(2,080,768, 0.98968..., is_read_write=True) → 21,463.
+        Matches Sparseloop reference: 21,463.
         """
-        self.assertEqual(_get_action(self.result, "Reg", "Z", "read"), 21_632)
+        self.assertEqual(_get_action(self.result, "Reg", "Z", "read"), 21_463)
 
     def test_reg_z_writes(self):
         """Bitmask Reg Z writes = 21,632.
@@ -261,28 +257,28 @@ class TestBitmaskSparse(unittest.TestCase):
 
     # --- Reg A/B (sparse fills from Buffer) ---
 
-    def test_reg_a_reads(self):
-        """Bitmask Reg A reads = 2,097,152.
+    def test_regpassthrough_a_reads(self):
+        """Bitmask RegPassthrough A reads = 2,097,152.
 
-        Reg A is a zero-cost pass-through (SAF child-buffet support).
+        RegPassthrough A is zero-cost (SAF child-buffet support).
         Reads are algorithmic (not reduced by format compression or SAF).
         """
-        self.assertEqual(_get_action(self.result, "Reg", "A", "read"), 2_097_152)
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "A", "read"), 2_097_152)
 
-    def test_reg_a_writes(self):
-        """Bitmask Reg A writes = 21,632.
+    def test_regpassthrough_a_writes(self):
+        """Bitmask RegPassthrough A writes = 21,632.
 
-        Fills from Buffer A to Reg = Buffer A actual reads (post-SAF) = 21,632.
+        Fills from Buffer A to RegPassthrough = Buffer A reads (post-SAF) = 21,632.
         """
-        self.assertEqual(_get_action(self.result, "Reg", "A", "write"), 21_632)
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "A", "write"), 21_632)
 
-    def test_reg_b_reads(self):
-        """Bitmask Reg B reads = 2,097,152 (pass-through, not reduced)."""
-        self.assertEqual(_get_action(self.result, "Reg", "B", "read"), 2_097_152)
+    def test_regpassthrough_b_reads(self):
+        """Bitmask RegPassthrough B reads = 2,097,152 (pass-through, not reduced)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "B", "read"), 2_097_152)
 
-    def test_reg_b_writes(self):
-        """Bitmask Reg B writes = 21,632 (fills from Buffer B post-SAF)."""
-        self.assertEqual(_get_action(self.result, "Reg", "B", "write"), 21_632)
+    def test_regpassthrough_b_writes(self):
+        """Bitmask RegPassthrough B writes = 21,632 (fills from Buffer B post-SAF)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "B", "write"), 21_632)
 
 
 # ===========================================================================
@@ -371,12 +367,12 @@ class TestCoordListSparse(unittest.TestCase):
     # --- Reg Z ---
 
     def test_reg_z_reads(self):
-        """Coord_list Reg Z reads = 21,632.
+        """Coord_list Reg Z reads = 21,463.
 
-        Sparseloop reference: 21,463 (first-read skipping + ceil rounding).
-        AccelForge: 21,632 (no first-read skipping, floor rounding).
+        Base = M*N*(K-1) = 2,080,768 (first-k read skipped).
+        SAF same as bitmask → 21,463. Matches Sparseloop reference.
         """
-        self.assertEqual(_get_action(self.result, "Reg", "Z", "read"), 21_632)
+        self.assertEqual(_get_action(self.result, "Reg", "Z", "read"), 21_463)
 
     def test_reg_z_writes(self):
         """Coord_list Reg Z writes = 21,632.
@@ -387,13 +383,13 @@ class TestCoordListSparse(unittest.TestCase):
 
     # --- Reg A/B ---
 
-    def test_reg_a_writes(self):
-        """Coord_list Reg A writes = 21,632 (fills from Buffer A post-SAF)."""
-        self.assertEqual(_get_action(self.result, "Reg", "A", "write"), 21_632)
+    def test_regpassthrough_a_writes(self):
+        """Coord_list RegPassthrough A writes = 21,632 (fills from Buffer A post-SAF)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "A", "write"), 21_632)
 
-    def test_reg_b_writes(self):
-        """Coord_list Reg B writes = 21,632 (fills from Buffer B post-SAF)."""
-        self.assertEqual(_get_action(self.result, "Reg", "B", "write"), 21_632)
+    def test_regpassthrough_b_writes(self):
+        """Coord_list RegPassthrough B writes = 21,632 (fills from Buffer B post-SAF)."""
+        self.assertEqual(_get_action(self.result, "RegPassthrough", "B", "write"), 21_632)
 
 
 # ===========================================================================
