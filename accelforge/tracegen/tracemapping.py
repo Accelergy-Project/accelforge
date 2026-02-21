@@ -1,7 +1,14 @@
 from dataclasses import dataclass
 import numpy as np
 
-from accelforge.frontend.mapping import Mapping, Compute, Temporal, Spatial, Split, Nested
+from accelforge.frontend.mapping import (
+    Mapping,
+    Compute,
+    Temporal,
+    Spatial,
+    Split,
+    Nested,
+)
 from accelforge.frontend.workload import RankVariable, Rank, Workload
 
 
@@ -76,8 +83,7 @@ def _trace_node(node, workload: Workload, last_result):
             for rank_var, last_trace in last_result.items()
         }
         next_result[rank_var] += np.repeat(
-            np.arange(n_iterations)*tile_shape,
-            last_shape
+            np.arange(n_iterations) * tile_shape, last_shape
         )
         return next_result
     elif isinstance(node, Compute):

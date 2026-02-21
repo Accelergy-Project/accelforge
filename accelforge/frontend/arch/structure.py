@@ -26,6 +26,7 @@ from accelforge.util._visualization import _pydot_graph
 
 _FIND_SENTINEL = object()
 
+
 class ArchNode(EvalableModel):
     """A node in the architecture."""
 
@@ -183,7 +184,9 @@ class Branch(ArchNode):
             result.extend(child for child in children if child is not None)
         return result
 
-    def _power_gating(self, compute_name, used_fanout) -> tuple[dict[str, float], float]:
+    def _power_gating(
+        self, compute_name, used_fanout
+    ) -> tuple[dict[str, float], float]:
         from accelforge.frontend.arch.structure import Fork
         from accelforge.frontend.arch.components import Compute
 
