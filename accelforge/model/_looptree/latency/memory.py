@@ -66,13 +66,37 @@ def component_latency(
             actions[f"{action.name}_actions"] += 0
 
         if isinstance(name2component[component], TensorHolder):
-            read_actions_val = buffet_stats.max_per_unit_read_actions
+            read_actions_val = (
+                buffet_stats.max_per_unit_read_actions
+                + buffet_stats.max_per_parent_drain_read_actions
+            )
             actions["read_actions"] += read_actions_val
             per_tensor_reads[component][buffet.tensor] += read_actions_val
+            # Per-unit computation-path reads only (no fill/drain).
+            # Use for PE buffer BW where fills go through the parent's port.
+            actions["pu_read_actions"] += buffet_stats.max_per_unit_read_actions
+            # Total actions across all spatial instances (for BW throttling
+            # of shared levels above spatial, e.g. shared_glb)
+            total_read_actions_val = (
+                buffet_stats.total_read_actions
+                + buffet_stats.total_parent_drain_read_actions
+            )
+            actions["total_read_actions"] += total_read_actions_val
             if not isinstance(name2component[component], arch.Toll):
-                write_actions_val = buffet_stats.max_per_unit_write_actions
+                write_actions_val = (
+                    buffet_stats.max_per_unit_write_actions
+                    + buffet_stats.max_per_parent_fill_write_actions
+                )
                 actions["write_actions"] += write_actions_val
                 per_tensor_writes[component][buffet.tensor] += write_actions_val
+                actions["pu_write_actions"] += (
+                    buffet_stats.max_per_unit_write_actions
+                )
+                total_write_actions_val = (
+                    buffet_stats.total_write_actions
+                    + buffet_stats.total_parent_fill_write_actions
+                )
+                actions["total_write_actions"] += total_write_actions_val
         elif isinstance(name2component[component], arch.Compute):
             pass
         else:
@@ -83,12 +107,12 @@ def component_latency(
     # Compute per-tensor max for levels with dedicated ports (e.g., Reg)
     for component in component_to_actions:
         if per_tensor_reads[component]:
-            component_to_actions[component]["max_tensor_read_actions"] = max(
-                per_tensor_reads[component].values()
+            component_to_actions[component]["max_tensor_read_actions"] = Max(
+                *per_tensor_reads[component].values()
             )
         if per_tensor_writes[component]:
-            component_to_actions[component]["max_tensor_write_actions"] = max(
-                per_tensor_writes[component].values()
+            component_to_actions[component]["max_tensor_write_actions"] = Max(
+                *per_tensor_writes[component].values()
             )
 
     longest_compute_latency = Max(
@@ -97,7 +121,11 @@ def component_latency(
     component_to_actions[compute_obj.name]["compute_actions"] = longest_compute_latency
 
     # Synthetic variables (not real actions — skip in action-latency loop)
-    _SYNTHETIC_ACTIONS = {"max_tensor_read_actions", "max_tensor_write_actions"}
+    _SYNTHETIC_ACTIONS = {
+        "max_tensor_read_actions", "max_tensor_write_actions",
+        "total_read_actions", "total_write_actions",
+        "pu_read_actions", "pu_write_actions",
+    }
 
     # TODO: Unhardcode "compute" name"
     component_to_action_latency = defaultdict(dict)

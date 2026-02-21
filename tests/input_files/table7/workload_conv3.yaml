@@ -1,0 +1,23 @@
+
+# AlexNet Conv3: C=256, M=384, R=3, S=3, N=4, P=13, Q=13, stride=1
+workload:
+  iteration_space_shape:
+    c: 0 <= c < 256
+    m: 0 <= m < 384
+    r: 0 <= r < 3
+    s: 0 <= s < 3
+    n: 0 <= n < 4
+    p: 0 <= p < 13
+    q: 0 <= q < 13
+  bits_per_value: {All: 16}
+  densities: {Inputs: 0.275, Weights: 0.346133, Outputs: 0.303}
+  einsums:
+  - name: Conv
+    tensor_accesses:
+    - name: Weights
+      projection: {M: m, C: c, R: r, S: s}
+    - name: Inputs
+      projection: {N: n, C: c, H: p + r, W: q + s}
+    - name: Outputs
+      projection: {N: n, M: m, P: p, Q: q}
+      output: true

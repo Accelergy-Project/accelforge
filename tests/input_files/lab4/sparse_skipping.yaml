@@ -1,5 +1,7 @@
 # Lab 4 skipping: CSR at BackingStorage+Buffer + skipping SAF at Buffer + MAC
 # UOP+CP compression at both levels.
+# metadata_storage_width matches the physical SRAM word width at each level
+# (BackingStorage=32 bits, Buffer=8 bits) so format elements are packed correctly.
 
 sparse_optimizations:
   targets:
@@ -19,11 +21,11 @@ sparse_optimizations:
     - name: A
       format: csr
       metadata_word_bits: 4
-      metadata_storage_width: 4
+      metadata_storage_width: 8
     - name: B
       format: csr
       metadata_word_bits: 4
-      metadata_storage_width: 4
+      metadata_storage_width: 8
     action_optimization:
     - kind: skipping
       target: A

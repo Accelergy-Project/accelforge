@@ -1,0 +1,88 @@
+
+# Table 7 Eyeriss v1 Architecture (168 PEs, 14x12)
+# Energy values from Sparseloop ERT (45nm technology)
+#
+# Hierarchy: DRAM -> shared_glb -> PEColumns(14) -> DummyBuffer -> PE(12) ->
+#            ifmap_spad, weights_spad, psum_spad -> MACs
+
+arch:
+  nodes:
+  - !Memory
+    name: DRAM
+    size: 1e9
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 512, bits_per_action: 64, latency: 0}
+    - {name: write, energy: 512, bits_per_action: 64, latency: 0}
+    - {name: metadata_read, energy: 40, bits_per_action: 5, latency: 0}
+    - {name: metadata_write, energy: 40, bits_per_action: 5, latency: 0}
+
+  - !Memory
+    name: shared_glb
+    size: 819200  # 12800 depth x 64 width = 819200 bits
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max(total_read_actions / 16, total_write_actions / 16))"
+    tensors: {keep: ~DRAM, may_keep: All}
+    actions:
+    - {name: read, energy: 49.1739, bits_per_action: 64, latency: 0}
+    - {name: write, energy: 37.1554, bits_per_action: 64, latency: 0}
+
+  - !Container
+    name: PEColumns
+    spatial:
+    - {name: X, fanout: 14, may_reuse: All}
+
+  - !Toll
+    name: DummyBuffer
+    direction: up_and_down
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, bits_per_action: 16, latency: 0}
+    spatial:
+    - {name: Y, fanout: 12, may_reuse: All}
+
+  - !Memory
+    name: ifmap_spad
+    size: 204  # 12 depth x 17 width = 204 bits
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max(pu_read_actions / 2, pu_write_actions / 2))"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.19652, bits_per_action: 17, latency: 0}
+    - {name: write, energy: 0.19652, bits_per_action: 17, latency: 0}
+
+  - !Memory
+    name: weights_spad
+    size: 3584  # 224 depth x 16 width = 3584 bits
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max(pu_read_actions / 2, pu_write_actions / 2))"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.71011, bits_per_action: 16, latency: 0}
+    - {name: write, energy: 1.13063, bits_per_action: 16, latency: 0}
+
+  - !Memory
+    name: psum_spad
+    size: 384  # 24 depth x 16 width = 384 bits
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max(pu_read_actions / 2, pu_write_actions / 2))"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.25281, bits_per_action: 16, latency: 0}
+    - {name: write, energy: 0.25281, bits_per_action: 16, latency: 0}
+
+  - !Compute
+    name: MACs
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 2.20035, latency: 1}

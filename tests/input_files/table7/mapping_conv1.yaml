@@ -1,0 +1,93 @@
+
+# Conv1 mapping for Eyeriss v1 (Table 7)
+# Translated from Sparseloop mapping: table7_eyeriss_setup/mappings_found/alexnet_conv1.yaml
+#
+# Sparseloop factors → AccelForge tile_shapes:
+# DRAM:     Q=8→tile7, N=4→tile1, C=3→tile1
+# shared_glb: M=3→tile32, P=56→tile1
+# spatial X: Q=7→tile1, M=2→tile16 (14-way)
+# spatial Y: S=11→tile1 (11 of 12 PEs)
+# weights_spad: R=11→tile1
+# psum_spad:    M=16→tile1
+
+mapping:
+  nodes:
+  # === DRAM level ===
+  - !Storage
+    tensors: [Weights, Inputs, Outputs]
+    component: DRAM
+
+  # DRAM temporal (outer→inner following Sparseloop permutation RSP CMNQ reversed)
+  - !Temporal
+    rank_variable: q
+    tile_shape: 7
+  - !Temporal
+    rank_variable: n
+    tile_shape: 1
+  - !Temporal
+    rank_variable: c
+    tile_shape: 1
+
+  # === shared_glb level (Inputs + Outputs; Weights bypass) ===
+  - !Storage
+    tensors: [Inputs, Outputs]
+    component: shared_glb
+
+  # shared_glb temporal (outer→inner following Sparseloop permutation QRSC PNM reversed)
+  - !Temporal
+    rank_variable: m
+    tile_shape: 32
+  - !Temporal
+    rank_variable: p
+    tile_shape: 1
+
+  # shared_glb spatial → 14 PEColumns (Q=7, M=2)
+  - !Spatial
+    rank_variable: q
+    tile_shape: 1
+    name: X
+    component: PEColumns
+  - !Spatial
+    rank_variable: m
+    tile_shape: 16
+    name: X
+    component: PEColumns
+
+  # === DummyBuffer pass-through (all tensors) ===
+  - !Toll
+    tensors: [Inputs, Weights, Outputs]
+    component: DummyBuffer
+
+  # DummyBuffer spatial → 11 PEs per column (S=11 out of 12)
+  - !Spatial
+    rank_variable: s
+    tile_shape: 1
+    name: Y
+    component: DummyBuffer
+
+  # === PE-level storage ===
+  - !Storage
+    tensors: [Inputs]
+    component: ifmap_spad
+  - !Storage
+    tensors: [Weights]
+    component: weights_spad
+
+  # weights_spad temporal: R=11 iterations
+  - !Temporal
+    rank_variable: r
+    tile_shape: 1
+
+  - !Storage
+    tensors: [Outputs]
+    component: psum_spad
+
+  # psum_spad temporal: M=16 iterations
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+
+  # === Compute ===
+  - !Compute
+    einsum: Conv
+    component: MACs
