@@ -50,6 +50,11 @@ class RankFormat(EvalableModel):
     payload_word_bits: Optional[int] = None
     """Bits per payload word. None uses default (data word size)."""
 
+    flattened_rank_ids: Optional[list[list[str]]] = None
+    """Dimension names flattened into this rank, e.g. [["C", "R"]].
+    When set, fiber_shape = product of those dimension sizes.
+    When None, auto-derived from tensor projection order."""
+
 
 class RepresentationFormat(EvalableModel):
     """Per-tensor format specification at a storage level.

@@ -71,6 +71,10 @@ class UOP(FormatModel):
     """
 
     def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+        # Trivial dimensions (fiber_shape <= 1) produce no payload:
+        # Sparseloop reports 0 accesses for UOP on trivial ranks (e.g. R=1).
+        if fiber_shape <= 1:
+            return RankOccupancy(metadata_units=0, payload_units=0)
         return RankOccupancy(
             metadata_units=0,
             payload_units=fibers * (fiber_shape + 1),

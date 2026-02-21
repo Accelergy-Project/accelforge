@@ -343,6 +343,36 @@ class TestRankFormat(unittest.TestCase):
         self.assertEqual(rf.metadata_word_bits, 14)
         self.assertEqual(rf.payload_word_bits, 0)
 
+    def test_flattened_rank_ids_parse(self):
+        """RankFormat with flattened_rank_ids parses correctly."""
+        rf = RankFormat(
+            format="UOP",
+            payload_word_bits=0,
+            flattened_rank_ids=[["S", "F"]],
+        )
+        self.assertEqual(rf.format, "UOP")
+        self.assertEqual(rf.flattened_rank_ids, [["S", "F"]])
+        self.assertEqual(rf.payload_word_bits, 0)
+
+    def test_flattened_rank_ids_none_default(self):
+        """RankFormat without flattened_rank_ids defaults to None."""
+        rf = RankFormat(format="CP")
+        self.assertIsNone(rf.flattened_rank_ids)
+
+    def test_explicit_ranks_with_flattened_ids(self):
+        """RepresentationFormat with explicit flattened ranks."""
+        rf = RepresentationFormat(
+            name="Inputs",
+            ranks=[
+                RankFormat(format="UOP", payload_word_bits=4, flattened_rank_ids=[["R"]]),
+                RankFormat(format="RLE", metadata_word_bits=4, flattened_rank_ids=[["C"]]),
+            ],
+        )
+        ranks = rf.get_rank_formats()
+        self.assertEqual(len(ranks), 2)
+        self.assertEqual(ranks[0].flattened_rank_ids, [["R"]])
+        self.assertEqual(ranks[1].flattened_rank_ids, [["C"]])
+
 
 class TestYAMLFileLoading(unittest.TestCase):
     """Test loading sparse_optimizations from actual YAML files.
