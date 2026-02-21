@@ -187,9 +187,15 @@ def _compare_to_zero(
 
     min_check, max_check = (any, all) if check_lt_zero else (all, any)
     if isinstance(f, sympy.Min):
-        return min_check(_compare_to_zero(g, bounds, check_lt_zero, terms_do_not_cross_zero) for g in f.args)
+        return min_check(
+            _compare_to_zero(g, bounds, check_lt_zero, terms_do_not_cross_zero)
+            for g in f.args
+        )
     if isinstance(f, sympy.Max):
-        return max_check(_compare_to_zero(g, bounds, check_lt_zero, terms_do_not_cross_zero) for g in f.args)
+        return max_check(
+            _compare_to_zero(g, bounds, check_lt_zero, terms_do_not_cross_zero)
+            for g in f.args
+        )
 
     # Tried this on one workload and had marginally faster speeds with choosing the
     # symbol that appears the least times. Also tried the symbol that appears the most
@@ -208,7 +214,10 @@ def _compare_to_zero(
         return True
 
     if isinstance(f_range, sympy.FiniteSet):
-        return any(_compare_to_zero(f2, bounds, check_lt_zero, terms_do_not_cross_zero) for f2 in f_range)
+        return any(
+            _compare_to_zero(f2, bounds, check_lt_zero, terms_do_not_cross_zero)
+            for f2 in f_range
+        )
     else:
         return _compare_to_zero(
             f_range.left if check_lt_zero else f_range.right,
@@ -239,10 +248,14 @@ def geq_leq_zero(
             return ComparisonResult.ALWAYS_LEQ_THAN_ZERO
 
     # return geq_leq_than_zero(f, bounds)
-    lt_zero = _compare_to_zero(f, bounds, check_lt_zero=True, terms_do_not_cross_zero=terms_do_not_cross_zero)
+    lt_zero = _compare_to_zero(
+        f, bounds, check_lt_zero=True, terms_do_not_cross_zero=terms_do_not_cross_zero
+    )
     if terms_do_not_cross_zero and lt_zero:
         return ComparisonResult.ALWAYS_LEQ_THAN_ZERO
-    gt_zero = _compare_to_zero(f, bounds, check_lt_zero=False, terms_do_not_cross_zero=terms_do_not_cross_zero)
+    gt_zero = _compare_to_zero(
+        f, bounds, check_lt_zero=False, terms_do_not_cross_zero=terms_do_not_cross_zero
+    )
     if terms_do_not_cross_zero and gt_zero:
         return ComparisonResult.ALWAYS_GEQ_THAN_ZERO
 
@@ -362,6 +375,7 @@ class Objective:
         self.try_best_if_none_reaches_min: bool = try_best_if_none_reaches_min
         self.terms_do_not_cross_zero: bool = terms_do_not_cross_zero
 
+
 def is_constant(f: Expr) -> bool:
     try:
         return f.is_constant()
@@ -404,6 +418,7 @@ def try_replace_single_term(
     bounds: tuple[tuple[Symbol, int, int], ...],
 ):
     return _try_replace_single_term(t, symbols_enumerated & t.free_symbols, bounds)
+
 
 @lru_cache(maxsize=10000)
 def _partition_formula(
@@ -490,7 +505,9 @@ def _partition_formula(
         # - For non-constant factors, if they're >1 then we can keep the max.
         #   Otherwise we have to drop it.
         for t in f.args:
-            geq_result = geq_leq_zero(t, bounds, terms_do_not_cross_zero=terms_do_not_cross_zero)
+            geq_result = geq_leq_zero(
+                t, bounds, terms_do_not_cross_zero=terms_do_not_cross_zero
+            )
             if geq_result == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
                 negate = not negate
             elif geq_result == ComparisonResult.UNKNOWN:
@@ -550,7 +567,9 @@ def partition_formula(
     bounds: tuple[tuple[Symbol, int, int], ...],
     terms_do_not_cross_zero: bool = False,
 ) -> dict[Symbol, Goal]:
-    return _partition_formula(f, fzs(symbols_enumerated & f.free_symbols), bounds, terms_do_not_cross_zero)
+    return _partition_formula(
+        f, fzs(symbols_enumerated & f.free_symbols), bounds, terms_do_not_cross_zero
+    )
 
 
 def get_possible_factor_sizes(n: int, imperfect: bool = False) -> list[int]:
@@ -1355,7 +1374,10 @@ def get_tile_shape_choices(
             )
 
             goals = partition_formula(
-                objective.formula, sym_enumerated_set, what_tiles_symbol.bounds, objective.terms_do_not_cross_zero
+                objective.formula,
+                sym_enumerated_set,
+                what_tiles_symbol.bounds,
+                objective.terms_do_not_cross_zero,
             )
 
             log_message(f"formula", f"{objective.formula}")
@@ -1626,9 +1648,9 @@ def _make_tile_shapes(job: "Job"):
     rank_var_to_fused_loops = get_rank_var_to_fused_loops(pmapping, shape)
     all_fused_loops = set(sum(rank_var_to_fused_loops.values(), []))
 
-    assert Metrics.ACTIONS not in job.metrics, (
-        "Actions are not yet supported as an optimization metric for the mapper."
-    )
+    assert (
+        Metrics.ACTIONS not in job.metrics
+    ), "Actions are not yet supported as an optimization metric for the mapper."
 
     objectives = []
 

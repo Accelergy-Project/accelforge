@@ -105,9 +105,8 @@ def get_tensor_data_space(workload: Workload, tensor: TensorName) -> isl.Set:
 def get_tensor_shape(workload: Workload, tensor: TensorName) -> dict[Rank, int]:
     bounds = get_dim_bounds(get_tensor_data_space(workload, tensor))
     an_access = next(iter(workload.accesses_for_tensor(tensor)))
-    return {
-        rank: bound for rank, bound in zip(an_access.ranks, bounds)
-    }
+    return {rank: bound for rank, bound in zip(an_access.ranks, bounds)}
+
 
 def _card_box(data_space: isl.Set) -> int:
     dims = []
