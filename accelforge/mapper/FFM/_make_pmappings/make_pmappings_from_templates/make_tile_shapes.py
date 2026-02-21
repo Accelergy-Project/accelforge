@@ -595,10 +595,11 @@ def symbol2int(symbol: Symbol):
 
 @lru_cache(maxsize=10000)
 def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
-    f2 = f
-    for s in f.free_symbols & symbols_enumerated:
-        f2 = f2.subs(s, sympy.Symbol(f"{s}_2", integer=True, positive=True))
-    return f2 - f > 0
+    fs = {
+        s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
+        for s in f.free_symbols & symbols_enumerated
+    }
+    return f.subs(fs) - f > 0
 
 
 @lru_cache(maxsize=10000)
