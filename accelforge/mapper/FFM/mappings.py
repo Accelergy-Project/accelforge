@@ -283,7 +283,7 @@ class Mappings:
         """The columns of the dataframe."""
         return list(self.data.columns)
 
-    def to_dict(self, value_if_one_mapping: bool = True) -> dict[str, list[float]]:
+    def to_dict(self, list_if_one_mapping: bool = False) -> dict[str, list[float]]:
         """
         Returns the data in this Mappings object as a dictionary. Each column in the
         this Mappings' data becomes a key in the dictionary. Values in the dictionary
@@ -292,7 +292,7 @@ class Mappings:
 
         Parameters
         ----------
-        value_if_one_mapping:
+        list_if_one_mapping:
             If True and there is only one mapping, then values in the returned
             dictionary will be a single value, rather than a list of values. Otherwise,
             they will always be a list of values.
@@ -304,12 +304,12 @@ class Mappings:
             that are either a single value or a list of values.
         """
         new = self.data.to_dict(orient="list")
-        if value_if_one_mapping and len(self) == 1:
+        if list_if_one_mapping and len(self) == 1:
             new = {k: v[0] for k, v in new.items()}
         return new
 
     def items(
-        self, value_if_one_mapping: bool = True
+        self, list_if_one_mapping: bool = False
     ) -> list[tuple[str, float | list[float]]]:
         """
         Shorthand for ``to_dict().items()``. Casts this Mappings object to a dictionary,
@@ -317,7 +317,7 @@ class Mappings:
 
         Parameters
         ----------
-        value_if_one_mapping:
+        list_if_one_mapping:
             If True and there is only one mapping, then values in the returned list will
             be a single value, rather than a list of values. Otherwise, they will always
             be a list of values.
@@ -327,7 +327,7 @@ class Mappings:
         list[tuple[str, float | list[float]]]
             A list of tuples of (key, value).
         """
-        return self.to_dict(value_if_one_mapping=value_if_one_mapping).items()
+        return self.to_dict(list_if_one_mapping=list_if_one_mapping).items()
 
     def per_compute(self, per_einsum: bool = False) -> "Mappings":
         """
@@ -430,7 +430,7 @@ class Mappings:
         per_component: bool = False,
         per_tensor: bool = False,
         per_action: bool = False,
-        value_if_one_mapping: bool = True,
+        list_if_one_mapping: bool = False,
     ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
         """
         Returns the energy consumed. A dictionary is returned with keys that are tuples
@@ -452,10 +452,11 @@ class Mappings:
             If True, then the energy will reported per-tensor.
         per_action:
             If True, then the energy will reported per-action.
-        value_if_one_mapping:
+        list_if_one_mapping:
             If True and there is only one mapping, then values in the returned
-            dictionary will be a single value, rather than a list of values. Otherwise,
-            they will always be a list of values.
+            dictionary will be lists of values, each containing a single value.
+            Otherwise, if there is only one mapping, the values in the returned
+            dictionary will each be a single value.
 
         Returns
         -------
@@ -492,7 +493,7 @@ class Mappings:
 
         if not keep_indices:
             v = sum(result.values())
-            if value_if_one_mapping and len(self.data) == 1:
+            if (not list_if_one_mapping) and len(self.data) == 1:
                 return v.iloc[0] if isinstance(v, pd.Series) else v
             return v
 
@@ -505,7 +506,7 @@ class Mappings:
         if len(keep_indices) == 1:
             result = {k[0]: v for k, v in result.items()}
 
-        if value_if_one_mapping and len(self.data) == 1:
+        if (not list_if_one_mapping) and len(self.data) == 1:
             return {k: v.iloc[0] for k, v in result.items()}
 
         return {k: list(v) for k, v in result.items()}
@@ -514,7 +515,7 @@ class Mappings:
         self: "Mappings",
         per_einsum: bool = False,
         per_component: bool = False,
-        value_if_one_mapping: bool = True,
+        list_if_one_mapping: bool = False,
     ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
         """
         Returns the latency consumed. A dictionary is returned with keys that are tuples
@@ -533,10 +534,11 @@ class Mappings:
             If True, then the latency will reported per-Einsum.
         per_component:
             If True, then the latency will reported per-component.
-        value_if_one_mapping:
+        list_if_one_mapping:
             If True and there is only one mapping, then values in the returned
-            dictionary will be a single value, rather than a list of values. Otherwise,
-            they will always be a list of values.
+            dictionary will be lists of values, each containing a single value.
+            Otherwise, if there is only one mapping, the values in the returned
+            dictionary will each be a single value.
 
         Returns
         -------
@@ -580,7 +582,7 @@ class Mappings:
             else:
                 result = np.sum(list(result.values()))
 
-        if value_if_one_mapping and len(self.data) == 1:
+        if (not list_if_one_mapping) and len(self.data) == 1:
             if isinstance(result, dict):
                 return {k: v.iloc[0] for k, v in result.items()}
             return result  # Numpy sum already pulls out the number
@@ -589,17 +591,18 @@ class Mappings:
 
     def resource_usage(
         self,
-        value_if_one_mapping: bool = True,
+        list_if_one_mapping: bool = False,
     ) -> dict[str, float | list[float]]:
         """
         Returns the usage of each resource in the mapping.
 
         Parameters
         ----------
-        value_if_one_mapping:
+        list_if_one_mapping:
             If True and there is only one mapping, then values in the returned
-            dictionary will be a single value, rather than a list of values. Otherwise,
-            they will always be a list of values.
+            dictionary will be lists of values, each containing a single value.
+            Otherwise, if there is only one mapping, the values in the returned
+            dictionary will each be a single value.
 
         Returns
         -------
@@ -618,7 +621,7 @@ class Mappings:
                 usage[resource] = 0
             usage[resource] = np.maximum(usage[resource], reservations[col])
 
-        if value_if_one_mapping and len(self.data) == 1:
+        if (not list_if_one_mapping) and len(self.data) == 1:
             return {k: v.iloc[0] for k, v in usage.items()}
         return {k: list(v) for k, v in usage.items()}
 
@@ -627,7 +630,7 @@ class Mappings:
         per_einsum: bool = False,
         per_component: bool = True,
         per_tensor: bool = False,
-        value_if_one_mapping: bool = True,
+        list_if_one_mapping: bool = False,
     ) -> dict[tuple[str, ...] | str, float | list[float]] | float | list[float]:
         """
         Returns the number of actions performed in the mapping. A dictionary is returned
@@ -644,10 +647,11 @@ class Mappings:
             If True, then the number of actions will reported per-component.
         per_tensor:
             If True, then the number of actions will reported per-tensor.
-        value_if_one_mapping:
+        list_if_one_mapping:
             If True and there is only one mapping, then values in the returned
-            dictionary will be a single value, rather than a list of values. Otherwise,
-            they will always be a list of values.
+            dictionary will be lists of values, each containing a single value.
+            Otherwise, if there is only one mapping, the values in the returned
+            dictionary will each be a single value.
 
         Returns
         -------
@@ -680,7 +684,7 @@ class Mappings:
 
         if not keep_indices:
             v = sum(result.values())
-            if value_if_one_mapping and len(self.data) == 1:
+            if (not list_if_one_mapping) and len(self.data) == 1:
                 return v.iloc[0] if isinstance(v, pd.Series) else v
             return v
 
@@ -693,7 +697,7 @@ class Mappings:
         if len(keep_indices) == 1:
             result = {k[0]: v for k, v in result.items()}
 
-        if value_if_one_mapping and len(self.data) == 1:
+        if (not list_if_one_mapping) and len(self.data) == 1:
             return {k: v.iloc[0] for k, v in result.items()}
 
         return {k: list(v) for k, v in result.items()}
