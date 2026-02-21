@@ -21,12 +21,16 @@ Returns a tuple of:
 
 import math
 import re
+from dataclasses import dataclass, field
 
 from accelforge.frontend import arch
-from accelforge.frontend.mapping import Temporal, Spatial, TensorHolder as MappingTensorHolder
+
 from accelforge.frontend.spec import Spec
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
-from accelforge.model._looptree.reuse.symbolic import SymbolicAnalysisOutput
+from accelforge.model._looptree.reuse.symbolic import (
+    Compute,
+    SymbolicAnalysisOutput,
+)
 from accelforge.model._looptree.types import Buffet
 from accelforge.model.sparse import compute_format_access_counts
 from accelforge.model.sparse_formats import compute_format_occupancy
@@ -39,6 +43,98 @@ from accelforge.model.sparse_pipeline import (
     propagate_saf_reduction,
 )
 from accelforge.util._base_analysis_types import ActionCount, ActionKey
+
+
+@dataclass
+class LatencyInfo:
+    """Sparse-adjusted latency parameters produced by apply_sparse_adjustments.
+
+    These are consumed by _compute_sparse_latency in run_model.py to recompute
+    component latencies after sparsity reduces data transfers and compute.
+    """
+
+    # Gated read/write deltas per (level, tensor).  These are ADDED BACK to
+    # post-sparse action counts for latency because gated reads still consume
+    # port bandwidth.
+    gated_read_action_deltas: dict[tuple[str, str], float] = field(
+        default_factory=dict
+    )
+    gated_write_action_deltas: dict[tuple[str, str], float] = field(
+        default_factory=dict
+    )
+    # Metadata actions per level (consume BW, added to latency).
+    metadata_read_actions: dict[str, float] = field(default_factory=dict)
+    metadata_write_actions: dict[str, float] = field(default_factory=dict)
+    # Compute latency ratio: post-Phase-5 / pre-sparse.
+    compute_latency_ratio: float = 1.0
+
+
+@dataclass
+class BuffetActionDelta:
+    """How sparsity changes one buffet's net action counts.
+
+    These are additive deltas: sparse_actions = dense_actions + delta.
+    Computed by diffing net action counts before and after
+    _recompute_action_counts + _apply_format_compression_to_saf_levels.
+    """
+
+    total_read: float = 0
+    max_per_unit_read: float = 0
+    total_write: float = 0
+    max_per_unit_write: float = 0
+
+
+@dataclass
+class ComputeActionDelta:
+    """How sparsity changes one compute unit's action counts."""
+
+    total_ops: float = 0
+    max_per_unit_ops: float = 0
+
+
+@dataclass
+class SparseAnalysisOutput:
+    """Structured output from apply_sparse_adjustments.
+
+    Wraps the three categories of sparse analysis results:
+    - sparse_actions: gated/skipped/metadata action counts for energy
+    - per_rank_info: per-rank format metadata for reporting
+    - latency_info: parameters for sparse-adjusted latency recomputation
+
+    Plus action-level deltas for compositional gather_actions:
+    - buffet_action_deltas: per-buffet read/write action deltas
+    - compute_action_deltas: per-compute ops deltas
+    """
+
+    sparse_actions: dict[ActionKey, ActionCount] = field(default_factory=dict)
+    per_rank_info: dict[tuple[str, str], dict] = field(default_factory=dict)
+    latency_info: LatencyInfo = field(default_factory=LatencyInfo)
+    buffet_action_deltas: dict[Buffet, BuffetActionDelta] = field(
+        default_factory=dict
+    )
+    compute_action_deltas: dict[Compute, ComputeActionDelta] = field(
+        default_factory=dict
+    )
+
+
+# Sparse action names.  These must match the action names declared in arch YAML.
+# Data I/O actions (modifiers of base read/write):
+GATED_READ = "gated_read"
+SKIPPED_READ = "skipped_read"
+# Compute actions (modifiers of base compute):
+GATED_COMPUTE = "gated_compute"
+SKIPPED_COMPUTE = "skipped_compute"
+# Format metadata I/O actions:
+METADATA_READ = "metadata_read"
+METADATA_WRITE = "metadata_write"
+GATED_METADATA_READ = "gated_metadata_read"
+
+# Map SAF kind → sparse read action name
+_SAF_KIND_TO_READ_ACTION = {
+    "gating": GATED_READ,
+    "skipping": SKIPPED_READ,
+    "position_skipping": SKIPPED_READ,
+}
 
 
 def _has_action(spec: Spec, component_name: str, action_name: str) -> bool:
@@ -68,6 +164,25 @@ def _emit(
         sparse_actions[key] = ActionCount.default()
     sparse_actions[key].total += total
     sparse_actions[key].max_per_unit += total
+
+
+def _emit_if_declared(
+    sparse_actions: dict[ActionKey, ActionCount],
+    spec: Spec,
+    level: str,
+    action_name: str,
+    total: int | float,
+) -> bool:
+    """Emit a sparse action only if total > 0 and arch declares it.
+
+    Returns True if the action was emitted.
+    """
+    if total <= 0:
+        return False
+    if not _has_action(spec, level, action_name):
+        return False
+    _emit(sparse_actions, level, action_name, total)
+    return True
 
 
 def _ranks_have_flattened_ids(rank_format_objs: list) -> bool:
@@ -168,47 +283,6 @@ def _compute_flattened_tensor_size(
     return max(tensor_size, 1)
 
 
-def _get_tile_shape_at_level(
-    reuse: SymbolicAnalysisOutput,
-    job: Job,
-    tensor_name: str,
-    level_name: str,
-) -> dict[str, int]:
-    """Reconstruct per-dimension tile sizes at a storage level for a tensor.
-
-    Walks the per-tensor mapping nodes top-to-bottom, starting from
-    job.rank_variable_bounds, tracking current_shape at each Temporal/Spatial
-    node, and stops at the TensorHolder matching level_name.
-
-    Returns dict[rank_variable, tile_size]. Returns empty dict if the
-    tensor has no mapping entry (graceful for mock tests).
-    """
-    if not hasattr(reuse, "tensor2mapping") or not reuse.tensor2mapping:
-        return {}
-    if tensor_name not in reuse.tensor2mapping:
-        return {}
-    if not hasattr(job, "rank_variable_bounds") or not job.rank_variable_bounds:
-        return {}
-
-    mapping = reuse.tensor2mapping[tensor_name]
-    current_shape = dict(job.rank_variable_bounds)
-
-    for node in mapping.nodes:
-        if isinstance(node, (Temporal, Spatial)):
-            rv = node.rank_variable
-            if isinstance(rv, set):
-                # Multi-rank-variable node — skip (shouldn't happen for
-                # single-tensor mappings, but handle gracefully)
-                continue
-            ts = node.tile_shape
-            if isinstance(ts, int):
-                current_shape[rv] = ts
-        elif isinstance(node, MappingTensorHolder):
-            if node.component == level_name and tensor_name in node.tensors:
-                return current_shape
-
-    return current_shape
-
 
 def _get_dimension_sizes_for_tensor(
     current_shape: dict[str, int],
@@ -287,23 +361,19 @@ def apply_sparse_adjustments(
     reuse: SymbolicAnalysisOutput,
     spec: Spec,
     job: Job,
-) -> tuple[dict[ActionKey, ActionCount], dict, dict]:
+) -> SparseAnalysisOutput:
     """Apply sparse optimizations to reuse analysis results in-place.
 
     Modifies buffet_stats and compute_stats to reflect format compression,
     storage action filtering (SAF), and compute classification.
 
-    Returns a tuple of:
-      - dict of sparse-specific action counts (gated_read, metadata_read,
-        gated_compute, skipped_compute, etc.).  Only actions declared in the
-        component's arch YAML are emitted.
-      - dict of per-rank format info keyed by (tensor, level), containing
-        rank_formats, rank_capacity, rank_access_counts, rank_word_bits.
-      - dict of latency_info for sparse-adjusted latency computation,
-        containing skipped action deltas, metadata actions per component,
-        and compute latency ratio.
+    Returns a SparseAnalysisOutput containing:
+      - sparse_actions: gated/skipped/metadata action counts.  Only actions
+        declared in the component's arch YAML are emitted.
+      - per_rank_info: per-rank format info keyed by (tensor, level).
+      - latency_info: parameters for sparse-adjusted latency recomputation.
 
-    No-op (returns empty dicts) when spec.sparse_optimizations has no targets.
+    No-op (returns empty output) when spec.sparse_optimizations has no targets.
 
     Parameters
     ----------
@@ -315,23 +385,11 @@ def apply_sparse_adjustments(
         Job context with einsum info and flattened arch.
     """
     sparse_actions: dict[ActionKey, ActionCount] = {}
-    per_rank_info: dict[tuple[str, str], dict] = {}
-    latency_info: dict = {
-        # Gated read/write deltas per (level, tensor): these are ADDED BACK
-        # to post-sparse action counts for latency because gated reads still
-        # consume port bandwidth.
-        "gated_read_action_deltas": {},
-        "gated_write_action_deltas": {},
-        # Metadata actions per level (consume BW, added to latency)
-        "metadata_read_actions": {},
-        "metadata_write_actions": {},
-        # Compute latency ratio: post-4b / pre-sparse
-        "compute_latency_ratio": 1.0,
-    }
+    latency_info = LatencyInfo()
 
     sparse_opts = spec.sparse_optimizations
     if not sparse_opts.targets:
-        return sparse_actions, per_rank_info, latency_info
+        return SparseAnalysisOutput(sparse_actions=sparse_actions)
 
     einsum_name = job.einsum_name
     workload = spec.workload
@@ -349,6 +407,14 @@ def apply_sparse_adjustments(
 
     # Compute levels (skip these for buffet processing)
     compute_levels = set(c.level for c in reuse.compute_stats)
+
+    # Snapshot dense compute ops BEFORE any phase modifies them.
+    # Phase 4b-5 will directly modify compute_stats.total_ops/max_per_unit_ops,
+    # so this must be captured here (unlike buffet action counts which remain
+    # stale until _recompute_action_counts refreshes them later).
+    dense_compute_ops: dict[Compute, tuple] = {}
+    for ck, cs in reuse.compute_stats.items():
+        dense_compute_ops[ck] = (cs.total_ops, cs.max_per_unit_ops)
 
     # ========================================================================
     # Phase 2: Format compression — reduce fills, child reads, occupancy
@@ -458,6 +524,20 @@ def apply_sparse_adjustments(
                         density,
                     )
                 )
+                # For output tensors, compress child's drains (writes
+                # going UP to this formatted level).  Only non-zero
+                # elements are written to the compressed storage.
+                if tensor_info[buffet.tensor]["is_output"]:
+                    child_s.total_writes_to_parent = (
+                        apply_format_compression(
+                            child_s.total_writes_to_parent, density
+                        )
+                    )
+                    child_s.max_per_parent_writes_to_parent = (
+                        apply_format_compression(
+                            child_s.max_per_parent_writes_to_parent, density
+                        )
+                    )
 
     # ========================================================================
     # Phase 3-4a: SAF — reduce child reads/writes
@@ -556,16 +636,9 @@ def apply_sparse_adjustments(
     # Emit gated/skipped read actions from SAF deltas
     # ========================================================================
     for (level, tensor), (delta, kind, _prob) in saf_deltas.items():
-        if delta <= 0:
-            continue
-        if kind == "gating":
-            action_name = "gated_read"
-        elif kind in ("skipping", "position_skipping"):
-            action_name = "skipped_read"
-        else:
-            continue
-        if _has_action(spec, level, action_name):
-            _emit(sparse_actions, level, action_name, delta)
+        action_name = _SAF_KIND_TO_READ_ACTION.get(kind)
+        if action_name is not None:
+            _emit_if_declared(sparse_actions, spec, level, action_name, delta)
 
     # ========================================================================
     # Build gated action deltas for latency (gating only, not skipping)
@@ -588,8 +661,8 @@ def apply_sparse_adjustments(
         read_scale = bpv / read_bpa
         action_delta = delta * read_scale
         lt_key = (level, tensor)
-        latency_info["gated_read_action_deltas"].setdefault(lt_key, 0)
-        latency_info["gated_read_action_deltas"][lt_key] += action_delta
+        latency_info.gated_read_action_deltas.setdefault(lt_key, 0)
+        latency_info.gated_read_action_deltas[lt_key] += action_delta
 
     for (level, tensor), (write_delta, kind) in saf_write_deltas.items():
         if write_delta <= 0 or kind != "gating":
@@ -607,8 +680,8 @@ def apply_sparse_adjustments(
         write_scale = bpv / write_bpa
         action_delta = write_delta * write_scale
         lt_key = (level, tensor)
-        latency_info["gated_write_action_deltas"].setdefault(lt_key, 0)
-        latency_info["gated_write_action_deltas"][lt_key] += action_delta
+        latency_info.gated_write_action_deltas.setdefault(lt_key, 0)
+        latency_info.gated_write_action_deltas[lt_key] += action_delta
 
     # ========================================================================
     # Phase 4b-5: Propagate SAF to compute & classify
@@ -725,24 +798,14 @@ def apply_sparse_adjustments(
             # level SAF covering the same condition.  When storage SAF
             # exists, gated iterations never reach the compute unit.
             if not storage_saf_covers:
-                if result.gated_compute > 0 and _has_action(
-                    spec, compute_key.level, "gated_compute"
-                ):
-                    _emit(
-                        sparse_actions,
-                        compute_key.level,
-                        "gated_compute",
-                        result.gated_compute,
-                    )
-                if result.skipped_compute > 0 and _has_action(
-                    spec, compute_key.level, "skipped_compute"
-                ):
-                    _emit(
-                        sparse_actions,
-                        compute_key.level,
-                        "skipped_compute",
-                        result.skipped_compute,
-                    )
+                _emit_if_declared(
+                    sparse_actions, spec, compute_key.level,
+                    GATED_COMPUTE, result.gated_compute,
+                )
+                _emit_if_declared(
+                    sparse_actions, spec, compute_key.level,
+                    SKIPPED_COMPUTE, result.skipped_compute,
+                )
 
     # Compute latency ratio: post-Phase-5 / pre-SAF
     # After compute classification, total_ops reflects ALL sparsity factors
@@ -751,7 +814,7 @@ def apply_sparse_adjustments(
     for compute_key, compute_stats in reuse.compute_stats.items():
         pre = pre_saf_compute.get(compute_key.level, 0)
         if pre > 0:
-            latency_info["compute_latency_ratio"] = compute_stats.total_ops / pre
+            latency_info.compute_latency_ratio = compute_stats.total_ops / pre
         break
 
     # ========================================================================
@@ -770,6 +833,23 @@ def apply_sparse_adjustments(
         pre_saf_child_reads,
         pre_saf_fills,
     )
+
+    # ========================================================================
+    # Snapshot dense net action counts BEFORE recompute.
+    # These are the original values computed by the dense pipeline in
+    # analyze_storage/analyze_reservation.  After _recompute_action_counts
+    # they will be overwritten with sparse-adjusted values.
+    # ========================================================================
+    dense_buffet_nets: dict[Buffet, tuple] = {}
+    for buffet, stats in reuse.buffet_stats.items():
+        if buffet.level in compute_levels:
+            continue
+        dense_buffet_nets[buffet] = (
+            stats.net_total_read_actions(),
+            stats.net_max_per_unit_read_actions(),
+            stats.net_total_write_actions(),
+            stats.net_max_per_unit_write_actions(),
+        )
 
     # ========================================================================
     # Recompute action counts from modified element counts
@@ -792,12 +872,39 @@ def apply_sparse_adjustments(
         reuse, spec, compute_levels, formatted_buffets, tensor_info,
     )
 
-    return sparse_actions, per_rank_info, latency_info
+    # ========================================================================
+    # Compute action-level deltas (sparse - dense) for compositional path.
+    # ========================================================================
+    buffet_action_deltas: dict[Buffet, BuffetActionDelta] = {}
+    for buffet, dense in dense_buffet_nets.items():
+        stats = reuse.buffet_stats[buffet]
+        buffet_action_deltas[buffet] = BuffetActionDelta(
+            total_read=stats.net_total_read_actions() - dense[0],
+            max_per_unit_read=stats.net_max_per_unit_read_actions() - dense[1],
+            total_write=stats.net_total_write_actions() - dense[2],
+            max_per_unit_write=stats.net_max_per_unit_write_actions() - dense[3],
+        )
+
+    compute_action_deltas: dict[Compute, ComputeActionDelta] = {}
+    for ck, dense in dense_compute_ops.items():
+        cs = reuse.compute_stats[ck]
+        compute_action_deltas[ck] = ComputeActionDelta(
+            total_ops=cs.total_ops - dense[0],
+            max_per_unit_ops=cs.max_per_unit_ops - dense[1],
+        )
+
+    return SparseAnalysisOutput(
+        sparse_actions=sparse_actions,
+        per_rank_info=per_rank_info,
+        latency_info=latency_info,
+        buffet_action_deltas=buffet_action_deltas,
+        compute_action_deltas=compute_action_deltas,
+    )
 
 
 def _emit_metadata_actions(
     sparse_actions: dict[ActionKey, ActionCount],
-    latency_info: dict,
+    latency_info: LatencyInfo,
     reuse: SymbolicAnalysisOutput,
     spec: Spec,
     job: Job,
@@ -814,8 +921,8 @@ def _emit_metadata_actions(
     (real pipeline). Falls back to flat logic when tile info is missing
     (mock tests).
 
-    Also populates latency_info["metadata_read_actions"] and
-    latency_info["metadata_write_actions"] with data-word-equivalent
+    Also populates latency_info.metadata_read_actions and
+    latency_info.metadata_write_actions with data-word-equivalent
     bandwidth counts (for latency), which differ from the packed physical
     SRAM access counts used for energy.
 
@@ -856,7 +963,7 @@ def _emit_metadata_actions(
         # iact_spad/reg, 8-bit for weight_spad in EyerissV2).
         if metadata_storage_width is None:
             try:
-                md_action = component_obj.actions["metadata_read"]
+                md_action = component_obj.actions[METADATA_READ]
                 metadata_storage_width = int(md_action.bits_per_action)
             except (KeyError, IndexError):
                 pass
@@ -881,7 +988,7 @@ def _emit_metadata_actions(
         post_fills = stats.total_reads_to_parent
 
         # ---- Compute per-rank info (informational columns) ----
-        current_shape = _get_tile_shape_at_level(reuse, job, tensor, level)
+        current_shape = stats.tile_shape or {}
 
         # Check if explicit ranks with flattened_rank_ids are available
         if fmt.ranks is not None:
@@ -1008,17 +1115,15 @@ def _emit_metadata_actions(
                     md_bpa = metadata_storage_width
                 md_read_actions = math.ceil(data_reads * md_word_bits / md_bpa)
                 md_fill_actions = math.ceil(data_fills * md_word_bits / md_bpa)
-                if md_read_actions > 0 and _has_action(spec, level, "metadata_read"):
-                    _emit(sparse_actions, level, "metadata_read", md_read_actions)
-                if md_fill_actions > 0 and _has_action(spec, level, "metadata_write"):
-                    _emit(sparse_actions, level, "metadata_write", md_fill_actions)
+                _emit_if_declared(sparse_actions, spec, level, METADATA_READ, md_read_actions)
+                _emit_if_declared(sparse_actions, spec, level, METADATA_WRITE, md_fill_actions)
                 # Latency contribution
                 bw_read = math.ceil(data_reads * md_word_bits / read_bpa)
                 bw_fill = math.ceil(data_fills * md_word_bits / read_bpa)
-                latency_info["metadata_read_actions"].setdefault(level, 0)
-                latency_info["metadata_read_actions"][level] += bw_read
-                latency_info["metadata_write_actions"].setdefault(level, 0)
-                latency_info["metadata_write_actions"][level] += bw_fill
+                latency_info.metadata_read_actions.setdefault(level, 0)
+                latency_info.metadata_read_actions[level] += bw_read
+                latency_info.metadata_write_actions.setdefault(level, 0)
+                latency_info.metadata_write_actions[level] += bw_fill
             continue
 
         # Effective algorithmic counts for emission (pre-compression).
@@ -1106,20 +1211,17 @@ def _emit_metadata_actions(
         packed_reads, packed_fills = _pack_format(emission_access)
         total_read_bits, total_fill_bits = _sum_format_bits(emission_access)
 
-        if packed_reads > 0 and _has_action(spec, level, "metadata_read"):
-            _emit(sparse_actions, level, "metadata_read", packed_reads)
-        if packed_fills > 0 and _has_action(spec, level, "metadata_write"):
-            _emit(sparse_actions, level, "metadata_write", packed_fills)
+        _emit_if_declared(sparse_actions, spec, level, METADATA_READ, packed_reads)
+        _emit_if_declared(sparse_actions, spec, level, METADATA_WRITE, packed_fills)
 
         # Emit GATED metadata at gated_metadata_read rate (for gating SAF)
-        if gated_metadata_input_reads > 0 and _has_action(spec, level, "gated_metadata_read"):
+        if gated_metadata_input_reads > 0 and _has_action(spec, level, GATED_METADATA_READ):
             gated_access = compute_format_access_counts(
                 rank_format_names, dimension_sizes, density, tensor_size,
                 tile_shape, gated_metadata_input_reads, 0,
             )
             gated_packed, _ = _pack_format(gated_access)
-            if gated_packed > 0:
-                _emit(sparse_actions, level, "gated_metadata_read", gated_packed)
+            _emit_if_declared(sparse_actions, spec, level, GATED_METADATA_READ, gated_packed)
 
         # Bandwidth-equivalent metadata counts for latency.
         # For gating: full count (actual + gated reads consume BW).
@@ -1139,10 +1241,10 @@ def _emit_metadata_actions(
         else:
             bw_read = math.ceil(total_read_bits / read_bpa)
         bw_fill = math.ceil(total_fill_bits / read_bpa)
-        latency_info["metadata_read_actions"].setdefault(level, 0)
-        latency_info["metadata_read_actions"][level] += bw_read
-        latency_info["metadata_write_actions"].setdefault(level, 0)
-        latency_info["metadata_write_actions"][level] += bw_fill
+        latency_info.metadata_read_actions.setdefault(level, 0)
+        latency_info.metadata_read_actions[level] += bw_read
+        latency_info.metadata_write_actions.setdefault(level, 0)
+        latency_info.metadata_write_actions[level] += bw_fill
 
     return per_rank_info
 
@@ -1243,6 +1345,33 @@ def _recompute_action_counts(
         else:
             write_scale = 0
 
+        # Save pre-sparse per-unit/total ratios.  After spatial accumulation,
+        # max_per_unit_* stays per-instance while total_* is summed across all
+        # instances.  Sparse adjustments scale all instances equally, so this
+        # ratio is preserved.  We recompute totals below and then derive
+        # per-unit from total * ratio, avoiding the bug where
+        # child.max_per_parent_reads_to_parent (a spatial-accumulated total)
+        # was incorrectly assigned to max_per_unit_read_actions.
+        def _safe_ratio(per_unit, total):
+            if total == 0:
+                return 1 if per_unit == 0 else 0
+            return per_unit / total
+
+        read_pu_frac = _safe_ratio(
+            stats.max_per_unit_read_actions, stats.total_read_actions
+        )
+        write_pu_frac = _safe_ratio(
+            stats.max_per_unit_write_actions, stats.total_write_actions
+        )
+        skip_read_pu_frac = _safe_ratio(
+            stats.min_per_unit_skipped_first_read_actions,
+            stats.total_skipped_first_read_actions,
+        )
+        skip_write_pu_frac = _safe_ratio(
+            stats.min_per_unit_skipped_first_write_actions,
+            stats.total_skipped_first_write_actions,
+        )
+
         # Zero out action counts
         stats.total_write_actions = 0
         stats.max_per_unit_write_actions = 0
@@ -1252,55 +1381,73 @@ def _recompute_action_counts(
         stats.min_per_unit_skipped_first_write_actions = 0
         stats.total_skipped_first_read_actions = 0
         stats.min_per_unit_skipped_first_read_actions = 0
+        # Also zero parent-derived action counts
+        stats.total_parent_fill_write_actions = 0
+        stats.max_per_parent_fill_write_actions = 0
+        stats.total_skipped_first_parent_fill_write_actions = 0
+        stats.min_per_parent_skipped_first_fill_write_actions = 0
+        stats.total_parent_drain_read_actions = 0
+        stats.max_per_parent_drain_read_actions = 0
 
-        # Parent -> Me (downward fill): write actions on me
-        stats.total_write_actions += stats.total_reads_to_parent * write_scale
-        stats.max_per_unit_write_actions += (
+        # Parent -> Me (downward fill): use parent-named attributes for
+        # correct temporal reuse treatment
+        stats.total_parent_fill_write_actions += (
             stats.total_reads_to_parent * write_scale
         )
-        stats.total_skipped_first_write_actions += (
+        stats.max_per_parent_fill_write_actions += (
+            stats.max_per_parent_reads_to_parent * write_scale
+        )
+        stats.total_skipped_first_parent_fill_write_actions += (
             stats.total_skipped_first_reads_to_parent * write_scale
         )
-        stats.min_per_unit_skipped_first_write_actions += (
+        stats.min_per_parent_skipped_first_fill_write_actions += (
             stats.min_per_parent_skipped_first_reads_to_parent * write_scale
         )
 
         # Me -> Parent (upward writeback): skip for output tensors
         is_output_tensor = tensor in einsum.output_tensor_names
         if not is_output_tensor:
-            stats.total_read_actions += stats.total_writes_to_parent * read_scale
-            stats.max_per_unit_read_actions += (
+            stats.total_parent_drain_read_actions += (
                 stats.total_writes_to_parent * read_scale
+            )
+            stats.max_per_parent_drain_read_actions += (
+                stats.max_per_parent_writes_to_parent * read_scale
             )
 
         # Peer exchanges (not modified by sparse, but include for completeness)
         stats.total_read_actions += stats.total_reads_to_peer * read_scale
         stats.total_write_actions += stats.total_reads_to_peer * write_scale
 
-        # Child exchanges
+        # Child exchanges — compute total values only.
+        # Per-unit values are derived from the saved ratio below.
         child = reuse.get_child_buffet_stats(buffet)
         if child is not None:
             # Me -> Child (downward fill to child): read actions on me
             stats.total_read_actions += (
                 child.total_reads_to_parent * read_scale
             )
-            stats.max_per_unit_read_actions += (
-                child.max_per_parent_reads_to_parent * read_scale
-            )
             stats.total_skipped_first_read_actions += (
                 child.total_skipped_first_reads_to_parent * read_scale
-            )
-            stats.min_per_unit_skipped_first_read_actions += (
-                child.min_per_parent_skipped_first_reads_to_parent * read_scale
             )
 
             # Child -> Me (upward writeback from child): write actions on me
             stats.total_write_actions += (
                 child.total_writes_to_parent * write_scale
             )
-            stats.max_per_unit_write_actions += (
-                child.max_per_parent_writes_to_parent * write_scale
-            )
+
+        # Restore per-unit values from total using preserved spatial ratio
+        stats.max_per_unit_read_actions = (
+            stats.total_read_actions * read_pu_frac
+        )
+        stats.max_per_unit_write_actions = (
+            stats.total_write_actions * write_pu_frac
+        )
+        stats.min_per_unit_skipped_first_read_actions = (
+            stats.total_skipped_first_read_actions * skip_read_pu_frac
+        )
+        stats.min_per_unit_skipped_first_write_actions = (
+            stats.total_skipped_first_write_actions * skip_write_pu_frac
+        )
 
 
 def _get_child_buffet_key(

@@ -8,6 +8,7 @@
 # Buffer (regfile_metadata): 192 depth, 8-bit, 30 r/w BW
 #   → bits_per_action=8 (matches Buffer width=8 in Sparseloop arch)
 #   → read=1.46 pJ, write=1.46 pJ per 8-bit scalar access
+#   → metadata_read/write bpa=8 (same physical 8-bit port; 1.43 pJ ≈ 1.46 pJ)
 # MAC (intmac, 8-bit): compute=0.56 pJ
 
 arch:
@@ -37,9 +38,9 @@ arch:
     - {name: write, energy: 1.46, bits_per_action: 8, latency: 0}
     - {name: gated_read, energy: 0.00001, bits_per_action: 8, latency: 0}
     - {name: skipped_read, energy: 0.0, bits_per_action: 8, latency: 0}
-    - {name: metadata_read, energy: 1.43, bits_per_action: 4, latency: 0}
-    - {name: metadata_write, energy: 1.43, bits_per_action: 4, latency: 0}
-    - {name: gated_metadata_read, energy: 0.00002, bits_per_action: 4, latency: 0}
+    - {name: metadata_read, energy: 1.43, bits_per_action: 8, latency: 0}
+    - {name: metadata_write, energy: 1.43, bits_per_action: 8, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00002, bits_per_action: 8, latency: 0}
 
   - !Compute
     name: MAC

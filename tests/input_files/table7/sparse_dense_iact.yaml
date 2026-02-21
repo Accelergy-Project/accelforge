@@ -1,0 +1,19 @@
+
+# Table 7 sparse config: dense_iact_opt (used for conv1)
+# Only Outputs compressed at DRAM with UOP+RLE format.
+# No gating or skipping at PE level.
+#
+# Translates from table7_eyeriss_setup/sparse_opt/dense_iact_opt.yaml
+
+sparse_optimizations:
+  targets:
+  - target: DRAM
+    representation_format:
+    - name: Outputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 5
+        flattened_rank_ids: [["P", "M", "N", "Q"]]
+      - format: RLE
+        metadata_word_bits: 5
+        flattened_rank_ids: [["P", "M", "N", "Q"]]

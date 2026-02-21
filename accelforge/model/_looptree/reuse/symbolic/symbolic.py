@@ -40,6 +40,8 @@ from accelforge.frontend._workload_isl._symbolic import (
     get_projection_expr,
     get_rank_variable_relevancy,
     compute_dense_tile_occupancy,
+    compute_rank_occupancy,
+    get_stride_and_halo_of_einsum,
     Irrelevant,
     Relevant,
     PartiallyRelevant,
@@ -138,7 +140,21 @@ class BuffetStats:
     total_skipped_first_read_actions: Any = field(default=0)
     min_per_unit_skipped_first_read_actions: Any = field(default=0)
 
+    # Fill-write and drain-read actions derived from parent attributes.
+    # These have "parent" in their names so temporal reuse applies to them.
+    total_parent_fill_write_actions: Any = field(default=0)
+    max_per_parent_fill_write_actions: Any = field(default=0)
+    total_skipped_first_parent_fill_write_actions: Any = field(default=0)
+    min_per_parent_skipped_first_fill_write_actions: Any = field(default=0)
+    total_parent_drain_read_actions: Any = field(default=0)
+    max_per_parent_drain_read_actions: Any = field(default=0)
+
     persistent: bool = field(default=False)
+
+    # Per-dimension tile shape at this buffer level, set by analyze_storage()
+    # after child accumulation completes.  Used by sparse analysis to compute
+    # SAF probabilities without re-walking the mapping tree.
+    tile_shape: dict | None = field(default=None)
 
     @property
     def n_loops_above(self) -> int:
@@ -150,13 +166,26 @@ class BuffetStats:
     def n_loops_above(self, value: int):
         self._n_loops_above = value
 
-    def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
+    def repeat_temporal(
+        self,
+        factor: int,
+        is_fully_relevant: bool,
+        temporal_reuse: bool = False,
+        halo_factor=None,
+    ) -> "BuffetStats":
         new = copy.copy(self)
         for attr in self.__dict__:
             if not attr.startswith(("total_", "max_", "min_")):
                 continue
             if "skipped_first" in attr and not is_fully_relevant:
                 continue  # First actions occur once per relevant iteration.
+            if "parent" in attr and temporal_reuse:
+                continue  # Temporal reuse at bypassed level: parent accesses not multiplied
+            if "parent" in attr and halo_factor is not None:
+                # Sliding window overlap: parent fills/drains scale by halo_factor
+                # (fewer new elements per iteration) instead of the full factor.
+                setattr(new, attr, getattr(new, attr) * halo_factor)
+                continue
             if attr == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
             setattr(new, attr, getattr(new, attr) * factor)
@@ -198,6 +227,12 @@ class BuffetStats:
     def __add__(self, other: "BuffetStats") -> "BuffetStats":
         new = copy.copy(self)
         for attr in self.__dict__:
+            if attr == "tile_shape":
+                # tile_shape may differ across imperfect-tiling iterations.
+                # Keep the first non-None value (the nominal tile size).
+                if getattr(self, attr) is None:
+                    setattr(new, attr, getattr(other, attr))
+                continue
             if attr.startswith("min_"):
                 setattr(
                     new, attr, min_nonzero(getattr(self, attr), getattr(other, attr))
@@ -225,21 +260,33 @@ class BuffetStats:
         return self
 
     def net_total_read_actions(self) -> Any:
-        return self.total_read_actions - self.total_skipped_first_read_actions
+        return (
+            self.total_read_actions
+            + self.total_parent_drain_read_actions
+            - self.total_skipped_first_read_actions
+        )
 
     def net_total_write_actions(self) -> Any:
-        return self.total_write_actions - self.total_skipped_first_write_actions
+        return (
+            self.total_write_actions
+            + self.total_parent_fill_write_actions
+            - self.total_skipped_first_write_actions
+            - self.total_skipped_first_parent_fill_write_actions
+        )
 
     def net_max_per_unit_read_actions(self) -> Any:
         return (
             self.max_per_unit_read_actions
+            + self.max_per_parent_drain_read_actions
             - self.min_per_unit_skipped_first_read_actions
         )
 
     def net_max_per_unit_write_actions(self) -> Any:
         return (
             self.max_per_unit_write_actions
+            + self.max_per_parent_fill_write_actions
             - self.min_per_unit_skipped_first_write_actions
+            - self.min_per_parent_skipped_first_fill_write_actions
         )
 
 
@@ -400,6 +447,10 @@ class AnalysisInfo:
 
     tensor_to_reservation_backer_id: dict[TensorName, int] = field(default_factory=dict)
 
+    # Stride and halo for PartiallyRelevant loops (sliding window overlap).
+    # {tensor: {(rank, rank_var): (stride, halo)}}
+    stride_and_halo: dict = field(default_factory=dict)
+
     # We track first latency for these nodes (should be Temporal)
     last_temporal_node_idx: int = None
     """
@@ -505,6 +556,9 @@ def analyze_reuse_and_add_reservations_to_mapping(
     tensor_to_relevancy = {
         tensor: get_rank_variable_relevancy(einsum, tensor) for tensor in all_tensors
     }
+    stride_and_halo = get_stride_and_halo_of_einsum(
+        einsum_name, workload, dict(job.rank_variable_bounds)
+    )
     assert all_tensors, f"Einsum {einsum_name} has no tensors"
 
     """
@@ -559,6 +613,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             tensor_to_backer_id=tensor_to_backer_id,
             is_copy_operation=is_copy_operation,
             job=job,
+            stride_and_halo=stride_and_halo,
         )
         cur_result = analyze_node(0, job.rank_variable_bounds, info)
         if result is None:
@@ -789,6 +844,125 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SymbolicAnalysi
     return class2analysis_function[type(node)](node_idx, current_shape, info)
 
 
+def _is_in_bypassed_zone(
+    tensor: TensorName, node_idx: int, info: "AnalysisInfo"
+) -> bool:
+    """Check if the temporal loop at node_idx is in a bypassed zone for tensor.
+
+    A temporal loop is "bypassed" for a tensor if the nearest Storage/Toll
+    component above it in the FULL mapping does NOT hold that tensor. In this
+    case, temporal reuse applies: the parent (fill) accesses are not multiplied
+    by irrelevant temporal loops.
+
+    We use the full mapping (info.job.mapping) because the per-tensor mapping
+    strips out Storage nodes that don't hold this tensor, making it impossible
+    to detect bypassed levels.
+
+    After split_tensor_holders_with_multiple_tensors(), each Storage node holds
+    one tensor, so we check ALL nodes at the same component (e.g., MainMemory
+    may have separate [A] and [B] nodes — if either holds our tensor, it's not
+    bypassed).
+    """
+    # Find this temporal node in the full mapping by identity
+    temporal_node = info.mapping[node_idx]
+    full_mapping = info.job.mapping.nodes
+    full_idx = None
+    for i, node in enumerate(full_mapping):
+        if id(node) == id(temporal_node):
+            full_idx = i
+            break
+    if full_idx is None:
+        return False  # Node not found in full mapping
+
+    # Walk upward in the full mapping to find the nearest Storage/Toll
+    for i in range(full_idx - 1, -1, -1):
+        node = full_mapping[i]
+        if isinstance(node, Reservation):
+            continue  # Skip reservation nodes
+        if isinstance(node, (Storage, Toll)):
+            # Found nearest Storage/Toll. Check if its COMPONENT holds this tensor
+            # (there may be multiple split Storage nodes for the same component).
+            component_name = node.component
+            for j in range(i, -1, -1):
+                n = full_mapping[j]
+                if isinstance(n, (Storage, Toll)) and n.component == component_name:
+                    if TensorName(tensor) in [TensorName(t) for t in n.tensors]:
+                        return False  # Component holds tensor → not bypassed
+            return True  # Component doesn't hold tensor → bypassed
+    return False  # No storage found above → not bypassed
+
+
+def _is_directly_above_storage(
+    tensor: TensorName, node_idx: int, buffet_level: str, info: "AnalysisInfo"
+) -> bool:
+    """Check if the temporal loop at node_idx is directly above the buffet's
+    storage in the FULL mapping (no intervening temporal or storage nodes
+    relevant to this tensor).
+
+    This covers the case where a non-bypassed parent holds the tensor (e.g.,
+    DRAM holds Outputs) and the temporal loop is immediately above the buffet's
+    storage (e.g., C loop → shared_glb). The buffet retains data across
+    iterations because no inner loops cycle through different tiles.
+
+    We use the full mapping because the per-tensor mapping strips Storage nodes
+    for other tensors, which could incorrectly make distant loops appear
+    adjacent.
+    """
+    temporal_node = info.mapping[node_idx]
+    full_mapping = info.job.mapping.nodes
+    full_idx = None
+    for i, node in enumerate(full_mapping):
+        if id(node) == id(temporal_node):
+            full_idx = i
+            break
+    if full_idx is None:
+        return False
+
+    # Walk downward from the temporal node in the full mapping.
+    # Skip Reservation, Spatial nodes, and split-off Storage/Toll at the SAME
+    # component (e.g., shared_glb[Inputs] when looking for shared_glb[Outputs]).
+    # Also skip Storage/Toll at a DIFFERENT component whose component never
+    # holds this tensor anywhere in the mapping (e.g., ifmap_spad[Inputs]
+    # when checking Weights — the ifmap_spad component is irrelevant to this
+    # tensor's data path).
+    # Stop when we hit a Temporal loop or a Storage/Toll at a DIFFERENT
+    # component that holds this tensor (that's a different hierarchy level).
+
+    # Pre-compute which components hold this tensor anywhere in the mapping.
+    tensor_tn = TensorName(tensor)
+    components_holding_tensor = {
+        n.component
+        for n in full_mapping
+        if isinstance(n, (Storage, Toll))
+        and tensor_tn in [TensorName(t) for t in n.tensors]
+    }
+
+    for i in range(full_idx + 1, len(full_mapping)):
+        node = full_mapping[i]
+        if isinstance(node, (Reservation, Spatial)):
+            continue
+        if isinstance(node, (Storage, Toll)):
+            if node.component == buffet_level:
+                # Same component — check if it's our tensor's storage
+                holds_tensor = tensor_tn in [
+                    TensorName(t) for t in node.tensors
+                ]
+                if holds_tensor:
+                    return True  # Directly above the buffet's storage
+                continue  # Split sibling at same component — skip
+            # Different component: a hierarchy boundary only if this
+            # component holds the tensor somewhere in the mapping.
+            # Components that never hold this tensor (e.g., ifmap_spad
+            # when checking Weights) are irrelevant to this tensor's
+            # data path, matching the per-tensor mapping stripping.
+            if node.component not in components_holding_tensor:
+                continue  # Component irrelevant to this tensor
+            return False  # Different hierarchy level for this tensor
+        if isinstance(node, Temporal):
+            return False  # Temporal loop between → not directly above
+    return False
+
+
 def analyze_temporal(
     node_idx, current_shape, info: AnalysisInfo
 ) -> SymbolicAnalysisOutput:
@@ -814,11 +988,78 @@ def analyze_temporal(
         for buffet, stats in child_result.buffet_stats.items():
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
             is_fully_relevant = isinstance(relevancy, Relevant)
+            is_irrelevant = isinstance(relevancy, Irrelevant)
+            # Temporal reuse: the buffet retains data across iterations of
+            # this irrelevant loop, so parent fills/drains are NOT multiplied.
+            # Requires: (a) loop is Irrelevant, (b) loop is above storage,
+            # and (c) one of:
+            #   - Bypassed zone: nearest parent doesn't hold tensor, so data
+            #     stays in a further ancestor (Phase 17 fix).
+            #   - Directly above: no intervening temporal/storage nodes in the
+            #     full mapping, so no inner loops cycle through tiles between
+            #     this loop and the buffet (Table 7 shared_glb/Outputs at C).
+            loop_above_storage = any(
+                isinstance(info.mapping[i], (Storage, Toll))
+                and info.mapping[i].component == buffet.level
+                for i in range(node_idx + 1, len(info.mapping))
+            )
+            temporal_reuse = (
+                is_irrelevant
+                and loop_above_storage
+                and (
+                    _is_in_bypassed_zone(buffet.tensor, node_idx, info)
+                    or _is_directly_above_storage(
+                        buffet.tensor, node_idx, buffet.level, info
+                    )
+                )
+            )
+            # Halo factor: for PartiallyRelevant loops (e.g., stride/halo),
+            # consecutive iterations share data, so parent fills scale by
+            # halo_factor (< full factor) instead of shape_repeats.
+            # Only applies when the loop is in the buffet's scope: between
+            # the buffet's storage and its parent storage. If a parent
+            # storage sits between this loop and the buffet, the overlap
+            # is exploited at the parent level, not here.
+            halo_factor = None
+            if isinstance(relevancy, PartiallyRelevant) and loop_above_storage:
+                # Check scope: walk from loop to buffet's storage. If we
+                # hit another storage first, the loop is out of scope.
+                in_scope = True
+                for ii in range(node_idx + 1, len(info.mapping)):
+                    check_node = info.mapping[ii]
+                    if isinstance(check_node, (Storage, Toll)):
+                        if check_node.component != buffet.level:
+                            in_scope = False
+                        break
+                if in_scope:
+                    einsum_name = info.mapping[-1].einsum
+                    sh = info.stride_and_halo.get(buffet.tensor, {})
+                    stride_halo = sh.get(
+                        (relevancy.rank, node.rank_variable), None
+                    )
+                    if stride_halo is not None:
+                        stride, _halo = stride_halo
+                        if stride > 0:
+                            rank_proj = info.einsum_tensor_to_projection[
+                                (einsum_name, buffet.tensor)
+                            ][relevancy.rank]
+                            tile_in_rank = compute_rank_occupancy(
+                                rank_proj, child_shape
+                            )
+                            if tile_in_rank > stride:
+                                halo_factor = (
+                                    tile_in_rank
+                                    + (shape_repeats - 1) * stride
+                                ) / tile_in_rank
+
             accumulated_stats = accumulated_buffet_stats.setdefault(
                 buffet, blank_buffet_stats()
             )
             accumulated_stats += stats.repeat_temporal(
-                shape_repeats, is_fully_relevant=is_fully_relevant
+                shape_repeats,
+                is_fully_relevant=is_fully_relevant,
+                temporal_reuse=temporal_reuse,
+                halo_factor=halo_factor,
             )
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
@@ -866,7 +1107,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
-    spatial_component = node.component_object
+    spatial_component = node.component_object or find_component_object(
+        node.component, info.job.flattened_arch
+    )
     component_spatial_dim = spatial_component.spatial[node_dim]
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
 
@@ -1012,6 +1255,7 @@ def analyze_storage(
         # Reservations make these, and they go below the storage node, so the buffet
         # stats are already made at this point
         stats = child_result.buffet_stats[buffet]
+        stats.tile_shape = dict(current_shape)
         backer_id = info.tensor_to_backer_id[tensor]
         is_backing = backer_id == id(node)
         if node.persistent:
@@ -1082,25 +1326,33 @@ def analyze_storage(
 
         # ==========================
         # Data exchanges with parent
-        if count_downward_movement:  # Parent -> Me
-            stats.total_write_actions += stats.total_reads_to_parent * write_scale
-            stats.max_per_unit_write_actions += (
+        # Fill-writes and drain-reads use "parent"-named attributes so that
+        # temporal reuse at bypassed levels correctly applies to them.
+        if count_downward_movement:  # Parent -> Me (fills)
+            stats.total_parent_fill_write_actions += (
                 stats.total_reads_to_parent * write_scale
             )
-            stats.total_skipped_first_write_actions += (
+            stats.max_per_parent_fill_write_actions += (
+                stats.max_per_parent_reads_to_parent * write_scale
+            )
+            stats.total_skipped_first_parent_fill_write_actions += (
                 stats.total_skipped_first_reads_to_parent * write_scale
             )
-            stats.min_per_unit_skipped_first_write_actions += (
+            stats.min_per_parent_skipped_first_fill_write_actions += (
                 stats.min_per_parent_skipped_first_reads_to_parent * write_scale
             )
 
-        if count_upward_movement:  # Me -> Parent
+        if count_upward_movement:  # Me -> Parent (drains/writebacks)
             # Output tensors: writeback reads not charged (Sparseloop convention).
             # The data is drained on the last write without a separate read.
             is_output_tensor = tensor in info.workload.einsums[einsum_name].output_tensor_names
             if not is_output_tensor:
-                stats.total_read_actions += stats.total_writes_to_parent * read_scale
-                stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
+                stats.total_parent_drain_read_actions += (
+                    stats.total_writes_to_parent * read_scale
+                )
+                stats.max_per_parent_drain_read_actions += (
+                    stats.max_per_parent_writes_to_parent * read_scale
+                )
 
         # ========================
         # Data exchanges with peer
@@ -1173,6 +1425,7 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     assert buffet not in child_result.buffet_stats
 
     stats = BuffetStats()
+    stats.tile_shape = dict(current_shape)
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
     component_object = find_component_object(node.resource, info.job.flattened_arch)
     bits_per_value_scale = component_object.bits_per_value_scale[tensor]

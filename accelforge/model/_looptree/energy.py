@@ -111,6 +111,64 @@ def _get_compute_keyer(verbose, use_name, bindings):
     return compute_keyer
 
 
+def gather_actions_with_sparse(
+    dense_actions: dict[ActionKey | VerboseActionKey, ActionCount],
+    sparse_output,
+    bindings: dict[str, str] = None,
+    verbose: bool = False,
+    use_name: bool = False,
+) -> dict[ActionKey | VerboseActionKey, ActionCount]:
+    """Compose dense action counts with sparse deltas.
+
+    Instead of running gather_actions on mutated reuse, this applies
+    precomputed per-buffet/per-compute action deltas from
+    SparseAnalysisOutput to the unmodified dense action counts.
+
+    Parameters
+    ----------
+    dense_actions
+        Action counts from gather_actions() on UNMODIFIED reuse.
+    sparse_output
+        SparseAnalysisOutput with buffet_action_deltas and
+        compute_action_deltas populated.
+    bindings, verbose, use_name
+        Same keying parameters used for the dense_actions call.
+    """
+    # Deep-copy so we don't mutate the caller's dict
+    actions: dict[ActionKey | VerboseActionKey, ActionCount] = {
+        k: ActionCount(v.total, v.max_per_unit)
+        for k, v in dense_actions.items()
+    }
+
+    buffet_keyer = _get_buffet_keyer(verbose, use_name, bindings)
+    compute_keyer = _get_compute_keyer(verbose, use_name, bindings)
+
+    # Apply per-buffet deltas (same aggregation as gather_actions)
+    for buffet, delta in sparse_output.buffet_action_deltas.items():
+        read_key = buffet_keyer(buffet, "read")
+        if read_key in actions:
+            actions[read_key].total += delta.total_read
+            actions[read_key].max_per_unit += delta.max_per_unit_read
+
+        write_key = buffet_keyer(buffet, "write")
+        if write_key in actions:
+            actions[write_key].total += delta.total_write
+            actions[write_key].max_per_unit += delta.max_per_unit_write
+
+    # Apply per-compute deltas
+    for compute_key, delta in sparse_output.compute_action_deltas.items():
+        key = compute_keyer(compute_key, "compute")
+        if key in actions:
+            actions[key].total += delta.total_ops
+            actions[key].max_per_unit += delta.max_per_unit_ops
+
+    # Merge sparse-specific actions (gated/skipped/metadata)
+    if sparse_output.sparse_actions:
+        actions.update(sparse_output.sparse_actions)
+
+    return actions
+
+
 def compute_energy_from_actions(
     spec: Spec,
     action_counts: MappingABC[ActionKey, Real],
