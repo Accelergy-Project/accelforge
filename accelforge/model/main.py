@@ -147,7 +147,7 @@ def evaluate_mapping(
         # Calculate iteration counts and rank columns
         _clean_energy_columns(df, job.metrics)
         _calculate_iterations_and_rank_columns(
-            pmapping.nodes, job, df, job.rank_variable_bounds
+            job.mapping.nodes, job, df, job.rank_variable_bounds
         )
         compatibility = Compatibility.from_mapping(
             job.mapping,

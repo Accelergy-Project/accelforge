@@ -696,9 +696,7 @@ def insert_reservation_nodes(
                 tensor = TensorName(tensor)
                 buffet = Buffet(tensor, mapping[-1].einsum, node.component)
                 trackers.append(ReservationAnalysisTracker(buffet, node))
-                if not node._lower or (
-                    tensor not in seen_tensors and tensor in non_intermediate_tensors
-                ):
+                if not node._lower or tensor not in seen_tensors:
                     seen_tensors.add(tensor)
                     trackers[-1].is_fill_level = True
                     trackers[-1].insert_reservation_under = True
