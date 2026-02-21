@@ -26,6 +26,7 @@ from accelforge.model._looptree.reuse.symbolic.symbolic import (
 from accelforge.model._looptree.types import Buffet
 
 from accelforge.frontend.sparse import (
+    RankFormat,
     SparseOptimizations,
     SparseTarget,
     RepresentationFormat,
@@ -37,6 +38,10 @@ from accelforge.model.sparse_adjustment import (
     apply_sparse_adjustments,
     _recompute_action_counts,
     _get_tensor_size,
+    _ranks_have_flattened_ids,
+    _compute_flattened_dimension_sizes,
+    _get_tensor_rank_variables,
+    _compute_flattened_tensor_size,
 )
 
 
@@ -1414,6 +1419,298 @@ class TestGatedSkippedCounts(unittest.TestCase):
         self.assertEqual(gated_reads, 2_059_305)
         self.assertEqual(actual_updates, 21_632)
         self.assertEqual(gated_updates, 2_075_520)
+
+
+class TestRanksHaveFlattenedIds(unittest.TestCase):
+    """Test _ranks_have_flattened_ids helper."""
+
+    def test_true_when_present(self):
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["R"]]),
+            RankFormat(format="RLE"),
+        ]
+        self.assertTrue(_ranks_have_flattened_ids(ranks))
+
+    def test_false_when_absent(self):
+        ranks = [RankFormat(format="UOP"), RankFormat(format="CP")]
+        self.assertFalse(_ranks_have_flattened_ids(ranks))
+
+    def test_false_empty_list(self):
+        self.assertFalse(_ranks_have_flattened_ids([]))
+
+
+class TestComputeFlattenedDimensionSizes(unittest.TestCase):
+    """Test _compute_flattened_dimension_sizes helper."""
+
+    def test_single_dim_per_rank(self):
+        """Single dimension per rank."""
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["r"]]),
+            RankFormat(format="RLE", flattened_rank_ids=[["c"]]),
+        ]
+        shape = {"r": 3, "c": 64, "m": 128}
+        sizes = _compute_flattened_dimension_sizes(ranks, shape)
+        self.assertEqual(sizes, [3, 64])
+
+    def test_multi_dim_flattened(self):
+        """Multiple dimensions flattened into one rank."""
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["S", "F"]]),
+            RankFormat(format="RLE", flattened_rank_ids=[["C"]]),
+        ]
+        shape = {"s": 3, "f": 32, "c": 64}
+        sizes = _compute_flattened_dimension_sizes(ranks, shape)
+        self.assertEqual(sizes, [96, 64])  # 3 * 32 = 96
+
+    def test_case_insensitive(self):
+        """Dimension names are case-insensitive."""
+        ranks = [RankFormat(format="UOP", flattened_rank_ids=[["C", "R"]])]
+        shape = {"c": 8, "r": 3}
+        sizes = _compute_flattened_dimension_sizes(ranks, shape)
+        self.assertEqual(sizes, [24])
+
+    def test_missing_dim_defaults_to_1(self):
+        """Missing dimensions in shape default to 1."""
+        ranks = [RankFormat(format="UOP", flattened_rank_ids=[["X", "Y"]])]
+        shape = {"x": 5}
+        sizes = _compute_flattened_dimension_sizes(ranks, shape)
+        self.assertEqual(sizes, [5])  # Y missing -> 1, so 5*1=5
+
+    def test_rank_without_flattened_ids_gets_1(self):
+        """Ranks without flattened_rank_ids get fiber_shape=1."""
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["C"]]),
+            RankFormat(format="B"),  # No flattened_rank_ids
+        ]
+        shape = {"c": 64}
+        sizes = _compute_flattened_dimension_sizes(ranks, shape)
+        self.assertEqual(sizes, [64, 1])
+
+
+class TestGetTensorRankVariables(unittest.TestCase):
+    """Test _get_tensor_rank_variables extracts projecting variables."""
+
+    def _make_einsum(self, tensor_accesses_info):
+        """Helper: create a mock einsum with tensor_accesses."""
+        from unittest.mock import MagicMock
+        einsum = MagicMock()
+        ta_list = []
+        for info in tensor_accesses_info:
+            ta = MagicMock()
+            ta.name = info["name"]
+            ta.projection = info["projection"]
+            ta_list.append(ta)
+        einsum.tensor_accesses = ta_list
+        return einsum
+
+    def test_simple_dict_projection(self):
+        """Simple dict projection: {M: m, K: k} → {'m', 'k'}."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+        ])
+        result = _get_tensor_rank_variables(einsum, "A")
+        self.assertEqual(result, {"m", "k"})
+
+    def test_compound_expression(self):
+        """Compound projection like {H: e + r} → {'e', 'r'}."""
+        einsum = self._make_einsum([
+            {"name": "Input", "projection": {"H": "e + r", "W": "f + s", "C": "c"}},
+        ])
+        result = _get_tensor_rank_variables(einsum, "Input")
+        self.assertEqual(result, {"e", "r", "f", "s", "c"})
+
+    def test_stride_expression(self):
+        """Stride: {H: 2*p + r} → {'p', 'r'}."""
+        einsum = self._make_einsum([
+            {"name": "Input", "projection": {"H": "2*p + r", "C": "c"}},
+        ])
+        result = _get_tensor_rank_variables(einsum, "Input")
+        self.assertEqual(result, {"p", "r", "c"})
+
+    def test_list_projection(self):
+        """List-style projection: [m, k] → {'m', 'k'}."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": ["m", "k"]},
+        ])
+        result = _get_tensor_rank_variables(einsum, "A")
+        self.assertEqual(result, {"m", "k"})
+
+    def test_tensor_not_found(self):
+        """Missing tensor returns empty set."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m"}},
+        ])
+        result = _get_tensor_rank_variables(einsum, "B")
+        self.assertEqual(result, set())
+
+    def test_different_tensors_different_variables(self):
+        """Different tensors project different variables."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+            {"name": "B", "projection": {"N": "n", "K": "k"}},
+            {"name": "Z", "projection": {"M": "m", "N": "n"}},
+        ])
+        self.assertEqual(_get_tensor_rank_variables(einsum, "A"), {"m", "k"})
+        self.assertEqual(_get_tensor_rank_variables(einsum, "B"), {"n", "k"})
+        self.assertEqual(_get_tensor_rank_variables(einsum, "Z"), {"m", "n"})
+
+
+class TestComputeFlattenedTensorSize(unittest.TestCase):
+    """Test _compute_flattened_tensor_size filters to projecting dimensions."""
+
+    def _make_einsum(self, tensor_accesses_info):
+        from unittest.mock import MagicMock
+        einsum = MagicMock()
+        ta_list = []
+        for info in tensor_accesses_info:
+            ta = MagicMock()
+            ta.name = info["name"]
+            ta.projection = info["projection"]
+            ta_list.append(ta)
+        einsum.tensor_accesses = ta_list
+        return einsum
+
+    def test_all_dims_project(self):
+        """When all rank dims project to tensor, tensor_size = product of all."""
+        # A[m, k]: ranks map to [M] and [K]
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["M"]]),
+            RankFormat(format="CP", flattened_rank_ids=[["K"]]),
+        ]
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+        ])
+        full_shape = {"m": 128, "k": 128, "n": 128}
+        result = _compute_flattened_tensor_size(ranks, full_shape, einsum, "A")
+        self.assertEqual(result, 128 * 128)
+
+    def test_non_projecting_dim_excluded(self):
+        """Dimension M doesn't project to B[n,k] → excluded from tensor_size."""
+        # Ranks: [M], [N], [K] — but B only projects to n, k
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["M"]]),
+            RankFormat(format="UOP", flattened_rank_ids=[["N"]]),
+            RankFormat(format="CP", flattened_rank_ids=[["K"]]),
+        ]
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+            {"name": "B", "projection": {"N": "n", "K": "k"}},
+        ])
+        full_shape = {"m": 128, "n": 128, "k": 128}
+        # For B: only N and K project → tensor_size = 128 * 128 = 16384
+        result = _compute_flattened_tensor_size(ranks, full_shape, einsum, "B")
+        self.assertEqual(result, 128 * 128)
+        # NOT 128*128*128 (which would be wrong)
+
+    def test_flattened_multi_dim(self):
+        """Flattened [S, F] with S projecting but F not → only S counted."""
+        # Weights[C, M, R, S] — F does not project to Weights
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["S", "F"]]),
+            RankFormat(format="RLE", flattened_rank_ids=[["C"]]),
+        ]
+        einsum = self._make_einsum([
+            {"name": "Weights", "projection": {"C": "c", "M": "m", "R": "r", "S": "s"}},
+        ])
+        full_shape = {"s": 3, "f": 32, "c": 64, "m": 64, "r": 3}
+        # Only S(3) and C(64) project to Weights — not F(32)
+        result = _compute_flattened_tensor_size(ranks, full_shape, einsum, "Weights")
+        self.assertEqual(result, 3 * 64)
+
+    def test_flattened_both_dims_project(self):
+        """Flattened [E, N] where both project to Inputs → both counted."""
+        # Inputs[N, C, E+R, F+S] → e and n both project
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["E", "N"]]),
+            RankFormat(format="RLE", flattened_rank_ids=[["C"]]),
+        ]
+        einsum = self._make_einsum([
+            {"name": "Inputs", "projection": {"N": "n", "C": "c", "H": "e + r", "W": "f + s"}},
+        ])
+        full_shape = {"e": 32, "n": 1, "c": 64, "r": 3, "f": 32, "s": 3}
+        # E(32) and N(1) and C(64) all project to Inputs
+        result = _compute_flattened_tensor_size(ranks, full_shape, einsum, "Inputs")
+        self.assertEqual(result, 32 * 1 * 64)
+
+    def test_no_flattened_ids(self):
+        """Ranks without flattened_rank_ids contribute nothing → returns 1."""
+        ranks = [
+            RankFormat(format="UOP"),  # no flattened_rank_ids
+            RankFormat(format="CP"),
+        ]
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+        ])
+        full_shape = {"m": 128, "k": 128}
+        result = _compute_flattened_tensor_size(ranks, full_shape, einsum, "A")
+        self.assertEqual(result, 1)  # degenerate: no dims specified
+
+    def test_duplicate_dim_name_across_ranks(self):
+        """Same dimension in two ranks: each occurrence multiplied.
+
+        When tiling splits a dimension (e.g. C into outer/inner), the
+        AccelForge config should use distinct variable names (c_outer,
+        c_inner).  If the same name "C" appears in two ranks, both
+        contribute shape["c"] to tensor_size.  This test documents
+        that behavior.
+        """
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["C"]]),
+            RankFormat(format="RLE", flattened_rank_ids=[["C"]]),
+        ]
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"C": "c", "K": "k"}},
+        ])
+        full_shape = {"c": 64, "k": 128}
+        result = _compute_flattened_tensor_size(ranks, full_shape, einsum, "A")
+        # C appears twice → 64 * 64 = 4096 (each rank multiplies c=64)
+        self.assertEqual(result, 64 * 64)
+
+    def test_fig12_like_distinct_dims(self):
+        """Fig12-like with distinct dimension names (no tiling duplicates).
+
+        Inputs[N, C, G, H=e+r, W=f+s] — projects: n, c, g, e, r, f, s
+        7 ranks: [G], [C_outer], [M], [S,F], [E,N], [R], [C_inner]
+        full_shape: g=1, c_outer=8, m=64, s=1, f=32, e=32, n=1, r=1, c_inner=8
+        """
+        ranks = [
+            RankFormat(format="UOP", flattened_rank_ids=[["G"]]),
+            RankFormat(format="UOP", flattened_rank_ids=[["C_outer"]]),
+            RankFormat(format="UOP", flattened_rank_ids=[["M"]]),
+            RankFormat(format="UOP", flattened_rank_ids=[["S", "F"]]),
+            RankFormat(format="UOP", flattened_rank_ids=[["E", "N"]]),
+            RankFormat(format="UOP", flattened_rank_ids=[["R"]]),
+            RankFormat(format="RLE", flattened_rank_ids=[["C_inner"]]),
+        ]
+        einsum = self._make_einsum([
+            {"name": "Inputs", "projection": {
+                "N": "n", "C_outer": "c_outer", "C_inner": "c_inner",
+                "G": "g", "H": "e + r", "W": "f + s",
+            }},
+            {"name": "Weights", "projection": {
+                "C_outer": "c_outer", "C_inner": "c_inner",
+                "M": "m", "G": "g", "R": "r", "S": "s",
+            }},
+        ])
+        full_shape = {
+            "g": 1, "c_outer": 8, "c_inner": 8, "m": 64,
+            "s": 1, "f": 32, "e": 32, "n": 1, "r": 1,
+        }
+
+        # Inputs projects: n, c_outer, c_inner, g, e, r, f, s (NOT m)
+        # tensor_size = g(1) * c_outer(8) * s(1)*f(32) * e(32)*n(1) * r(1) * c_inner(8)
+        #             = 1 * 8 * 32 * 32 * 8 = 65,536
+        result = _compute_flattened_tensor_size(
+            ranks, full_shape, einsum, "Inputs"
+        )
+        self.assertEqual(result, 1 * 8 * 32 * 32 * 8)  # 65536, no M
+
+        # Weights projects: c_outer, c_inner, m, g, r, s (NOT n, e, f)
+        result_w = _compute_flattened_tensor_size(
+            ranks, full_shape, einsum, "Weights"
+        )
+        # = g(1) * c_outer(8) * m(64) * s(1) * r(1) * c_inner(8) = 4096
+        self.assertEqual(result_w, 1 * 8 * 64 * 1 * 1 * 8)  # 4096
 
 
 if __name__ == "__main__":

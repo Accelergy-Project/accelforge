@@ -409,5 +409,48 @@ class TestRankOccupancy(unittest.TestCase):
         self.assertEqual(occ.total, 0)
 
 
+class TestFlattenedDimensionOccupancy(unittest.TestCase):
+    """Occupancy with flattened dimensions (fiber_shape = product of dims)."""
+
+    def test_rle_occupancy_flattened_fiber(self):
+        """RLE with flattened fiber_shape = C*R = 24, density=0.5 -> ennz=12."""
+        rle = RLE()
+        occ = rle.get_occupancy(fibers=1, fiber_shape=24, expected_nnz_per_fiber=12.0)
+        self.assertAlmostEqual(occ.metadata_units, 12.0)
+
+    def test_uop_occupancy_flattened_fiber(self):
+        """UOP with flattened fiber_shape = S*F = 96."""
+        uop = UOP()
+        occ = uop.get_occupancy(fibers=1, fiber_shape=96)
+        self.assertEqual(occ.payload_units, 97)  # 1 * (96 + 1)
+
+    def test_bitmask_occupancy_flattened_fiber(self):
+        """Bitmask with flattened fiber_shape = C*R = 24."""
+        bm = Bitmask()
+        occ = bm.get_occupancy(fibers=1, fiber_shape=24)
+        self.assertEqual(occ.metadata_units, 24)
+
+    def test_cp_occupancy_flattened_fiber(self):
+        """CP with flattened fiber_shape = 96, density=0.1 -> ennz=10."""
+        cp = CP()
+        occ = cp.get_occupancy(fibers=1, fiber_shape=96, expected_nnz_per_fiber=9.6)
+        self.assertEqual(occ.metadata_units, 10)  # ceil(9.6) = 10
+
+    def test_multirank_with_flattened_sizes(self):
+        """UOP+RLE with dimension_sizes derived from flattened ranks."""
+        # Simulating flattened: rank0=[S,F]->96, rank1=[C]->64
+        occs, total = compute_format_occupancy(
+            rank_formats=["UOP", "RLE"],
+            dimension_sizes=[96, 64],
+            density=0.5,
+            tensor_size=6144,  # 96 * 64
+        )
+        # UOP: (0, 97)
+        self.assertEqual(occs[0].metadata_units, 0)
+        self.assertEqual(occs[0].payload_units, 97)
+        # RLE: fibers=96, ennz_per_fiber=32 -> metadata=96*32=3072
+        self.assertGreater(occs[1].metadata_units, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

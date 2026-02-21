@@ -1,0 +1,101 @@
+# EyerissV2 PE sparse config: Sparse Inputs + Sparse Weights (SI-SW)
+# UOP+RLE formats with explicit per-rank flattened_rank_ids.
+# Translates Sparseloop's SI-SW.yaml from inner-to-outer to AccelForge's outer-to-inner.
+#
+# iact_spad Inputs: UOP[R] + RLE[C] → AccelForge outer-to-inner: RLE[C], UOP[R]
+# weight_spad Weights: UOP[C,R] + RLE[M] → AccelForge outer-to-inner: RLE[M], UOP[C,R]
+# reg Inputs: single RLE rank (auto-derive dimension)
+# BackingStorage: full per-rank hierarchy (0 energy, for format tracking)
+
+sparse_optimizations:
+  targets:
+  - target: BackingStorage
+    representation_format:
+    - name: Inputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["G"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["C"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["M"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["S", "F"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["E", "N"]]
+      - format: UOP
+        payload_word_bits: 4
+        flattened_rank_ids: [["R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["C"]]
+    - name: Weights
+      ranks:
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["G"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["M"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["S"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["C"]]
+      - format: UOP
+        payload_word_bits: 7
+        flattened_rank_ids: [["C", "R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["M"]]
+
+  - target: iact_spad
+    representation_format:
+    - name: Inputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 4
+        flattened_rank_ids: [["R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["C"]]
+
+  - target: weight_spad
+    representation_format:
+    - name: Weights
+      ranks:
+      - format: UOP
+        payload_word_bits: 7
+        flattened_rank_ids: [["C", "R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["M"]]
+    action_optimization:
+    - kind: skipping
+      target: Weights
+      condition_on: [Inputs]
+
+  - target: psum_spad
+    action_optimization:
+    - kind: skipping
+      target: Outputs
+      condition_on: [Inputs, Weights]
+
+  - target: reg
+    representation_format:
+    - name: Inputs
+      ranks:
+      - format: RLE
+        metadata_word_bits: 4
+
+  - target: MAC
+    compute_optimization:
+    - kind: skipping
+      target: Outputs
+      condition_on: [Inputs, Weights]
