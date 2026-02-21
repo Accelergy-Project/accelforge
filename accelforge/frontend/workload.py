@@ -683,7 +683,6 @@ class Einsum(EvalableModel):
                 for r in all_rank_variables
             },
             # "Einsum": self.name,
-
             # CAN'T DEFINE ABOVE HERE. Otherwise the expression "Above" will parse to
             # nothing before we ever get to the point of making storage nodes.
             # "Above": InvertibleSet(instance=(), **kwargs_tensors),
