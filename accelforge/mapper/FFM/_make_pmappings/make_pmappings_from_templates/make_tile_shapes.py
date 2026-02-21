@@ -472,8 +472,14 @@ def _partition_formula(
         if can_evaluate:
             chosen.append(type(f)(*can_evaluate))
 
-        # Ignore no relation
-        chosen.extend(type(f)(*x) for x in others.values())
+        # Try to re-join any others if we can to reduce the number of terms. However, if
+        # this is going to lead us right back to where we started, then don't do it.
+        for ot in others.values():
+            joined = type(f)(*ot)
+            if joined != f:
+                chosen.append(joined)
+            else:
+                chosen.extend(ot)
 
         return chosen
 
