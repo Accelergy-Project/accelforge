@@ -1,0 +1,21 @@
+accelforge.model package
+========================
+
+Submodules
+----------
+
+accelforge.model.main module
+----------------------------
+
+.. automodule:: accelforge.model.main
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: accelforge.model
+   :members:
+   :show-inheritance:
+   :undoc-members:

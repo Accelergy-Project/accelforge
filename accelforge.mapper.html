@@ -1,0 +1,705 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>accelforge.mapper package &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'accelforge.mapper';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="accelforge.mapper.FFM package" href="accelforge.mapper.FFM.html" />
+    <link rel="prev" title="accelforge.frontend.mapping package" href="accelforge.frontend.mapping.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="accelforge.frontend.html">accelforge.frontend package</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.arch.html">accelforge.frontend.arch package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.mapper.html">accelforge.frontend.mapper package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.mapping.html">accelforge.frontend.mapping package</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">accelforge.mapper package</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html">accelforge.mapper.FFM package</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.model.html">accelforge.model package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.plotting.html">accelforge.plotting package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.util.html">accelforge.util package</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="modules.html" class="nav-link">API Reference</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.mapper package</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="accelforge-mapper-package">
+<h1>accelforge.mapper package<a class="headerlink" href="#accelforge-mapper-package" title="Link to this heading">#</a></h1>
+<section id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Link to this heading">#</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.mapper.FFM.html">accelforge.mapper.FFM package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.data">accelforge.mapper.FFM.data module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.data.ActionDataFrame"><code class="docutils literal notranslate"><span class="pre">ActionDataFrame</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.data.ResultDataFrame"><code class="docutils literal notranslate"><span class="pre">ResultDataFrame</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.data.ResultDataFrame.actions"><code class="docutils literal notranslate"><span class="pre">ResultDataFrame.actions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.data.ResultDataFrame.actions_df"><code class="docutils literal notranslate"><span class="pre">ResultDataFrame.actions_df</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.data.ResultDataFrame.energy"><code class="docutils literal notranslate"><span class="pre">ResultDataFrame.energy</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.data.VerboseActionDataFrame"><code class="docutils literal notranslate"><span class="pre">VerboseActionDataFrame</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.main">accelforge.mapper.FFM.main module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.join_pmappings"><code class="docutils literal notranslate"><span class="pre">join_pmappings()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.make_pmappings"><code class="docutils literal notranslate"><span class="pre">make_pmappings()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.map_workload_to_arch"><code class="docutils literal notranslate"><span class="pre">map_workload_to_arch()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.mappings">accelforge.mapper.FFM.mappings module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings"><code class="docutils literal notranslate"><span class="pre">Mappings</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.__init__"><code class="docutils literal notranslate"><span class="pre">Mappings.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.access"><code class="docutils literal notranslate"><span class="pre">Mappings.access()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.actions"><code class="docutils literal notranslate"><span class="pre">Mappings.actions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.columns"><code class="docutils literal notranslate"><span class="pre">Mappings.columns</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.drop"><code class="docutils literal notranslate"><span class="pre">Mappings.drop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.drop_zeros"><code class="docutils literal notranslate"><span class="pre">Mappings.drop_zeros()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.energy"><code class="docutils literal notranslate"><span class="pre">Mappings.energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.items"><code class="docutils literal notranslate"><span class="pre">Mappings.items()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.latency"><code class="docutils literal notranslate"><span class="pre">Mappings.latency()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.mapping"><code class="docutils literal notranslate"><span class="pre">Mappings.mapping()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.num_computes"><code class="docutils literal notranslate"><span class="pre">Mappings.num_computes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.per_compute"><code class="docutils literal notranslate"><span class="pre">Mappings.per_compute()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.per_tensor_size"><code class="docutils literal notranslate"><span class="pre">Mappings.per_tensor_size()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.render"><code class="docutils literal notranslate"><span class="pre">Mappings.render()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.resource_usage"><code class="docutils literal notranslate"><span class="pre">Mappings.resource_usage()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.sum"><code class="docutils literal notranslate"><span class="pre">Mappings.sum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.to_dict"><code class="docutils literal notranslate"><span class="pre">Mappings.to_dict()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.pmappings">accelforge.mapper.FFM.pmappings module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.__init__"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.drop_einsums"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.drop_einsums()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_evaluated_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_evaluated_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_pareto_optimal_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_pareto_optimal_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_pmapping_string"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_pmapping_string()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_total_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_total_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_valid_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_valid_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.pmapping_keep_rates"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.pmapping_keep_rates()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM">Module contents</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings"><code class="docutils literal notranslate"><span class="pre">Mappings</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.__init__"><code class="docutils literal notranslate"><span class="pre">Mappings.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.access"><code class="docutils literal notranslate"><span class="pre">Mappings.access()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.actions"><code class="docutils literal notranslate"><span class="pre">Mappings.actions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.columns"><code class="docutils literal notranslate"><span class="pre">Mappings.columns</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.drop"><code class="docutils literal notranslate"><span class="pre">Mappings.drop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.drop_zeros"><code class="docutils literal notranslate"><span class="pre">Mappings.drop_zeros()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.energy"><code class="docutils literal notranslate"><span class="pre">Mappings.energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.items"><code class="docutils literal notranslate"><span class="pre">Mappings.items()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.latency"><code class="docutils literal notranslate"><span class="pre">Mappings.latency()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.mapping"><code class="docutils literal notranslate"><span class="pre">Mappings.mapping()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.num_computes"><code class="docutils literal notranslate"><span class="pre">Mappings.num_computes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.per_compute"><code class="docutils literal notranslate"><span class="pre">Mappings.per_compute()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.per_tensor_size"><code class="docutils literal notranslate"><span class="pre">Mappings.per_tensor_size()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.render"><code class="docutils literal notranslate"><span class="pre">Mappings.render()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.resource_usage"><code class="docutils literal notranslate"><span class="pre">Mappings.resource_usage()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.sum"><code class="docutils literal notranslate"><span class="pre">Mappings.sum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Mappings.to_dict"><code class="docutils literal notranslate"><span class="pre">Mappings.to_dict()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics"><code class="docutils literal notranslate"><span class="pre">Metrics</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.ACTIONS"><code class="docutils literal notranslate"><span class="pre">Metrics.ACTIONS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.DYNAMIC_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.DYNAMIC_ENERGY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.ENERGY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.LATENCY"><code class="docutils literal notranslate"><span class="pre">Metrics.LATENCY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.LEAK_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.LEAK_ENERGY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.RESOURCE_USAGE"><code class="docutils literal notranslate"><span class="pre">Metrics.RESOURCE_USAGE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.__new__"><code class="docutils literal notranslate"><span class="pre">Metrics.__new__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.all_metrics"><code class="docutils literal notranslate"><span class="pre">Metrics.all_metrics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.includes_dynamic_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_dynamic_energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.Metrics.includes_leak_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_leak_energy()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.__init__"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.drop_einsums"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.drop_einsums()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.n_evaluated_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_evaluated_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.n_pareto_optimal_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_pareto_optimal_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.n_pmapping_string"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_pmapping_string()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.n_total_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_total_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.n_valid_pmappings"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.n_valid_pmappings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.MultiEinsumPmappings.pmapping_keep_rates"><code class="docutils literal notranslate"><span class="pre">MultiEinsumPmappings.pmapping_keep_rates()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup"><code class="docutils literal notranslate"><span class="pre">PmappingGroup</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.__init__"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.combine_combineable"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.combine_combineable()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.compatibility_str"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.compatibility_str()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.concat"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.concat()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.copy"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.filter_by_tensors"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.filter_by_tensors()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.get_shared_loop_index"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.get_shared_loop_index()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.group"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.group()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.left_consolidate"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.left_consolidate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.merge_next"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.merge_next()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.remove_dead_tensors"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.remove_dead_tensors()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.rename_compatibility"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.rename_compatibility()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.right_consolidate"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.right_consolidate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.PmappingGroup.tensor_names"><code class="docutils literal notranslate"><span class="pre">PmappingGroup.tensor_names</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.join_pmappings"><code class="docutils literal notranslate"><span class="pre">join_pmappings()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.make_pmappings"><code class="docutils literal notranslate"><span class="pre">make_pmappings()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.map_workload_to_arch"><code class="docutils literal notranslate"><span class="pre">map_workload_to_arch()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="module-accelforge.mapper">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-accelforge.mapper" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.mapper.</span></span><span class="sig-name descname"><span class="pre">Metrics</span></span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.mapper.Metrics" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Flag" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Flag</span></code></a></p>
+<p>Metrics used to optimize mappings.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.ACTIONS">
+<span class="sig-name descname"><span class="pre">ACTIONS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">32</span></span><a class="headerlink" href="#accelforge.mapper.Metrics.ACTIONS" title="Link to this definition">#</a></dt>
+<dd><p>Action counts.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.DYNAMIC_ENERGY">
+<span class="sig-name descname"><span class="pre">DYNAMIC_ENERGY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></span><a class="headerlink" href="#accelforge.mapper.Metrics.DYNAMIC_ENERGY" title="Link to this definition">#</a></dt>
+<dd><p>Dynamic energy. Minimize the amount of dynamic energy consumed by the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.ENERGY">
+<span class="sig-name descname"><span class="pre">ENERGY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></span><a class="headerlink" href="#accelforge.mapper.Metrics.ENERGY" title="Link to this definition">#</a></dt>
+<dd><p>Energy. Minimize the amount of energy consumed by the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.LATENCY">
+<span class="sig-name descname"><span class="pre">LATENCY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#accelforge.mapper.Metrics.LATENCY" title="Link to this definition">#</a></dt>
+<dd><p>Latency. Minimize the amount of time taken to execute the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.LEAK_ENERGY">
+<span class="sig-name descname"><span class="pre">LEAK_ENERGY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">8</span></span><a class="headerlink" href="#accelforge.mapper.Metrics.LEAK_ENERGY" title="Link to this definition">#</a></dt>
+<dd><p>Leak energy. Minimize the amount of leak energy consumed by the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.RESOURCE_USAGE">
+<span class="sig-name descname"><span class="pre">RESOURCE_USAGE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></span><a class="headerlink" href="#accelforge.mapper.Metrics.RESOURCE_USAGE" title="Link to this definition">#</a></dt>
+<dd><p>Resource usage. Minimize the amount of resources used by the workload. This
+objective is multivariate, and must consider every resource available to the
+hardware.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.__new__">
+<span class="sig-name descname"><span class="pre">__new__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#accelforge.mapper.Metrics.__new__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.all_metrics">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">all_metrics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics.all_metrics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.mapper.Metrics.all_metrics" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.includes_dynamic_energy">
+<span class="sig-name descname"><span class="pre">includes_dynamic_energy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics.includes_dynamic_energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.mapper.Metrics.includes_dynamic_energy" title="Link to this definition">#</a></dt>
+<dd><p>Returns True if the metrics include dynamic energy, either alone or as part
+of total energy. False otherwise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.mapper.Metrics.includes_leak_energy">
+<span class="sig-name descname"><span class="pre">includes_leak_energy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics.includes_leak_energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.mapper.Metrics.includes_leak_energy" title="Link to this definition">#</a></dt>
+<dd><p>Returns True if the metrics include leak energy, either alone or as part of
+total energy. False otherwise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="accelforge.frontend.mapping.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">accelforge.frontend.mapping package</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="accelforge.mapper.FFM.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">accelforge.mapper.FFM package</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#subpackages">Subpackages</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-accelforge.mapper">Module contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics"><code class="docutils literal notranslate"><span class="pre">Metrics</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.ACTIONS"><code class="docutils literal notranslate"><span class="pre">Metrics.ACTIONS</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.DYNAMIC_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.DYNAMIC_ENERGY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.ENERGY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.LATENCY"><code class="docutils literal notranslate"><span class="pre">Metrics.LATENCY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.LEAK_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.LEAK_ENERGY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.RESOURCE_USAGE"><code class="docutils literal notranslate"><span class="pre">Metrics.RESOURCE_USAGE</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.__new__"><code class="docutils literal notranslate"><span class="pre">Metrics.__new__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.all_metrics"><code class="docutils literal notranslate"><span class="pre">Metrics.all_metrics()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.includes_dynamic_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_dynamic_energy()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.mapper.Metrics.includes_leak_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_leak_energy()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/accelforge.mapper.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

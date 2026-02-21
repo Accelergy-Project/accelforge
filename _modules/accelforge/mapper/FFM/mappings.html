@@ -1,0 +1,1151 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.mapper.FFM.mappings &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/mapper/FFM/mappings';</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.mapper.FFM.mappings</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.mapper.FFM.mappings</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">accelforge.frontend.renames</span> <span class="kn">import</span> <span class="n">TensorName</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend</span> <span class="kn">import</span> <span class="n">arch</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.spec</span> <span class="kn">import</span> <span class="n">Spec</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.workload</span> <span class="kn">import</span> <span class="n">EinsumName</span>
+<span class="kn">from</span> <span class="nn">accelforge._accelerated_imports</span> <span class="kn">import</span> <span class="n">pd</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._make_pmappings.make_pmappings</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">get_num_computes</span><span class="p">,</span>
+    <span class="n">get_per_tensor_size</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numbers</span> <span class="kn">import</span> <span class="n">Integral</span>
+
+
+<span class="k">def</span> <span class="nf">_series2list</span><span class="p">(</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">,</span>
+    <span class="n">list_if_one</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_series2list</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">list_if_one</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">list_if_one</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">v</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="k">if</span> <span class="n">list_if_one</span> <span class="k">else</span> <span class="n">v</span>
+
+
+<div class="viewcode-block" id="Mappings">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings">[docs]</a>
+<span class="k">class</span> <span class="nc">Mappings</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A collection of mappings and their evaluation results, generated by</span>
+<span class="sd">    :func:`~accelforge.mapper.FFM.join_pmappings`.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec:</span>
+<span class="sd">        The specification used to generate the mappings.</span>
+<span class="sd">    einsum_names:</span>
+<span class="sd">        The names of the Einsums in these mappings.</span>
+<span class="sd">    data:</span>
+<span class="sd">        A DataFrame containing the mappings and their evaluation results. Column names</span>
+<span class="sd">        in the dataframe are are string separated by &quot;&lt;SEP&gt;&quot;, such as</span>
+<span class="sd">        &quot;Total&lt;SEP&gt;energy&quot;.</span>
+<span class="sd">    total_mappings:</span>
+<span class="sd">        The total number of mappings that have been explored in order to get the</span>
+<span class="sd">        mappings in the dataframe, equal to the full mapspace size.</span>
+<span class="sd">    valid_mappings:</span>
+<span class="sd">        The number of valid mappings that have been explored in order to get the</span>
+<span class="sd">        mappings in the dataframe, equal to the valid mapspace size.</span>
+<span class="sd">    flattened_arches:</span>
+<span class="sd">        A dictionary of (EinsumName, Compute Name) to lists of architecture nodes. These</span>
+<span class="sd">        contain the evaluated and flattened architecture node for that particular Einsum</span>
+<span class="sd">        and compute combination.</span>
+<span class="sd">    evaluated_specs:</span>
+<span class="sd">        A dictionary of Einsum names to evaluated specifications. These contain the</span>
+<span class="sd">        evaluated specification for that particular Einsum.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Mappings.__init__">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+        <span class="n">einsum_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">],</span>
+        <span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+        <span class="n">total_mappings</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">valid_mappings</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">flattened_arches</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[(</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">str</span><span class="p">),</span> <span class="nb">list</span><span class="p">[</span><span class="n">arch</span><span class="o">.</span><span class="n">Leaf</span><span class="p">]],</span>
+        <span class="n">evaluated_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="n">Spec</span><span class="p">],</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span> <span class="o">=</span> <span class="n">spec</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]</span> <span class="o">=</span> <span class="n">einsum_names</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_mappings</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">total_mappings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">valid_mappings</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">valid_mappings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flattened_arches</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[(</span><span class="n">EinsumName</span><span class="p">,</span> <span class="nb">str</span><span class="p">),</span> <span class="nb">list</span><span class="p">[</span><span class="n">arch</span><span class="o">.</span><span class="n">Leaf</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">flattened_arches</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">evaluated_specs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">,</span> <span class="n">Spec</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_specs</span></div>
+
+
+<div class="viewcode-block" id="Mappings.num_computes">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.num_computes">[docs]</a>
+    <span class="k">def</span> <span class="nf">num_computes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the number of computes for the given Einsum name, or total computes if</span>
+<span class="sd">        ``einsum_name`` is ``None``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: this is not correct if there are recomputations.</span>
+        <span class="k">if</span> <span class="n">einsum_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">get_num_computes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spec</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">get_num_computes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spec</span><span class="p">,</span> <span class="n">einsum_name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Mappings.per_tensor_size">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.per_tensor_size">[docs]</a>
+    <span class="k">def</span> <span class="nf">per_tensor_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">return_n_elements</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of: {Tensor name: Number of bits} for each tensor in the</span>
+<span class="sd">        spec. If return_n_elements is true, then the number of elements is returned</span>
+<span class="sd">        instead of the number of bits.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        return_n_elements:</span>
+<span class="sd">            If True, then the number of elements is returned instead of the number of</span>
+<span class="sd">            bits.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[TensorName, int]</span>
+<span class="sd">            A dictionary of: {Tensor name: Number of bits} for each tensor in the spec.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">evaluated_specs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">),</span> <span class="s2">&quot;Can&#39;t get per-tensor size if no Einsums have been mapped.&quot;</span>
+        <span class="k">return</span> <span class="n">get_per_tensor_size</span><span class="p">(</span>
+            <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">evaluated_specs</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span><span class="o">.</span><span class="n">workload</span><span class="p">,</span>
+            <span class="n">return_n_elements</span><span class="o">=</span><span class="n">return_n_elements</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">spec</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">spec</span><span class="p">,</span>
+            <span class="n">einsum_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+            <span class="n">total_mappings</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">total_mappings</span><span class="p">,</span>
+            <span class="n">valid_mappings</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">valid_mappings</span><span class="p">,</span>
+            <span class="n">flattened_arches</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">flattened_arches</span><span class="p">,</span>
+            <span class="n">evaluated_specs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">evaluated_specs</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Mappings</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Integral</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">Integral</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">key</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">col_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="n">found_index</span> <span class="o">=</span> <span class="n">col_idx</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">col</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">col</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">col_idx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">col</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">!=</span> <span class="n">col_idx</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">col_idx</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">sum</span><span class="p">(</span><span class="n">c</span> <span class="o">==</span> <span class="n">key</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">col</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Key </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> found multiple times in the column names. &quot;</span>
+                    <span class="sa">f</span><span class="s1">&#39;Columns: &quot;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+                <span class="p">)</span>
+
+            <span class="n">cur_idx</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">if</span> <span class="n">col_idx</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">col_idx</span>
+
+            <span class="k">if</span> <span class="n">found_index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cur_idx</span> <span class="o">!=</span> <span class="n">found_index</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Key </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> found at varying indexes in the column names. &quot;</span>
+                    <span class="sa">f</span><span class="s1">&#39;Columns: &quot;</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s1">&quot; and &quot;</span><span class="si">{</span><span class="n">found</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+                <span class="p">)</span>
+            <span class="n">found_index</span> <span class="o">=</span> <span class="n">cur_idx</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">col</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">found</span><span class="p">,</span> <span class="n">found_index</span>
+
+<div class="viewcode-block" id="Mappings.access">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.access">[docs]</a>
+    <span class="k">def</span> <span class="nf">access</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">keys</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">col_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a new Mappings object with only the columns that contain the given keys.</span>
+<span class="sd">        Column names are strings separated by &quot;&lt;SEP&gt;&quot;, and this method will return</span>
+<span class="sd">        columns with one &lt;SEP&gt;-separated string matching the given key. Then, for all</span>
+<span class="sd">        remaining columns, the key will be removed.</span>
+
+<span class="sd">        For example, if the columns are &quot;Compute&lt;SEP&gt;Energy&quot;, and &quot;DRAM&lt;SEP&gt;Energy&quot;, and</span>
+<span class="sd">        &quot;DRAM&lt;SEP&gt;Latency&quot;, then access(&quot;Energy&quot;) will return a Mappings object with</span>
+<span class="sd">        columns &quot;Compute&quot; and &quot;DRAM&quot;, and access(&quot;DRAM&quot;) will return a Mappings object</span>
+<span class="sd">        with columns &quot;Compute&quot; and &quot;Latency&quot;.</span>
+
+<span class="sd">        If multiple keys are given, then the procedure is repeated for each key.</span>
+
+<span class="sd">        col_idx:</span>
+<span class="sd">            The index of the key in the column name. This can be used if the given key</span>
+<span class="sd">            is found at multiple indexes in different columns.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        keys:</span>
+<span class="sd">            The keys to access from the columns.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Mappings</span>
+<span class="sd">            A new Mappings object with only the given keys.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span>
+        <span class="p">),</span> <span class="s2">&quot;Columns must be unique&quot;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+                <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">col_idx</span><span class="o">=</span><span class="n">col_idx</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="n">key</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">col_renames</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">cols</span><span class="p">,</span> <span class="n">col_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_cols</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">col_idx</span><span class="o">=</span><span class="n">col_idx</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+            <span class="n">split</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">split</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">col_idx</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">col_renames</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Removing </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2"> results in duplicate column name </span><span class="si">{</span><span class="n">new</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="n">col_renames</span><span class="p">[</span><span class="n">new</span><span class="p">]</span> <span class="o">=</span> <span class="n">col</span>
+
+        <span class="n">col_renames</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">col_renames</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">col_renames</span><span class="o">.</span><span class="n">keys</span><span class="p">())]</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">col_renames</span><span class="p">)</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_get_keys_of_length</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">))</span> <span class="o">==</span> <span class="n">length</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">cols</span>
+
+<div class="viewcode-block" id="Mappings.drop">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.drop">[docs]</a>
+    <span class="k">def</span> <span class="nf">drop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">keys</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a new Mappings object with the given keys dropped from all columns.</span>
+<span class="sd">        Column names are strings separated by &quot;&lt;SEP&gt;&quot;, and this method will will drop</span>
+<span class="sd">        columns with one &lt;SEP&gt;-separated string matching the given key. Then, for all</span>
+<span class="sd">        remaining columns, the key will be removed.</span>
+
+<span class="sd">        For example, if the columns are &quot;Compute&lt;SEP&gt;Energy&quot;, and &quot;DRAM&lt;SEP&gt;Energy&quot;, and</span>
+<span class="sd">        &quot;DRAM&lt;SEP&gt;Latency&quot;, then drop(&quot;Energy&quot;) will drop &quot;Compute&lt;SEP&gt;Energy&quot; and</span>
+<span class="sd">        &quot;DRAM&lt;SEP&gt;Energy&quot;, and drop(&quot;DRAM&quot;) will drop &quot;DRAM&lt;SEP&gt;Energy&quot; and</span>
+<span class="sd">        &quot;DRAM&lt;SEP&gt;Latency&quot;.</span>
+
+<span class="sd">        If multiple keys are given, then the procedure is repeated for each key.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        keys:</span>
+<span class="sd">            The keys to drop from the columns.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Mappings</span>
+<span class="sd">            A new Mappings object with the given keys dropped from all columns.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span>
+        <span class="p">),</span> <span class="s2">&quot;Columns must be unique&quot;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+                <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="n">cols</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_cols</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Mappings.sum">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.sum">[docs]</a>
+    <span class="k">def</span> <span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keep_key_index</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keep_key_index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">keep_key_index</span> <span class="o">=</span> <span class="p">[</span><span class="n">keep_key_index</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">keep_key_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">keep_key_index</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Can only sum columns with same-length keys. Try first calling &quot;</span>
+                    <span class="s1">&#39;access(&quot;key&quot;) or drop(&quot;key&quot;) to make all columns &#39;</span>
+                    <span class="s2">&quot;have the same number of keys.&quot;</span>
+                <span class="p">)</span>
+
+        <span class="n">max_n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">k</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">k</span> <span class="o">&gt;=</span> <span class="n">max_n</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keep_key_index</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Keep indices must be in the range [0, </span><span class="si">{</span><span class="n">max_n</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+
+        <span class="n">target2sources</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">target</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keep_key_index</span><span class="p">)</span>
+            <span class="n">target2sources</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+
+        <span class="n">new_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">target</span><span class="p">,</span> <span class="n">sources</span> <span class="ow">in</span> <span class="n">target2sources</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">new_data</span><span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">sources</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">new_data</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">columns</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The columns of the dataframe.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Mappings.to_dict">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.to_dict">[docs]</a>
+    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">list_if_one_mapping</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the data in this Mappings object as a dictionary. Each column in the</span>
+<span class="sd">        this Mappings&#39; data becomes a key in the dictionary. Values in the dictionary</span>
+<span class="sd">        may be a single value if there is only one mapping, or a list of values if there</span>
+<span class="sd">        are multiple mappings.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        list_if_one_mapping:</span>
+<span class="sd">            If True and there is only one mapping, then values in the returned</span>
+<span class="sd">            dictionary will be a single value, rather than a list of values. Otherwise,</span>
+<span class="sd">            they will always be a list of values.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[str, list[float]]</span>
+<span class="sd">            A dictionary with the same keys as the columns of the dataframe, and values</span>
+<span class="sd">            that are either a single value or a list of values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="n">orient</span><span class="o">=</span><span class="s2">&quot;list&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">list_if_one_mapping</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">new</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">return</span> <span class="n">new</span></div>
+
+
+<div class="viewcode-block" id="Mappings.items">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.items">[docs]</a>
+    <span class="k">def</span> <span class="nf">items</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">list_if_one_mapping</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shorthand for ``to_dict().items()``. Casts this Mappings object to a dictionary,</span>
+<span class="sd">        then returns the items of the dictionary.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        list_if_one_mapping:</span>
+<span class="sd">            If True and there is only one mapping, then values in the returned list will</span>
+<span class="sd">            be a single value, rather than a list of values. Otherwise, they will always</span>
+<span class="sd">            be a list of values.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list[tuple[str, float | list[float]]]</span>
+<span class="sd">            A list of tuples of (key, value).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="n">list_if_one_mapping</span><span class="o">=</span><span class="n">list_if_one_mapping</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Mappings.per_compute">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.per_compute">[docs]</a>
+    <span class="k">def</span> <span class="nf">per_compute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">per_einsum</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the per-compute evaluation results by dividing all statistics by the</span>
+<span class="sd">        number of computes.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        per_einsum:</span>
+<span class="sd">            If True, then for each Einsum, statistics will be divided only by the number</span>
+<span class="sd">            of computes for that Einsum. This makes it clear to see per-compute stats</span>
+<span class="sd">            for each Einsum, but note that total energy/compute will not be a direct sum</span>
+<span class="sd">            of the per-compute stats then (and the same for latency and other</span>
+<span class="sd">            statistics).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Mappings</span>
+<span class="sd">            A new Mappings object with the per-compute evaluation results.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">total_computes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_computes</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">new_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="n">n_computes</span> <span class="o">=</span> <span class="n">total_computes</span>
+            <span class="k">if</span> <span class="n">per_einsum</span><span class="p">:</span>
+                <span class="n">einsum_name</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">einsum_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span> <span class="ow">and</span> <span class="n">einsum_name</span> <span class="o">!=</span> <span class="s2">&quot;Total&quot;</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Einsum name </span><span class="si">{</span><span class="n">einsum_name</span><span class="si">}</span><span class="s2"> not found. Ensure that all &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;columns are prefixed with the Einsum name if per_einsum &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;is True.&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">if</span> <span class="n">einsum_name</span> <span class="o">!=</span> <span class="s2">&quot;Total&quot;</span><span class="p">:</span>
+                    <span class="n">n_computes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_computes</span><span class="p">(</span><span class="n">einsum_name</span><span class="p">)</span>
+            <span class="c1"># Check if the column can be converted to numeric</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">new_df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">/=</span> <span class="n">n_computes</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                <span class="c1"># Skip columns that can&#39;t be converted to numeric</span>
+                <span class="k">continue</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">new_df</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Mappings.drop_zeros">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.drop_zeros">[docs]</a>
+    <span class="k">def</span> <span class="nf">drop_zeros</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a new Mappings object with all columns that have only zeros dropped.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">new_df</span> <span class="o">=</span> <span class="n">new_df</span><span class="p">[(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">new_df</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="p">(</span><span class="n">new_df</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">())]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">new_df</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_repr_svg_</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Mappings.render">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.render">[docs]</a>
+    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Renders the mapping as a Pydot graph. Returns an SVG string. This is only</span>
+<span class="sd">        supported if there is a single mapping; if there are multiple mappings, then</span>
+<span class="sd">        either index into this Mappings object first, or pass in an index.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        index:</span>
+<span class="sd">            The index of the mapping to render. If None and there are multiple mappings,</span>
+<span class="sd">            then an error is raised.</span>
+<span class="sd">        kwargs:</span>
+<span class="sd">            Keyword arguments passed to Mapping.render()</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            An SVG string of the mapping.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If there are multiple mappings and no index is provided.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="s2">&quot;Total&lt;SEP&gt;mapping&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Can only render a single mapping, but got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s2">. Try calling &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;mappings[i].render() instead, for some integer 0 &lt;= i &lt; </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s2">&quot;Total&lt;SEP&gt;mapping&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Mappings.mapping">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Can return a single mapping, but got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s2">. Try calling &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;mappings[i].mapping() or mappings.mapping(i) instead, for some &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;integer 0 &lt;= i &lt; </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">index</span> <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="s2">&quot;Total&lt;SEP&gt;mapping&quot;</span><span class="p">]()</span></div>
+
+
+<div class="viewcode-block" id="Mappings.energy">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.energy">[docs]</a>
+    <span class="k">def</span> <span class="nf">energy</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">:</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">,</span>
+        <span class="n">per_einsum</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">per_component</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">per_tensor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">per_action</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">list_if_one_mapping</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the energy consumed. A dictionary is returned with keys that are tuples</span>
+<span class="sd">        of (Einsum name, Component name, Tensor name, Action name), with any of these</span>
+<span class="sd">        being omitted if the corresponding parameter is not set to True. If neither of</span>
+<span class="sd">        the ``per_`` parameters are set to True, a float or a list of floats is</span>
+<span class="sd">        returned.</span>
+
+<span class="sd">        NOTE: Leak power is not per-tensor. If ``per_tensor`` is True, then the tensor</span>
+<span class="sd">        name for leak will be None.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        per_einsum:</span>
+<span class="sd">            If True, then the energy will reported per-Einsum.</span>
+<span class="sd">        per_component:</span>
+<span class="sd">            If True, then the energy will reported per-component.</span>
+<span class="sd">        per_tensor:</span>
+<span class="sd">            If True, then the energy will reported per-tensor.</span>
+<span class="sd">        per_action:</span>
+<span class="sd">            If True, then the energy will reported per-action.</span>
+<span class="sd">        list_if_one_mapping:</span>
+<span class="sd">            If True and there is only one mapping, then values in the returned</span>
+<span class="sd">            dictionary will be lists of values, each containing a single value.</span>
+<span class="sd">            Otherwise, if there is only one mapping, the values in the returned</span>
+<span class="sd">            dictionary will each be a single value.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[tuple[str, ...], float | list[float]] | float | list[float]</span>
+<span class="sd">            A dictionary with the energy consumed for each Einsum, Component, Tensor,</span>
+<span class="sd">            and Action. Keys are tuples of (Einsum name, Component name, Tensor name,</span>
+<span class="sd">            Action name), with any of these being omitted if the corresponding parameter</span>
+<span class="sd">            is not set to True. If none of the ``per_`` parameters are set to True, a</span>
+<span class="sd">            float or a list of floats is returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">energy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="s2">&quot;energy&quot;</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">:</span>
+            <span class="n">einsum_accessed</span> <span class="o">=</span> <span class="n">energy</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">col_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># None for computes</span>
+            <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">einsum</span><span class="p">]</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span>
+                <span class="s2">&quot;None&quot;</span>
+            <span class="p">]:</span>
+                <span class="n">tensor_accessed</span> <span class="o">=</span> <span class="n">einsum_accessed</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">col_idx</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">tensor_accessed</span><span class="o">.</span><span class="n">_get_keys_of_length</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+                    <span class="n">component</span><span class="p">,</span> <span class="n">action</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)</span>
+                    <span class="n">result</span><span class="p">[(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span> <span class="n">tensor</span><span class="p">,</span> <span class="n">action</span><span class="p">)]</span> <span class="o">=</span> <span class="n">tensor_accessed</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">einsum_accessed</span><span class="o">.</span><span class="n">_get_keys_of_length</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+                <span class="n">component</span><span class="p">,</span> <span class="n">action</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;leak&quot;</span><span class="p">:</span>
+                    <span class="n">result</span><span class="p">[(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">action</span><span class="p">)]</span> <span class="o">=</span> <span class="n">einsum_accessed</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+
+        <span class="n">keep_indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="n">per_einsum</span><span class="p">,</span> <span class="n">per_component</span><span class="p">,</span> <span class="n">per_tensor</span><span class="p">,</span> <span class="n">per_action</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="n">idx</span><span class="p">:</span>
+                <span class="n">keep_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">keep_indices</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_series2list</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">list_if_one_mapping</span><span class="p">)</span>
+
+        <span class="n">new_result</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">newkey</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keep_indices</span><span class="p">)</span>
+            <span class="n">new_result</span><span class="p">[</span><span class="n">newkey</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">new_result</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keep_indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+        <span class="k">return</span> <span class="n">_series2list</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">list_if_one_mapping</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Mappings.latency">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.latency">[docs]</a>
+    <span class="k">def</span> <span class="nf">latency</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">:</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">,</span>
+        <span class="n">per_einsum</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">per_component</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">list_if_one_mapping</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the latency consumed. A dictionary is returned with keys that are tuples</span>
+<span class="sd">        of (Einsum name, Component name), with either being omitted if the corresponding</span>
+<span class="sd">        parameter is not set to True. If neither of the ``per_`` parameters are set to</span>
+<span class="sd">        True, a float or a list of floats is returned.</span>
+
+<span class="sd">        NOTE: If per-Einsum is False and per-component is True, then the latency of each</span>
+<span class="sd">        component will be summed across all Einsums. THE TOTAL LATENCY MAY BE GREATER</span>
+<span class="sd">        THAN THE MAX OF THE PER-COMPONENT LATENCIES. This is because different</span>
+<span class="sd">        components can be the bottleneck for different Einsums.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        per_einsum:</span>
+<span class="sd">            If True, then the latency will reported per-Einsum.</span>
+<span class="sd">        per_component:</span>
+<span class="sd">            If True, then the latency will reported per-component.</span>
+<span class="sd">        list_if_one_mapping:</span>
+<span class="sd">            If True and there is only one mapping, then values in the returned</span>
+<span class="sd">            dictionary will be lists of values, each containing a single value.</span>
+<span class="sd">            Otherwise, if there is only one mapping, the values in the returned</span>
+<span class="sd">            dictionary will each be a single value.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[tuple[str, ...], float | list[float]] | float | list[float]</span>
+<span class="sd">            A dictionary with the latency for each Einsum+Component pair. Keys are</span>
+<span class="sd">            tuples of (Einsum name, Component name), with either being omitted if the</span>
+<span class="sd">            corresponding parameter is not set to True. If neither of the ``per_``</span>
+<span class="sd">            parameters are set to True, a float or a list of floats is returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">energy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="s2">&quot;latency&quot;</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">:</span>
+            <span class="n">einsum_accessed</span> <span class="o">=</span> <span class="n">energy</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">col_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">einsum_accessed</span><span class="o">.</span><span class="n">_get_keys_of_length</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">result</span><span class="p">[(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">component</span><span class="p">)]</span> <span class="o">=</span> <span class="n">einsum_accessed</span><span class="p">[</span><span class="n">component</span><span class="p">]</span>
+
+        <span class="c1"># If not per-component, aggregate into the per-Einsum latency</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">per_component</span><span class="p">:</span>
+            <span class="n">new_result</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">component</span><span class="p">),</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">einsum</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">new_result</span><span class="p">:</span>
+                    <span class="n">new_result</span><span class="p">[</span><span class="n">einsum</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">new_result</span><span class="p">[</span><span class="n">einsum</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">new_result</span><span class="p">[</span><span class="n">einsum</span><span class="p">],</span> <span class="n">value</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">new_result</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">per_einsum</span><span class="p">:</span>
+            <span class="c1"># Not per-Einsum and per-component: for each component, sum across Einsums</span>
+            <span class="k">if</span> <span class="n">per_component</span><span class="p">:</span>
+                <span class="n">new_result</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="p">(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">component</span><span class="p">),</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">component</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">new_result</span><span class="p">:</span>
+                        <span class="n">new_result</span><span class="p">[</span><span class="n">component</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">new_result</span><span class="p">[</span><span class="n">component</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">new_result</span>
+
+            <span class="c1"># Not per-Einsum and not per-component: sum into a single value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+        <span class="k">return</span> <span class="n">_series2list</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">list_if_one_mapping</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Mappings.resource_usage">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.resource_usage">[docs]</a>
+    <span class="k">def</span> <span class="nf">resource_usage</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">list_if_one_mapping</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the usage of each resource in the mapping.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        list_if_one_mapping:</span>
+<span class="sd">            If True and there is only one mapping, then values in the returned</span>
+<span class="sd">            dictionary will be lists of values, each containing a single value.</span>
+<span class="sd">            Otherwise, if there is only one mapping, the values in the returned</span>
+<span class="sd">            dictionary will each be a single value.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[str, float | list[float]]</span>
+<span class="sd">            A dictionary with the usage of each resource.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">reservations</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="s2">&quot;reservation&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No reservations found in columns </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">usage</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">reservations</span><span class="o">.</span><span class="n">_get_keys_of_length</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+            <span class="n">resource</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">resource</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">usage</span><span class="p">:</span>
+                <span class="n">usage</span><span class="p">[</span><span class="n">resource</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">usage</span><span class="p">[</span><span class="n">resource</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">usage</span><span class="p">[</span><span class="n">resource</span><span class="p">],</span> <span class="n">reservations</span><span class="p">[</span><span class="n">col</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">_series2list</span><span class="p">(</span><span class="n">usage</span><span class="p">,</span> <span class="n">list_if_one_mapping</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Mappings.actions">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.actions">[docs]</a>
+    <span class="k">def</span> <span class="nf">actions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">:</span> <span class="s2">&quot;Mappings&quot;</span><span class="p">,</span>
+        <span class="n">per_einsum</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">per_component</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">per_tensor</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">list_if_one_mapping</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the number of actions performed in the mapping. A dictionary is returned</span>
+<span class="sd">        with keys that are tuples of (Einsum name, Component name, Tensor name, Action</span>
+<span class="sd">        name), with any of these being omitted if the corresponding parameter is not set</span>
+<span class="sd">        to True. If neither of the ``per_`` parameters are set to True, a float or a</span>
+<span class="sd">        list of floats is returned.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        per_einsum:</span>
+<span class="sd">            If True, then the number of actions will reported per-Einsum.</span>
+<span class="sd">        per_component:</span>
+<span class="sd">            If True, then the number of actions will reported per-component.</span>
+<span class="sd">        per_tensor:</span>
+<span class="sd">            If True, then the number of actions will reported per-tensor.</span>
+<span class="sd">        list_if_one_mapping:</span>
+<span class="sd">            If True and there is only one mapping, then values in the returned</span>
+<span class="sd">            dictionary will be lists of values, each containing a single value.</span>
+<span class="sd">            Otherwise, if there is only one mapping, the values in the returned</span>
+<span class="sd">            dictionary will each be a single value.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[tuple[str, ...], float | list[float]] | float | list[float]</span>
+<span class="sd">            A dictionary with the number of actions performed for each Einsum,</span>
+<span class="sd">            Component, Tensor, and Action. Keys are tuples of (Einsum name, Component</span>
+<span class="sd">            name, Tensor name, Action name), with any of these being omitted if the</span>
+<span class="sd">            corresponding parameter is not set to True. If none of the ``per_``</span>
+<span class="sd">            parameters are set to True, a float or a list of floats is returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="s2">&quot;action&quot;</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsum_names</span><span class="p">:</span>
+            <span class="n">einsum_accessed</span> <span class="o">=</span> <span class="n">actions</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">col_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># None for computes</span>
+            <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">einsum</span><span class="p">]</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span>
+                <span class="s2">&quot;None&quot;</span>
+            <span class="p">]:</span>
+                <span class="n">tensor_accessed</span> <span class="o">=</span> <span class="n">einsum_accessed</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">tensor</span><span class="p">,</span> <span class="n">col_idx</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">tensor_accessed</span><span class="o">.</span><span class="n">_get_keys_of_length</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+                    <span class="n">component</span><span class="p">,</span> <span class="n">action</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;&lt;SEP&gt;&quot;</span><span class="p">)</span>
+                    <span class="n">result</span><span class="p">[(</span><span class="n">einsum</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span> <span class="n">tensor</span><span class="p">,</span> <span class="n">action</span><span class="p">)]</span> <span class="o">=</span> <span class="n">tensor_accessed</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+
+        <span class="n">keep_indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">([</span><span class="n">per_einsum</span><span class="p">,</span> <span class="n">per_component</span><span class="p">,</span> <span class="n">per_tensor</span><span class="p">,</span> <span class="kc">True</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="n">idx</span><span class="p">:</span>
+                <span class="n">keep_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">keep_indices</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_series2list</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">list_if_one_mapping</span><span class="p">)</span>
+
+        <span class="n">new_result</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">newkey</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keep_indices</span><span class="p">)</span>
+            <span class="n">new_result</span><span class="p">[</span><span class="n">newkey</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">new_result</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keep_indices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+        <span class="k">return</span> <span class="n">_series2list</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">list_if_one_mapping</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

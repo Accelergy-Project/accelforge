@@ -1,0 +1,71 @@
+accelforge.frontend package
+===========================
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   accelforge.frontend.arch
+   accelforge.frontend.mapper
+   accelforge.frontend.mapping
+
+Submodules
+----------
+
+accelforge.frontend.config module
+---------------------------------
+
+.. automodule:: accelforge.frontend.config
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.model module
+--------------------------------
+
+.. automodule:: accelforge.frontend.model
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.renames module
+----------------------------------
+
+.. automodule:: accelforge.frontend.renames
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.spec module
+-------------------------------
+
+.. automodule:: accelforge.frontend.spec
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.variables module
+------------------------------------
+
+.. automodule:: accelforge.frontend.variables
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.workload module
+-----------------------------------
+
+.. automodule:: accelforge.frontend.workload
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: accelforge.frontend
+   :members:
+   :show-inheritance:
+   :undoc-members:

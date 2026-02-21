@@ -1,0 +1,723 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Mapping with Fast &amp; Fusiest &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'guide/modeling/mapping';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Definitions" href="../definitions.html" />
+    <link rel="prev" title="Accelerator Energy, Area, and Latency" href="accelerator_energy_latency.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../spec.html">Input Specifications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../spec/architecture.html">Arch Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../spec/mapping.html">Mapping Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../spec/workload.html">Workload and Renames Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parsing/evaluation.html">Expression Evaluation</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../parsing/yaml_parsing.html">YAML Parsing</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../modeling.html">How Modeling Works</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="component_energy_area.html">Component Energy and Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelerator_energy_latency.html">Accelerator Energy, Area, and Latency</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Mapping with Fast &amp; Fusiest</a></li>
+
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../definitions.html">Definitions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../timeloop_compare.html">Migrating from Timeloop</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../guide.html" class="nav-link">User Guide</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../modeling.html" class="nav-link">How Modeling Works</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Mapping with Fast &amp; Fusiest</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="mapping-with-fast-fusiest">
+<h1>Mapping with Fast &amp; Fusiest<a class="headerlink" href="#mapping-with-fast-fusiest" title="Link to this heading">#</a></h1>
+<p>Mapping workloads onto accelerators uses the Fast and Fusiest Mapper (FFM), which
+includes of two parts:</p>
+<ul class="simple">
+<li><p>The Turbo-Charged Pmapper: This part makes all Pareto-optimal pmappings for all
+Einsums.</p></li>
+<li><p>Fast and Fusiest Mapper (FFM): This part takes the Pareto-optimal pmappings and joins
+them into full mappings.</p></li>
+</ul>
+<p>This document will walk you through how to use FFM to map a workload onto an
+accelerator.</p>
+<p>This document follows the <code class="docutils literal notranslate"><span class="pre">notebooks/tutorials/mapper.ipynb</span></code> notebook.</p>
+<section id="creating-a-spec">
+<h2>Creating a Spec<a class="headerlink" href="#creating-a-spec" title="Link to this heading">#</a></h2>
+<p>Before we dive into the mapper, we need to set up a
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.spec.Spec" title="accelforge.frontend.spec.Spec"><code class="xref py py-class docutils literal notranslate"><span class="pre">Spec</span></code></a> object with the input spec. We can initialize
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.spec.Spec" title="accelforge.frontend.spec.Spec"><code class="xref py py-class docutils literal notranslate"><span class="pre">Spec</span></code></a> objects from YAML files.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">accelforge</span> <span class="k">as</span> <span class="nn">af</span>
+
+<span class="c1"># Set the number of parallel threads that the mapper can use. If you are running out of</span>
+<span class="c1"># memory, you may decrease this number. By default the number of threads is set to the</span>
+<span class="c1"># number of cores on your machine.</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="n">af</span><span class="o">.</span><span class="n">set_n_parallel_jobs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(),</span> <span class="n">print_message</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># Initialize the spec and show the workload.</span>
+<span class="n">BATCH_SIZE</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">N_TOKENS</span> <span class="o">=</span> <span class="mi">8192</span>
+<span class="n">FUSE</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="n">spec</span> <span class="o">=</span> <span class="n">af</span><span class="o">.</span><span class="n">Spec</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span>
+    <span class="n">examples_dir</span> <span class="o">/</span> <span class="s2">&quot;arches&quot;</span> <span class="o">/</span> <span class="s2">&quot;tpu_v4i.yaml&quot;</span><span class="p">,</span>
+    <span class="n">examples_dir</span> <span class="o">/</span> <span class="s2">&quot;workloads&quot;</span> <span class="o">/</span> <span class="s2">&quot;gpt3_6.7B.yaml&quot;</span><span class="p">,</span>
+    <span class="n">jinja_parse_data</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;BATCH_SIZE&quot;</span><span class="p">:</span> <span class="n">BATCH_SIZE</span><span class="p">,</span> <span class="s2">&quot;N_TOKENS&quot;</span><span class="p">:</span> <span class="n">N_TOKENS</span><span class="p">},</span>
+<span class="p">)</span>
+<span class="c1"># Fusion happens when tensors bypass the outermost Memory object, so, to disable fusion,</span>
+<span class="c1"># force all tensors to be in the outermost memory.</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">FUSE</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">af</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">Memory</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Keeping all tensors in </span><span class="si">{</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">tensors</span><span class="o">.</span><span class="n">keep</span> <span class="o">=</span> <span class="s2">&quot;All&quot;</span>
+            <span class="k">break</span>
+</pre></div>
+</div>
+<p>We can set optimization metrics for the mapper by setting the <cite>spec.mapper.metrics</cite>
+attribute to one of the <a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.metrics.Metrics" title="accelforge.frontend.mapper.metrics.Metrics"><code class="xref py py-class docutils literal notranslate"><span class="pre">Metrics</span></code></a> enum
+values or a logical OR (|) of multiple values.</p>
+<p>The following optimization metrics are available:</p>
+</section>
+<section id="calling-the-mapper">
+<h2>Calling the Mapper<a class="headerlink" href="#calling-the-mapper" title="Link to this heading">#</a></h2>
+<p>We call the Turbo-Charged Pmapper with the
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.spec.Spec.map_workload_to_arch" title="accelforge.frontend.spec.Spec.map_workload_to_arch"><code class="xref py py-func docutils literal notranslate"><span class="pre">map_workload_to_arch()</span></code></a> function.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Commenting this will be slower, but may generate better mappings. Limits the number of</span>
+<span class="c1"># fused loops that can exist in a single pmapping.</span>
+<span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">max_fused_loops</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">mapping</span> <span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">map_workload_to_arch</span><span class="p">()</span>
+
+<span class="c1"># Render the mapping with mapping.render(), or in the last line of a notebook:</span>
+<span class="n">mapping</span>
+</pre></div>
+</div>
+<p>In this code, there is a <a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.FFM.max_fused_loops" title="accelforge.frontend.mapper.FFM.max_fused_loops"><code class="xref py py-attr docutils literal notranslate"><span class="pre">max_fused_loops</span></code></a>
+parameter that makes mapping faster by limiting the number of fused loops that can exist
+in a single pmapping. The <a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.FFM" title="accelforge.frontend.mapper.FFM"><code class="xref py py-class docutils literal notranslate"><span class="pre">FFM</span></code></a> class has a
+variety of knobs that can be used to speed up mapping:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.force_memory_hierarchy_order" title="accelforge.frontend.mapper.ffm.FFM.force_memory_hierarchy_order"><code class="xref py py-attr docutils literal notranslate"><span class="pre">force_memory_hierarchy_order</span></code></a>: If set to true, storage nodes for lower-level memories must be placed below storage
+    nodes for higher-level memories. For example, all MainMemory storage nodes must go
+    above all LocalBuffer storage nodes.
+
+    This constraint always applies to same-tensor storage nodes (e.g., MainMemory
+    reusing Output must go above LocalBuffer reusing Output); turning it off will
+    permit things like MainMemory reusing Output going above LocalBuffer reusing
+    Input.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.info_metrics" title="accelforge.frontend.mapper.ffm.FFM.info_metrics"><code class="xref py py-attr docutils literal notranslate"><span class="pre">info_metrics</span></code></a>: Metrics to be reported for final mappings.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.max_fused_loops" title="accelforge.frontend.mapper.ffm.FFM.max_fused_loops"><code class="xref py py-attr docutils literal notranslate"><span class="pre">max_fused_loops</span></code></a>: The maximum total number of fused loops in a pmapping.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.max_fused_loops_per_rank_variable" title="accelforge.frontend.mapper.ffm.FFM.max_fused_loops_per_rank_variable"><code class="xref py py-attr docutils literal notranslate"><span class="pre">max_fused_loops_per_rank_variable</span></code></a>: The maximum number of fused loops in a pmapping for a given rank variable.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.max_loops" title="accelforge.frontend.mapper.ffm.FFM.max_loops"><code class="xref py py-attr docutils literal notranslate"><span class="pre">max_loops</span></code></a>: The maximum total loops in a pmapping.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.max_loops_minus_ranks" title="accelforge.frontend.mapper.ffm.FFM.max_loops_minus_ranks"><code class="xref py py-attr docutils literal notranslate"><span class="pre">max_loops_minus_ranks</span></code></a>: The maximum total loops in a pmapping minus the number of ranks. For example,
+    3 means that the number of loops can be up to (the number of ranks + 3).</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.max_pmapping_templates_per_einsum" title="accelforge.frontend.mapper.ffm.FFM.max_pmapping_templates_per_einsum"><code class="xref py py-attr docutils literal notranslate"><span class="pre">max_pmapping_templates_per_einsum</span></code></a>: The maximum number of pmapping templates per Einsum. Once this many templates are
+    generated, the mapper will stop generating more. This is useful for debugging (why
+    are so many templates being generated?).</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.memory_limit" title="accelforge.frontend.mapper.ffm.FFM.memory_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">memory_limit</span></code></a>: The maximum memory limit for the mapper.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.memory_limit_per_process" title="accelforge.frontend.mapper.ffm.FFM.memory_limit_per_process"><code class="xref py py-attr docutils literal notranslate"><span class="pre">memory_limit_per_process</span></code></a>: The maximum memory limit per process for one of the mapper’s processes.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.metrics" title="accelforge.frontend.mapper.ffm.FFM.metrics"><code class="xref py py-attr docutils literal notranslate"><span class="pre">metrics</span></code></a>: Metrics used to optimize mappings.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.out_of_order_hierarchy_explore_removing_spatials_for_more_temporals" title="accelforge.frontend.mapper.ffm.FFM.out_of_order_hierarchy_explore_removing_spatials_for_more_temporals"><code class="xref py py-attr docutils literal notranslate"><span class="pre">out_of_order_hierarchy_explore_removing_spatials_for_more_temporals</span></code></a>: If force_memory_hierarchy_order is set to False or is set to False for any
+    particular component, and a spatial fanout ends up being raised above a storage node
+    that does not have that fanout, then there may be cases where a spatial loop is put
+    above a component that does not have the associated fanout.
+
+    When this happens, we may not put between the spatial and the storage node any
+    temporal loops that affect the same indexing expressions as the spatial loops.
+
+    For example, the following is not allowed:
+
+    Arch:
+
+    - Global Buffer
+    - 2x fanout
+    - Register
+
+    Mapping:
+
+    spatial-for-reg n in [0, 10):
+      [Register reuses input]
+        for n in [0, 2):
+          [Global Buffer reuses output]
+
+    By default, if there are spatial loops that are not constrained away, then the
+    mapper will not explore putting any temporal loops that conflict. In the above
+    example, it will never place the above temporal loop. If this is set to True, then
+    the mapper will explore removing the spatial loop in order to allow for the temporal
+    loop to be placed. In the above example, it will explore removing the spatial loop
+    in order to allow for the temporal loop to be placed.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.time_limit" title="accelforge.frontend.mapper.ffm.FFM.time_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">time_limit</span></code></a>: The maximum time limit for the mapper.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM.time_limit_per_pmapping_template" title="accelforge.frontend.mapper.ffm.FFM.time_limit_per_pmapping_template"><code class="xref py py-attr docutils literal notranslate"><span class="pre">time_limit_per_pmapping_template</span></code></a>: The maximum time limit per pmapping template.</p></li>
+</ul>
+</section>
+<section id="interpreting-output-results">
+<h2>Interpreting Output Results<a class="headerlink" href="#interpreting-output-results" title="Link to this heading">#</a></h2>
+<p>The mapper outputs a <a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings" title="accelforge.mapper.FFM.mappings.Mappings"><code class="xref py py-class docutils literal notranslate"><span class="pre">Mappings</span></code></a> object, which
+contains all Pareto-optimal mappings found for the given cascade of Einsums.</p>
+<p>In general, if there is only one objective function (such as energy), this will include
+only one mapping. If there are multiple objective functions, then many mappings may be
+Pareto-optimal.</p>
+<p>We can access the mappings in the <a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings" title="accelforge.mapper.FFM.mappings.Mappings"><code class="xref py py-class docutils literal notranslate"><span class="pre">Mappings</span></code></a>
+object with the <a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.energy" title="accelforge.mapper.FFM.mappings.Mappings.energy"><code class="xref py py-func docutils literal notranslate"><span class="pre">energy()</span></code></a> and
+<a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.latency" title="accelforge.mapper.FFM.mappings.Mappings.latency"><code class="xref py py-func docutils literal notranslate"><span class="pre">latency()</span></code></a> functions to get the energy
+and latency of the mapping.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Energy: </span><span class="si">{</span><span class="n">mapping</span><span class="o">.</span><span class="n">energy</span><span class="p">()</span><span class="si">}</span><span class="s1">J, </span><span class="si">{</span><span class="n">mapping</span><span class="o">.</span><span class="n">per_compute</span><span class="p">()</span><span class="o">.</span><span class="n">energy</span><span class="p">()</span><span class="si">}</span><span class="s1">J/compute&#39;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapping</span><span class="o">.</span><span class="n">per_compute</span><span class="p">()</span><span class="o">.</span><span class="n">energy</span><span class="p">(</span><span class="n">per_component</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="se">\t</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s1">J/compute&#39;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Latency: </span><span class="si">{</span><span class="n">mapping</span><span class="o">.</span><span class="n">latency</span><span class="p">()</span><span class="si">}</span><span class="s1">s, </span><span class="si">{</span><span class="n">mapping</span><span class="o">.</span><span class="n">per_compute</span><span class="p">()</span><span class="o">.</span><span class="n">latency</span><span class="p">()</span><span class="si">}</span><span class="s1">s/compute&#39;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapping</span><span class="o">.</span><span class="n">per_compute</span><span class="p">()</span><span class="o">.</span><span class="n">latency</span><span class="p">(</span><span class="n">per_component</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="se">\t</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s1">s/compute&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings" title="accelforge.mapper.FFM.mappings.Mappings"><code class="xref py py-class docutils literal notranslate"><span class="pre">Mappings</span></code></a> object is a wrapper around a
+dataframe that contains all of the resulting mapping stats. These stats are accessible
+using a variety of functions:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.access" title="accelforge.mapper.FFM.mappings.Mappings.access"><code class="xref py py-func docutils literal notranslate"><span class="pre">access()</span></code></a>: Returns a new Mappings object with only the columns that contain the given keys. Column names are strings separated by “&lt;SEP&gt;”, and this method will return columns with one &lt;SEP&gt;-separated string matching the given key. Then, for all remaining columns, the key will be removed. For example, if the columns are “Compute&lt;SEP&gt;Energy”, and “DRAM&lt;SEP&gt;Energy”, and “DRAM&lt;SEP&gt;Latency”, then access(“Energy”) will return a Mappings object with columns “Compute” and “DRAM”, and access(“DRAM”) will return a Mappings object with columns “Compute” and “Latency”. If multiple keys are given, then the procedure is repeated for each key. col_idx: The index of the key in the column name. This can be used if the given key is found at multiple indexes in different columns.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.actions" title="accelforge.mapper.FFM.mappings.Mappings.actions"><code class="xref py py-func docutils literal notranslate"><span class="pre">actions()</span></code></a>: Returns the number of actions performed in the mapping. A dictionary is returned with keys that are tuples of (Einsum name, Component name, Tensor name, Action name), with any of these being omitted if the corresponding parameter is not set to True. If neither of the ``per_`` parameters are set to True, a float or a list of floats is returned.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.drop" title="accelforge.mapper.FFM.mappings.Mappings.drop"><code class="xref py py-func docutils literal notranslate"><span class="pre">drop()</span></code></a>: Returns a new Mappings object with the given keys dropped from all columns. Column names are strings separated by “&lt;SEP&gt;”, and this method will will drop columns with one &lt;SEP&gt;-separated string matching the given key. Then, for all remaining columns, the key will be removed. For example, if the columns are “Compute&lt;SEP&gt;Energy”, and “DRAM&lt;SEP&gt;Energy”, and “DRAM&lt;SEP&gt;Latency”, then drop(“Energy”) will drop “Compute&lt;SEP&gt;Energy” and “DRAM&lt;SEP&gt;Energy”, and drop(“DRAM”) will drop “DRAM&lt;SEP&gt;Energy” and “DRAM&lt;SEP&gt;Latency”. If multiple keys are given, then the procedure is repeated for each key.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.drop_zeros" title="accelforge.mapper.FFM.mappings.Mappings.drop_zeros"><code class="xref py py-func docutils literal notranslate"><span class="pre">drop_zeros()</span></code></a>: Returns a new Mappings object with all columns that have only zeros dropped.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.energy" title="accelforge.mapper.FFM.mappings.Mappings.energy"><code class="xref py py-func docutils literal notranslate"><span class="pre">energy()</span></code></a>: Returns the energy consumed. A dictionary is returned with keys that are tuples of (Einsum name, Component name, Tensor name, Action name), with any of these being omitted if the corresponding parameter is not set to True. If neither of the ``per_`` parameters are set to True, a float or a list of floats is returned. NOTE: Leak power is not per-tensor. If ``per_tensor`` is True, then the tensor name for leak will be None.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.items" title="accelforge.mapper.FFM.mappings.Mappings.items"><code class="xref py py-func docutils literal notranslate"><span class="pre">items()</span></code></a>: Shorthand for ``to_dict().items()``. Casts this Mappings object to a dictionary, then returns the items of the dictionary.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.latency" title="accelforge.mapper.FFM.mappings.Mappings.latency"><code class="xref py py-func docutils literal notranslate"><span class="pre">latency()</span></code></a>: Returns the latency consumed. A dictionary is returned with keys that are tuples of (Einsum name, Component name), with either being omitted if the corresponding parameter is not set to True. If neither of the ``per_`` parameters are set to True, a float or a list of floats is returned. NOTE: If per-Einsum is False and per-component is True, then the latency of each component will be summed across all Einsums. THE TOTAL LATENCY MAY BE GREATER THAN THE MAX OF THE PER-COMPONENT LATENCIES. This is because different components can be the bottleneck for different Einsums.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.mapping" title="accelforge.mapper.FFM.mappings.Mappings.mapping"><code class="xref py py-func docutils literal notranslate"><span class="pre">mapping()</span></code></a></p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.num_computes" title="accelforge.mapper.FFM.mappings.Mappings.num_computes"><code class="xref py py-func docutils literal notranslate"><span class="pre">num_computes()</span></code></a>: Returns the number of computes for the given Einsum name, or total computes if ``einsum_name`` is ``None``.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.per_compute" title="accelforge.mapper.FFM.mappings.Mappings.per_compute"><code class="xref py py-func docutils literal notranslate"><span class="pre">per_compute()</span></code></a>: Returns the per-compute evaluation results by dividing all statistics by the number of computes.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.per_tensor_size" title="accelforge.mapper.FFM.mappings.Mappings.per_tensor_size"><code class="xref py py-func docutils literal notranslate"><span class="pre">per_tensor_size()</span></code></a>: Returns a dictionary of: {Tensor name: Number of bits} for each tensor in the spec. If return_n_elements is true, then the number of elements is returned instead of the number of bits.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.render" title="accelforge.mapper.FFM.mappings.Mappings.render"><code class="xref py py-func docutils literal notranslate"><span class="pre">render()</span></code></a>: Renders the mapping as a Pydot graph. Returns an SVG string. This is only supported if there is a single mapping; if there are multiple mappings, then either index into this Mappings object first, or pass in an index.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.resource_usage" title="accelforge.mapper.FFM.mappings.Mappings.resource_usage"><code class="xref py py-func docutils literal notranslate"><span class="pre">resource_usage()</span></code></a>: Returns the usage of each resource in the mapping.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.sum" title="accelforge.mapper.FFM.mappings.Mappings.sum"><code class="xref py py-func docutils literal notranslate"><span class="pre">sum()</span></code></a></p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings.to_dict" title="accelforge.mapper.FFM.mappings.Mappings.to_dict"><code class="xref py py-func docutils literal notranslate"><span class="pre">to_dict()</span></code></a>: Returns the data in this Mappings object as a dictionary. Each column in the this Mappings’ data becomes a key in the dictionary. Values in the dictionary may be a single value if there is only one mapping, or a list of values if there are multiple mappings.</p></li>
+</ul>
+</section>
+</section>
+<section id="how-the-mapper-works-debugging-and-advanced-usage">
+<h1>How the Mapper Works, Debugging, and Advanced Usage<a class="headerlink" href="#how-the-mapper-works-debugging-and-advanced-usage" title="Link to this heading">#</a></h1>
+<p>The Fast and Fusiest Mapper (FFM) works using <em>partial mappings</em>, pmappings, which are
+mappings for a subset of the workload.</p>
+<p>The mapper works in two steps:</p>
+<ol class="arabic simple">
+<li><p>Make Partial Mappings: This part uses the Turbo-Charged Pmapper to all Pareto-optimal
+pmappings for all Einsums.</p></li>
+<li><p>Join Partial Mappings: This part uses the Fast and Fusiest Mapper (FFM) to join the
+Pareto-optimal pmappings into full mappings.</p></li>
+</ol>
+<p>To help with debugging, we can run each of these steps separately to inspect the
+results.</p>
+<section id="making-partial-mappings">
+<h2>Making Partial Mappings<a class="headerlink" href="#making-partial-mappings" title="Link to this heading">#</a></h2>
+<p>Partial mappings are generated using the
+<a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.make_pmappings" title="accelforge.mapper.FFM.main.make_pmappings"><code class="xref py py-func docutils literal notranslate"><span class="pre">make_pmappings()</span></code></a> function. Pmappings are generated
+in two stages.</p>
+<ol class="arabic simple">
+<li><p>Generate Pmapping Templates: This stage generates pmapping templates, which are
+pmappings without the loop bounds filled in.</p></li>
+<li><p>Fill Pmapping Templates with Tile Shapes: This stage fills the loop bounds in the
+pmapping templates with tile shapes.</p></li>
+</ol>
+<p>When <a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.make_pmappings" title="accelforge.mapper.FFM.main.make_pmappings"><code class="xref py py-func docutils literal notranslate"><span class="pre">make_pmappings()</span></code></a> is called, it first generates
+all pmapping templates for each Einsum. Each pmapping template starts as an ordering of
+storage nodes (dataplacement) as well as a compute node choice (if there are multiple
+compute nodes in the architecture). The mapper will then insert spatial and temporal
+loops into the pmapping template.</p>
+<p>Then, for each pmapping template, the mapper will generate all possible loop bounds for
+the temporal and spatial loops. As it enumerates loop bound choices, it will prune
+non-Pareto-optimal combinations to keep the search space tractable.</p>
+<p>For debugging in this stage, you can use two main tools. First, you can directly inspect
+the generated pmapping templates and check if all expected templates are included. These
+will be logged as they are generated.</p>
+<p>Next, you can inspect the outputted
+<a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultiEinsumPmappings</span></code></a> object. This object
+includes a variety of functions to report the porportion of pmappings that were kept or
+removed for various reasons, such as resource oversubscribtion or Pareto pruning.</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.drop_einsums" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.drop_einsums"><code class="xref py py-func docutils literal notranslate"><span class="pre">drop_einsums()</span></code></a>: Removes all pmappings for the given Einsums.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_evaluated_pmappings" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_evaluated_pmappings"><code class="xref py py-func docutils literal notranslate"><span class="pre">n_evaluated_pmappings()</span></code></a>: Returns the number of pmappings that were evaluated for each Einsum. This is greater than the number of Pareto-optimal pmappings because some mappings are found to be suboptimal after they have been evaluated.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_pareto_optimal_pmappings" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_pareto_optimal_pmappings"><code class="xref py py-func docutils literal notranslate"><span class="pre">n_pareto_optimal_pmappings()</span></code></a>: Returns the number of Pareto-optimal pmappings for each Einsum. This is the number of mappings that will be returned by the make_pmappings function.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_pmapping_string" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_pmapping_string"><code class="xref py py-func docutils literal notranslate"><span class="pre">n_pmapping_string()</span></code></a>: Returns a string representation of the number of pmappings in the mapspace. Printing this can help diagnose if the mapper is not finding any pmappings or mappings.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_total_pmappings" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_total_pmappings"><code class="xref py py-func docutils literal notranslate"><span class="pre">n_total_pmappings()</span></code></a>: Returns the number of total pmappings in the mapspace.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_valid_pmappings" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.n_valid_pmappings"><code class="xref py py-func docutils literal notranslate"><span class="pre">n_valid_pmappings()</span></code></a>: Returns the number of valid pmappings for each Einsum. A valid pmapping is one that satisfies all constraints and resource usage limits.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.pmapping_keep_rates" title="accelforge.mapper.FFM.pmappings.MultiEinsumPmappings.pmapping_keep_rates"><code class="xref py py-func docutils literal notranslate"><span class="pre">pmapping_keep_rates()</span></code></a>: Returns the keep rates for each cause of pmapping removal. For example, if only 25% of the pmappings have a valid spatial fanout, then the keep rate for the spatial fanout cause will be 0.25.</p></li>
+</ul>
+</section>
+<section id="joining-partial-mappings">
+<h2>Joining Partial Mappings<a class="headerlink" href="#joining-partial-mappings" title="Link to this heading">#</a></h2>
+<p>After we have all Pareto-optimal pmappings for all Einsums, we can join them into full
+mappings with the <a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.join_pmappings" title="accelforge.mapper.FFM.main.join_pmappings"><code class="xref py py-func docutils literal notranslate"><span class="pre">join_pmappings()</span></code></a> function. This
+function returns a <a class="reference internal" href="../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings" title="accelforge.mapper.FFM.mappings.Mappings"><code class="xref py py-class docutils literal notranslate"><span class="pre">Mappings</span></code></a> object, which
+contains all Pareto-optimal mappings found for the given cascade of Einsums.</p>
+<p>Joining will look at the <em>compatibility</em> for each pmapping, which is a representation of
+how the pmapping exchanges data with other pmappings. Pairs of pmappings must respect
+data dependencies to be compatible. Specifically, for every shared tensor, pmappings
+must agree on the shared storage node and the loops above the storage node. This ensures
+that they agree on the shape of shared tensor tiles and the order and memory level in
+which these tiles are exchanged.</p>
+<p>If there are no valid mappings to join, an error will be raised reporting the
+compatibilities of the pmappings that were considered. It may be useful to
+cross-reference these compatibilites with the pmapping templates that were generated by
+the pmapping creation stage.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="accelerator_energy_latency.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Accelerator Energy, Area, and Latency</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../definitions.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Definitions</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Mapping with Fast &amp; Fusiest</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-spec">Creating a Spec</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#calling-the-mapper">Calling the Mapper</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interpreting-output-results">Interpreting Output Results</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-mapper-works-debugging-and-advanced-usage">How the Mapper Works, Debugging, and Advanced Usage</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#making-partial-mappings">Making Partial Mappings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#joining-partial-mappings">Joining Partial Mappings</a></li>
+</ul>
+</li>
+</ul>
+
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/guide/modeling/mapping.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

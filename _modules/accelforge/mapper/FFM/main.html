@@ -1,0 +1,674 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.mapper.FFM.main &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/mapper/FFM/main';</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.mapper.FFM.main</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.mapper.FFM.main</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">import</span> <span class="nn">joblib</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="kn">from</span> <span class="nn">accelforge</span> <span class="kn">import</span> <span class="n">arch</span>
+<span class="kn">from</span> <span class="nn">accelforge</span> <span class="kn">import</span> <span class="n">Spec</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.mapper.metrics</span> <span class="kn">import</span> <span class="n">Metrics</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM.pmappings</span> <span class="kn">import</span> <span class="n">MultiEinsumPmappings</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM.mappings</span> <span class="kn">import</span> <span class="n">Mappings</span>
+<span class="kn">import</span> <span class="nn">accelforge.mapper.FFM._make_pmappings.make_pmappings</span> <span class="k">as</span> <span class="nn">pmapper</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.workload</span> <span class="kn">import</span> <span class="n">EinsumName</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._join_pmappings.join_pmappings</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">clean_compress_and_join_pmappings</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.mapper.FFM._join_pmappings.join_pmappings</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_check_einsum2pmappings_not_empty</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge._accelerated_imports</span> <span class="kn">import</span> <span class="n">pd</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="kn">import</span> <span class="n">tqdm</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util</span> <span class="kn">import</span> <span class="n">delayed</span><span class="p">,</span> <span class="n">parallel</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="map_workload_to_arch">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.map_workload_to_arch">[docs]</a>
+<span class="k">def</span> <span class="nf">map_workload_to_arch</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">einsum_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">can_combine_multiple_runs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">cache_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">one_pbar_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">print_number_of_pmappings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mappings</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Maps a workload to an architecture using the AccelForge Fast and Fusiest Mapper</span>
+<span class="sd">    (FFM).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec:</span>
+<span class="sd">        The Spec to map.</span>
+<span class="sd">    einsum_names:</span>
+<span class="sd">        The einsum names to map. If None, all einsums will be mapped.</span>
+<span class="sd">    can_combine_multiple_runs:</span>
+<span class="sd">        If True, allows combining multiple make_pmappings runs (e.g. ``pmappings =</span>
+<span class="sd">        make_pmappings(*args_a) | make_pmappings(*args_b)``). Set to False for faster</span>
+<span class="sd">        execution.</span>
+<span class="sd">    cache_dir:</span>
+<span class="sd">        The directory to cache pmappings in. If None, no caching will be done.</span>
+<span class="sd">    one_pbar_only:</span>
+<span class="sd">        Whether to only print only a single progress bar. If this is True, then only a</span>
+<span class="sd">        progress bar will be created for making tile shapes, which is generally the</span>
+<span class="sd">        longest-running part of the mapping process.</span>
+<span class="sd">    print_progress:</span>
+<span class="sd">        Whether to print progress of the mapping process, including progress bars.</span>
+<span class="sd">    print_number_of_pmappings:</span>
+<span class="sd">        Whether to print the number of pmappings for each einsum.</span>
+<span class="sd">    _pmapping_row_filter_function:</span>
+<span class="sd">        A function that takes in a row of the pmapping dataframe and returns True if the</span>
+<span class="sd">        row should be included in the final mappings, and False otherwise. If None, all</span>
+<span class="sd">        rows will be included.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">accelforge.model.main</span> <span class="kn">import</span> <span class="n">evaluate_mapping</span>
+
+    <span class="k">if</span> <span class="n">one_pbar_only</span><span class="p">:</span>
+        <span class="n">print_progress</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">print_number_of_pmappings</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">pmappings</span> <span class="o">=</span> <span class="n">make_pmappings</span><span class="p">(</span>
+        <span class="n">spec</span><span class="p">,</span>
+        <span class="n">einsum_names</span><span class="o">=</span><span class="n">einsum_names</span><span class="p">,</span>
+        <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+        <span class="n">can_combine_multiple_runs</span><span class="o">=</span><span class="n">can_combine_multiple_runs</span><span class="p">,</span>
+        <span class="n">cache_dir</span><span class="o">=</span><span class="n">cache_dir</span><span class="p">,</span>
+        <span class="n">print_number_of_pmappings</span><span class="o">=</span><span class="n">print_number_of_pmappings</span><span class="p">,</span>
+        <span class="n">one_pbar_only</span><span class="o">=</span><span class="n">one_pbar_only</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">mappings</span> <span class="o">=</span> <span class="n">join_pmappings</span><span class="p">(</span>
+        <span class="n">pmappings</span><span class="p">,</span>
+        <span class="n">require_all_einsums</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">_pmapping_row_filter_function</span><span class="o">=</span><span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+        <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+        <span class="n">metrics</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">metrics</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">eval_mapping</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">mappings</span><span class="p">):</span>
+        <span class="n">local_spec</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+        <span class="n">local_spec</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">metrics</span> <span class="o">=</span> <span class="n">local_spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">info_metrics</span>
+        <span class="n">local_spec</span><span class="o">.</span><span class="n">mapping</span> <span class="o">=</span> <span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s2">&quot;Total&lt;SEP&gt;mapping&quot;</span><span class="p">]()</span>
+        <span class="n">this_mapping</span> <span class="o">=</span> <span class="n">evaluate_mapping</span><span class="p">(</span>
+            <span class="n">local_spec</span><span class="p">,</span>
+            <span class="n">flattened_arches</span><span class="o">=</span><span class="n">mappings</span><span class="o">.</span><span class="n">flattened_arches</span><span class="p">,</span>
+            <span class="n">evaluated_specs</span><span class="o">=</span><span class="n">mappings</span><span class="o">.</span><span class="n">evaluated_specs</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">i</span><span class="p">,</span> <span class="n">this_mapping</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">use_pbar</span> <span class="o">=</span> <span class="p">(</span><span class="n">print_progress</span> <span class="ow">or</span> <span class="n">one_pbar_only</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">delayed</span><span class="p">(</span><span class="n">eval_mapping</span><span class="p">)(</span><span class="n">i</span><span class="p">,</span> <span class="n">spec</span><span class="p">,</span> <span class="n">mappings</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mappings</span><span class="o">.</span><span class="n">data</span><span class="p">))],</span>
+        <span class="n">pbar</span><span class="o">=</span><span class="s2">&quot;Evaluating chosen mappings in detail&quot;</span> <span class="k">if</span> <span class="n">use_pbar</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">return_as</span><span class="o">=</span><span class="s2">&quot;generator_unordered&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span>
+
+    <span class="c1"># for i, r in enumerate(results):</span>
+    <span class="c1">#     print(f&#39;Result {i}&#39;)</span>
+    <span class="c1">#     for c in r.columns:</span>
+    <span class="c1">#         if &quot;Total&quot; in c or &quot;reservation&quot; in c:</span>
+    <span class="c1">#             print(f&#39;\t{c}: {r[c]}&#39;)</span>
+
+    <span class="n">mappings</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="o">.</span><span class="n">fillna</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mappings</span></div>
+
+
+
+<div class="viewcode-block" id="make_pmappings">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.make_pmappings">[docs]</a>
+<span class="k">def</span> <span class="nf">make_pmappings</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">einsum_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">can_combine_multiple_runs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">cache_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">print_number_of_pmappings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">one_pbar_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MultiEinsumPmappings</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Creates pmappings for a spec. Pmappings must be joined together using</span>
+<span class="sd">    `join_pmappings` to create a full mapping.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spec:</span>
+<span class="sd">        The Spec to generate pmappings for.</span>
+<span class="sd">    einsum_names:</span>
+<span class="sd">        The einsum names to generate pmappings for. If None, all einsums will be</span>
+<span class="sd">        included.</span>
+<span class="sd">    can_combine_multiple_runs:</span>
+<span class="sd">        If True, allows combining multiple make_pmappings runs (e.g. ``pmappings =</span>
+<span class="sd">        make_pmappings(*args_a) | make_pmappings(*args_b)``). Set to False for faster</span>
+<span class="sd">        execution.</span>
+<span class="sd">    cache_dir:</span>
+<span class="sd">        The directory to cache pmappings in. If None, no caching will be done.</span>
+<span class="sd">    one_pbar_only:</span>
+<span class="sd">        Whether to only print only a single progress bar. If this is True, then only a</span>
+<span class="sd">        progress bar will be created for making tile shapes, which is generally the</span>
+<span class="sd">        longest-running part of the mapping process.</span>
+<span class="sd">    print_progress:</span>
+<span class="sd">        Whether to print progress of the mapping process, including progress bars.</span>
+<span class="sd">    print_number_of_pmappings:</span>
+<span class="sd">        Whether to print the number of pmappings for each einsum.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A MultiEinsumPmappings object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">spec</span><span class="o">=</span><span class="n">spec</span><span class="p">,</span>
+        <span class="n">einsum_names</span><span class="o">=</span><span class="n">einsum_names</span><span class="p">,</span>
+        <span class="n">can_combine_multiple_runs</span><span class="o">=</span><span class="n">can_combine_multiple_runs</span><span class="p">,</span>
+        <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+        <span class="n">one_pbar_only</span><span class="o">=</span><span class="n">one_pbar_only</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">_make_pmappings</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">cache_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">_make_pmappings</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+
+        <span class="nd">@joblib</span><span class="o">.</span><span class="n">Memory</span><span class="p">(</span><span class="n">location</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cache_dir</span><span class="p">),</span> <span class="n">compress</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">cache</span>
+        <span class="k">def</span> <span class="nf">_make_pmappings_cached</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MultiEinsumPmappings</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_make_pmappings</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="n">_make_pmappings_cached</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">print_number_of_pmappings</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">n_pmapping_string</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+
+<div class="viewcode-block" id="join_pmappings">
+<a class="viewcode-back" href="../../../../accelforge.mapper.FFM.html#accelforge.mapper.FFM.main.join_pmappings">[docs]</a>
+<span class="k">def</span> <span class="nf">join_pmappings</span><span class="p">(</span>
+    <span class="n">pmappings</span><span class="p">:</span> <span class="n">MultiEinsumPmappings</span><span class="p">,</span>
+    <span class="n">metrics</span><span class="p">:</span> <span class="n">Metrics</span><span class="p">,</span>
+    <span class="n">require_all_einsums</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mappings</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Joins pmappings into a full mappings for the entire workload. Pmappings can be</span>
+<span class="sd">    generated using `make_pmappings`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pmappings:</span>
+<span class="sd">        The pmappings to join.</span>
+<span class="sd">    require_all_einsums:</span>
+<span class="sd">        If True, all einsums in the workload must have pmappings. If False, only einsums</span>
+<span class="sd">        that have pmappings will be included in the final mappings.</span>
+<span class="sd">    _pmapping_row_filter_function:</span>
+<span class="sd">        A function that takes in a row of the pmapping dataframe and returns True if the</span>
+<span class="sd">        row should be included in the final mappings, and False otherwise. If None, all</span>
+<span class="sd">        rows will be included.</span>
+<span class="sd">    print_progress:</span>
+<span class="sd">        Whether to print progress of the mapping process, including progress bars.</span>
+<span class="sd">    metrics:</span>
+<span class="sd">        The metrics to optimize when joining pmappings.</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Mappings</span>
+<span class="sd">        A Mappings object containing all valid, optimal mappings for the workload.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">clean_compress_and_join_pmappings</span><span class="p">(</span>
+        <span class="n">pmappings</span><span class="o">=</span><span class="n">pmappings</span><span class="p">,</span>
+        <span class="n">metrics</span><span class="o">=</span><span class="n">metrics</span><span class="p">,</span>
+        <span class="n">require_all_einsums</span><span class="o">=</span><span class="n">require_all_einsums</span><span class="p">,</span>
+        <span class="n">_pmapping_row_filter_function</span><span class="o">=</span><span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+        <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">_make_pmappings</span><span class="p">(</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">Spec</span><span class="p">,</span>
+    <span class="n">einsum_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">can_combine_multiple_runs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">one_pbar_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MultiEinsumPmappings</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">einsum_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">einsum_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">]</span>
+
+    <span class="n">pmapping_groups</span><span class="p">,</span> <span class="n">pmapping_objects</span><span class="p">,</span> <span class="n">einsum2jobs</span> <span class="o">=</span> <span class="n">pmapper</span><span class="o">.</span><span class="n">make_pmappings</span><span class="p">(</span>
+        <span class="n">spec</span><span class="p">,</span>
+        <span class="n">metrics</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">mapper</span><span class="o">.</span><span class="n">metrics</span><span class="p">,</span>
+        <span class="n">einsum_names</span><span class="o">=</span><span class="n">einsum_names</span><span class="p">,</span>
+        <span class="n">can_combine_multiple_runs</span><span class="o">=</span><span class="n">can_combine_multiple_runs</span><span class="p">,</span>
+        <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+        <span class="n">one_pbar_only</span><span class="o">=</span><span class="n">one_pbar_only</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">flattened_arches</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">evaluated_specs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">einsum_name</span><span class="p">,</span> <span class="n">jobs</span> <span class="ow">in</span> <span class="n">einsum2jobs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">jobs</span><span class="p">:</span>
+            <span class="n">compute_name</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">flattened_arch</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">flattened_arches</span><span class="p">[(</span><span class="n">einsum_name</span><span class="p">,</span> <span class="n">compute_name</span><span class="p">)]</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">flattened_arch</span>
+            <span class="n">evaluated_specs</span><span class="p">[</span><span class="n">einsum_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">spec</span>
+
+    <span class="n">m</span> <span class="o">=</span> <span class="n">MultiEinsumPmappings</span><span class="p">(</span>
+        <span class="n">spec</span><span class="p">,</span>
+        <span class="n">pmapping_groups</span><span class="p">,</span>
+        <span class="n">pmapping_objects</span><span class="p">,</span>
+        <span class="n">einsum2jobs</span><span class="p">,</span>
+        <span class="n">can_combine_multiple_runs</span><span class="o">=</span><span class="n">can_combine_multiple_runs</span><span class="p">,</span>
+        <span class="n">einsums_with_pmappings_generated</span><span class="o">=</span><span class="nb">set</span><span class="p">(</span>
+            <span class="n">einsum_names</span> <span class="k">if</span> <span class="n">einsum_names</span> <span class="k">else</span> <span class="n">spec</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsum_names</span>
+        <span class="p">),</span>
+        <span class="n">flattened_arches</span><span class="o">=</span><span class="n">flattened_arches</span><span class="p">,</span>
+        <span class="n">evaluated_specs</span><span class="o">=</span><span class="n">evaluated_specs</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">m</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
