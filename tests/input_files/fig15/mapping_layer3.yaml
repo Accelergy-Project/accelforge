@@ -1,0 +1,56 @@
+# Fig 15 Layer 3 mapping: M=128, K=1152, N=1024
+# Translated from SL: M128-K1152-N1024-IAD0.44-WD1.0/TC-RF2x-24-bandwidth/map.yaml
+#
+# SL factors (outer→inner):
+#   DRAM temporal: M1 N16 K1 (NMK)
+#   SMEM temporal: M2 N1 K1 (MNK)
+#   SMEM spatial:  M4 (split=0) → Subpartitions Y
+#   RF spatial:    M16 K16 (KMN, split=1) → K on X, M on Z
+#   RF temporal:   M1 N1 K72 (KMN)
+#   LRF temporal:  M1 N64 K1 (NMK)
+#
+# Storage: DRAM=[A,B,Z], SMEM=[A,B], RF=[Z], LRF=[A]
+
+mapping:
+  nodes:
+  # === DRAM ===
+  - !Storage
+    tensors: [A, B, Z]
+    component: DRAM
+
+  # DRAM temporal: N16 (NMK perm; only N non-trivial)
+  - !Temporal {rank_variable: n, tile_shape: 64}
+
+  # === SMEM ===
+  - !Storage
+    tensors: [A, B]
+    component: SMEM
+
+  # SMEM temporal: M2 (MNK perm; only M non-trivial)
+  - !Temporal {rank_variable: m, tile_shape: 64}
+
+  # SMEM spatial: M4 → Subpartitions Y
+  - !Spatial {rank_variable: m, tile_shape: 16, name: Y, component: Subpartitions}
+
+  # === RF ===
+  - !Storage
+    tensors: [Z]
+    component: RF
+
+  # RF spatial: K16 on X, M16 on Z
+  - !Spatial {rank_variable: k, tile_shape: 72, name: X, component: RF}
+  - !Spatial {rank_variable: m, tile_shape: 1, name: Z, component: RF}
+
+  # RF temporal: K72
+  - !Temporal {rank_variable: k, tile_shape: 1}
+
+  # === LRF ===
+  - !Storage
+    tensors: [A]
+    component: LRF
+
+  # LRF temporal: N64
+  - !Temporal {rank_variable: n, tile_shape: 1}
+
+  # === Compute ===
+  - !Compute {einsum: GEMM, component: MAC}

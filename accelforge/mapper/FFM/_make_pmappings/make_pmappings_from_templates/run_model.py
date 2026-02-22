@@ -86,6 +86,7 @@ def run_model(
         or latency_info.metadata_read_actions
         or latency_info.metadata_write_actions
         or latency_info.compute_latency_ratio != 1.0
+        or latency_info.position_space_utilization < 1.0
     )
     if has_sparse_latency:
         latency = _compute_sparse_latency(
@@ -406,15 +407,24 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
             **component_to_action_latency[component],
         }
         if node.total_latency is not None:
-            component_latency_result[component] = eval_expression(
+            lat = eval_expression(
                 node.total_latency,
                 symbol_table,
                 attr_name="latency",
                 location=component,
             )
+            # Position-space utilization: divide by avg utilization fraction
+            # when position-skipping causes PE load imbalance at compute.
+            if (isinstance(node, arch.Compute)
+                    and latency_info.position_space_utilization < 1.0):
+                lat = lat / latency_info.position_space_utilization
+            component_latency_result[component] = lat
         elif isinstance(node, arch.Compute):
-            component_latency_result[component] = sum(
+            compute_lat = sum(
                 component_to_action_latency[component].values()
             )
+            if latency_info.position_space_utilization < 1.0:
+                compute_lat = compute_lat / latency_info.position_space_utilization
+            component_latency_result[component] = compute_lat
 
     return component_latency_result

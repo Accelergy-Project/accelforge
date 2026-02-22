@@ -129,6 +129,10 @@ class TensorAccess(EvalableModel):
     density: float | str | None = None
     """ Density of nonzero values (0.0 to 1.0). None means dense (1.0). """
 
+    density_distribution: str | None = None
+    """ Density distribution type. None means random (hypergeometric).
+    "structured" means deterministic structured sparsity (e.g. 2:4). """
+
     def model_post_init(self, __context__=None) -> None:
         self.projection: ImpliedProjection = _projection_factory(self.projection)
 
@@ -752,6 +756,30 @@ class Einsum(EvalableModel):
                 t.density = density_dict[t.name]
             # If still None, leave as None (means dense, 1.0)
 
+        # Parse density_distributions (same pattern as densities)
+        dd_dict = dict()
+        dd_to_source = dict()
+        for k, v in symbol_table.get("workload_density_distributions", {}).items():
+            dd_set = eval_set_expression(
+                expression=k,
+                symbol_table=st,
+                expected_space=TensorName,
+                location=f"(workload global density_distributions)[{k}]",
+            )
+            for t in dd_set:
+                if t in dd_dict:
+                    raise EvaluationError(
+                        f"Tensor {t} is specified in multiple entries in the "
+                        f"workload global density_distributions dictionary.",
+                        source_field=f"({k} AND {dd_to_source[t]})",
+                    )
+                dd_dict[t] = v
+                dd_to_source[t] = k
+
+        for t in evaluated.tensor_accesses:
+            if t.density_distribution is None and t.name in dd_dict:
+                t.density_distribution = dd_dict[t.name]
+
         if symbol_table.get("workload_persistent_tensors", None):
             rename_st_with_evaluated = {**st}
             for rename in evaluated.renames:
@@ -819,6 +847,14 @@ class Workload(EvalableModel):
     "Inputs: 0.5" sets all input tensors to 50% density. Tensors without a density
     are treated as dense (density = 1.0). Overridden if density is specified
     on a per-tensor-access basis.
+    """
+
+    density_distributions: EvalableDict[str, str] = EvalableDict()
+    """
+    Density distribution type for each tensor. Same set-expression pattern as
+    densities. For example, "Inputs: structured" sets all input tensors to use
+    the structured (deterministic) density model. Tensors without a distribution
+    use the default hypergeometric (random) model.
     """
 
     persistent_tensors: str | None = None
@@ -1059,12 +1095,14 @@ class Workload(EvalableModel):
     ):
         bpv, _ = self.bits_per_value._eval_expressions(symbol_table, *args, **kwargs)
         dens, _ = self.densities._eval_expressions(symbol_table, *args, **kwargs)
+        dd, _ = self.density_distributions._eval_expressions(symbol_table, *args, **kwargs)
         new_st = {
             **symbol_table,
             "spec_workload": self,
             "spec_renames": renames,
             "workload_bits_per_value": bpv,
             "workload_densities": dens,
+            "workload_density_distributions": dd,
             "workload_persistent_tensors": self.persistent_tensors,
         }
         evaluated, new_st = super()._eval_expressions(new_st, *args, **kwargs)

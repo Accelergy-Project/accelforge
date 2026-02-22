@@ -1,0 +1,56 @@
+# Fig 13 DSTC mapping: 4096x4096x4096 GEMM on 128-PE mesh (8x16)
+# Translated from Sparseloop Os-mapping.yaml
+#
+# SL factors (outer->inner):
+#   DRAM temporal: K=1 N=128 M=128 (permutation KNM -> M outer, N middle, K inner)
+#   GLB temporal:  K=1 N=1 M=1    (all trivial, skip)
+#   Buffer temporal: K=4096 N=1 M=1 (permutation NMK -> K outer)
+#   LineBuffer temporal: K=1 N=2 M=4 (permutation NMK -> M outer, N inner)
+#   LineBuffer spatial:  K=1 N=16 M=8 (permutation NKM, split=1 -> N on X, M on Y)
+#
+# Storage: DRAM=[A,B,Z], GLB=[A,B], Buffer=[Z], LineBuffer=[A,B]
+
+mapping:
+  nodes:
+  # === DRAM ===
+  - !Storage
+    tensors: [A, B, Z]
+    component: DRAM
+
+  # DRAM temporal: M=128 outer, N=128 inner (KNM perm: M outermost, N middle)
+  # tile_shape = full / factor: M=4096/128=32, N=4096/128=32
+  - !Temporal {rank_variable: m, tile_shape: 32}
+  - !Temporal {rank_variable: n, tile_shape: 32}
+
+  # === GLB (stores A, B; Z bypasses) ===
+  - !Storage
+    tensors: [A, B]
+    component: GLB
+
+  # GLB temporal: all trivial (K=1, N=1, M=1) -> no loops needed
+
+  # === Buffer (stores Z; A, B bypass) ===
+  - !Storage
+    tensors: [Z]
+    component: Buffer
+
+  # Buffer temporal: K=4096 iterations, tile_shape=1
+  - !Temporal {rank_variable: k, tile_shape: 1}
+
+  # === LineBuffer (stores A, B; Z bypasses) ===
+  - !Storage
+    tensors: [A, B]
+    component: LineBuffer
+
+  # LineBuffer spatial: N=16 on X, M=8 on Y (spatial before temporal)
+  # Per-PE: N=32/16=2, M=32/8=4
+  - !Spatial {rank_variable: n, tile_shape: 2, name: X, component: LineBuffer}
+  - !Spatial {rank_variable: m, tile_shape: 4, name: Y, component: LineBuffer}
+
+  # LineBuffer temporal (NMK perm: M outer, N inner)
+  # Each PE iterates: M=4 times (tile_shape=1), N=2 times (tile_shape=1)
+  - !Temporal {rank_variable: m, tile_shape: 1}
+  - !Temporal {rank_variable: n, tile_shape: 1}
+
+  # === Compute ===
+  - !Compute {einsum: MatMul, component: MAC}

@@ -7,7 +7,10 @@ import math
 import unittest
 
 from accelforge.model.density_model import (
+    DensityModel,
     HypergeometricDensityModel,
+    StructuredDensityModel,
+    create_density_model,
     effectual_operations,
 )
 
@@ -373,6 +376,156 @@ class TestDensityModelRepr(unittest.TestCase):
         self.assertIn("0.5", s)
         self.assertIn("100", s)
         self.assertIn("50", s)
+
+
+class TestStructuredDensityModel(unittest.TestCase):
+    """Test the deterministic structured density model."""
+
+    def test_prob_empty_always_zero(self):
+        """Structured sparsity guarantees nonzeros in every tile."""
+        model = StructuredDensityModel(density=0.5, tensor_size=1000)
+        self.assertEqual(model.prob_empty(1), 0.0)
+        self.assertEqual(model.prob_empty(10), 0.0)
+        self.assertEqual(model.prob_empty(100), 0.0)
+        self.assertEqual(model.prob_empty(1000), 0.0)
+
+    def test_prob_empty_zero_density(self):
+        """d=0 -> tile is always empty even for structured."""
+        model = StructuredDensityModel(density=0.0, tensor_size=1000)
+        self.assertEqual(model.prob_empty(10), 1.0)
+
+    def test_prob_empty_zero_tile(self):
+        """tile_shape=0 -> empty."""
+        model = StructuredDensityModel(density=0.5, tensor_size=1000)
+        self.assertEqual(model.prob_empty(0), 1.0)
+
+    def test_exact_occupancy(self):
+        """E[nnz] = density * tile_shape exactly."""
+        model = StructuredDensityModel(density=0.5, tensor_size=1000)
+        self.assertEqual(model.expected_occupancy(100), 50.0)
+        self.assertEqual(model.expected_occupancy(4), 2.0)
+
+    def test_occupancy_2_4(self):
+        """2:4 sparsity: density=0.5, every group of 4 has exactly 2 nonzeros."""
+        model = StructuredDensityModel(density=0.5, tensor_size=1024)
+        self.assertEqual(model.expected_occupancy(4), 2.0)
+        self.assertEqual(model.expected_occupancy_ceil(4), 2)
+
+    def test_occupancy_ceil(self):
+        """ceil of exact occupancy."""
+        model = StructuredDensityModel(density=0.3, tensor_size=100)
+        self.assertEqual(model.expected_occupancy(10), 3.0)
+        self.assertEqual(model.expected_occupancy_ceil(10), 3)
+        # Non-integer result
+        model2 = StructuredDensityModel(density=0.33, tensor_size=100)
+        self.assertAlmostEqual(model2.expected_occupancy(10), 3.3)
+        self.assertEqual(model2.expected_occupancy_ceil(10), 4)
+
+    def test_tile_larger_than_tensor(self):
+        """tile > N clamps to N."""
+        model = StructuredDensityModel(density=0.5, tensor_size=100)
+        self.assertEqual(model.expected_occupancy(200), 50.0)
+
+    def test_zero_tensor_size(self):
+        """N=0 -> occupancy 0."""
+        model = StructuredDensityModel(density=0.5, tensor_size=0)
+        self.assertEqual(model.expected_occupancy(10), 0.0)
+        self.assertEqual(model.expected_occupancy_ceil(10), 0)
+
+    def test_density_one(self):
+        """d=1.0 -> all elements nonzero."""
+        model = StructuredDensityModel(density=1.0, tensor_size=100)
+        self.assertEqual(model.expected_occupancy(10), 10.0)
+        self.assertEqual(model.prob_empty(10), 0.0)
+
+    def test_repr(self):
+        model = StructuredDensityModel(density=0.5, tensor_size=100)
+        s = repr(model)
+        self.assertIn("0.5", s)
+        self.assertIn("100", s)
+        self.assertIn("Structured", s)
+
+
+class TestCreateDensityModel(unittest.TestCase):
+    """Test the factory function."""
+
+    def test_none_returns_hypergeometric(self):
+        model = create_density_model(0.5, 1000)
+        self.assertIsInstance(model, HypergeometricDensityModel)
+
+    def test_none_explicit_returns_hypergeometric(self):
+        model = create_density_model(0.5, 1000, distribution=None)
+        self.assertIsInstance(model, HypergeometricDensityModel)
+
+    def test_structured_returns_structured(self):
+        model = create_density_model(0.5, 1000, distribution="structured")
+        self.assertIsInstance(model, StructuredDensityModel)
+
+    def test_unknown_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            create_density_model(0.5, 1000, distribution="unknown")
+        self.assertIn("unknown", str(ctx.exception).lower())
+
+    def test_both_are_density_model(self):
+        m1 = create_density_model(0.5, 1000)
+        m2 = create_density_model(0.5, 1000, distribution="structured")
+        self.assertIsInstance(m1, DensityModel)
+        self.assertIsInstance(m2, DensityModel)
+
+
+class TestStructuredVsHypergeometric(unittest.TestCase):
+    """Verify the two models diverge on prob_empty but agree on edge cases."""
+
+    def test_prob_empty_diverges(self):
+        """Hypergeometric has nonzero prob_empty; structured always 0."""
+        hyper = HypergeometricDensityModel(density=0.5, tensor_size=100)
+        struct = StructuredDensityModel(density=0.5, tensor_size=100)
+        # For a small tile, hypergeometric has some chance of being empty
+        self.assertGreater(hyper.prob_empty(2), 0.0)
+        self.assertEqual(struct.prob_empty(2), 0.0)
+
+    def test_full_tensor_occupancy_agrees(self):
+        """At tile=N, both models agree on expected occupancy."""
+        hyper = HypergeometricDensityModel(density=0.5, tensor_size=100)
+        struct = StructuredDensityModel(density=0.5, tensor_size=100)
+        self.assertAlmostEqual(
+            hyper.expected_occupancy(100),
+            struct.expected_occupancy(100),
+            places=5,
+        )
+
+    def test_dense_identical(self):
+        """At d=1.0 both models behave identically."""
+        hyper = HypergeometricDensityModel(density=1.0, tensor_size=100)
+        struct = StructuredDensityModel(density=1.0, tensor_size=100)
+        for tile in [1, 10, 50, 100]:
+            self.assertEqual(hyper.prob_empty(tile), struct.prob_empty(tile))
+            self.assertAlmostEqual(
+                hyper.expected_occupancy(tile),
+                struct.expected_occupancy(tile),
+            )
+
+
+class TestDensityDistributionField(unittest.TestCase):
+    """Test the density_distribution field on TensorAccess."""
+
+    def test_field_default_none(self):
+        from accelforge.frontend.workload import TensorAccess
+        ta = TensorAccess(name="A", projection=["m", "k"])
+        self.assertIsNone(ta.density_distribution)
+
+    def test_field_set(self):
+        from accelforge.frontend.workload import TensorAccess
+        ta = TensorAccess(
+            name="A", projection=["m", "k"],
+            density_distribution="structured",
+        )
+        self.assertEqual(ta.density_distribution, "structured")
+
+    def test_workload_density_distributions_field_exists(self):
+        from accelforge.frontend.workload import Workload
+        w = Workload()
+        self.assertIsNotNone(w.density_distributions)
 
 
 if __name__ == "__main__":

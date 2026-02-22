@@ -14,7 +14,7 @@ import math
 from dataclasses import dataclass
 from typing import Optional
 
-from accelforge.model.density_model import HypergeometricDensityModel
+from accelforge.model.density_model import create_density_model
 from accelforge.model.sparse_formats import (
     RankOccupancy,
     compute_format_occupancy,
@@ -97,6 +97,7 @@ def compute_sparse_occupancy(
     dimension_sizes: Optional[list[int]] = None,
     metadata_word_bits: Optional[list[Optional[int]]] = None,
     payload_word_bits: Optional[list[Optional[int]]] = None,
+    distribution: str | None = None,
 ) -> SparseOccupancy:
     """Compute sparse-adjusted storage occupancy for a (tensor, level) pair.
 
@@ -118,8 +119,10 @@ def compute_sparse_occupancy(
         Bits per metadata word per rank. None entries use bits_per_value.
     payload_word_bits : list[int|None], optional
         Bits per payload word per rank. None entries use bits_per_value.
+    distribution : str or None
+        Density distribution type. None = random (hypergeometric).
     """
-    model = HypergeometricDensityModel(density, tensor_size)
+    model = create_density_model(density, tensor_size, distribution)
 
     # Data occupancy
     data_elements = model.expected_occupancy_ceil(tile_shape)
@@ -128,7 +131,8 @@ def compute_sparse_occupancy(
     # Format occupancy
     if rank_formats and dimension_sizes:
         rank_occs, format_units = compute_format_occupancy(
-            rank_formats, dimension_sizes, density, tensor_size
+            rank_formats, dimension_sizes, density, tensor_size,
+            distribution=distribution,
         )
 
         # Convert units to bits using per-rank word sizes
@@ -165,6 +169,7 @@ def compute_format_access_counts(
     tile_shape: int,
     algorithmic_reads: int,
     algorithmic_fills: int,
+    distribution: str | None = None,
 ) -> FormatAccessCounts:
     """Compute format (metadata/payload) access counts for a (tensor, level).
 
@@ -188,9 +193,11 @@ def compute_format_access_counts(
         Total algorithmic data reads (before any sparse reduction).
     algorithmic_fills : int
         Total algorithmic data fills (before any sparse reduction).
+    distribution : str or None
+        Density distribution type. None = random (hypergeometric).
     """
     # Per-tile format occupancy (single tile)
-    model = HypergeometricDensityModel(density, tensor_size)
+    model = create_density_model(density, tensor_size, distribution)
 
     occupancies = []
     fibers = 1

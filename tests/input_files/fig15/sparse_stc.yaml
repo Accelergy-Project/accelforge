@@ -1,0 +1,43 @@
+# Fig 15 STC sparse config: 2:4 structured sparsity on A (weights)
+# Format: CSR at DRAM, SMEM, LRF for tensor A (auto-expands to UOP+CP)
+# SAF: skipping at RF for B and Z conditioned on A
+# Compute: skipping at MAC conditioned on A
+#
+# Translates SL RF-spatial-skipping.yaml. SL uses spatial skipping (K_spatial=32);
+# we model it as temporal skipping via SAF at density=0.5.
+# metadata_word_bits=2 matches 2:4 structured sparsity (2 bits per position).
+
+sparse_optimizations:
+  targets:
+  - target: DRAM
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 2
+
+  - target: SMEM
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 2
+
+  - target: LRF
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 2
+
+  - target: RF
+    action_optimization:
+    - kind: skipping
+      target: B
+      condition_on: [A]
+    - kind: skipping
+      target: Z
+      condition_on: [A]
+
+  - target: MAC
+    compute_optimization:
+    - kind: skipping
+      target: GEMM
+      condition_on: [A]

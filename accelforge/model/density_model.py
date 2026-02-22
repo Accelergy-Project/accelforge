@@ -1,17 +1,43 @@
-"""Hypergeometric density model for sparse tensor analysis.
+"""Density models for sparse tensor analysis.
 
-Uses the hypergeometric distribution to model how nonzero elements are
-distributed across tiles of a sparse tensor. When drawing n elements from
-a population of N containing r nonzeros, the number of nonzeros in the
-sample follows Hypergeometric(N, r, n).
+Provides pluggable density models that estimate how nonzero elements are
+distributed across tiles of a sparse tensor:
+
+- HypergeometricDensityModel: statistical model assuming random sparsity.
+- StructuredDensityModel: deterministic model for structured sparsity
+  (e.g., 2:4), where every tile has exactly density * tile nonzeros.
 """
 
 import math
+from abc import ABC, abstractmethod
 
 from scipy.stats import hypergeom as _hypergeom
 
 
-class HypergeometricDensityModel:
+class DensityModel(ABC):
+    """Abstract base class for density models.
+
+    Subclasses must implement prob_empty, expected_occupancy, and
+    expected_occupancy_ceil.
+    """
+
+    @abstractmethod
+    def prob_empty(self, tile_shape: int) -> float:
+        """P(tile is all zeros)."""
+        ...
+
+    @abstractmethod
+    def expected_occupancy(self, tile_shape: int) -> float:
+        """E[nnz in tile]."""
+        ...
+
+    @abstractmethod
+    def expected_occupancy_ceil(self, tile_shape: int) -> int:
+        """ceil(E[nnz in tile])."""
+        ...
+
+
+class HypergeometricDensityModel(DensityModel):
     """Models the distribution of nonzero elements in tiles of a sparse tensor.
 
     Parameters
@@ -74,6 +100,69 @@ class HypergeometricDensityModel:
             f"HypergeometricDensityModel(density={self.density}, "
             f"N={self.N}, r={self.r})"
         )
+
+
+class StructuredDensityModel(DensityModel):
+    """Deterministic model for structured sparsity.
+
+    Every tile has exactly density * tile nonzeros. No variance.
+    Suitable for structured patterns like 2:4 sparsity where the
+    distribution of nonzeros is guaranteed by hardware/format.
+    """
+
+    def __init__(self, density: float, tensor_size: int):
+        self.density = density
+        self.N = tensor_size
+
+    def prob_empty(self, tile_shape: int) -> float:
+        """Structured sparsity guarantees nonzeros in every tile."""
+        if self.density <= 0.0 or tile_shape <= 0:
+            return 1.0
+        return 0.0
+
+    def expected_occupancy(self, tile_shape: int) -> float:
+        """Exact: density * min(tile_shape, N)."""
+        if self.N == 0 or tile_shape <= 0:
+            return 0.0
+        return min(tile_shape, self.N) * self.density
+
+    def expected_occupancy_ceil(self, tile_shape: int) -> int:
+        """ceil of exact occupancy."""
+        return math.ceil(self.expected_occupancy(tile_shape))
+
+    def __repr__(self) -> str:
+        return (
+            f"StructuredDensityModel(density={self.density}, N={self.N})"
+        )
+
+
+def create_density_model(
+    density: float,
+    tensor_size: int,
+    distribution: str | None = None,
+) -> DensityModel:
+    """Factory: create a density model based on distribution type.
+
+    Parameters
+    ----------
+    density : float
+        Fraction of nonzero elements (0.0 to 1.0).
+    tensor_size : int
+        Total number of elements in the tensor.
+    distribution : str or None
+        "structured" for deterministic structured sparsity model.
+        None (default) for hypergeometric random sparsity model.
+
+    Returns
+    -------
+    DensityModel
+        The appropriate density model instance.
+    """
+    if distribution == "structured":
+        return StructuredDensityModel(density, tensor_size)
+    if distribution is not None:
+        raise ValueError(f"Unknown density distribution: {distribution!r}")
+    return HypergeometricDensityModel(density, tensor_size)
 
 
 def effectual_operations(total_ops: int, *densities: float) -> int:

@@ -1046,10 +1046,15 @@ def analyze_temporal(
                             tile_in_rank = compute_rank_occupancy(
                                 rank_proj, child_shape
                             )
-                            if tile_in_rank > stride:
+                            # Per-iteration shift: stride is per-element
+                            # (e.g., dW/dq=4 for W=4*q+s), multiply by
+                            # tile_shape to get the actual shift between
+                            # consecutive temporal iterations.
+                            shift_per_iter = stride * shape_value
+                            if tile_in_rank > shift_per_iter:
                                 halo_factor = (
                                     tile_in_rank
-                                    + (shape_repeats - 1) * stride
+                                    + (shape_repeats - 1) * shift_per_iter
                                 ) / tile_in_rank
 
             accumulated_stats = accumulated_buffet_stats.setdefault(
