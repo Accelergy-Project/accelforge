@@ -16,6 +16,9 @@ from accelforge.model.sparse_pipeline import (
     compute_nested_saf_effective_prob,
     classify_compute,
     ComputeClassification,
+    OperandStates,
+    compute_operand_states,
+    _round6,
 )
 
 
@@ -357,14 +360,35 @@ class TestComputeClassification(unittest.TestCase):
         self.assertEqual(cc.skipped_compute, 0)
         self.assertEqual(cc.total, 2097152)
 
-    def test_fig1_with_skipping(self):
-        """Fig1 with skipping: random=21632, skipped=2075520."""
+    def test_fig1_with_skipping_no_metadata(self):
+        """Fig1 with skipping but no metadata: 9-state model has no NE states.
+
+        Without metadata (default), all elements exist (ENZ or EZ).
+        Skipping requires NE (not-exist) states to identify absent elements.
+        So with has_metadata=[False, False], no skipping occurs.
+        """
         cc = classify_compute(
             2097152, [0.1015625, 0.1015625], compute_optimization_kind="skipping"
         )
-        self.assertEqual(cc.random_compute, 21632)
+        # No metadata → no NE → no skipping; all are random
+        self.assertEqual(cc.random_compute, 2097152)
+        self.assertEqual(cc.skipped_compute, 0)
+        self.assertEqual(cc.total, 2097152)
+
+    def test_fig1_with_skipping_with_metadata(self):
+        """Fig1 with skipping and metadata: NE states enable skipping.
+
+        With metadata on both operands (compressed format), absent elements
+        are NE (not-exist). Skipping filters NE combinations.
+        """
+        cc = classify_compute(
+            2097152, [0.1015625, 0.1015625],
+            compute_optimization_kind="skipping",
+            operand_has_metadata=[True, True],
+        )
+        self.assertEqual(cc.random_compute, 21633)
+        self.assertGreater(cc.skipped_compute, 0)
         self.assertEqual(cc.gated_compute, 0)
-        self.assertEqual(cc.skipped_compute, 2097152 - 21632)
         self.assertEqual(cc.total, 2097152)
 
     def test_lab4_part1_gating(self):
@@ -376,12 +400,23 @@ class TestComputeClassification(unittest.TestCase):
         self.assertEqual(cc.gated_compute, 448)
         self.assertEqual(cc.skipped_compute, 0)
 
-    def test_lab4_part1_skipping(self):
-        """Lab 4 Part 3: same counts but skipping instead of gating."""
+    def test_lab4_part1_skipping_no_metadata(self):
+        """Lab 4 Part 3: skipping without metadata → no skipping (9-state model)."""
         cc = classify_compute(512, [0.25, 0.5], compute_optimization_kind="skipping")
-        self.assertEqual(cc.random_compute, 64)
+        # No metadata → no NE → no skipping
+        self.assertEqual(cc.random_compute, 512)
+        self.assertEqual(cc.skipped_compute, 0)
+
+    def test_lab4_part1_skipping_with_metadata(self):
+        """Lab 4 Part 3: skipping with metadata → NE states enable skipping."""
+        cc = classify_compute(
+            512, [0.25, 0.5],
+            compute_optimization_kind="skipping",
+            operand_has_metadata=[True, True],
+        )
+        self.assertGreater(cc.skipped_compute, 0)
         self.assertEqual(cc.gated_compute, 0)
-        self.assertEqual(cc.skipped_compute, 448)
+        self.assertEqual(cc.total, 512)
 
     def test_dense_operands_no_opt(self):
         """Dense operands without optimization: all random."""
@@ -546,20 +581,24 @@ class TestComputeClassificationOperandStates(unittest.TestCase):
         self.assertEqual(cc.skipped_compute, 0)
 
     def test_dense_operands_no_ne(self):
-        """Dense operands with gating: NE=0, so no skipping even with skip kind.
-        But since our classify_compute uses skip for NE and gate for EZ:
-        For a single dense operand with skipping:
-        ENZ=d, EZ=1-d, NE=0 => random=d, skipped=0, rest depends on kind.
-        Actually classify_compute treats it simply by kind."""
+        """Dense single operand with skipping: uses simple product model.
+
+        Single-operand path is backward-compatible (not 9-state).
+        """
         cc = classify_compute(100, [0.3], compute_optimization_kind="skipping")
         self.assertEqual(cc.random_compute, 30)
         self.assertEqual(cc.skipped_compute, 70)
 
     def test_two_dense_operands_gating(self):
-        """Two dense operands, gating: effectual = floor(1000 * 0.3 * 0.4) = 120."""
+        """Two dense operands, gating: 9-state pessimistic floor rounding.
+
+        p_enz_enz = 0.3 * 0.4 = 0.12; p_gated = 1 - 0.12 = 0.88
+        gated = floor(1000 * 0.88) = 879 (floor of 879.999... due to FP)
+        random = 1000 - 879 = 121
+        """
         cc = classify_compute(1000, [0.3, 0.4], compute_optimization_kind="gating")
-        self.assertEqual(cc.random_compute, 120)
-        self.assertEqual(cc.gated_compute, 880)
+        self.assertEqual(cc.random_compute, 121)
+        self.assertEqual(cc.gated_compute, 879)
 
     def test_no_compute_opt_all_random(self):
         """fig1: no compute_optimization → all remaining computes are random."""
@@ -567,6 +606,187 @@ class TestComputeClassificationOperandStates(unittest.TestCase):
         self.assertEqual(cc.random_compute, 21632)
         self.assertEqual(cc.gated_compute, 0)
         self.assertEqual(cc.skipped_compute, 0)
+
+
+# ---------------------------------------------------------------------------
+# 9-state compute model tests
+# ---------------------------------------------------------------------------
+
+
+class TestRound6(unittest.TestCase):
+    """Test _round6 precision helper."""
+
+    def test_exact(self):
+        self.assertEqual(_round6(0.5), 0.5)
+
+    def test_rounding(self):
+        self.assertEqual(_round6(0.10156250001), 0.101563)
+
+    def test_zero(self):
+        self.assertEqual(_round6(0.0), 0.0)
+
+    def test_one(self):
+        self.assertEqual(_round6(1.0), 1.0)
+
+
+class TestOperandStates(unittest.TestCase):
+    """Test compute_operand_states per-operand state probabilities."""
+
+    def test_dense_no_metadata(self):
+        """No metadata: P(ENZ)=d, P(EZ)=1-d, P(NE)=0."""
+        s = compute_operand_states(0.3, has_metadata=False)
+        self.assertAlmostEqual(s.p_enz, 0.3)
+        self.assertAlmostEqual(s.p_ez, 0.7)
+        self.assertEqual(s.p_ne, 0.0)
+
+    def test_compressed_with_metadata(self):
+        """With metadata: P(ENZ)=d, P(EZ)=0, P(NE)=1-d."""
+        s = compute_operand_states(0.3, has_metadata=True)
+        self.assertAlmostEqual(s.p_enz, 0.3)
+        self.assertEqual(s.p_ez, 0.0)
+        self.assertAlmostEqual(s.p_ne, 0.7)
+
+    def test_density_zero_no_metadata(self):
+        """d=0, no metadata: all EZ."""
+        s = compute_operand_states(0.0, has_metadata=False)
+        self.assertEqual(s.p_enz, 0.0)
+        self.assertEqual(s.p_ez, 1.0)
+        self.assertEqual(s.p_ne, 0.0)
+
+    def test_density_zero_with_metadata(self):
+        """d=0, with metadata: all NE."""
+        s = compute_operand_states(0.0, has_metadata=True)
+        self.assertEqual(s.p_enz, 0.0)
+        self.assertEqual(s.p_ez, 0.0)
+        self.assertEqual(s.p_ne, 1.0)
+
+    def test_density_one_no_metadata(self):
+        """d=1, no metadata: all ENZ."""
+        s = compute_operand_states(1.0, has_metadata=False)
+        self.assertEqual(s.p_enz, 1.0)
+        self.assertEqual(s.p_ez, 0.0)
+        self.assertEqual(s.p_ne, 0.0)
+
+    def test_density_one_with_metadata(self):
+        """d=1, with metadata: all ENZ, P(NE)=0."""
+        s = compute_operand_states(1.0, has_metadata=True)
+        self.assertEqual(s.p_enz, 1.0)
+        self.assertEqual(s.p_ez, 0.0)
+        self.assertEqual(s.p_ne, 0.0)
+
+    def test_round6_applied(self):
+        """Density should be rounded to 6 decimals."""
+        s = compute_operand_states(0.1015625, has_metadata=True)
+        self.assertEqual(s.p_enz, 0.101562)  # _round6(0.1015625) — banker's rounding
+        self.assertAlmostEqual(s.p_ne, 1.0 - 0.101562)
+
+
+class TestNineStateCompute(unittest.TestCase):
+    """Test 9-state compute classification model."""
+
+    def test_both_metadata_gating(self):
+        """Both operands have metadata, gating.
+
+        With metadata: NE terms exist but gating maps them to gated.
+        Result should be same as gating without metadata for joint
+        (ENZ,ENZ) → random, everything else → gated.
+        """
+        cc = classify_compute(
+            1000, [0.5, 0.5], "gating",
+            operand_has_metadata=[True, True],
+        )
+        self.assertEqual(cc.random_compute + cc.gated_compute
+                         + cc.skipped_compute + cc.nonexistent_compute, 1000)
+        # ENZ×ENZ = 0.25 → random ≈ 250
+        # NE×NE = 0.25 → nonexistent
+        self.assertEqual(cc.random_compute, 250)
+        self.assertEqual(cc.nonexistent_compute, 250)
+        self.assertEqual(cc.gated_compute, 500)
+        self.assertEqual(cc.skipped_compute, 0)
+
+    def test_both_metadata_skipping(self):
+        """Both operands have metadata, skipping.
+
+        ENZ×ENZ → random, ENZ×NE/NE×ENZ → skipped,
+        NE×NE → nonexistent.
+        No EZ states (both have metadata).
+        """
+        cc = classify_compute(
+            1000, [0.5, 0.5], "skipping",
+            operand_has_metadata=[True, True],
+        )
+        self.assertEqual(cc.total, 1000)
+        # ENZ×ENZ = 0.25 → random
+        self.assertEqual(cc.random_compute, 250)
+        # ENZ×NE + NE×ENZ = 0.25 + 0.25 = 0.5 → skipped
+        self.assertEqual(cc.skipped_compute, 500)
+        # NE×NE = 0.25 → nonexistent
+        self.assertEqual(cc.nonexistent_compute, 250)
+        self.assertEqual(cc.gated_compute, 0)
+
+    def test_mixed_metadata_skipping(self):
+        """One operand with metadata, one without.
+
+        Op0: d=0.5, has_metadata=True → ENZ=0.5, EZ=0, NE=0.5
+        Op1: d=0.5, has_metadata=False → ENZ=0.5, EZ=0.5, NE=0
+
+        Joint:
+          (ENZ,ENZ)=0.25 → random
+          (ENZ,EZ)=0.25 → random (skipping, EZ is random)
+          (NE,ENZ)=0.25 → skipped
+          (NE,EZ)=0.25 → skipped
+          NE×NE = 0 → nonexistent
+        """
+        cc = classify_compute(
+            1000, [0.5, 0.5], "skipping",
+            operand_has_metadata=[True, False],
+        )
+        self.assertEqual(cc.total, 1000)
+        self.assertEqual(cc.random_compute, 500)  # 0.25 + 0.25
+        self.assertEqual(cc.skipped_compute, 500)  # 0.25 + 0.25
+        self.assertEqual(cc.nonexistent_compute, 0)
+
+    def test_nonexistent_compute_field(self):
+        """Verify nonexistent_compute included in total."""
+        cc = ComputeClassification(
+            random_compute=100, gated_compute=50,
+            skipped_compute=25, nonexistent_compute=25,
+        )
+        self.assertEqual(cc.total, 200)
+
+    def test_nonexistent_compute_default(self):
+        """Backward compat: nonexistent_compute defaults to 0."""
+        cc = ComputeClassification(
+            random_compute=100, gated_compute=50, skipped_compute=25,
+        )
+        self.assertEqual(cc.nonexistent_compute, 0)
+        self.assertEqual(cc.total, 175)
+
+    def test_no_optimization_includes_nonexistent(self):
+        """No compute optimization: all random, nonexistent=0."""
+        cc = classify_compute(1000, [0.5, 0.5])
+        self.assertEqual(cc.random_compute, 1000)
+        self.assertEqual(cc.nonexistent_compute, 0)
+
+    def test_density_zero_both_metadata_gating(self):
+        """d=0 on both with metadata: all NE×NE = nonexistent."""
+        cc = classify_compute(
+            1000, [0.0, 0.0], "gating",
+            operand_has_metadata=[True, True],
+        )
+        self.assertEqual(cc.nonexistent_compute, 1000)
+        self.assertEqual(cc.random_compute, 0)
+        self.assertEqual(cc.gated_compute, 0)
+
+    def test_density_one_both_metadata_skipping(self):
+        """d=1 on both: all ENZ×ENZ = random."""
+        cc = classify_compute(
+            1000, [1.0, 1.0], "skipping",
+            operand_has_metadata=[True, True],
+        )
+        self.assertEqual(cc.random_compute, 1000)
+        self.assertEqual(cc.skipped_compute, 0)
+        self.assertEqual(cc.nonexistent_compute, 0)
 
 
 if __name__ == "__main__":

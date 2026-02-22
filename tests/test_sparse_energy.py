@@ -150,13 +150,13 @@ class TestBitmaskEnergy(unittest.TestCase):
     # --- MAC ---
 
     def test_mac_effectual_compute_energy(self):
-        """Bitmask MAC effectual compute energy = 21,632 * 0.5608.
+        """Bitmask MAC effectual compute energy = 21,633 * 0.5608.
 
-        Fix 3: classify_compute receives pre-SAF total (2,097,152), so
-        effectual = effectual_operations(2,097,152, d_A, d_B) = 21,632.
+        9-state classify_compute with _round6 density and has_metadata=[True, True]
+        gives random=21,633 (vs old product model 21,632).
         """
         computes = _get_action(self.result, "MAC", "None", "compute")
-        self.assertEqual(computes, 21_632)
+        self.assertEqual(computes, 21_633)
         expected = computes * ERT["MAC_compute"]
         actual = _get_energy(self.result, "MAC", "None", "compute")
         self.assertAlmostEqual(actual, expected, places=2)
@@ -254,13 +254,13 @@ class TestCoordListEnergy(unittest.TestCase):
     # --- MAC (skipping = zero energy for skipped computes) ---
 
     def test_mac_effectual_compute_energy(self):
-        """Coord list MAC effectual compute energy = 21,632 * 0.5608.
+        """Coord list MAC effectual compute energy = 21,633 * 0.5608.
 
-        Fix 3: classify_compute receives pre-SAF total (2,097,152), so
-        effectual = effectual_operations(2,097,152, d_A, d_B) = 21,632.
+        9-state classify_compute with _round6 density and has_metadata=[True, True]
+        gives random=21,633 (vs old product model 21,632).
         """
         computes = _get_action(self.result, "MAC", "None", "compute")
-        self.assertEqual(computes, 21_632)
+        self.assertEqual(computes, 21_633)
         expected = computes * ERT["MAC_compute"]
         actual = _get_energy(self.result, "MAC", "None", "compute")
         self.assertAlmostEqual(actual, expected, places=2)

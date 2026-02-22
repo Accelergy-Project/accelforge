@@ -8,9 +8,12 @@ primitives following the rankwise expansion rules.
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from accelforge.model.density_model import HypergeometricDensityModel
+if TYPE_CHECKING:
+    from accelforge.model.density_model import DensityModel
+
+from accelforge.model.density_model import create_density_model
 
 
 @dataclass
@@ -34,6 +37,7 @@ class FormatModel(ABC):
         fibers: int,
         fiber_shape: int,
         expected_nnz_per_fiber: Optional[float] = None,
+        density_model: "Optional[DensityModel]" = None,
     ) -> RankOccupancy:
         """Compute occupancy for this format rank.
 
@@ -45,6 +49,8 @@ class FormatModel(ABC):
             Number of elements per fiber (dimension size).
         expected_nnz_per_fiber : float, optional
             Expected nonzeros per fiber from density model.
+        density_model : DensityModel, optional
+            Density model for prob_empty filtering (used by UOP).
         """
         ...
 
@@ -54,6 +60,7 @@ class FormatModel(ABC):
         fibers: int,
         fiber_shape: int,
         expected_nnz_per_fiber: Optional[float] = None,
+        density_model: "Optional[DensityModel]" = None,
     ) -> int:
         """Number of fibers passed to the next inner rank.
 
@@ -67,21 +74,36 @@ class UOP(FormatModel):
     """Uncompressed Offset Pair -- stores offset array regardless of density.
 
     metadata = 0
-    payload  = fibers * (fiber_shape + 1)
+    payload  = effective_fibers * (fiber_shape + 1)
+
+    When a density_model is provided, empty fibers are filtered out:
+    effective_fibers = fibers * (1 - prob_empty(fiber_shape)).
+    This matches Timeloop's UOP model which queries
+    GetTileOccupancyProbability(tile, 0) to exclude empty fibers.
     """
 
-    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                      density_model=None):
         # Trivial dimensions (fiber_shape <= 1) produce no payload:
         # Sparseloop reports 0 accesses for UOP on trivial ranks (e.g. R=1).
         if fiber_shape <= 1:
             return RankOccupancy(metadata_units=0, payload_units=0)
+        effective_fibers = fibers
+        if density_model is not None:
+            prob_empty = density_model.prob_empty(fiber_shape)
+            effective_fibers = fibers * (1 - prob_empty)
         return RankOccupancy(
             metadata_units=0,
-            payload_units=fibers * (fiber_shape + 1),
+            payload_units=effective_fibers * (fiber_shape + 1),
         )
 
-    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
-        return fibers * fiber_shape
+    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                    density_model=None):
+        effective_fibers = fibers
+        if density_model is not None:
+            prob_empty = density_model.prob_empty(fiber_shape)
+            effective_fibers = fibers * (1 - prob_empty)
+        return effective_fibers * fiber_shape
 
 
 class CP(FormatModel):
@@ -91,7 +113,8 @@ class CP(FormatModel):
     payload  = 0
     """
 
-    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                      density_model=None):
         if (
             fibers == 0
             or expected_nnz_per_fiber is None
@@ -101,7 +124,8 @@ class CP(FormatModel):
         md = fibers * math.ceil(expected_nnz_per_fiber)
         return RankOccupancy(metadata_units=md, payload_units=0)
 
-    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                    density_model=None):
         if (
             fibers == 0
             or expected_nnz_per_fiber is None
@@ -118,13 +142,15 @@ class Bitmask(FormatModel):
     payload  = 0
     """
 
-    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                      density_model=None):
         return RankOccupancy(
             metadata_units=fibers * fiber_shape,
             payload_units=0,
         )
 
-    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                    density_model=None):
         if (
             fibers == 0
             or expected_nnz_per_fiber is None
@@ -141,7 +167,8 @@ class RLE(FormatModel):
     payload  = 0
     """
 
-    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+    def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                      density_model=None):
         if (
             fibers == 0
             or expected_nnz_per_fiber is None
@@ -151,7 +178,8 @@ class RLE(FormatModel):
         md = fibers * expected_nnz_per_fiber
         return RankOccupancy(metadata_units=md, payload_units=0)
 
-    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None):
+    def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
+                    density_model=None):
         if (
             fibers == 0
             or expected_nnz_per_fiber is None
@@ -225,12 +253,12 @@ def compute_format_occupancy(
     dimension_sizes: list[int],
     density: float,
     tensor_size: int,
+    distribution: str | None = None,
 ) -> tuple[list[RankOccupancy], float]:
     """Compute format occupancy across all ranks of a multi-rank format.
 
     Traverses ranks outer-to-inner, propagating fiber counts based on each
-    rank's format type. Uses the hypergeometric density model for expected
-    nonzero counts.
+    rank's format type. Uses the density model for expected nonzero counts.
 
     Parameters
     ----------
@@ -242,6 +270,8 @@ def compute_format_occupancy(
         Overall tensor density.
     tensor_size : int
         Total tensor size (product of all dimensions).
+    distribution : str or None
+        Density distribution type. None = random (hypergeometric).
 
     Returns
     -------
@@ -254,7 +284,7 @@ def compute_format_occupancy(
             f"dimension_sizes length ({len(dimension_sizes)})"
         )
 
-    model = HypergeometricDensityModel(density, tensor_size)
+    model = create_density_model(density, tensor_size, distribution)
 
     occupancies = []
     fibers = 1
@@ -263,9 +293,9 @@ def compute_format_occupancy(
     for fmt_name, dim_size in zip(rank_formats, dimension_sizes):
         fmt = create_format_model(fmt_name)
         ennz = model.expected_occupancy(dim_size) if dim_size > 0 else 0.0
-        occ = fmt.get_occupancy(fibers, dim_size, ennz)
+        occ = fmt.get_occupancy(fibers, dim_size, ennz, density_model=model)
         occupancies.append(occ)
         total += occ.total
-        fibers = fmt.next_fibers(fibers, dim_size, ennz)
+        fibers = fmt.next_fibers(fibers, dim_size, ennz, density_model=model)
 
     return occupancies, total

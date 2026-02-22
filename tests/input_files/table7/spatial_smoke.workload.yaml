@@ -1,0 +1,17 @@
+# Simple matmul: Z[m,n] = sum_k A[m,k] * B[k,n]
+# M=4, K=2, N=4 → 32 total MACs
+
+workload:
+  iteration_space_shape:
+    m: 0 <= m < 4
+    k: 0 <= k < 2
+    n: 0 <= n < 4
+
+  bits_per_value: {All: 16}
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: A, projection: [m, k]}
+    - {name: B, projection: [k, n]}
+    - {name: Z, projection: [m, n], output: true}

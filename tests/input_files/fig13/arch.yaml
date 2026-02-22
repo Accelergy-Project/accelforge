@@ -1,0 +1,86 @@
+# Fig 13 DSTC (Dual-Side Sparse Tensor Core) Architecture
+# 128 PEs (8x16 spatial mesh) with hierarchical memory.
+# ERT values from Sparseloop artifact fig13_dstc_setup.
+# Hierarchy: DRAM -> GLB -> Buffer -> LineBuffer -> MAC[0..127]
+
+arch:
+  nodes:
+  - !Memory
+    name: DRAM
+    size: 1e9
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max((total_read_actions + metadata_read_actions) / 32, (total_write_actions + metadata_write_actions) / 32))"
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 249.6, bits_per_action: 64, latency: 0}
+    - {name: write, energy: 249.6, bits_per_action: 64, latency: 0}
+    - {name: metadata_read, energy: 0, bits_per_action: 64, latency: 0}
+    - {name: metadata_write, energy: 0, bits_per_action: 64, latency: 0}
+
+  - !Memory
+    name: GLB
+    size: 4194304  # 16384 depth x 256 width
+    leak_power: 0
+    area: 2079246.0
+    total_latency: "ceil(max((total_read_actions + metadata_read_actions) / 32, (total_write_actions + metadata_write_actions) / 32))"
+    tensors: {keep: ~DRAM, may_keep: All}
+    actions:
+    - {name: read, energy: 140.09584, bits_per_action: 256, latency: 0}
+    - {name: write, energy: 134.50539, bits_per_action: 256, latency: 0}
+    - {name: gated_read, energy: 0.04326, bits_per_action: 256, latency: 0}
+    - {name: gated_write, energy: 0.04326, bits_per_action: 256, latency: 0}
+    - {name: metadata_read, energy: 25.8695, bits_per_action: 64, latency: 0}
+    - {name: metadata_write, energy: 19.6486, bits_per_action: 64, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00276, bits_per_action: 64, latency: 0}
+    - {name: gated_metadata_write, energy: 0.00276, bits_per_action: 64, latency: 0}
+
+  - !Memory
+    name: Buffer
+    size: 16384  # 1024 depth x 16 width
+    leak_power: 0
+    area: 8026.18
+    total_latency: "ceil(max((total_read_actions + metadata_read_actions) / 116, (total_write_actions + metadata_write_actions) / 116))"
+    tensors: {keep: ~GLB, may_keep: All}
+    actions:
+    - {name: read, energy: 1.96991, bits_per_action: 16, latency: 0}
+    - {name: write, energy: 1.83309, bits_per_action: 16, latency: 0}
+    - {name: gated_read, energy: 0.00005, bits_per_action: 16, latency: 0}
+    - {name: gated_write, energy: 0.00005, bits_per_action: 16, latency: 0}
+    - {name: skipped_read, energy: 0.0, bits_per_action: 16, latency: 0}
+    - {name: skipped_write, energy: 0.0, bits_per_action: 16, latency: 0}
+    - {name: metadata_read, energy: 0.49218, bits_per_action: 16, latency: 0}
+    - {name: metadata_write, energy: 0.49218, bits_per_action: 16, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00737, bits_per_action: 16, latency: 0}
+    - {name: gated_metadata_write, energy: 0.00737, bits_per_action: 16, latency: 0}
+
+  - !Memory
+    name: LineBuffer
+    size: 1024  # 64 depth x 16 width
+    leak_power: 0
+    area: 1309.6
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.49218, bits_per_action: 16, latency: 0}
+    - {name: write, energy: 0.49218, bits_per_action: 16, latency: 0}
+    - {name: gated_read, energy: 0.00737, bits_per_action: 16, latency: 0}
+    - {name: gated_write, energy: 0.00737, bits_per_action: 16, latency: 0}
+    - {name: skipped_read, energy: 0.0, bits_per_action: 16, latency: 0}
+    - {name: skipped_write, energy: 0.0, bits_per_action: 16, latency: 0}
+    - {name: metadata_read, energy: 0.18108, bits_per_action: 4, latency: 0}
+    - {name: metadata_write, energy: 0.18108, bits_per_action: 4, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00209, bits_per_action: 4, latency: 0}
+    - {name: gated_metadata_write, energy: 0.00209, bits_per_action: 4, latency: 0}
+    spatial:
+    - {name: X, fanout: 16}
+    - {name: Y, fanout: 8}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 1239.5
+    actions:
+    - {name: compute, energy: 2.20035, latency: 1}
+    - {name: gated_compute, energy: 0.06595, latency: 0}
+    - {name: skipped_compute, energy: 0.06595, latency: 0}

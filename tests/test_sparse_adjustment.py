@@ -37,18 +37,26 @@ from accelforge.frontend.sparse import (
 from accelforge.model.sparse_adjustment import (
     apply_sparse_adjustments,
     _recompute_action_counts,
-    _get_tensor_size,
     _ranks_have_flattened_ids,
     _compute_flattened_dimension_sizes,
     _get_tensor_rank_variables,
     _compute_flattened_tensor_size,
+    _get_loops_below_level,
+    _compute_cond_temporal_tile,
 )
 
 
 def make_mock_job(einsum_name="E0"):
-    """Create a minimal mock Job."""
+    """Create a minimal mock Job.
+
+    Sets mapping=None and rank_variable_bounds={} so the SAF temporal
+    tile path falls back to scalar conditioning (tile=1, tsize=1)
+    rather than accidentally traversing MagicMock attributes.
+    """
     job = MagicMock()
     job.einsum_name = einsum_name
+    job.mapping = None
+    job.rank_variable_bounds = {}
     return job
 
 
@@ -83,6 +91,7 @@ def make_mock_spec(
             ta.output = ta_info.get("output", False)
             ta.bits_per_value = ta_info.get("bits_per_value", 8)
             ta.projection = ta_info.get("projection", {})
+            ta.density_distribution = ta_info.get("density_distribution", None)
             ta_mocks.append(ta)
 
     einsum = MagicMock()
@@ -572,7 +581,7 @@ class TestSAFPropagationToCompute(unittest.TestCase):
     """SAF probabilities propagate to reduce compute operations."""
 
     def test_single_saf_propagation(self):
-        """Single SAF (A gated on B) propagates to reduce compute."""
+        """Gating SAF reduces effectual compute total_ops (gated ops tracked separately for latency)."""
         sparse_opts = SparseOptimizations(
             targets=[
                 SparseTarget(
@@ -625,13 +634,13 @@ class TestSAFPropagationToCompute(unittest.TestCase):
 
         apply_sparse_adjustments(reuse, spec, job)
 
-        # prob = 1 - density_B = 1 - 0.1015625 = 0.8984375
-        # propagate_saf_reduction(2097152, 0.8984375)
-        # = 2097152 - floor(2097152 * 0.8984375) = 2097152 - 1884160 = 212992
+        # Gating SAF: effectual compute count is reduced by the condition
+        # tensor's density.  Gated ops are tracked separately for latency.
+        # 2_097_152 * 0.1015625 (density_B) = 212_992
         self.assertEqual(compute_stats.total_ops, 212_992)
 
     def test_two_saf_cascading_propagation(self):
-        """Two SAFs (A gated on B, B gated on A) cascade to reduce compute."""
+        """Two gating SAFs compound-reduce effectual compute total_ops."""
         sparse_opts = SparseOptimizations(
             targets=[
                 SparseTarget(
@@ -687,8 +696,8 @@ class TestSAFPropagationToCompute(unittest.TestCase):
 
         apply_sparse_adjustments(reuse, spec, job)
 
-        # First SAF: 2097152 → 212992 (prob = 0.8984375)
-        # Second SAF: 212992 → 21632 (prob = 0.8984375)
+        # Two gating SAFs compound: A(cond B) * B(cond A)
+        # 2_097_152 * 0.1015625 * 0.1015625 = 21_632
         self.assertEqual(compute_stats.total_ops, 21_632)
 
 
@@ -954,27 +963,6 @@ class TestEndToEnd(unittest.TestCase):
         # BackingStorage read_actions = child (Buffer A).total_reads_to_parent * read_scale
         # = 212992 * (8/8) = 212992
         self.assertEqual(stats_a_bs.total_read_actions, 212_992)
-
-
-class TestGetTensorSize(unittest.TestCase):
-    """_get_tensor_size extracts correct size from einsum rank_sizes."""
-
-    def test_basic_tensor_size(self):
-        einsum = MagicMock()
-        ta = MagicMock()
-        ta.name = "A"
-        ta.projection = {"M": "m", "K": "k"}
-        einsum.tensor_accesses = [ta]
-        einsum.rank_sizes = {"M": 128, "K": 128, "N": 128}
-
-        size = _get_tensor_size(einsum, "A")
-        self.assertEqual(size, 128 * 128)
-
-    def test_unknown_tensor_returns_1(self):
-        einsum = MagicMock()
-        einsum.tensor_accesses = []
-        size = _get_tensor_size(einsum, "X")
-        self.assertEqual(size, 1)
 
 
 # ===========================================================================
@@ -1817,6 +1805,935 @@ class TestTileShapeThroughPipeline(unittest.TestCase):
         )
         result = evaluate_mapping(spec)
         self.assertIsNotNone(result)
+
+
+class TestGetLoopsBelowLevel(unittest.TestCase):
+    """Test _get_loops_below_level helper."""
+
+    def _make_nodes(self, node_specs):
+        """Build a list of mapping-like mock nodes.
+
+        Each spec is a tuple: ('Storage'|'Toll'|'Spatial'|'Temporal'|'Compute',
+        component_or_rv, tile_shape_or_None).
+        """
+        from accelforge.frontend.mapping import (
+            Storage, Toll, Spatial, Temporal, Compute as MappingCompute,
+        )
+        nodes = []
+        for spec in node_specs:
+            kind = spec[0]
+            if kind == "Storage":
+                nodes.append(Storage(tensors=["A"], component=spec[1]))
+            elif kind == "Toll":
+                nodes.append(Toll(tensors=["A"], component=spec[1]))
+            elif kind == "Spatial":
+                nodes.append(Spatial(
+                    rank_variable=spec[1],
+                    tile_shape=spec[2],
+                    name=0,
+                    component="PE",
+                ))
+            elif kind == "Temporal":
+                nodes.append(Temporal(
+                    rank_variable=spec[1],
+                    tile_shape=spec[2],
+                ))
+            elif kind == "Compute":
+                nodes.append(MappingCompute(
+                    einsum="E0",
+                    component=spec[1],
+                ))
+        return nodes
+
+    def test_basic_temporal(self):
+        """Temporal K=1 below level → temporal_tiles = {k: 1}."""
+        nodes = self._make_nodes([
+            ("Storage", "Buffer", None),
+            ("Temporal", "k", 1),
+            ("Compute", "MAC", None),
+        ])
+        spatial, temporal = _get_loops_below_level(nodes, "Buffer")
+        self.assertEqual(temporal, {"k": 1})
+        self.assertEqual(spatial, {})
+
+    def test_spatial_and_temporal(self):
+        """Spatial K=16 + Temporal K=1 below level."""
+        nodes = self._make_nodes([
+            ("Storage", "Buffer", None),
+            ("Spatial", "k", 16),
+            ("Temporal", "k", 1),
+            ("Compute", "MAC", None),
+        ])
+        spatial, temporal = _get_loops_below_level(nodes, "Buffer")
+        self.assertEqual(spatial, {"k": 16})
+        self.assertEqual(temporal, {"k": 1})
+
+    def test_no_match(self):
+        """Level not found → empty dicts."""
+        nodes = self._make_nodes([
+            ("Storage", "Buffer", None),
+            ("Temporal", "k", 1),
+            ("Compute", "MAC", None),
+        ])
+        spatial, temporal = _get_loops_below_level(nodes, "NoSuchLevel")
+        self.assertEqual(spatial, {})
+        self.assertEqual(temporal, {})
+
+    def test_multiple_levels(self):
+        """Only loops below the target level are collected."""
+        nodes = self._make_nodes([
+            ("Storage", "DRAM", None),
+            ("Temporal", "m", 128),
+            ("Storage", "Buffer", None),
+            ("Temporal", "k", 4),
+            ("Spatial", "n", 16),
+            ("Compute", "MAC", None),
+        ])
+        spatial, temporal = _get_loops_below_level(nodes, "Buffer")
+        self.assertEqual(temporal, {"k": 4})
+        self.assertEqual(spatial, {"n": 16})
+        # m=128 is ABOVE Buffer, not collected
+        self.assertNotIn("m", temporal)
+
+    def test_spatial_only(self):
+        """Only spatial loop below level (no temporal)."""
+        nodes = self._make_nodes([
+            ("Storage", "Buffer", None),
+            ("Spatial", "k", 16),
+            ("Compute", "MAC", None),
+        ])
+        spatial, temporal = _get_loops_below_level(nodes, "Buffer")
+        self.assertEqual(spatial, {"k": 16})
+        self.assertEqual(temporal, {})
+
+    def test_toll_node(self):
+        """Toll nodes are also recognized as level boundaries."""
+        nodes = self._make_nodes([
+            ("Toll", "PassThrough", None),
+            ("Temporal", "m", 4),
+            ("Compute", "MAC", None),
+        ])
+        spatial, temporal = _get_loops_below_level(nodes, "PassThrough")
+        self.assertEqual(temporal, {"m": 4})
+
+
+class TestComputeCondTemporalTile(unittest.TestCase):
+    """Test _compute_cond_temporal_tile helper."""
+
+    def _make_einsum(self, tensor_accesses_info):
+        einsum = MagicMock()
+        ta_list = []
+        for info in tensor_accesses_info:
+            ta = MagicMock()
+            ta.name = info["name"]
+            ta.projection = info["projection"]
+            ta_list.append(ta)
+        einsum.tensor_accesses = ta_list
+        return einsum
+
+    def _make_nodes(self, node_specs):
+        from accelforge.frontend.mapping import (
+            Storage, Spatial, Temporal, Compute as MappingCompute,
+        )
+        nodes = []
+        for spec in node_specs:
+            kind = spec[0]
+            if kind == "Storage":
+                nodes.append(Storage(tensors=["A"], component=spec[1]))
+            elif kind == "Spatial":
+                nodes.append(Spatial(
+                    rank_variable=spec[1], tile_shape=spec[2],
+                    name=0, component="PE",
+                ))
+            elif kind == "Temporal":
+                nodes.append(Temporal(
+                    rank_variable=spec[1], tile_shape=spec[2],
+                ))
+            elif kind == "Compute":
+                nodes.append(MappingCompute(einsum="E0", component=spec[1]))
+        return nodes
+
+    def test_element_level_temporal_k1(self):
+        """Temporal K=1 → tile=1 for tensor A[m,k]."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+        ])
+        nodes = self._make_nodes([
+            ("Storage", "RF", None),
+            ("Spatial", "k", 16),
+            ("Temporal", "k", 1),
+            ("Compute", "MAC", None),
+        ])
+        tile = _compute_cond_temporal_tile(
+            nodes, "RF", "A", einsum,
+            stats_tile_shape={"m": 4, "k": 16},
+        )
+        # k has temporal loop → temporal tile = 1
+        # m has no loop below RF → uses stats_tile_shape[m] = 4
+        self.assertEqual(tile, 1 * 4)
+
+    def test_spatial_only_no_temporal(self):
+        """Spatial K=16, no temporal → per-PE tile shape = 16."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"K": "k"}},
+        ])
+        nodes = self._make_nodes([
+            ("Storage", "RF", None),
+            ("Spatial", "k", 16),
+            ("Compute", "MAC", None),
+        ])
+        tile = _compute_cond_temporal_tile(
+            nodes, "RF", "A", einsum,
+            stats_tile_shape={"k": 16},
+        )
+        # k: spatial only → per-PE tile_shape = 16
+        self.assertEqual(tile, 16)
+
+    def test_no_loops_below(self):
+        """No loops below level → uses stats_tile_shape directly."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+        ])
+        nodes = self._make_nodes([
+            ("Storage", "Buffer", None),
+            ("Compute", "MAC", None),
+        ])
+        tile = _compute_cond_temporal_tile(
+            nodes, "Buffer", "A", einsum,
+            stats_tile_shape={"m": 8, "k": 4},
+        )
+        self.assertEqual(tile, 8 * 4)
+
+    def test_no_tile_shape_returns_1(self):
+        """None tile_shape → returns 1."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m"}},
+        ])
+        tile = _compute_cond_temporal_tile(
+            [], "Buffer", "A", einsum,
+            stats_tile_shape=None,
+        )
+        self.assertEqual(tile, 1)
+
+    def test_unknown_tensor_returns_1(self):
+        """Tensor not in einsum → returns 1."""
+        einsum = self._make_einsum([
+            {"name": "B", "projection": {"N": "n"}},
+        ])
+        tile = _compute_cond_temporal_tile(
+            [], "Buffer", "A", einsum,
+            stats_tile_shape={"m": 8},
+        )
+        self.assertEqual(tile, 1)
+
+    def test_mixed_spatial_temporal(self):
+        """Mixed: temporal on m, spatial on k → temporal m * spatial tile_shape k."""
+        einsum = self._make_einsum([
+            {"name": "A", "projection": {"M": "m", "K": "k"}},
+        ])
+        nodes = self._make_nodes([
+            ("Storage", "RF", None),
+            ("Temporal", "m", 4),
+            ("Spatial", "k", 8),
+            ("Compute", "MAC", None),
+        ])
+        tile = _compute_cond_temporal_tile(
+            nodes, "RF", "A", einsum,
+            stats_tile_shape={"m": 4, "k": 16},
+        )
+        # m: temporal → 4
+        # k: spatial only → per-PE tile_shape = 8
+        self.assertEqual(tile, 4 * 8)
+
+
+class TestSAFTemporalTileBackwardCompat(unittest.TestCase):
+    """Verify all-scalar configs produce identical results to pre-change behavior.
+
+    When job.mapping is None (mock tests), the SAF path falls back to
+    tile=1 / tsize=1 which triggers scalar conditioning in
+    compute_saf_probability, identical to the old code path.
+    """
+
+    def test_scalar_saf_with_no_mapping(self):
+        """SAF with no mapping → same as element-level (prob = 1-density)."""
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="Buffer",
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="gating",
+                            target="A",
+                            condition_on=["B"],
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        reuse = SymbolicAnalysisOutput()
+        buffet_a = Buffet("A", "E0", "Buffer")
+        stats_a = BuffetStats()
+        stats_a.max_occupancy = 8
+        reuse.buffet_stats[buffet_a] = stats_a
+
+        buffet_b = Buffet("B", "E0", "Buffer")
+        stats_b = BuffetStats()
+        stats_b.max_occupancy = 8
+        reuse.buffet_stats[buffet_b] = stats_b
+
+        from accelforge.model._looptree.reuse.symbolic.symbolic import (
+            Compute, ComputeStats,
+        )
+        compute_key = Compute("E0", "MAC")
+        compute_stats = ComputeStats(
+            total_ops=2_097_152, max_per_unit_ops=2_097_152,
+        )
+        reuse.compute_stats[compute_key] = compute_stats
+
+        arch_comps = {
+            "Buffer": {
+                "bits_per_value_scale": {"A": 1, "B": 1},
+                "read_bpa": 8,
+                "write_bpa": 8,
+            }
+        }
+
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": 0.1015625, "output": False,
+                 "bits_per_value": 8},
+                {"name": "B", "density": 0.1015625, "output": False,
+                 "bits_per_value": 8},
+            ],
+            arch_components=arch_comps,
+        )
+        job = make_mock_job()
+        # make_mock_job sets job.mapping = None, so SAF uses scalar fallback
+
+        apply_sparse_adjustments(reuse, spec, job)
+
+        # Gating SAF reduces effectual compute by condition density.
+        # 2_097_152 * 0.1015625 = 212_992
+        self.assertEqual(compute_stats.total_ops, 212_992)
+
+
+class TestStructuredVsRandomDivergence(unittest.TestCase):
+    """Verify structured vs random sparsity produces different SAF results.
+
+    This is the core validation for the temporal tile separation:
+    when temporal tile > 1, structured sparsity guarantees every tile
+    has nonzeros (prob_empty = 0 → optimization_prob = 0 → no skipping),
+    while random sparsity allows some tiles to be all-zero
+    (prob_empty > 0 → optimization_prob > 0 → some skipping).
+    """
+
+    def _make_mapping_nodes(self):
+        """Create mapping nodes with temporal K=4 below Buffer."""
+        from accelforge.frontend.mapping import (
+            Storage, Temporal, Compute as MappingCompute,
+        )
+        return [
+            Storage(tensors=["A", "B"], component="Buffer"),
+            Temporal(rank_variable="k", tile_shape=4),
+            MappingCompute(einsum="E0", component="MAC"),
+        ]
+
+    def _run_saf(self, density_distribution):
+        """Run SAF with given distribution, return post-SAF compute ops."""
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="Buffer",
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="skipping",
+                            target="A",
+                            condition_on=["B"],
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        reuse = SymbolicAnalysisOutput()
+        buffet_a = Buffet("A", "E0", "Buffer")
+        stats_a = BuffetStats()
+        stats_a.tile_shape = {"k": 4}
+        reuse.buffet_stats[buffet_a] = stats_a
+
+        buffet_b = Buffet("B", "E0", "Buffer")
+        stats_b = BuffetStats()
+        stats_b.tile_shape = {"k": 4}
+        reuse.buffet_stats[buffet_b] = stats_b
+
+        from accelforge.model._looptree.reuse.symbolic.symbolic import (
+            Compute, ComputeStats,
+        )
+        compute_key = Compute("E0", "MAC")
+        compute_stats = ComputeStats(
+            total_ops=1024, max_per_unit_ops=1024,
+        )
+        reuse.compute_stats[compute_key] = compute_stats
+
+        arch_comps = {
+            "Buffer": {
+                "bits_per_value_scale": {"A": 1, "B": 1},
+                "read_bpa": 8,
+                "write_bpa": 8,
+            }
+        }
+
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": 0.5, "output": False,
+                 "bits_per_value": 8,
+                 "projection": {"K": "k"}},
+                {"name": "B", "density": 0.5, "output": False,
+                 "bits_per_value": 8,
+                 "density_distribution": density_distribution,
+                 "projection": {"K": "k"}},
+            ],
+            arch_components=arch_comps,
+        )
+
+        # Build a job with a real mapping
+        job = make_mock_job()
+        mapping = MagicMock()
+        mapping.nodes = self._make_mapping_nodes()
+        job.mapping = mapping
+        job.rank_variable_bounds = {"k": 64}
+
+        apply_sparse_adjustments(reuse, spec, job)
+        return compute_stats.total_ops
+
+    def test_random_has_skipping(self):
+        """Random distribution with tile=4 → prob_empty > 0 → compute reduced."""
+        ops = self._run_saf(density_distribution=None)
+        # tile=4, tsize=64, density=0.5: prob_empty(4) > 0
+        # → optimization_prob > 0 → compute is reduced
+        self.assertLess(ops, 1024)
+
+    def test_structured_no_skipping(self):
+        """Structured distribution with tile=4 → prob_empty=0 → no compute reduction."""
+        ops = self._run_saf(density_distribution="structured")
+        # Structured: prob_empty(4) = 0 → optimization_prob = 0
+        # → prob_nonempty = 1.0 → no SAF reduction
+        # → compute stays at 1024
+        self.assertEqual(ops, 1024)
+
+    def test_structured_more_energy_than_random(self):
+        """Structured sparsity produces higher compute ops than random.
+
+        This is the whole point: structured sparsity can never skip tiles
+        (every tile guaranteed to have nonzeros), while random allows
+        some tiles to be all-zero.
+        """
+        random_ops = self._run_saf(density_distribution=None)
+        structured_ops = self._run_saf(density_distribution="structured")
+        self.assertGreater(structured_ops, random_ops)
+
+    def test_element_level_both_agree(self):
+        """With temporal tile=1, structured and random should agree.
+
+        At element level, prob_nonempty = density for both models.
+        This verifies no regression for the common case.
+        """
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="Buffer",
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="gating",
+                            target="A",
+                            condition_on=["B"],
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        random_ops = None
+        structured_ops = None
+
+        for dist in (None, "structured"):
+            reuse = SymbolicAnalysisOutput()
+            buffet_a = Buffet("A", "E0", "Buffer")
+            stats_a = BuffetStats()
+            stats_a.tile_shape = {"k": 1}
+            reuse.buffet_stats[buffet_a] = stats_a
+
+            buffet_b = Buffet("B", "E0", "Buffer")
+            stats_b = BuffetStats()
+            stats_b.tile_shape = {"k": 1}
+            reuse.buffet_stats[buffet_b] = stats_b
+
+            from accelforge.model._looptree.reuse.symbolic.symbolic import (
+                Compute, ComputeStats,
+            )
+            compute_key = Compute("E0", "MAC")
+            cs = ComputeStats(total_ops=1024, max_per_unit_ops=1024)
+            reuse.compute_stats[compute_key] = cs
+
+            arch_comps = {
+                "Buffer": {
+                    "bits_per_value_scale": {"A": 1, "B": 1},
+                    "read_bpa": 8,
+                    "write_bpa": 8,
+                }
+            }
+            spec = make_mock_spec(
+                sparse_opts=sparse_opts,
+                tensor_accesses=[
+                    {"name": "A", "density": 0.5, "output": False,
+                     "bits_per_value": 8, "projection": {"K": "k"}},
+                    {"name": "B", "density": 0.5, "output": False,
+                     "bits_per_value": 8, "projection": {"K": "k"},
+                     "density_distribution": dist},
+                ],
+                arch_components=arch_comps,
+            )
+
+            from accelforge.frontend.mapping import (
+                Storage, Temporal, Compute as MappingCompute,
+            )
+            job = make_mock_job()
+            mapping = MagicMock()
+            mapping.nodes = [
+                Storage(tensors=["A", "B"], component="Buffer"),
+                Temporal(rank_variable="k", tile_shape=1),
+                MappingCompute(einsum="E0", component="MAC"),
+            ]
+            job.mapping = mapping
+            job.rank_variable_bounds = {"k": 64}
+
+            apply_sparse_adjustments(reuse, spec, job)
+
+            if dist is None:
+                random_ops = cs.total_ops
+            else:
+                structured_ops = cs.total_ops
+
+        # At element level (tile=1), both should give same result
+        self.assertEqual(random_ops, structured_ops)
+
+
+class TestPositionSkippingSelfSAF(unittest.TestCase):
+    """Position-skipping with condition_on=[] (self-conditioned).
+
+    The target tensor uses its own format metadata to skip empty positions.
+    This is the DSTC mechanism: bitmask format + position-skipping on same tensor.
+    """
+
+    def _make_linebuffer_reuse(self, density_a=0.5, density_b=0.4):
+        """Create reuse with LineBuffer (A, B) -> Compute level (A, B, Z).
+
+        Mimics Fig 13 DSTC: position-skipping at LineBuffer for A and B.
+        """
+        reuse = SymbolicAnalysisOutput()
+
+        # Compute-level buffets (MAC reads from LineBuffer)
+        compute_a = Buffet("A", "E0", "MAC")
+        cs_a = BuffetStats()
+        cs_a.total_reads_to_parent = 100_000
+        cs_a.max_per_parent_reads_to_parent = 100_000
+        reuse.buffet_stats[compute_a] = cs_a
+
+        compute_b = Buffet("B", "E0", "MAC")
+        cs_b = BuffetStats()
+        cs_b.total_reads_to_parent = 100_000
+        cs_b.max_per_parent_reads_to_parent = 100_000
+        reuse.buffet_stats[compute_b] = cs_b
+
+        # LineBuffer buffets (parent for A and B)
+        lb_a = Buffet("A", "E0", "LineBuffer")
+        ls_a = BuffetStats()
+        ls_a.total_reads_to_parent = 10_000  # fills from GLB
+        ls_a.max_per_parent_reads_to_parent = 10_000
+        ls_a.max_occupancy = 64
+        reuse.buffet_stats[lb_a] = ls_a
+
+        lb_b = Buffet("B", "E0", "LineBuffer")
+        ls_b = BuffetStats()
+        ls_b.total_reads_to_parent = 10_000
+        ls_b.max_per_parent_reads_to_parent = 10_000
+        ls_b.max_occupancy = 64
+        reuse.buffet_stats[lb_b] = ls_b
+
+        # Compute stats (MAC)
+        compute_key = Compute("E0", "MAC")
+        cs = ComputeStats()
+        cs.total_ops = 100_000
+        cs.max_latency = 100_000
+        reuse.compute_stats[compute_key] = cs
+
+        return reuse, cs_a, cs_b, ls_a, ls_b, cs
+
+    def test_self_conditioned_position_skipping_reduces_child_reads(self):
+        """Position-skipping with condition_on=[] reduces compute-level reads."""
+        density_a = 0.5
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="LineBuffer",
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="position_skipping",
+                            target="A",
+                            condition_on=[],  # Self-conditioned
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        reuse, cs_a, cs_b, ls_a, ls_b, cs = self._make_linebuffer_reuse()
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": density_a, "output": False, "bits_per_value": 16},
+                {"name": "B", "density": 1.0, "output": False, "bits_per_value": 16},
+                {"name": "Z", "density": None, "output": True, "bits_per_value": 16},
+            ],
+            arch_components={
+                "LineBuffer": {
+                    "bits_per_value_scale": {"A": 1, "B": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+                "MAC": {
+                    "bits_per_value_scale": {"A": 1, "B": 1, "Z": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+            },
+            rank_sizes={"M": 128, "K": 128, "N": 128},
+        )
+        job = make_mock_job()
+
+        apply_sparse_adjustments(reuse, spec, job)
+
+        # Self-conditioned SAF: prob_empty = 1 - density = 0.5
+        # Child A reads reduced: 100000 * 0.5 = 50000 (skipping)
+        self.assertEqual(cs_a.total_reads_to_parent, 50_000)
+
+    def test_dual_position_skipping_compound_saf(self):
+        """Dual position-skipping (A and B) gives compound SAF at compute."""
+        density_a = 0.5
+        density_b = 0.4
+
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="LineBuffer",
+                    representation_format=[
+                        RepresentationFormat(name="A", format="bitmask",
+                                             metadata_word_bits=1),
+                        RepresentationFormat(name="B", format="bitmask",
+                                             metadata_word_bits=1),
+                    ],
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="position_skipping",
+                            target="A",
+                            condition_on=[],
+                        ),
+                        ActionOptimization(
+                            kind="position_skipping",
+                            target="B",
+                            condition_on=[],
+                        ),
+                    ],
+                ),
+                SparseTarget(
+                    target="MAC",
+                    compute_optimization=[
+                        ComputeOptimization(
+                            kind="skipping",
+                            target="E0",
+                            condition_on=["A", "B"],
+                        ),
+                    ],
+                ),
+            ]
+        )
+
+        reuse, cs_a, cs_b, ls_a, ls_b, cs = self._make_linebuffer_reuse(
+            density_a, density_b
+        )
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": density_a, "output": False, "bits_per_value": 16},
+                {"name": "B", "density": density_b, "output": False, "bits_per_value": 16},
+                {"name": "Z", "density": None, "output": True, "bits_per_value": 16},
+            ],
+            arch_components={
+                "LineBuffer": {
+                    "bits_per_value_scale": {"A": 1, "B": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+                "MAC": {
+                    "bits_per_value_scale": {"A": 1, "B": 1, "Z": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+            },
+            rank_sizes={"M": 128, "K": 128, "N": 128},
+        )
+        job = make_mock_job()
+
+        apply_sparse_adjustments(reuse, spec, job)
+
+        # Compound: skip_compound_survival = (1-0.5) * (1-0.6) = 0.2
+        # A: Phase 4a self-SAF prob=0.5 → reads * 0.5 = 50000
+        #    Phase 4b remaining = 1 - 0.2/(1-0.5) = 1 - 0.4 = 0.6
+        #    → reads * (1 - 0.6) = 50000 * 0.4 = 20000
+        self.assertEqual(cs_a.total_reads_to_parent, 20_000)
+
+        # B: Phase 4a self-SAF prob=0.6 → reads * 0.4 = 40000
+        #    Phase 4b remaining = 1 - 0.2/(1-0.6) = 1 - 0.5 = 0.5
+        #    → reads * (1 - 0.5) = 40000 * 0.5 = 20000
+        self.assertEqual(cs_b.total_reads_to_parent, 20_000)
+
+        # Compute: total_ops * compound_survival = 100000 * 0.2 = 20000
+        self.assertEqual(cs.total_ops, 20_000)
+
+    def test_empty_condition_on_without_position_skipping_is_noop(self):
+        """Regular skipping with condition_on=[] should be a no-op."""
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="LineBuffer",
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="skipping",
+                            target="A",
+                            condition_on=[],  # Empty but not position_skipping
+                        ),
+                    ],
+                )
+            ]
+        )
+
+        reuse, cs_a, cs_b, ls_a, ls_b, cs = self._make_linebuffer_reuse()
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": 0.5, "output": False, "bits_per_value": 16},
+                {"name": "B", "density": 1.0, "output": False, "bits_per_value": 16},
+                {"name": "Z", "density": None, "output": True, "bits_per_value": 16},
+            ],
+            arch_components={
+                "LineBuffer": {
+                    "bits_per_value_scale": {"A": 1, "B": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+                "MAC": {
+                    "bits_per_value_scale": {"A": 1, "B": 1, "Z": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+            },
+            rank_sizes={"M": 128, "K": 128, "N": 128},
+        )
+        job = make_mock_job()
+
+        apply_sparse_adjustments(reuse, spec, job)
+
+        # Regular skipping with empty condition_on → no cond_densities → skip SAF
+        self.assertEqual(cs_a.total_reads_to_parent, 100_000)
+
+
+class TestStorageSAFComputePropagation(unittest.TestCase):
+    """Storage SAF → compute propagation without explicit compute_optimization.
+
+    When position-skipping SAFs at storage levels reduce input tensor reads,
+    Phase 4b propagates these reductions to compute ops. The compute_latency_ratio
+    should reflect the compound survival probability (dA * dB) even without
+    any compute_optimization block in the sparse config.
+    """
+
+    def test_dual_position_skipping_no_compute_opt(self):
+        """Position-skipping on A and B → compute reduced by dA*dB."""
+        density_a = 0.5
+        density_b = 0.4
+
+        # No compute_optimization at MAC — only storage-level SAFs
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="LineBuffer",
+                    representation_format=[
+                        RepresentationFormat(name="A", format="bitmask",
+                                             metadata_word_bits=1),
+                        RepresentationFormat(name="B", format="bitmask",
+                                             metadata_word_bits=1),
+                    ],
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="position_skipping",
+                            target="A",
+                            condition_on=[],
+                        ),
+                        ActionOptimization(
+                            kind="position_skipping",
+                            target="B",
+                            condition_on=[],
+                        ),
+                    ],
+                ),
+                # No MAC compute_optimization
+            ]
+        )
+
+        reuse = SymbolicAnalysisOutput()
+
+        # Compute-level buffets (MAC reads from LineBuffer)
+        compute_a = Buffet("A", "E0", "MAC")
+        cs_a = BuffetStats()
+        cs_a.total_reads_to_parent = 100_000
+        cs_a.max_per_parent_reads_to_parent = 100_000
+        reuse.buffet_stats[compute_a] = cs_a
+
+        compute_b = Buffet("B", "E0", "MAC")
+        cs_b = BuffetStats()
+        cs_b.total_reads_to_parent = 100_000
+        cs_b.max_per_parent_reads_to_parent = 100_000
+        reuse.buffet_stats[compute_b] = cs_b
+
+        # LineBuffer buffets
+        lb_a = Buffet("A", "E0", "LineBuffer")
+        ls_a = BuffetStats()
+        ls_a.total_reads_to_parent = 10_000
+        ls_a.max_per_parent_reads_to_parent = 10_000
+        ls_a.max_occupancy = 64
+        reuse.buffet_stats[lb_a] = ls_a
+
+        lb_b = Buffet("B", "E0", "LineBuffer")
+        ls_b = BuffetStats()
+        ls_b.total_reads_to_parent = 10_000
+        ls_b.max_per_parent_reads_to_parent = 10_000
+        ls_b.max_occupancy = 64
+        reuse.buffet_stats[lb_b] = ls_b
+
+        # Compute stats (MAC)
+        compute_key = Compute("E0", "MAC")
+        cs = ComputeStats()
+        cs.total_ops = 100_000
+        cs.max_per_unit_ops = 100_000
+        cs.max_latency = 100_000
+        reuse.compute_stats[compute_key] = cs
+
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": density_a, "output": False, "bits_per_value": 16},
+                {"name": "B", "density": density_b, "output": False, "bits_per_value": 16},
+                {"name": "Z", "density": None, "output": True, "bits_per_value": 16},
+            ],
+            arch_components={
+                "LineBuffer": {
+                    "bits_per_value_scale": {"A": 1, "B": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+                "MAC": {
+                    "bits_per_value_scale": {"A": 1, "B": 1, "Z": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+            },
+            rank_sizes={"M": 128, "K": 128, "N": 128},
+        )
+        job = make_mock_job()
+
+        result = apply_sparse_adjustments(reuse, spec, job)
+
+        # Phase 4b: compound survival = dA * dB = 0.5 * 0.4 = 0.2
+        # Compute ops: 100000 * 0.2 = 20000
+        self.assertEqual(cs.total_ops, 20_000)
+
+        # compute_latency_ratio = post / pre = 20000 / 100000 = 0.2
+        self.assertAlmostEqual(result.latency_info.compute_latency_ratio, 0.2, places=6)
+
+    def test_single_position_skipping_no_compute_opt(self):
+        """Position-skipping on A only → compute reduced by dA."""
+        density_a = 0.3
+
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="LineBuffer",
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="position_skipping",
+                            target="A",
+                            condition_on=[],
+                        ),
+                    ],
+                ),
+            ]
+        )
+
+        reuse = SymbolicAnalysisOutput()
+
+        compute_a = Buffet("A", "E0", "MAC")
+        cs_a = BuffetStats()
+        cs_a.total_reads_to_parent = 100_000
+        cs_a.max_per_parent_reads_to_parent = 100_000
+        reuse.buffet_stats[compute_a] = cs_a
+
+        lb_a = Buffet("A", "E0", "LineBuffer")
+        ls_a = BuffetStats()
+        ls_a.total_reads_to_parent = 10_000
+        ls_a.max_per_parent_reads_to_parent = 10_000
+        ls_a.max_occupancy = 64
+        reuse.buffet_stats[lb_a] = ls_a
+
+        compute_key = Compute("E0", "MAC")
+        cs = ComputeStats()
+        cs.total_ops = 100_000
+        cs.max_per_unit_ops = 100_000
+        cs.max_latency = 100_000
+        reuse.compute_stats[compute_key] = cs
+
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": density_a, "output": False, "bits_per_value": 16},
+                {"name": "B", "density": 1.0, "output": False, "bits_per_value": 16},
+                {"name": "Z", "density": None, "output": True, "bits_per_value": 16},
+            ],
+            arch_components={
+                "LineBuffer": {
+                    "bits_per_value_scale": {"A": 1, "B": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+                "MAC": {
+                    "bits_per_value_scale": {"A": 1, "B": 1, "Z": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+            },
+            rank_sizes={"M": 128, "K": 128, "N": 128},
+        )
+        job = make_mock_job()
+
+        result = apply_sparse_adjustments(reuse, spec, job)
+
+        # Phase 4b: survival = dA = 0.3
+        # Compute ops: 100000 * 0.3 = 30000
+        self.assertEqual(cs.total_ops, 30_000)
+
+        # compute_latency_ratio = 30000 / 100000 = 0.3
+        self.assertAlmostEqual(result.latency_info.compute_latency_ratio, 0.3, places=6)
 
 
 if __name__ == "__main__":

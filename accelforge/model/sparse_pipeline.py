@@ -15,7 +15,7 @@ import math
 from dataclasses import dataclass
 
 from accelforge.model.density_model import (
-    HypergeometricDensityModel,
+    create_density_model,
     effectual_operations,
 )
 
@@ -29,12 +29,13 @@ def compute_saf_probability(
     condition_on_densities: list[float],
     condition_on_tile_shapes: list[int] | None = None,
     condition_on_tensor_sizes: list[int] | None = None,
+    condition_on_distributions: list[str | None] | None = None,
 ) -> float:
     """Compute optimization probability for one SAF.
 
     For each condition_on tensor, computes P(tile nonempty):
     - Scalar (tile=1) or tile >= tensor_size: P(nonempty) = density
-    - Tiled (1 < tile < tensor_size): 1 - hypergeometric P(tile empty)
+    - Tiled (1 < tile < tensor_size): 1 - model.prob_empty(tile)
 
     optimization_prob = 1 - product(P_nonempty_i)
 
@@ -49,17 +50,20 @@ def compute_saf_probability(
         Tile shapes per condition_on tensor. None = all scalar.
     condition_on_tensor_sizes : list[int], optional
         Full tensor sizes per condition_on tensor. Required when tile > 1.
+    condition_on_distributions : list[str | None], optional
+        Density distribution types per condition_on tensor. None = all random.
     """
     prob_all_nonempty = 1.0
 
     for i, density in enumerate(condition_on_densities):
         tile = 1 if condition_on_tile_shapes is None else condition_on_tile_shapes[i]
         tsize = None if condition_on_tensor_sizes is None else condition_on_tensor_sizes[i]
+        dist = None if condition_on_distributions is None else condition_on_distributions[i]
 
         if tile <= 1 or tsize is None or tile >= tsize:
             prob_nonempty = density
         else:
-            model = HypergeometricDensityModel(density, tsize)
+            model = create_density_model(density, tsize, dist)
             prob_nonempty = 1.0 - model.prob_empty(tile)
 
         prob_all_nonempty *= prob_nonempty
@@ -235,17 +239,53 @@ def compute_nested_saf_effective_prob(
 
 
 # ---------------------------------------------------------------------------
-# Phase 5: Compute classification
+# Phase 5: Compute classification (9-state model)
 # ---------------------------------------------------------------------------
+
+
+def _round6(x: float) -> float:
+    """Round to 6 decimal places, matching Sparseloop precision."""
+    return round(x * 1_000_000) / 1_000_000
+
+
+@dataclass
+class OperandStates:
+    """Per-operand 3-state probabilities.
+
+    ENZ: exist, nonzero (density)
+    EZ:  exist, zero (only when no metadata — dense format)
+    NE:  not exist (only when has metadata — compressed format)
+    """
+
+    p_enz: float
+    p_ez: float
+    p_ne: float
+
+
+def compute_operand_states(density: float, has_metadata: bool) -> OperandStates:
+    """Compute per-operand state probabilities.
+
+    With metadata (compressed format): hardware can distinguish present/absent
+    elements, so absent elements are NE (not exist).
+    Without metadata: all elements exist (either nonzero ENZ or zero EZ).
+
+    Matches Timeloop compute-gs-analyzer.cpp:172-192.
+    """
+    d = _round6(density)
+    if has_metadata:
+        return OperandStates(p_enz=d, p_ez=0.0, p_ne=1.0 - d)
+    else:
+        return OperandStates(p_enz=d, p_ez=1.0 - d, p_ne=0.0)
 
 
 @dataclass
 class ComputeClassification:
-    """3-state compute classification result.
+    """Compute classification result from 9-state model.
 
     ENZ (effectual nonzero) -> random_compute: always executed
     EZ  (effectual zero)    -> gated_compute:  executed but output gated
     NE  (not executed)      -> skipped_compute: not executed (skipping)
+    NE×NE                   -> nonexistent_compute: both operands absent
     """
 
     random_compute: int
@@ -257,21 +297,30 @@ class ComputeClassification:
     skipped_compute: int
     """Ineffectual computes with skipping (not executed, zero energy)."""
 
+    nonexistent_compute: int = 0
+    """Computes where both operands are absent (NE,NE) — never executed."""
+
     @property
     def total(self) -> int:
-        return self.random_compute + self.gated_compute + self.skipped_compute
+        return (self.random_compute + self.gated_compute
+                + self.skipped_compute + self.nonexistent_compute)
 
 
 def classify_compute(
     total_computes: int,
     operand_densities: list[float],
     compute_optimization_kind: str | None = None,
+    operand_has_metadata: list[bool] | None = None,
 ) -> ComputeClassification:
-    """Classify computes into random/gated/skipped (3-state model).
+    """Classify computes using the full 9-state model.
 
-    Without compute optimization: all computes are random (executed normally).
-    With gating: ineffectual computes are gated (reduced energy).
-    With skipping: ineffectual computes are skipped (zero energy).
+    Implements Timeloop's CalculateFineGrainedComputeAccesses2Operand
+    (compute-gs-analyzer.cpp:113-392).
+
+    For each operand, computes 3 state probabilities (ENZ/EZ/NE) based on
+    density and whether the operand has metadata (compressed format). Then
+    computes 9 joint probabilities and maps each to random/gated/skipped/
+    nonexistent based on the optimization kind.
 
     Parameters
     ----------
@@ -281,6 +330,9 @@ def classify_compute(
         Densities of operands involved in compute.
     compute_optimization_kind : str, optional
         "gating" or "skipping". None means no compute optimization.
+    operand_has_metadata : list[bool], optional
+        Whether each operand has compressed format metadata.
+        None defaults to [False, False] for backward compatibility.
 
     Returns
     -------
@@ -292,25 +344,94 @@ def classify_compute(
             random_compute=total_computes,
             gated_compute=0,
             skipped_compute=0,
+            nonexistent_compute=0,
         )
 
-    random = effectual_operations(total_computes, *operand_densities)
-    ineffectual = total_computes - random
+    if len(operand_densities) < 2:
+        # Single-operand: use simple product model (backward compat)
+        random = effectual_operations(total_computes, *operand_densities)
+        ineffectual = total_computes - random
+        if compute_optimization_kind == "gating":
+            return ComputeClassification(
+                random_compute=random, gated_compute=ineffectual,
+                skipped_compute=0, nonexistent_compute=0,
+            )
+        elif compute_optimization_kind == "skipping":
+            return ComputeClassification(
+                random_compute=random, gated_compute=0,
+                skipped_compute=ineffectual, nonexistent_compute=0,
+            )
+        else:
+            raise ValueError(
+                f"Unknown compute optimization kind: {compute_optimization_kind!r}. "
+                f"Expected 'gating' or 'skipping'."
+            )
 
-    if compute_optimization_kind == "gating":
-        return ComputeClassification(
-            random_compute=random,
-            gated_compute=ineffectual,
-            skipped_compute=0,
-        )
-    elif compute_optimization_kind == "skipping":
-        return ComputeClassification(
-            random_compute=random,
-            gated_compute=0,
-            skipped_compute=ineffectual,
-        )
-    else:
+    if operand_has_metadata is None:
+        operand_has_metadata = [False, False]
+
+    # Step 1: Per-operand state probabilities
+    s0 = compute_operand_states(operand_densities[0], operand_has_metadata[0])
+    s1 = compute_operand_states(operand_densities[1], operand_has_metadata[1])
+
+    # Step 2: 9 joint probabilities
+    # (ENZ,ENZ), (ENZ,EZ), (ENZ,NE), (EZ,ENZ), (EZ,EZ), (EZ,NE),
+    # (NE,ENZ), (NE,EZ), (NE,NE)
+    p_enz_enz = s0.p_enz * s1.p_enz
+    p_enz_ez = s0.p_enz * s1.p_ez
+    p_enz_ne = s0.p_enz * s1.p_ne
+    p_ez_enz = s0.p_ez * s1.p_enz
+    p_ez_ez = s0.p_ez * s1.p_ez
+    p_ez_ne = s0.p_ez * s1.p_ne
+    p_ne_enz = s0.p_ne * s1.p_enz
+    p_ne_ez = s0.p_ne * s1.p_ez
+    p_ne_ne = s0.p_ne * s1.p_ne
+
+    # Step 3: Map to compute categories based on optimization kind
+    # Timeloop table (compute-gs-analyzer.cpp:294-367):
+    #   (ENZ,ENZ) → always random
+    #   (ENZ,EZ)/(EZ,ENZ) → gated if gate, random if skip
+    #   (ENZ,NE)/(NE,ENZ) → gated if gate, skipped if skip
+    #   (EZ,EZ) → gated if gate, random if skip
+    #   (EZ,NE)/(NE,EZ) → gated if gate, skipped if skip
+    #   (NE,NE) → nonexistent always
+
+    is_gating = compute_optimization_kind == "gating"
+    is_skipping = compute_optimization_kind == "skipping"
+
+    if not is_gating and not is_skipping:
         raise ValueError(
             f"Unknown compute optimization kind: {compute_optimization_kind!r}. "
             f"Expected 'gating' or 'skipping'."
         )
+
+    p_random = p_enz_enz
+    p_nonexistent = p_ne_ne
+
+    if is_gating:
+        # Gating: everything except ENZ×ENZ and NE×NE is gated
+        p_gated = (p_enz_ez + p_ez_enz + p_enz_ne + p_ne_enz
+                   + p_ez_ez + p_ez_ne + p_ne_ez)
+        p_skipped = 0.0
+    else:  # skipping
+        # Skipping: NE combinations (except NE×NE) are skipped; EZ are random
+        p_skipped = p_enz_ne + p_ne_enz + p_ez_ne + p_ne_ez
+        p_random += p_enz_ez + p_ez_enz + p_ez_ez
+        p_gated = 0.0
+
+    # Step 4: Pessimistic floor rounding (Timeloop lines 382-385)
+    skipped_float = total_computes * p_skipped
+    gated_float = total_computes * p_gated
+    nonexistent_float = total_computes * p_nonexistent
+
+    skipped = math.floor(skipped_float)
+    gated = math.floor(gated_float)
+    nonexistent = math.floor(nonexistent_float)
+    random = total_computes - skipped - gated - nonexistent
+
+    return ComputeClassification(
+        random_compute=random,
+        gated_compute=gated,
+        skipped_compute=skipped,
+        nonexistent_compute=nonexistent,
+    )

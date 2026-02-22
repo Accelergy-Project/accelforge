@@ -24,6 +24,13 @@ import re
 from dataclasses import dataclass, field
 
 from accelforge.frontend import arch
+from accelforge.frontend.mapping import (
+    Spatial as SpatialNode,
+    Temporal as TemporalNode,
+    Storage as StorageNode,
+    Toll as TollNode,
+    Compute as ComputeNode,
+)
 
 from accelforge.frontend.spec import Spec
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
@@ -67,6 +74,10 @@ class LatencyInfo:
     metadata_write_actions: dict[str, float] = field(default_factory=dict)
     # Compute latency ratio: post-Phase-5 / pre-sparse.
     compute_latency_ratio: float = 1.0
+    # Position-space utilization: fraction of spatial instances effectively
+    # utilized when position-skipping distributes work unevenly across PEs.
+    # 1.0 = no overhead (dense or no position-skipping).
+    position_space_utilization: float = 1.0
 
 
 @dataclass
@@ -256,6 +267,77 @@ def _get_tensor_rank_variables(einsum, tensor_name: str) -> set[str]:
     return rank_vars
 
 
+def _get_loops_below_level(
+    mapping_nodes: list,
+    buffet_level: str,
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Walk mapping nodes from ``buffet_level`` down to Compute.
+
+    Collects spatial and temporal tile sizes per rank variable.  When
+    the same rank variable appears in multiple loops below the level,
+    the innermost (last encountered) wins.
+
+    Returns ``(spatial_tiles, temporal_tiles)`` dicts mapping lowercase
+    rank variable name → tile size.
+    """
+    found = False
+    spatial_tiles: dict[str, int] = {}
+    temporal_tiles: dict[str, int] = {}
+    for node in mapping_nodes:
+        if not found:
+            if isinstance(node, (StorageNode, TollNode)):
+                if node.component == buffet_level:
+                    found = True
+            continue
+        if isinstance(node, SpatialNode):
+            rv = node.rank_variable
+            if isinstance(rv, str):
+                spatial_tiles[rv] = int(node.tile_shape)
+        elif isinstance(node, TemporalNode):
+            rv = node.rank_variable
+            if isinstance(rv, str):
+                temporal_tiles[rv] = int(node.tile_shape)
+        elif isinstance(node, ComputeNode):
+            break
+    return spatial_tiles, temporal_tiles
+
+
+def _compute_cond_temporal_tile(
+    mapping_nodes: list,
+    buffet_level: str,
+    cond_tensor_name: str,
+    einsum,
+    stats_tile_shape: dict[str, int] | None,
+) -> int:
+    """Compute the temporal-only tile product for a condition tensor.
+
+    For each rank variable projecting onto ``cond_tensor_name``:
+    - If a temporal loop exists below ``buffet_level`` → use its tile size
+    - Else if a spatial loop exists → use the spatial ``tile_shape``
+      (per-PE tile, no temporal subdivision)
+    - Else → use the level tile from ``stats_tile_shape``
+
+    Returns the product of per-rank-variable temporal tiles (≥ 1).
+    """
+    if not stats_tile_shape:
+        return 1
+    cond_rank_vars = _get_tensor_rank_variables(einsum, cond_tensor_name)
+    if not cond_rank_vars:
+        return 1
+    spatial_tiles, temporal_tiles = _get_loops_below_level(
+        mapping_nodes, buffet_level,
+    )
+    tile = 1
+    for rv in cond_rank_vars:
+        if rv in temporal_tiles:
+            tile *= temporal_tiles[rv]
+        elif rv in spatial_tiles:
+            tile *= spatial_tiles[rv]
+        else:
+            tile *= stats_tile_shape.get(rv, 1)
+    return max(tile, 1)
+
+
 def _compute_flattened_tensor_size(
     rank_format_objs: list,
     full_shape: dict[str, int],
@@ -282,6 +364,119 @@ def _compute_flattened_tensor_size(
         # Ranks without flattened_rank_ids: skip (don't multiply by 1)
     return max(tensor_size, 1)
 
+
+def _compute_position_space_utilization(
+    position_skip_tensors: list[tuple[str, float, dict]],
+    mapping_nodes: list,
+    level: str,
+    einsum,
+    rank_variable_bounds: dict[str, int],
+    spec,
+) -> float:
+    """Compute average PE utilization under position-space tiling.
+
+    When position-skipping distributes sparse work across spatial PEs,
+    some PEs may get less work than others (load imbalance).  This models
+    the Sparseloop position-space decomposition: for each possible
+    occupancy of the tile, compute the fraction of spatial instances
+    effectively utilized, then take the weighted average.
+
+    For each tensor d with position-skipping:
+      tile_d  = product of (spatial + temporal) sizes for d's rank vars
+      spatial_d = product of spatial num_instances for d's rank vars
+      E[util_d | occ > 0] = weighted average of occ/ceil(occ/spatial_d)/spatial_d
+
+    Overall utilization = product across tensors.
+
+    Returns 1.0 if no position-skipping or no spatial loops.
+    """
+    if not position_skip_tensors or not mapping_nodes:
+        return 1.0
+
+    # Build spatial fanout map: rv -> num_instances from arch + mapping.
+    # SpatialNode gives rv -> (component, dimension_name).
+    # Arch component's spatial gives dimension_name -> fanout.
+    spatial_instances: dict[str, int] = {}
+    temporal_tiles: dict[str, int] = {}
+    found = False
+    for node in mapping_nodes:
+        if not found:
+            if isinstance(node, (StorageNode, TollNode)):
+                if node.component == level:
+                    found = True
+            continue
+        if isinstance(node, SpatialNode):
+            rv = node.rank_variable
+            if isinstance(rv, str):
+                comp_name = node.component
+                dim_name = str(node.name)
+                # Look up fanout from arch component's spatial definition
+                for arch_node in (spec.arch.nodes or []):
+                    if getattr(arch_node, 'name', None) == comp_name:
+                        for s in (getattr(arch_node, 'spatial', None) or []):
+                            if str(s.name) == dim_name:
+                                spatial_instances[rv] = int(s.fanout)
+                        break
+        elif isinstance(node, TemporalNode):
+            rv = node.rank_variable
+            if isinstance(rv, str):
+                temporal_tiles[rv] = int(node.tile_shape)
+        elif isinstance(node, ComputeNode):
+            break
+
+    per_tensor_util = []
+    for tensor_name, density, level_tile_shape in position_skip_tensors:
+        # Get rank variables projecting to this tensor
+        rvs = _get_tensor_rank_variables(einsum, tensor_name)
+        if not rvs:
+            continue
+
+        # Compute tile size and spatial factor for this tensor.
+        # tile_size = total tile at the buffet level (per-PE tile * spatial instances)
+        # spatial_factor = product of spatial instances for tensor's rank vars
+        tile_size = 1
+        spatial_factor = 1
+        for rv in rvs:
+            per_pe = int(level_tile_shape.get(rv, 1))
+            n_pe = spatial_instances.get(rv, 1)
+            t = temporal_tiles.get(rv, 1)
+            # Total iterations = per_pe_spatial * n_pe * temporal
+            tile_size *= per_pe * n_pe * t
+            spatial_factor *= n_pe
+
+        if tile_size <= 0 or spatial_factor <= 1:
+            # No spatial parallelism for this tensor
+            continue
+        if density >= 1.0:
+            # Dense tensor — all spatial instances fully utilized
+            per_tensor_util.append(1.0)
+            continue
+
+        # Compute E[util | occ > 0] using binomial distribution
+        weighted_util = 0.0
+        weight_nonzero = 0.0
+        for occ in range(tile_size + 1):
+            # Binomial probability P(occ | tile_size, density)
+            prob = math.comb(tile_size, occ) * (
+                density ** occ
+            ) * ((1 - density) ** (tile_size - occ))
+            if prob == 0:
+                continue
+            if occ == 0:
+                continue  # zero occupancy → zero utilization
+            util = occ / math.ceil(occ / spatial_factor) / spatial_factor
+            weighted_util += prob * util
+            weight_nonzero += prob
+
+        if weight_nonzero > 0:
+            per_tensor_util.append(weighted_util / weight_nonzero)
+
+    if not per_tensor_util:
+        return 1.0
+    result = 1.0
+    for u in per_tensor_util:
+        result *= u
+    return result
 
 
 def _get_dimension_sizes_for_tensor(
@@ -401,6 +596,7 @@ def apply_sparse_adjustments(
         density = ta.density if ta.density is not None else 1.0
         tensor_info[ta.name] = {
             "density": density,
+            "density_distribution": ta.density_distribution,
             "is_output": ta.output,
             "bits_per_value": ta.bits_per_value,
         }
@@ -548,6 +744,10 @@ def apply_sparse_adjustments(
     saf_deltas: dict[tuple[str, str], tuple[int, str, float]] = {}
     # Track write deltas for output tensor Z (for latency)
     saf_write_deltas: dict[tuple[str, str], tuple[int, str]] = {}
+    # Collect position-skipping tensors + level for position-space utilization
+    # Each entry: (tensor_name, density, tile_shape_at_level)
+    position_skip_info: list[tuple[str, float, dict]] = []
+    position_skip_level: str | None = None
 
     for buffet, stats in reuse.buffet_stats.items():
         if buffet.level in compute_levels:
@@ -559,16 +759,86 @@ def apply_sparse_adjustments(
                 continue
 
             # Compute SAF probability from condition_on tensors.
+            # SAF operates per temporal iteration.  We extract the
+            # temporal-only tile shape for each condition tensor so
+            # that the density model can distinguish random vs
+            # structured sparsity (structured tiles are always
+            # nonempty → no skipping).  When temporal tile = 1
+            # (element level), this falls back to prob = 1 - density.
             cond_densities = []
+            cond_distributions = []
+            cond_tile_shapes = []
+            cond_tensor_sizes = []
             for cond_tensor in opt.condition_on:
                 if cond_tensor not in tensor_info:
                     continue
                 cond_densities.append(tensor_info[cond_tensor]["density"])
+                cond_distributions.append(
+                    tensor_info[cond_tensor]["density_distribution"]
+                )
+                # Compute temporal-only tile shape for this cond tensor
+                if job.mapping is not None:
+                    tile = _compute_cond_temporal_tile(
+                        job.mapping.nodes, buffet.level,
+                        cond_tensor, einsum, stats.tile_shape,
+                    )
+                    # Compute full tensor size from rank_variable_bounds
+                    cond_rvs = _get_tensor_rank_variables(
+                        einsum, cond_tensor,
+                    )
+                    tsize = 1
+                    for rv in cond_rvs:
+                        tsize *= job.rank_variable_bounds.get(rv, 1)
+                else:
+                    tile = 1
+                    tsize = 1
+                cond_tile_shapes.append(tile)
+                cond_tensor_sizes.append(max(tsize, 1))
+
+            # Position-skipping with empty condition_on = self-conditioning.
+            # The target tensor uses its own format metadata to skip empty
+            # positions.  Treat as conditioning on itself.
+            if not cond_densities and opt.kind == "position_skipping":
+                target = buffet.tensor
+                if target in tensor_info:
+                    cond_densities = [tensor_info[target]["density"]]
+                    cond_distributions = [
+                        tensor_info[target]["density_distribution"]
+                    ]
+                    if job.mapping is not None:
+                        tile = _compute_cond_temporal_tile(
+                            job.mapping.nodes, buffet.level,
+                            target, einsum, stats.tile_shape,
+                        )
+                        cond_rvs = _get_tensor_rank_variables(
+                            einsum, target,
+                        )
+                        tsize = 1
+                        for rv in cond_rvs:
+                            tsize *= job.rank_variable_bounds.get(rv, 1)
+                    else:
+                        tile = 1
+                        tsize = 1
+                    cond_tile_shapes = [tile]
+                    cond_tensor_sizes = [max(tsize, 1)]
+
+                    # Collect for position-space utilization
+                    d = tensor_info[target]["density"]
+                    if d < 1.0:
+                        position_skip_info.append(
+                            (target, d, stats.tile_shape or {})
+                        )
+                        position_skip_level = buffet.level
 
             if not cond_densities:
                 continue
 
-            prob = compute_saf_probability(cond_densities)
+            prob = compute_saf_probability(
+                cond_densities,
+                condition_on_tile_shapes=cond_tile_shapes,
+                condition_on_tensor_sizes=cond_tensor_sizes,
+                condition_on_distributions=cond_distributions,
+            )
 
             if prob <= 0.0:
                 continue
@@ -692,10 +962,12 @@ def apply_sparse_adjustments(
     for compute_key, compute_stats in reuse.compute_stats.items():
         pre_saf_compute[compute_key.level] = compute_stats.total_ops
 
-    # Propagate SAF reductions to compute operations AND compute-level
-    # buffet reads/writes.  When compute is skipped, the MAC-level reads
-    # from Reg for ALL operands are reduced proportionally.  For gating,
-    # compute-level reads are NOT reduced (gated operations still read).
+    # Propagate SAF reductions to compute operations.
+    # Both gating and skipping reduce effectual compute (total_ops):
+    # - Gating: effectual ops fire at full energy, gated ops at reduced energy
+    # - Skipping: effectual ops fire, skipped ops don't execute at all
+    # In both cases, total_ops = effectual count (for energy reporting).
+    # Latency ratio is computed from total_ops / pre_saf below.
     for prob, kind in saf_probs_for_compute:
         for compute_key, compute_stats in reuse.compute_stats.items():
             compute_stats.total_ops = propagate_saf_reduction(
@@ -756,6 +1028,11 @@ def apply_sparse_adjustments(
                 stats.max_per_parent_writes_to_parent, remaining_prob
             )
 
+    # Build set of all non-compute levels for has_metadata lookup
+    all_non_compute_levels = {
+        b.level for b in reuse.buffet_stats if b.level not in compute_levels
+    }
+
     # Apply compute classification
     for compute_key, compute_stats in reuse.compute_stats.items():
         compute_opts = sparse_opts.get_compute_optimizations_for(compute_key.level)
@@ -771,6 +1048,17 @@ def apply_sparse_adjustments(
             if not operand_densities:
                 continue
 
+            # Determine has_metadata for each condition tensor:
+            # True if the tensor has a compressed format at any storage level.
+            operand_has_metadata = [
+                any(
+                    (t, level) in formatted_buffets
+                    for level in all_non_compute_levels
+                )
+                for t in opt.condition_on
+                if t in tensor_info
+            ]
+
             # Check if storage-level SAF at parent levels already covers
             # the condition tensors. If so, the storage SAF has already
             # reduced compute_stats.total_ops in Phase 4b — those gated/
@@ -778,7 +1066,7 @@ def apply_sparse_adjustments(
             storage_saf_covers = all(
                 any(
                     (level, ct) in saf_deltas
-                    for level in {b.level for b in reuse.buffet_stats if b.level not in compute_levels}
+                    for level in all_non_compute_levels
                 )
                 for ct in opt.condition_on
             )
@@ -787,13 +1075,13 @@ def apply_sparse_adjustments(
                 pre_saf_compute[compute_key.level],
                 operand_densities,
                 opt.kind,
+                operand_has_metadata=operand_has_metadata,
             )
             # Only effectual computes contribute to energy
             compute_stats.total_ops = result.random_compute
             compute_stats.max_per_unit_ops = min(
                 compute_stats.max_per_unit_ops, result.random_compute
             )
-
             # Only emit gated/skipped compute when there is NO storage-
             # level SAF covering the same condition.  When storage SAF
             # exists, gated iterations never reach the compute unit.
@@ -816,6 +1104,19 @@ def apply_sparse_adjustments(
         if pre > 0:
             latency_info.compute_latency_ratio = compute_stats.total_ops / pre
         break
+
+    # Position-space utilization: load imbalance from position-skipping
+    if position_skip_info and position_skip_level and job.mapping is not None:
+        latency_info.position_space_utilization = (
+            _compute_position_space_utilization(
+                position_skip_info,
+                job.mapping.nodes,
+                position_skip_level,
+                einsum,
+                job.rank_variable_bounds,
+                spec,
+            )
+        )
 
     # ========================================================================
     # Emit metadata actions from format info
@@ -1013,6 +1314,7 @@ def _emit_metadata_actions(
 
         if dimension_sizes and any(d > 1 for d in dimension_sizes):
             density = tensor_info[tensor]["density"]
+            dist = tensor_info[tensor]["density_distribution"]
 
             # Compute tensor_size and tile_shape
             if fmt.ranks is not None and rank_format_objs is not None and _ranks_have_flattened_ids(rank_format_objs):
@@ -1039,7 +1341,8 @@ def _emit_metadata_actions(
 
             # Compute per-rank occupancy (capacity)
             rank_occs, _ = compute_format_occupancy(
-                rank_format_names, dimension_sizes, density, tensor_size
+                rank_format_names, dimension_sizes, density, tensor_size,
+                distribution=dist,
             )
 
             # Compute per-rank access counts using pre-SAF algorithmic counts
@@ -1054,6 +1357,7 @@ def _emit_metadata_actions(
                 tile_shape,
                 alg_reads,
                 alg_fills,
+                distribution=dist,
             )
 
             # Auto-derive per-rank word bits
@@ -1207,6 +1511,7 @@ def _emit_metadata_actions(
         emission_access = compute_format_access_counts(
             rank_format_names, dimension_sizes, density, tensor_size,
             tile_shape, effective_reads, effective_fills,
+            distribution=dist,
         )
         packed_reads, packed_fills = _pack_format(emission_access)
         total_read_bits, total_fill_bits = _sum_format_bits(emission_access)
@@ -1219,6 +1524,7 @@ def _emit_metadata_actions(
             gated_access = compute_format_access_counts(
                 rank_format_names, dimension_sizes, density, tensor_size,
                 tile_shape, gated_metadata_input_reads, 0,
+                distribution=dist,
             )
             gated_packed, _ = _pack_format(gated_access)
             _emit_if_declared(sparse_actions, spec, level, GATED_METADATA_READ, gated_packed)
@@ -1235,6 +1541,7 @@ def _emit_metadata_actions(
                 tile_shape,
                 full_input_reads,
                 effective_fills,
+                distribution=dist,
             )
             full_read_bits, _ = _sum_format_bits(full_access)
             bw_read = math.ceil(full_read_bits / read_bpa)
@@ -1281,6 +1588,19 @@ def _apply_format_compression_to_saf_levels(
             for opt in sparse_opts.get_action_optimizations_for(buffet.level)
         )
         if not level_has_saf_on_tensor:
+            continue
+
+        # Self-conditioned position-skipping: the SAF's Phase 4a reduction
+        # already captures the format density effect (both represent "only
+        # nonzero elements are accessed").  Skip format correction to avoid
+        # double-counting.
+        saf_is_self_conditioned = any(
+            opt.target == buffet.tensor
+            and opt.kind == "position_skipping"
+            and not opt.condition_on
+            for opt in sparse_opts.get_action_optimizations_for(buffet.level)
+        )
+        if saf_is_self_conditioned:
             continue
 
         # Check: is the child at compute level (no non-compute child)?
@@ -1474,19 +1794,3 @@ def _get_child_buffet_key(
     return None
 
 
-def _get_tensor_size(einsum, tensor_name: str) -> int:
-    """Get the total tensor size (product of projected rank sizes) from the einsum.
-
-    Falls back to 1 if the tensor or rank sizes cannot be determined.
-    """
-    for ta in einsum.tensor_accesses:
-        if ta.name != tensor_name:
-            continue
-        if not hasattr(einsum, "rank_sizes") or not einsum.rank_sizes:
-            return 1
-        size = 1
-        for rank in ta.projection:
-            if rank in einsum.rank_sizes:
-                size *= einsum.rank_sizes[rank]
-        return max(size, 1)
-    return 1

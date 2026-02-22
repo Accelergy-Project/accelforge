@@ -83,14 +83,14 @@ class TestBitmaskFormatCapacity(unittest.TestCase):
         self.assertEqual(val, 0)
 
     def test_bs_a_rank0_payload(self):
-        """BackingStorage A rank0 (UOP): payload = 129 (128+1 offset pairs)."""
+        """BackingStorage A rank0 (UOP): payload ≈ 129 (with UOP empty fiber filtering)."""
         val = _col(self.result, "format_capacity<SEP>BackingStorage<SEP>A<SEP>rank0<SEP>payload")
-        self.assertEqual(val, 129)
+        self.assertAlmostEqual(val, 129, places=2)
 
     def test_bs_a_rank1_metadata(self):
-        """BackingStorage A rank1 (B): metadata = 16384 (128*128 bitmask)."""
+        """BackingStorage A rank1 (B): metadata ≈ 16384 (filtered by UOP)."""
         val = _col(self.result, "format_capacity<SEP>BackingStorage<SEP>A<SEP>rank1<SEP>metadata")
-        self.assertEqual(val, 16384)
+        self.assertAlmostEqual(val, 16384, places=1)
 
     def test_bs_a_rank1_payload(self):
         """BackingStorage A rank1 (B): payload = 0."""
@@ -100,14 +100,14 @@ class TestBitmaskFormatCapacity(unittest.TestCase):
     # --- BackingStorage B: bitmask -> 2 ranks (UOP N=128, B K=128) ---
 
     def test_bs_b_rank0_payload(self):
-        """BackingStorage B rank0 (UOP): payload = 129."""
+        """BackingStorage B rank0 (UOP): payload ≈ 129 (with UOP empty fiber filtering)."""
         val = _col(self.result, "format_capacity<SEP>BackingStorage<SEP>B<SEP>rank0<SEP>payload")
-        self.assertEqual(val, 129)
+        self.assertAlmostEqual(val, 129, places=2)
 
     def test_bs_b_rank1_metadata(self):
-        """BackingStorage B rank1 (B): metadata = 16384."""
+        """BackingStorage B rank1 (B): metadata ≈ 16384 (filtered by UOP)."""
         val = _col(self.result, "format_capacity<SEP>BackingStorage<SEP>B<SEP>rank1<SEP>metadata")
-        self.assertEqual(val, 16384)
+        self.assertAlmostEqual(val, 16384, places=1)
 
 
 # ===========================================================================
@@ -219,14 +219,14 @@ class TestCoordListFormatCapacity(unittest.TestCase):
     # --- BackingStorage A: CSR -> 2 ranks (UOP M=128, CP K=128) ---
 
     def test_bs_a_rank0_payload(self):
-        """BackingStorage A rank0 (UOP): payload = 129."""
+        """BackingStorage A rank0 (UOP): payload ≈ 129 (with UOP empty fiber filtering)."""
         val = _col(self.result, "format_capacity<SEP>BackingStorage<SEP>A<SEP>rank0<SEP>payload")
-        self.assertEqual(val, 129)
+        self.assertAlmostEqual(val, 129, places=2)
 
     def test_bs_a_rank1_metadata(self):
-        """BackingStorage A rank1 (CP): metadata = 1664 (ceil(ennz)*fibers)."""
+        """BackingStorage A rank1 (CP): metadata ≈ 1664 (filtered fibers from UOP)."""
         val = _col(self.result, "format_capacity<SEP>BackingStorage<SEP>A<SEP>rank1<SEP>metadata")
-        self.assertEqual(val, 1664)
+        self.assertAlmostEqual(val, 1664, places=1)
 
 
 # ===========================================================================
@@ -315,11 +315,11 @@ class TestCapacityComparisons(unittest.TestCase):
         self.assertGreater(bm, cl)
 
     def test_uop_payload_same_for_both(self):
-        """UOP payload at BackingStorage is format-independent (always 129)."""
+        """UOP payload at BackingStorage is format-independent (≈129 with filtering)."""
         bm = _col(self.bitmask, "format_capacity<SEP>BackingStorage<SEP>A<SEP>rank0<SEP>payload")
         cl = _col(self.coord_list, "format_capacity<SEP>BackingStorage<SEP>A<SEP>rank0<SEP>payload")
-        self.assertEqual(bm, cl)
-        self.assertEqual(bm, 129)
+        self.assertAlmostEqual(bm, cl, places=4)
+        self.assertAlmostEqual(bm, 129, places=2)
 
 
 # ===========================================================================
