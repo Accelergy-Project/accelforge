@@ -8,6 +8,7 @@ workload:
     n: 0 <= n < 1024
 
   bits_per_value: {All: 8}
+  densities: {A: {{ density_A | default(1.0) }}}
 
   einsums:
   - name: GEMM
