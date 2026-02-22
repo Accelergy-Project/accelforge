@@ -371,7 +371,7 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
 
     def test_parse_concise_yaml(self):
         """Test parsing the concise GPT-3 6.7B workload YAML."""
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
 
         # Load and parse the spec
         spec = Spec.from_yaml(yaml_path)
@@ -408,7 +408,7 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
 
     def test_persistent_tensors_in_concise_yaml(self):
         """Test that persistent_tensors field marks weight tensors as persistent."""
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
 
         # Load and parse the spec
         spec = Spec.from_yaml(yaml_path)
@@ -478,8 +478,8 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
                     )
 
     def test_concise_and_regular_same_structure(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
-        regular_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        regular_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
 
         concise_spec = Spec.from_yaml(concise_path)
         concise_spec = concise_spec._spec_eval_expressions()

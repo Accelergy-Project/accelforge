@@ -129,7 +129,7 @@ class TestSpecFromYAML(unittest.TestCase):
     """Tests for Spec.from_yaml with real YAML files."""
 
     def test_load_concise_gpt(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -194,7 +194,7 @@ class TestSpecEvaluation(unittest.TestCase):
         self.assertTrue(getattr(evaluated, "_evaluated", False))
 
     def test_eval_concise_gpt(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -232,7 +232,7 @@ class TestSpecPersistentTensors(unittest.TestCase):
     """Test that persistent_tensors field properly marks tensors."""
 
     def test_persistent_tensors_evaluated(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -257,8 +257,8 @@ class TestSpecConciseRegularEquivalence(unittest.TestCase):
     """Test that concise and regular YAML produce equivalent results."""
 
     def test_same_einsum_names(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
-        regular_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        regular_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not concise_path.exists() or not regular_path.exists():
             self.skipTest("YAML files not found")
 
@@ -270,8 +270,8 @@ class TestSpecConciseRegularEquivalence(unittest.TestCase):
         self.assertEqual(concise_names, regular_names)
 
     def test_same_rank_size_keys(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
-        regular_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        regular_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not concise_path.exists() or not regular_path.exists():
             self.skipTest("YAML files not found")
 

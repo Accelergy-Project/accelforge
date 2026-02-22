@@ -1,0 +1,111 @@
+# Each tensor is shaped by a set of ranks, denoted by capital letters
+# For example: Q is shaped by (B, M, H, E)
+# We'll use lower-case letters to index into the ranks
+# For example: Q[b, m, h, e] is the tensor Q at index (b, m, h, e)
+
+# When making a projection list, it's equivalent to the Einsum subscript notation, so:
+# Q projection [b, m, h, e] means that b indexes into B, m indexes into M...
+# When making a projection dict, it's equivalent to the Einsum subscript/superscript notation, so:
+# K projection { B: b, M: p, H: h, E: e } means that b indexes into B, p indexes into M...
+
+# Renames take a tensor name and turn them into a canonical name that we can use in
+# architecture constraints. For example, we want to use the words "input", "weight", and
+# "output" to refer to the tensors of an Einsum, but the Einsum QK has no clear "weight"
+# or "input" because both Q and K are inputs. So we rename K to be weight.
+
+workload:
+  rank_sizes:
+    {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
+    {% set N_TOKENS = N_TOKENS | default(8192) %}
+    B: {{BATCH_SIZE}}
+    P: {{N_TOKENS}}
+    M: {{N_TOKENS}}
+    H: 32
+    E: 128
+    F: 128
+    D: 4096 # = e * h
+    C: 16384
+    J: 4096
+    G: 4096
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - name: I
+    # Copy operation means that we move the input tensor from one place to another
+    # without doing computation. This lets us copy the input tensor onto the accelerator
+    # once and then use it in the Q, K, and V operations.
+    is_copy_operation: True
+    tensor_accesses:
+    - {name: I_in, projection: [b, m, d]}
+    - {name: I, projection: [b, m, d], output: True}
+    renames: {weight: Nothing, input: Inputs, output: Outputs}
+
+  - name: V
+    tensor_accesses:
+    - {name: I, projection: [b, m, d]}
+    - {name: WV, projection: [h, e, d], persistent: True}
+    - {name: V, projection: [b, m, h, e], output: True}
+
+  - name: K
+    tensor_accesses:
+    - {name: I, projection: [b, m, d]}
+    - {name: WK, projection: [h, e, d], persistent: True}
+    - {name: K, projection: [b, m, h, e], output: True}
+
+  - name: Q
+    tensor_accesses:
+    - {name: I, projection: [b, m, d]}
+    - {name: WQ, projection: [h, e, d], persistent: True}
+    - {name: Q, projection: [b, m, h, e], output: True}
+
+  - name: QK
+    tensor_accesses:
+    - {name: Q, projection: [b, m, h, e]}
+    - {name: K, projection: { B: b, M: p, H: h, E: e }}
+    - {name: QK, projection: [b, m, p, h], output: True}
+    renames: {weight: K, input: Q, output: QK}
+
+  - name: QK_softmax
+    tensor_accesses:
+    - {name: QK, projection: [b, m, p, h]}
+    - {name: QK_softmax, projection: [b, m, p, h], output: True}
+
+  - name: AV
+    tensor_accesses:
+    - {name: QK_softmax, projection: [b, m, p, h]}
+    - {name: V, projection: { B: b, M: p, H: h, E: f}}
+    - {name: AV, projection: [b, m, h, f], output: True}
+    renames: {weight: V, input: QK_softmax}
+
+  - name: Z
+    tensor_accesses:
+    - {name: AV, projection: [b, m, h, f]}
+    - {name: WZ, projection: [h, f, g], persistent: True}
+    - {name: Z, projection: [b, m, g], output: True}
+
+  - name: FFA
+    tensor_accesses:
+    - {name: Z, projection: [b, m, g]}
+    - {name: WFFA, projection: [g, c], persistent: True}
+    - {name: FFA, projection: [b, m, c], output: True}
+
+  - name: FFB
+    tensor_accesses:
+    - {name: FFA, projection: [b, m, c]}
+    - {name: WFFB, projection: [c, j], persistent: True}
+    - {name: FFB, projection: [b, m, j], output: True}
+
+renames:
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs & Intermediates
+      expected_count: 1
+    - name: output
+      source: Outputs
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1 if len(All) == 3 else 0

@@ -189,7 +189,7 @@ class TestPersistentTensorsEvaluation(unittest.TestCase):
     """Test persistent_tensors field evaluation."""
 
     def test_persistent_tensors_marked(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -205,7 +205,7 @@ class TestPersistentTensorsEvaluation(unittest.TestCase):
                     )
 
     def test_intermediate_tensors_not_persistent(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -292,7 +292,7 @@ class TestJinjaEvaluation(unittest.TestCase):
 
     def test_jinja_default_values(self):
         """GPT concise uses Jinja defaults for BATCH_SIZE and N_TOKENS."""
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -391,8 +391,8 @@ class TestConciseVerboseEquivalence(unittest.TestCase):
     """Check that concise and verbose workloads produce the same evaluated results."""
 
     def test_same_einsum_names(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
-        verbose_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        verbose_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not concise_path.exists() or not verbose_path.exists():
             self.skipTest("YAML files not found")
 
@@ -404,8 +404,8 @@ class TestConciseVerboseEquivalence(unittest.TestCase):
         )
 
     def test_same_tensor_names_per_einsum(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
-        verbose_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        verbose_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not concise_path.exists() or not verbose_path.exists():
             self.skipTest("YAML files not found")
 
@@ -420,8 +420,8 @@ class TestConciseVerboseEquivalence(unittest.TestCase):
             )
 
     def test_same_bits_per_value(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
-        verbose_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        verbose_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not concise_path.exists() or not verbose_path.exists():
             self.skipTest("YAML files not found")
 

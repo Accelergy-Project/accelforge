@@ -1,0 +1,55 @@
+workload:
+  rank_sizes:
+    {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
+    {% set N_TOKENS = N_TOKENS | default(8192) %}
+    {% set N_NEW_TOKENS = N_TOKENS | default(8) %}
+    B: {{BATCH_SIZE}}
+    M: {{N_NEW_TOKENS}}
+    M_FULL: {{N_TOKENS}}
+    H: 32
+    E: 128
+    F: 128
+    D: 4096 # = e * h
+    C: 16384
+    J: 4096
+    G: 4096
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  - {einsum: "I[b, m, d] = I_in[b, m, d]", is_copy_operation: True}
+
+  # V and K containing the new tokens only. Assume N_TOKENS >> N_NEW_TOKENS, so we're
+  # just going to ignore these tensors and assume that the concatenation with the full K
+  # and V is cheap relative to the movement of K and V.
+  - "V_new[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
+  - "K_new[b, m, h, e] = I[b, m, d] * WK[h, e, d]"
+
+  # Q containing the new tokens only.
+  - "Q_new[b, m, h, e] = I[b, m, d] * WQ[h, e, d]"
+
+  # Calculate how the new queries attend to the full previous K and V
+  - einsum: "QK[b, m, m_full, h] = Q_new[b, m, h, e] * K[b, m_full, h, e]"
+    renames: {input: Q_new}
+  - "QK_softmax[b, m, m_full, h] = QK[b, m, m_full, h]"
+
+  - einsum: "AV[b, m, h, f] = QK_softmax[b, m, m_full, h] * V[b, m_full, h, E: f]"
+    renames: {input: QK_softmax}
+  - "Z[b, m, g] = AV[b, m, h, f] * WZ[h, f, g]"
+  - "FFA[b, m, c] = Z[b, m, g] * WFFA[g, c]"
+  - "FFB[b, m, j] = FFA[b, m, c] * WFFB[c, j]"
+
+renames:
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs & Intermediates if len(All) == 3 else Inputs
+      expected_count: 1
+    - name: output
+      source: Outputs
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1 if len(All) == 3 else 0

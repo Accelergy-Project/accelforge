@@ -422,7 +422,7 @@ class TestMappingRenderHelpers(unittest.TestCase):
 
 class TestRenderFromYAML(unittest.TestCase):
     def test_full_spec_workload_render(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             self.skipTest("YAML file not found")
         spec = Spec.from_yaml(yaml_path)
