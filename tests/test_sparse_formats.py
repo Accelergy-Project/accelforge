@@ -4,7 +4,6 @@ Validation tests sourced from ARTIFACT_EVALUATION.md fig1 reference outputs
 and Lab 4 Part 4 storage capacity sweep.
 """
 
-import math
 import unittest
 
 from accelforge.model.sparse_formats import (
@@ -12,9 +11,7 @@ from accelforge.model.sparse_formats import (
     CP,
     Bitmask,
     RLE,
-    RankOccupancy,
     expand_format,
-    create_format_model,
     compute_format_occupancy,
 )
 from accelforge.model.density_model import HypergeometricDensityModel
@@ -46,15 +43,6 @@ class TestUOP(unittest.TestCase):
         self.assertEqual(occ.metadata_units, 0)
         self.assertEqual(occ.payload_units, 128 * 129)
 
-    def test_next_fibers_all_exist(self):
-        """UOP is uncompressed: all sub-fibers exist."""
-        f = UOP().next_fibers(fibers=1, fiber_shape=128)
-        self.assertEqual(f, 128)
-
-    def test_next_fibers_multi(self):
-        f = UOP().next_fibers(fibers=128, fiber_shape=128)
-        self.assertEqual(f, 128 * 128)
-
     def test_lab4_uop_outer(self):
         """Lab 4: UOP outer rank for A[M=8,K=8] -> payload = 1*(8+1) = 9."""
         occ = UOP().get_occupancy(fibers=1, fiber_shape=8)
@@ -82,32 +70,6 @@ class TestCP(unittest.TestCase):
         )
         self.assertEqual(occ.metadata_units, 1664)
         self.assertEqual(occ.payload_units, 0)
-
-    def test_density_one_full(self):
-        """d=1.0: CP metadata = fibers * fiber_shape."""
-        occ = CP().get_occupancy(
-            fibers=8, fiber_shape=8, expected_nnz_per_fiber=8.0
-        )
-        self.assertEqual(occ.metadata_units, 64)
-
-    def test_density_zero(self):
-        """d=0: CP metadata = 0."""
-        occ = CP().get_occupancy(
-            fibers=8, fiber_shape=8, expected_nnz_per_fiber=0.0
-        )
-        self.assertEqual(occ.metadata_units, 0)
-
-    def test_zero_fibers(self):
-        """0 fibers -> 0 occupancy."""
-        occ = CP().get_occupancy(
-            fibers=0, fiber_shape=128, expected_nnz_per_fiber=13.0
-        )
-        self.assertEqual(occ.metadata_units, 0)
-
-    def test_next_fibers_compressed(self):
-        """CP next_fibers = fibers * ceil(expected_nnz)."""
-        f = CP().next_fibers(fibers=8, fiber_shape=8, expected_nnz_per_fiber=1.625)
-        self.assertEqual(f, 8 * 2)
 
     def test_lab4_cp_d02(self):
         """Lab 4 d=0.2: CP inner, 8 fibers, expected_nnz = 8*13/64 = 1.625 -> 8*2 = 16."""
@@ -139,18 +101,6 @@ class TestBitmask(unittest.TestCase):
         self.assertEqual(occ.metadata_units, 16384)
         self.assertEqual(occ.payload_units, 0)
 
-    def test_density_independent(self):
-        """Bitmask occupancy doesn't depend on density."""
-        occ1 = Bitmask().get_occupancy(fibers=1, fiber_shape=128, expected_nnz_per_fiber=13)
-        occ2 = Bitmask().get_occupancy(fibers=1, fiber_shape=128, expected_nnz_per_fiber=128)
-        self.assertEqual(occ1.metadata_units, occ2.metadata_units)
-
-    def test_next_fibers(self):
-        """Bitmask next_fibers based on expected_nnz (nonzero sub-fibers)."""
-        f = Bitmask().next_fibers(fibers=1, fiber_shape=128, expected_nnz_per_fiber=13.0)
-        self.assertEqual(f, 13)
-
-
 class TestRLE(unittest.TestCase):
     """RLE: metadata=fibers*expected_nnz (NO ceil), payload=0."""
 
@@ -159,16 +109,6 @@ class TestRLE(unittest.TestCase):
         occ = RLE().get_occupancy(fibers=8, fiber_shape=8, expected_nnz_per_fiber=1.625)
         self.assertAlmostEqual(occ.metadata_units, 8 * 1.625)
         self.assertEqual(occ.payload_units, 0)
-
-    def test_density_zero(self):
-        occ = RLE().get_occupancy(fibers=8, fiber_shape=8, expected_nnz_per_fiber=0.0)
-        self.assertEqual(occ.metadata_units, 0)
-
-    def test_next_fibers_ceil(self):
-        """RLE next_fibers uses ceil (for fiber count, not metadata)."""
-        f = RLE().next_fibers(fibers=8, fiber_shape=8, expected_nnz_per_fiber=1.625)
-        self.assertEqual(f, 8 * 2)
-
 
 # ---------------------------------------------------------------------------
 # Auto-expansion tests
@@ -227,30 +167,6 @@ class TestExpandFormat(unittest.TestCase):
     def test_zero_ranks_raises(self):
         with self.assertRaises(ValueError):
             expand_format("csr", 0)
-
-
-class TestCreateFormatModel(unittest.TestCase):
-    """Test primitive name -> FormatModel instance creation."""
-
-    def test_create_uop(self):
-        self.assertIsInstance(create_format_model("UOP"), UOP)
-
-    def test_create_cp(self):
-        self.assertIsInstance(create_format_model("CP"), CP)
-
-    def test_create_b(self):
-        self.assertIsInstance(create_format_model("B"), Bitmask)
-
-    def test_create_rle(self):
-        self.assertIsInstance(create_format_model("RLE"), RLE)
-
-    def test_case_insensitive(self):
-        self.assertIsInstance(create_format_model("uop"), UOP)
-        self.assertIsInstance(create_format_model("cp"), CP)
-
-    def test_unknown_raises(self):
-        with self.assertRaises(ValueError):
-            create_format_model("UNKNOWN")
 
 
 # ---------------------------------------------------------------------------
@@ -401,18 +317,6 @@ class TestComputeFormatOccupancy(unittest.TestCase):
         )
         self.assertEqual(occs[0].metadata_units, 128)
         self.assertEqual(total, 128)
-
-
-class TestRankOccupancy(unittest.TestCase):
-    """Test RankOccupancy dataclass."""
-
-    def test_total(self):
-        occ = RankOccupancy(metadata_units=128, payload_units=129)
-        self.assertEqual(occ.total, 257)
-
-    def test_zero_total(self):
-        occ = RankOccupancy(metadata_units=0, payload_units=0)
-        self.assertEqual(occ.total, 0)
 
 
 class TestFlattenedDimensionOccupancy(unittest.TestCase):

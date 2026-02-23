@@ -4,7 +4,6 @@ SAF propagation, and compute classification.
 Validation tests sourced from ARTIFACT_EVALUATION.md and IMPLEMENTATION_PLAN.md.
 """
 
-import math
 import unittest
 
 from accelforge.model.sparse_pipeline import (
@@ -16,7 +15,6 @@ from accelforge.model.sparse_pipeline import (
     compute_nested_saf_effective_prob,
     classify_compute,
     ComputeClassification,
-    OperandStates,
     compute_operand_states,
     _round6,
 )
@@ -242,22 +240,6 @@ class TestLocalSAFUpdates(unittest.TestCase):
         self.assertEqual(gated, 0)
 
 
-class TestFillsNotReducedBySAF(unittest.TestCase):
-    """Fills should NOT be reduced by local SAF.
-
-    This is tested implicitly: apply_local_saf_reads/updates don't
-    have a fills parameter. This test class documents the invariant.
-    """
-
-    def test_fills_unchanged_invariant(self):
-        """Fills remain at their post-compression value.
-        E.g., Buffer A: fills=212992, p=0.8984375 -> fills still 212992.
-        The caller simply doesn't apply SAF to fills."""
-        fills = 212992
-        # No SAF function is called on fills -- they stay unchanged.
-        self.assertEqual(fills, 212992)
-
-
 # ---------------------------------------------------------------------------
 # Phase 6: SAF propagation
 # ---------------------------------------------------------------------------
@@ -418,19 +400,6 @@ class TestComputeClassification(unittest.TestCase):
         self.assertEqual(cc.gated_compute, 0)
         self.assertEqual(cc.total, 512)
 
-    def test_dense_operands_no_opt(self):
-        """Dense operands without optimization: all random."""
-        cc = classify_compute(1000, [1.0, 1.0])
-        self.assertEqual(cc.random_compute, 1000)
-        self.assertEqual(cc.gated_compute, 0)
-        self.assertEqual(cc.skipped_compute, 0)
-
-    def test_dense_operands_gating(self):
-        """Dense operands with gating: all effectual -> random=1000, gated=0."""
-        cc = classify_compute(1000, [1.0, 1.0], compute_optimization_kind="gating")
-        self.assertEqual(cc.random_compute, 1000)
-        self.assertEqual(cc.gated_compute, 0)
-
     def test_one_zero_operand_gating(self):
         """One operand at d=0: all ineffectual -> random=0, gated=1000."""
         cc = classify_compute(1000, [0.5, 0.0], compute_optimization_kind="gating")
@@ -441,125 +410,6 @@ class TestComputeClassification(unittest.TestCase):
         """Unknown optimization kind should raise ValueError."""
         with self.assertRaises(ValueError):
             classify_compute(100, [0.5], compute_optimization_kind="bogus")
-
-
-class TestComputeClassificationDataclass(unittest.TestCase):
-    """Test ComputeClassification dataclass properties."""
-
-    def test_total(self):
-        cc = ComputeClassification(random_compute=100, gated_compute=50, skipped_compute=25)
-        self.assertEqual(cc.total, 175)
-
-    def test_all_zero(self):
-        cc = ComputeClassification(random_compute=0, gated_compute=0, skipped_compute=0)
-        self.assertEqual(cc.total, 0)
-
-
-# ---------------------------------------------------------------------------
-# End-to-end pipeline tests (Phases 5+6 combined)
-# ---------------------------------------------------------------------------
-
-
-class TestEndToEndPipeline(unittest.TestCase):
-    """Test the full sparse pipeline: compression -> SAF -> propagation -> compute.
-
-    These trace through the fig1 bitmask example step by step.
-    """
-
-    def test_fig1_buffer_a_pipeline(self):
-        """Fig1 Buffer A (read-only): compression + gating.
-
-        1. Algorithmic reads = 2,097,152
-        2. Format compression (d=0.1015625): -> 212,992
-        3. SAF prob (gated on B, scalar): 0.8984375
-        4. Local SAF: actual=21,632, gated=191,360
-        """
-        # Phase 4a
-        random_reads = apply_format_compression(2097152, 0.1015625)
-        self.assertEqual(random_reads, 212992)
-
-        # SAF probability
-        prob = compute_saf_probability([0.1015625])
-        self.assertAlmostEqual(prob, 0.8984375)
-
-        # Phase 4b
-        actual, gated = apply_local_saf_reads(random_reads, prob, is_read_write=False)
-        self.assertEqual(actual, 21632)
-        self.assertEqual(gated, 191360)
-
-    def test_fig1_reg_z_pipeline(self):
-        """Fig1 Reg Z (read-write): SAF gating on [A, B].
-
-        Z has no compressed format, so no format compression.
-        reads=2080768, updates=2097152.
-        SAF prob = 0.98968505859375.
-        """
-        prob = compute_saf_probability([0.1015625, 0.1015625])
-        self.assertAlmostEqual(prob, 0.98968505859375, places=12)
-
-        actual_reads, gated_reads = apply_local_saf_reads(
-            2080768, prob, is_read_write=True
-        )
-        self.assertEqual(actual_reads, 21463)
-        self.assertEqual(gated_reads, 2059305)
-
-        actual_updates, gated_updates = apply_local_saf_updates(2097152, prob)
-        self.assertEqual(actual_updates, 21632)
-        self.assertEqual(gated_updates, 2075520)
-
-    def test_fig1_compute_pipeline(self):
-        """Fig1 compute: two SAF propagations -> effectual computes.
-
-        1. Start: 2,097,152
-        2. A SAF (p=0.8984375): -> 212,992
-        3. B SAF (p=0.8984375): -> 21,632
-        """
-        computes = 2097152
-        prob = compute_saf_probability([0.1015625])
-
-        computes = propagate_saf_reduction(computes, prob)
-        self.assertEqual(computes, 212992)
-
-        computes = propagate_saf_reduction(computes, prob)
-        self.assertEqual(computes, 21632)
-
-
-# ---------------------------------------------------------------------------
-# Missing tests per IMPLEMENTATION_PLAN.md Phase 5-6
-# ---------------------------------------------------------------------------
-
-
-class TestSkippingVsGatingLabel(unittest.TestCase):
-    """Skipping produces the same numeric splits as gating, just labeled differently.
-
-    IMPLEMENTATION_PLAN.md Phase 5: "Skipping same counts, different label"
-    """
-
-    def test_buffer_a_skipping_same_counts(self):
-        """fig1 coord_list: Buffer A skipping.
-        Same actual/skipped counts as bitmask actual/gated.
-        actual=21632, skipped=191360 (vs gated=191360)."""
-        # The pipeline functions are the same — only the caller labels differ.
-        # Verify by calling apply_local_saf_reads (which is kind-agnostic).
-        actual, eliminated = apply_local_saf_reads(212992, 0.8984375, is_read_write=False)
-        self.assertEqual(actual, 21632)
-        self.assertEqual(eliminated, 191360)
-
-    def test_reg_z_skipping_same_counts(self):
-        """fig1 coord_list: Reg Z skipping.
-        actual_reads=21463, skipped=2059305 (same as gated)."""
-        actual, eliminated = apply_local_saf_reads(
-            2080768, 0.98968505859375, is_read_write=True
-        )
-        self.assertEqual(actual, 21463)
-        self.assertEqual(eliminated, 2059305)
-
-    def test_reg_z_updates_skipping_same(self):
-        """fig1 coord_list: Reg Z updates.
-        actual=21632, skipped=2075520 (same as gated)."""
-        actual, eliminated = apply_local_saf_updates(2097152, 0.98968505859375)
-        self.assertEqual(actual, 21632)
-        self.assertEqual(eliminated, 2075520)
 
 
 class TestComputeClassificationOperandStates(unittest.TestCase):

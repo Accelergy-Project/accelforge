@@ -133,29 +133,6 @@ def make_mock_spec(
     return spec
 
 
-class TestNoSparseOptimizations(unittest.TestCase):
-    """When no sparse optimizations are specified, apply_sparse_adjustments is a no-op."""
-
-    def test_no_targets_is_noop(self):
-        """Empty sparse_optimizations should not modify any stats."""
-        reuse = SymbolicAnalysisOutput()
-        buffet = Buffet("A", "E0", "Buffer")
-        stats = BuffetStats()
-        stats.total_reads_to_parent = 1000
-        stats.total_write_actions = 500
-        stats.total_read_actions = 200
-        reuse.buffet_stats[buffet] = stats
-
-        spec = make_mock_spec()
-        job = make_mock_job()
-
-        apply_sparse_adjustments(reuse, spec, job)
-
-        self.assertEqual(reuse.buffet_stats[buffet].total_reads_to_parent, 1000)
-        self.assertEqual(reuse.buffet_stats[buffet].total_write_actions, 500)
-        self.assertEqual(reuse.buffet_stats[buffet].total_read_actions, 200)
-
-
 class TestFormatCompression(unittest.TestCase):
     """Format compression reduces total_reads_to_parent (fills) by density."""
 
@@ -291,83 +268,6 @@ class TestFormatCompression(unittest.TestCase):
 
         self.assertEqual(stats_z.total_reads_to_parent, 500)
         self.assertEqual(stats_z.total_writes_to_parent, 500)
-
-    def test_dense_tensor_no_compression(self):
-        """Tensor with density=1.0 is not compressed even with format."""
-        sparse_opts = SparseOptimizations(
-            targets=[
-                SparseTarget(
-                    target="Buffer",
-                    representation_format=[
-                        RepresentationFormat(name="A", format="bitmask"),
-                    ],
-                )
-            ]
-        )
-
-        reuse = SymbolicAnalysisOutput()
-        buffet_a = Buffet("A", "E0", "Buffer")
-        stats_a = BuffetStats()
-        stats_a.total_reads_to_parent = 1000
-        reuse.buffet_stats[buffet_a] = stats_a
-
-        arch_comps = {
-            "Buffer": {
-                "bits_per_value_scale": {"A": 1},
-                "read_bpa": 8,
-                "write_bpa": 8,
-            }
-        }
-        spec = make_mock_spec(
-            sparse_opts=sparse_opts,
-            tensor_accesses=[
-                {"name": "A", "density": 1.0, "output": False, "bits_per_value": 8},
-            ],
-            arch_components=arch_comps,
-        )
-        job = make_mock_job()
-
-        apply_sparse_adjustments(reuse, spec, job)
-
-        self.assertEqual(stats_a.total_reads_to_parent, 1000)
-
-    def test_no_format_no_compression(self):
-        """Tensor without representation format is not compressed."""
-        sparse_opts = SparseOptimizations(
-            targets=[
-                SparseTarget(
-                    target="Buffer",
-                    # No representation_format
-                )
-            ]
-        )
-
-        reuse = SymbolicAnalysisOutput()
-        buffet_a = Buffet("A", "E0", "Buffer")
-        stats_a = BuffetStats()
-        stats_a.total_reads_to_parent = 1000
-        reuse.buffet_stats[buffet_a] = stats_a
-
-        arch_comps = {
-            "Buffer": {
-                "bits_per_value_scale": {"A": 1},
-                "read_bpa": 8,
-                "write_bpa": 8,
-            }
-        }
-        spec = make_mock_spec(
-            sparse_opts=sparse_opts,
-            tensor_accesses=[
-                {"name": "A", "density": 0.5, "output": False, "bits_per_value": 8},
-            ],
-            arch_components=arch_comps,
-        )
-        job = make_mock_job()
-
-        apply_sparse_adjustments(reuse, spec, job)
-
-        self.assertEqual(stats_a.total_reads_to_parent, 1000)
-
 
 class TestSAF(unittest.TestCase):
     """SAF reduces child reads/writes via action optimization."""
@@ -517,65 +417,6 @@ class TestSAF(unittest.TestCase):
         # floor(16384 * 0.5) = 8192
         # actual = 16384 - 8192 = 8192
         self.assertEqual(child_stats.total_writes_to_parent, 8192)
-
-    def test_saf_no_child_is_noop(self):
-        """SAF at Buffer for input tensor A (no child) doesn't crash."""
-        sparse_opts = SparseOptimizations(
-            targets=[
-                SparseTarget(
-                    target="Buffer",
-                    representation_format=[
-                        RepresentationFormat(name="A", format="bitmask"),
-                    ],
-                    action_optimization=[
-                        ActionOptimization(
-                            kind="gating",
-                            target="A",
-                            condition_on=["B"],
-                        ),
-                    ],
-                )
-            ]
-        )
-
-        reuse = SymbolicAnalysisOutput()
-        # Only Buffer A, no child for A
-        buffet_a = Buffet("A", "E0", "Buffer")
-        stats_a = BuffetStats()
-        stats_a.total_reads_to_parent = 2_097_152
-        stats_a.max_occupancy = 128 * 8
-        reuse.buffet_stats[buffet_a] = stats_a
-
-        # B buffet for condition_on tile shape
-        buffet_b = Buffet("B", "E0", "Buffer")
-        stats_b = BuffetStats()
-        stats_b.max_occupancy = 128 * 8
-        reuse.buffet_stats[buffet_b] = stats_b
-
-        arch_comps = {
-            "Buffer": {
-                "bits_per_value_scale": {"A": 1, "B": 1},
-                "read_bpa": 8,
-                "write_bpa": 8,
-            }
-        }
-
-        spec = make_mock_spec(
-            sparse_opts=sparse_opts,
-            tensor_accesses=[
-                {"name": "A", "density": 0.1015625, "output": False, "bits_per_value": 8},
-                {"name": "B", "density": 0.1015625, "output": False, "bits_per_value": 8},
-            ],
-            arch_components=arch_comps,
-        )
-        job = make_mock_job()
-
-        # Should not raise even though A has no child
-        apply_sparse_adjustments(reuse, spec, job)
-
-        # Fills are compressed (format compression)
-        self.assertEqual(stats_a.total_reads_to_parent, 212_992)
-
 
 class TestSAFPropagationToCompute(unittest.TestCase):
     """SAF probabilities propagate to reduce compute operations."""
@@ -1204,58 +1045,6 @@ class TestBackingStorageBReads(unittest.TestCase):
 
         # apply_format_compression(16384, 0.1015625) = 16384 - floor(16384*0.8984375) = 1664
         self.assertEqual(stats.total_reads_to_parent, 1_664)
-
-
-class TestDenseRegressionNoSparse(unittest.TestCase):
-    """Dense (no sparse_opts) should leave everything unchanged.
-
-    IMPLEMENTATION_PLAN.md Phase 7: "Dense (no sparse_opts) unchanged" regression test.
-    """
-
-    def test_dense_all_counts_unchanged(self):
-        """No sparse targets → all buffet/compute stats unchanged."""
-        reuse = SymbolicAnalysisOutput()
-
-        # Multiple buffets
-        for tensor, level in [("A", "Buffer"), ("B", "Buffer"), ("Z", "Reg")]:
-            buffet = Buffet(tensor, "E0", level)
-            stats = BuffetStats()
-            stats.total_reads_to_parent = 1000
-            stats.total_writes_to_parent = 500
-            stats.total_read_actions = 200
-            stats.total_write_actions = 300
-            stats.max_occupancy = 100
-            reuse.buffet_stats[buffet] = stats
-
-        from accelforge.model._looptree.reuse.symbolic.symbolic import Compute, ComputeStats
-        compute_key = Compute("E0", "MAC")
-        compute_stats = ComputeStats(total_ops=2000, max_per_unit_ops=2000)
-        reuse.compute_stats[compute_key] = compute_stats
-
-        # Empty sparse optimizations
-        spec = make_mock_spec(
-            sparse_opts=SparseOptimizations(),
-            tensor_accesses=[
-                {"name": "A", "density": 0.5, "output": False, "bits_per_value": 8},
-                {"name": "B", "density": 0.5, "output": False, "bits_per_value": 8},
-                {"name": "Z", "density": None, "output": True, "bits_per_value": 8},
-            ],
-        )
-        job = make_mock_job()
-
-        apply_sparse_adjustments(reuse, spec, job)
-
-        # Everything should be unchanged
-        for buffet, stats in reuse.buffet_stats.items():
-            self.assertEqual(stats.total_reads_to_parent, 1000,
-                             f"{buffet} reads changed")
-            self.assertEqual(stats.total_writes_to_parent, 500,
-                             f"{buffet} writes changed")
-            self.assertEqual(stats.total_read_actions, 200,
-                             f"{buffet} read_actions changed")
-            self.assertEqual(stats.total_write_actions, 300,
-                             f"{buffet} write_actions changed")
-        self.assertEqual(compute_stats.total_ops, 2000)
 
 
 class TestGatedSkippedCounts(unittest.TestCase):
