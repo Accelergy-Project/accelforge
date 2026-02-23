@@ -14,12 +14,12 @@ arch:
     name: NoC
     area: 0
     leak_power: 0
-    shape:
-    - {name: X, fanout: 4}
-    - {name: Y, fanout: 4}
     actions: []
 
-  - !Flat
+  - !Array
+    spatial:
+    - {name: X, fanout: 4}
+    - {name: Y, fanout: 4}
     nodes:
     - !Memory
       name: GlobalBuffer
@@ -68,23 +68,18 @@ arch:
       - {name: X, fanout: 2}
       - {name: Y, fanout: 2}
 
-    - !Hierarchical
-      nodes:
-      - !Memory
-        name: Scratchpad
-        size: inf
-        area: 0
-        leak_power: 0
-        actions:
-        - {name: read, energy: 0, latency: 0}
-        - {name: write, energy: 0, latency: 0}
-        spatial:
-        - {name: X, fanout: 4}
-        - {name: Y, fanout: 4}
+  - !Memory
+    name: Scratchpad
+    size: inf
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: read, energy: 0, latency: 0}
+    - {name: write, energy: 0, latency: 0}
 
-      - !Compute
-        name: MAC
-        area: 0
-        leak_power: 0
-        actions:
-        - {name: compute, energy: 0, latency: 0}
+  - !Compute
+    name: MAC
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 0, latency: 0}

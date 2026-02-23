@@ -1001,8 +1001,6 @@ class Compute(Component, Leaf):
 
 
 class Network(Component, Leaf):
-    shape: EvalableList[Spatial] = EvalableList()
-
     def _render_node_shape(self) -> str:
         return "Msquare"
 
