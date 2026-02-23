@@ -63,6 +63,7 @@ def evaluate_mapping(
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
         _calculate_iterations_and_rank_columns,
+        _clean_energy_columns,
     )
     from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 
@@ -145,8 +146,9 @@ def evaluate_mapping(
         )
 
         # Calculate iteration counts and rank columns
+        _clean_energy_columns(df, job.metrics)
         _calculate_iterations_and_rank_columns(
-            pmapping.nodes, job, df, job.rank_variable_bounds
+            job.mapping.nodes, job, df, job.rank_variable_bounds
         )
         compatibility = Compatibility.from_mapping(
             job.mapping,

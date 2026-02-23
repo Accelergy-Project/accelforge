@@ -97,28 +97,42 @@ def run_model(
         except Exception:
             pass  # Fall back to dense latency on error
 
+    used_fanout = {
+        (component, dim): n
+        for (component, einsum), dims in reuse.fanout.items()
+        if einsum == job.einsum_name
+        for dim, n in dims.items()
+    }
+    # If there's no loops that use this spatial fanout, the model won't
+    # output any usage. We still reserve at least one spatial instance.
+    for f in job.flattened_arch:
+        if isinstance(f, arch.Spatialable):
+            for s in f.spatial:
+                used_fanout.setdefault((f.name, s.name), 1)
+
+    # Scale used fanout to get actual usage
+    spatial_usage = {}
+    spatial_usage_df = {}
     memory_to_size = {}
-    component_to_non_power_gated_porp = {}
-    usage_df = {}
-
-    non_power_gated_instances = 1
     for node in job.flattened_arch:
-        if isinstance(node, arch.TensorHolder):
-            if isinstance(node, arch.Memory):
-                memory_to_size[node.name] = node.size
+        if isinstance(node, arch.Memory):
+            memory_to_size[node.name] = node.size
 
-        # If there's no loops that use this spatial fanout, then the model won't output
-        # any usage. We still want to reserve at least one spatial instance in this
-        # case.
-        used_fanout = reuse.fanout.get((node.name, job.einsum_name), {})
-        for s in node.spatial:
-            usage = used_fanout.get(s.name, 1) / s.fanout
-            scaled_usage = usage * s.usage_scale
-            usage_df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
-            if metrics & Metrics.ACTIONS:
-                df[f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"] = scaled_usage
-            non_power_gated_instances *= usage
-        component_to_non_power_gated_porp[node.name] = non_power_gated_instances
+        if isinstance(node, arch.Spatialable):
+            for s in node.spatial:
+                usage = used_fanout[node.name, s.name] / s.fanout
+                scaled_usage = usage * s.usage_scale
+                spatial_usage[node.name, s.name] = scaled_usage
+                s = f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"
+                spatial_usage_df[s] = scaled_usage
+
+    component_to_non_power_gated_porp, _ = spec.arch._power_gating(
+        compute_name=job.flattened_arch[-1].name,
+        used_fanout=spatial_usage,
+    )
+
+    if metrics & Metrics.ACTIONS:
+        df.update(spatial_usage_df)
 
     # Compose sparse-adjusted actions from dense baseline + deltas.
     actions = gather_actions_with_sparse(
@@ -214,15 +228,20 @@ def run_model(
                     max_first_latency * n_instances
                 )
 
-    if metrics & Metrics.ENERGY:
-        df["Total<SEP>energy"] = sum(energy.values()) * n_instances
+    if metrics.includes_dynamic_energy():
+        dynamic_energy = [e for k, e in energy.items() if k.action != "leak"]
+        df["Total<SEP>dynamic_energy"] = sum(dynamic_energy) * n_instances
 
-    per_memory_usage_df = {}
+    if metrics.includes_leak_energy():
+        leak_energy = [e for k, e in energy.items() if k.action == "leak"]
+        df["Total<SEP>leak_energy"] = sum(leak_energy) * n_instances
+
+    per_memory_spatial_usage_df = {}
     for memory, occupancies in total_occupancy.items():
         ignored = job.ignored_resources is not None and memory in job.ignored_resources
         key = f"usage<SEP>memory<SEP>{memory}"
         if not ignored:
-            per_memory_usage_df[key] = (
+            per_memory_spatial_usage_df[key] = (
                 sum(occupancies.values()) / memory_to_size[memory]
             )
         if metrics & Metrics.ACTIONS:
@@ -231,7 +250,7 @@ def run_model(
     if symbolic.PRINT_FORMULAS:
         for k, v in energy.items():
             print(f"{k}: {v}")
-        for k, v in usage_df.items():
+        for k, v in spatial_usage_df.items():
             print(f"{k}: {v}")
         for k, v in df.items():
             print(f"{k}: {v}")
@@ -239,8 +258,8 @@ def run_model(
     return (
         reuse.symbols,
         df,
-        per_memory_usage_df,
-        usage_df,
+        per_memory_spatial_usage_df,
+        spatial_usage_df,
         reuse.tensor2mapping,
     )
 

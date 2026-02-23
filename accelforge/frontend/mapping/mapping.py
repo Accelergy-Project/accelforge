@@ -748,6 +748,17 @@ class MappingNodeWithChildren(MappingNode):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, TensorHolder):
+                # Remove duplicates
+                seen_loop = False
+                node = copy.deepcopy(node)
+                for n in new_nodes[::-1]:
+                    if isinstance(n, TensorHolder) and n.component == node.component:
+                        drop_tensors = [t for t in node.tensors if t in n.tensors]
+                        assert not (drop_tensors and seen_loop), "BUG"
+                        node.tensors = [t for t in node.tensors if t not in n.tensors]
+                    if isinstance(n, Loop):
+                        seen_loop = True
+
                 found = False
                 for n in new_nodes[::-1]:
                     if isinstance(n, TensorHolder) and n.component == node.component:
@@ -763,12 +774,15 @@ class MappingNodeWithChildren(MappingNode):
                         node.tensors
                     ):
                         break
-                    # Don't lift a storage above a reservation for the same tensor
-                    if isinstance(n, Reservation) and set(n.purposes) & set(
-                        node.tensors
+                    # Don't lift a storage above a reservation for the same tensor & a
+                    # different component
+                    if (
+                        isinstance(n, Reservation)
+                        and set(n.purposes) & set(node.tensors)
+                        and n.resource != node.component
                     ):
                         break
-                if not found:
+                if not found and node.tensors:
                     new_nodes.append(node)
             else:
                 new_nodes.append(node)
@@ -781,6 +795,19 @@ class MappingNodeWithChildren(MappingNode):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Reservation):
+                # Remove duplicates
+                seen_loop = False
+                node = copy.deepcopy(node)
+                for n in new_nodes[::-1]:
+                    if isinstance(n, Reservation) and n.resource == node.resource:
+                        drop_purposes = [p for p in node.purposes if p in n.purposes]
+                        assert not (drop_purposes and seen_loop), "BUG"
+                        node.purposes = [
+                            p for p in node.purposes if p not in n.purposes
+                        ]
+                    if isinstance(n, Loop):
+                        seen_loop = True
+
                 found = False
                 for n in new_nodes[::-1]:
                     if isinstance(n, Reservation) and n.resource == node.resource:
@@ -801,7 +828,7 @@ class MappingNodeWithChildren(MappingNode):
                         node.purposes
                     ):
                         break
-                if not found:
+                if not found and node.purposes:
                     new_nodes.append(node)
             else:
                 new_nodes.append(node)
@@ -1719,8 +1746,8 @@ class Mapping(Nested):
                 graph.add_edge(pydot.Edge(parent_name, child_name))
         return graph
 
-    def render(self) -> _SVGJupyterRender:
-        graph = self.render_pydot()
+    def render(self, with_reservations=True, with_tile_shape=True) -> _SVGJupyterRender:
+        graph = self.render_pydot(with_reservations, with_tile_shape)
         return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
 
     @classmethod

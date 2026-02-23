@@ -658,7 +658,9 @@ class Einsum(EvalableModel):
                 for r in all_rank_variables
             },
             # "Einsum": self.name,
-            "Above": InvertibleSet(instance=(), **kwargs_tensors),
+            # CAN'T DEFINE ABOVE HERE. Otherwise the expression "Above" will parse to
+            # nothing before we ever get to the point of making storage nodes.
+            # "Above": InvertibleSet(instance=(), **kwargs_tensors),
         }
 
         for t in workload.tensor_names:
@@ -1231,3 +1233,8 @@ class Workload(EvalableModel):
 
     def empty_renames(self) -> dict[str, InvertibleSet[TensorName | RankVariable]]:
         return Einsum.empty_renames()
+
+    def get_tensor_shape(self, tensor: TensorName) -> dict[Rank, int]:
+        from accelforge.frontend._workload_isl._isl import get_tensor_shape
+
+        return get_tensor_shape(self, tensor)

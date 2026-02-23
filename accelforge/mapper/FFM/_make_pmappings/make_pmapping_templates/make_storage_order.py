@@ -24,6 +24,7 @@ def get_tensor_choices(
     spec: Spec,
     first_memory: arch.Memory,
     fusable_tensors: set[TensorName],
+    fanouts: dict[str, int],
 ) -> Generator[tuple[list[TensorHolder], SymbolTable, arch.Compute], None, None]:
     nodes, compute = nodes[:-1], nodes[-1]
     while True:
@@ -92,6 +93,7 @@ def get_tensor_choices(
             is_copy_op,
             first_memory,
             fusable_tensors,
+            fanouts,
         ):
             yield mapping, symbol_table, cur_compute
 
@@ -128,6 +130,7 @@ def recursive_order_tensor_choices(
     is_copy_op: bool,
     first_memory: arch.Memory,
     fusable_tensors: set[TensorName],
+    fanouts: dict[str, int],
 ) -> Generator[list[MappingNode], None, None]:
     def check_has_tensors(mapping: list[MappingNode]):
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
@@ -169,6 +172,8 @@ def recursive_order_tensor_choices(
             spec,
             first_memory,
             fusable_tensors,
+            fanouts,
+            new_remaining,
         )
         if valid:
             yield from recursive_order_tensor_choices(
@@ -182,6 +187,7 @@ def recursive_order_tensor_choices(
                 is_copy_op,
                 first_memory,
                 fusable_tensors,
+                fanouts,
             )
         else:
             logging.info(
@@ -199,10 +205,24 @@ def valid_tensor_holder_order(
     spec: Spec,
     first_memory: arch.Memory,
     fusable_tensors: set[TensorName],
+    fanouts: dict[str, int],
+    remaining_choices: list[TensorHolder],
 ):
     memory_to_satisfied_constraints: dict[str, set] = {}
+
     for i, m0 in enumerate(mapping):
-        for j, m1 in enumerate(mapping[i + 1 :]):
+        # There are some checks for back-to-back nodes, but ones in remaining_choices
+        # aren't yet ordered so we can't decide if anything is directly back-to-back.
+        # However we can check longer-distance relations between nodes in our mapping
+        # and remaining choices because we know that they will be placed somewhere
+        # eventually. So we'll add a None between to act as a separator, then we'll
+        # never get straight back-to-back nodes between the mapping and remaining
+        # choices.
+        following = mapping[i + 1 :] + [None] + remaining_choices
+        for j, m1 in enumerate(following):
+            if following[j] is None:
+                continue
+
             j += i + 1
 
             s1, s2 = m0.component, m1.component
@@ -321,11 +341,12 @@ def valid_tensor_holder_order(
             # If a tensor is stored in two levels back-to-back, then we should have
             # bypassed the outer TensorHolder if possible.
             either_backing = m0._backing & m1._backing
+            same_fanout = fanouts[s1] == fanouts[s2]
             if (
                 "redundant_dataplacements"
                 not in spec.mapper._count_option_for_mapsapce_size_evaluation
             ):
-                if i == j or i == j - 1:
+                if same_fanout and (i == j or i == j - 1):
                     if s1_idx < s2_idx and not (
                         (set(m0._must_keep_tensors) & set(m1.tensors)) or either_backing
                     ):

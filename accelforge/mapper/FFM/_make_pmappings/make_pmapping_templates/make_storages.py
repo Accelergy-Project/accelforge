@@ -131,6 +131,10 @@ def make_storage_choices_all_levels(
     if len(nodes) == 0:
         yield dict(), symbol_table
         return
+
+    if "Above" not in symbol_table:
+        symbol_table["Above"] = symbol_table["Nothing"]
+
     for choice, symbol_table, new_seen_tensors in make_tensor_choices_one_level(
         node=nodes[0],
         symbol_table=symbol_table,

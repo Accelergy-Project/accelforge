@@ -266,14 +266,14 @@ def col_used_in_joining(c):
 # - Need to share temporal loops up to the spatial loop index
 #   Resources:
 #   - Energy
-#   - PE usage
+#   - ProcessingElement usage
 #   - Buf usage
 #   - Buf accesses (for BW calculation later)
 
 # - Options:
 #   - Non-pipelined: Sum resources above shared loops, max below.
 #   - Pipelined: Sum resources above shared loops, max below. Sum
-#     PE usage. Latency is pipeline latency summed.
+#     ProcessingElement usage. Latency is pipeline latency summed.
 #
 #  *  Can't bake into compatiblity unless we have a notion of left vs.
 #     right pipelined.

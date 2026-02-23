@@ -21,6 +21,6 @@
                 W0: x = n0
 
 # TODO: example where logical components do not exist in the physical
-# Every binding creates a different buffet, so the physical PE may serve
-# as a logical PE and as a logical buffer, and that's creating diff buffets
+# Every binding creates a different buffet, so the physical ProcessingElement may serve
+# as a logical ProcessingElement and as a logical buffer, and that's creating diff buffets
 # Do not worry about mem mgmt for now.

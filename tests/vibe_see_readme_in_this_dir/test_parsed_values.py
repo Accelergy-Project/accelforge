@@ -381,7 +381,7 @@ class TestMatmulsJinjaParsed(unittest.TestCase):
 
 
 # ============================================================================
-# gpt3_6.7B_concise.yaml -- concise einsum string golden values
+# gpt3_6.7B.yaml -- concise einsum string golden values
 # ============================================================================
 
 
@@ -390,7 +390,7 @@ class TestGPTConciseParsed(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
         cls.spec = Spec.from_yaml(yaml_path)
@@ -423,7 +423,7 @@ class TestGPTConciseParsed(unittest.TestCase):
         when the 'einsum' key is present. This is current behavior -- the concise
         einsum string parser drops extra keys from the entry dict."""
         i_einsum = self.wl.einsums["I"]
-        self.assertFalse(i_einsum.is_copy_operation)
+        self.assertTrue(i_einsum.is_copy_operation)
 
     def test_I_output_name(self):
         i_einsum = self.wl.einsums["I"]
@@ -432,7 +432,6 @@ class TestGPTConciseParsed(unittest.TestCase):
     def test_I_input_name(self):
         i_einsum = self.wl.einsums["I"]
         self.assertEqual(i_einsum.input_tensor_names, {"I_in"})
-
 
     def test_I_projection_parsed_as_dict(self):
         """Concise einsum string projections are parsed by _parse_projection, which
@@ -607,7 +606,7 @@ class TestTPUArchParsed(unittest.TestCase):
         cls.arch = cls.spec.arch
 
     def test_node_count(self):
-        # MainMemory, GlobalBuffer, LocalBuffer, ScalarUnit, PE, Register, MAC
+        # MainMemory, GlobalBuffer, LocalBuffer, ScalarUnit, ProcessingElement, Register, MAC
         self.assertEqual(len(self.arch.nodes), 7)
 
     def test_node_names_in_order(self):
@@ -619,7 +618,7 @@ class TestTPUArchParsed(unittest.TestCase):
                 "GlobalBuffer",
                 "LocalBuffer",
                 "ScalarUnit",
-                "PE",
+                "ProcessingElement",
                 "Register",
                 "MAC",
             ],
@@ -632,7 +631,7 @@ class TestTPUArchParsed(unittest.TestCase):
         self.assertIsInstance(self.arch.find("ScalarUnit"), Compute)
 
     def test_array_fanout_is_fanout(self):
-        self.assertIsInstance(self.arch.find("PE"), Container)
+        self.assertIsInstance(self.arch.find("ProcessingElement"), Container)
 
     def test_mac_is_compute(self):
         self.assertIsInstance(self.arch.find("MAC"), Compute)
@@ -684,18 +683,18 @@ class TestTPUArchParsed(unittest.TestCase):
         self.assertEqual(mac.enabled, "len(All) == 3")
 
     def test_array_fanout_spatial_count(self):
-        af = self.arch.find("PE")
+        af = self.arch.find("ProcessingElement")
         self.assertEqual(len(af.spatial), 2)
 
     def test_array_fanout_reuse_input(self):
-        af = self.arch.find("PE")
+        af = self.arch.find("ProcessingElement")
         ri = af.spatial[0]
         self.assertEqual(ri.name, "reuse_input")
         self.assertEqual(ri.fanout, 128)
         self.assertEqual(ri.may_reuse, "input")
 
     def test_array_fanout_reuse_output(self):
-        af = self.arch.find("PE")
+        af = self.arch.find("ProcessingElement")
         ro = af.spatial[1]
         self.assertEqual(ro.name, "reuse_output")
         self.assertEqual(ro.fanout, 128)

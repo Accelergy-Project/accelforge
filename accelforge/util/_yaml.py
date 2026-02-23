@@ -171,7 +171,7 @@ def load_file_and_includes(
 
     include_counter = 0
 
-    def include(p, single, indices: str = ""):
+    def include(p, single, indices: str = "", **kwargs):
         # If the path is a relative path, make it relative to the current file
         to_include = []
         indices = indices.lstrip(".")
@@ -179,12 +179,13 @@ def load_file_and_includes(
         include_name = (
             os.path.basename(path).rsplit(".", 1)[0] + "_" + str(include_counter)
         )
+
         include_name = re.sub(r"\W+", "", include_name)
         for np in find_paths(p, path, include_dirs):
             logging.info(
                 f"YAML Adding {np} to document with !include{'_all' if not single else ''}"
             )
-            to_include.append(load_yaml(np, data, include_dirs))
+            to_include.append(load_yaml(np, {**data, **kwargs}, include_dirs))
 
         if single:
             if len(to_include) > 1:
@@ -202,16 +203,18 @@ def load_file_and_includes(
         include_counter += 1
         return v
 
-    def include_single(p, indices: str = ""):
-        return include(p, True, indices)
+    def include_single(p, indices: str = "", **kwargs):
+        return include(p, True, indices, **kwargs)
 
-    def include_all(p, indices: str = ""):
-        return include(p, False, indices)
+    def include_all(p, indices: str = "", **kwargs):
+        return include(p, False, indices, **kwargs)
 
-    def include_text(p):
+    def include_text(p, **kwargs):
         found = []
         for np in find_paths(p, path, include_dirs):
-            found.append(load_file_and_includes(np, data, include_dirs)[0])
+            found.append(
+                load_file_and_includes(np, {**data, **kwargs}, include_dirs)[0]
+            )
             logging.info(f"YAML Adding {np} to document with !include_text")
         return "\n".join(found)
 

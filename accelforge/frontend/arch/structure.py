@@ -24,17 +24,36 @@ from accelforge.util._basetypes import _uninstantiable
 from accelforge.util.parallel import _SVGJupyterRender
 from accelforge.util._visualization import _pydot_graph
 
+_FIND_SENTINEL = object()
+
 
 class ArchNode(EvalableModel):
     """A node in the architecture."""
 
-    def find(self, name: str) -> "Leaf":
-        """Finds a `Leaf` node with the given name.
+    def find(self, name: str, default: Any = _FIND_SENTINEL) -> Union["Leaf", Any]:
+        """
+
+        Finds a `Leaf` node with the given name.
+
+        Parameters
+        ----------
+        name: str
+            The name of the `Leaf` node to find.
+        default: Any
+            The value to return if the `Leaf` node with the given name is not found.
+            Otherwise, raises a ValueError.
 
         Raises
         ------
         ValueError
             If the `Leaf` node with the given name is not found.
+
+        Returns
+        -------
+        Leaf
+            The `Leaf` node with the given name.
+        default
+            The value to return if the `Leaf` node with the given name is not found.
         """
         if isinstance(self, Leaf) and getattr(self, "name", None) == name:
             return self
@@ -45,6 +64,8 @@ class ArchNode(EvalableModel):
                     return element.find(name)
                 except (AttributeError, ValueError):
                     pass
+        if default is not _FIND_SENTINEL:
+            return default
         raise ValueError(f"Leaf {name} not found in {self}")
 
     def _render_node_name(self) -> str:
@@ -163,6 +184,56 @@ class Branch(ArchNode):
             result.extend(child for child in children if child is not None)
         return result
 
+    def _power_gating(
+        self, compute_name, used_fanout
+    ) -> tuple[dict[str, float], float]:
+        from accelforge.frontend.arch.structure import Fork
+        from accelforge.frontend.arch.components import Compute
+
+        result = {}
+        non_power_gated_porp = 1
+        found_compute = False
+        i_have_compute = self.find(compute_name, default=None) is not None
+        for i, node in enumerate(self.nodes):
+            if isinstance(node, Fork):
+                compute_in_fork = node.find(compute_name, default=None) is not None
+                found_compute |= compute_in_fork
+
+                r, _ = node._power_gating(compute_name, used_fanout)
+                r = {k: v * non_power_gated_porp for k, v in r.items()}
+
+                if node.non_forked_power_gateable and compute_in_fork:
+                    non_power_gated_porp = 0
+                if node.forked_power_gateable and not compute_in_fork:
+                    r = {k: 0 for k in r}
+                result.update(r)
+
+            elif isinstance(node, Hierarchical):
+                found_compute |= node.find(compute_name, default=None) is not None
+                r, new_porp = node._power_gating(compute_name, used_fanout)
+                r = {k: v * non_power_gated_porp for k, v in r.items()}
+                result.update(r)
+                non_power_gated_porp *= new_porp
+
+            elif isinstance(node, Leaf):
+                for s in node.spatial:
+                    if found_compute or not i_have_compute:
+                        assert (node.name, s.name) not in used_fanout, "BUG"
+                        porp = 0
+                    else:
+                        porp = used_fanout.get((node.name, s.name), 1) / s.fanout
+                    if s.power_gateable:
+                        non_power_gated_porp *= porp
+                result[node.name] = non_power_gated_porp
+
+                if isinstance(node, Compute) and node.name == compute_name:
+                    found_compute = True
+
+            else:
+                raise TypeError(f"Unknown node type: {type(node)}")
+
+        return result, non_power_gated_porp
+
 
 class Hierarchical(Branch):
     def _flatten(
@@ -181,9 +252,7 @@ class Hierarchical(Branch):
                     if isinstance(node, Fork):
                         # If it's a compute node and our node is not in the fork, skip
                         # it
-                        try:
-                            node.find(compute_node)
-                        except ValueError:
+                        if node.find(compute_node, default=None) is None:
                             continue
                     new_nodes, new_fanout = node._flatten(
                         compute_node, fanout, return_fanout=True
@@ -282,31 +351,22 @@ class Fork(Hierarchical):
     sibling after the Fork.
     """
 
+    forked_power_gateable: bool = False
+    """
+    Whether the child branch (the nodes inside this Fork) can be power gated when
+    the main branch is active. If True, these nodes will not leak when the main
+    branch is being used.
+    """
+
+    non_forked_power_gateable: bool = False
+    """
+    Whether the main branch (the siblings after this Fork in the parent) can be power
+    gated when the child branch is active. If True, those nodes will not leak when
+    this Fork's child branch is being used.
+    """
+
     def _parent2child_names(
         self, parent_name: str = None
     ) -> tuple[list[tuple[str, str]], str]:
-        edges = []
-
-        # Process children as a hierarchical stack within the fork
-        current_parent_name = parent_name
-
-        for node in self.nodes:
-            # If this node is a Hierarchical, or Fork, it's transparent
-            if isinstance(node, (Hierarchical, Fork)):
-                # Get edges from the child and its last node
-                child_edges, last_child_name = node._parent2child_names(
-                    current_parent_name
-                )
-                edges.extend(child_edges)
-                # The last child of this branch becomes the new parent for subsequent nodes
-                if last_child_name is not None:
-                    current_parent_name = last_child_name
-            else:
-                if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name()))
-
-                # Update parent for next iteration within the fork
-                current_parent_name = node._render_node_name()
-
-        # Return the original parent as the exit node so next sibling continues from parent
+        edges, _ = super()._parent2child_names(parent_name)
         return edges, parent_name

@@ -754,5 +754,5 @@ class MappingFromRow:
     def _repr_svg_(self) -> str:
         return self.render()
 
-    def render(self) -> str:
-        return self().render()
+    def render(self, **kwargs) -> str:
+        return self().render(**kwargs)

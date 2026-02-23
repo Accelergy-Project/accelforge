@@ -1,10 +1,10 @@
 -   binding:
         nodes:
         -   logical:
-                name: PE
+                name: ProcessingElement
                 l_dims: [i]
             physical:
-                name: PE
+                name: ProcessingElement
                 p_dims: [x, y]
             relations:
                 tensorA: i = x + y * 2 # This is a dimension-major compression into the logical. It is bijective.
@@ -25,18 +25,18 @@
                     {
                         [
                             tensorA_ranks[c, h, w, p, q, r, s] ->
-                            l_PE_dims[i]
+                            l_ProcessingElement_dims[i]
                         ] ->
-                        p_PE_dims[x, y] :
+                        p_ProcessingElement_dims[x, y] :
                         i = x + 2y
                     }
                 tensorB: |
                     {
                         [
                             tensorB_ranks[c, h, w, p, q, r, s] ->
-                            l_PE_dims[i]
+                            l_ProcessingElement_dims[i]
                         ] ->
-                        p_PE_dims[x, y] :
+                        p_ProcessingElement_dims[x, y] :
                         i = x + (y * 2)
                     }
             -
