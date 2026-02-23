@@ -36,11 +36,11 @@ class Metrics(Flag):
         return reduce(or_, iter(cls), cls.LATENCY)
 
     def includes_leak_energy(self) -> bool:
-        """ Returns True if the metrics include leak energy, either alone or as part of
-        total energy. False otherwise. """
+        """Returns True if the metrics include leak energy, either alone or as part of
+        total energy. False otherwise."""
         return self & (Metrics.ENERGY | Metrics.LEAK_ENERGY)
 
     def includes_dynamic_energy(self) -> bool:
-        """ Returns True if the metrics include dynamic energy, either alone or as part
-        of total energy. False otherwise. """
+        """Returns True if the metrics include dynamic energy, either alone or as part
+        of total energy. False otherwise."""
         return self & (Metrics.ENERGY | Metrics.DYNAMIC_ENERGY)

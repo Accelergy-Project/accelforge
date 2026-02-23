@@ -776,9 +776,11 @@ class MappingNodeWithChildren(MappingNode):
                         break
                     # Don't lift a storage above a reservation for the same tensor & a
                     # different component
-                    if isinstance(n, Reservation) and set(n.purposes) & set(
-                        node.tensors
-                    ) and n.resource != node.component:
+                    if (
+                        isinstance(n, Reservation)
+                        and set(n.purposes) & set(node.tensors)
+                        and n.resource != node.component
+                    ):
                         break
                 if not found and node.tensors:
                     new_nodes.append(node)
@@ -800,7 +802,9 @@ class MappingNodeWithChildren(MappingNode):
                     if isinstance(n, Reservation) and n.resource == node.resource:
                         drop_purposes = [p for p in node.purposes if p in n.purposes]
                         assert not (drop_purposes and seen_loop), "BUG"
-                        node.purposes = [p for p in node.purposes if p not in n.purposes]
+                        node.purposes = [
+                            p for p in node.purposes if p not in n.purposes
+                        ]
                     if isinstance(n, Loop):
                         seen_loop = True
 

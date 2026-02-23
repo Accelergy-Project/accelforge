@@ -29,79 +29,29 @@ workload:
     G: 4096
 
   bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
 
   einsums:
-  - name: I
-    # Copy operation means that we move the input tensor from one place to another
-    # without doing computation. This lets us copy the input tensor onto the accelerator
-    # once and then use it in the Q, K, and V operations.
+  - einsum: "I[b, m, d] = I_in[b, m, d]"
     is_copy_operation: True
-    tensor_accesses:
-    - {name: I_in, projection: [b, m, d]}
-    - {name: I, projection: [b, m, d], output: True}
-    renames: {weight: Nothing, input: Inputs, output: Outputs}
-
-  - name: V
-    tensor_accesses:
-    - {name: I, projection: [b, m, d]}
-    - {name: WV, projection: [h, e, d], persistent: True}
-    - {name: V, projection: [b, m, h, e], output: True}
-
-  - name: K
-    tensor_accesses:
-    - {name: I, projection: [b, m, d]}
-    - {name: WK, projection: [h, e, d], persistent: True}
-    - {name: K, projection: [b, m, h, e], output: True}
-
-  - name: Q
-    tensor_accesses:
-    - {name: I, projection: [b, m, d]}
-    - {name: WQ, projection: [h, e, d], persistent: True}
-    - {name: Q, projection: [b, m, h, e], output: True}
-
-  - name: QK
-    tensor_accesses:
-    - {name: Q, projection: [b, m, h, e]}
-    - {name: K, projection: { B: b, M: p, H: h, E: e }}
-    - {name: QK, projection: [b, m, p, h], output: True}
-    renames: {weight: K, input: Q, output: QK}
-
-  - name: QK_softmax
-    tensor_accesses:
-    - {name: QK, projection: [b, m, p, h]}
-    - {name: QK_softmax, projection: [b, m, p, h], output: True}
-
-  - name: AV
-    tensor_accesses:
-    - {name: QK_softmax, projection: [b, m, p, h]}
-    - {name: V, projection: { B: b, M: p, H: h, E: f}}
-    - {name: AV, projection: [b, m, h, f], output: True}
-    renames: {weight: V, input: QK_softmax}
-
-  - name: Z
-    tensor_accesses:
-    - {name: AV, projection: [b, m, h, f]}
-    - {name: WZ, projection: [h, f, g], persistent: True}
-    - {name: Z, projection: [b, m, g], output: True}
-
-  - name: FFA
-    tensor_accesses:
-    - {name: Z, projection: [b, m, g]}
-    - {name: WFFA, projection: [g, c], persistent: True}
-    - {name: FFA, projection: [b, m, c], output: True}
-
-  - name: FFB
-    tensor_accesses:
-    - {name: FFA, projection: [b, m, c]}
-    - {name: WFFB, projection: [c, j], persistent: True}
-    - {name: FFB, projection: [b, m, j], output: True}
+  - "V[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
+  - "K[b, m, h, e] = I[b, m, d] * WK[h, e, d]"
+  - "Q[b, m, h, e] = I[b, m, d] * WQ[h, e, d]"
+  - einsum: "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M: p, h, e]"
+    renames: {input: Q}
+  - "QK_softmax[b, m, p, h] = QK[b, m, p, h]"
+  - einsum: "AV[b, m, h, f] = QK_softmax[b, m, p, h] * V[b, M: p, h, E: f]"
+    renames: {input: QK_softmax}
+  - "Z[b, m, g] = AV[b, m, h, f] * WZ[h, f, g]"
+  - "FFA[b, m, c] = Z[b, m, g] * WFFA[g, c]"
+  - "FFB[b, m, j] = FFA[b, m, c] * WFFB[c, j]"
 
 renames:
   einsums:
   - name: default
     tensor_accesses:
     - name: input
-      source: Inputs & Intermediates
+      source: Inputs & Intermediates if len(All) == 3 else Inputs
       expected_count: 1
     - name: output
       source: Outputs

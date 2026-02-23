@@ -71,9 +71,9 @@ of the following:
 
 Additionally, you may define a separate top-level
 :py:class:`~accelforge.frontend.renames.Renames` object with structure mirroring the
-workload. For example, one is in the bottom of the GPT3 6.7B example workload:
+workload. For example, one is in the bottom of a GPT3 6.7B example workload:
 
-.. include:: ../../../../examples/workloads/gpt3_6.7B.yaml
+.. include:: ../../../../examples/misc/gpt3_6.7B_verbose_annotated.yaml
    :code: yaml
 
 This renames format includes, for every Einsum, a
@@ -149,7 +149,8 @@ concise notation.
       - {name: I, projection: [b, m, d], output: True}
       renames: {input: I_in, output: I}
 
-Below is the concise notation equivalent of the GPT3 6.7B example workload:
+Below is the concise notation equivalent of the previously-shown verbose GPT3 6.7B
+example workload:
 
-.. include:: ../../../../examples/workloads/gpt3_6.7B_concise.yaml
+.. include:: ../../../../examples/workloads/gpt3_6.7B.yaml
    :code: yaml

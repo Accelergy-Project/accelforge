@@ -173,6 +173,7 @@ def recursive_order_tensor_choices(
             first_memory,
             fusable_tensors,
             fanouts,
+            new_remaining,
         )
         if valid:
             yield from recursive_order_tensor_choices(
@@ -205,10 +206,23 @@ def valid_tensor_holder_order(
     first_memory: arch.Memory,
     fusable_tensors: set[TensorName],
     fanouts: dict[str, int],
+    remaining_choices: list[TensorHolder],
 ):
     memory_to_satisfied_constraints: dict[str, set] = {}
+
     for i, m0 in enumerate(mapping):
-        for j, m1 in enumerate(mapping[i + 1 :]):
+        # There are some checks for back-to-back nodes, but ones in remaining_choices
+        # aren't yet ordered so we can't decide if anything is directly back-to-back.
+        # However we can check longer-distance relations between nodes in our mapping
+        # and remaining choices because we know that they will be placed somewhere
+        # eventually. So we'll add a None between to act as a separator, then we'll
+        # never get straight back-to-back nodes between the mapping and remaining
+        # choices.
+        following = mapping[i + 1 :] + [None] + remaining_choices
+        for j, m1 in enumerate(following):
+            if following[j] is None:
+                continue
+
             j += i + 1
 
             s1, s2 = m0.component, m1.component

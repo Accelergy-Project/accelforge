@@ -381,7 +381,7 @@ class TestMatmulsJinjaParsed(unittest.TestCase):
 
 
 # ============================================================================
-# gpt3_6.7B_concise.yaml -- concise einsum string golden values
+# gpt3_6.7B.yaml -- concise einsum string golden values
 # ============================================================================
 
 
@@ -390,7 +390,7 @@ class TestGPTConciseParsed(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B_concise.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
         cls.spec = Spec.from_yaml(yaml_path)
@@ -423,7 +423,7 @@ class TestGPTConciseParsed(unittest.TestCase):
         when the 'einsum' key is present. This is current behavior -- the concise
         einsum string parser drops extra keys from the entry dict."""
         i_einsum = self.wl.einsums["I"]
-        self.assertFalse(i_einsum.is_copy_operation)
+        self.assertTrue(i_einsum.is_copy_operation)
 
     def test_I_output_name(self):
         i_einsum = self.wl.einsums["I"]
@@ -432,7 +432,6 @@ class TestGPTConciseParsed(unittest.TestCase):
     def test_I_input_name(self):
         i_einsum = self.wl.einsums["I"]
         self.assertEqual(i_einsum.input_tensor_names, {"I_in"})
-
 
     def test_I_projection_parsed_as_dict(self):
         """Concise einsum string projections are parsed by _parse_projection, which
