@@ -2,6 +2,7 @@
 All the objects used for a Workload description in AccelForge.
 """
 
+import copy
 from itertools import product
 import itertools
 import logging
@@ -264,7 +265,9 @@ def _parse_einsum_entry(einsum_entry: dict) -> dict:
     if "einsum" not in einsum_entry:
         return einsum_entry
 
-    einsum_str = einsum_entry["einsum"]
+    einsum_str = einsum_entry.pop("einsum")
+    einsum_entry = copy.deepcopy(einsum_entry)
+
     parsed = _parse_einsum_string(einsum_str)
 
     tensor_accesses = einsum_entry.get("tensor_accesses", [])
@@ -294,9 +297,12 @@ def _parse_einsum_entry(einsum_entry: dict) -> dict:
                     f"already set by the einsum string {einsum_str}"
                 )
             name2access[name][k] = v
-    parsed["tensor_accesses"] = list(name2access.values())
-    parsed["renames"] = rename_list_factory(einsum_entry.get("renames", {}))
-    return parsed
+
+    einsum_entry["name"] = parsed["name"]
+    einsum_entry["tensor_accesses"] = list(name2access.values())
+    einsum_entry["renames"] = rename_list_factory(einsum_entry.get("renames", {}))
+
+    return einsum_entry
 
 
 def _parse_einsum_string(einsum_str: str) -> dict:
