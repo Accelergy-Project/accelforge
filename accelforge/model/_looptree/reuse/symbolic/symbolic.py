@@ -992,7 +992,7 @@ def analyze_temporal(
             # Requires: (a) loop is Irrelevant, (b) loop is above storage,
             # and (c) one of:
             #   - Bypassed zone: nearest parent doesn't hold tensor, so data
-            #     stays in a further ancestor (Phase 17 fix).
+            #     stays in a further ancestor.
             #   - Directly above: no intervening temporal/storage nodes in the
             #     full mapping, so no inner loops cycle through tiles between
             #     this loop and the buffet (Table 7 shared_glb/Outputs at C).
@@ -1346,7 +1346,7 @@ def analyze_storage(
             )
 
         if count_upward_movement:  # Me -> Parent (drains/writebacks)
-            # Output tensors: writeback reads not charged (Sparseloop convention).
+            # Output tensors: writeback reads not charged.
             # The data is drained on the last write without a separate read.
             is_output_tensor = tensor in info.workload.einsums[einsum_name].output_tensor_names
             if not is_output_tensor:

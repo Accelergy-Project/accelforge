@@ -1,14 +1,14 @@
 """Sparse pipeline: SAF probability, format compression, and compute classification.
 
-Implements the sparse adjustment pipeline phases:
-  Phase 4a: Format compression -- reduce data accesses by sparsity
-  Phase 4b: Local SAF -- split random accesses into actual + gated/skipped
-  Phase 4b: SAF propagation -- outer SAF reduces inner level counts
-  Phase 5:  Compute classification -- 3-state ENZ/EZ/NE
+Pure-math functions for the sparse adjustment pipeline:
+  - Format compression: reduce data accesses by sparsity
+  - Local SAF: split random accesses into actual + gated/skipped
+  - SAF propagation: outer SAF reduces inner level counts
+  - Compute classification: 3-state ENZ/EZ/NE model
 
-Functions here are pure math -- they take counts and probabilities and return
-adjusted counts. Integration with the model pipeline (run_model.py) happens
-in later phases.
+These functions take counts and probabilities and return adjusted counts.
+Integration with the model pipeline (buffet_stats, compute_stats) happens
+in sparse_adjustment.py.
 """
 
 import math
@@ -72,7 +72,7 @@ def compute_saf_probability(
 
 
 # ---------------------------------------------------------------------------
-# Phase 4a: Format compression
+# Format compression
 # ---------------------------------------------------------------------------
 
 
@@ -109,7 +109,7 @@ def apply_format_compression(
 
 
 # ---------------------------------------------------------------------------
-# Phase 4b: Local SAF
+# Local SAF
 # ---------------------------------------------------------------------------
 
 
@@ -178,7 +178,7 @@ def apply_local_saf_updates(
 
 
 # ---------------------------------------------------------------------------
-# Phase 4b: SAF propagation
+# SAF propagation
 # ---------------------------------------------------------------------------
 
 
@@ -239,12 +239,12 @@ def compute_nested_saf_effective_prob(
 
 
 # ---------------------------------------------------------------------------
-# Phase 5: Compute classification (9-state model)
+# Compute classification (9-state model)
 # ---------------------------------------------------------------------------
 
 
 def _round6(x: float) -> float:
-    """Round to 6 decimal places, matching Sparseloop precision."""
+    """Round to 6 decimal places for numerical stability."""
     return round(x * 1_000_000) / 1_000_000
 
 
@@ -269,7 +269,6 @@ def compute_operand_states(density: float, has_metadata: bool) -> OperandStates:
     elements, so absent elements are NE (not exist).
     Without metadata: all elements exist (either nonzero ENZ or zero EZ).
 
-    Matches Timeloop compute-gs-analyzer.cpp:172-192.
     """
     d = _round6(density)
     if has_metadata:
@@ -313,9 +312,6 @@ def classify_compute(
     operand_has_metadata: list[bool] | None = None,
 ) -> ComputeClassification:
     """Classify computes using the full 9-state model.
-
-    Implements Timeloop's CalculateFineGrainedComputeAccesses2Operand
-    (compute-gs-analyzer.cpp:113-392).
 
     For each operand, computes 3 state probabilities (ENZ/EZ/NE) based on
     density and whether the operand has metadata (compressed format). Then
@@ -370,11 +366,11 @@ def classify_compute(
     if operand_has_metadata is None:
         operand_has_metadata = [False, False]
 
-    # Step 1: Per-operand state probabilities
+    # Per-operand state probabilities
     s0 = compute_operand_states(operand_densities[0], operand_has_metadata[0])
     s1 = compute_operand_states(operand_densities[1], operand_has_metadata[1])
 
-    # Step 2: 9 joint probabilities
+    # 9 joint probabilities
     # (ENZ,ENZ), (ENZ,EZ), (ENZ,NE), (EZ,ENZ), (EZ,EZ), (EZ,NE),
     # (NE,ENZ), (NE,EZ), (NE,NE)
     p_enz_enz = s0.p_enz * s1.p_enz
@@ -387,8 +383,7 @@ def classify_compute(
     p_ne_ez = s0.p_ne * s1.p_ez
     p_ne_ne = s0.p_ne * s1.p_ne
 
-    # Step 3: Map to compute categories based on optimization kind
-    # Timeloop table (compute-gs-analyzer.cpp:294-367):
+    # Map to compute categories based on optimization kind:
     #   (ENZ,ENZ) → always random
     #   (ENZ,EZ)/(EZ,ENZ) → gated if gate, random if skip
     #   (ENZ,NE)/(NE,ENZ) → gated if gate, skipped if skip
@@ -419,7 +414,7 @@ def classify_compute(
         p_random += p_enz_ez + p_ez_enz + p_ez_ez
         p_gated = 0.0
 
-    # Step 4: Pessimistic floor rounding (Timeloop lines 382-385)
+    # Pessimistic floor rounding
     skipped_float = total_computes * p_skipped
     gated_float = total_computes * p_gated
     nonexistent_float = total_computes * p_nonexistent

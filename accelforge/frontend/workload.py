@@ -127,11 +127,18 @@ class TensorAccess(EvalableModel):
     """ Bits per value for this tensor. """
 
     density: float | str | None = None
-    """ Density of nonzero values (0.0 to 1.0). None means dense (1.0). """
+    """Fraction of nonzero elements (0.0 to 1.0). None means dense (1.0).
+    Drives format compression (floor(count * (1 - density)) accesses removed),
+    SAF probability (prob = 1 - density for scalar), compute classification
+    (ENZ probability = density), and format occupancy (ennz = density * fiber).
+    Overrides the global ``densities`` dict. Must be consistent across Einsums. """
 
     density_distribution: str | None = None
-    """ Density distribution type. None means random (hypergeometric).
-    "structured" means deterministic structured sparsity (e.g. 2:4). """
+    """Density distribution type. None = random (hypergeometric), where
+    prob_empty(tile) > 0 and SAF can skip tiles. "structured" = deterministic
+    (every tile has exactly density * tile_shape nonzeros, prob_empty = 0),
+    suitable for 2:4 structured sparsity. At scalar granularity (tile=1) both
+    models produce identical results. """
 
     def model_post_init(self, __context__=None) -> None:
         self.projection: ImpliedProjection = _projection_factory(self.projection)
@@ -371,6 +378,35 @@ class Shape(EvalableList):
         if not self:
             return set()
         return set.union(*[set(re.findall(_ISL_REGEX, x)) for x in self])
+
+
+def _parse_global_tensor_dict(
+    symbol_table: dict, st: dict, key: str, label: str
+) -> dict:
+    """Parse a workload global tensor dict (bits_per_value/densities/etc.).
+
+    Evaluates set expressions as keys and checks for duplicate tensor entries.
+    Returns a dict mapping tensor name -> value.
+    """
+    result = {}
+    sources = {}
+    for k, v in symbol_table.get(key, {}).items():
+        tensors = eval_set_expression(
+            expression=k,
+            symbol_table=st,
+            expected_space=TensorName,
+            location=f"(workload global {label})[{k}]",
+        )
+        for t in tensors:
+            if t in result:
+                raise EvaluationError(
+                    f"Tensor {t} is specified in multiple entries in the "
+                    f"workload global {label} dictionary.",
+                    source_field=f"({k} AND {sources[t]})",
+                )
+            result[t] = v
+            sources[t] = k
+    return result
 
 
 class Einsum(EvalableModel):
@@ -700,26 +736,10 @@ class Einsum(EvalableModel):
 
         st.update(**{k.name: k.source for k in evaluated.renames})
 
-        # Parse the bits per value
-        bits_per_value = dict()
-        bpv_to_source = dict()
-        for k, v in symbol_table["workload_bits_per_value"].items():
-            bpv = eval_set_expression(
-                expression=k,
-                symbol_table=st,
-                expected_space=TensorName,
-                location=f"(workload global bits_per_value)[{k}]",
-            )
-            for t in bpv:
-                if t in bits_per_value:
-                    raise EvaluationError(
-                        f"Tensor {t} is specified in multiple entries in the workload "
-                        f"global bits_per_value dictionary.",
-                        source_field=f"({k} AND {bpv_to_source[t]})",
-                    )
-                bits_per_value[t] = v
-                bpv_to_source[t] = k
-
+        # Parse bits_per_value (required for all tensors)
+        bits_per_value = _parse_global_tensor_dict(
+            symbol_table, st, "workload_bits_per_value", "bits_per_value"
+        )
         for t in evaluated.tensor_accesses:
             if t.bits_per_value is None and t.name not in bits_per_value:
                 raise EvaluationError(
@@ -733,51 +753,18 @@ class Einsum(EvalableModel):
             if t.bits_per_value is None:
                 t.bits_per_value = bits_per_value[t.name]
 
-        # Parse densities (same pattern as bits_per_value, but optional)
-        density_dict = dict()
-        density_to_source = dict()
-        for k, v in symbol_table.get("workload_densities", {}).items():
-            dens = eval_set_expression(
-                expression=k,
-                symbol_table=st,
-                expected_space=TensorName,
-                location=f"(workload global densities)[{k}]",
-            )
-            for t in dens:
-                if t in density_dict:
-                    raise EvaluationError(
-                        f"Tensor {t} is specified in multiple entries in the "
-                        f"workload global densities dictionary.",
-                        source_field=f"({k} AND {density_to_source[t]})",
-                    )
-                density_dict[t] = v
-                density_to_source[t] = k
-
+        # Parse densities and density_distributions (optional)
+        density_dict = _parse_global_tensor_dict(
+            symbol_table, st, "workload_densities", "densities"
+        )
         for t in evaluated.tensor_accesses:
             if t.density is None and t.name in density_dict:
                 t.density = density_dict[t.name]
-            # If still None, leave as None (means dense, 1.0)
 
-        # Parse density_distributions (same pattern as densities)
-        dd_dict = dict()
-        dd_to_source = dict()
-        for k, v in symbol_table.get("workload_density_distributions", {}).items():
-            dd_set = eval_set_expression(
-                expression=k,
-                symbol_table=st,
-                expected_space=TensorName,
-                location=f"(workload global density_distributions)[{k}]",
-            )
-            for t in dd_set:
-                if t in dd_dict:
-                    raise EvaluationError(
-                        f"Tensor {t} is specified in multiple entries in the "
-                        f"workload global density_distributions dictionary.",
-                        source_field=f"({k} AND {dd_to_source[t]})",
-                    )
-                dd_dict[t] = v
-                dd_to_source[t] = k
-
+        dd_dict = _parse_global_tensor_dict(
+            symbol_table, st, "workload_density_distributions",
+            "density_distributions",
+        )
         for t in evaluated.tensor_accesses:
             if t.density_distribution is None and t.name in dd_dict:
                 t.density_distribution = dd_dict[t.name]
@@ -844,19 +831,18 @@ class Workload(EvalableModel):
 
     densities: EvalableDict[str, float | str] = EvalableDict()
     """
-    Density of nonzero values for each tensor. Same pattern as bits_per_value:
-    a dictionary of set expressions to density values. For example,
-    "Inputs: 0.5" sets all input tensors to 50% density. Tensors without a density
-    are treated as dense (density = 1.0). Overridden if density is specified
-    on a per-tensor-access basis.
+    Density of nonzero values for each tensor (0.0 to 1.0). Same set-expression
+    pattern as bits_per_value: e.g., "Inputs: 0.5" sets all input tensors to 50%
+    density. Tensors without a density are treated as dense (1.0). Overridden if
+    density is specified on a per-tensor-access basis.
     """
 
     density_distributions: EvalableDict[str, str] = EvalableDict()
     """
     Density distribution type for each tensor. Same set-expression pattern as
-    densities. For example, "Inputs: structured" sets all input tensors to use
-    the structured (deterministic) density model. Tensors without a distribution
-    use the default hypergeometric (random) model.
+    densities: e.g., "Inputs: structured". None (absent) = random (hypergeometric).
+    "structured" = deterministic (every tile has exactly density * tile nonzeros).
+    Overridden if density_distribution is specified on a per-tensor-access basis.
     """
 
     persistent_tensors: str | None = None
