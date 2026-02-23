@@ -189,6 +189,73 @@ class TestStructuredDensityModel(unittest.TestCase):
         self.assertEqual(model2.expected_occupancy_ceil(10), 4)
 
 
+class TestConditioned(unittest.TestCase):
+    """Test the conditioned() density model re-parameterization."""
+
+    def test_basic_conditioning(self):
+        """After conditioning, N=parent_shape and r=ceil(parent_occupancy)."""
+        model = HypergeometricDensityModel(density=0.5, tensor_size=1000)
+        ennz = model.expected_occupancy(100)  # 50.0
+        child = model.conditioned(100, ennz)
+        self.assertEqual(child.N, 100)
+        self.assertEqual(child.r, 50)
+        self.assertAlmostEqual(child.density, 0.5)
+
+    def test_full_density(self):
+        """d=1.0: conditioned model should have r=parent_shape."""
+        model = HypergeometricDensityModel(density=1.0, tensor_size=500)
+        child = model.conditioned(100, 100.0)
+        self.assertEqual(child.N, 100)
+        self.assertEqual(child.r, 100)
+        self.assertAlmostEqual(child.density, 1.0)
+
+    def test_zero_occupancy(self):
+        """Zero parent_occupancy → r=0."""
+        model = HypergeometricDensityModel(density=0.0, tensor_size=1000)
+        child = model.conditioned(100, 0.0)
+        self.assertEqual(child.r, 0)
+        self.assertAlmostEqual(child.prob_empty(10), 1.0)
+
+    def test_r_capped_at_n(self):
+        """r should never exceed N."""
+        model = HypergeometricDensityModel(density=0.9, tensor_size=1000)
+        # Force parent_occupancy > parent_shape
+        child = model.conditioned(10, 15.0)
+        self.assertEqual(child.N, 10)
+        self.assertEqual(child.r, 10)
+
+    def test_structured_preserves_density(self):
+        """Structured conditioning narrows N but keeps density."""
+        model = StructuredDensityModel(density=0.5, tensor_size=1000)
+        child = model.conditioned(100, 50.0)
+        self.assertIsInstance(child, StructuredDensityModel)
+        self.assertEqual(child.N, 100)
+        self.assertAlmostEqual(child.density, 0.5)
+
+    def test_conditioned_prob_empty_differs(self):
+        """Conditioned model should produce a valid but different prob_empty."""
+        model = HypergeometricDensityModel(density=0.1, tensor_size=10000)
+        global_pe = model.prob_empty(10)
+        # Condition on a 100-element parent with ~10 nonzeros
+        child = model.conditioned(100, model.expected_occupancy(100))
+        child_pe = child.prob_empty(10)
+        # Both should be in the same ballpark (same effective density)
+        self.assertGreater(global_pe, 0.0)
+        self.assertGreater(child_pe, 0.0)
+        self.assertLess(abs(global_pe - child_pe), 0.05)
+
+    def test_chained_conditioning(self):
+        """Conditioning twice should produce valid models."""
+        model = HypergeometricDensityModel(density=0.5, tensor_size=10000)
+        ennz1 = model.expected_occupancy(100)  # 50.0
+        child1 = model.conditioned(100, ennz1)
+        ennz2 = child1.expected_occupancy(10)  # 5.0
+        child2 = child1.conditioned(10, ennz2)
+        self.assertEqual(child2.N, 10)
+        self.assertEqual(child2.r, 5)
+        self.assertAlmostEqual(child2.density, 0.5)
+
+
 class TestCreateDensityModel(unittest.TestCase):
     """Test the factory function."""
 

@@ -95,6 +95,9 @@ class UOP(FormatModel):
 
     def next_fibers(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
                     density_model=None):
+        # Trivial dimensions (fiber_shape <= 1): UOP is transparent.
+        if fiber_shape <= 1:
+            return fibers * fiber_shape
         effective_fibers = fibers
         if density_model is not None:
             prob_empty = density_model.prob_empty(fiber_shape)
@@ -249,11 +252,12 @@ def _run_format_cascade(
     dimension_sizes: list[int],
     model: "DensityModel",
 ) -> tuple[list[RankOccupancy], float]:
-    """Run the format cascade with per-rank density model conditioning.
+    """Run the format cascade, passing the same density model to all ranks.
 
-    Traverses ranks outer-to-inner, propagating fiber counts and
-    re-parameterizing the density model at each rank so inner ranks
-    see a narrowed population (N=dim_size, r=ceil(expected_occupancy)).
+    Traverses ranks outer-to-inner, propagating fiber counts.  The same
+    density model is used for every rank (matching Sparseloop's approach
+    of propagating the same data-tile constraint to all ranks; see
+    tiling-tile-info.cpp:155).
 
     Parameters
     ----------
@@ -262,13 +266,19 @@ def _run_format_cascade(
     dimension_sizes : list[int]
         Dimension size for each rank, outer to inner.
     model : DensityModel
-        Initial density model (conditioned progressively at each rank).
+        Density model (shared across all ranks, not conditioned per-rank).
 
     Returns
     -------
     tuple[list[RankOccupancy], float]
         Per-rank occupancies and total format units (metadata + payload).
     """
+    if len(rank_formats) != len(dimension_sizes):
+        raise ValueError(
+            f"rank_formats length ({len(rank_formats)}) != "
+            f"dimension_sizes length ({len(dimension_sizes)})"
+        )
+
     occupancies = []
     fibers = 1
     total = 0.0
@@ -280,8 +290,6 @@ def _run_format_cascade(
         occupancies.append(occ)
         total += occ.total
         fibers = fmt.next_fibers(fibers, dim_size, ennz, density_model=model)
-        if dim_size > 0:
-            model = model.conditioned(dim_size, ennz)
 
     return occupancies, total
 

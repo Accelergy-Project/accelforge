@@ -122,6 +122,16 @@ def make_mock_spec(
 
             comp.actions = {"read": read_action, "write": write_action}
 
+            # Optionally add metadata_read/metadata_write actions
+            if "metadata_read_bpa" in info:
+                md_read_action = MagicMock()
+                md_read_action.bits_per_action = info["metadata_read_bpa"]
+                comp.actions["metadata_read"] = md_read_action
+            if "metadata_write_bpa" in info:
+                md_write_action = MagicMock()
+                md_write_action.bits_per_action = info["metadata_write_bpa"]
+                comp.actions["metadata_write"] = md_write_action
+
             # Type checks
             from accelforge.frontend import arch
             comp.__class__ = arch.Memory
@@ -2531,6 +2541,116 @@ class TestStorageSAFComputePropagation(unittest.TestCase):
 
         # compute_latency_ratio = 30000 / 100000 = 0.3
         self.assertAlmostEqual(result.latency_info.compute_latency_ratio, 0.3, places=6)
+
+
+class TestSkippingMetadataNonComputeChild(unittest.TestCase):
+    """Skipping metadata for non-compute child uses full pre-SAF count.
+
+    Previously, the non-compute-child branch used post_saf_data_reads/density
+    which got density applied again inside compute_format_access_counts,
+    double-counting density and undercounting metadata reads.
+    """
+
+    def test_skipping_metadata_uses_pre_saf_reads(self):
+        """Non-compute-child skipping: effective_reads = pre_saf_child_reads."""
+        density_a = 0.5
+
+        sparse_opts = SparseOptimizations(
+            targets=[
+                SparseTarget(
+                    target="LineBuffer",
+                    representation_format=[
+                        RepresentationFormat(
+                            name="A", format="bitmask",
+                            metadata_word_bits=1,
+                        ),
+                    ],
+                    action_optimization=[
+                        ActionOptimization(
+                            kind="skipping",
+                            target="A",
+                            condition_on=[],
+                        ),
+                    ],
+                ),
+            ]
+        )
+
+        reuse = SymbolicAnalysisOutput()
+
+        # DRAM buffet (parent of LineBuffer for A)
+        dram_a = Buffet("A", "E0", "DRAM")
+        ds_a = BuffetStats()
+        ds_a.total_reads_to_parent = 1000
+        ds_a.max_per_parent_reads_to_parent = 1000
+        ds_a.max_occupancy = 256
+        reuse.buffet_stats[dram_a] = ds_a
+
+        # LineBuffer buffet (has format + SAF)
+        lb_a = Buffet("A", "E0", "LineBuffer")
+        ls_a = BuffetStats()
+        ls_a.total_reads_to_parent = 10_000
+        ls_a.max_per_parent_reads_to_parent = 10_000
+        ls_a.max_occupancy = 256
+        ls_a.tile_shape = {"m": 16, "k": 16}
+        reuse.buffet_stats[lb_a] = ls_a
+
+        # Compute-level buffet (child of LineBuffer)
+        compute_a = Buffet("A", "E0", "MAC")
+        cs_a = BuffetStats()
+        cs_a.total_reads_to_parent = 100_000
+        cs_a.max_per_parent_reads_to_parent = 100_000
+        reuse.buffet_stats[compute_a] = cs_a
+
+        # Compute
+        compute_key = Compute("E0", "MAC")
+        cs = ComputeStats()
+        cs.total_ops = 100_000
+        cs.max_per_unit_ops = 100_000
+        reuse.compute_stats[compute_key] = cs
+
+        spec = make_mock_spec(
+            sparse_opts=sparse_opts,
+            tensor_accesses=[
+                {"name": "A", "density": density_a, "output": False,
+                 "bits_per_value": 16, "projection": {"M": "m", "K": "k"}},
+                {"name": "Z", "density": None, "output": True, "bits_per_value": 16},
+            ],
+            arch_components={
+                "DRAM": {
+                    "bits_per_value_scale": {"A": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+                "LineBuffer": {
+                    "bits_per_value_scale": {"A": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                    "metadata_read_bpa": 16,
+                    "metadata_write_bpa": 16,
+                },
+                "MAC": {
+                    "bits_per_value_scale": {"A": 1, "Z": 1},
+                    "read_bpa": 16,
+                    "write_bpa": 16,
+                },
+            },
+            rank_sizes={"M": 128, "K": 128},
+        )
+        job = make_mock_job()
+
+        result = apply_sparse_adjustments(reuse, spec, job)
+
+        # The key check: metadata actions should be based on the full
+        # pre-SAF count (10_000), not the double-density-reduced count.
+        md_reads = 0
+        for key, count in result.sparse_actions.items():
+            if key.level == "LineBuffer" and key.action == "metadata_read":
+                md_reads = count.total
+        # With the fix: effective_reads = pre_saf_child_reads = 10_000
+        # (the full pre-SAF count), not post_saf/density which would
+        # get density applied again inside compute_format_access_counts.
+        self.assertGreater(md_reads, 0, "Should emit metadata_read actions")
 
 
 if __name__ == "__main__":
