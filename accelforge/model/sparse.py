@@ -1,13 +1,8 @@
 """Sparse-adjusted occupancy and access count computations.
 
 Computes the impact of sparse tensor formats on storage occupancy and
-memory access counts. This is Sparseloop Phases 1-2:
-  Phase 1: DefineCompressionFormatModels
-  Phase 2: CalculateExpectedOccupancy
-
-Functions here are pure math -- they take density/format parameters and
-return adjusted counts. Integration with the AccelForge model pipeline
-(symbolic.py, run_model.py) happens in later phases.
+memory access counts. Functions here are pure math — they take
+density/format parameters and return adjusted counts.
 """
 
 import math
@@ -17,8 +12,8 @@ from typing import Optional
 from accelforge.model.density_model import create_density_model
 from accelforge.model.sparse_formats import (
     RankOccupancy,
+    _run_format_cascade,
     compute_format_occupancy,
-    create_format_model,
 )
 
 
@@ -196,17 +191,8 @@ def compute_format_access_counts(
     distribution : str or None
         Density distribution type. None = random (hypergeometric).
     """
-    # Per-tile format occupancy (single tile)
     model = create_density_model(density, tensor_size, distribution)
-
-    occupancies = []
-    fibers = 1
-    for fmt_name, dim_size in zip(rank_formats, dimension_sizes):
-        fmt = create_format_model(fmt_name)
-        ennz = model.expected_occupancy(dim_size) if dim_size > 0 else 0.0
-        occ = fmt.get_occupancy(fibers, dim_size, ennz)
-        occupancies.append(occ)
-        fibers = fmt.next_fibers(fibers, dim_size, ennz)
+    occupancies, _ = _run_format_cascade(rank_formats, dimension_sizes, model)
 
     # Scale by algorithmic tile access ratios
     read_ratio = algorithmic_reads / tile_shape if tile_shape > 0 else 0

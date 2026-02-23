@@ -36,6 +36,11 @@ class DensityModel(ABC):
         """ceil(E[nnz in tile])."""
         ...
 
+    @abstractmethod
+    def conditioned(self, parent_shape: int, parent_occupancy: float) -> "DensityModel":
+        """Return a new model conditioned on the parent rank's fiber statistics."""
+        ...
+
 
 class HypergeometricDensityModel(DensityModel):
     """Models the distribution of nonzero elements in tiles of a sparse tensor.
@@ -95,6 +100,19 @@ class HypergeometricDensityModel(DensityModel):
         n = min(tile_shape, self.N)
         return float(1.0 - _hypergeom.cdf(k - 1, self.N, self.r, n))
 
+    def conditioned(self, parent_shape: int, parent_occupancy: float) -> "HypergeometricDensityModel":
+        """Return a new model with N=parent_shape, r=ceil(parent_occupancy)."""
+        if parent_shape <= 0 or parent_occupancy <= 0:
+            new_r = 0
+        else:
+            new_r = min(math.ceil(parent_occupancy), parent_shape)
+        # Use __new__ + direct assignment to avoid ceil(ceil(x)/N * N) drift
+        m = HypergeometricDensityModel.__new__(HypergeometricDensityModel)
+        m.N = parent_shape
+        m.r = new_r
+        m.density = new_r / parent_shape if parent_shape > 0 else 0.0
+        return m
+
     def __repr__(self) -> str:
         return (
             f"HypergeometricDensityModel(density={self.density}, "
@@ -129,6 +147,10 @@ class StructuredDensityModel(DensityModel):
     def expected_occupancy_ceil(self, tile_shape: int) -> int:
         """ceil of exact occupancy."""
         return math.ceil(self.expected_occupancy(tile_shape))
+
+    def conditioned(self, parent_shape: int, parent_occupancy: float) -> "StructuredDensityModel":
+        """Return a new structured model with narrowed N; density stays fixed."""
+        return StructuredDensityModel(self.density, parent_shape)
 
     def __repr__(self) -> str:
         return (
@@ -169,7 +191,6 @@ def effectual_operations(total_ops: int, *densities: float) -> int:
     """Number of effectual (all-operands-nonzero) operations.
 
     Simple product model: effectual = round(total * d1 * d2 * ...).
-    The 3-state compute classification (Phase 5/6) may produce +/-1 differences.
     """
     result = float(total_ops)
     for d in densities:

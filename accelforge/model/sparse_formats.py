@@ -1,8 +1,7 @@
 """Sparse format occupancy models and auto-expansion.
 
-Implements the four Sparseloop format primitives (UOP, CP, B, RLE) and
-auto-expansion from user-friendly names (csr/coo/bitmask/rle) to per-rank
-primitives following the rankwise expansion rules.
+Implements the four format primitives (UOP, CP, B, RLE) and auto-expansion
+from user-friendly names (csr/coo/bitmask/rle) to per-rank primitives.
 """
 
 import math
@@ -78,14 +77,11 @@ class UOP(FormatModel):
 
     When a density_model is provided, empty fibers are filtered out:
     effective_fibers = fibers * (1 - prob_empty(fiber_shape)).
-    This matches Timeloop's UOP model which queries
-    GetTileOccupancyProbability(tile, 0) to exclude empty fibers.
     """
 
     def get_occupancy(self, fibers, fiber_shape, expected_nnz_per_fiber=None,
                       density_model=None):
-        # Trivial dimensions (fiber_shape <= 1) produce no payload:
-        # Sparseloop reports 0 accesses for UOP on trivial ranks (e.g. R=1).
+        # Trivial dimensions (fiber_shape <= 1) produce no payload.
         if fiber_shape <= 1:
             return RankOccupancy(metadata_units=0, payload_units=0)
         effective_fibers = fibers
@@ -248,6 +244,48 @@ def create_format_model(primitive_name: str) -> FormatModel:
     return PRIMITIVES[name]()
 
 
+def _run_format_cascade(
+    rank_formats: list[str],
+    dimension_sizes: list[int],
+    model: "DensityModel",
+) -> tuple[list[RankOccupancy], float]:
+    """Run the format cascade with per-rank density model conditioning.
+
+    Traverses ranks outer-to-inner, propagating fiber counts and
+    re-parameterizing the density model at each rank so inner ranks
+    see a narrowed population (N=dim_size, r=ceil(expected_occupancy)).
+
+    Parameters
+    ----------
+    rank_formats : list[str]
+        Format primitive names, outer to inner.
+    dimension_sizes : list[int]
+        Dimension size for each rank, outer to inner.
+    model : DensityModel
+        Initial density model (conditioned progressively at each rank).
+
+    Returns
+    -------
+    tuple[list[RankOccupancy], float]
+        Per-rank occupancies and total format units (metadata + payload).
+    """
+    occupancies = []
+    fibers = 1
+    total = 0.0
+
+    for fmt_name, dim_size in zip(rank_formats, dimension_sizes):
+        fmt = create_format_model(fmt_name)
+        ennz = model.expected_occupancy(dim_size) if dim_size > 0 else 0.0
+        occ = fmt.get_occupancy(fibers, dim_size, ennz, density_model=model)
+        occupancies.append(occ)
+        total += occ.total
+        fibers = fmt.next_fibers(fibers, dim_size, ennz, density_model=model)
+        if dim_size > 0:
+            model = model.conditioned(dim_size, ennz)
+
+    return occupancies, total
+
+
 def compute_format_occupancy(
     rank_formats: list[str],
     dimension_sizes: list[int],
@@ -285,17 +323,4 @@ def compute_format_occupancy(
         )
 
     model = create_density_model(density, tensor_size, distribution)
-
-    occupancies = []
-    fibers = 1
-    total = 0.0
-
-    for fmt_name, dim_size in zip(rank_formats, dimension_sizes):
-        fmt = create_format_model(fmt_name)
-        ennz = model.expected_occupancy(dim_size) if dim_size > 0 else 0.0
-        occ = fmt.get_occupancy(fibers, dim_size, ennz, density_model=model)
-        occupancies.append(occ)
-        total += occ.total
-        fibers = fmt.next_fibers(fibers, dim_size, ennz, density_model=model)
-
-    return occupancies, total
+    return _run_format_cascade(rank_formats, dimension_sizes, model)
