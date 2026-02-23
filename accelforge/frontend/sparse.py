@@ -2,6 +2,8 @@
 
 from typing import Literal, Optional
 
+from pydantic import Field
+
 from accelforge.frontend.renames import TensorName
 from accelforge.util._basetypes import EvalableModel, EvalableList
 
@@ -32,8 +34,7 @@ class RankFormat(EvalableModel):
 class RepresentationFormat(EvalableModel):
     """Per-tensor compressed format at a storage level.
 
-    Either ``format`` (auto-expanded) or ``ranks`` (explicit) must be provided.
-    If both are given, ``ranks`` takes precedence.
+    Specify ``format`` as one of: csr, coo, bitmask, rle.
     """
 
     _VALID_FORMATS = {"csr", "coo", "bitmask", "b", "rle"}
@@ -44,8 +45,8 @@ class RepresentationFormat(EvalableModel):
     format: Optional[str] = None
     """ User-friendly format name (csr, coo, bitmask, rle), auto-expanded to per-rank primitives. """
 
-    ranks: Optional[EvalableList[RankFormat]] = None
-    """ Explicit per-rank format specification (expert mode), outer-to-inner. """
+    ranks: Optional[EvalableList[RankFormat]] = Field(None, exclude=True)
+    """ Explicit per-rank format specification (internal), outer-to-inner. """
 
     metadata_word_bits: Optional[int] = None
     """ Default bits per metadata word for auto-expanded ranks. None = auto-derived per rank. """
@@ -55,6 +56,10 @@ class RepresentationFormat(EvalableModel):
 
     uop_payload_word_bits: Optional[int] = None
     """ Override payload_word_bits for auto-expanded UOP ranks. None = auto-derived. """
+
+    def has_explicit_ranks(self) -> bool:
+        """True if explicit per-rank formats were provided (internal)."""
+        return self.ranks is not None
 
     def model_post_init(self, __context__=None) -> None:
         if self.format is not None and self.format.lower() not in self._VALID_FORMATS:
@@ -249,6 +254,6 @@ class SparseOptimizations(EvalableModel):
             or ``ranks`` set.
         """
         return any(
-            rf.format is not None or rf.ranks is not None
+            rf.format is not None or rf.has_explicit_ranks()
             for rf in self.get_formats_for(component_name, tensor_name)
         )

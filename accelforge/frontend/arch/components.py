@@ -28,6 +28,11 @@ from accelforge.util.exceptions import EvaluationError
 from accelforge.util._eval_expressions import eval_expression
 from accelforge.util._setexpressions import InvertibleSet, eval_set_expression
 from accelforge.frontend.renames import TensorName
+from accelforge.frontend.sparse import (
+    RepresentationFormat,
+    ActionOptimization,
+    ComputeOptimization,
+)
 from accelforge.frontend.arch.constraints import Comparison
 from accelforge.frontend.arch.structure import ArchNode, Leaf
 from accelforge.frontend.arch.spatialable import Spatialable
@@ -892,6 +897,14 @@ class TensorHolder(Component, Leaf):
     value for the bits_per_action of all actions of this component.
     """
 
+    representation_format: EvalableList[RepresentationFormat] = EvalableList()
+    """Compressed representation formats for tensors at this storage level.
+    Inline alternative to specifying in a separate sparse_optimizations file."""
+
+    action_optimization: EvalableList[ActionOptimization] = EvalableList()
+    """Storage action optimizations (gating/skipping) at this level.
+    Inline alternative to specifying in a separate sparse_optimizations file."""
+
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(MEMORY_ACTIONS)
 
@@ -989,6 +1002,10 @@ class Toll(TensorHolder):
 class Compute(Component, Leaf):
     actions: EvalableList[Action] = COMPUTE_ACTIONS
     """ The actions that this `Compute` can perform. """
+
+    compute_optimization: EvalableList[ComputeOptimization] = EvalableList()
+    """Compute-level optimizations (gating/skipping at the MAC).
+    Inline alternative to specifying in a separate sparse_optimizations file."""
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
