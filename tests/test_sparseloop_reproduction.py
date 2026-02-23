@@ -27,12 +27,10 @@ INPUT_DIR = os.path.join(os.path.dirname(__file__), "input_files")
 # ---------------------------------------------------------------------------
 
 
-def _run(subdir, arch, mapping, workload, sparse=None, jinja_parse_data=None):
+def _run(subdir, arch, mapping, workload, jinja_parse_data=None):
     """Load config files and return (cycles, energy_pJ, result)."""
     d = os.path.join(INPUT_DIR, subdir)
     args = [os.path.join(d, arch), os.path.join(d, workload), os.path.join(d, mapping)]
-    if sparse:
-        args.append(os.path.join(d, sparse))
     kwargs = {}
     if jinja_parse_data:
         kwargs["jinja_parse_data"] = jinja_parse_data
@@ -43,7 +41,7 @@ def _run(subdir, arch, mapping, workload, sparse=None, jinja_parse_data=None):
     return cycles, energy, result
 
 
-def _run_with_tmpfile(subdir, arch, mapping, workload_dict, sparse=None):
+def _run_with_tmpfile(subdir, arch, mapping, workload_dict, jinja_parse_data=None):
     """Like _run but writes workload_dict to a temp YAML file first."""
     d = os.path.join(INPUT_DIR, subdir)
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -51,9 +49,10 @@ def _run_with_tmpfile(subdir, arch, mapping, workload_dict, sparse=None):
         wf = f.name
     try:
         args = [os.path.join(d, arch), wf, os.path.join(d, mapping)]
-        if sparse:
-            args.append(os.path.join(d, sparse))
-        spec = Spec.from_yaml(*args)
+        kwargs = {}
+        if jinja_parse_data:
+            kwargs["jinja_parse_data"] = jinja_parse_data
+        spec = Spec.from_yaml(*args, **kwargs)
         result = evaluate_mapping(spec)
         cycles = float(result.data["Total<SEP>latency"].iloc[0])
         energy = float(result.data["Total<SEP>energy"].iloc[0])
@@ -62,7 +61,7 @@ def _run_with_tmpfile(subdir, arch, mapping, workload_dict, sparse=None):
         os.unlink(wf)
 
 
-def _run_with_tmpfiles(subdir, arch, mapping_str, workload_str, sparse=None):
+def _run_with_tmpfiles(subdir, arch, mapping_str, workload_str, jinja_parse_data=None):
     """Like _run but writes workload and mapping YAML strings to temp files."""
     d = os.path.join(INPUT_DIR, subdir)
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as wf:
@@ -73,9 +72,10 @@ def _run_with_tmpfiles(subdir, arch, mapping_str, workload_str, sparse=None):
         mapping_path = mf.name
     try:
         args = [os.path.join(d, arch), workload_path, mapping_path]
-        if sparse:
-            args.append(os.path.join(d, sparse))
-        spec = Spec.from_yaml(*args)
+        kwargs = {}
+        if jinja_parse_data:
+            kwargs["jinja_parse_data"] = jinja_parse_data
+        spec = Spec.from_yaml(*args, **kwargs)
         result = evaluate_mapping(spec)
         cycles = float(result.data["Total<SEP>latency"].iloc[0])
         energy = float(result.data["Total<SEP>energy"].iloc[0])
@@ -228,7 +228,8 @@ class TestFig1:
         """BM cycles constant at 2,113,536 (gating never saves cycles)."""
         cycles, _, _ = _run_with_tmpfile(
             "fig1", "arch_unified.yaml", "mapping.yaml",
-            _make_fig1_workload(density), "sparse_bitmask_latency.yaml",
+            _make_fig1_workload(density),
+            jinja_parse_data={"format_type": "bitmask"},
         )
         assert int(cycles) == self.SL_BM_CYCLES[idx]
 
@@ -241,7 +242,8 @@ class TestFig1:
         """CL cycles within 20% of SL (hypergeometric vs simulation)."""
         cycles, _, _ = _run_with_tmpfile(
             "fig1", "arch_unified.yaml", "mapping.yaml",
-            _make_fig1_workload(density), "sparse_coord_list_latency.yaml",
+            _make_fig1_workload(density),
+            jinja_parse_data={"format_type": "coord_list"},
         )
         assert cycles == pytest.approx(self.SL_CL_CYCLES[idx], rel=0.20)
 
@@ -254,7 +256,8 @@ class TestFig1:
         """BM energy within 5% of SL (except d=0.01 at ~23%)."""
         _, energy, _ = _run_with_tmpfile(
             "fig1", "arch_unified.yaml", "mapping.yaml",
-            _make_fig1_workload(density), "sparse_bitmask_energy.yaml",
+            _make_fig1_workload(density),
+            jinja_parse_data={"format_type": "bitmask"},
         )
         energy_uJ = energy / 1e6
         assert energy_uJ == pytest.approx(self.SL_BM_ENERGY_UJ[idx], rel=0.25)
@@ -268,7 +271,8 @@ class TestFig1:
         """CL energy within 10% of SL."""
         _, energy, _ = _run_with_tmpfile(
             "fig1", "arch_unified.yaml", "mapping.yaml",
-            _make_fig1_workload(density), "sparse_coord_list_energy.yaml",
+            _make_fig1_workload(density),
+            jinja_parse_data={"format_type": "coord_list"},
         )
         energy_uJ = energy / 1e6
         assert energy_uJ == pytest.approx(self.SL_CL_ENERGY_UJ[idx], rel=0.10)
@@ -277,7 +281,8 @@ class TestFig1:
         """Canonical d=0.1015625: BM cycles exact, energy within 2%."""
         cycles, energy, _ = _run(
             "fig1", "arch_unified.yaml", "mapping.yaml",
-            "workload.yaml", "sparse_bitmask_energy.yaml",
+            "workload.yaml",
+            jinja_parse_data={"format_type": "bitmask"},
         )
         assert int(cycles) == 2_113_536
         assert energy / 1e6 == pytest.approx(2.27, rel=0.02)
@@ -286,7 +291,8 @@ class TestFig1:
         """Canonical d=0.1015625: CL cycles exact, energy within 6%."""
         cycles, energy, _ = _run(
             "fig1", "arch_unified.yaml", "mapping.yaml",
-            "workload.yaml", "sparse_coord_list_energy.yaml",
+            "workload.yaml",
+            jinja_parse_data={"format_type": "coord_list"},
         )
         assert int(cycles) == 295_152
         assert energy / 1e6 == pytest.approx(2.92, rel=0.06)
@@ -314,7 +320,6 @@ class TestFig12:
         cycles, _, _ = _run_with_tmpfiles(
             "fig12", "arch.yaml",
             _make_fig12_mapping(p), _make_fig12_workload(p),
-            "sparse_SI_SW.yaml",
         )
         sl_cycles = self.SL_REF[layer][0]
         assert cycles == pytest.approx(sl_cycles, rel=0.005)
@@ -326,7 +331,6 @@ class TestFig12:
         _, energy, _ = _run_with_tmpfiles(
             "fig12", "arch.yaml",
             _make_fig12_mapping(p), _make_fig12_workload(p),
-            "sparse_SI_SW.yaml",
         )
         sl_energy = self.SL_REF[layer][1]
         assert energy == pytest.approx(sl_energy, rel=0.04)
@@ -369,7 +373,6 @@ class TestFig13:
         """Normalized latency within 3% of Sparseloop reference."""
         cycles, _, _ = _run(
             "fig13", "arch.yaml", "mapping.yaml", "workload.yaml",
-            "sparse_dstc.yaml",
             jinja_parse_data={"density_A": dA, "density_B": dB},
         )
         af_norm = cycles / dense_cycles
@@ -389,9 +392,9 @@ class TestFig15:
     SL_TOTAL_ENERGY_UJ = {"TC": 849.0, "STC_1.0": 772.0, "STC_0.5": 512.0}
 
     CONFIGS = {
-        "TC": {"arch": "arch_tc.yaml", "sparse": None, "jpd": {}, "density_factor": 1.0},
-        "STC_1.0": {"arch": "arch_stc.yaml", "sparse": "sparse_stc.yaml", "jpd": {}, "density_factor": 1.0},
-        "STC_0.5": {"arch": "arch_stc.yaml", "sparse": "sparse_stc.yaml", "jpd": {"density_A": 0.5}, "density_factor": 0.5},
+        "TC": {"arch": "arch_tc.yaml", "jpd": {}, "density_factor": 1.0},
+        "STC_1.0": {"arch": "arch_stc.yaml", "jpd": {}, "density_factor": 1.0},
+        "STC_0.5": {"arch": "arch_stc.yaml", "jpd": {"density_A": 0.5}, "density_factor": 0.5},
     }
 
     @pytest.mark.parametrize("config_name", ["TC", "STC_1.0", "STC_0.5"])
@@ -403,7 +406,6 @@ class TestFig15:
                 "fig15", cfg["arch"],
                 f"mapping_layer{layer}.yaml",
                 f"workload_layer{layer}.yaml",
-                cfg["sparse"],
                 jinja_parse_data=cfg["jpd"] or None,
             )
             expected = int(self.SL_CYCLES[layer] * cfg["density_factor"])
@@ -421,7 +423,6 @@ class TestFig15:
                 "fig15", cfg["arch"],
                 f"mapping_layer{layer}.yaml",
                 f"workload_layer{layer}.yaml",
-                cfg["sparse"],
                 jinja_parse_data=cfg["jpd"] or None,
             )
             total_energy_pJ += energy
@@ -443,12 +444,12 @@ class TestTable7:
     }
 
     # conv1 uses dense_iact (only output compression), conv2-5 use sparse_iact
-    SPARSE_CONFIG = {
-        "conv1": "sparse_dense_iact.yaml",
-        "conv2": "sparse_sparse_iact.yaml",
-        "conv3": "sparse_sparse_iact.yaml",
-        "conv4": "sparse_sparse_iact.yaml",
-        "conv5": "sparse_sparse_iact.yaml",
+    SPARSE_JPD = {
+        "conv1": {"sparse_mode": "dense_iact"},
+        "conv2": {"sparse_mode": "sparse_iact"},
+        "conv3": {"sparse_mode": "sparse_iact"},
+        "conv4": {"sparse_mode": "sparse_iact"},
+        "conv5": {"sparse_mode": "sparse_iact"},
     }
 
     @pytest.mark.parametrize("layer", list(SL_REF.keys()))
@@ -458,7 +459,7 @@ class TestTable7:
             "table7", "arch.yaml",
             f"mapping_{layer}.yaml",
             f"workload_{layer}.yaml",
-            self.SPARSE_CONFIG[layer],
+            jinja_parse_data=self.SPARSE_JPD[layer],
         )
         sl_cycles = self.SL_REF[layer][0]
         assert cycles == pytest.approx(sl_cycles, rel=0.005)
@@ -470,7 +471,7 @@ class TestTable7:
             "table7", "arch.yaml",
             f"mapping_{layer}.yaml",
             f"workload_{layer}.yaml",
-            self.SPARSE_CONFIG[layer],
+            jinja_parse_data=self.SPARSE_JPD[layer],
         )
         sl_energy_pJ = self.SL_REF[layer][1] * 1e6  # uJ -> pJ
         assert energy == pytest.approx(sl_energy_pJ, rel=0.07)
@@ -487,20 +488,13 @@ class TestLab4:
     # Tolerances per config
     TOLERANCES = {"dense": 0.04, "gating": 0.02, "skipping": 0.08}
 
-    SPARSE_FILES = {"dense": None, "gating": "sparse_gating.yaml", "skipping": "sparse_skipping.yaml"}
-
     @pytest.mark.parametrize("config", ["dense", "gating", "skipping"])
     def test_fj_per_compute(self, config):
         """fJ per algorithmic compute within threshold of Sparseloop."""
-        sparse = self.SPARSE_FILES[config]
-        if sparse:
-            _, energy, _ = _run(
-                "lab4", "arch.yaml", "mapping.yaml", "workload.yaml", sparse,
-            )
-        else:
-            _, energy, _ = _run(
-                "lab4", "arch.yaml", "mapping.yaml", "workload.yaml",
-            )
+        _, energy, _ = _run(
+            "lab4", "arch.yaml", "mapping.yaml", "workload.yaml",
+            jinja_parse_data={"sparse_mode": config},
+        )
         fj_per_compute = (energy * 1e3) / self.ALG_COMPUTES  # pJ -> fJ, then /512
         sl_fj = self.SL_FJ_PER_COMPUTE[config]
         tol = self.TOLERANCES[config]

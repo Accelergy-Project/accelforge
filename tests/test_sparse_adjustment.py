@@ -26,13 +26,13 @@ from accelforge.model._looptree.reuse.symbolic.symbolic import (
 from accelforge.model._looptree.types import Buffet
 
 from accelforge.frontend.sparse import (
-    RankFormat,
     SparseOptimizations,
     SparseTarget,
     RepresentationFormat,
     ActionOptimization,
     ComputeOptimization,
 )
+from accelforge.model.sparse_formats import RankFormat
 
 from accelforge.model.sparse_adjustment import (
     apply_sparse_adjustments,
@@ -80,6 +80,7 @@ def make_mock_spec(
     if sparse_opts is None:
         sparse_opts = SparseOptimizations()
     spec.sparse_optimizations = sparse_opts
+    spec.effective_sparse_optimizations = sparse_opts
 
     # Build tensor access mocks
     ta_mocks = []
@@ -1587,10 +1588,10 @@ class TestTileShapeThroughPipeline(unittest.TestCase):
 
         fig1_dir = os.path.join(os.path.dirname(__file__), "input_files", "fig1")
         spec = Spec.from_yaml(
-            os.path.join(fig1_dir, "arch_energy.yaml"),
+            os.path.join(fig1_dir, "arch_unified.yaml"),
             os.path.join(fig1_dir, "workload.yaml"),
             os.path.join(fig1_dir, "mapping.yaml"),
-            os.path.join(fig1_dir, "sparse_bitmask_energy.yaml"),
+            jinja_parse_data={"format_type": "bitmask"},
         )
         result = evaluate_mapping(spec)
         # The pipeline ran without error — this validates tile_shape
@@ -1605,10 +1606,10 @@ class TestTileShapeThroughPipeline(unittest.TestCase):
 
         fig1_dir = os.path.join(os.path.dirname(__file__), "input_files", "fig1")
         spec = Spec.from_yaml(
-            os.path.join(fig1_dir, "arch_energy.yaml"),
+            os.path.join(fig1_dir, "arch_unified.yaml"),
             os.path.join(fig1_dir, "workload.yaml"),
             os.path.join(fig1_dir, "mapping.yaml"),
-            os.path.join(fig1_dir, "sparse_coord_list_energy.yaml"),
+            jinja_parse_data={"format_type": "coord_list"},
         )
         result = evaluate_mapping(spec)
         self.assertIsNotNone(result)

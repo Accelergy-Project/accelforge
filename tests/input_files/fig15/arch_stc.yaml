@@ -2,6 +2,7 @@
 # Same hierarchy as TC but with metadata/gated/skipped actions and different ERT values.
 # DRAM write_bandwidth=32 (symmetric, vs TC's 16).
 # ERT values from Sparseloop artifact: STC-RF2x-24-bandwidth/ERT_summary.yaml
+# Sparse config (STC) inlined from sparse_stc.yaml.
 
 arch:
   nodes:
@@ -17,6 +18,10 @@ arch:
     - {name: write, energy: 512, bits_per_action: 64, latency: 0}
     - {name: metadata_read, energy: 0, bits_per_action: 64, latency: 0}
     - {name: metadata_write, energy: 0, bits_per_action: 64, latency: 0}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 2
 
   - !Memory
     name: SMEM
@@ -30,6 +35,10 @@ arch:
     - {name: write, energy: 316.96744, bits_per_action: 512, latency: 0}
     - {name: metadata_read, energy: 25.8695, bits_per_action: 64, latency: 0}
     - {name: metadata_write, energy: 19.6486, bits_per_action: 64, latency: 0}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 2
 
   - !Container
     name: Subpartitions
@@ -53,6 +62,13 @@ arch:
     - {name: gated_write, energy: 0.00000375, bits_per_action: 8, latency: 0}
     - {name: skipped_read, energy: 0.0, bits_per_action: 8, latency: 0}
     - {name: skipped_write, energy: 0.0, bits_per_action: 8, latency: 0}
+    action_optimization:
+    - kind: skipping
+      target: B
+      condition_on: [A]
+    - kind: skipping
+      target: Z
+      condition_on: [A]
     spatial:
     - {name: X, fanout: 16}
     - {name: Z, fanout: 16}
@@ -71,6 +87,10 @@ arch:
     - {name: gated_write, energy: 0.00296, bits_per_action: 8, latency: 0}
     - {name: metadata_read, energy: 0.072, bits_per_action: 8, latency: 0}
     - {name: metadata_write, energy: 0.072, bits_per_action: 8, latency: 0}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 2
 
   - !Compute
     name: MAC
@@ -80,3 +100,7 @@ arch:
     - {name: compute, energy: 0.5608, latency: 1}
     - {name: gated_compute, energy: 0.01798, latency: 0}
     - {name: skipped_compute, energy: 0.01798, latency: 0}
+    compute_optimization:
+    - kind: skipping
+      target: GEMM
+      condition_on: [A]
