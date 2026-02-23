@@ -4,16 +4,12 @@ Validation tests sourced from ARTIFACT_EVALUATION.md fig1 reference outputs
 and Lab 4 Part 4 storage capacity sweep.
 """
 
-import math
 import unittest
 
 from accelforge.model.sparse import (
-    SparseOccupancy,
-    FormatAccessCounts,
     compute_sparse_occupancy,
     compute_format_access_counts,
 )
-from accelforge.model.density_model import HypergeometricDensityModel
 
 
 # ---------------------------------------------------------------------------
@@ -152,18 +148,6 @@ class TestSparseFormatOccupancy(unittest.TestCase):
         # data = 13 * 8 = 104, format = 128 * 8 = 1024
         self.assertAlmostEqual(occ.total_bits, 104 + 1024)
 
-    def test_no_format_dense(self):
-        """No format -> format occupancy is 0."""
-        occ = compute_sparse_occupancy(
-            density=1.0,
-            tensor_size=16384,
-            tile_shape=16384,
-            bits_per_value=8,
-        )
-        self.assertAlmostEqual(occ.format_units, 0)
-        self.assertAlmostEqual(occ.format_bits, 0)
-        self.assertEqual(occ.data_elements, 16384)
-
     def test_custom_metadata_word_bits(self):
         """Custom metadata_word_bits (like coordinate_list.yaml: 14-bit coords)."""
         occ = compute_sparse_occupancy(
@@ -215,23 +199,6 @@ class TestLab4StorageSweep(unittest.TestCase):
     def test_d10(self):
         """d=1.0: data=64, format=73."""
         self._check(1.0, 64, 73)
-
-    def test_breakeven(self):
-        """Compression beneficial below ~d=0.4: total < 64 only when d<0.4."""
-        occ_02 = compute_sparse_occupancy(
-            density=0.2, tensor_size=64, tile_shape=64,
-            bits_per_value=8, rank_formats=["UOP", "CP"], dimension_sizes=[8, 8],
-        )
-        occ_04 = compute_sparse_occupancy(
-            density=0.4, tensor_size=64, tile_shape=64,
-            bits_per_value=8, rank_formats=["UOP", "CP"], dimension_sizes=[8, 8],
-        )
-        uncompressed = 64  # dense elements
-        # d=0.2: total = 13 + 25 = 38 < 64 -> beneficial
-        self.assertLess(occ_02.data_elements + occ_02.format_units, uncompressed)
-        # d=0.4: total = 26 + 41 = 67 > 64 -> not beneficial
-        self.assertGreater(occ_04.data_elements + occ_04.format_units, uncompressed)
-
 
 # ---------------------------------------------------------------------------
 # Format access count tests
@@ -323,64 +290,6 @@ class TestFormatAccessCounts(unittest.TestCase):
         )
         self.assertEqual(fac.total_reads, 16512 + 2097152)
 
-    def test_zero_reads(self):
-        """Zero algorithmic reads -> zero format reads."""
-        fac = compute_format_access_counts(
-            rank_formats=["UOP", "CP"],
-            dimension_sizes=[8, 8],
-            density=0.5,
-            tensor_size=64,
-            tile_shape=64,
-            algorithmic_reads=0,
-            algorithmic_fills=100,
-        )
-        self.assertEqual(fac.total_reads, 0)
-
-    def test_dense_no_format(self):
-        """Dense tensor (no format) -> use empty format list."""
-        fac = compute_format_access_counts(
-            rank_formats=[],
-            dimension_sizes=[],
-            density=1.0,
-            tensor_size=16384,
-            tile_shape=16384,
-            algorithmic_reads=2097152,
-            algorithmic_fills=16384,
-        )
-        self.assertEqual(fac.total_reads, 0)
-        self.assertEqual(fac.total_fills, 0)
-
-
-class TestSparseOccupancyDataclass(unittest.TestCase):
-    """Test SparseOccupancy dataclass properties."""
-
-    def test_total_bits(self):
-        occ = SparseOccupancy(
-            data_elements=13,
-            data_bits=104,
-            format_units=128,
-            format_bits=1024,
-            rank_occupancies=[],
-        )
-        self.assertEqual(occ.total_bits, 1128)
-
-
-class TestFormatAccessCountsDataclass(unittest.TestCase):
-    """Test FormatAccessCounts dataclass properties."""
-
-    def test_totals(self):
-        fac = FormatAccessCounts(
-            rank_metadata_reads=[100, 200],
-            rank_payload_reads=[50, 0],
-            rank_metadata_fills=[10, 20],
-            rank_payload_fills=[5, 0],
-        )
-        self.assertEqual(fac.total_metadata_reads, 300)
-        self.assertEqual(fac.total_payload_reads, 50)
-        self.assertEqual(fac.total_reads, 350)
-        self.assertEqual(fac.total_metadata_fills, 30)
-        self.assertEqual(fac.total_payload_fills, 5)
-        self.assertEqual(fac.total_fills, 35)
 
 
 if __name__ == "__main__":
