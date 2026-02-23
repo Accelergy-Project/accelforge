@@ -696,7 +696,7 @@ def apply_sparse_adjustments(
       - per_rank_info: per-rank format info keyed by (tensor, level).
       - latency_info: parameters for sparse-adjusted latency recomputation.
 
-    No-op (returns empty output) when spec.sparse_optimizations has no targets.
+    No-op (returns empty output) when spec.effective_sparse_optimizations has no targets.
 
     Parameters
     ----------
@@ -710,7 +710,7 @@ def apply_sparse_adjustments(
     sparse_actions: dict[ActionKey, ActionCount] = {}
     latency_info = LatencyInfo()
 
-    sparse_opts = spec.sparse_optimizations
+    sparse_opts = spec.effective_sparse_optimizations
     if not sparse_opts.targets:
         return SparseAnalysisOutput(sparse_actions=sparse_actions)
 
@@ -1214,7 +1214,7 @@ def _emit_metadata_actions(
 
     Returns per-rank info dict keyed by (tensor, level).
     """
-    sparse_opts = spec.sparse_optimizations
+    sparse_opts = spec.effective_sparse_optimizations
     einsum_name = job.einsum_name
     workload = spec.workload
     einsum = workload.einsums[einsum_name]
@@ -1271,7 +1271,7 @@ def _emit_metadata_actions(
         current_shape = stats.tile_shape or {}
 
         # Check if explicit ranks with flattened_rank_ids are available
-        if fmt.ranks is not None:
+        if fmt.has_explicit_ranks():
             rank_format_objs = fmt.get_rank_formats()
             if _ranks_have_flattened_ids(rank_format_objs):
                 dimension_sizes = _compute_flattened_dimension_sizes(
@@ -1296,7 +1296,7 @@ def _emit_metadata_actions(
             dist = tensor_info[tensor]["density_distribution"]
 
             # Compute tensor_size and tile_shape
-            if fmt.ranks is not None and rank_format_objs is not None and _ranks_have_flattened_ids(rank_format_objs):
+            if fmt.has_explicit_ranks() and rank_format_objs is not None and _ranks_have_flattened_ids(rank_format_objs):
                 tensor_size = _compute_flattened_tensor_size(
                     rank_format_objs, dict(job.rank_variable_bounds),
                     einsum, tensor,
@@ -1383,7 +1383,7 @@ def _emit_metadata_actions(
         if not (dimension_sizes and any(d > 1 for d in dimension_sizes)):
             # Single-element store: emit metadata as 1:1 with data accesses
             md_word_bits = 0
-            if fmt.ranks is not None:
+            if fmt.has_explicit_ranks():
                 for rf in fmt.get_rank_formats():
                     if rf.metadata_word_bits:
                         md_word_bits += rf.metadata_word_bits
@@ -1529,7 +1529,7 @@ def _apply_format_compression_to_saf_levels(
     Only applies when the child is at the compute level (no intermediate
     storage between this level and the compute unit for this tensor).
     """
-    sparse_opts = spec.sparse_optimizations
+    sparse_opts = spec.effective_sparse_optimizations
 
     for buffet, stats in reuse.buffet_stats.items():
         if buffet.level in compute_levels:

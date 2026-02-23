@@ -2,6 +2,9 @@
 
 Implements the four format primitives (UOP, CP, B, RLE) and auto-expansion
 from user-friendly names (csr/coo/bitmask/rle) to per-rank primitives.
+
+Also re-exports ``RankFormat`` so internal code can import it from this
+module (the per-rank format spec used by the sparse pipeline).
 """
 
 import math
@@ -13,6 +16,10 @@ if TYPE_CHECKING:
     from accelforge.model.density_model import DensityModel
 
 from accelforge.model.density_model import create_density_model
+from accelforge.frontend.sparse import RankFormat  # canonical location
+
+# Re-export so existing `from accelforge.model.sparse_formats import RankFormat` still works
+__all__ = ["RankFormat", "expand_format", "RankOccupancy"]
 
 
 @dataclass
