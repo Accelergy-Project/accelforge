@@ -388,12 +388,12 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
         for action_name, count in actions.items():
             if action_name in _SYNTHETIC_ACTIONS:
                 continue
-            aname = action_name.rsplit("_", 1)[0]
+            action_key = action_name.rsplit("_", 1)[0]
             try:
-                lat = node.actions[aname].latency
+                lat = node.actions[action_key].latency
             except (KeyError, TypeError):
                 lat = 0
-            component_to_action_latency[component][f"{aname}_latency"] = (
+            component_to_action_latency[component][f"{action_key}_latency"] = (
                 lat * count
             )
 
@@ -407,24 +407,24 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
             **component_to_action_latency[component],
         }
         if node.total_latency is not None:
-            lat = eval_expression(
+            component_latency_result[component] = eval_expression(
                 node.total_latency,
                 symbol_table,
                 attr_name="latency",
                 location=component,
             )
-            # Position-space utilization: divide by avg utilization fraction
-            # when position-skipping causes PE load imbalance at compute.
-            if (isinstance(node, arch.Compute)
-                    and latency_info.position_space_utilization < 1.0):
-                lat = lat / latency_info.position_space_utilization
-            component_latency_result[component] = lat
         elif isinstance(node, arch.Compute):
-            compute_lat = sum(
+            component_latency_result[component] = sum(
                 component_to_action_latency[component].values()
             )
-            if latency_info.position_space_utilization < 1.0:
-                compute_lat = compute_lat / latency_info.position_space_utilization
-            component_latency_result[component] = compute_lat
+
+        # Position-space utilization: divide by avg utilization fraction
+        # when position-skipping causes PE load imbalance at compute.
+        if (component in component_latency_result
+                and isinstance(node, arch.Compute)
+                and latency_info.position_space_utilization < 1.0):
+            component_latency_result[component] /= (
+                latency_info.position_space_utilization
+            )
 
     return component_latency_result
