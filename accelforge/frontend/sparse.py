@@ -32,7 +32,7 @@ Example YAML (expert, explicit per-rank)::
           - format: B
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 from accelforge.frontend.renames import TensorName
 from accelforge.util._basetypes import EvalableModel, EvalableList
@@ -162,7 +162,7 @@ class ActionOptimization(EvalableModel):
     Applied AFTER format compression. Fills are never reduced by SAF.
     """
 
-    kind: str
+    kind: Literal["gating", "skipping", "position_skipping"]
     """Optimization type: gating, skipping, or position_skipping.
 
     - gating: access initiated then discarded. Uses ceil rounding for
@@ -193,7 +193,7 @@ class ComputeOptimization(EvalableModel):
     whether a representation_format exists for it at any non-compute storage level.
     """
 
-    kind: str
+    kind: Literal["gating", "skipping"]
     """Optimization type: gating or skipping.
 
     - gating: non-effectual ops executed but output discarded. Energy at
@@ -277,5 +277,12 @@ class SparseOptimizations(EvalableModel):
         return results
 
     def has_format(self, component_name: str, tensor_name: str) -> bool:
-        """Check if a tensor has a compressed format at a component."""
-        return len(self.get_formats_for(component_name, tensor_name)) > 0
+        """Check if a tensor has a compressed format at a component.
+
+        Returns True only if at least one RepresentationFormat entry has
+        ``format`` or ``ranks`` set (entries with neither are ignored).
+        """
+        return any(
+            rf.format is not None or rf.ranks is not None
+            for rf in self.get_formats_for(component_name, tensor_name)
+        )

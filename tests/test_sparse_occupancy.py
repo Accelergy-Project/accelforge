@@ -253,8 +253,11 @@ class TestFormatAccessCounts(unittest.TestCase):
         # Rank 1 (UOP): payload reads = 16512
         self.assertEqual(fac.rank_payload_reads[0], 16512)
         self.assertEqual(fac.rank_metadata_reads[0], 0)
-        # Rank 0 (B): metadata reads = 2,097,152
-        self.assertEqual(fac.rank_metadata_reads[1], 2097152)
+        # Rank 0 (B): metadata reads = 2,097,150
+        # (UOP filters empty fibers with density_model → next_fibers slightly
+        # less than 128*128=16384, making Bitmask metadata 16383.98 → ceil
+        # rounds to 2097150 instead of 2097152)
+        self.assertEqual(fac.rank_metadata_reads[1], 2097150)
         self.assertEqual(fac.rank_payload_reads[1], 0)
 
     def test_backing_storage_b_bitmask_reads(self):
@@ -288,7 +291,7 @@ class TestFormatAccessCounts(unittest.TestCase):
             algorithmic_reads=2097152,
             algorithmic_fills=16384,
         )
-        self.assertEqual(fac.total_reads, 16512 + 2097152)
+        self.assertEqual(fac.total_reads, 16512 + 2097150)
 
 
 

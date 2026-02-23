@@ -15,6 +15,9 @@ import math
 import re
 from dataclasses import dataclass, field
 
+import numpy as np
+from scipy.stats import binom as _binom
+
 from accelforge.frontend import arch
 from accelforge.frontend.mapping import (
     Spatial as SpatialNode,
@@ -160,13 +163,18 @@ def _emit(
     level: str,
     action: str,
     total: int | float,
+    max_per_unit: int | float | None = None,
 ) -> None:
-    """Accumulate a sparse action count into the dict."""
+    """Accumulate a sparse action count into the dict.
+
+    ``max_per_unit`` defaults to ``total`` (correct when spatial fanout = 1).
+    Callers with spatial context should pass the per-unit value explicitly.
+    """
     key = ActionKey(level, action)
     if key not in sparse_actions:
         sparse_actions[key] = ActionCount.default()
     sparse_actions[key].total += total
-    sparse_actions[key].max_per_unit += total
+    sparse_actions[key].max_per_unit += max_per_unit if max_per_unit is not None else total
 
 
 def _emit_if_declared(
@@ -175,6 +183,7 @@ def _emit_if_declared(
     level: str,
     action_name: str,
     total: int | float,
+    max_per_unit: int | float | None = None,
 ) -> bool:
     """Emit a sparse action only if total > 0 and arch declares it.
 
@@ -184,7 +193,7 @@ def _emit_if_declared(
         return False
     if not _has_action(spec, level, action_name):
         return False
-    _emit(sparse_actions, level, action_name, total)
+    _emit(sparse_actions, level, action_name, total, max_per_unit=max_per_unit)
     return True
 
 
@@ -440,24 +449,13 @@ def _compute_position_space_utilization(
             per_tensor_util.append(1.0)
             continue
 
-        # Compute E[util | occ > 0] using binomial distribution
-        weighted_util = 0.0
-        weight_nonzero = 0.0
-        for occ in range(tile_size + 1):
-            # Binomial probability P(occ | tile_size, density)
-            prob = math.comb(tile_size, occ) * (
-                density ** occ
-            ) * ((1 - density) ** (tile_size - occ))
-            if prob == 0:
-                continue
-            if occ == 0:
-                continue  # zero occupancy → zero utilization
-            util = occ / math.ceil(occ / spatial_factor) / spatial_factor
-            weighted_util += prob * util
-            weight_nonzero += prob
-
+        # Compute E[util | occ > 0] using binomial distribution (vectorized)
+        occs = np.arange(1, tile_size + 1)
+        probs = _binom.pmf(occs, tile_size, density)
+        weight_nonzero = probs.sum()
         if weight_nonzero > 0:
-            per_tensor_util.append(weighted_util / weight_nonzero)
+            utils = occs / np.ceil(occs / spatial_factor) / spatial_factor
+            per_tensor_util.append(float(np.dot(probs, utils) / weight_nonzero))
 
     if not per_tensor_util:
         return 1.0
@@ -498,6 +496,9 @@ def _get_dimension_sizes_for_tensor(
         else:
             # Compound expression — skip this rank or use 1
             size = 1
+        # Trivial dimensions (size 1) are excluded: UOP on a size-1 dim
+        # produces zero overhead, and format auto-expansion uses
+        # num_ranks = len(sizes) to match the count of non-trivial dims.
         if size > 1:
             sizes.append(size)
 
@@ -878,6 +879,13 @@ def apply_sparse_adjustments(
                     # Collect for position-space utilization
                     d = tensor_info[target]["density"]
                     if d < 1.0:
+                        if (position_skip_level is not None
+                                and position_skip_level != buffet.level):
+                            raise ValueError(
+                                f"position_skipping declared at multiple levels: "
+                                f"{position_skip_level!r} and {buffet.level!r}. "
+                                f"Only one level may use position_skipping."
+                            )
                         position_skip_info.append(
                             (target, d, stats.tile_shape or {})
                         )
@@ -1098,7 +1106,7 @@ def apply_sparse_adjustments(
         pre = pre_saf_compute.get(compute_key.level, 0)
         if pre > 0:
             latency_info.compute_latency_ratio = compute_stats.total_ops / pre
-        break
+            break
 
     # Position-space utilization: load imbalance from position-skipping
     if position_skip_info and position_skip_level and job.mapping is not None:

@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 
 from sympy import Symbol
@@ -94,8 +95,12 @@ def run_model(
         )
         try:
             overall_latency = MaxGeqZero(*latency.values())
-        except Exception:
-            pass  # Fall back to dense latency on error
+        except (TypeError, ValueError) as e:
+            logging.warning(
+                "Sparse latency calculation failed for %s, "
+                "falling back to dense latency: %s",
+                job.einsum_name, e,
+            )
 
     used_fanout = {
         (component, dim): n
@@ -123,12 +128,14 @@ def run_model(
                 usage = used_fanout[node.name, s.name] / s.fanout
                 scaled_usage = usage * s.usage_scale
                 spatial_usage[node.name, s.name] = scaled_usage
-                s = f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"
-                spatial_usage_df[s] = scaled_usage
+                usage_key = f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"
+                spatial_usage_df[usage_key] = scaled_usage
 
+    # _power_gating expects raw fanout counts (it divides by s.fanout
+    # internally), so pass used_fanout, not the pre-divided spatial_usage.
     component_to_non_power_gated_porp, _ = spec.arch._power_gating(
         compute_name=job.flattened_arch[-1].name,
-        used_fanout=spatial_usage,
+        used_fanout=used_fanout,
     )
 
     if metrics & Metrics.ACTIONS:
@@ -162,6 +169,20 @@ def run_model(
             continue
 
         occupancy = stats.max_occupancy
+
+        # Add metadata occupancy if this tensor has a sparse format at this level.
+        # Metadata capacity (units) is already computed by the sparse pipeline in
+        # per_rank_info.  Convert to bits and add to data occupancy so that
+        # limit_capacity() rejects configs where data + metadata > buffer size.
+        md_key = (buffet.tensor, buffet.level)
+        if md_key in per_rank_info:
+            info = per_rank_info[md_key]
+            rank_cap = info.get("rank_capacity", [])
+            rank_wb = info.get("rank_word_bits", [])
+            for (md_units, pl_units), wb in zip(rank_cap, rank_wb):
+                md_bits = wb.get("metadata") or 0
+                pl_bits = wb.get("payload") or 0
+                occupancy += md_units * md_bits + pl_units * pl_bits
 
         if occupancy == 0:
             continue
@@ -382,15 +403,16 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
             f"{action.name}_actions", 0
         )
 
-    # Compute per-tensor max for levels with dedicated ports (e.g., Reg)
+    # Compute per-tensor max for levels with dedicated ports (e.g., Reg).
+    # Use sympy Max to handle symbolic expressions correctly.
     for component in component_to_actions:
         if per_tensor_reads[component]:
-            component_to_actions[component]["max_tensor_read_actions"] = max(
-                per_tensor_reads[component].values()
+            component_to_actions[component]["max_tensor_read_actions"] = Max(
+                *per_tensor_reads[component].values()
             )
         if per_tensor_writes[component]:
-            component_to_actions[component]["max_tensor_write_actions"] = max(
-                per_tensor_writes[component].values()
+            component_to_actions[component]["max_tensor_write_actions"] = Max(
+                *per_tensor_writes[component].values()
             )
 
     # Synthetic variables (not real actions — skip in action-latency loop)
