@@ -1,36 +1,4 @@
-"""Sparse optimization specification for AccelForge.
-
-Parses the ``sparse_optimizations:`` YAML section. Supports both simplified
-format names (csr/coo/bitmask/rle) with auto-expansion and explicit per-rank
-format specification for expert use.
-
-Example YAML (simplified)::
-
-    sparse_optimizations:
-      targets:
-      - target: Buffer
-        representation_format:
-        - name: A
-          format: bitmask
-        - name: B
-          format: csr
-        action_optimization:
-        - kind: gating
-          target: A
-          condition_on: [B]
-
-Example YAML (expert, explicit per-rank)::
-
-    sparse_optimizations:
-      targets:
-      - target: BackingStorage
-        representation_format:
-        - name: A
-          ranks:
-          - format: UOP
-            payload_word_bits: 0
-          - format: B
-"""
+"""Sparse optimization specification for AccelForge."""
 
 from typing import Literal, Optional
 
@@ -39,41 +7,26 @@ from accelforge.util._basetypes import EvalableModel, EvalableList
 
 
 class RankFormat(EvalableModel):
-    """Per-rank format specification (expert mode).
-
-    Ranks are ordered outer-to-inner. The outermost rank indexes the coarsest
-    dimension, the innermost rank indexes the finest.
-    """
+    """Per-rank format specification for explicit (expert) format definitions."""
 
     format: str
-    """Format primitive name: UOP, CP, B, or RLE.
-
-    - UOP (Uncompressed Offset Pair): offset array per fiber.
-      payload = fibers * (fiber_shape + 1), metadata = 0.
-      Empty fibers filtered when density model available.
-      Trivial dimensions (fiber_shape <= 1) produce zero overhead.
-    - CP (Coordinate Payload): explicit coordinates of nonzeros.
-      metadata = fibers * ceil(ennz_per_fiber), payload = 0.
-    - B (Bitmask): one bit per position, density-independent.
-      metadata = fibers * fiber_shape, payload = 0.
-    - RLE (Run-Length Encoding): run lengths for nonzeros.
-      metadata = fibers * ennz_per_fiber (fractional), payload = 0.
-    """
+    """ Format primitive name: UOP, CP, B, or RLE. """
 
     metadata_word_bits: Optional[int] = None
-    """Bits per metadata word for this rank. None = auto-derive from primitive:
-    B → 1, CP → ceil(log2(dim_size)), RLE → ceil(log2(dim_size)).
-    Overrides the parent RepresentationFormat.metadata_word_bits. """
+    """ Bits per metadata word. None = auto-derived from format primitive. """
 
     payload_word_bits: Optional[int] = None
-    """Bits per payload word for this rank. None = auto-derive:
-    UOP → ceil(log2(dim_size + 1)). Set to 0 to make UOP payload free. """
+    """ Bits per payload word. None = auto-derived from dimension size. """
 
     flattened_rank_ids: Optional[list[list[str]]] = None
-    """Dimension names flattened into this rank, e.g. [["C", "R"]].
-    When set, fiber_shape = product of those dimension sizes.
-    When None, auto-derived from tensor projection order (innermost format
-    rank → innermost non-trivial loop dimension, proceeding outward). """
+    """ Dimension names flattened into this rank, e.g. [["C", "R"]]. """
+
+    def model_post_init(self, __context__=None) -> None:
+        if self.format.upper() not in ("UOP", "CP", "B", "RLE"):
+            raise ValueError(
+                f"Unknown format primitive {self.format!r}. "
+                f"Expected one of: UOP, CP, B, RLE"
+            )
 
 
 class RepresentationFormat(EvalableModel):
@@ -81,48 +34,34 @@ class RepresentationFormat(EvalableModel):
 
     Either ``format`` (auto-expanded) or ``ranks`` (explicit) must be provided.
     If both are given, ``ranks`` takes precedence.
-
-    Declaring a format on a tensor at a level has three effects:
-    1. Data accesses reduced by floor(count * (1 - density)).
-    2. Metadata access counts emitted as metadata_read/metadata_write actions.
-    3. Operand marked as "has metadata" for compute classification (NE vs EZ).
     """
 
+    _VALID_FORMATS = {"csr", "coo", "bitmask", "b", "rle"}
+
     name: str
-    """Tensor name (must match a tensor in the workload). """
+    """ Tensor name (must match a tensor in the workload). """
 
     format: Optional[str] = None
-    """User-friendly format name, auto-expanded to per-rank primitives:
-
-    - csr: (N-1) UOP + 1 CP. Metadata scales with nnz.
-    - coo: N CP ranks. More metadata than CSR.
-    - bitmask (or b): (N-1) UOP + 1 B. Metadata is density-independent.
-    - rle: (N-1) UOP + 1 RLE. Metadata is fractional nnz.
-
-    N = number of non-trivial dimensions (size > 1) at the storage level. """
+    """ User-friendly format name (csr, coo, bitmask, rle), auto-expanded to per-rank primitives. """
 
     ranks: Optional[EvalableList[RankFormat]] = None
-    """Explicit per-rank format specification (expert mode), outer-to-inner.
-    Overrides ``format`` entirely. The cascade processes ranks outer-to-inner,
-    re-conditioning the density model at each rank. """
+    """ Explicit per-rank format specification (expert mode), outer-to-inner. """
 
     metadata_word_bits: Optional[int] = None
-    """Default bits per metadata word for all auto-expanded ranks that don't
-    specify their own. None = auto-derive per rank (B → 1, CP/RLE →
-    ceil(log2(dim_size))). Per-rank metadata_word_bits override this.
-    Affects format occupancy (metadata_bits = units * word_bits) and access
-    count packing (floor(metadata_storage_width / word_bits) per access). """
+    """ Default bits per metadata word for auto-expanded ranks. None = auto-derived per rank. """
 
     metadata_storage_width: Optional[int] = None
-    """Physical SRAM width in bits for metadata packing. Determines how many
-    metadata elements fit per SRAM access: floor(msw / word_bits) elements.
-    None = fall back to the metadata_read action's bits_per_action in arch,
-    then to the data read action's bits_per_action. """
+    """ Physical SRAM width in bits for metadata packing. None = fall back to arch. """
 
     uop_payload_word_bits: Optional[int] = None
-    """Override payload_word_bits for auto-expanded UOP ranks only. None =
-    auto-derive from dimension size. 0 = free (zero storage/access cost).
-    Does not affect non-UOP ranks or explicit ``ranks``. """
+    """ Override payload_word_bits for auto-expanded UOP ranks. None = auto-derived. """
+
+    def model_post_init(self, __context__=None) -> None:
+        if self.format is not None and self.format.lower() not in self._VALID_FORMATS:
+            raise ValueError(
+                f"Unknown format {self.format!r}. "
+                f"Expected one of: csr, coo, bitmask, rle"
+            )
 
     def get_rank_formats(self, num_ranks: Optional[int] = None) -> list[RankFormat]:
         """Return per-rank formats, auto-expanding if needed.
@@ -132,6 +71,11 @@ class RepresentationFormat(EvalableModel):
         num_ranks : int, optional
             Number of ranks for auto-expansion. Required if ``format`` is set
             and ``ranks`` is None.
+
+        Returns
+        -------
+        list[RankFormat]
+            Per-rank format specifications, outer-to-inner.
         """
         if self.ranks is not None:
             return list(self.ranks)
@@ -155,102 +99,92 @@ class RepresentationFormat(EvalableModel):
 
 
 class ActionOptimization(EvalableModel):
-    """Storage action filtering (SAF) optimization at a memory level.
-
-    Reduces data reads by exploiting condition tensor sparsity. The optimization
-    probability is: prob = 1 - product(P_nonempty_i) over condition_on tensors.
-    Applied AFTER format compression. Fills are never reduced by SAF.
-    """
+    """Storage action optimization at a memory level."""
 
     kind: Literal["gating", "skipping", "position_skipping"]
-    """Optimization type: gating, skipping, or position_skipping.
-
-    - gating: access initiated then discarded. Uses ceil rounding for
-      read-write tensors, floor for read-only. Still consumes bandwidth.
-      Does NOT reduce compute latency.
-    - skipping: access never initiated. Uses floor rounding. Zero bandwidth.
-      DOES reduce compute latency.
-    - position_skipping: self-conditioned skipping using the target tensor's
-      own format metadata. Requires condition_on: []. Enables position-space
-      utilization model for PE load imbalance with spatial mapping.
-    """
+    """ Optimization type: gating (filter after access), skipping (skip access), or position_skipping (self-conditioned skip). """
 
     target: str
-    """Tensor whose read accesses are reduced. Fills are NOT reduced by SAF. """
+    """ Tensor whose read accesses are reduced. """
 
     condition_on: list[str]
-    """Tensors whose sparsity determines the optimization probability.
-    P_nonempty = density for scalar access, 1 - prob_empty(tile) for tiled.
-    Empty list [] for position_skipping (self-conditioned). """
+    """ Tensors whose sparsity determines the filtering probability. Empty for position_skipping. """
+
+    def model_post_init(self, __context__=None) -> None:
+        if self.kind == "position_skipping" and self.condition_on:
+            raise ValueError(
+                f"position_skipping requires condition_on=[], "
+                f"got {self.condition_on!r}"
+            )
 
 
 class ComputeOptimization(EvalableModel):
-    """Compute-level optimization (gating/skipping at the MAC).
-
-    Uses a 9-state model: each operand is ENZ (nonzero), EZ (zero, dense format),
-    or NE (absent, compressed format). The 9 joint states map to random, gated,
-    skipped, or nonexistent compute. Whether an operand has metadata depends on
-    whether a representation_format exists for it at any non-compute storage level.
-    """
+    """Compute-level optimization (gating or skipping at the MAC)."""
 
     kind: Literal["gating", "skipping"]
-    """Optimization type: gating or skipping.
-
-    - gating: non-effectual ops executed but output discarded. Energy at
-      gated_compute rate. Does NOT reduce compute latency.
-    - skipping: ops with a "not exist" operand are skipped entirely.
-      Zero energy. DOES reduce compute latency.
-
-    Floor rounding for all classifications (pessimistic).
-    """
+    """ Optimization type: gating (discard result) or skipping (skip entirely). """
 
     target: str
-    """Target tensor or operation name (e.g., Z, GEMM). """
+    """ Target tensor or operation name (e.g., Z, GEMM). """
 
     condition_on: list[str]
-    """Operand tensors for compute classification. Should list 2 tensors for
-    the full 9-state model (e.g., [A, B]). With <2, falls back to a simple
-    product model. """
+    """ Operand tensors for compute classification. """
 
 
 class SparseTarget(EvalableModel):
-    """Sparse optimization configuration for one hardware component.
-
-    Multiple entries may reference the same component (logically merged).
-    """
+    """Sparse optimization configuration for one hardware component."""
 
     target: str
-    """Component name from arch YAML (e.g., DRAM, Buffer, Reg, MAC). """
+    """ Component name from arch YAML (e.g., DRAM, Buffer, Reg, MAC). """
 
     representation_format: EvalableList[RepresentationFormat] = EvalableList()
-    """Compressed formats for tensors at this level. """
+    """ Compressed formats for tensors at this level. """
 
     action_optimization: EvalableList[ActionOptimization] = EvalableList()
-    """Storage action filtering optimizations at this level. Applied after
-    format compression. Outer-level reductions propagate to inner levels. """
+    """ Storage action filtering optimizations at this level. """
 
     compute_optimization: EvalableList[ComputeOptimization] = EvalableList()
-    """Compute-level optimizations (only meaningful on Compute nodes). """
+    """ Compute-level optimizations (only meaningful on Compute nodes). """
 
 
 class SparseOptimizations(EvalableModel):
-    """Top-level sparse optimizations specification.
-
-    No-op when ``targets`` is empty. Each tensor referenced here must have a
-    ``density`` set in the workload (defaults to 1.0 if absent).
-    """
+    """Top-level sparse optimizations specification."""
 
     targets: EvalableList[SparseTarget] = EvalableList()
-    """Per-component sparse optimization configurations. """
+    """ Per-component sparse optimization configurations. """
 
     def get_targets_for(self, component_name: str) -> list[SparseTarget]:
-        """Return all SparseTarget entries matching a component name."""
+        """Return all SparseTarget entries matching a component name.
+
+        Parameters
+        ----------
+        component_name : str
+            The hardware component name to match (e.g., "DRAM", "Buffer").
+
+        Returns
+        -------
+        list[SparseTarget]
+            All SparseTarget entries whose ``target`` matches the component name.
+        """
         return [t for t in self.targets if t.target == component_name]
 
     def get_formats_for(
         self, component_name: str, tensor_name: str
     ) -> list[RepresentationFormat]:
-        """Return all RepresentationFormat entries for a (component, tensor) pair."""
+        """Return all RepresentationFormat entries for a (component, tensor) pair.
+
+        Parameters
+        ----------
+        component_name : str
+            The hardware component name to match.
+        tensor_name : str
+            The tensor name to match.
+
+        Returns
+        -------
+        list[RepresentationFormat]
+            All RepresentationFormat entries at the component for the tensor.
+        """
         results = []
         for t in self.get_targets_for(component_name):
             for rf in t.representation_format:
@@ -261,7 +195,18 @@ class SparseOptimizations(EvalableModel):
     def get_action_optimizations_for(
         self, component_name: str
     ) -> list[ActionOptimization]:
-        """Return all ActionOptimization entries for a component."""
+        """Return all ActionOptimization entries for a component.
+
+        Parameters
+        ----------
+        component_name : str
+            The hardware component name to match.
+
+        Returns
+        -------
+        list[ActionOptimization]
+            All ActionOptimization entries at the component.
+        """
         results = []
         for t in self.get_targets_for(component_name):
             results.extend(t.action_optimization)
@@ -270,7 +215,18 @@ class SparseOptimizations(EvalableModel):
     def get_compute_optimizations_for(
         self, component_name: str
     ) -> list[ComputeOptimization]:
-        """Return all ComputeOptimization entries for a component."""
+        """Return all ComputeOptimization entries for a component.
+
+        Parameters
+        ----------
+        component_name : str
+            The hardware component name to match.
+
+        Returns
+        -------
+        list[ComputeOptimization]
+            All ComputeOptimization entries at the component.
+        """
         results = []
         for t in self.get_targets_for(component_name):
             results.extend(t.compute_optimization)
@@ -279,8 +235,18 @@ class SparseOptimizations(EvalableModel):
     def has_format(self, component_name: str, tensor_name: str) -> bool:
         """Check if a tensor has a compressed format at a component.
 
-        Returns True only if at least one RepresentationFormat entry has
-        ``format`` or ``ranks`` set (entries with neither are ignored).
+        Parameters
+        ----------
+        component_name : str
+            The hardware component name to check.
+        tensor_name : str
+            The tensor name to check.
+
+        Returns
+        -------
+        bool
+            True if at least one RepresentationFormat entry has ``format``
+            or ``ranks`` set.
         """
         return any(
             rf.format is not None or rf.ranks is not None
