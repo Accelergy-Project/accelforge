@@ -1,15 +1,7 @@
+{%- set sparse_mode = sparse_mode | default('dense') -%}
 # Lab 4 architecture: DRAM → Buffer → MAC
 # ERT values from Accelergy (SRAM_metadata + regfile_metadata, 45nm).
-# Source: old_labs/workspace/lab4-old/lab4.ipynb Accelergy output.
-#
-# BackingStorage (SRAM_metadata): 512 depth, 32-bit wide, block_size=4
-#   → bits_per_action=32 (matches DRAM width=32 in Sparseloop arch)
-#   → read=2.68 pJ, write=3.21 pJ per 32-bit vector access
-# Buffer (regfile_metadata): 192 depth, 8-bit, 30 r/w BW
-#   → bits_per_action=8 (matches Buffer width=8 in Sparseloop arch)
-#   → read=1.46 pJ, write=1.46 pJ per 8-bit scalar access
-#   → metadata_read/write bpa=8 (same physical 8-bit port; 1.43 pJ ≈ 1.46 pJ)
-# MAC (intmac, 8-bit): compute=0.56 pJ
+# Sparse mode: {{ sparse_mode }} (dense/compressed/gating/skipping)
 
 arch:
   nodes:
@@ -25,6 +17,17 @@ arch:
     - {name: write, energy: 3.21, bits_per_action: 32, latency: 0}
     - {name: metadata_read, energy: 0.85, bits_per_action: 4, latency: 0}
     - {name: metadata_write, energy: 0.85, bits_per_action: 4, latency: 0}
+{%- if sparse_mode in ('compressed', 'skipping') %}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4
+    - name: B
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4
+{%- endif %}
 
   - !Memory
     name: Buffer
@@ -41,6 +44,34 @@ arch:
     - {name: metadata_read, energy: 1.43, bits_per_action: 8, latency: 0}
     - {name: metadata_write, energy: 1.43, bits_per_action: 8, latency: 0}
     - {name: gated_metadata_read, energy: 0.00002, bits_per_action: 8, latency: 0}
+{%- if sparse_mode in ('compressed', 'skipping') %}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 8
+    - name: B
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 8
+{%- endif %}
+{%- if sparse_mode == 'gating' %}
+    action_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+{%- elif sparse_mode == 'skipping' %}
+    action_optimization:
+    - kind: skipping
+      target: A
+      condition_on: [B]
+    - kind: skipping
+      target: B
+      condition_on: [A]
+    - kind: skipping
+      target: Z
+      condition_on: [A, B]
+{%- endif %}
 
   - !Compute
     name: MAC
@@ -50,3 +81,14 @@ arch:
     - {name: compute, energy: 0.56, latency: 1}
     - {name: gated_compute, energy: 0.03642, latency: 0}
     - {name: skipped_compute, energy: 0.0, latency: 0}
+{%- if sparse_mode == 'gating' %}
+    compute_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+{%- elif sparse_mode == 'skipping' %}
+    compute_optimization:
+    - kind: skipping
+      target: Z
+      condition_on: [A, B]
+{%- endif %}

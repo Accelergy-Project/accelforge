@@ -1,6 +1,7 @@
-
+{%- set sparse_mode = sparse_mode | default('dense_iact') -%}
 # Table 7 Eyeriss v1 Architecture (168 PEs, 14x12)
 # Energy values from Sparseloop ERT (45nm technology)
+# Sparse mode: {{ sparse_mode }} (dense_iact/sparse_iact)
 #
 # Hierarchy: DRAM -> shared_glb -> PEColumns(14) -> DummyBuffer -> PE(12) ->
 #            ifmap_spad, weights_spad, psum_spad -> MACs
@@ -19,6 +20,35 @@ arch:
     - {name: write, energy: 512, bits_per_action: 64, latency: 0}
     - {name: metadata_read, energy: 40, bits_per_action: 5, latency: 0}
     - {name: metadata_write, energy: 40, bits_per_action: 5, latency: 0}
+{%- if sparse_mode == 'dense_iact' %}
+    representation_format:
+    - name: Outputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 5
+        flattened_rank_ids: [["P", "M", "N", "Q"]]
+      - format: RLE
+        metadata_word_bits: 5
+        flattened_rank_ids: [["P", "M", "N", "Q"]]
+{%- elif sparse_mode == 'sparse_iact' %}
+    representation_format:
+    - name: Inputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 5
+        flattened_rank_ids: [["R", "S", "P", "C", "M", "N", "Q"]]
+      - format: RLE
+        metadata_word_bits: 5
+        flattened_rank_ids: [["R", "S", "P", "C", "M", "N", "Q"]]
+    - name: Outputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 5
+        flattened_rank_ids: [["P", "M", "N", "Q"]]
+      - format: RLE
+        metadata_word_bits: 5
+        flattened_rank_ids: [["P", "M", "N", "Q"]]
+{%- endif %}
 
   - !Memory
     name: shared_glb
@@ -68,6 +98,12 @@ arch:
     actions:
     - {name: read, energy: 0.71011, bits_per_action: 16, latency: 0}
     - {name: write, energy: 1.13063, bits_per_action: 16, latency: 0}
+{%- if sparse_mode == 'sparse_iact' %}
+    action_optimization:
+    - kind: gating
+      target: Weights
+      condition_on: [Inputs]
+{%- endif %}
 
   - !Memory
     name: psum_spad
@@ -86,3 +122,9 @@ arch:
     area: 0
     actions:
     - {name: compute, energy: 2.20035, latency: 1}
+{%- if sparse_mode == 'sparse_iact' %}
+    compute_optimization:
+    - kind: gating
+      target: Conv
+      condition_on: [Inputs]
+{%- endif %}

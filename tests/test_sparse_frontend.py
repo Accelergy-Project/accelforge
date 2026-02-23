@@ -8,13 +8,13 @@ YAML file loading tests removed — covered by reproduction tests.
 import unittest
 
 from accelforge.frontend.sparse import (
-    RankFormat,
     RepresentationFormat,
     ActionOptimization,
     ComputeOptimization,
     SparseTarget,
     SparseOptimizations,
 )
+from accelforge.model.sparse_formats import RankFormat
 
 
 class TestRepresentationFormat(unittest.TestCase):

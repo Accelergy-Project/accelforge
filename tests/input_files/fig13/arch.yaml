@@ -2,6 +2,7 @@
 # 128 PEs (8x16 spatial mesh) with hierarchical memory.
 # ERT values from Sparseloop artifact fig13_dstc_setup.
 # Hierarchy: DRAM -> GLB -> Buffer -> LineBuffer -> MAC[0..127]
+# Sparse config (DSTC) inlined from sparse_dstc.yaml.
 
 arch:
   nodes:
@@ -17,6 +18,25 @@ arch:
     - {name: write, energy: 249.6, bits_per_action: 64, latency: 0}
     - {name: metadata_read, energy: 0, bits_per_action: 64, latency: 0}
     - {name: metadata_write, energy: 0, bits_per_action: 64, latency: 0}
+    representation_format:
+    - name: A
+      ranks:
+      - {format: B, metadata_word_bits: 1, flattened_rank_ids: [["M"]]}
+      - {format: B, metadata_word_bits: 1}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
+    - name: B
+      ranks:
+      - {format: B, metadata_word_bits: 1, flattened_rank_ids: [["N"]]}
+      - {format: B, metadata_word_bits: 1}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
 
   - !Memory
     name: GLB
@@ -34,6 +54,21 @@ arch:
     - {name: metadata_write, energy: 19.6486, bits_per_action: 64, latency: 0}
     - {name: gated_metadata_read, energy: 0.00276, bits_per_action: 64, latency: 0}
     - {name: gated_metadata_write, energy: 0.00276, bits_per_action: 64, latency: 0}
+    representation_format:
+    - name: A
+      ranks:
+      - {format: B, metadata_word_bits: 1, flattened_rank_ids: [["M"]]}
+      - {format: B, metadata_word_bits: 1}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
+    - name: B
+      ranks:
+      - {format: B, metadata_word_bits: 1, flattened_rank_ids: [["N"]]}
+      - {format: B, metadata_word_bits: 1}
+      - {format: UOP}
+      - {format: UOP}
+      - {format: UOP}
 
   - !Memory
     name: Buffer
@@ -53,6 +88,10 @@ arch:
     - {name: metadata_write, energy: 0.49218, bits_per_action: 16, latency: 0}
     - {name: gated_metadata_read, energy: 0.00737, bits_per_action: 16, latency: 0}
     - {name: gated_metadata_write, energy: 0.00737, bits_per_action: 16, latency: 0}
+    action_optimization:
+    - kind: skipping
+      target: Z
+      condition_on: [A, B]
 
   - !Memory
     name: LineBuffer
@@ -72,6 +111,26 @@ arch:
     - {name: metadata_write, energy: 0.18108, bits_per_action: 4, latency: 0}
     - {name: gated_metadata_read, energy: 0.00209, bits_per_action: 4, latency: 0}
     - {name: gated_metadata_write, energy: 0.00209, bits_per_action: 4, latency: 0}
+    representation_format:
+    - name: A
+      ranks:
+      - {format: B, metadata_word_bits: 1, flattened_rank_ids: [["M"]]}
+      - {format: B, metadata_word_bits: 1}
+      - {format: UOP}
+      - {format: UOP}
+    - name: B
+      ranks:
+      - {format: B, metadata_word_bits: 1, flattened_rank_ids: [["N"]]}
+      - {format: B, metadata_word_bits: 1}
+      - {format: UOP}
+      - {format: UOP}
+    action_optimization:
+    - kind: position_skipping
+      target: A
+      condition_on: []
+    - kind: position_skipping
+      target: B
+      condition_on: []
     spatial:
     - {name: X, fanout: 16}
     - {name: Y, fanout: 8}

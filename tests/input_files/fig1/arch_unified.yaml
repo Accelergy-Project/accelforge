@@ -1,7 +1,9 @@
+{%- set format_type = format_type | default('none') -%}
 # Unified arch for fig1: ERT values + bandwidth-based latency + memory sizes.
 # Combines arch_energy.yaml + arch_latency.yaml into one file.
 # ERT values from ARTIFACT_EVALUATION.md section 2.10.
 # Memory sizes: BackingStorage=131072, Buffer=512, Reg=1 (in elements).
+# Sparse format: {{ format_type }} (none/bitmask/coord_list)
 
 arch:
   nodes:
@@ -16,6 +18,31 @@ arch:
     - {name: read, energy: 32.2859, bits_per_action: 64, latency: 0}
     - {name: write, energy: 26.065, bits_per_action: 64, latency: 0}
     - {name: metadata_read, energy: 14.0361, bits_per_action: 64, latency: 0}
+{%- if format_type == 'bitmask' %}
+    representation_format:
+    - name: A
+      format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+    - name: B
+      format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+{%- elif format_type == 'coord_list' %}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 14
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+    - name: B
+      format: csr
+      metadata_word_bits: 14
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+{%- endif %}
 
   - !Memory
     name: Buffer
@@ -31,6 +58,45 @@ arch:
     - {name: metadata_read, energy: 0.7383, bits_per_action: 8, latency: 0}
     - {name: metadata_write, energy: 1.42366, bits_per_action: 8, latency: 0}
     - {name: gated_metadata_read, energy: 0.00002, bits_per_action: 8, latency: 0}
+{%- if format_type == 'bitmask' %}
+    representation_format:
+    - name: A
+      format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+    - name: B
+      format: bitmask
+      metadata_word_bits: 1
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+    action_optimization:
+    - kind: gating
+      target: A
+      condition_on: [B]
+    - kind: gating
+      target: B
+      condition_on: [A]
+{%- elif format_type == 'coord_list' %}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 14
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+    - name: B
+      format: csr
+      metadata_word_bits: 14
+      metadata_storage_width: 28
+      uop_payload_word_bits: 0
+    action_optimization:
+    - kind: skipping
+      target: A
+      condition_on: [B]
+    - kind: skipping
+      target: B
+      condition_on: [A]
+{%- endif %}
 
   - !Memory
     name: Reg
@@ -42,6 +108,17 @@ arch:
     actions:
     - {name: read, energy: 0.49, bits_per_action: 8, latency: 0}
     - {name: write, energy: 0.49, bits_per_action: 8, latency: 0}
+{%- if format_type == 'bitmask' %}
+    action_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+{%- elif format_type == 'coord_list' %}
+    action_optimization:
+    - kind: skipping
+      target: Z
+      condition_on: [A, B]
+{%- endif %}
 
   - !Memory
     name: RegPassthrough
@@ -61,3 +138,14 @@ arch:
     actions:
     - {name: compute, energy: 0.5608, latency: 1}
     - {name: gated_compute, energy: 0.03642, latency: 0}
+{%- if format_type == 'bitmask' %}
+    compute_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+{%- elif format_type == 'coord_list' %}
+    compute_optimization:
+    - kind: skipping
+      target: Z
+      condition_on: [A, B]
+{%- endif %}
