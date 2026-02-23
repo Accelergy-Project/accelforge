@@ -816,7 +816,11 @@ class TestActionRecomputation(unittest.TestCase):
         )
         job = make_mock_job()
 
-        _recompute_action_counts(reuse, spec, job, set())
+        tensor_info = {
+            ta.name: {"bits_per_value": ta.bits_per_value}
+            for ta in spec.workload.einsums[job.einsum_name].tensor_accesses
+        }
+        _recompute_action_counts(reuse, spec, job, set(), tensor_info)
 
         # write_scale = 8 / 8 = 1, read_scale = 8 / 8 = 1
         # fill_write_actions = total_reads_to_parent * write_scale = 500 * 1 = 500
@@ -865,7 +869,11 @@ class TestActionRecomputation(unittest.TestCase):
         )
         job = make_mock_job()
 
-        _recompute_action_counts(reuse, spec, job, set())
+        tensor_info = {
+            ta.name: {"bits_per_value": ta.bits_per_value}
+            for ta in spec.workload.einsums[job.einsum_name].tensor_accesses
+        }
+        _recompute_action_counts(reuse, spec, job, set(), tensor_info)
 
         # Buffer read_actions = child.total_reads_to_parent * read_scale = 200 * 1 = 200
         # Buffer fill_write_actions = parent.total_reads_to_parent * write_scale = 100 * 1 = 100
