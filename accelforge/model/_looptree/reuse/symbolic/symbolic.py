@@ -372,6 +372,11 @@ class SymbolicAnalysisOutput:
     # tensor to the mapping for that particular tensor
     tensor2mapping: dict[TensorName, Mapping] = field(default_factory=dict)
 
+    # Partial overlap info from Reservation nodes for halo/stride reuse.
+    # Maps tensor → (stride, tile_in_rank). Set by analyze_reservation,
+    # consumed by the temporal loop directly above.
+    partial_overlap_info: dict[TensorName, tuple] = field(default_factory=dict)
+
     def get_buffet_for_tensor(self, tensor: TensorName) -> Buffet:
         for buffet in self.buffet_stats:
             if buffet.tensor == tensor:
@@ -672,6 +677,7 @@ class ReservationAnalysisTracker:
 
         # Temporary values
         self.has_filled = False
+        self.partially_relevant_info = None
 
     def track_temporal_loop(self, relevancy, node):
         self.is_fill_level = False
@@ -688,6 +694,7 @@ class ReservationAnalysisTracker:
             self.should_stop = False
         elif isinstance(relevancy, PartiallyRelevant):
             self.last = True
+            self.partially_relevant_info = (relevancy.rank, node.rank_variable)
 
             if not self.has_filled:
                 self.is_fill_level = True
@@ -774,6 +781,7 @@ def insert_reservation_nodes(
             node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
             node.persistent = tracker.node.persistent
             node._backing = tracker.node._backing
+            node._partially_relevant_info = tracker.partially_relevant_info
 
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
@@ -961,6 +969,22 @@ def _is_directly_above_storage(
     return False
 
 
+def _compute_overlap_fallback(tensor, rank, rank_variable, child_shape, info):
+    """Compute (stride, tile_in_rank) for top-level buffers whose Reservation
+    was created at the TensorHolder (before any PartiallyRelevant loop)."""
+    sh = info.stride_and_halo.get(tensor, {})
+    stride_halo = sh.get((rank, rank_variable), None)
+    if stride_halo is None:
+        return None
+    stride, _halo = stride_halo
+    if stride <= 0:
+        return None
+    einsum_name = info.mapping[-1].einsum
+    rank_proj = info.einsum_tensor_to_projection[(einsum_name, tensor)][rank]
+    tile_in_rank = compute_rank_occupancy(rank_proj, child_shape)
+    return (stride, tile_in_rank)
+
+
 def analyze_temporal(
     node_idx, current_shape, info: AnalysisInfo
 ) -> SymbolicAnalysisOutput:
@@ -1030,30 +1054,27 @@ def analyze_temporal(
                             in_scope = False
                         break
                 if in_scope:
-                    einsum_name = info.mapping[-1].einsum
-                    sh = info.stride_and_halo.get(buffet.tensor, {})
-                    stride_halo = sh.get(
-                        (relevancy.rank, node.rank_variable), None
+                    # Use pre-computed overlap from Reservation when
+                    # available (lower-level buffers whose tracker
+                    # survived to the PR loop). Fall back to direct
+                    # computation for top-level buffers whose Reservation
+                    # was created at the TensorHolder (before any PR loop).
+                    overlap = child_result.partial_overlap_info.get(
+                        buffet.tensor
                     )
-                    if stride_halo is not None:
-                        stride, _halo = stride_halo
-                        if stride > 0:
-                            rank_proj = info.einsum_tensor_to_projection[
-                                (einsum_name, buffet.tensor)
-                            ][relevancy.rank]
-                            tile_in_rank = compute_rank_occupancy(
-                                rank_proj, child_shape
-                            )
-                            # Per-iteration shift: stride is per-element
-                            # (e.g., dW/dq=4 for W=4*q+s), multiply by
-                            # tile_shape to get the actual shift between
-                            # consecutive temporal iterations.
-                            shift_per_iter = stride * shape_value
-                            if tile_in_rank > shift_per_iter:
-                                halo_factor = (
-                                    tile_in_rank
-                                    + (shape_repeats - 1) * shift_per_iter
-                                ) / tile_in_rank
+                    if overlap is None:
+                        overlap = _compute_overlap_fallback(
+                            buffet.tensor, relevancy.rank,
+                            node.rank_variable, child_shape, info,
+                        )
+                    if overlap is not None:
+                        stride, tile_in_rank = overlap
+                        shift_per_iter = stride * shape_value
+                        if tile_in_rank > shift_per_iter:
+                            halo_factor = (
+                                tile_in_rank
+                                + (shape_repeats - 1) * shift_per_iter
+                            ) / tile_in_rank
 
             accumulated_stats = accumulated_buffet_stats.setdefault(
                 buffet, blank_buffet_stats()
@@ -1439,6 +1460,20 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
         compute_dense_tile_occupancy(projection, current_shape) * bits_per_value
     )
     child_result.buffet_stats[buffet] = stats
+
+    # Pre-compute partial overlap info for halo/stride reuse.
+    # When the Reservation was created from a PartiallyRelevant loop,
+    # compute (stride, tile_in_rank) so analyze_temporal doesn't re-derive it.
+    if node._partially_relevant_info is not None:
+        rank, rank_variable = node._partially_relevant_info
+        sh = info.stride_and_halo.get(tensor, {})
+        stride_halo = sh.get((rank, rank_variable), None)
+        if stride_halo is not None:
+            stride, _halo = stride_halo
+            if stride > 0:
+                rank_proj = projection[rank]
+                tile_in_rank = compute_rank_occupancy(rank_proj, current_shape)
+                child_result.partial_overlap_info[tensor] = (stride, tile_in_rank)
 
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:

@@ -1558,6 +1558,9 @@ class Reservation(MappingNode):
     must be kept in backing storage for the full duration of the workload's execution.
     """
 
+    _partially_relevant_info: tuple | None = None
+    """ (rank, rank_variable) when created due to a PartiallyRelevant loop. """
+
     @override
     def compact_str(self) -> str:
         return f'{",".join(self.purposes)} reserves {self.resource}'
