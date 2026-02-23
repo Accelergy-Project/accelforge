@@ -68,6 +68,29 @@ class ArchNode(EvalableModel):
             return default
         raise ValueError(f"Leaf {name} not found in {self}")
 
+    def iterate_hierarchically(self, _parents=None):
+        """
+        Iterates over all Leaf nodes while also yielding the list of all Leaf
+        nodes that are hierarchical parents over the current node.
+        """
+        if _parents is None:
+            _parents = []
+
+        if isinstance(self, Leaf):
+            yield self, _parents
+            _parents.append(self)
+            return
+
+        assert isinstance(self, Branch)
+        if isinstance(self, (Fork, Flat)):
+            for node in self.nodes:
+                yield from node.iterate_hierarchically(list(_parents))
+        elif isinstance(self, Hierarchical):
+            for node in self.nodes:
+                yield from node.iterate_hierarchically(_parents)
+        else:
+            raise RuntimeError("unhandled structure type")
+
     def _render_node_name(self) -> str:
         """The name for a Pydot node."""
         return f"{self.__class__.__name__}_{id(self)}"
@@ -164,6 +187,7 @@ class Branch(ArchNode):
                 Annotated["Container", Tag("Container")],
                 Annotated["Network", Tag("Network")],
                 Annotated["Hierarchical", Tag("Hierarchical")],
+                Annotated["Flat", Tag("Flat")],
                 Annotated["Fork", Tag("Fork")],
             ],
             Discriminator(_get_tag),
@@ -236,6 +260,68 @@ class Branch(ArchNode):
         return result, non_power_gated_porp
 
 
+class Flat(Branch):
+    def _parent2child_names(
+        self, parent_name: str = None
+    ) -> tuple[list[tuple[str, str]], str]:
+        from accelforge.frontend.arch.components import Compute
+
+        edges = []
+        current_parent_name = parent_name
+
+        for node in self.nodes:
+            if isinstance(node, (Hierarchical, Fork)):
+                child_edges, _last_child_name = node._parent2child_names(
+                    current_parent_name
+                )
+                edges.extend(child_edges)
+            elif isinstance(node, Flat):
+                child_edges, _last_child_name = node._parent2child_names(
+                    current_parent_name
+                )
+                edges.extend(child_edges)
+            elif isinstance(node, Compute):
+                # Compute nodes branch off to the side like a Fork
+                if current_parent_name is not None:
+                    edges.append((current_parent_name, node._render_node_name()))
+            else:
+                if current_parent_name is not None:
+                    edges.append((current_parent_name, node._render_node_name()))
+        return edges, current_parent_name
+
+    def _render_node(self) -> pydot.Node:
+        """Hierarchical nodes should not be rendered."""
+        return None
+
+    def _render_make_children(self) -> list[pydot.Node]:
+        """Renders only children, not the Hierarchical node itself."""
+        result = []
+        for node in self.nodes:
+            children = node._render_make_children()
+            result.extend(child for child in children if child is not None)
+        return result
+
+    def render(self) -> str:
+        """Renders the architecture as a Pydot graph."""
+        graph = _pydot_graph()
+
+        # Render all nodes (Hierarchical nodes return None and are filtered out)
+        for node in self._render_make_children():
+            if node is not None:
+                graph.add_node(node)
+
+        # Add edges
+        edges, _ = self._parent2child_names()
+        print(edges)
+        for parent_name, child_name in edges:
+            graph.add_edge(pydot.Edge(parent_name, child_name))
+
+        return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
+
+    def _repr_svg_(self) -> str:
+        return self.render()
+
+
 class Hierarchical(Branch):
     def _flatten(
         self,
@@ -294,6 +380,13 @@ class Hierarchical(Branch):
 
         for node in self.nodes:
             if isinstance(node, (Hierarchical, Fork)):
+                child_edges, last_child_name = node._parent2child_names(
+                    current_parent_name
+                )
+                edges.extend(child_edges)
+                if last_child_name is not None:
+                    current_parent_name = last_child_name
+            elif isinstance(node, Flat):
                 child_edges, last_child_name = node._parent2child_names(
                     current_parent_name
                 )

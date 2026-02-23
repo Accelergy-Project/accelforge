@@ -12,10 +12,14 @@ arch:
 
   - !Network
     name: NoC
+    area: 0
+    leak_power: 0
     shape:
     - {name: X, fanout: 4}
     - {name: Y, fanout: 4}
     actions: []
+
+  - !Flat
     nodes:
     - !Memory
       name: GlobalBuffer
@@ -80,5 +84,7 @@ arch:
 
       - !Compute
         name: MAC
+        area: 0
+        leak_power: 0
         actions:
         - {name: compute, energy: 0, latency: 0}

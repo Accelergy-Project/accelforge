@@ -3,7 +3,7 @@ from __future__ import annotations
 from accelforge.frontend.mapper import FFM
 from accelforge.frontend.renames import EinsumName, Renames
 from accelforge.util._eval_expressions import EvaluationError, ParseExpressionsContext
-from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Container
+from accelforge.frontend.arch import Compute, Leaf, Component, Arch, Container, Spatialable
 
 from accelforge.frontend.workload import Workload
 from accelforge.frontend.variables import Variables
@@ -194,7 +194,6 @@ class Spec(EvalableModel):
         if einsum_name is None and len(self.workload.einsums) > 0:
             einsum_name = self.workload.einsums[0].name
 
-        components = set()
         try:
             if not getattr(self, "_evaluated", False):
                 self = self._spec_eval_expressions(einsum_name=einsum_name)
@@ -211,36 +210,37 @@ class Spec(EvalableModel):
                 )
             raise
 
-        for arch in self._get_flattened_architecture():
-            fanout = 1
-            for component in arch:
-                fanout *= component.get_fanout()
-                if component.name in components or isinstance(component, Container):
-                    continue
-                assert isinstance(component, Component)
-                components.add(component.name)
-                orig: Component = self.arch.find(component.name)
-                c = component
-                if area:
-                    c = c.calculate_area(models)
-                    orig.area = c.area
-                    orig.total_area = c.area * fanout
-                if energy:
-                    c = c.calculate_action_energy(models)
-                    for a in c.actions:
-                        orig_action = orig.actions[a.name]
-                        orig_action.energy = a.energy
-                if latency:
-                    c = c.calculate_action_latency(models)
-                    for a in c.actions:
-                        orig_action = orig.actions[a.name]
-                        orig_action.latency = a.latency
-                if leak:
-                    c = c.calculate_leak_power(models)
-                    orig.leak_power = c.leak_power
-                    orig.total_leak_power = c.leak_power * fanout
-                orig.component_modeling_log.extend(c.component_modeling_log)
-                orig.component_model = c.component_model
+        for leaf, parents in self.arch.iterate_hierarchically():
+            if not isinstance(leaf, Component):
+                continue
+
+            global_fanout = 1
+            for p in parents:
+                if isinstance(p, Spatialable):
+                    global_fanout *= p.get_fanout()
+
+            orig: Component = self.arch.find(leaf.name)
+            c = leaf
+            if area:
+                c = c.calculate_area(models)
+                orig.area = c.area
+                orig.total_area = c.area * global_fanout
+            if energy:
+                c = c.calculate_action_energy(models)
+                for a in c.actions:
+                    orig_action = orig.actions[a.name]
+                    orig_action.energy = a.energy
+            if latency:
+                c = c.calculate_action_latency(models)
+                for a in c.actions:
+                    orig_action = orig.actions[a.name]
+                    orig_action.latency = a.latency
+            if leak:
+                c = c.calculate_leak_power(models)
+                orig.leak_power = c.leak_power
+                orig.total_leak_power = c.leak_power * global_fanout
+            orig.component_modeling_log.extend(c.component_modeling_log)
+            orig.component_model = c.component_model
 
         return self
 

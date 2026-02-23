@@ -66,6 +66,9 @@ push-arm64:
 run-docker:
 	docker-compose up
 
+clean-notebooks:
+	nb-clean clean notebooks/*.ipynb
+
 .PHONY: generate-docs
 generate-docs:
     # pip install sphinx-autobuild sphinx_autodoc_typehints sphinx-copybutton pydata-sphinx-theme

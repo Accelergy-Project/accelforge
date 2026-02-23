@@ -4,9 +4,9 @@ import accelforge as af
 
 
 class TestParsing(TestCase):
-    def test_hierarchical_only(self):
+    def test_hierarchical(self):
         spec = af.Spec.from_yaml(
-            af.examples.arches.networked.hierarchical_only,
+            af.examples.arches.networked.hierarchical,
         )
         self.assertIn("PeArray", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["PeArray"].get_fanout(), 1)
@@ -28,7 +28,7 @@ class TestParsing(TestCase):
         self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)
         self.assertEqual(
             {n.name for n in spec.arch.get_nodes_of_type(af.spec.Leaf)},
-            {'MainMemory', 'GlobalBuffer', 'RowBuffer', 'ColumnBuffer', 'DistributedBuffer', 'Scratchpad', 'MAC'}
+            {'MainMemory', 'GlobalBuffer', 'NoC', 'RowBuffer', 'ColumnBuffer', 'DistributedBuffer', 'Scratchpad', 'MAC'}
         )
 
         try:

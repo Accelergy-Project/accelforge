@@ -1000,5 +1000,11 @@ class Compute(Component, Leaf):
         return "#E0EEFF"
 
 
-class Network(Component, Branch):
-    shape: EvalableList[Spatial]
+class Network(Component, Leaf):
+    shape: EvalableList[Spatial] = EvalableList()
+
+    def _render_node_shape(self) -> str:
+        return "Msquare"
+
+    def _render_node_color(self) -> str:
+        return "#FAF8C8"
