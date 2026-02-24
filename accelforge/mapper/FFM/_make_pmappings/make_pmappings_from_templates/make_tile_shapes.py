@@ -47,7 +47,7 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_
     SymbolRelations,
 )
 from accelforge.util._sympy.broadcast_max import MaxGeqZero, Max, Min, MinGeqZero
-from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import (
+from accelforge.model.run_model import (
     run_model,
 )
 
