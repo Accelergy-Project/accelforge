@@ -2,7 +2,7 @@ workload:
   rank_sizes:
     {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
     {% set N_TOKENS = N_TOKENS | default(8192) %}
-    {% set N_NEW_TOKENS = N_TOKENS | default(8) %}
+    {% set N_NEW_TOKENS = N_TOKENS | default(1) %}
     B: {{BATCH_SIZE}}
     M: {{N_NEW_TOKENS}}
     M_FULL: {{N_TOKENS}}
