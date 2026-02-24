@@ -29,6 +29,9 @@ from accelforge.util._visualization import _pydot_graph
 
 _FIND_SENTINEL = object()
 
+D = TypeVar("D")
+T = TypeVar("T")
+
 
 class ArchNode(EvalableModel):
     """A node in the architecture."""
@@ -70,6 +73,46 @@ class ArchNode(EvalableModel):
         if default is not _FIND_SENTINEL:
             return default
         raise ValueError(f"Leaf {name} not found in {self}")
+
+    def is_above(self, node_a: str, node_b: str) -> bool:
+        """Returns whether node_a is above node_b in a hierarchy."""
+        self.find(node_a)
+        self.find(node_b)
+        for node, parents in self.iterate_hierarchically():
+            if node.name != node_b:
+                continue
+            return any(p.name == node_a for p in parents)
+
+    def find_first_of_type_above(
+        self,
+        node_type: T,
+        name: str,
+        default: D = _FIND_SENTINEL
+    ) -> T | D:
+        """
+        Returns the first node with type `node_type` above `name`.
+
+        If `name` does not exist, raises an error.
+
+        If no node of `node_type` is found, either `default` is
+        returned (if provided) or raises an error.
+        """
+        # Check if name exists
+        # This *should* raise even if default != _FIND_SENTINEL
+        self.find(name)
+
+        for node, parents in self.iterate_hierarchically():
+            if node.name != name:
+                continue
+            for p in reversed(parents):
+                if isinstance(p, node_type):
+                    return p
+            if default is not _FIND_SENTINEL:
+                return default
+            raise ValueError(f"Parent of {name} with type {node_type} not found")
+        raise RuntimeError(
+            "BUG: find() finds node but iterate_hierarchically() does not"
+        )
 
     def iterate_hierarchically(self, _parents=None):
         """
@@ -168,9 +211,6 @@ class Leaf(ArchNode):
 
     def _render_make_children(self) -> list[pydot.Node]:
         return [self._render_node()]
-
-
-T = TypeVar("T")
 
 
 @_uninstantiable

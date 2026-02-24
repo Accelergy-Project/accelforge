@@ -1,12 +1,9 @@
-from collections import defaultdict
 from collections.abc import Mapping as MappingABC
-from dataclasses import dataclass
 import logging
 from numbers import Number
 from numbers import Real
 
 from accelforge.frontend import arch
-from accelforge.frontend.mapping.mapping import MappingNode
 from accelforge.frontend.spec import Spec
 from accelforge.model._looptree.reuse.symbolic import SymbolicAnalysisOutput
 from accelforge.util._base_analysis_types import (
@@ -14,8 +11,7 @@ from accelforge.util._base_analysis_types import (
     ActionKey,
     VerboseActionKey,
 )
-from accelforge.frontend.workload import Workload
-from accelforge.frontend.mapping import Mapping
+from accelforge.model._looptree.types import Network
 
 
 def gather_actions(
@@ -29,6 +25,7 @@ def gather_actions(
 
     buffet_keyer = _get_buffet_keyer(verbose, use_name, bindings)
     compute_keyer = _get_compute_keyer(verbose, use_name, bindings)
+    network_keyer = _get_network_keyer(verbose, use_name, bindings)
 
     for buffet, accesses in looptree_results.buffet_stats.items():
         if buffet.level in compute_levels:
@@ -59,6 +56,13 @@ def gather_actions(
             actions[key] = ActionCount.default()
         actions[key].total += ops.total_ops
         actions[key].max_per_unit += ops.max_per_unit_ops
+
+    for network, stats in looptree_results.network_stats.items():
+        key = network_keyer(network, "hops")
+        if key not in actions:
+            actions[key] = ActionCount.default()
+        actions[key].total += stats.total_hops
+        actions[key].max_per_unit += stats.max_hops
 
     return actions
 
@@ -111,6 +115,22 @@ def _get_compute_keyer(verbose, use_name, bindings):
     return compute_keyer
 
 
+def _get_network_keyer(verbose, use_name, bindings):
+    if not verbose:
+        def network_keyer(network: Network, action_name: str):
+            component = network.component
+            if not use_name:
+                component = bindings[component]
+            return ActionKey(component, action_name)
+    else:
+        def network_keyer(network: Network, action_name: str):
+            component = network.component
+            if not use_name:
+                component = bindings[component]
+            return VerboseActionKey(component, action_name, network.tensor, network.einsum)
+    return network_keyer
+
+
 def compute_energy_from_actions(
     spec: Spec,
     action_counts: MappingABC[ActionKey, Real],
@@ -135,7 +155,7 @@ def compute_energy_from_actions(
             energy_per_ac = component_obj.actions[key.action].energy
         except KeyError as e:
             raise KeyError(
-                f"Action {key.action} not found in component {key.component}. Action occurred "
+                f"Action {key.action} not found in component {key.level}. Action occurred "
                 f"{counts.total} times."
             ) from None
         energy_result[key] = counts.total * energy_per_ac

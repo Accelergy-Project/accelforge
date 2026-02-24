@@ -1001,8 +1001,46 @@ class Compute(Component, Leaf):
 
 
 class Network(Component, Leaf):
+    """
+    Defines a network component.
+
+    The routing is currently defined using the mapping, the routing follows the order
+    of the spatial nodes from top to bottom.
+    """
+    bits_per_value_scale: EvalsTo[dict] = {"All": 1}
+    """
+    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
+    this is a dictionary, keys in the dictionary are evaluated as expressions and may
+    reference one or more tensors.
+    """
+
+    bits_per_action: EvalsTo[int | float | None] = None
+    """
+    The number of bits accessed in each of this component's actions. Overridden by
+    bits_per_action in any action of this component. If set here, acts as a default
+    value for the bits_per_action of all actions of this component.
+    """
+
     def _render_node_shape(self) -> str:
         return "Msquare"
 
     def _render_node_color(self) -> str:
         return "#FAF8C8"
+
+    def _eval_expressions(self, *args, **kwargs):
+        # Sometimes the same component object may appear in the mapping and the
+        # architecture, in which case we don't want parsing to happen twice.
+        if getattr(self, "_evaluated", False):
+            return super()._eval_expressions(*args, **kwargs)
+
+        class MyPostCall(_PostCall):
+            def __call__(self, field, value, evaluated, symbol_table):
+                if field == "bits_per_value_scale":
+                    evaluated = _eval_tensor2bits(
+                        evaluated,
+                        location="bits_per_value_scale",
+                        symbol_table=symbol_table,
+                    )
+                return evaluated
+
+        return super()._eval_expressions(*args, **kwargs, post_calls=(MyPostCall(),))

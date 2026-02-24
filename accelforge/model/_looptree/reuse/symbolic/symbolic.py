@@ -1,5 +1,6 @@
 import copy
 from dataclasses import dataclass, field
+from accelforge.frontend.arch import Network as NetworkSpec
 from accelforge.frontend.mapping import (
     Compute,
     Mapping,
@@ -16,7 +17,6 @@ import accelforge.frontend.mapping as mapping_spec
 from accelforge.frontend.mapping import (
     Mapping,
     MappingNode,
-    Nested,
     Spatial,
     Temporal,
     Storage,
@@ -101,6 +101,15 @@ def max_dict(a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
 class NetworkStats:
     total_hops: Any = field(default=0)
     max_hops: Any = field(default=0)
+
+    def repeat(self, n_repeats):
+        new = copy.copy(self)
+        new.total_hops *= n_repeats
+        return new
+
+    def combine(self, other: NetworkStats):
+        self.total_hops += other.total_hops
+        self.max_hops = max(self.max_hops, other.max_hops)
 
 
 @dataclass
@@ -377,6 +386,10 @@ class SymbolicAnalysisOutput:
         # Assert compute stats are the same
         # assert self.compute_stats == other.compute_stats, "BUG"
 
+    def add_network_stats(self, other: "SymbolicAnalysisOutput"):
+        assert not (set(self.network_stats) & set(other.network_stats)), "BUG"
+        self.network_stats.update(other.network_stats)
+
 
 @dataclass
 class AnalysisInfo:
@@ -567,6 +580,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             result = cur_result
         else:
             result.add_buffet_stats_and_symbols(cur_result)
+            result.add_network_stats(cur_result)
         tensor2mapping[tensor] = cur_mapping
 
     result.symbols = symbols
@@ -811,6 +825,9 @@ def analyze_temporal(
             )
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
+        for network, network_stats in child_result.network_stats.items():
+            result_accumulator.network_stats[network] = network_stats.repeat(shape_repeats)
+
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
                 result_accumulator.temporal_steps[einsum] = 0
@@ -855,13 +872,16 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
-    spatial_component = node.component_object
+    spatial_component = find_component_object(node.component, info.job.flattened_arch)
     component_spatial_dim = spatial_component.spatial[node_dim]
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
 
     result_accumulator = SymbolicAnalysisOutput()
 
+    overall_max_hops = 0
+
     def handle_repeated_value(repeated_shape):
+        nonlocal overall_max_hops
         shape_value = repeated_shape.value
         shape_repeats = repeated_shape.repeats
 
@@ -899,6 +919,69 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 shape_repeats, reuse_parent_accesses=reuse_parent_accesses
             )
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
+
+        for network, child_network_stats in child_result.network_stats.items():
+            if network not in result_accumulator.network_stats:
+                result_accumulator.network_stats[network] = NetworkStats()
+            accumulated_network_stats = result_accumulator.network_stats[network]
+
+            accumulated_network_stats.total_hops += \
+                child_network_stats.total_hops*shape_repeats
+            accumulated_network_stats.max_hops = max(
+                accumulated_network_stats.max_hops,
+                child_network_stats.max_hops,
+            )
+            projection = info.einsum_tensor_to_projection[(einsum_name, network.tensor)]
+            component_object = find_component_object(
+                network.component,
+                info.job.flattened_arch
+            )
+            bits_per_value_scale = component_object.bits_per_value_scale[network.tensor]
+            bits_per_value = (
+                bits_per_value_scale
+                *
+                info.job.einsum.tensor_accesses[network.tensor].bits_per_value
+            )
+            bits_per_action = component_object.bits_per_action
+            if bits_per_action is not None:
+                actions_per_value = bits_per_value/bits_per_action
+            else:
+                actions_per_value = bits_per_value
+            volume = compute_dense_tile_occupancy(projection, child_shape) * actions_per_value
+
+            if info.job.spec.arch.is_above(node.component, network.component):
+                continue
+
+            last_fanout = child_result.fanout.get((node.component, einsum_name), {})
+            last_fanout = last_fanout.get(node.name, 1)
+            if isinstance(relevancy, Irrelevant):
+                # Cost of multicasting is the cost of delivering along the dimension
+                multicast_hops = (shape_repeats-1)*last_fanout
+                multicast_cost = multicast_hops * volume
+                overall_max_hops += multicast_hops
+
+                accumulated_network_stats.total_hops += multicast_cost
+                accumulated_network_stats.max_hops = max(
+                    accumulated_network_stats.max_hops,
+                    overall_max_hops + child_network_stats.max_hops
+                )
+            elif isinstance(relevancy, Relevant):
+                # Cost of unicast is the cost of delivering to each point in
+                # the dimension with shape as stride
+                # TODO: we should use the actual stride
+                total_unicast_cost = 0.5*(shape_repeats-1)*shape_repeats*last_fanout * volume
+                max_unicast_hops = (shape_repeats-1)*last_fanout
+                overall_max_hops += max_unicast_hops
+
+                accumulated_network_stats.total_hops += total_unicast_cost
+                accumulated_network_stats.max_hops = max(
+                    accumulated_network_stats.max_hops,
+                    overall_max_hops + child_network_stats.max_hops
+                )
+            elif isinstance(relevancy, PartiallyRelevant):
+                raise NotImplementedError()
+            else:
+                raise RuntimeError(f"unhandled relevancy type {relevancy}")
 
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
@@ -1172,14 +1255,21 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     child_result.buffet_stats[buffet] = stats
 
     # Reservation nodes are the first to produce stats for a network
-    network = Network(
-        tensor,
-        einsum_name,
-        info.data_movement_connections.get_src(buffet),
-        buffet
+    network_node = info.job.spec.arch.find_first_of_type_above(
+        NetworkSpec,
+        buffet.level,
+        default=None
     )
-    assert network not in child_result.network_stats
-    child_result.network_stats[network] = NetworkStats()
+    if network_node is not None:
+        network = Network(
+            tensor,
+            einsum_name,
+            info.data_movement_connections.get_src(buffet),
+            buffet,
+            component=network_node.name if network_node else network_node
+        )
+        assert network not in child_result.network_stats
+        child_result.network_stats[network] = NetworkStats()
 
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
@@ -1198,8 +1288,9 @@ def analyze_compute(
 
     result_accumulator = SymbolicAnalysisOutput()
 
+    compute_key = Compute(einsum, node.component)
     result_accumulator.temporal_steps[einsum] = computes
-    result_accumulator.compute_stats[Compute(einsum, node.component)] = ComputeStats(
+    result_accumulator.compute_stats[compute_key] = ComputeStats(
         computes,
         computes,
         1,
@@ -1221,12 +1312,18 @@ def analyze_compute(
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 
-        if buffet in info.data_movement_connections.destinations:
+        network_node = info.job.spec.arch.find_first_of_type_above(
+            NetworkSpec,
+            node.component,
+            default=None
+        )
+        if network_node is not None:
             network = Network(
                 tensor,
-                einsum,
+                info.job.einsum_name,
                 info.data_movement_connections.get_src(buffet),
-                buffet
+                buffet,
+                component=network_node.name if network_node else network_node
             )
             result_accumulator.network_stats[network] = NetworkStats()
 

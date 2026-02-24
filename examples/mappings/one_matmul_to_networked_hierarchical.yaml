@@ -1,0 +1,40 @@
+mapping:
+  nodes:
+  - !Storage
+    component: MainMemory
+    tensors: [T0, T1, W0]
+  - !Storage
+    component: GlobalBuffer
+    tensors: [T0, T1, W0]
+  - !Temporal
+    rank_variable: m
+    tile_shape: {{ M_TILE }}
+  - !Spatial
+    rank_variable: n0
+    tile_shape: {{ MAC_TILE }}
+    component: Scratchpad
+    name: X
+  - !Spatial
+    rank_variable: n1
+    tile_shape: {{ MAC_TILE }}
+    component: Scratchpad
+    name: Y
+  - !Storage
+    component: Scratchpad
+    tensors: [T0, T1, W0]
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Spatial
+    rank_variable: n0
+    tile_shape: 1
+    component: MAC
+    name: X
+  - !Spatial
+    rank_variable: n1
+    tile_shape: 1
+    component: MAC
+    name: Y
+  - !Compute
+    einsum: Matmul0
+    component: MAC
