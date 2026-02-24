@@ -1,0 +1,85 @@
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, latency: 0}
+    - {name: write, energy: 0, latency: 0}
+
+  - !Network
+    name: NoC
+    area: 0
+    leak_power: 0
+    actions: []
+
+  - !Array
+    spatial:
+    - {name: X, fanout: 4}
+    - {name: Y, fanout: 4}
+    nodes:
+    - !Memory
+      name: GlobalBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: ~MainMemory, may_keep: All}
+      actions:
+      - {name: read, energy: 0, latency: 0}
+      - {name: write, energy: 0, latency: 0}
+
+    - !Memory
+      name: RowBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: ~MainMemory, may_keep: All}
+      actions:
+      - {name: read, energy: 0, latency: 0}
+      - {name: write, energy: 0, latency: 0}
+      spatial:
+      - {name: X, fanout: 4}
+
+    - !Memory
+      name: ColumnBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: ~MainMemory, may_keep: All}
+      actions:
+      - {name: read, energy: 0, latency: 0}
+      - {name: write, energy: 0, latency: 0}
+      spatial:
+      - {name: Y, fanout: 4}
+
+    - !Memory
+      name: DistributedBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: ~MainMemory, may_keep: All}
+      actions:
+      - {name: read, energy: 0, latency: 0}
+      - {name: write, energy: 0, latency: 0}
+      spatial:
+      - {name: X, fanout: 2}
+      - {name: Y, fanout: 2}
+
+  - !Memory
+    name: Scratchpad
+    size: inf
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: read, energy: 0, latency: 0}
+    - {name: write, energy: 0, latency: 0}
+
+  - !Compute
+    name: MAC
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 0, latency: 0}

@@ -81,3 +81,9 @@ class Spatialable(EvalableModel):
     def get_fanout(self) -> int:
         """The spatial fanout of this node."""
         return int(math.prod(x.fanout for x in self.spatial))
+
+    def _spatial_str(self, include_newline=True) -> str:
+        if not self.spatial:
+            return ""
+        result = ", ".join(f"{s.fanout}× {s.name}" for s in self.spatial)
+        return f"\n[{result}]" if include_newline else result

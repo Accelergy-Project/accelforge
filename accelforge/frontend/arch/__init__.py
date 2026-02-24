@@ -15,6 +15,8 @@ Branch.model_rebuild()
 Arch.model_rebuild()
 Fork.model_rebuild()
 Hierarchical.model_rebuild()
+Array.model_rebuild()
+Network.model_rebuild()
 
 __all__ = [
     "Action",
@@ -27,6 +29,7 @@ __all__ = [
     "Compute",
     "Container",
     "Fork",
+    "Array",
     "Hierarchical",
     "Leaf",
     "Memory",

@@ -618,6 +618,8 @@ def join_pmappings(
         # ======================================================================
         # If we delayed the mapping merging, do it now.
         # ======================================================================
+        import copy
+        prev_combined = copy.deepcopy(combined)
         if DELAY:
             mappings = parallel(
                 [c.mappings for c in combined],

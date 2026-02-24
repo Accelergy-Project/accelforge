@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   release:
     types: [created]
 
@@ -94,4 +97,5 @@ jobs:
           merge-multiple: true
           path: dist
       - name: Publish package distributions to PyPI
+        if: github.event_name != 'pull_request'
         uses: pypa/gh-action-pypi-publish@release/v1

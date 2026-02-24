@@ -1,3 +1,4 @@
+from copy import deepcopy
 import math
 from typing import (
     Any,
@@ -18,6 +19,8 @@ from accelforge.util._basetypes import (
 )
 
 from accelforge.util.exceptions import EvaluationError
+
+from accelforge.frontend.arch.spatialable import Spatialable
 
 from pydantic import Discriminator
 from accelforge.util._basetypes import _uninstantiable
@@ -67,6 +70,29 @@ class ArchNode(EvalableModel):
         if default is not _FIND_SENTINEL:
             return default
         raise ValueError(f"Leaf {name} not found in {self}")
+
+    def iterate_hierarchically(self, _parents=None):
+        """
+        Iterates over all Leaf nodes while also yielding the list of all Leaf
+        nodes that are hierarchical parents over the current node.
+        """
+        if _parents is None:
+            _parents = []
+
+        if isinstance(self, Leaf):
+            yield self, _parents
+            _parents.append(self)
+            return
+
+        assert isinstance(self, Branch)
+        if isinstance(self, (Fork, Array)):
+            for node in self.nodes:
+                yield from node.iterate_hierarchically(list(_parents))
+        elif isinstance(self, Hierarchical):
+            for node in self.nodes:
+                yield from node.iterate_hierarchically(_parents)
+        else:
+            raise RuntimeError("unhandled structure type")
 
     def _render_node_name(self) -> str:
         """The name for a Pydot node."""
@@ -137,12 +163,6 @@ class Leaf(ArchNode):
             result = f"{result} [{spatial_str}]"
         return result
 
-    def _spatial_str(self, include_newline=True) -> str:
-        if not self.spatial:
-            return ""
-        result = ", ".join(f"{s.fanout}× {s.name}" for s in self.spatial)
-        return f"\n[{result}]" if include_newline else result
-
     def _render_node_label(self) -> str:
         return f"{self.name}" + self._spatial_str()
 
@@ -162,7 +182,9 @@ class Branch(ArchNode):
                 Annotated["Memory", Tag("Memory")],
                 Annotated["Toll", Tag("Toll")],
                 Annotated["Container", Tag("Container")],
+                Annotated["Network", Tag("Network")],
                 Annotated["Hierarchical", Tag("Hierarchical")],
+                Annotated["Array", Tag("Array")],
                 Annotated["Fork", Tag("Fork")],
             ],
             Discriminator(_get_tag),
@@ -235,6 +257,94 @@ class Branch(ArchNode):
         return result, non_power_gated_porp
 
 
+class Array(Branch, Spatialable):
+    def model_post_init(self, __context__=None) -> None:
+        for node in self.nodes:
+            if isinstance(node, Fork):
+                raise EvaluationError("cannot have fork inside array")
+
+    def _flatten(
+        self,
+        compute_node: str,
+        fanout: int = 1,
+        return_fanout: bool = False,
+    ):
+        from accelforge.frontend.arch.components import Compute
+        nodes = []
+
+        for node in self.nodes:
+            try:
+                if isinstance(node, Branch):
+                    raise RuntimeError("do not put branches inside array")
+                elif isinstance(node, Leaf):
+                    fanout *= node.get_fanout()
+                    node = deepcopy(node)
+                    node.spatial = EvalableList()
+                    nodes.append(node)
+                else:
+                    raise RuntimeError(f"unhandled structure type {node}")
+            except EvaluationError as e:
+                e.add_field(node)
+                raise e
+
+        if return_fanout:
+            return nodes, fanout
+        return nodes
+
+    def _render_node_label(self) -> str:
+        return f"Array {self._spatial_str()}"
+
+    def _render_node_color(self) -> str:
+        return "#FCC2FC"
+
+    def _parent2child_names(
+        self, parent_name: str = None
+    ) -> tuple[list[tuple[str, str, str]], str]:
+        from accelforge.frontend.arch.components import Compute
+
+        edges = []
+        current_parent_name = parent_name
+
+        for node in self.nodes:
+            if isinstance(node, Branch):
+                raise EvaluationError("do not put branch in array")
+            elif isinstance(node, Compute):
+                # Compute nodes branch off to the side like a Fork
+                if current_parent_name is not None:
+                    edges.append((current_parent_name, node._render_node_name(), "dashed"))
+            else:
+                if current_parent_name is not None:
+                    edges.append((current_parent_name, node._render_node_name(), "dashed"))
+        return edges, self._render_node_name()
+
+    def _render_make_children(self) -> list[pydot.Node]:
+        """Renders only children, not the Hierarchical node itself."""
+        result = [self._render_node()]
+        for node in self.nodes:
+            children = node._render_make_children()
+            result.extend(child for child in children if child is not None)
+        return result
+
+    def render(self) -> str:
+        """Renders the architecture as a Pydot graph."""
+        graph = _pydot_graph()
+
+        # Render all nodes (Hierarchical nodes return None and are filtered out)
+        for node in self._render_make_children():
+            if node is not None:
+                graph.add_node(node)
+
+        # Add edges
+        edges, _ = self._parent2child_names()
+        for parent_name, child_name in edges:
+            graph.add_edge(pydot.Edge(parent_name, child_name))
+
+        return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
+
+    def _repr_svg_(self) -> str:
+        return self.render()
+
+
 class Hierarchical(Branch):
     def _flatten(
         self,
@@ -265,6 +375,18 @@ class Hierarchical(Branch):
                     ):
                         break
                     assert not isinstance(node, Fork)
+                elif isinstance(node, Array):
+                    new_nodes = node._flatten(
+                        compute_node, fanout, return_fanout=False
+                    )
+                    nodes.extend(new_nodes)
+                    nodes.append(node)
+                    fanout *= node.get_fanout()
+                    if any(
+                        isinstance(n, Compute) and n.name == compute_node
+                        for n in new_nodes
+                    ):
+                        break
                 elif isinstance(node, Compute):
                     if node.name == compute_node:
                         fanout *= node.get_fanout()
@@ -299,22 +421,26 @@ class Hierarchical(Branch):
                 edges.extend(child_edges)
                 if last_child_name is not None:
                     current_parent_name = last_child_name
+            elif isinstance(node, Array):
+                child_edges, last_child_name = node._parent2child_names(
+                    node._render_node_name()
+                )
+                edges.extend(child_edges)
+                edges.append((current_parent_name, last_child_name, "solid"))
+                if last_child_name is not None:
+                    current_parent_name = last_child_name
             elif isinstance(node, Compute):
                 # Compute nodes branch off to the side like a Fork
                 if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name()))
+                    edges.append((current_parent_name, node._render_node_name(), "solid"))
             else:
                 if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name()))
+                    edges.append((current_parent_name, node._render_node_name(), "solid"))
 
                 # Update parent for next iteration
                 current_parent_name = node._render_node_name()
 
         return edges, current_parent_name
-
-    def _render_node(self) -> pydot.Node:
-        """Hierarchical nodes should not be rendered."""
-        return None
 
     def _render_make_children(self) -> list[pydot.Node]:
         """Renders only children, not the Hierarchical node itself."""
@@ -335,8 +461,8 @@ class Hierarchical(Branch):
 
         # Add edges
         edges, _ = self._parent2child_names()
-        for parent_name, child_name in edges:
-            graph.add_edge(pydot.Edge(parent_name, child_name))
+        for parent_name, child_name, style in edges:
+            graph.add_edge(pydot.Edge(parent_name, child_name, style=style))
 
         return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
 

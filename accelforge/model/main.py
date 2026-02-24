@@ -58,7 +58,7 @@ def evaluate_mapping(
     from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
         get_rank_variable_bounds_for_all_einsums,
     )
-    from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.run_model import (
+    from accelforge.model.run_model import (
         run_model,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (

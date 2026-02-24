@@ -1,16 +1,11 @@
 import copy
 from dataclasses import dataclass, field
-import itertools
 from accelforge.frontend.mapping import (
     Compute,
     Mapping,
-    Nested,
-    Pipeline,
     Toll,
     Reservation,
-    Sequential,
     Spatial,
-    Split,
     Storage,
     Temporal,
 )
@@ -33,9 +28,7 @@ from accelforge.frontend.mapping import (
 from accelforge.frontend.workload import (
     Workload,
     TensorName,
-    isl_expression_has_variable,
 )
-from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import (
     get_projection_expr,
     get_rank_variable_relevancy,
@@ -47,7 +40,11 @@ from accelforge.frontend._workload_isl._symbolic import (
     PartiallyRelevant,
 )
 
-from accelforge.model._looptree.types import Buffet
+from accelforge.model._looptree.types import Buffet, Compute, Network
+from accelforge.model._looptree.reuse.symbolic.mapping_utils import (
+    DataMovementConnections,
+    get_tensor_to_backer_id
+)
 
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.util._sympy.broadcast_max import Min, Max, MaxGeqZero, MinGeqZero
@@ -59,12 +56,6 @@ SYMBOL = "symbol"
 IMPERFECT = False
 
 PRINT_FORMULAS = False
-
-
-@dataclass(eq=True, frozen=True)
-class Compute:
-    einsum: str
-    level: str
 
 
 class Uninitialized:
@@ -106,6 +97,12 @@ def max_dict(a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
         new[key] = MaxGeqZero(new[key], value) if key in new else value
     assert isinstance(new, dict)
     return new
+
+
+@dataclass
+class NetworkStats:
+    total_hops: Any = field(default=0)
+    max_hops: Any = field(default=0)
 
 
 @dataclass
@@ -289,11 +286,11 @@ class BuffetStats:
             - self.min_per_parent_skipped_first_fill_write_actions
         )
 
-
-def blank_buffet_stats() -> BuffetStats:
-    stats = BuffetStats()
-    stats.n_loops_above = None  # Inherit from whoever is added to this
-    return stats
+    @classmethod
+    def blank(cls):
+        stats = cls()
+        stats.n_loops_above = None # Inherit from whoever is added to this
+        return stats
 
 
 @dataclass
@@ -361,6 +358,8 @@ class SymbolicAnalysisOutput:
 
     buffet_stats: dict[Buffet, BuffetStats] = field(default_factory=dict)
 
+    network_stats: dict[Network, NetworkStats] = field(default_factory=dict)
+
     # Mapping [level, einsum] to the fanout
     fanout: dict[(Buffet, str), int] = field(default_factory=dict)
 
@@ -413,7 +412,7 @@ class SymbolicAnalysisOutput:
     def sum_buffet_stats_per_level(self) -> dict[str, BuffetStats]:
         result: dict[str, BuffetStats] = {}
         for buffet, stats in self.buffet_stats.items():
-            result.setdefault(buffet.level, blank_buffet_stats())
+            result.setdefault(buffet.level, BuffetStats.blank())
             result[buffet.level] += stats
         return result
 
@@ -455,6 +454,8 @@ class AnalysisInfo:
     # Stride and halo for PartiallyRelevant loops (sliding window overlap).
     # {tensor: {(rank, rank_var): (stride, halo)}}
     stride_and_halo: dict = field(default_factory=dict)
+
+    data_movement_connections: DataMovementConnections = None
 
     # We track first latency for these nodes (should be Temporal)
     last_temporal_node_idx: int = None
@@ -580,7 +581,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
     - *
     - Compute
 
-    A loop spatial-for (Reg) k in [0..K) would affect the register at the point of the
+    A loop 'spatial-for (Reg) k in [0..K)' would affect the register at the point of the
     first asterisk, but the global buffer at the point of the second asterisk.
 
     To handle this, we make a separate mapping for each tensor, analyze each, and
@@ -619,6 +620,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             is_copy_operation=is_copy_operation,
             job=job,
             stride_and_halo=stride_and_halo,
+            data_movement_connections=DataMovementConnections.from_pmapping(cur_mapping.nodes),
         )
         cur_result = analyze_node(0, job.rank_variable_bounds, info)
         if result is None:
@@ -651,17 +653,6 @@ def analyze_reuse_and_add_reservations_to_mapping(
             print(f"\tMax per unit writes to peer: {stats.max_per_unit_writes_to_peer}")
 
     return result
-
-
-def get_tensor_to_backer_id(mapping: Mapping):
-    tensor_to_ids: dict[TensorName, set[int]] = {}
-    for node in mapping:
-        if isinstance(node, TensorHolder):
-            for tensor in node.tensors:
-                if tensor in tensor_to_ids:
-                    continue
-                tensor_to_ids[tensor] = id(node)
-    return tensor_to_ids
 
 
 class ReservationAnalysisTracker:
@@ -1077,7 +1068,7 @@ def analyze_temporal(
                             ) / tile_in_rank
 
             accumulated_stats = accumulated_buffet_stats.setdefault(
-                buffet, blank_buffet_stats()
+                buffet, BuffetStats.blank()
             )
             accumulated_stats += stats.repeat_temporal(
                 shape_repeats,
@@ -1153,7 +1144,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         for i, (buffet, buffet_stats) in enumerate(child_stats):
             stats = buffet_stats
             accumulated_stats = accumulated_buffet_stats.setdefault(
-                buffet, blank_buffet_stats()
+                buffet, BuffetStats.blank()
             )
             relevancy = info.tensor_to_relevancy[buffet.tensor][rank_var]
 
@@ -1475,6 +1466,16 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
                 tile_in_rank = compute_rank_occupancy(rank_proj, current_shape)
                 child_result.partial_overlap_info[tensor] = (stride, tile_in_rank)
 
+    # Reservation nodes are the first to produce stats for a network
+    network = Network(
+        tensor,
+        einsum_name,
+        info.data_movement_connections.get_src(buffet),
+        buffet
+    )
+    assert network not in child_result.network_stats
+    child_result.network_stats[network] = NetworkStats()
+
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
         child_result.fanout[fanout_key] = {}
@@ -1514,6 +1515,15 @@ def analyze_compute(
             stats.min_per_parent_skipped_first_reads_to_parent = 1
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
+
+        if buffet in info.data_movement_connections.destinations:
+            network = Network(
+                tensor,
+                einsum,
+                info.data_movement_connections.get_src(buffet),
+                buffet
+            )
+            result_accumulator.network_stats[network] = NetworkStats()
 
     return result_accumulator
 
