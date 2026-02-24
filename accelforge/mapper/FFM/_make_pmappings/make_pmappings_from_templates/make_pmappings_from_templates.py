@@ -385,7 +385,8 @@ def make_pmappings_from_templates(
             n_total_pmappings=total_pmappings_per_group,
             n_valid_pmappings=valid_pmappings_per_group,
             skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
-            ignored_resources=job.ignored_resources,
+            ignored_resources=job.ignored_resources
+            | set(job.memories_track_pmappings_only),
             # False because we may have lifetimes that stretch through this Einsum
             # due to data dependencies, not loops
             limit_capacity_drop_valid_reservations=False,

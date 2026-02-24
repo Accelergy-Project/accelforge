@@ -60,6 +60,7 @@ class PmappingDataframe:
         data: pd.DataFrame,
         n_total_pmappings: float,
         n_valid_pmappings: float,
+        ignored_resources: set[str],
         skip_pareto: bool = False,
         fill_reservation_cols: set | str = fzs(),
         check_above_subset_below: bool = CHECK_CORRECTNESS,
@@ -67,7 +68,6 @@ class PmappingDataframe:
         next_shared_loop_index: int = None,
         parallelize_pareto: bool = False,
         limit_capacity_drop_valid_reservations: bool = True,
-        ignored_resources: set[str] = None,
     ):
         self._data: pd.DataFrame = data
         self.right_reservations: dict[set] = None
@@ -106,6 +106,7 @@ class PmappingDataframe:
             self.check_above_subset_below()
 
         self._check_reservations()
+        self.ignored_resources = ignored_resources
 
         assert len(self.data.columns) == len(
             set(self.data.columns)
@@ -563,6 +564,7 @@ class PmappingDataframe:
             check_above_subset_below=False,
             n_total_pmappings=n_total_pmappings,
             n_valid_pmappings=n_valid_pmappings,
+            ignored_resources=self.ignored_resources,
         )
         # Remove tensors that were allocated in both branches and got added
         # together.
@@ -655,6 +657,7 @@ class PmappingDataframe:
         all_resources = {t.resource_name for t in alloc} | {
             t.resource_name for t in free
         }
+        ignored_resources = ignored_resources | self.ignored_resources
         # Handle each resource separately
         for resource in all_resources:
             if resource in ignored_resources:
@@ -686,6 +689,7 @@ class PmappingDataframe:
             fill_reservation_cols=fill_cols,
             n_total_pmappings=sum(p.n_total_pmappings for p in paretos),
             n_valid_pmappings=sum(p.n_valid_pmappings for p in paretos),
+            ignored_resources=next(iter(paretos)).ignored_resources,
         )
         return p
 
@@ -700,6 +704,7 @@ class PmappingDataframe:
             check_above_subset_below=False,
             n_total_pmappings=self.n_total_pmappings,
             n_valid_pmappings=self.n_valid_pmappings,
+            ignored_resources=self.ignored_resources,
         )
         args.update(kwargs)
         return PmappingDataframe(**args)
