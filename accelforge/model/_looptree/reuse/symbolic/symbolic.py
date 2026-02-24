@@ -107,7 +107,7 @@ class NetworkStats:
         new.total_hops *= n_repeats
         return new
 
-    def combine(self, other: NetworkStats):
+    def combine(self, other: "NetworkStats"):
         self.total_hops += other.total_hops
         self.max_hops = max(self.max_hops, other.max_hops)
 
