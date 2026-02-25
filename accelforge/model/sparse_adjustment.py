@@ -138,7 +138,6 @@ GATED_METADATA_READ = "gated_metadata_read"
 _SAF_KIND_TO_READ_ACTION = {
     "gating": GATED_READ,
     "skipping": SKIPPED_READ,
-    "position_skipping": SKIPPED_READ,
 }
 
 
@@ -848,47 +847,25 @@ def apply_sparse_adjustments(
                 cond_tile_shapes.append(tile)
                 cond_tensor_sizes.append(max(tsize, 1))
 
-            # Position-skipping with empty condition_on = self-conditioning.
-            # The target tensor uses its own format metadata to skip empty
-            # positions.  Treat as conditioning on itself.
-            if not cond_densities and opt.kind == "position_skipping":
+            # Self-conditioned skipping: the target tensor conditions on
+            # itself (target in condition_on).  Collect position-skip info
+            # for load-imbalance / position-space utilization modeling.
+            if opt.is_self_conditioned and cond_densities:
                 target = buffet.tensor
-                if target in tensor_info:
-                    cond_densities = [tensor_info[target]["density"]]
-                    cond_distributions = [
-                        tensor_info[target]["density_distribution"]
-                    ]
-                    if job.mapping is not None:
-                        tile = _compute_cond_temporal_tile(
-                            job.mapping.nodes, buffet.level,
-                            target, einsum, stats.tile_shape,
+                d = tensor_info.get(target, {}).get("density", 1.0)
+                if d < 1.0:
+                    if (position_skip_level is not None
+                            and position_skip_level != buffet.level):
+                        raise ValueError(
+                            f"Self-conditioned skipping declared at multiple "
+                            f"levels: {position_skip_level!r} and "
+                            f"{buffet.level!r}. Only one level may use "
+                            f"self-conditioned skipping."
                         )
-                        cond_rvs = _get_tensor_rank_variables(
-                            einsum, target,
-                        )
-                        tsize = 1
-                        for rv in cond_rvs:
-                            tsize *= job.rank_variable_bounds.get(rv, 1)
-                    else:
-                        tile = 1
-                        tsize = 1
-                    cond_tile_shapes = [tile]
-                    cond_tensor_sizes = [max(tsize, 1)]
-
-                    # Collect for position-space utilization
-                    d = tensor_info[target]["density"]
-                    if d < 1.0:
-                        if (position_skip_level is not None
-                                and position_skip_level != buffet.level):
-                            raise ValueError(
-                                f"position_skipping declared at multiple levels: "
-                                f"{position_skip_level!r} and {buffet.level!r}. "
-                                f"Only one level may use position_skipping."
-                            )
-                        position_skip_info.append(
-                            (target, d, stats.tile_shape or {})
-                        )
-                        position_skip_level = buffet.level
+                    position_skip_info.append(
+                        (target, d, stats.tile_shape or {})
+                    )
+                    position_skip_level = buffet.level
 
             if not cond_densities:
                 continue
@@ -996,7 +973,7 @@ def apply_sparse_adjustments(
     # tensors that already received their own local SAF.
     skip_compound_survival = 1.0
     for prob, kind in saf_probs_for_compute:
-        if kind in ("skipping", "position_skipping"):
+        if kind == "skipping":
             skip_compound_survival *= (1 - prob)
 
     if skip_compound_survival < 1.0 - 1e-12:
@@ -1015,7 +992,7 @@ def apply_sparse_adjustments(
             local_prob = 0.0
             if parent_level and (parent_level, buffet.tensor) in saf_deltas:
                 _, local_kind, p = saf_deltas[(parent_level, buffet.tensor)]
-                if local_kind in ("skipping", "position_skipping"):
+                if local_kind == "skipping":
                     local_prob = p
             if local_prob >= 1.0 - 1e-12:
                 continue
@@ -1427,7 +1404,7 @@ def _emit_metadata_actions(
             )
             if gated_metadata_input_reads < 0:
                 gated_metadata_input_reads = 0
-        elif saf_kind in ("skipping", "position_skipping"):
+        elif saf_kind == "skipping":
             # Skipping: ALL format reads (both effectual and skipped) are
             # charged at the full metadata_read rate.  The format structure
             # must be traversed for all non-format-eliminated iterations.
@@ -1482,7 +1459,7 @@ def _emit_metadata_actions(
             )
             full_read_bits, _ = _sum_format_bits(full_access, rank_word_bits)
             bw_read = math.ceil(full_read_bits / read_bpa)
-        elif saf_kind in ("skipping", "position_skipping") and not child_is_compute:
+        elif saf_kind == "skipping" and not child_is_compute:
             # For latency BW, use post-SAF equivalent count to avoid
             # inflating cycle estimates.  Energy already uses full pre-SAF
             # count above (all iterations need metadata traversal).
@@ -1544,14 +1521,13 @@ def _apply_format_compression_to_saf_levels(
         if not level_has_saf_on_tensor:
             continue
 
-        # Self-conditioned position-skipping: the SAF's local reduction
-        # already captures the format density effect (both represent "only
-        # nonzero elements are accessed").  Skip format correction to avoid
+        # Self-conditioned skipping: the SAF's local reduction already
+        # captures the format density effect (both represent "only nonzero
+        # elements are accessed").  Skip format correction to avoid
         # double-counting.
         saf_is_self_conditioned = any(
             opt.target == buffet.tensor
-            and opt.kind == "position_skipping"
-            and not opt.condition_on
+            and opt.is_self_conditioned
             for opt in sparse_opts.get_action_optimizations_for(buffet.level)
         )
         if saf_is_self_conditioned:

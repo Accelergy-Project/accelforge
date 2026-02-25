@@ -146,6 +146,8 @@ def parallel(
                 [delayed(_dict_job)(k, v) for k, v in jobs.items()],
                 pbar=pbar,
                 return_as="generator_unordered",
+                n_jobs=n_jobs,
+                pbar_position=pbar_position,
             )
         }
         return {k: result[k] for k in jobs}

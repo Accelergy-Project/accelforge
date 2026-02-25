@@ -1,0 +1,39 @@
+#
+# docker-compose file for running 6.5930/6.5931 labs (student infra)
+#
+# Notes:
+#    The READMEs are put in ../workspace
+#    The workspace will be owned by $USER_UID:$USER_GID
+#
+# Run as follows:
+#
+#    1) Cd to the directory containing this file (repo root)
+#    2) Change USER_UID and USER_GID to the desired owner of your files (echo $UID in your shell)
+#    3) Set DOCKER_ARCH to your CPU architecture:
+#
+#        % If you are using x86 CPU (Intel, AMD)
+#        % export DOCKER_ARCH=amd64
+#
+#        % If you are using arm CPU (Apple M1/M2)
+#        % export DOCKER_ARCH=arm64
+#
+#    4) Run the following command:
+#
+#        docker compose up
+#
+#    5) Look at output and use the 127.0.0.1 URL or localhost URL (unless you changed the port below)
+#
+
+services:
+  labs:
+    hostname: labs
+    image: timeloopaccelergy/accelforge:latest-${DOCKER_ARCH:-amd64}
+    working_dir: /home/workspace
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./:/home/workspace
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - JUPYTER_SWITCHES=--NotebookApp.token=''

@@ -24,7 +24,8 @@ arch:
     name: PeArray
     area: 0
     leak_power: 0
-    actions: []
+    actions:
+    - {name: hops, energy: 1, latency: 0}
 
   - !Memory
     name: Scratchpad
@@ -43,7 +44,8 @@ arch:
     name: MacArray
     area: 0
     leak_power: 0
-    actions: []
+    actions:
+    - {name: hops, energy: 1, latency: 0}
 
   - !Compute
     name: MAC

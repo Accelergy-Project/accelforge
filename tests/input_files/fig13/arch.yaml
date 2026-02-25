@@ -125,12 +125,12 @@ arch:
       - {format: UOP}
       - {format: UOP}
     action_optimization:
-    - kind: position_skipping
+    - kind: skipping
       target: A
-      condition_on: []
-    - kind: position_skipping
+      condition_on: [A]
+    - kind: skipping
       target: B
-      condition_on: []
+      condition_on: [B]
     spatial:
     - {name: X, fanout: 16}
     - {name: Y, fanout: 8}

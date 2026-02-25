@@ -44,7 +44,7 @@ class TestEnergyPlotting(unittest.TestCase):
 
         fig, axes = plot_energy_breakdown([result, result], ["einsum", "component"])
         fig.tight_layout()
-        fig.savefig("fig.png", dpi=400, bbox_inches="tight")
+        fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")
 
     def test_breakdown_stacked(self):
         spec = Spec.from_yaml(
@@ -60,7 +60,7 @@ class TestEnergyPlotting(unittest.TestCase):
             [result, result], ["einsum", "component"], ["action"]
         )
         fig.tight_layout()
-        fig.savefig("fig.png", dpi=400, bbox_inches="tight")
+        fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")
 
 
 class TestActionPlotting(unittest.TestCase):
@@ -76,4 +76,4 @@ class TestActionPlotting(unittest.TestCase):
 
         fig, axes = plot_action_breakdown([result, result], ["einsum", "component"])
         fig.tight_layout()
-        fig.savefig("fig.png", dpi=400, bbox_inches="tight")
+        fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")

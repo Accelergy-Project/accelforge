@@ -1,0 +1,314 @@
+'0.0':
+  What is your name?:
+    answer: Claude
+    assumptions: []
+    weight: 1
+'0.1':
+  What is your email address?:
+    answer: claude@mit.edu
+    assumptions: []
+    weight: 1
+'0.2':
+  What is your kerberos?:
+    answer: claude
+    assumptions: []
+    weight: 1
+1.1.1:
+  Your fully-connected Einsum.:
+    answer: O_{ n, m } = I_{ n, chw } \times F_{ chw, m } + B_{ m }
+    assumptions: []
+    weight: 1
+1.1.2:
+  What is your fc implementation?:
+    answer:
+      callable: fc
+      source: "def fc(I: List[List[int]], F: List[List[int]], B: List[int]) -> List[List[int]]:\n    \"\"\"\n    Compute a fully-connected layer with input I, filter weights F, and bias B.\n\n    Rank names are\n            N: batch size\n            M: output channels\n            CHW: flattened input channel, height, and width of a convolution.\n\n    Multi-dimensional lists are represented as nested lists. E.g., the 2D list\n    `I` has\n    ```\n    len(I) == N\n    len(I[n]) == CHW, for 0 <= n < N\n    ```\n\n    Parameters\n    ----------\n    I:\n            Input to the fully-connected layer, a N x CHW list.\n    F:\n            Filter weights, a CHW x M list.\n    B:\n            Bias, a 1D list with shape M.\n\n    Returns\n    -------\n    The output of the fully-connected layer as a N x M list.\n    \"\"\"\n    # Rank shapes\n    M: int = len(F[0])\n    N: int = len(I)\n    CHW: int = len(I[0])\n\n\n    # Initialize the output O, an N x M array, with the bias\n    O: list[list[int]] = [[0]*M for _ in range(N)]\n    for n in range(N):\n        for m in range(M):\n            O[n][m] = B[m]\n\n    # TODO: Using only base Python operators (i.e., not invoking any libraries) please\n    # implement a fully-connected layer. Note that if there are any unneeded imports,\n    # you will receive a zero for this question.\n    for n in range(N):\n        for m in range(M):\n            for chw in range(CHW):\n                O[n][m] += I[n][chw] * F[chw][m]\n    ########################\n    #### YOUR CODE HERE ####\n    ########################\n\n    return O"
+    assumptions: []
+    weight: 1
+1.2.1:
+  Your conv Einsum.:
+    answer: O_{ n, m, p, q } = I_{ n, c, p+r, q+s }^{ N, C, P+R-1, Q+S-1 } \times F_{ c, m, r, s } + B_{ m }
+    assumptions: []
+    weight: 1
+1.2.2:
+  What is your conv implementation?:
+    answer:
+      callable: conv
+      source: "def conv(\n    I: List[List[List[List[int]]]],\n    F: List[List[List[List[int]]]],\n    B: List[int],\n) -> List[List[List[List[int]]]]:\n    \"\"\"\n    Compute a convolution with input I, filter weights F, and bias B.\n\n    Rank names are\n            N: batch size\n            C: input channels\n            M: output channels\n            H: input height\n            W: input width\n            P: output height\n            Q: output width\n            R: filter height\n            S: filter width\n\n    Parameters\n    ----------\n    I:\n            Input to the convolution, a list with shape N x C x H x W.\n    F:\n            Filter weights, a list with shape C x M x R x S.\n    B:\n            Bias, a list with shape M.\n    Returns\n    -------\n    The output of the convolution, an N x M x P x Q list.\n    \"\"\"\n    # Rank shapes\n    N: int = len(I)\n    C: int = len(F)\n    M: int = len(F[0])\n    R: int = len(F[0][0])\n    S: int = len(F[0][0][0])\n    H: int = len(I[0][0])\n    W: int = len(I[0][0][0])\n    P: int = (H - R) + 1\n    Q: int = (W - S) + 1\n\n    # Initialize the output O, an NxMxPxQ array, with the bias\n    O: list[list[list[list[int]]]] = [\n        [[[0]*Q for _ in range(P)] for _ in range(M)] for _ in range(N)\n    ]\n    for n in range(N):\n        for m in range(M):\n            for p in range(P):\n                for q in range(Q):\n                    O[n][m][p][q] = B[m]\n\n    # TODO: Using only base Python operators (i.e., not invoking any libraries) please\n    # implement a convolutional layer. Note that if there are any unneeded imports, you\n    # will receive a zero for this question.\n    for n in range(N):\n        for m in range(M):\n            for p in range(P):\n                for q in range(Q):\n                    for c in range(C):\n                        for r in range(R):\n                            for s in range(S):\n                                O[n][m][p][q] += I[n][c][p+r][q+s] * F[c][m][r][s]\n    ########################\n    #### YOUR CODE HERE ####\n    ########################\n    return list(O)"
+    assumptions: []
+    weight: 1
+2.1.1:
+  ? "\n    What is the shape of the iteration space of the fully-connected Einsum?\n    Please answer as a set of rank names that together form the shape.\n    E.g., if you think the shape is N x M, answer {'N', 'M'}.\n    "
+  : answer: !!set
+      ? M null null null null null null null null null null null null null null
+      ? N null null null null null null null null null null null null null null
+      ? CHW null null null null null null null null null null null null null null
+    assumptions: []
+    weight: 1
+2.1.2:
+  What is your fc_ops implementation?:
+    answer:
+      callable: fc_ops
+      source: "def fc_ops(input_shape: dict[str, int], filter_shape: dict[str, int]) -> int:\n    \"\"\"\n    Calculates the amount of multiplications in a fully-connected layer.\n\n    Parameters\n    ----------\n    input_shape:\n            The shape of the input, a dictionary mapping rank name to shape. Has\n            keys \"N\", \"CHW\". Note that CHW in `fc` is flattened.\n    filter_shape:\n            The shape of the filter weights, a dictionary mapping rank name to shape.\n            Has keys \"CHW\", \"M\".\n\n    Returns\n    -------\n    The number of multiplications the FC requires.\n    \"\"\"\n    # Rank shapes\n    M = filter_shape[\"M\"]\n    CHW = filter_shape[\"CHW\"]\n    N = input_shape[\"N\"]\n\n    return N * M * CHW\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.1.3:
+  ? "\n    What is the shape of the iteration space of the convolution Einsum?\n    Please answer as a set of rank names that together form the shape.\n    E.g., if you think the shape is N x M, answer {'N', 'M'}.\n    "
+  : answer: !!set
+      ? C null null null null null null null null null null null null null null
+      ? Q null null null null null null null null null null null null null null
+      ? R null null null null null null null null null null null null null null
+      ? S null null null null null null null null null null null null null null
+      ? N null null null null null null null null null null null null null null
+      ? P null null null null null null null null null null null null null null
+      ? M null null null null null null null null null null null null null null
+    assumptions: []
+    weight: 1
+2.1.4:
+  What is your conv_ops implementation?:
+    answer:
+      callable: conv_ops
+      source: "def conv_ops(input_shape: dict[str, int], filter_shape: dict[str, int]) -> int:\n    \"\"\"\n    Calculates the amount of multiplications in a convolutional layer.\n\n    Parameters\n    ----------\n    input_shape:\n            Input shape, which has keys \"N\", \"C\", \"H\", \"W\".\n    filter_shape:\n            Filter weight shape, which has keys \"M\", \"C\", \"R\", \"S\".\n\n    Returns\n    -------\n    The number of multiplications in the convolution.\n    \"\"\"\n    # Rank shapes\n    N = input_shape[\"N\"]\n    H = input_shape[\"H\"]\n    W = input_shape[\"W\"]\n    R = filter_shape[\"R\"]\n    S = filter_shape[\"S\"]\n    P: int = (H - R) + 1\n    Q: int = (W - S) + 1\n    C = filter_shape[\"C\"]\n    M = filter_shape[\"M\"]\n\n    return N * M * P * Q * C * R * S\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.2.1:
+  What are the rank names of tensor I? Please answer as a list of rank names.:
+    answer: !!set
+      ? N null null null null null null null null null null null null null null
+      ? CHW null null null null null null null null null null null null null null
+    assumptions: []
+    weight: 1
+2.2.2:
+  ? "Thus, if N=4 and CHW=8, how many elements does tensor I have \n    (i.e., what is the *occupancy* of the tensor)?"
+  : answer: 32
+    assumptions: []
+    weight: 1
+2.2.3:
+  What is your min_fc_data_movement implementation?:
+    answer:
+      callable: min_fc_data_movement
+      source: "def min_fc_data_movement(\n    input_shape: dict[str, int], filter_shape: dict[str, int]\n) -> int:\n    \"\"\"\n    Return the total amount of reads and writes (in tensor elements)\n    from/to off-chip memory assuming each tensor is only read/written once.\n\n    In your implementation, consider only reads of tensors I, F,\n    and writes of tensor O.\n\n    Parameters\n    ----------\n    input_shape:\n            Dictionary of the size of each rank of the input.\n    filter_shape:\n            Dictionary of the size of each rank of the filter.\n    \"\"\"\n    M = filter_shape[\"M\"]\n    CHW = filter_shape[\"CHW\"]\n    N = input_shape[\"N\"]\n\n    tensor_I_occupancy = N * CHW\n    tensor_F_occupancy = CHW * M\n    tensor_O_occupancy = N * M\n\n    ########################\n    #### YOUR CODE HERE ####\n    ########################\n\n    total_reads = tensor_I_occupancy + tensor_F_occupancy\n    total_writes = tensor_O_occupancy\n\n    return total_reads + total_writes"
+    assumptions: []
+    weight: 1
+2.2.4:
+  What is your min_conv_data_movement implementation?:
+    answer:
+      callable: min_conv_data_movement
+      source: "def min_conv_data_movement(\n    input_shape: dict[str, int],\n    filter_shape: dict[str, int],\n) -> int:\n    \"\"\"\n    Return the total number of reads and writes from/to off-chip memory (in\n    number of tensor elements) assuming each tensor is only read/written once.\n\n    In your implementation, consider only reads of tensors I, F, and writes of tensor O.\n\n    Parameters\n    ----------\n    input_shape:\n            Dictionary of the size of each rank of the input.\n    filter_shape:\n            Dictionary of the size of each rank of the filter.\n    \"\"\"\n    # Rank shapes\n    N = input_shape[\"N\"]\n    H = input_shape[\"H\"]\n    W = input_shape[\"W\"]\n    R = filter_shape[\"R\"]\n    S = filter_shape[\"S\"]\n    P = (H - R) + 1\n    Q = (W - S) + 1\n    C = filter_shape[\"C\"]\n    M = filter_shape[\"M\"]\n\n    tensor_I_occupancy = N * C * H * W\n    tensor_F_occupancy = C * M * R * S\n    tensor_O_occupancy = N * M * P * Q\n\n    total_reads = tensor_I_occupancy + tensor_F_occupancy\n    total_writes = tensor_O_occupancy\n\n    return total_reads + total_writes\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.3.1:
+  Your fc_computational_intensity:
+    answer:
+      callable: fc_computational_intensity
+      source: "def fc_computational_intensity(input_shape: Number, filter_shape: Number) -> Number:\n    \"\"\"\n    Return computational intensity of a fully-connected layer in (number of\n    multiplies per tensor element transferred).\n    \"\"\"\n    return fc_ops(input_shape, filter_shape) / min_fc_data_movement(input_shape, filter_shape)\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.3.2:
+  Your conv_computational_intensity:
+    answer:
+      callable: conv_computational_intensity
+      source: "def conv_computational_intensity(input_shape: Number, filter_shape: Number,) -> Number:\n    return conv_ops(input_shape, filter_shape) / min_conv_data_movement(input_shape, filter_shape)\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.3.3:
+  'True/False: Computational intensity is always proportional to batch size.':
+    answer: false
+    assumptions: []
+    weight: 1
+2.3.4:
+  'True/False: Number of operations is always proportional to batch size.':
+    answer: true
+    assumptions: []
+    weight: 1
+2.3.5:
+  'True/False: Minimum data movement is always proportional to batch size.':
+    answer: false
+    assumptions: []
+    weight: 1
+2.4.1:
+  ? "\n    If an accelerator has 1,000 computation units and each computation unit can\n    perform 2 operations per cycle, what is the peak computation throughput of\n    the accelerator (in operations per cycle)?\n    "
+  : answer: 2000
+    assumptions: []
+    weight: 1
+2.4.2:
+  ? "\n    If there are 12 Tops (12 tera-operations, 12e12 multiplications) to perform\n    and an accelerator can perform 60 ops/cycle, how many Gcycles (giga-cycle,\n    1e9 cycles) will it require to finish the computation?\n    "
+  : answer: 200
+    assumptions: []
+    weight: 1
+2.4.3:
+  Your model for computation latency.:
+    answer:
+      callable: get_computation_latency
+      source: "def get_computation_latency(num_ops: Number, ops_throughput: Number) -> Number:\n    \"\"\"\n    Return latency of computation (in cycles) to process `num_ops` number of\n    operations given `ops_throughput` number of operations per cycle.\n    \"\"\"\n    return num_ops / ops_throughput\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.4.4:
+  What is the computation latency of 5x5 convolution?:
+    answer: 10240.0
+    assumptions: []
+    weight: 1
+2.4.5:
+  What is the latency of two 3x3 convolutions?:
+    answer: 8921.088
+    assumptions: []
+    weight: 1
+2.4.6:
+  Your data_movement_latency:
+    answer:
+      callable: data_movement_latency
+      source: "def data_movement_latency(amount_of_data_movement: Number, bandwidth: Number) -> Number:\n    \"\"\"\n    Return latency (in cycles) to move `amount_of_data_movement` (in\n    tensor-elements) given `bandwidth` (in tensor-elements/cycle).\n    \"\"\"\n    return amount_of_data_movement / bandwidth\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.4.7:
+  What is the data movement latency of this layer?:
+    answer: 1333207.04
+    assumptions: []
+    weight: 1
+2.5.1:
+  Your overall_latency_no_overlap.:
+    answer:
+      callable: overall_latency_no_overlap
+      source: "def overall_latency_no_overlap(\n    data_movement_latency: Number, computation_latency: Number\n) -> Number:\n    return data_movement_latency + computation_latency\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.5.2:
+  Your overall_latency_maximum_overlap.:
+    answer:
+      callable: overall_latency_maximum_overlap
+      source: "def overall_latency_maximum_overlap(\n    data_movement_latency: Number,\n    computation_latency: Number,\n) -> Number:\n    return max(data_movement_latency, computation_latency)\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.5.3:
+  'True/False: For layers with high computational intensity, the processing is more likely to be compute-bound.':
+    answer: true
+    assumptions: []
+    weight: 1
+2.5.4:
+  'True/False: For layers with low computational intensity, the processing is more likely to be compute-bound.':
+    answer: false
+    assumptions: []
+    weight: 1
+2.6.1:
+  ? "\n    True/False: If the processing is compute-bound, actual computation throughput is\n    lower than peak computation throughput.\n    "
+  : answer: false
+    assumptions: []
+    weight: 1
+2.6.2:
+  ? "\n    True/False: If the processing is bandwidth-bound, actual computation throughput is\n    lower than peak computation throughput.\n    "
+  : answer: true
+    assumptions: []
+    weight: 1
+2.6.3:
+  Your get_actual_computation_throughput.:
+    answer:
+      callable: get_actual_computation_throughput
+      source: "def get_actual_computation_throughput(\n    num_operations,\n    data_movement_latency,\n    computation_latency,\n):\n    return num_operations / overall_latency_maximum_overlap(\n        data_movement_latency, computation_latency\n    )"
+    assumptions: []
+    weight: 1
+2.6.4:
+  Your roofline_transition.:
+    answer:
+      callable: roofline_transition
+      source: "def roofline_transition(\n    peak_computational_throughput: Number, bandwidth: Number\n) -> Number:\n    \"\"\"\n    Return the computational intensity (in ops/tensor-element) when the\n    processing turns from bandwidth- to compute-bound.\n\n    Parameters\n    ----------\n    peak_computational_throughput:\n        Peak computational throughput in ops/cycle\n    bandwidth:\n        Memory bandwidth in tensor-element/cycle\n    \"\"\"\n    return peak_computational_throughput / bandwidth\n    ########################\n    #### YOUR CODE HERE ####\n    ########################"
+    assumptions: []
+    weight: 1
+2.6.5:
+  ? "\n    Which convolution (answer with '3x3' or '5x5') has lower computational \n    intensity?\n    "
+  : answer: 3x3
+    assumptions: []
+    weight: 1
+2.6.6:
+  ? "\n    What is the ratio of the overall latency (maximum overlap) of the 5x5\n    convolution to the two 3x3 convolutions?\n    Hint: use the actual throughputs you see in the roofline model.\n    "
+  : answer: 0.8486646884272996
+    assumptions: []
+    weight: 1
+3.1.1:
+  What are the ranks of tensor I?:
+    answer: !!set
+      ? M null null null null null null null null null null null null null
+      ? K null null null null null null null null null null null null null
+    assumptions: []
+    weight: 1
+3.1.2:
+  What are the ranks of tensor O?:
+    answer: !!set
+      ? M null null null null null null null null null null null null
+      ? N null null null null null null null null null null null null
+    assumptions: []
+    weight: 1
+3.1.3:
+  What are the rank variables?:
+    answer: !!set
+      ? k null null null null null null null null null null null
+      ? m null null null null null null null null null null null
+      ? n null null null null null null null null null null null
+    assumptions: []
+    weight: 1
+3.1.4:
+  What is the shape of rank M?:
+    answer: 128
+    assumptions: []
+    weight: 1
+3.1.5:
+  'True/False: A numerical value is provided for the shape of rank N in the spec above.':
+    answer: false
+    assumptions: []
+    weight: 1
+3.1.6:
+  What are the ranks of tensor I?:
+    answer: !!set
+      ? C null null null null null null null null
+      ? H null null null null null null null null
+      ? N null null null null null null null null
+      ? W null null null null null null null null
+    assumptions: []
+    weight: 1
+3.1.7:
+  What are the ranks of tensor O?:
+    answer: !!set
+      ? M null null null null null null null
+      ? Q null null null null null null null
+      ? N null null null null null null null
+      ? P null null null null null null null
+    assumptions: []
+    weight: 1
+3.1.8:
+  What are the rank variables in the index expression into rank H in tensor I?:
+    answer: !!set
+      ? r null null null null null null
+      ? p null null null null null null
+    assumptions: []
+    weight: 1
+3.1.9:
+  What is the shape of rank M?:
+    answer: 128
+    assumptions: []
+    weight: 1
+3.2.1:
+  What are the two memory levels of the architecture?:
+    answer: !!set
+      ? OnchipBuffer null null null null
+      ? DRAM null null null null
+    assumptions: []
+    weight: 1
+3.2.2:
+  What is the size of the OnchipBuffer (in number of tensor-elements)?:
+    answer: 131072
+    assumptions: []
+    weight: 1
+3.2.3:
+  What is the bandwidth of the DRAM (in tensor-element/cycle)?:
+    answer: 25
+    assumptions: []
+    weight: 1
+3.2.4:
+  What is the name of the compute unit?:
+    answer: MAC
+    assumptions: []
+    weight: 1
+3.3.1:
+  'True/False: actual computational throughputs always lie on the roofline.':
+    answer: false
+    assumptions: []
+    weight: 1

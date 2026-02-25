@@ -186,7 +186,12 @@ def evaluate_mapping(
         einsum2pmappings[job.einsum_name] = [
             PmappingGroup(
                 compatibility,
-                PmappingDataframe(pd.DataFrame(df, columns=df.keys(), index=[0]), 1, 1),
+                PmappingDataframe(
+                    data=pd.DataFrame(df, columns=df.keys(), index=[0]),
+                    n_total_pmappings=1,
+                    n_valid_pmappings=1,
+                    ignored_resources=set(),
+                ),
             )
         ]
         pmapping_objects[job.einsum_name] = {pmapping_id: job.mapping}

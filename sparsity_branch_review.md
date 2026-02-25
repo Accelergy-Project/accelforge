@@ -42,8 +42,8 @@ to avoid loading numpy/scipy when position-space utilization isn't used.
 
 ### 6. `position_skip_level` scalar — last-write-wins
 **File:** `accelforge/model/sparse_adjustment.py:881-887`
-**Fix:** Added validation that raises `ValueError` if position_skipping
-is declared at multiple different levels.
+**Fix:** Added validation that raises `ValueError` if self-conditioned
+skipping is declared at multiple different levels.
 
 ### 7. `_emit()` / `_emit_if_declared()` set max_per_unit = total
 **File:** `accelforge/model/sparse_adjustment.py:161-177, 180-199`
@@ -74,9 +74,10 @@ zero overhead, and format auto-expansion uses the count of non-trivial dims.
 
 ### 11. No validation on `kind` fields
 **File:** `accelforge/frontend/sparse.py:165, 196`
-**Fix:** Changed `kind: str` to `Literal["gating", "skipping",
-"position_skipping"]` on `ActionOptimization` and `Literal["gating",
-"skipping"]` on `ComputeOptimization`. Pydantic now rejects invalid values.
+**Fix:** Changed `kind: str` to `Literal["gating", "skipping"]` on
+`ActionOptimization` and `ComputeOptimization`. Pydantic now rejects
+invalid values. Self-conditioned skipping is expressed as
+`kind: "skipping"` with `target in condition_on`.
 
 ### 12. Variable shadowing in spatial usage loop
 **File:** `accelforge/mapper/FFM/.../run_model.py:131`

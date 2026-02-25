@@ -34,12 +34,15 @@ workload:
   einsums:
   - einsum: "I[b, m, d] = I_in[b, m, d]"
     is_copy_operation: True
+
   - "V[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
   - "K[b, m, h, e] = I[b, m, d] * WK[h, e, d]"
   - "Q[b, m, h, e] = I[b, m, d] * WQ[h, e, d]"
+
   - einsum: "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M: p, h, e]"
     renames: {input: Q}
   - "QK_softmax[b, m, p, h] = QK[b, m, p, h]"
+
   - einsum: "AV[b, m, h, f] = QK_softmax[b, m, p, h] * V[b, M: p, h, E: f]"
     renames: {input: QK_softmax}
   - "Z[b, m, g] = AV[b, m, h, f] * WZ[h, f, g]"

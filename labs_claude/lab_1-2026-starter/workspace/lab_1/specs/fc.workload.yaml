@@ -1,0 +1,19 @@
+workload:
+  rank_sizes:
+    M: 128
+    N: 128
+    K: 128
+
+  einsums:
+  - name: Fc
+    tensor_accesses:
+    - name: I
+      projection: [m, k]
+      bits_per_value: 8
+    - name: F
+      projection: [k, n]
+      bits_per_value: 8
+    - name: O
+      projection: [m, n]
+      output: True
+      bits_per_value: 8

@@ -1,0 +1,61 @@
+mapping:
+  nodes:
+  - !Storage
+    component: DRAM
+    tensors: [A, B, C, D, Z]
+  - !Storage
+    component: GLB
+    tensors: [X, Y]
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Temporal
+        rank_variable: na
+        tile_shape: 1
+      - !Storage
+        component: GLB
+        tensors: [B]
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Storage
+        component: GLB
+        tensors: [A]
+      - !Temporal
+        rank_variable: nx
+        tile_shape: 1
+      - !Compute
+        component: MAC
+        einsum: EinsumX
+    - !Nested
+      nodes:
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: nx
+        tile_shape: 1
+      - !Compute
+        component: MAC
+        einsum: EinsumY
+    - !Nested
+      nodes:
+      - !Storage
+        component: GLB
+        tensors: [D]
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Storage
+        component: GLB
+        tensors: [Z]
+      - !Temporal
+        rank_variable: ny
+        tile_shape: 1
+      - !Temporal
+        rank_variable: nz
+        tile_shape: 1
+      - !Compute
+        component: MAC
+        einsum: EinsumZ

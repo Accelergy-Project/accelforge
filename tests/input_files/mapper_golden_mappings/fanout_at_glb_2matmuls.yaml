@@ -1,0 +1,57 @@
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T1]
+    component: MainMemory
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [W0, T0]
+        component: MainMemory
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n0
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 4
+      - !Spatial
+        name: X
+        component: GlobalBuffer
+        rank_variable: n1
+        tile_shape: 1
+      - !Storage
+        tensors: [T0, W0, T1]
+        component: GlobalBuffer
+      - !Compute
+        einsum: Matmul0
+        component: MAC
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [W1, T2]
+        component: MainMemory
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n2
+        tile_shape: 4
+      - !Spatial
+        name: X
+        component: GlobalBuffer
+        rank_variable: n2
+        tile_shape: 1
+      - !Storage
+        tensors: [T1, T2, W1]
+        component: GlobalBuffer
+      - !Compute
+        einsum: Matmul1
+        component: MAC

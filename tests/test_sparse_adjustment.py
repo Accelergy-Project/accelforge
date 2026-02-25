@@ -2180,8 +2180,8 @@ class TestPositionSkippingSelfSAF(unittest.TestCase):
 
         return reuse, cs_a, cs_b, ls_a, ls_b, cs
 
-    def test_self_conditioned_position_skipping_reduces_child_reads(self):
-        """Position-skipping with condition_on=[] reduces compute-level reads."""
+    def test_self_conditioned_skipping_reduces_child_reads(self):
+        """Self-conditioned skipping (condition_on=[A], target=A) reduces compute-level reads."""
         density_a = 0.5
         sparse_opts = SparseOptimizations(
             targets=[
@@ -2189,9 +2189,9 @@ class TestPositionSkippingSelfSAF(unittest.TestCase):
                     target="LineBuffer",
                     action_optimization=[
                         ActionOptimization(
-                            kind="position_skipping",
+                            kind="skipping",
                             target="A",
-                            condition_on=[],  # Self-conditioned
+                            condition_on=["A"],  # Self-conditioned
                         ),
                     ],
                 )
@@ -2228,8 +2228,8 @@ class TestPositionSkippingSelfSAF(unittest.TestCase):
         # Child A reads reduced: 100000 * 0.5 = 50000 (skipping)
         self.assertEqual(cs_a.total_reads_to_parent, 50_000)
 
-    def test_dual_position_skipping_compound_saf(self):
-        """Dual position-skipping (A and B) gives compound SAF at compute."""
+    def test_dual_self_conditioned_skipping_compound_saf(self):
+        """Dual self-conditioned skipping (A and B) gives compound SAF at compute."""
         density_a = 0.5
         density_b = 0.4
 
@@ -2245,14 +2245,14 @@ class TestPositionSkippingSelfSAF(unittest.TestCase):
                     ],
                     action_optimization=[
                         ActionOptimization(
-                            kind="position_skipping",
+                            kind="skipping",
                             target="A",
-                            condition_on=[],
+                            condition_on=["A"],
                         ),
                         ActionOptimization(
-                            kind="position_skipping",
+                            kind="skipping",
                             target="B",
-                            condition_on=[],
+                            condition_on=["B"],
                         ),
                     ],
                 ),
@@ -2311,8 +2311,8 @@ class TestPositionSkippingSelfSAF(unittest.TestCase):
         # Compute: total_ops * compound_survival = 100000 * 0.2 = 20000
         self.assertEqual(cs.total_ops, 20_000)
 
-    def test_empty_condition_on_without_position_skipping_is_noop(self):
-        """Regular skipping with condition_on=[] should be a no-op."""
+    def test_empty_condition_on_is_noop(self):
+        """Skipping with condition_on=[] (no conditions) should be a no-op."""
         sparse_opts = SparseOptimizations(
             targets=[
                 SparseTarget(
@@ -2321,7 +2321,7 @@ class TestPositionSkippingSelfSAF(unittest.TestCase):
                         ActionOptimization(
                             kind="skipping",
                             target="A",
-                            condition_on=[],  # Empty but not position_skipping
+                            condition_on=[],  # Empty → no-op
                         ),
                     ],
                 )
@@ -2361,14 +2361,14 @@ class TestPositionSkippingSelfSAF(unittest.TestCase):
 class TestStorageSAFComputePropagation(unittest.TestCase):
     """Storage SAF → compute propagation without explicit compute_optimization.
 
-    When position-skipping SAFs at storage levels reduce input tensor reads,
-    Phase 4b propagates these reductions to compute ops. The compute_latency_ratio
-    should reflect the compound survival probability (dA * dB) even without
-    any compute_optimization block in the sparse config.
+    When self-conditioned skipping SAFs at storage levels reduce input tensor
+    reads, Phase 4b propagates these reductions to compute ops. The
+    compute_latency_ratio should reflect the compound survival probability
+    (dA * dB) even without any compute_optimization block in the sparse config.
     """
 
-    def test_dual_position_skipping_no_compute_opt(self):
-        """Position-skipping on A and B → compute reduced by dA*dB."""
+    def test_dual_self_conditioned_skipping_no_compute_opt(self):
+        """Self-conditioned skipping on A and B → compute reduced by dA*dB."""
         density_a = 0.5
         density_b = 0.4
 
@@ -2385,14 +2385,14 @@ class TestStorageSAFComputePropagation(unittest.TestCase):
                     ],
                     action_optimization=[
                         ActionOptimization(
-                            kind="position_skipping",
+                            kind="skipping",
                             target="A",
-                            condition_on=[],
+                            condition_on=["A"],
                         ),
                         ActionOptimization(
-                            kind="position_skipping",
+                            kind="skipping",
                             target="B",
-                            condition_on=[],
+                            condition_on=["B"],
                         ),
                     ],
                 ),
@@ -2470,8 +2470,8 @@ class TestStorageSAFComputePropagation(unittest.TestCase):
         # compute_latency_ratio = post / pre = 20000 / 100000 = 0.2
         self.assertAlmostEqual(result.latency_info.compute_latency_ratio, 0.2, places=6)
 
-    def test_single_position_skipping_no_compute_opt(self):
-        """Position-skipping on A only → compute reduced by dA."""
+    def test_single_self_conditioned_skipping_no_compute_opt(self):
+        """Self-conditioned skipping on A only → compute reduced by dA."""
         density_a = 0.3
 
         sparse_opts = SparseOptimizations(
@@ -2480,9 +2480,9 @@ class TestStorageSAFComputePropagation(unittest.TestCase):
                     target="LineBuffer",
                     action_optimization=[
                         ActionOptimization(
-                            kind="position_skipping",
+                            kind="skipping",
                             target="A",
-                            condition_on=[],
+                            condition_on=["A"],
                         ),
                     ],
                 ),

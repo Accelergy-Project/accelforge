@@ -37,6 +37,7 @@ class Network:
     """
     A logical network that delivers a tensor.
     """
+
     tensor: TensorName
     "The tensor held by the buffet."
     einsum: EinsumName

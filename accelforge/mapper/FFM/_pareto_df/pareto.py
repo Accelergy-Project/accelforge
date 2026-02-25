@@ -501,6 +501,24 @@ def makepareto_numpy(
         n[0] = True
         return n
 
+    # Really big Paretos are slow. If we add "diff" goals, the library partitions the
+    # set and performs a smaller Pareto inside each. The following block will add more
+    # "diff" goals until the chunks are reasonably small.
+    if dirty:
+        g2unique = {i: len(np.unique(to_pareto[i])) for i in range(len(to_pareto))}
+
+        n_per_chunk = to_pareto[0].shape[0]
+        for i, goal in enumerate(new_goals):
+            if goal == "diff":
+                n_per_chunk /= g2unique[i]
+
+        non_diffs = {i for i, goal in enumerate(new_goals) if goal != "diff"}
+        while non_diffs and n_per_chunk > 1000:
+            change_to_diff = min(non_diffs, key=lambda i: g2unique[i])
+            non_diffs.remove(change_to_diff)
+            new_goals[change_to_diff] = "diff"
+            n_per_chunk /= g2unique[change_to_diff]
+
     df = pd.DataFrame(np.concatenate(to_pareto, axis=1), columns=range(len(to_pareto)))
 
     if dirty:

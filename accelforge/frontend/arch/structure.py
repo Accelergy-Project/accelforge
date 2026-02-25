@@ -29,6 +29,9 @@ from accelforge.util._visualization import _pydot_graph
 
 _FIND_SENTINEL = object()
 
+D = TypeVar("D")
+T = TypeVar("T")
+
 
 class ArchNode(EvalableModel):
     """A node in the architecture."""
@@ -70,6 +73,43 @@ class ArchNode(EvalableModel):
         if default is not _FIND_SENTINEL:
             return default
         raise ValueError(f"Leaf {name} not found in {self}")
+
+    def is_above(self, node_a: str, node_b: str) -> bool:
+        """Returns whether node_a is above node_b in a hierarchy."""
+        self.find(node_a)
+        self.find(node_b)
+        for node, parents in self.iterate_hierarchically():
+            if node.name != node_b:
+                continue
+            return any(p.name == node_a for p in parents)
+
+    def find_first_of_type_above(
+        self, node_type: T, name: str, default: D = _FIND_SENTINEL
+    ) -> T | D:
+        """
+        Returns the first node with type `node_type` above `name`.
+
+        If `name` does not exist, raises an error.
+
+        If no node of `node_type` is found, either `default` is
+        returned (if provided) or raises an error.
+        """
+        # Check if name exists
+        # This *should* raise even if default != _FIND_SENTINEL
+        self.find(name)
+
+        for node, parents in self.iterate_hierarchically():
+            if node.name != name:
+                continue
+            for p in reversed(parents):
+                if isinstance(p, node_type):
+                    return p
+            if default is not _FIND_SENTINEL:
+                return default
+            raise ValueError(f"Parent of {name} with type {node_type} not found")
+        raise RuntimeError(
+            "BUG: find() finds node but iterate_hierarchically() does not"
+        )
 
     def iterate_hierarchically(self, _parents=None):
         """
@@ -170,9 +210,6 @@ class Leaf(ArchNode):
         return [self._render_node()]
 
 
-T = TypeVar("T")
-
-
 @_uninstantiable
 class Branch(ArchNode):
     nodes: ArchNodes[
@@ -270,6 +307,7 @@ class Array(Branch, Spatialable):
         return_fanout: bool = False,
     ):
         from accelforge.frontend.arch.components import Compute
+
         nodes = []
 
         for node in self.nodes:
@@ -311,10 +349,14 @@ class Array(Branch, Spatialable):
             elif isinstance(node, Compute):
                 # Compute nodes branch off to the side like a Fork
                 if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name(), "dashed"))
+                    edges.append(
+                        (current_parent_name, node._render_node_name(), "dashed")
+                    )
             else:
                 if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name(), "dashed"))
+                    edges.append(
+                        (current_parent_name, node._render_node_name(), "dashed")
+                    )
         return edges, self._render_node_name()
 
     def _render_make_children(self) -> list[pydot.Node]:
@@ -376,9 +418,7 @@ class Hierarchical(Branch):
                         break
                     assert not isinstance(node, Fork)
                 elif isinstance(node, Array):
-                    new_nodes = node._flatten(
-                        compute_node, fanout, return_fanout=False
-                    )
+                    new_nodes = node._flatten(compute_node, fanout, return_fanout=False)
                     nodes.extend(new_nodes)
                     nodes.append(node)
                     fanout *= node.get_fanout()
@@ -432,10 +472,14 @@ class Hierarchical(Branch):
             elif isinstance(node, Compute):
                 # Compute nodes branch off to the side like a Fork
                 if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name(), "solid"))
+                    edges.append(
+                        (current_parent_name, node._render_node_name(), "solid")
+                    )
             else:
                 if current_parent_name is not None:
-                    edges.append((current_parent_name, node._render_node_name(), "solid"))
+                    edges.append(
+                        (current_parent_name, node._render_node_name(), "solid")
+                    )
 
                 # Update parent for next iteration
                 current_parent_name = node._render_node_name()

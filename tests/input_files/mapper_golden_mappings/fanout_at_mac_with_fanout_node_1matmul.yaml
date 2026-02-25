@@ -1,0 +1,28 @@
+mapping:
+  nodes:
+  - !Storage
+    tensors: [W0, T1, T0]
+    component: MainMemory
+  - !Temporal
+    rank_variable: n0
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n1
+    tile_shape: 1
+  - !Storage
+    tensors: [W0]
+    component: GlobalBuffer
+  - !Temporal
+    rank_variable: m
+    tile_shape: 4
+  - !Storage
+    tensors: [T0, T1]
+    component: GlobalBuffer
+  - !Spatial
+    name: X
+    component: MACArray
+    rank_variable: m
+    tile_shape: 1
+  - !Compute
+    einsum: Matmul0
+    component: MAC

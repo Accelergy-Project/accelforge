@@ -105,21 +105,20 @@ class RepresentationFormat(EvalableModel):
 class ActionOptimization(EvalableModel):
     """Storage action optimization at a memory level."""
 
-    kind: Literal["gating", "skipping", "position_skipping"]
-    """ Optimization type: gating (filter after access), skipping (skip access), or position_skipping (self-conditioned skip). """
+    kind: Literal["gating", "skipping"]
+    """ Optimization type: gating (filter after access) or skipping (skip access). """
 
     target: str
     """ Tensor whose read accesses are reduced. """
 
     condition_on: list[str]
-    """ Tensors whose sparsity determines the filtering probability. Empty for position_skipping. """
+    """ Tensors whose sparsity determines the filtering probability.
+    Include the target itself for self-conditioned skipping (e.g. condition_on: [A], target: A). """
 
-    def model_post_init(self, __context__=None) -> None:
-        if self.kind == "position_skipping" and self.condition_on:
-            raise ValueError(
-                f"position_skipping requires condition_on=[], "
-                f"got {self.condition_on!r}"
-            )
+    @property
+    def is_self_conditioned(self) -> bool:
+        """True if the target tensor is in its own condition_on list."""
+        return self.target in self.condition_on
 
 
 class ComputeOptimization(EvalableModel):

@@ -1,0 +1,26 @@
+mapping:
+  nodes:
+  - !Storage
+    component: DRAM
+    tensors: [A, B, Z]
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Storage
+    component: GLB
+    tensors: [Z]
+  - !Temporal
+    rank_variable: k
+    tile_shape: 1
+  - !Storage
+    component: GLB
+    tensors: [A]
+  - !Temporal
+    rank_variable: n
+    tile_shape: 1
+  - !Storage
+    component: GLB
+    tensors: [B]
+  - !Compute
+    component: MAC
+    einsum: matmul

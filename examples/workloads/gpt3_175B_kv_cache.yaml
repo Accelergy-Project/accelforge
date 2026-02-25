@@ -2,7 +2,7 @@ workload:
   rank_sizes:
     {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
     {% set N_TOKENS = N_TOKENS | default(8192) %}
-    {% set N_NEW_TOKENS = N_TOKENS | default(8) %}
+    {% set N_NEW_TOKENS = N_TOKENS | default(1) %}
     B: {{BATCH_SIZE}}
     M: {{N_NEW_TOKENS}}
     M_FULL: {{N_TOKENS}}
@@ -20,9 +20,11 @@ workload:
   einsums:
   - {einsum: "I[b, m, d] = I_in[b, m, d]", is_copy_operation: True}
 
-  # V and K containing the new tokens only. Assume N_TOKENS >> N_NEW_TOKENS, so we're
-  # just going to ignore these tensors and assume that the concatenation with the full K
-  # and V is cheap relative to the movement of K and V.
+  # V and K containing the new tokens only. Note that these two tensors aren't used
+  # later. We assume that N_TOKENS >> N_NEW_TOKENS, making the full K and V much larger
+  # than these. In real transformers, we'd concatenate these with the full K and V, but
+  # since K >> K_new and V >> V_new, we can ignore these tensors and assume that the
+  # concatenation is cheap relative to the movement of K and V.
   - "V_new[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
   - "K_new[b, m, h, e] = I[b, m, d] * WK[h, e, d]"
 
