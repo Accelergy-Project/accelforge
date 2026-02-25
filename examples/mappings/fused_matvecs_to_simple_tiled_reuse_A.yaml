@@ -1,7 +1,7 @@
 mapping:
   nodes:
   - !Storage
-    tensors: [A, B, C, Y, Z]
+    tensors: [A, B, C, Z]
     component: MainMemory
   - !Storage
     tensors: [A]
