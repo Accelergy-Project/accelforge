@@ -39,7 +39,6 @@ from accelforge.model.sparse_formats import compute_format_occupancy
 from accelforge.model.sparse_pipeline import (
     apply_format_compression,
     apply_local_saf_reads,
-    apply_local_saf_updates,
     compute_saf_probability,
     classify_compute,
     propagate_saf_reduction,
@@ -946,7 +945,7 @@ def apply_sparse_adjustments(
 
                 # For output tensors, reduce child's writeback
                 if is_output:
-                    actual_w, write_delta = apply_local_saf_updates(
+                    actual_w, write_delta = apply_local_saf_reads(
                         child_stats.total_writes_to_parent, prob
                     )
                     child_stats.total_writes_to_parent = actual_w
@@ -957,7 +956,7 @@ def apply_sparse_adjustments(
                         opt.kind,
                     )
 
-                    actual_w_max, _ = apply_local_saf_updates(
+                    actual_w_max, _ = apply_local_saf_reads(
                         child_stats.max_per_parent_writes_to_parent, prob
                     )
                     child_stats.max_per_parent_writes_to_parent = actual_w_max

@@ -26,7 +26,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
 from accelforge.frontend.mapper.metrics import Metrics
 import sympy
 from numbers import Number
-from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
+from accelforge.util._eval_expressions import eval_expression
 from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero
 
 
@@ -288,16 +288,9 @@ def run_model(
 def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, spec):
     """Compute sparse-adjusted latency using post-sparse action counts.
 
-    Uses post-sparse buffet_stats (after _recompute_action_counts) which
-    already reflect SAF reductions. For gating, gated reads are added back
-    because they still consume port bandwidth (cycles consumed, energy saved).
-
-    Aggregates across all tensors per level (matching component_latency),
-    then evaluates total_latency once per component.
-
-    Metadata reads/writes are added at the level.
-
-    Compute latency is scaled by compute_latency_ratio (post-4b / pre-sparse).
+    Uses post-sparse buffet_stats (after _recompute_action_counts) with SAF
+    reductions applied. Gated reads are added back (port bandwidth consumed).
+    Compute latency scaled by compute_latency_ratio.
     """
     component_latency_result = {}
 
@@ -395,8 +388,7 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
     dense_compute_latency = Max(
         0, *[s.max_latency for s in reuse.compute_stats.values()]
     )
-    ratio = latency_info.compute_latency_ratio
-    compute_actions = dense_compute_latency * ratio
+    compute_actions = dense_compute_latency * latency_info.compute_latency_ratio
     component_to_actions[compute_obj.name]["compute_actions"] = compute_actions
     for action in compute_obj.actions:
         component_to_actions[compute_obj.name].setdefault(

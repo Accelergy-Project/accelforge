@@ -10,7 +10,6 @@ from accelforge.model.sparse_pipeline import (
     compute_saf_probability,
     apply_format_compression,
     apply_local_saf_reads,
-    apply_local_saf_updates,
     propagate_saf_reduction,
     compute_nested_saf_effective_prob,
     classify_compute,
@@ -210,7 +209,7 @@ class TestLocalSAFUpdates(unittest.TestCase):
         """Fig1: Reg Z updates, random=2097152, p=0.98968505859375.
         gated = floor(2097152 * 0.98968505859375) = 2075520.
         actual = 2097152 - 2075520 = 21632."""
-        actual, gated = apply_local_saf_updates(2097152, 0.98968505859375)
+        actual, gated = apply_local_saf_reads(2097152, 0.98968505859375)
         self.assertEqual(actual, 21632)
         self.assertEqual(gated, 2075520)
 
@@ -221,7 +220,7 @@ class TestLocalSAFUpdates(unittest.TestCase):
         actual_reads, _ = apply_local_saf_reads(
             2080768, 0.98968505859375, is_read_write=True
         )
-        actual_updates, _ = apply_local_saf_updates(
+        actual_updates, _ = apply_local_saf_reads(
             2097152, 0.98968505859375
         )
         self.assertEqual(actual_updates - actual_reads, 169)
@@ -229,13 +228,13 @@ class TestLocalSAFUpdates(unittest.TestCase):
     def test_updates_use_floor(self):
         """7 updates, p=0.3: gated = floor(2.1) = 2, actual = 5.
         Same as read-only reads (both use floor)."""
-        actual, gated = apply_local_saf_updates(7, 0.3)
+        actual, gated = apply_local_saf_reads(7, 0.3)
         self.assertEqual(gated, 2)
         self.assertEqual(actual, 5)
 
     def test_zero_prob(self):
         """p=0: no reduction."""
-        actual, gated = apply_local_saf_updates(1000, 0.0)
+        actual, gated = apply_local_saf_reads(1000, 0.0)
         self.assertEqual(actual, 1000)
         self.assertEqual(gated, 0)
 

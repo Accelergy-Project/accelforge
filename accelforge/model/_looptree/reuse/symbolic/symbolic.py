@@ -148,9 +148,7 @@ class BuffetStats:
 
     persistent: bool = field(default=False)
 
-    # Per-dimension tile shape at this buffer level, set by analyze_storage()
-    # after child accumulation completes.  Used by sparse analysis to compute
-    # SAF probabilities without re-walking the mapping tree.
+    # Tile shape for sparse SAF computation (set by analyze_storage).
     tile_shape: dict | None = field(default=None)
 
     @property
@@ -841,69 +839,22 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SymbolicAnalysi
     return class2analysis_function[type(node)](node_idx, current_shape, info)
 
 
-def _is_in_bypassed_zone(
-    tensor: TensorName, node_idx: int, info: "AnalysisInfo"
-) -> bool:
-    """Check if the temporal loop at node_idx is in a bypassed zone for tensor.
-
-    A temporal loop is "bypassed" for a tensor if the nearest Storage/Toll
-    component above it in the FULL mapping does NOT hold that tensor. In this
-    case, temporal reuse applies: the parent (fill) accesses are not multiplied
-    by irrelevant temporal loops.
-
-    We use the full mapping (info.job.mapping) because the per-tensor mapping
-    strips out Storage nodes that don't hold this tensor, making it impossible
-    to detect bypassed levels.
-
-    After split_tensor_holders_with_multiple_tensors(), each Storage node holds
-    one tensor, so we check ALL nodes at the same component (e.g., MainMemory
-    may have separate [A] and [B] nodes — if either holds our tensor, it's not
-    bypassed).
-    """
-    # Find this temporal node in the full mapping by identity
-    temporal_node = info.mapping[node_idx]
-    full_mapping = info.job.mapping.nodes
-    full_idx = None
-    for i, node in enumerate(full_mapping):
-        if id(node) == id(temporal_node):
-            full_idx = i
-            break
-    if full_idx is None:
-        return False  # Node not found in full mapping
-
-    # Walk upward in the full mapping to find the nearest Storage/Toll
-    for i in range(full_idx - 1, -1, -1):
-        node = full_mapping[i]
-        if isinstance(node, Reservation):
-            continue  # Skip reservation nodes
-        if isinstance(node, (Storage, Toll)):
-            # Found nearest Storage/Toll. Check if its COMPONENT holds this tensor
-            # (there may be multiple split Storage nodes for the same component).
-            component_name = node.component
-            for j in range(i, -1, -1):
-                n = full_mapping[j]
-                if isinstance(n, (Storage, Toll)) and n.component == component_name:
-                    if TensorName(tensor) in [TensorName(t) for t in n.tensors]:
-                        return False  # Component holds tensor → not bypassed
-            return True  # Component doesn't hold tensor → bypassed
-    return False  # No storage found above → not bypassed
-
-
-def _is_directly_above_storage(
+def _has_temporal_reuse(
     tensor: TensorName, node_idx: int, buffet_level: str, info: "AnalysisInfo"
 ) -> bool:
-    """Check if the temporal loop at node_idx is directly above the buffet's
-    storage in the FULL mapping (no intervening temporal or storage nodes
-    relevant to this tensor).
+    """Check if the buffet retains data across iterations of this irrelevant
+    temporal loop, meaning parent fills/drains should NOT be multiplied.
 
-    This covers the case where a non-bypassed parent holds the tensor (e.g.,
-    DRAM holds Outputs) and the temporal loop is immediately above the buffet's
-    storage (e.g., C loop → shared_glb). The buffet retains data across
-    iterations because no inner loops cycle through different tiles.
+    Uses the FULL mapping (info.job.mapping) because the per-tensor mapping
+    strips Storage nodes for other tensors, which are needed to detect
+    hierarchy boundaries and bypassed zones.
 
-    We use the full mapping because the per-tensor mapping strips Storage nodes
-    for other tensors, which could incorrectly make distant loops appear
-    adjacent.
+    Returns True in two cases:
+    1. Directly above: no intervening temporal loops or relevant storage nodes
+       between this loop and the buffet's storage (e.g., C loop → shared_glb).
+    2. Bypassed zone: the nearest Storage/Toll component above this loop does
+       NOT hold the tensor (e.g., shared_glb doesn't hold Weights), so the
+       tensor data stays in a more distant ancestor unaffected by this loop.
     """
     temporal_node = info.mapping[node_idx]
     full_mapping = info.job.mapping.nodes
@@ -915,17 +866,6 @@ def _is_directly_above_storage(
     if full_idx is None:
         return False
 
-    # Walk downward from the temporal node in the full mapping.
-    # Skip Reservation, Spatial nodes, and split-off Storage/Toll at the SAME
-    # component (e.g., shared_glb[Inputs] when looking for shared_glb[Outputs]).
-    # Also skip Storage/Toll at a DIFFERENT component whose component never
-    # holds this tensor anywhere in the mapping (e.g., ifmap_spad[Inputs]
-    # when checking Weights — the ifmap_spad component is irrelevant to this
-    # tensor's data path).
-    # Stop when we hit a Temporal loop or a Storage/Toll at a DIFFERENT
-    # component that holds this tensor (that's a different hierarchy level).
-
-    # Pre-compute which components hold this tensor anywhere in the mapping.
     tensor_tn = TensorName(tensor)
     components_holding_tensor = {
         n.component
@@ -934,29 +874,42 @@ def _is_directly_above_storage(
         and tensor_tn in [TensorName(t) for t in n.tensors]
     }
 
+    # Walk downward from the loop. If we reach the buffet's storage without
+    # hitting any blocking nodes, the buffer retains data (directly above).
+    # Skip: Reservation, Spatial, split siblings at the same component, and
+    # Storage/Toll at components that never hold this tensor (bypassed levels).
+    # Block: Temporal loops or Storage/Toll at a different component that
+    # holds this tensor (a hierarchy boundary).
     for i in range(full_idx + 1, len(full_mapping)):
         node = full_mapping[i]
         if isinstance(node, (Reservation, Spatial)):
             continue
         if isinstance(node, (Storage, Toll)):
             if node.component == buffet_level:
-                # Same component — check if it's our tensor's storage
-                holds_tensor = tensor_tn in [
-                    TensorName(t) for t in node.tensors
-                ]
-                if holds_tensor:
+                if tensor_tn in [TensorName(t) for t in node.tensors]:
                     return True  # Directly above the buffet's storage
-                continue  # Split sibling at same component — skip
-            # Different component: a hierarchy boundary only if this
-            # component holds the tensor somewhere in the mapping.
-            # Components that never hold this tensor (e.g., ifmap_spad
-            # when checking Weights) are irrelevant to this tensor's
-            # data path, matching the per-tensor mapping stripping.
+                continue  # Split sibling at same component
             if node.component not in components_holding_tensor:
                 continue  # Component irrelevant to this tensor
-            return False  # Different hierarchy level for this tensor
+            break  # Hierarchy boundary — fall through to bypassed check
         if isinstance(node, Temporal):
-            return False  # Temporal loop between → not directly above
+            break  # Temporal loop between — fall through to bypassed check
+
+    # Bypassed zone check: walk upward to find the nearest Storage/Toll.
+    # If its component doesn't hold this tensor, the loop is in a bypassed
+    # zone and parent accesses should not be multiplied.
+    for i in range(full_idx - 1, -1, -1):
+        node = full_mapping[i]
+        if isinstance(node, Reservation):
+            continue
+        if isinstance(node, (Storage, Toll)):
+            component_name = node.component
+            for j in range(i, -1, -1):
+                n = full_mapping[j]
+                if isinstance(n, (Storage, Toll)) and n.component == component_name:
+                    if tensor_tn in [TensorName(t) for t in n.tensors]:
+                        return False  # Component holds tensor → not bypassed
+            return True  # Component doesn't hold tensor → bypassed
     return False
 
 
@@ -1001,38 +954,23 @@ def analyze_temporal(
         for buffet, stats in child_result.buffet_stats.items():
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
             is_fully_relevant = isinstance(relevancy, Relevant)
-            is_irrelevant = isinstance(relevancy, Irrelevant)
-            # Temporal reuse: the buffet retains data across iterations of
-            # this irrelevant loop, so parent fills/drains are NOT multiplied.
-            # Requires: (a) loop is Irrelevant, (b) loop is above storage,
-            # and (c) one of:
-            #   - Bypassed zone: nearest parent doesn't hold tensor, so data
-            #     stays in a further ancestor.
-            #   - Directly above: no intervening temporal/storage nodes in the
-            #     full mapping, so no inner loops cycle through tiles between
-            #     this loop and the buffet (Table 7 shared_glb/Outputs at C).
+            # Temporal reuse: buffer retains data across this irrelevant loop
+            # (see _has_temporal_reuse for bypassed-zone / directly-above logic)
             loop_above_storage = any(
                 isinstance(info.mapping[i], (Storage, Toll))
                 and info.mapping[i].component == buffet.level
                 for i in range(node_idx + 1, len(info.mapping))
             )
             temporal_reuse = (
-                is_irrelevant
+                isinstance(relevancy, Irrelevant)
                 and loop_above_storage
-                and (
-                    _is_in_bypassed_zone(buffet.tensor, node_idx, info)
-                    or _is_directly_above_storage(
-                        buffet.tensor, node_idx, buffet.level, info
-                    )
+                and _has_temporal_reuse(
+                    buffet.tensor, node_idx, buffet.level, info
                 )
             )
-            # Halo factor: for PartiallyRelevant loops (e.g., stride/halo),
-            # consecutive iterations share data, so parent fills scale by
-            # halo_factor (< full factor) instead of shape_repeats.
-            # Only applies when the loop is in the buffet's scope: between
-            # the buffet's storage and its parent storage. If a parent
-            # storage sits between this loop and the buffet, the overlap
-            # is exploited at the parent level, not here.
+            # Halo factor: for PartiallyRelevant loops, consecutive iterations
+            # share data. Only applies in buffet's scope (between buffet and
+            # parent storage); otherwise overlap is exploited at parent level.
             halo_factor = None
             if isinstance(relevancy, PartiallyRelevant) and loop_above_storage:
                 # Check scope: walk from loop to buffet's storage. If we
