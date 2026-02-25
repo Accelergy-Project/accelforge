@@ -4,7 +4,6 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from accelforge.frontend.renames import TensorName
 from accelforge.util._basetypes import EvalableModel, EvalableList
 
 

@@ -150,33 +150,6 @@ def apply_local_saf_reads(
     return (actual, gated)
 
 
-def apply_local_saf_updates(
-    random_updates: int,
-    optimization_prob: float,
-) -> tuple[int, int]:
-    """Split random updates into actual + gated/skipped.
-
-    Updates always use floor rounding (same as read-only reads).
-
-    Parameters
-    ----------
-    random_updates : int
-        Post-compression random update count.
-    optimization_prob : float
-        SAF optimization probability.
-
-    Returns
-    -------
-    tuple[int, int]
-        (actual_updates, gated_or_skipped_updates)
-    """
-    if optimization_prob <= 0.0 or random_updates <= 0:
-        return (random_updates, 0)
-    gated = math.floor(random_updates * optimization_prob)
-    actual = random_updates - gated
-    return (actual, gated)
-
-
 # ---------------------------------------------------------------------------
 # SAF propagation
 # ---------------------------------------------------------------------------
