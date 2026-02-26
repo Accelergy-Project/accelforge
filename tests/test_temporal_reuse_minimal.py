@@ -8,24 +8,24 @@ Architecture: simple (MainMemory → GlobalBuffer → MAC)
 Workload: Single matmul T1[m,n1] = T0[m,n0] * W0[n0,n1]  (M=4, KN=4)
           bits_per_value = 8
 
-Mapping:
+Mapping (uneven — two Storage nodes for GlobalBuffer):
     Storage [W0, T0, T1] @ MainMemory
+    Storage [T1] @ GlobalBuffer          ← T1 pegged above m (output accumulation)
     Temporal m=1                         ← m is IRRELEVANT to W0[n0,n1]
-    Storage [W0] @ GlobalBuffer          ← W0 lives here, below the m loop
+    Storage [W0] @ GlobalBuffer          ← W0 pegged below m (weight reuse)
     Temporal n0=1
     Temporal n1=1
     Compute Matmul0 @ MAC
 
-The m loop sits above GlobalBuffer[W0], but m does not appear in W0's
-dimensions [n0, n1]. The model should recognize this and fill W0 only
-ONCE rather than once per m iteration.
+T1 (the output) depends on m and must accumulate across the inner
+loops, so it is stored at GlobalBuffer above the m loop.  W0 (the
+weight matrix) does not depend on m but is forced below the m loop
+because T1 already claims the above-m slot at GlobalBuffer.  This is
+the same split-storage pattern used in fused_matmuls_to_simple.yaml
+and eyeriss-style architectures.
 
-Note: in this simple example, reordering W0 above the m loop would
-avoid the issue entirely. In real architectures (e.g. eyeriss), the
-mapper may place a tensor below an irrelevant loop because the overall
-mapping is globally optimal across all tensors and buffer capacities.
-This test validates the model's temporal reuse computation for such
-mappings.
+The model should recognize that m is irrelevant to W0 and fill W0 only
+ONCE rather than once per m iteration.
 
 Action counts are in bits (elements * bits_per_value).
 W0 shape = [n0, n1] = [4, 4] = 16 elements = 128 bits.
