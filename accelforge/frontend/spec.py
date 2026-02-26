@@ -58,6 +58,15 @@ class Spec(EvalableModel):
     model: Model = Model()
     """Configures the model used to evaluate mappings."""
 
+    def _for_einsum(self, einsum_name: EinsumName) -> Self:
+        """
+        Return a copy of the spec with workload and renames only for the given einsum.
+        """
+        new = self.model_copy(deep=False)
+        new.workload = new.workload._for_einsum(einsum_name)
+        new.renames = new.renames._for_einsum(einsum_name)
+        return new
+
     def _eval_expressions(
         self,
         einsum_name: EinsumName | None = None,

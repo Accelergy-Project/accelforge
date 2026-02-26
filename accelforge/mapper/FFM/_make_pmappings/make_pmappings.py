@@ -103,7 +103,7 @@ def get_jobs(
         ).calculate_component_area_energy_latency_leak(
             einsum_name=einsum_name,
             area=False,
-        )
+        )._for_einsum(einsum_name)
         einsum2spec[einsum_name] = _memmap_read(einsum2spec[einsum_name])
 
     def make_jobs_for_einsum(einsum_name: EinsumName, spec: Spec):
@@ -127,7 +127,7 @@ def get_jobs(
 
     for einsum_name, jobs in parallel(
         [
-            delayed(make_jobs_for_einsum)(einsum_name, spec)
+            delayed(make_jobs_for_einsum)(einsum_name, spec._for_einsum(einsum_name))
             for einsum_name, spec in einsum2spec.items()
         ],
         pbar="Generating jobs" if print_progress else None,
