@@ -22,6 +22,7 @@ from accelforge.util._basetypes import (
     EvalsTo,
     TryEvalTo,
     _PostCall,
+    NoParse,
 )
 
 from accelforge.util.exceptions import EvaluationError
@@ -933,6 +934,14 @@ class Memory(TensorHolder):
 
     actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
+
+    _n_physical: NoParse[int] = 1
+    """
+    Number of physical units bound to this memory level.
+
+    Should always be 1 in the spec, but may be > 1 in a flattened arch since
+    physical units may be flattened into only one logical level.
+    """
 
     def _render_node_shape(self) -> str:
         return "cylinder"

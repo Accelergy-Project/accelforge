@@ -483,7 +483,7 @@ class Spatial(Loop):
     component: str
     """ The component name across which different spatial iterations occur. """
 
-    component_object: NoParse[arch.Leaf] = None
+    component_object: NoParse[arch.ArchNode] = None
     """ The component object across which different spatial iterations occur. """
 
     _constrained_to_one: bool = False

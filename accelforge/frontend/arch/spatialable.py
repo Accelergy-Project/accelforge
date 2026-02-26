@@ -5,6 +5,7 @@ from accelforge.util._basetypes import (
     EvalableList,
     EvalsTo,
     TryEvalTo,
+    NoParse,
 )
 
 from accelforge.util._setexpressions import InvertibleSet
@@ -78,9 +79,27 @@ class Spatialable(EvalableModel):
     specified at this level also apply to lower-level `Leaf` nodes in the architecture.
     """
 
+    _physical_spatial: NoParse[Spatial] = EvalableList()
+    """
+    The physical spatial fanout of this node. Should only have a value for a
+    flattened arch. Otherwise, the `spatial` attribute is authoritative.
+    """
+
     def get_fanout(self) -> int:
         """The spatial fanout of this node."""
         return int(math.prod(x.fanout for x in self.spatial))
+
+    def get_fanout_along(self, dim_name: str, default: int=1) -> int:
+        for s in self.spatial:
+            if s.name == dim_name:
+                return s.fanout
+        return default
+
+    def _get_physical_fanout_along(self, dim_name: str, default: int=1) -> int:
+        for s in self._physical_spatial:
+            if s.name == dim_name:
+                return s.fanout
+        return default
 
     def _spatial_str(self, include_newline=True) -> str:
         if not self.spatial:
