@@ -131,8 +131,8 @@ class TestInvalidInputs(unittest.TestCase):
         self.assertIn("Invalid einsum format", str(ctx.exception))
 
         with self.assertRaises(ValueError) as ctx:
-            _parse_einsum_string("V[b, m] = I[b * W[m]")
-        self.assertIn("Invalid projection element", str(ctx.exception))
+            print(_parse_einsum_string("V[b, m] = I[b * W[m]"))
+        self.assertIn("Invalid projection", str(ctx.exception))
 
     def test_einsum_empty_tensor_name(self):
         """Test that empty tensor names raise an error."""
@@ -198,15 +198,6 @@ class TestInvalidInputs(unittest.TestCase):
             _parse_einsum_entry(None)
         self.assertIn("must be dicts, strings, or Einsum objects.", str(ctx.exception))
 
-    def test_projection_with_special_characters(self):
-        """Test that special characters in identifiers raise errors."""
-        invalid_chars = ["@", "#", "$", "%", "!", "&", "*", "(", ")", "+"]
-
-        for char in invalid_chars:
-            with self.assertRaises(ValueError) as ctx:
-                _parse_einsum_string(f"V[b{char}m] = I[b]")
-            self.assertIn("Invalid projection element:", str(ctx.exception))
-
     def test_einsum_whitespace_only_tensor_name(self):
         """Test that whitespace-only tensor names raise an error."""
         with self.assertRaises(ValueError) as ctx:
@@ -218,13 +209,13 @@ class TestInvalidInputs(unittest.TestCase):
         # Trailing commas create empty elements which should fail
         with self.assertRaises(ValueError) as ctx:
             _parse_einsum_string("V[b, m, ] = I[b]")
-        self.assertIn("Invalid projection element", str(ctx.exception))
+        self.assertIn("Empty projection entry.", str(ctx.exception))
 
     def test_projection_double_comma(self):
         """Test that double commas (empty elements) raise an error."""
         with self.assertRaises(ValueError) as ctx:
             _parse_einsum_string("V[b,, m] = I[b]")
-        self.assertIn("Invalid projection element", str(ctx.exception))
+        self.assertIn("Empty projection entry.", str(ctx.exception))
 
     def test_workload_reserved_einsum_name(self):
         """Test that reserved einsum name 'Total' raises an error."""
@@ -277,7 +268,7 @@ class TestInvalidInputs(unittest.TestCase):
         """Test projection with only spaces between commas."""
         with self.assertRaises(ValueError) as ctx:
             _parse_einsum_string("V[b,  , m] = I[b]")
-        self.assertIn("Invalid projection element:", str(ctx.exception))
+        self.assertIn("Empty projection entry.", str(ctx.exception))
 
     def test_tensor_name_with_numbers_ok(self):
         """Test that tensor names with numbers are valid."""

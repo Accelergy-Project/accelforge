@@ -315,9 +315,12 @@ def _parse_einsum_string(einsum_str: str) -> dict:
 
     def update(match: tuple, is_output: bool):
         name, proj = match
-        tensor_accesses.append(
-            {"name": name, "projection": _parse_projection(proj), "output": is_output}
-        )
+        try:
+            proj = _parse_projection(proj)
+        except ValueError as e:
+            e.add_note(f"Problem Einsum string: {original}")
+            raise
+        tensor_accesses.append({"name": name, "projection": proj, "output": is_output})
 
     output_name = match.group(1)
     rhs = match.group(3)
@@ -343,10 +346,34 @@ def _parse_projection(proj_str: str) -> dict | list:
 
     result = {}
 
+    s = f"Erroneous projection: {proj_str}."
+
     for part in parts:
         if ":" in part:
-            result[part.split(":")[0]] = part.split(":")[1]
+            split = part.split(":")
+            if len(split) != 2:
+                raise ValueError(
+                    f"Invalid projection: {part}. Must be of the form "
+                    '"rank: projection expression".'
+                )
+            k, v = split
+            if not re.fullmatch(_ISL_REGEX, k):
+                raise ValueError(
+                    f"Invalid projection key: {k}. Must be a valid ISL identifier. {s}"
+                )
+            if k in result:
+                raise ValueError(
+                    f"Duplicate rank entry: {k}. Must be unique. {s}"
+                )
+            result[k] = v
         else:
+            if not part:
+                raise ValueError(f"Empty projection entry. {s}")
+            if not re.fullmatch(_ISL_REGEX, part.upper()):
+                raise ValueError(
+                    f"Invalid projection value: {part.upper()}. The uppercased form of "
+                    f"entry {part} must be a valid ISL identifier. {s}"
+                )
             result[part.upper()] = part
 
     return result
