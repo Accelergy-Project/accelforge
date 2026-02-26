@@ -1519,6 +1519,22 @@ def analyze_compute(
     einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
 
+    if not info.is_copy_operation:
+        einsum_obj = info.workload.einsums[einsum]
+        untiled = {
+            rv: current_shape[rv]
+            for rv in einsum_obj.rank_variables
+            if rv in current_shape and current_shape[rv] != 1
+        }
+        if untiled:
+            dims = ", ".join(f"{rv}={sz}" for rv, sz in sorted(untiled.items()))
+            raise ValueError(
+                f"Mapping for einsum '{einsum}' does not tile all dimensions "
+                f"down to 1 at the compute level. Remaining shape: {dims}. "
+                f"Add Temporal loops with tile_shape=1 for these dimensions "
+                f"above the Compute node."
+            )
+
     computes = 0 if info.is_copy_operation else 1
 
     result_accumulator = SymbolicAnalysisOutput()
