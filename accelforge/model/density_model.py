@@ -43,15 +43,7 @@ class DensityModel(ABC):
 
 
 class HypergeometricDensityModel(DensityModel):
-    """Models the distribution of nonzero elements in tiles of a sparse tensor.
-
-    Parameters
-    ----------
-    density : float
-        Fraction of nonzero elements (0.0 to 1.0).
-    tensor_size : int
-        Total number of elements in the tensor.
-    """
+    """Statistical model for random sparsity (hypergeometric distribution)."""
 
     def __init__(self, density: float, tensor_size: int):
         self.N = tensor_size
@@ -64,15 +56,7 @@ class HypergeometricDensityModel(DensityModel):
             self.r = math.ceil(density * tensor_size)
 
     def prob(self, tile_shape: int, k: int) -> float:
-        """P(tile has exactly k nonzeros) -- hypergeometric PMF.
-
-        Parameters
-        ----------
-        tile_shape : int
-            Number of elements in the tile (sample size).
-        k : int
-            Number of nonzeros to query.
-        """
+        """P(tile has exactly k nonzeros) -- hypergeometric PMF."""
         if self.N == 0 or tile_shape == 0:
             return 1.0 if k == 0 else 0.0
         n = min(tile_shape, self.N)
@@ -121,12 +105,7 @@ class HypergeometricDensityModel(DensityModel):
 
 
 class StructuredDensityModel(DensityModel):
-    """Deterministic model for structured sparsity.
-
-    Every tile has exactly density * tile nonzeros. No variance.
-    Suitable for structured patterns like 2:4 sparsity where the
-    distribution of nonzeros is guaranteed by hardware/format.
-    """
+    """Deterministic model for structured sparsity (e.g., 2:4)."""
 
     def __init__(self, density: float, tensor_size: int):
         self.density = density
@@ -163,23 +142,7 @@ def create_density_model(
     tensor_size: int,
     distribution: str | None = None,
 ) -> DensityModel:
-    """Factory: create a density model based on distribution type.
-
-    Parameters
-    ----------
-    density : float
-        Fraction of nonzero elements (0.0 to 1.0).
-    tensor_size : int
-        Total number of elements in the tensor.
-    distribution : str or None
-        "structured" for deterministic structured sparsity model.
-        None (default) for hypergeometric random sparsity model.
-
-    Returns
-    -------
-    DensityModel
-        The appropriate density model instance.
-    """
+    """Create a density model: 'structured' for deterministic, None for hypergeometric."""
     if distribution == "structured":
         return StructuredDensityModel(density, tensor_size)
     if distribution is not None:

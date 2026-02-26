@@ -144,22 +144,7 @@ def gather_actions_with_sparse(
     verbose: bool = False,
     use_name: bool = False,
 ) -> dict[ActionKey | VerboseActionKey, ActionCount]:
-    """Compose dense action counts with sparse deltas.
-
-    Instead of running gather_actions on mutated reuse, this applies
-    precomputed per-buffet/per-compute action deltas from
-    SparseAnalysisOutput to the unmodified dense action counts.
-
-    Parameters
-    ----------
-    dense_actions
-        Action counts from gather_actions() on UNMODIFIED reuse.
-    sparse_output
-        SparseAnalysisOutput with buffet_action_deltas and
-        compute_action_deltas populated.
-    bindings, verbose, use_name
-        Same keying parameters used for the dense_actions call.
-    """
+    """Compose dense action counts with sparse deltas (buffet + compute)."""
     # Deep-copy so we don't mutate the caller's dict
     actions: dict[ActionKey | VerboseActionKey, ActionCount] = {
         k: ActionCount(v.total, v.max_per_unit)
