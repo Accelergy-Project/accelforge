@@ -204,25 +204,9 @@ PRIMITIVES = {
 
 
 def expand_format(user_format: str, num_ranks: int) -> list[str]:
-    """Expand a user-friendly format name to per-rank primitives.
+    """Expand format name (csr/coo/bitmask/rle) to per-rank primitives.
 
-    Rules (outer to inner):
-        CSR     -> UOP-...-UOP-CP   (num_ranks-1 UOPs + 1 CP)
-        COO     -> CP-...-CP        (all CPs)
-        bitmask -> UOP-...-UOP-B    (num_ranks-1 UOPs + 1 B)
-        RLE     -> UOP-...-UOP-RLE  (num_ranks-1 UOPs + 1 RLE)
-
-    Parameters
-    ----------
-    user_format : str
-        User-friendly format name.
-    num_ranks : int
-        Number of format ranks (typically = number of non-trivial dimensions).
-
-    Returns
-    -------
-    list[str]
-        Per-rank primitive names, outer to inner.
+    CSR -> UOP*...*UOP+CP, COO -> CP*n, bitmask -> UOP*...*UOP+B, RLE -> UOP*...*UOP+RLE.
     """
     if num_ranks < 1:
         raise ValueError(f"num_ranks must be >= 1, got {num_ranks}")
@@ -259,26 +243,9 @@ def _run_format_cascade(
     dimension_sizes: list[int],
     model: "DensityModel",
 ) -> tuple[list[RankOccupancy], float]:
-    """Run the format cascade, passing the same density model to all ranks.
+    """Traverse ranks outer-to-inner, propagating fiber counts through format models.
 
-    Traverses ranks outer-to-inner, propagating fiber counts.  The same
-    density model is used for every rank (matching Sparseloop's approach
-    of propagating the same data-tile constraint to all ranks; see
-    tiling-tile-info.cpp:155).
-
-    Parameters
-    ----------
-    rank_formats : list[str]
-        Format primitive names, outer to inner.
-    dimension_sizes : list[int]
-        Dimension size for each rank, outer to inner.
-    model : DensityModel
-        Density model (shared across all ranks, not conditioned per-rank).
-
-    Returns
-    -------
-    tuple[list[RankOccupancy], float]
-        Per-rank occupancies and total format units (metadata + payload).
+    Returns per-rank occupancies and total format units.
     """
     if len(rank_formats) != len(dimension_sizes):
         raise ValueError(
@@ -308,29 +275,7 @@ def compute_format_occupancy(
     tensor_size: int,
     distribution: str | None = None,
 ) -> tuple[list[RankOccupancy], float]:
-    """Compute format occupancy across all ranks of a multi-rank format.
-
-    Traverses ranks outer-to-inner, propagating fiber counts based on each
-    rank's format type. Uses the density model for expected nonzero counts.
-
-    Parameters
-    ----------
-    rank_formats : list[str]
-        Format primitive names, outer to inner.
-    dimension_sizes : list[int]
-        Dimension size for each rank, outer to inner.
-    density : float
-        Overall tensor density.
-    tensor_size : int
-        Total tensor size (product of all dimensions).
-    distribution : str or None
-        Density distribution type. None = random (hypergeometric).
-
-    Returns
-    -------
-    tuple[list[RankOccupancy], float]
-        Per-rank occupancies and total format units (metadata + payload).
-    """
+    """Compute per-rank format occupancy. Returns (rank_occupancies, total_units)."""
     if len(rank_formats) != len(dimension_sizes):
         raise ValueError(
             f"rank_formats length ({len(rank_formats)}) must match "

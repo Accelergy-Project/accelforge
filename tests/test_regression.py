@@ -141,7 +141,7 @@ class TestFFMRegression(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        af.set_n_parallel_jobs(os.cpu_count(), print_message=True)
+        af.set_n_parallel_jobs(1)
         assert JSON_PATH.exists(), f"No reference json. Run: python {__file__}"
         with open(JSON_PATH) as f:
             cls._ref = json.load(f)

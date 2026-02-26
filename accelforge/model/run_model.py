@@ -65,9 +65,7 @@ def run_model(
             )
         )
 
-    # Capture dense actions BEFORE sparse mutation.  Used by
-    # gather_actions_with_sparse to compose sparse-adjusted actions
-    # without reading from the mutated reuse.
+    # Capture dense actions before sparse mutation.
     dense_actions = gather_actions(reuse, None, use_name=True)
     if metrics & Metrics.ACTIONS:
         dense_detailed_actions = gather_actions(
@@ -78,10 +76,7 @@ def run_model(
     per_rank_info = sparse_result.per_rank_info
     latency_info = sparse_result.latency_info
 
-    # Recompute latency AFTER sparse adjustments using per-tensor
-    # post-sparse action counts + gated deltas added back + metadata.
-    # NOTE: _compute_sparse_latency still reads mutated buffet_stats
-    # (max_per_unit_read_actions, max_per_unit_write_actions).
+    # Recompute latency after sparse adjustments.
     has_sparse_latency = (
         latency_info.gated_read_action_deltas
         or latency_info.metadata_read_actions
@@ -131,8 +126,7 @@ def run_model(
                 usage_key = f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"
                 spatial_usage_df[usage_key] = scaled_usage
 
-    # _power_gating expects raw fanout counts (it divides by s.fanout
-    # internally), so pass used_fanout, not the pre-divided spatial_usage.
+    # _power_gating expects raw fanout counts (divides by s.fanout internally).
     component_to_non_power_gated_porp, _ = spec.arch._power_gating(
         compute_name=job.flattened_arch[-1].name,
         used_fanout=used_fanout,
@@ -170,10 +164,7 @@ def run_model(
 
         occupancy = stats.max_occupancy
 
-        # Add metadata occupancy if this tensor has a sparse format at this level.
-        # Metadata capacity (units) is already computed by the sparse pipeline in
-        # per_rank_info.  Convert to bits and add to data occupancy so that
-        # limit_capacity() rejects configs where data + metadata > buffer size.
+        # Add metadata occupancy (convert units to bits) for capacity checking.
         md_key = (buffet.tensor, buffet.level)
         if md_key in per_rank_info:
             info = per_rank_info[md_key]
@@ -286,12 +277,7 @@ def run_model(
 
 
 def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, spec):
-    """Compute sparse-adjusted latency using post-sparse action counts.
-
-    Uses post-sparse buffet_stats (after _recompute_action_counts) with SAF
-    reductions applied. Gated reads are added back (port bandwidth consumed).
-    Compute latency scaled by compute_latency_ratio.
-    """
+    """Compute sparse-adjusted latency from post-sparse action counts."""
     component_latency_result = {}
 
     symbol_table_base = {
@@ -310,12 +296,9 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
 
     compute_levels = set(c.level for c in reuse.compute_stats)
 
-    # Aggregate post-sparse action counts per level (matching component_latency)
     component_to_actions: dict[str, dict[str, float]] = defaultdict(
         lambda: defaultdict(float)
     )
-
-    # Per-tensor tracking for max-based latency (e.g., Reg with dedicated ports)
     per_tensor_reads: dict[str, dict[str, float]] = defaultdict(
         lambda: defaultdict(float)
     )
@@ -337,7 +320,6 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
         for action in node.actions:
             component_to_actions[component].setdefault(f"{action.name}_actions", 0)
 
-        # Post-sparse action counts (SAF already applied)
         read_actions = (
             stats.max_per_unit_read_actions
             + stats.max_per_parent_drain_read_actions
@@ -347,19 +329,16 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
             + stats.max_per_parent_fill_write_actions
         )
 
-        # For gating: add back gated deltas (gated reads consume BW)
+        # Gated reads still consume BW — add back for latency.
         lt_key = (component, buffet.tensor)
         read_actions += latency_info.gated_read_action_deltas.get(lt_key, 0)
         write_actions += latency_info.gated_write_action_deltas.get(lt_key, 0)
 
         component_to_actions[component]["read_actions"] += read_actions
         per_tensor_reads[component][buffet.tensor] += read_actions
-        # Per-unit computation-path reads only (no fill/drain)
         component_to_actions[component]["pu_read_actions"] += (
             stats.max_per_unit_read_actions
         )
-        # Total actions across all spatial instances (for BW throttling
-        # of shared levels above spatial, e.g. shared_glb)
         total_ra = (
             stats.total_read_actions
             + stats.total_parent_drain_read_actions
@@ -377,8 +356,7 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
             )
             component_to_actions[component]["total_write_actions"] += total_wa
 
-    # Add metadata actions per level (separate from data read/write —
-    # the total_latency expression adds them: e.g. "read_actions + metadata_read_actions")
+    # Add metadata actions per level.
     for level, count in latency_info.metadata_read_actions.items():
         component_to_actions[level]["metadata_read_actions"] += count
     for level, count in latency_info.metadata_write_actions.items():
@@ -395,8 +373,7 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
             f"{action.name}_actions", 0
         )
 
-    # Compute per-tensor max for levels with dedicated ports (e.g., Reg).
-    # Use sympy Max to handle symbolic expressions correctly.
+    # Per-tensor max for levels with dedicated ports (e.g., Reg).
     for component in component_to_actions:
         if per_tensor_reads[component]:
             component_to_actions[component]["max_tensor_read_actions"] = Max(
@@ -451,8 +428,7 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
                 component_to_action_latency[component].values()
             )
 
-        # Position-space utilization: divide by avg utilization fraction
-        # when position-skipping causes PE load imbalance at compute.
+        # Position-space utilization: divide by avg utilization under load imbalance.
         if (component in component_latency_result
                 and isinstance(node, arch.Compute)
                 and latency_info.position_space_utilization < 1.0):

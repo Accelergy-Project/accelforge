@@ -68,19 +68,7 @@ class RepresentationFormat(EvalableModel):
             )
 
     def get_rank_formats(self, num_ranks: Optional[int] = None) -> list[RankFormat]:
-        """Return per-rank formats, auto-expanding if needed.
-
-        Parameters
-        ----------
-        num_ranks : int, optional
-            Number of ranks for auto-expansion. Required if ``format`` is set
-            and ``ranks`` is None.
-
-        Returns
-        -------
-        list[RankFormat]
-            Per-rank format specifications, outer-to-inner.
-        """
+        """Return per-rank formats, auto-expanding from ``format`` if needed."""
         if self.ranks is not None:
             return list(self.ranks)
         if self.format is None:
@@ -157,37 +145,13 @@ class SparseOptimizations(EvalableModel):
     """ Per-component sparse optimization configurations. """
 
     def get_targets_for(self, component_name: str) -> list[SparseTarget]:
-        """Return all SparseTarget entries matching a component name.
-
-        Parameters
-        ----------
-        component_name : str
-            The hardware component name to match (e.g., "DRAM", "Buffer").
-
-        Returns
-        -------
-        list[SparseTarget]
-            All SparseTarget entries whose ``target`` matches the component name.
-        """
+        """Return all SparseTarget entries matching a component name."""
         return [t for t in self.targets if t.target == component_name]
 
     def get_formats_for(
         self, component_name: str, tensor_name: str
     ) -> list[RepresentationFormat]:
-        """Return all RepresentationFormat entries for a (component, tensor) pair.
-
-        Parameters
-        ----------
-        component_name : str
-            The hardware component name to match.
-        tensor_name : str
-            The tensor name to match.
-
-        Returns
-        -------
-        list[RepresentationFormat]
-            All RepresentationFormat entries at the component for the tensor.
-        """
+        """Return all RepresentationFormat entries for a (component, tensor) pair."""
         results = []
         for t in self.get_targets_for(component_name):
             for rf in t.representation_format:
@@ -198,18 +162,7 @@ class SparseOptimizations(EvalableModel):
     def get_action_optimizations_for(
         self, component_name: str
     ) -> list[ActionOptimization]:
-        """Return all ActionOptimization entries for a component.
-
-        Parameters
-        ----------
-        component_name : str
-            The hardware component name to match.
-
-        Returns
-        -------
-        list[ActionOptimization]
-            All ActionOptimization entries at the component.
-        """
+        """Return all ActionOptimization entries for a component."""
         results = []
         for t in self.get_targets_for(component_name):
             results.extend(t.action_optimization)
@@ -218,39 +171,14 @@ class SparseOptimizations(EvalableModel):
     def get_compute_optimizations_for(
         self, component_name: str
     ) -> list[ComputeOptimization]:
-        """Return all ComputeOptimization entries for a component.
-
-        Parameters
-        ----------
-        component_name : str
-            The hardware component name to match.
-
-        Returns
-        -------
-        list[ComputeOptimization]
-            All ComputeOptimization entries at the component.
-        """
+        """Return all ComputeOptimization entries for a component."""
         results = []
         for t in self.get_targets_for(component_name):
             results.extend(t.compute_optimization)
         return results
 
     def has_format(self, component_name: str, tensor_name: str) -> bool:
-        """Check if a tensor has a compressed format at a component.
-
-        Parameters
-        ----------
-        component_name : str
-            The hardware component name to check.
-        tensor_name : str
-            The tensor name to check.
-
-        Returns
-        -------
-        bool
-            True if at least one RepresentationFormat entry has ``format``
-            or ``ranks`` set.
-        """
+        """True if the tensor has a compressed format at the component."""
         return any(
             rf.format is not None or rf.has_explicit_ranks()
             for rf in self.get_formats_for(component_name, tensor_name)

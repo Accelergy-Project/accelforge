@@ -184,7 +184,7 @@ class BuffetStats:
             if "skipped_first" in attr and not is_fully_relevant:
                 continue  # First actions occur once per relevant iteration.
             if "parent" in attr and temporal_reuse:
-                continue  # Temporal reuse at bypassed level: parent accesses not multiplied
+                continue  # Temporal reuse: buffer retains data, no parent refetch.
             if "parent" in attr and halo_factor is not None:
                 # Sliding window overlap: parent fills/drains scale by halo_factor
                 # (fewer new elements per iteration) instead of the full factor.
@@ -618,7 +618,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
         index_expressions.add(f"0 < {k} <= {v}")
     for tensor in all_tensors:
         cur_mapping = job.mapping._get_single_tensor_mapping(
-            tensor, job.flattened_arch, index_expressions
+            tensor, job.flattened_arch, index_expressions,
         )
         info = AnalysisInfo(
             mapping=cur_mapping.nodes,
@@ -700,7 +700,6 @@ class ReservationAnalysisTracker:
         elif isinstance(relevancy, PartiallyRelevant):
             self.last = True
             self.partially_relevant_info = (relevancy.rank, node.rank_variable)
-
             if not self.has_filled:
                 self.is_fill_level = True
                 self.has_filled = True
@@ -787,7 +786,6 @@ def insert_reservation_nodes(
             node.persistent = tracker.node.persistent
             node._backing = tracker.node._backing
             node._partially_relevant_info = tracker.partially_relevant_info
-
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
                 and buffet.tensor in info.workload.tensor_names_used_in_multiple_einsums
@@ -970,6 +968,7 @@ def analyze_temporal(
         for buffet, stats in child_result.buffet_stats.items():
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
             is_fully_relevant = isinstance(relevancy, Relevant)
+
             # Temporal reuse: buffer retains data across this irrelevant loop
             # (see _has_temporal_reuse for bypassed-zone / directly-above logic)
             loop_above_storage = any(
@@ -984,6 +983,7 @@ def analyze_temporal(
                     buffet.tensor, node_idx, buffet.level, info
                 )
             )
+
             # Halo factor: for PartiallyRelevant loops, consecutive iterations
             # share data. Only applies in buffet's scope (between buffet and
             # parent storage); otherwise overlap is exploited at parent level.
@@ -1387,16 +1387,12 @@ def analyze_storage(
             )
 
         if count_upward_movement:  # Me -> Parent (drains/writebacks)
-            # Output tensors: writeback reads not charged.
-            # The data is drained on the last write without a separate read.
-            is_output_tensor = tensor in info.workload.einsums[einsum_name].output_tensor_names
-            if not is_output_tensor:
-                stats.total_parent_drain_read_actions += (
-                    stats.total_writes_to_parent * read_scale
-                )
-                stats.max_per_parent_drain_read_actions += (
-                    stats.max_per_parent_writes_to_parent * read_scale
-                )
+            stats.total_parent_drain_read_actions += (
+                stats.total_writes_to_parent * read_scale
+            )
+            stats.max_per_parent_drain_read_actions += (
+                stats.max_per_parent_writes_to_parent * read_scale
+            )
 
         # ========================
         # Data exchanges with peer

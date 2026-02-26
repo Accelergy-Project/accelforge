@@ -94,29 +94,7 @@ def compute_sparse_occupancy(
     payload_word_bits: Optional[list[Optional[int]]] = None,
     distribution: str | None = None,
 ) -> SparseOccupancy:
-    """Compute sparse-adjusted storage occupancy for a (tensor, level) pair.
-
-    Parameters
-    ----------
-    density : float
-        Tensor density (0.0 to 1.0).
-    tensor_size : int
-        Total tensor size (product of all dimensions).
-    tile_shape : int
-        Tile size at this level (product of tiled dimensions).
-    bits_per_value : int
-        Bits per data element.
-    rank_formats : list[str], optional
-        Format primitives per rank, outer to inner. None = no format (dense).
-    dimension_sizes : list[int], optional
-        Dimension sizes per rank, outer to inner. Required if rank_formats given.
-    metadata_word_bits : list[int|None], optional
-        Bits per metadata word per rank. None entries use bits_per_value.
-    payload_word_bits : list[int|None], optional
-        Bits per payload word per rank. None entries use bits_per_value.
-    distribution : str or None
-        Density distribution type. None = random (hypergeometric).
-    """
+    """Compute sparse-adjusted storage occupancy (data + format) for a (tensor, level) pair."""
     model = create_density_model(density, tensor_size, distribution)
 
     # Data occupancy
@@ -166,31 +144,7 @@ def compute_format_access_counts(
     algorithmic_fills: int,
     distribution: str | None = None,
 ) -> FormatAccessCounts:
-    """Compute format (metadata/payload) access counts for a (tensor, level).
-
-    Format accesses scale with the ALGORITHMIC read/fill ratio (before
-    compression). This is because metadata must always be read to enable
-    decompression, regardless of how many data values are actually accessed.
-
-    Parameters
-    ----------
-    rank_formats : list[str]
-        Format primitives per rank, outer to inner.
-    dimension_sizes : list[int]
-        Dimension sizes per rank, outer to inner.
-    density : float
-        Tensor density.
-    tensor_size : int
-        Total tensor size.
-    tile_shape : int
-        Tile size at this level.
-    algorithmic_reads : int
-        Total algorithmic data reads (before any sparse reduction).
-    algorithmic_fills : int
-        Total algorithmic data fills (before any sparse reduction).
-    distribution : str or None
-        Density distribution type. None = random (hypergeometric).
-    """
+    """Compute per-rank metadata/payload access counts, scaled by algorithmic read/fill ratios."""
     model = create_density_model(density, tensor_size, distribution)
     occupancies, _ = _run_format_cascade(rank_formats, dimension_sizes, model)
 

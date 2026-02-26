@@ -33,25 +33,8 @@ def compute_saf_probability(
 ) -> float:
     """Compute optimization probability for one SAF.
 
-    For each condition_on tensor, computes P(tile nonempty):
-    - Scalar (tile=1) or tile >= tensor_size: P(nonempty) = density
-    - Tiled (1 < tile < tensor_size): 1 - model.prob_empty(tile)
-
-    optimization_prob = 1 - product(P_nonempty_i)
-
-    For scalar with single condition: prob = 1 - d
-    For scalar with multiple conditions: prob = 1 - product(d_i)
-
-    Parameters
-    ----------
-    condition_on_densities : list[float]
-        Densities of condition_on tensors.
-    condition_on_tile_shapes : list[int], optional
-        Tile shapes per condition_on tensor. None = all scalar.
-    condition_on_tensor_sizes : list[int], optional
-        Full tensor sizes per condition_on tensor. Required when tile > 1.
-    condition_on_distributions : list[str | None], optional
-        Density distribution types per condition_on tensor. None = all random.
+    optimization_prob = 1 - product(P_nonempty_i), where P_nonempty uses
+    density for scalar tiles and 1 - prob_empty(tile) for tiled access.
     """
     prob_all_nonempty = 1.0
 
@@ -80,25 +63,7 @@ def apply_format_compression(
     algorithmic_accesses: int,
     density: float,
 ) -> int:
-    """Reduce data accesses by compressed format sparsity.
-
-    With a compressed format, zero-valued elements are not stored, so
-    accesses to zero positions are eliminated.
-
-    random = accesses - floor(accesses * (1 - density))
-
-    Parameters
-    ----------
-    algorithmic_accesses : int
-        Pre-compression access count.
-    density : float
-        Tensor density (0.0 to 1.0).
-
-    Returns
-    -------
-    int
-        Post-compression random accesses.
-    """
+    """Reduce data accesses by density: accesses - floor(accesses * sparsity)."""
     if density >= 1.0:
         return algorithmic_accesses
     if density <= 0.0:
@@ -118,27 +83,9 @@ def apply_local_saf_reads(
     optimization_prob: float,
     is_read_write: bool = False,
 ) -> tuple[int, int]:
-    """Split random reads into actual + gated/skipped.
+    """Split random reads into (actual, gated/skipped).
 
-    Read-only tensor: gated = floor(random * prob)
-    Read-write tensor: gated = ceil(random * prob)
-    actual = random - gated
-
-    Fills are NEVER reduced by local SAF (handled separately).
-
-    Parameters
-    ----------
-    random_reads : int
-        Post-compression random read count.
-    optimization_prob : float
-        SAF optimization probability.
-    is_read_write : bool
-        True if tensor is read-write (output accumulator).
-
-    Returns
-    -------
-    tuple[int, int]
-        (actual_reads, gated_or_skipped_reads)
+    Uses ceil for read-write tensors, floor for read-only.
     """
     if optimization_prob <= 0.0 or random_reads <= 0:
         return (random_reads, 0)
@@ -159,23 +106,7 @@ def propagate_saf_reduction(
     count: int,
     optimization_prob: float,
 ) -> int:
-    """Propagate SAF reduction from an outer level to inner levels.
-
-    Outer SAF reduces the maximum counts seen by inner levels:
-    remaining = count - floor(count * prob)
-
-    Parameters
-    ----------
-    count : int
-        Current count at the inner level.
-    optimization_prob : float
-        SAF probability from the outer level.
-
-    Returns
-    -------
-    int
-        Reduced count after propagation.
-    """
+    """Reduce count by SAF probability: count - floor(count * prob)."""
     if optimization_prob <= 0.0 or count <= 0:
         return count
     removed = math.floor(count * optimization_prob)
@@ -186,26 +117,7 @@ def compute_nested_saf_effective_prob(
     local_prob: float,
     outer_prob: float,
 ) -> float:
-    """Compute effective probability for nested SAFs.
-
-    When an outer level already filters with probability outer_prob,
-    the inner level only handles what passed through. The effective
-    local probability is adjusted:
-
-    effective_p = 1 - (1 - local_p) / (1 - outer_p)
-
-    Parameters
-    ----------
-    local_prob : float
-        Local SAF probability at the inner level.
-    outer_prob : float
-        SAF probability from the outer level.
-
-    Returns
-    -------
-    float
-        Effective probability for the inner level.
-    """
+    """Adjust local SAF prob for outer filtering: 1 - (1-local)/(1-outer)."""
     if outer_prob >= 1.0:
         return 0.0
     return 1.0 - (1.0 - local_prob) / (1.0 - outer_prob)
@@ -284,29 +196,8 @@ def classify_compute(
     compute_optimization_kind: str | None = None,
     operand_has_metadata: list[bool] | None = None,
 ) -> ComputeClassification:
-    """Classify computes using the full 9-state model.
-
-    For each operand, computes 3 state probabilities (ENZ/EZ/NE) based on
-    density and whether the operand has metadata (compressed format). Then
-    computes 9 joint probabilities and maps each to random/gated/skipped/
-    nonexistent based on the optimization kind.
-
-    Parameters
-    ----------
-    total_computes : int
-        Total algorithmic computes.
-    operand_densities : list[float]
-        Densities of operands involved in compute.
-    compute_optimization_kind : str, optional
-        "gating" or "skipping". None means no compute optimization.
-    operand_has_metadata : list[bool], optional
-        Whether each operand has compressed format metadata.
-        None defaults to [False, False] for backward compatibility.
-
-    Returns
-    -------
-    ComputeClassification
-        Classified compute counts.
+    """Classify computes into random/gated/skipped/nonexistent using the
+    9-state ENZ/EZ/NE joint probability model.
     """
     if not compute_optimization_kind:
         return ComputeClassification(
