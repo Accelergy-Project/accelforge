@@ -88,6 +88,31 @@ class SparseAnalysisOutput:
     )
 
 
+@dataclass
+class _PipelineState:
+    """Shared state carried between sparse pipeline phases."""
+
+    # Phase 1 outputs (read by all later phases)
+    sparse_opts: object
+    einsum: object
+    tensor_info: dict
+    compute_levels: set
+    formatted_buffets: set
+    dense_compute_ops: dict
+    pre_saf_child_reads: dict
+    pre_saf_fills: dict
+    sparse_actions: dict
+    latency_info: LatencyInfo
+
+    # Phase 3 outputs (read by phases 4, 5)
+    saf_probs_for_compute: list = field(default_factory=list)
+    saf_deltas: dict = field(default_factory=dict)
+    saf_write_deltas: dict = field(default_factory=dict)
+    position_skip_info: list = field(default_factory=list)
+    position_skip_level: str | None = None
+    pre_saf_compute: dict = field(default_factory=dict)
+
+
 # Action names (must match arch YAML declarations).
 GATED_READ = "gated_read"
 SKIPPED_READ = "skipped_read"
@@ -557,12 +582,53 @@ def apply_sparse_adjustments(
     """Apply sparse optimizations (format compression, SAF, compute classification)
     to reuse analysis results in-place. No-op when no sparse targets are configured.
     """
-    sparse_actions: dict[ActionKey, ActionCount] = {}
-    latency_info = LatencyInfo()
+    state = _phase1_init(reuse, spec, job)
+    if state is None:
+        return SparseAnalysisOutput(sparse_actions={})
+    _phase2_format_compression(reuse, state)
+    _phase3_saf_application(reuse, spec, job, state)
+    _phase4_compute_classification(reuse, spec, job, state)
+    per_rank_info, dense_buffet_nets = _phase5_metadata_and_recompute(
+        reuse, spec, job, state,
+    )
 
+    # Compute action-level deltas (sparse - dense) for compositional path.
+    buffet_action_deltas: dict[Buffet, BuffetActionDelta] = {}
+    for buffet, dense in dense_buffet_nets.items():
+        stats = reuse.buffet_stats[buffet]
+        buffet_action_deltas[buffet] = BuffetActionDelta(
+            total_read=stats.net_total_read_actions() - dense[0],
+            max_per_unit_read=stats.net_max_per_unit_read_actions() - dense[1],
+            total_write=stats.net_total_write_actions() - dense[2],
+            max_per_unit_write=stats.net_max_per_unit_write_actions() - dense[3],
+        )
+
+    compute_action_deltas: dict[Compute, ComputeActionDelta] = {}
+    for ck, dense in state.dense_compute_ops.items():
+        cs = reuse.compute_stats[ck]
+        compute_action_deltas[ck] = ComputeActionDelta(
+            total_ops=cs.total_ops - dense[0],
+            max_per_unit_ops=cs.max_per_unit_ops - dense[1],
+        )
+
+    return SparseAnalysisOutput(
+        sparse_actions=state.sparse_actions,
+        per_rank_info=per_rank_info,
+        latency_info=state.latency_info,
+        buffet_action_deltas=buffet_action_deltas,
+        compute_action_deltas=compute_action_deltas,
+    )
+
+
+def _phase1_init(
+    reuse: SymbolicAnalysisOutput,
+    spec: Spec,
+    job: Job,
+) -> _PipelineState | None:
+    """Phase 1: Build tensor info, identify formatted buffets, snapshot dense counts."""
     sparse_opts = spec.effective_sparse_optimizations
     if not sparse_opts.targets:
-        return SparseAnalysisOutput(sparse_actions=sparse_actions)
+        return None
 
     einsum_name = job.einsum_name
     workload = spec.workload
@@ -620,13 +686,32 @@ def apply_sparse_adjustments(
         else:
             pre_saf_child_reads[(buffet.tensor, buffet.level)] = 0
 
+    return _PipelineState(
+        sparse_opts=sparse_opts,
+        einsum=einsum,
+        tensor_info=tensor_info,
+        compute_levels=compute_levels,
+        formatted_buffets=formatted_buffets,
+        dense_compute_ops=dense_compute_ops,
+        pre_saf_child_reads=pre_saf_child_reads,
+        pre_saf_fills=pre_saf_fills,
+        sparse_actions={},
+        latency_info=LatencyInfo(),
+    )
+
+
+def _phase2_format_compression(
+    reuse: SymbolicAnalysisOutput,
+    state: _PipelineState,
+) -> None:
+    """Phase 2: Compress element counts at formatted levels by density."""
     for buffet, stats in reuse.buffet_stats.items():
-        if (buffet.tensor, buffet.level) not in formatted_buffets:
+        if (buffet.tensor, buffet.level) not in state.formatted_buffets:
             continue
 
         tensor = buffet.tensor
-        density = tensor_info[tensor]["density"]
-        is_output = tensor_info[tensor]["is_output"]
+        density = state.tensor_info[tensor]["density"]
+        is_output = state.tensor_info[tensor]["is_output"]
 
         # Compress this level's fills, skipped-first, drains, and occupancy
         _compress_buffet_stats(stats, density, is_output, compress_occupancy=True)
@@ -635,26 +720,28 @@ def apply_sparse_adjustments(
         # Skip if child has its own format. Compute-level children are
         # NOT compressed here — post-pipeline correction applies if both
         # format and SAF exist (see _apply_format_compression_to_saf_levels).
-        child_key = _get_child_buffet_key(reuse, buffet, compute_levels)
+        child_key = _get_child_buffet_key(reuse, buffet, state.compute_levels)
         if child_key is not None:
             child_has_format = (
                 child_key.tensor, child_key.level
-            ) in formatted_buffets
+            ) in state.formatted_buffets
             if not child_has_format:
                 child_stats = reuse.buffet_stats[child_key]
                 _compress_buffet_stats(child_stats, density, is_output)
 
-    saf_probs_for_compute = []  # (prob, kind) pairs
-    saf_deltas: dict[tuple[str, str], tuple[int, str, float]] = {}
-    saf_write_deltas: dict[tuple[str, str], tuple[int, str]] = {}
-    position_skip_info: list[tuple[str, float, dict]] = []
-    position_skip_level: str | None = None
 
+def _phase3_saf_application(
+    reuse: SymbolicAnalysisOutput,
+    spec: Spec,
+    job: Job,
+    state: _PipelineState,
+) -> None:
+    """Phase 3: Compute SAF probabilities, apply to reads, emit gated/skipped actions."""
     for buffet, stats in reuse.buffet_stats.items():
-        if buffet.level in compute_levels:
+        if buffet.level in state.compute_levels:
             continue
 
-        action_opts = sparse_opts.get_action_optimizations_for(buffet.level)
+        action_opts = state.sparse_opts.get_action_optimizations_for(buffet.level)
         for opt in action_opts:
             if opt.target != buffet.tensor:
                 continue
@@ -665,21 +752,21 @@ def apply_sparse_adjustments(
             cond_tile_shapes = []
             cond_tensor_sizes = []
             for cond_tensor in opt.condition_on:
-                if cond_tensor not in tensor_info:
+                if cond_tensor not in state.tensor_info:
                     continue
-                cond_densities.append(tensor_info[cond_tensor]["density"])
+                cond_densities.append(state.tensor_info[cond_tensor]["density"])
                 cond_distributions.append(
-                    tensor_info[cond_tensor]["density_distribution"]
+                    state.tensor_info[cond_tensor]["density_distribution"]
                 )
                 # Compute temporal-only tile shape for this cond tensor
                 if job.mapping is not None:
                     tile = _compute_cond_temporal_tile(
                         job.mapping.nodes, buffet.level,
-                        cond_tensor, einsum, stats.tile_shape,
+                        cond_tensor, state.einsum, stats.tile_shape,
                     )
                     # Compute full tensor size from rank_variable_bounds
                     cond_rvs = _get_tensor_rank_variables(
-                        einsum, cond_tensor,
+                        state.einsum, cond_tensor,
                     )
                     tsize = 1
                     for rv in cond_rvs:
@@ -693,20 +780,20 @@ def apply_sparse_adjustments(
             # Self-conditioned skipping: collect for position-space utilization.
             if opt.is_self_conditioned and cond_densities:
                 target = buffet.tensor
-                d = tensor_info.get(target, {}).get("density", 1.0)
+                d = state.tensor_info.get(target, {}).get("density", 1.0)
                 if d < 1.0:
-                    if (position_skip_level is not None
-                            and position_skip_level != buffet.level):
+                    if (state.position_skip_level is not None
+                            and state.position_skip_level != buffet.level):
                         raise ValueError(
                             f"Self-conditioned skipping declared at multiple "
-                            f"levels: {position_skip_level!r} and "
+                            f"levels: {state.position_skip_level!r} and "
                             f"{buffet.level!r}. Only one level may use "
                             f"self-conditioned skipping."
                         )
-                    position_skip_info.append(
+                    state.position_skip_info.append(
                         (target, d, stats.tile_shape or {})
                     )
-                    position_skip_level = buffet.level
+                    state.position_skip_level = buffet.level
 
             if not cond_densities:
                 continue
@@ -722,13 +809,13 @@ def apply_sparse_adjustments(
                 continue
 
             # Record for compute propagation (input tensors only).
-            is_output_tensor = tensor_info[buffet.tensor]["is_output"]
+            is_output_tensor = state.tensor_info[buffet.tensor]["is_output"]
             if not is_output_tensor:
-                saf_probs_for_compute.append((prob, opt.kind))
+                state.saf_probs_for_compute.append((prob, opt.kind))
 
             # Apply SAF to the TARGET tensor's child reads
             child_stats = reuse.get_child_buffet_stats(buffet)
-            is_output = tensor_info[buffet.tensor]["is_output"]
+            is_output = state.tensor_info[buffet.tensor]["is_output"]
 
             if child_stats is not None:
                 # For output tensors, subtract first-k reads before SAF.
@@ -747,7 +834,7 @@ def apply_sparse_adjustments(
                 child_stats.total_reads_to_parent = actual
 
                 # Track the delta for gated/skipped read emission
-                saf_deltas[(buffet.level, buffet.tensor)] = (delta, opt.kind, prob)
+                state.saf_deltas[(buffet.level, buffet.tensor)] = (delta, opt.kind, prob)
 
                 actual_max, _ = apply_local_saf_reads(
                     effective_max,
@@ -769,7 +856,7 @@ def apply_sparse_adjustments(
                     child_stats.total_writes_to_parent = actual_w
 
                     # Track write delta for latency
-                    saf_write_deltas[(buffet.level, buffet.tensor)] = (
+                    state.saf_write_deltas[(buffet.level, buffet.tensor)] = (
                         write_delta,
                         opt.kind,
                     )
@@ -780,26 +867,33 @@ def apply_sparse_adjustments(
                     child_stats.max_per_parent_writes_to_parent = actual_w_max
 
     # Emit gated/skipped read actions from SAF deltas
-    for (level, tensor), (delta, kind, _prob) in saf_deltas.items():
+    for (level, tensor), (delta, kind, _prob) in state.saf_deltas.items():
         action_name = _SAF_KIND_TO_READ_ACTION.get(kind)
         if action_name is not None:
-            _emit_if_declared(sparse_actions, spec, level, action_name, delta)
+            _emit_if_declared(state.sparse_actions, spec, level, action_name, delta)
 
     # Build gated action deltas for latency (gated reads still consume BW).
     _accumulate_gated_deltas(
-        saf_deltas, "read", tensor_info, spec, latency_info
+        state.saf_deltas, "read", state.tensor_info, spec, state.latency_info
     )
     _accumulate_gated_deltas(
-        saf_write_deltas, "write", tensor_info, spec, latency_info
+        state.saf_write_deltas, "write", state.tensor_info, spec, state.latency_info
     )
 
+
+def _phase4_compute_classification(
+    reuse: SymbolicAnalysisOutput,
+    spec: Spec,
+    job: Job,
+    state: _PipelineState,
+) -> None:
+    """Phase 4: Propagate SAF to compute, classify, compute latency ratio."""
     # Save pre-SAF compute totals for gated/skipped compute emission
-    pre_saf_compute: dict[str, int] = {}
     for compute_key, compute_stats in reuse.compute_stats.items():
-        pre_saf_compute[compute_key.level] = compute_stats.total_ops
+        state.pre_saf_compute[compute_key.level] = compute_stats.total_ops
 
     # Propagate SAF reductions to compute operations.
-    for prob, kind in saf_probs_for_compute:
+    for prob, kind in state.saf_probs_for_compute:
         for compute_key, compute_stats in reuse.compute_stats.items():
             compute_stats.total_ops = propagate_saf_reduction(
                 compute_stats.total_ops, prob
@@ -810,26 +904,26 @@ def apply_sparse_adjustments(
 
     # Skipping: reduce compute-level element counts by compound SAF probability.
     skip_compound_survival = 1.0
-    for prob, kind in saf_probs_for_compute:
+    for prob, kind in state.saf_probs_for_compute:
         if kind == "skipping":
             skip_compound_survival *= (1 - prob)
 
     if skip_compound_survival < 1.0 - 1e-12:
         for buffet, stats in reuse.buffet_stats.items():
-            if buffet.level not in compute_levels:
+            if buffet.level not in state.compute_levels:
                 continue
             parent_level = None
             for b in reuse.buffet_stats:
                 if (b.tensor == buffet.tensor
-                        and b.level not in compute_levels):
+                        and b.level not in state.compute_levels):
                     child = reuse.get_child_buffet_stats(b)
                     if child is not None and child is stats:
                         parent_level = b.level
                         break
             # Get local SAF probability (skipping only).
             local_prob = 0.0
-            if parent_level and (parent_level, buffet.tensor) in saf_deltas:
-                _, local_kind, p = saf_deltas[(parent_level, buffet.tensor)]
+            if parent_level and (parent_level, buffet.tensor) in state.saf_deltas:
+                _, local_kind, p = state.saf_deltas[(parent_level, buffet.tensor)]
                 if local_kind == "skipping":
                     local_prob = p
             if local_prob >= 1.0 - 1e-12:
@@ -853,20 +947,20 @@ def apply_sparse_adjustments(
 
     # Build set of all non-compute levels for has_metadata lookup
     all_non_compute_levels = {
-        b.level for b in reuse.buffet_stats if b.level not in compute_levels
+        b.level for b in reuse.buffet_stats if b.level not in state.compute_levels
     }
 
     # Apply compute classification
     for compute_key, compute_stats in reuse.compute_stats.items():
-        compute_opts = sparse_opts.get_compute_optimizations_for(compute_key.level)
+        compute_opts = state.sparse_opts.get_compute_optimizations_for(compute_key.level)
         if not compute_opts:
             continue
 
         for opt in compute_opts:
             operand_densities = [
-                tensor_info[t]["density"]
+                state.tensor_info[t]["density"]
                 for t in opt.condition_on
-                if t in tensor_info
+                if t in state.tensor_info
             ]
             if not operand_densities:
                 continue
@@ -874,24 +968,24 @@ def apply_sparse_adjustments(
             # has_metadata: True if tensor has compressed format at any level.
             operand_has_metadata = [
                 any(
-                    (t, level) in formatted_buffets
+                    (t, level) in state.formatted_buffets
                     for level in all_non_compute_levels
                 )
                 for t in opt.condition_on
-                if t in tensor_info
+                if t in state.tensor_info
             ]
 
             # Check if storage-level SAF already covers condition tensors.
             storage_saf_covers = all(
                 any(
-                    (level, ct) in saf_deltas
+                    (level, ct) in state.saf_deltas
                     for level in all_non_compute_levels
                 )
                 for ct in opt.condition_on
             )
 
             result = classify_compute(
-                pre_saf_compute[compute_key.level],
+                state.pre_saf_compute[compute_key.level],
                 operand_densities,
                 opt.kind,
                 operand_has_metadata=operand_has_metadata,
@@ -904,53 +998,64 @@ def apply_sparse_adjustments(
             # Only emit when no storage SAF covers the same condition.
             if not storage_saf_covers:
                 _emit_if_declared(
-                    sparse_actions, spec, compute_key.level,
+                    state.sparse_actions, spec, compute_key.level,
                     GATED_COMPUTE, result.gated_compute,
                 )
                 _emit_if_declared(
-                    sparse_actions, spec, compute_key.level,
+                    state.sparse_actions, spec, compute_key.level,
                     SKIPPED_COMPUTE, result.skipped_compute,
                 )
 
     # Compute latency ratio: post-classification effectual ops / pre-SAF ops.
     for compute_key, compute_stats in reuse.compute_stats.items():
-        pre = pre_saf_compute.get(compute_key.level, 0)
+        pre = state.pre_saf_compute.get(compute_key.level, 0)
         if pre > 0:
-            latency_info.compute_latency_ratio = compute_stats.total_ops / pre
+            state.latency_info.compute_latency_ratio = compute_stats.total_ops / pre
             break
 
     # Position-space utilization: load imbalance from position-skipping
-    if position_skip_info and position_skip_level and job.mapping is not None:
-        latency_info.position_space_utilization = (
+    if state.position_skip_info and state.position_skip_level and job.mapping is not None:
+        state.latency_info.position_space_utilization = (
             _compute_position_space_utilization(
-                position_skip_info,
+                state.position_skip_info,
                 job.mapping.nodes,
-                position_skip_level,
-                einsum,
+                state.position_skip_level,
+                state.einsum,
                 job.rank_variable_bounds,
                 spec,
             )
         )
 
+
+def _phase5_metadata_and_recompute(
+    reuse: SymbolicAnalysisOutput,
+    spec: Spec,
+    job: Job,
+    state: _PipelineState,
+) -> tuple:
+    """Phase 5: Emit metadata actions, recompute action counts, post-pipeline correction.
+
+    Returns (per_rank_info, dense_buffet_nets).
+    """
     # Emit metadata actions from format info
     per_rank_info = _emit_metadata_actions(
-        sparse_actions,
-        latency_info,
+        state.sparse_actions,
+        state.latency_info,
         reuse,
         spec,
         job,
-        compute_levels,
-        formatted_buffets,
-        saf_deltas,
-        tensor_info,
-        pre_saf_child_reads,
-        pre_saf_fills,
+        state.compute_levels,
+        state.formatted_buffets,
+        state.saf_deltas,
+        state.tensor_info,
+        state.pre_saf_child_reads,
+        state.pre_saf_fills,
     )
 
     # Snapshot dense net actions before recompute.
     dense_buffet_nets: dict[Buffet, tuple] = {}
     for buffet, stats in reuse.buffet_stats.items():
-        if buffet.level in compute_levels:
+        if buffet.level in state.compute_levels:
             continue
         dense_buffet_nets[buffet] = (
             stats.net_total_read_actions(),
@@ -960,39 +1065,15 @@ def apply_sparse_adjustments(
         )
 
     # Recompute action counts from modified element counts.
-    _recompute_action_counts(reuse, spec, job, compute_levels, tensor_info)
+    _recompute_action_counts(reuse, spec, job, state.compute_levels, state.tensor_info)
 
     # Post-pipeline: format compression for levels with SAF + format at compute child.
     _apply_format_compression_to_saf_levels(
-        reuse, spec, compute_levels, formatted_buffets, tensor_info,
+        reuse, spec, state.compute_levels, state.formatted_buffets, state.tensor_info,
     )
 
-    # Compute action-level deltas (sparse - dense) for compositional path.
-    buffet_action_deltas: dict[Buffet, BuffetActionDelta] = {}
-    for buffet, dense in dense_buffet_nets.items():
-        stats = reuse.buffet_stats[buffet]
-        buffet_action_deltas[buffet] = BuffetActionDelta(
-            total_read=stats.net_total_read_actions() - dense[0],
-            max_per_unit_read=stats.net_max_per_unit_read_actions() - dense[1],
-            total_write=stats.net_total_write_actions() - dense[2],
-            max_per_unit_write=stats.net_max_per_unit_write_actions() - dense[3],
-        )
+    return per_rank_info, dense_buffet_nets
 
-    compute_action_deltas: dict[Compute, ComputeActionDelta] = {}
-    for ck, dense in dense_compute_ops.items():
-        cs = reuse.compute_stats[ck]
-        compute_action_deltas[ck] = ComputeActionDelta(
-            total_ops=cs.total_ops - dense[0],
-            max_per_unit_ops=cs.max_per_unit_ops - dense[1],
-        )
-
-    return SparseAnalysisOutput(
-        sparse_actions=sparse_actions,
-        per_rank_info=per_rank_info,
-        latency_info=latency_info,
-        buffet_action_deltas=buffet_action_deltas,
-        compute_action_deltas=compute_action_deltas,
-    )
 
 
 def _emit_metadata_actions(
