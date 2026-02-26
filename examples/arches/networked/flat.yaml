@@ -1,3 +1,5 @@
+{% set N_ROW_BUFFER = N_ROW_BUFFER | default(4) %}
+{% set N_COL_BUFFER = N_COL_BUFFER | default(4) %}
 arch:
   nodes:
   - !Memory
@@ -7,16 +9,18 @@ arch:
     leak_power: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 0, latency: 0}
-    - {name: write, energy: 0, latency: 0}
+    - {name: read, energy: 100, latency: 0}
+    - {name: write, energy: 100, latency: 0}
 
   - !Network
     name: NoC
     area: 0
     leak_power: 0
-    actions: []
+    actions:
+    - {name: hops, energy: 1, latency: 0}
 
   - !Array
+    name: PeArray
     spatial:
     - {name: X, fanout: 4}
     - {name: Y, fanout: 4}
@@ -28,42 +32,42 @@ arch:
       leak_power: 0
       tensors: {keep: ~MainMemory, may_keep: All}
       actions:
-      - {name: read, energy: 0, latency: 0}
-      - {name: write, energy: 0, latency: 0}
+      - {name: read, energy: 10, latency: 0}
+      - {name: write, energy: 10, latency: 0}
 
     - !Memory
       name: RowBuffer
       size: inf
       area: 0
       leak_power: 0
-      tensors: {keep: ~MainMemory, may_keep: All}
+      tensors: {keep: input, may_keep: input}
       actions:
-      - {name: read, energy: 0, latency: 0}
-      - {name: write, energy: 0, latency: 0}
+      - {name: read, energy: 5, latency: 0}
+      - {name: write, energy: 5, latency: 0}
       spatial:
-      - {name: X, fanout: 4}
+      - {name: X, fanout: {{N_ROW_BUFFER}}}
 
     - !Memory
       name: ColumnBuffer
       size: inf
       area: 0
       leak_power: 0
-      tensors: {keep: ~MainMemory, may_keep: All}
+      tensors: {keep: output, may_keep: output}
       actions:
-      - {name: read, energy: 0, latency: 0}
-      - {name: write, energy: 0, latency: 0}
+      - {name: read, energy: 5, latency: 0}
+      - {name: write, energy: 5, latency: 0}
       spatial:
-      - {name: Y, fanout: 4}
+      - {name: Y, fanout: {{N_COL_BUFFER}}}
 
     - !Memory
       name: DistributedBuffer
       size: inf
       area: 0
       leak_power: 0
-      tensors: {keep: ~MainMemory, may_keep: All}
+      tensors: {keep: weight, may_keep: weight}
       actions:
-      - {name: read, energy: 0, latency: 0}
-      - {name: write, energy: 0, latency: 0}
+      - {name: read, energy: 5, latency: 0}
+      - {name: write, energy: 5, latency: 0}
       spatial:
       - {name: X, fanout: 2}
       - {name: Y, fanout: 2}
@@ -73,13 +77,14 @@ arch:
     size: inf
     area: 0
     leak_power: 0
+    tensors: {keep: weight, may_keep: weight}
     actions:
-    - {name: read, energy: 0, latency: 0}
-    - {name: write, energy: 0, latency: 0}
+    - {name: read, energy: 1, latency: 0}
+    - {name: write, energy: 1, latency: 0}
 
   - !Compute
     name: MAC
     area: 0
     leak_power: 0
     actions:
-    - {name: compute, energy: 0, latency: 0}
+    - {name: compute, energy: 1, latency: 0}

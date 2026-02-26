@@ -876,7 +876,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
-    spatial_component = find_component_object(node.component, info.job.flattened_arch)
+    flattened_arch = info.job.flattened_arch
+    arch_spec = info.job.spec.arch
+    spatial_component = find_component_object(node.component, flattened_arch)
     component_spatial_dim = spatial_component.spatial[node_dim]
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
 
@@ -937,15 +939,13 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 child_network_stats.max_hops,
             )
             projection = info.einsum_tensor_to_projection[(einsum_name, network.tensor)]
-            component_object = find_component_object(
-                network.component, info.job.flattened_arch
-            )
-            bits_per_value_scale = component_object.bits_per_value_scale[network.tensor]
+            network_object = find_component_object(network.component, flattened_arch)
+            bits_per_value_scale = network_object.bits_per_value_scale[network.tensor]
             bits_per_value = (
                 bits_per_value_scale
                 * info.job.einsum.tensor_accesses[network.tensor].bits_per_value
             )
-            bits_per_action = component_object.bits_per_action
+            bits_per_action = network_object.bits_per_action
             if bits_per_action is not None:
                 actions_per_value = bits_per_value / bits_per_action
             else:
@@ -955,8 +955,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 * actions_per_value
             )
 
-            if info.job.spec.arch.is_above(node.component, network.component):
+            if is_component_a_above_b(node.component, network.source.level, flattened_arch):
                 continue
+            source_object = find_component_object(network.source.level, flattened_arch)
 
             last_fanout = child_result.fanout.get((node.component, einsum_name), {})
             last_fanout = last_fanout.get(node.name, 1)
@@ -972,14 +973,18 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                     overall_max_hops + child_network_stats.max_hops,
                 )
             elif isinstance(relevancy, Relevant):
+                avg_max_src_to_dst = (
+                    component_spatial_dim.fanout
+                    /
+                    source_object._get_physical_fanout_along(node.name, 1)
+                )-1
                 # Cost of unicast is the cost of delivering to each point in
                 # the dimension with shape as stride
                 # TODO: we should use the actual stride
-                total_unicast_cost = (
-                    0.5 * (shape_repeats - 1) * shape_repeats * last_fanout * volume
-                )
-                max_unicast_hops = (shape_repeats - 1) * last_fanout
-                overall_max_hops += max_unicast_hops
+                max_hops = MinGeqZero((shape_repeats-1)*last_fanout, avg_max_src_to_dst)
+                avg_hops = 0.5*max_hops
+                total_unicast_cost = avg_hops * shape_repeats * volume
+                overall_max_hops += max_hops
 
                 accumulated_network_stats.total_hops += total_unicast_cost
                 accumulated_network_stats.max_hops = MaxGeqZero(
@@ -1068,6 +1073,22 @@ def find_component_object(
         if node.name == component:
             return node
     raise ValueError(f"Component {component} not found in flattened arch")
+
+
+def is_component_a_above_b(component_a: str, component_b: str, flattened_arch):
+    a_found = False
+    b_found = False
+    for node in flattened_arch:
+        if node.name == component_a:
+            a_found = True
+        if node.name == component_b:
+            b_found = True
+
+        if a_found and not b_found:
+            return True
+        elif b_found and not a_found:
+            return False
+    raise ValueError(f"Neither {component_a} nor {component_b} found in flattened arch")
 
 
 def analyze_storage(
