@@ -1052,6 +1052,9 @@ class Workload(EvalableModel):
         bits_per_value_per_einsum = {}
         bits_per_value = {}
         for einsum in evaluated.einsums:
+            for t, bpv in bits_per_value.items():
+                einsum.renames[t].source.bits_per_value = bpv
+
             cur_bpv = {t.name: t.bits_per_value for t in einsum.tensor_accesses}
             # Check for consistency across Einsums
             for prev_einsum, prev_bpv in bits_per_value_per_einsum.items():
