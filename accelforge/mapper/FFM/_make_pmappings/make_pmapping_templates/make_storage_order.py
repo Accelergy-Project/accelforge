@@ -27,17 +27,18 @@ def get_tensor_choices(
     fanouts: dict[str, int],
 ) -> Generator[tuple[list[TensorHolder], SymbolTable, arch.Compute], None, None]:
     nodes, compute = nodes[:-1], nodes[-1]
-    while True:
-        if not nodes:
-            return
-        if not isinstance(nodes[0], arch.Memory):
-            nodes = nodes[1:]
-            continue
-        assert isinstance(nodes[0].enabled, bool)
-        if not nodes[0].enabled:
-            nodes = nodes[1:]
-            continue
-        break
+    # while True:
+    #     if not nodes:
+    #         return
+    #     if not isinstance(nodes[0], arch.Memory):
+    #         nodes = nodes[1:]
+    #         continue
+    #     assert isinstance(nodes[0].enabled, bool)
+    #     if not nodes[0].enabled:
+    #         nodes = nodes[1:]
+    #         continue
+    #     break
+    nodes = list(filter(lambda n: isinstance(n, arch.TensorHolder), nodes))
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation

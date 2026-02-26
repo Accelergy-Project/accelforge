@@ -932,7 +932,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             accumulated_network_stats.total_hops += (
                 child_network_stats.total_hops * shape_repeats
             )
-            accumulated_network_stats.max_hops = max(
+            accumulated_network_stats.max_hops = MaxGeqZero(
                 accumulated_network_stats.max_hops,
                 child_network_stats.max_hops,
             )
@@ -967,7 +967,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 overall_max_hops += multicast_hops
 
                 accumulated_network_stats.total_hops += multicast_cost
-                accumulated_network_stats.max_hops = max(
+                accumulated_network_stats.max_hops = MaxGeqZero(
                     accumulated_network_stats.max_hops,
                     overall_max_hops + child_network_stats.max_hops,
                 )
@@ -982,7 +982,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 overall_max_hops += max_unicast_hops
 
                 accumulated_network_stats.total_hops += total_unicast_cost
-                accumulated_network_stats.max_hops = max(
+                accumulated_network_stats.max_hops = MaxGeqZero(
                     accumulated_network_stats.max_hops,
                     overall_max_hops + child_network_stats.max_hops,
                 )
