@@ -1,0 +1,17 @@
+# SpMSpM workload for fig1: Z[m,n] = A[m,k] * B[n,k]
+# M=K=N=128, density A=B=0.1015625 (13/128).
+
+workload:
+  iteration_space_shape:
+    m: 0 <= m < 128
+    n: 0 <= n < 128
+    k: 0 <= k < 128
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - name: SpMSpM
+    tensor_accesses:
+    - {name: A, projection: [m, k], density: 0.1015625}
+    - {name: B, projection: [n, k], density: 0.1015625}
+    - {name: Z, projection: [m, n], output: true}

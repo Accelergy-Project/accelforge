@@ -3,6 +3,21 @@ from inspect import signature
 from importlib.machinery import SourceFileLoader
 import logging
 import math
+import sympy as _sympy
+
+
+def _smart_ceil(x):
+    """ceil that works with both numeric and sympy symbolic expressions."""
+    if isinstance(x, _sympy.Basic):
+        return _sympy.ceiling(x)
+    return math.ceil(x)
+
+
+def _smart_floor(x):
+    """floor that works with both numeric and sympy symbolic expressions."""
+    if isinstance(x, _sympy.Basic):
+        return _sympy.floor(x)
+    return math.floor(x)
 import re
 import threading
 from typing import Any, Callable
@@ -31,12 +46,12 @@ def is_literal_string(value: Any) -> bool:
 
 
 MATH_FUNCS = {
-    "ceil": math.ceil,
+    "ceil": _smart_ceil,
     "comb": math.comb,
     "copysign": math.copysign,
     "fabs": math.fabs,
     "factorial": math.factorial,
-    "floor": math.floor,
+    "floor": _smart_floor,
     "fmod": math.fmod,
     "frexp": math.frexp,
     "fsum": math.fsum,

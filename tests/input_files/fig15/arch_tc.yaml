@@ -1,0 +1,69 @@
+# Fig 15 TC (Tensor Core) Architecture — Dense Baseline
+# 4-level hierarchy: DRAM → SMEM (shared) → Subpartitions(4) → RF → PEs(16×16) → LRF → MAC
+# 1024 MACs total (4 subpartitions × 256 PEs each)
+# ERT values from Sparseloop artifact: TC-RF2x-24-bandwidth/ERT_summary.yaml
+# 8-bit integer datapath
+
+arch:
+  nodes:
+  - !Memory
+    name: DRAM
+    size: 1e9
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max(total_read_actions / 32, total_write_actions / 16))"
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 512, bits_per_action: 64, latency: 0}
+    - {name: write, energy: 512, bits_per_action: 64, latency: 0}
+
+  - !Memory
+    name: SMEM
+    size: 2097152  # 256KB = 4096 depth × 512 width
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max(total_read_actions / 42, total_write_actions / 42))"
+    tensors: {keep: ~DRAM, may_keep: All}
+    actions:
+    - {name: read, energy: 536.05005, bits_per_action: 512, latency: 0}
+    - {name: write, energy: 599.806, bits_per_action: 512, latency: 0}
+
+  - !Container
+    name: Subpartitions
+    spatial:
+    - {name: Y, fanout: 4}
+
+  - !Memory
+    name: RF
+    size: 16384  # 2048 depth × 8 width
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    # Energy ÷ 16 (K_spatial): AF repeat_spatial inflates Z accesses by K_spatial=16
+    # because Z doesn't depend on K. SL models K-spatial reduction; we compensate here.
+    # Original: read=3.1647, write=3.20183
+    - {name: read, energy: 0.197794, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0.200114, bits_per_action: 8, latency: 0}
+    spatial:
+    - {name: X, fanout: 16}
+    - {name: Z, fanout: 16}
+
+  - !Memory
+    name: LRF
+    size: 8  # 1 depth × 8 width
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.02435, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0.02435, bits_per_action: 8, latency: 0}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 0.44688, latency: 1}

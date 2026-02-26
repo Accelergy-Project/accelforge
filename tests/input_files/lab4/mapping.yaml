@@ -1,0 +1,37 @@
+# Lab 4 mapping: All loops at Buffer (fully untiled)
+# Loop order (outer→inner): N → K → M (from Sparseloop NKM permutation)
+#
+# Buffer storage is placed ABOVE temporal loops so that all tensors
+# are loaded once from BackingStorage and reused across all iterations.
+# This matches Sparseloop's behavior where the buffer holds the full
+# data (capacity=192 ≥ A(64)+B(64)+Z(64)=192).
+
+mapping:
+  nodes:
+  # BackingStorage: all tensors at top level
+  - !Storage
+    tensors: [A, B, Z]
+    component: BackingStorage
+
+  # Buffer above all loops: data loaded once, reused
+  - !Storage
+    tensors: [A, B, Z]
+    component: Buffer
+
+  # All loops below Buffer (fully untiled)
+  - !Temporal
+    rank_variable: n
+    tile_shape: 1
+
+  - !Temporal
+    rank_variable: k
+    tile_shape: 1
+
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+
+  # Compute
+  - !Compute
+    einsum: SpMSpM
+    component: MAC

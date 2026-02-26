@@ -33,6 +33,8 @@ from accelforge.frontend._workload_isl._symbolic import (
     get_projection_expr,
     get_rank_variable_relevancy,
     compute_dense_tile_occupancy,
+    compute_rank_occupancy,
+    get_stride_and_halo_of_einsum,
     Irrelevant,
     Relevant,
     PartiallyRelevant,
@@ -144,7 +146,19 @@ class BuffetStats:
     total_skipped_first_read_actions: Any = field(default=0)
     min_per_unit_skipped_first_read_actions: Any = field(default=0)
 
+    # Fill-write and drain-read actions derived from parent attributes.
+    # These have "parent" in their names so temporal reuse applies to them.
+    total_parent_fill_write_actions: Any = field(default=0)
+    max_per_parent_fill_write_actions: Any = field(default=0)
+    total_skipped_first_parent_fill_write_actions: Any = field(default=0)
+    min_per_parent_skipped_first_fill_write_actions: Any = field(default=0)
+    total_parent_drain_read_actions: Any = field(default=0)
+    max_per_parent_drain_read_actions: Any = field(default=0)
+
     persistent: bool = field(default=False)
+
+    # Tile shape for sparse SAF computation (set by analyze_storage).
+    tile_shape: dict | None = field(default=None)
 
     @property
     def n_loops_above(self) -> int:
@@ -156,13 +170,26 @@ class BuffetStats:
     def n_loops_above(self, value: int):
         self._n_loops_above = value
 
-    def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
+    def repeat_temporal(
+        self,
+        factor: int,
+        is_fully_relevant: bool,
+        temporal_reuse: bool = False,
+        halo_factor=None,
+    ) -> "BuffetStats":
         new = copy.copy(self)
         for attr in self.__dict__:
             if not attr.startswith(("total_", "max_", "min_")):
                 continue
             if "skipped_first" in attr and not is_fully_relevant:
                 continue  # First actions occur once per relevant iteration.
+            if "parent" in attr and temporal_reuse:
+                continue  # Temporal reuse: buffer retains data, no parent refetch.
+            if "parent" in attr and halo_factor is not None:
+                # Sliding window overlap: parent fills/drains scale by halo_factor
+                # (fewer new elements per iteration) instead of the full factor.
+                setattr(new, attr, getattr(new, attr) * halo_factor)
+                continue
             if attr == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
             setattr(new, attr, getattr(new, attr) * factor)
@@ -204,6 +231,12 @@ class BuffetStats:
     def __add__(self, other: "BuffetStats") -> "BuffetStats":
         new = copy.copy(self)
         for attr in self.__dict__:
+            if attr == "tile_shape":
+                # tile_shape may differ across imperfect-tiling iterations.
+                # Keep the first non-None value (the nominal tile size).
+                if getattr(self, attr) is None:
+                    setattr(new, attr, getattr(other, attr))
+                continue
             if attr.startswith("min_"):
                 setattr(
                     new, attr, min_nonzero(getattr(self, attr), getattr(other, attr))
@@ -231,21 +264,33 @@ class BuffetStats:
         return self
 
     def net_total_read_actions(self) -> Any:
-        return self.total_read_actions - self.total_skipped_first_read_actions
+        return (
+            self.total_read_actions
+            + self.total_parent_drain_read_actions
+            - self.total_skipped_first_read_actions
+        )
 
     def net_total_write_actions(self) -> Any:
-        return self.total_write_actions - self.total_skipped_first_write_actions
+        return (
+            self.total_write_actions
+            + self.total_parent_fill_write_actions
+            - self.total_skipped_first_write_actions
+            - self.total_skipped_first_parent_fill_write_actions
+        )
 
     def net_max_per_unit_read_actions(self) -> Any:
         return (
             self.max_per_unit_read_actions
+            + self.max_per_parent_drain_read_actions
             - self.min_per_unit_skipped_first_read_actions
         )
 
     def net_max_per_unit_write_actions(self) -> Any:
         return (
             self.max_per_unit_write_actions
+            + self.max_per_parent_fill_write_actions
             - self.min_per_unit_skipped_first_write_actions
+            - self.min_per_parent_skipped_first_fill_write_actions
         )
 
     @classmethod
@@ -333,6 +378,11 @@ class SymbolicAnalysisOutput:
     # tensor to the mapping for that particular tensor
     tensor2mapping: dict[TensorName, Mapping] = field(default_factory=dict)
 
+    # Partial overlap info from Reservation nodes for halo/stride reuse.
+    # Maps tensor → (stride, tile_in_rank). Set by analyze_reservation,
+    # consumed by the temporal loop directly above.
+    partial_overlap_info: dict[TensorName, tuple] = field(default_factory=dict)
+
     def get_buffet_for_tensor(self, tensor: TensorName) -> Buffet:
         for buffet in self.buffet_stats:
             if buffet.tensor == tensor:
@@ -411,6 +461,10 @@ class AnalysisInfo:
     job: Job
 
     tensor_to_reservation_backer_id: dict[TensorName, int] = field(default_factory=dict)
+
+    # Stride and halo for PartiallyRelevant loops (sliding window overlap).
+    # {tensor: {(rank, rank_var): (stride, halo)}}
+    stride_and_halo: dict = field(default_factory=dict)
 
     data_movement_connections: DataMovementConnections = None
 
@@ -519,6 +573,9 @@ def analyze_reuse_and_add_reservations_to_mapping(
     tensor_to_relevancy = {
         tensor: get_rank_variable_relevancy(einsum, tensor) for tensor in all_tensors
     }
+    stride_and_halo = get_stride_and_halo_of_einsum(
+        einsum_name, workload, dict(job.rank_variable_bounds)
+    )
     assert all_tensors, f"Einsum {einsum_name} has no tensors"
 
     """
@@ -561,7 +618,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
         index_expressions.add(f"0 < {k} <= {v}")
     for tensor in all_tensors:
         cur_mapping = job.mapping._get_single_tensor_mapping(
-            tensor, job.flattened_arch, index_expressions
+            tensor, job.flattened_arch, index_expressions,
         )
         info = AnalysisInfo(
             mapping=cur_mapping.nodes,
@@ -573,6 +630,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             tensor_to_backer_id=tensor_to_backer_id,
             is_copy_operation=is_copy_operation,
             job=job,
+            stride_and_halo=stride_and_halo,
             data_movement_connections=DataMovementConnections.from_pmapping(
                 cur_mapping.nodes
             ),
@@ -624,6 +682,7 @@ class ReservationAnalysisTracker:
 
         # Temporary values
         self.has_filled = False
+        self.partially_relevant_info = None
 
     def track_temporal_loop(self, relevancy, node):
         self.is_fill_level = False
@@ -640,7 +699,7 @@ class ReservationAnalysisTracker:
             self.should_stop = False
         elif isinstance(relevancy, PartiallyRelevant):
             self.last = True
-
+            self.partially_relevant_info = (relevancy.rank, node.rank_variable)
             if not self.has_filled:
                 self.is_fill_level = True
                 self.has_filled = True
@@ -726,7 +785,7 @@ def insert_reservation_nodes(
             node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
             node.persistent = tracker.node.persistent
             node._backing = tracker.node._backing
-
+            node._partially_relevant_info = tracker.partially_relevant_info
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
                 and buffet.tensor in info.workload.tensor_names_used_in_multiple_einsums
@@ -794,6 +853,96 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SymbolicAnalysi
     return class2analysis_function[type(node)](node_idx, current_shape, info)
 
 
+def _has_temporal_reuse(
+    tensor: TensorName, node_idx: int, buffet_level: str, info: "AnalysisInfo"
+) -> bool:
+    """Check if the buffet retains data across iterations of this irrelevant
+    temporal loop, meaning parent fills/drains should NOT be multiplied.
+
+    Uses the FULL mapping (info.job.mapping) because the per-tensor mapping
+    strips Storage nodes for other tensors, which are needed to detect
+    hierarchy boundaries and bypassed zones.
+
+    Returns True in two cases:
+    1. Directly above: no intervening temporal loops or relevant storage nodes
+       between this loop and the buffet's storage (e.g., C loop → shared_glb).
+    2. Bypassed zone: the nearest Storage/Toll component above this loop does
+       NOT hold the tensor (e.g., shared_glb doesn't hold Weights), so the
+       tensor data stays in a more distant ancestor unaffected by this loop.
+    """
+    temporal_node = info.mapping[node_idx]
+    full_mapping = info.job.mapping.nodes
+    full_idx = None
+    for i, node in enumerate(full_mapping):
+        if id(node) == id(temporal_node):
+            full_idx = i
+            break
+    if full_idx is None:
+        return False
+
+    tensor_tn = TensorName(tensor)
+    components_holding_tensor = {
+        n.component
+        for n in full_mapping
+        if isinstance(n, (Storage, Toll))
+        and tensor_tn in [TensorName(t) for t in n.tensors]
+    }
+
+    # Walk downward from the loop. If we reach the buffet's storage without
+    # hitting any blocking nodes, the buffer retains data (directly above).
+    # Skip: Reservation, Spatial, split siblings at the same component, and
+    # Storage/Toll at components that never hold this tensor (bypassed levels).
+    # Block: Temporal loops or Storage/Toll at a different component that
+    # holds this tensor (a hierarchy boundary).
+    for i in range(full_idx + 1, len(full_mapping)):
+        node = full_mapping[i]
+        if isinstance(node, (Reservation, Spatial)):
+            continue
+        if isinstance(node, (Storage, Toll)):
+            if node.component == buffet_level:
+                if tensor_tn in [TensorName(t) for t in node.tensors]:
+                    return True  # Directly above the buffet's storage
+                continue  # Split sibling at same component
+            if node.component not in components_holding_tensor:
+                continue  # Component irrelevant to this tensor
+            break  # Hierarchy boundary — fall through to bypassed check
+        if isinstance(node, Temporal):
+            break  # Temporal loop between — fall through to bypassed check
+
+    # Bypassed zone check: walk upward to find the nearest Storage/Toll.
+    # If its component doesn't hold this tensor, the loop is in a bypassed
+    # zone and parent accesses should not be multiplied.
+    for i in range(full_idx - 1, -1, -1):
+        node = full_mapping[i]
+        if isinstance(node, Reservation):
+            continue
+        if isinstance(node, (Storage, Toll)):
+            component_name = node.component
+            for j in range(i, -1, -1):
+                n = full_mapping[j]
+                if isinstance(n, (Storage, Toll)) and n.component == component_name:
+                    if tensor_tn in [TensorName(t) for t in n.tensors]:
+                        return False  # Component holds tensor → not bypassed
+            return True  # Component doesn't hold tensor → bypassed
+    return False
+
+
+def _compute_overlap_fallback(tensor, rank, rank_variable, child_shape, info):
+    """Compute (stride, tile_in_rank) for top-level buffers whose Reservation
+    was created at the TensorHolder (before any PartiallyRelevant loop)."""
+    sh = info.stride_and_halo.get(tensor, {})
+    stride_halo = sh.get((rank, rank_variable), None)
+    if stride_halo is None:
+        return None
+    stride, _halo = stride_halo
+    if stride <= 0:
+        return None
+    einsum_name = info.mapping[-1].einsum
+    rank_proj = info.einsum_tensor_to_projection[(einsum_name, tensor)][rank]
+    tile_in_rank = compute_rank_occupancy(rank_proj, child_shape)
+    return (stride, tile_in_rank)
+
+
 def analyze_temporal(
     node_idx, current_shape, info: AnalysisInfo
 ) -> SymbolicAnalysisOutput:
@@ -819,11 +968,67 @@ def analyze_temporal(
         for buffet, stats in child_result.buffet_stats.items():
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
             is_fully_relevant = isinstance(relevancy, Relevant)
+
+            # Temporal reuse: buffer retains data across this irrelevant loop
+            # (see _has_temporal_reuse for bypassed-zone / directly-above logic)
+            loop_above_storage = any(
+                isinstance(info.mapping[i], (Storage, Toll))
+                and info.mapping[i].component == buffet.level
+                for i in range(node_idx + 1, len(info.mapping))
+            )
+            temporal_reuse = (
+                isinstance(relevancy, Irrelevant)
+                and loop_above_storage
+                and _has_temporal_reuse(
+                    buffet.tensor, node_idx, buffet.level, info
+                )
+            )
+
+            # Halo factor: for PartiallyRelevant loops, consecutive iterations
+            # share data. Only applies in buffet's scope (between buffet and
+            # parent storage); otherwise overlap is exploited at parent level.
+            halo_factor = None
+            if isinstance(relevancy, PartiallyRelevant) and loop_above_storage:
+                # Check scope: walk from loop to buffet's storage. If we
+                # hit another storage first, the loop is out of scope.
+                in_scope = True
+                for ii in range(node_idx + 1, len(info.mapping)):
+                    check_node = info.mapping[ii]
+                    if isinstance(check_node, (Storage, Toll)):
+                        if check_node.component != buffet.level:
+                            in_scope = False
+                        break
+                if in_scope:
+                    # Use pre-computed overlap from Reservation when
+                    # available (lower-level buffers whose tracker
+                    # survived to the PR loop). Fall back to direct
+                    # computation for top-level buffers whose Reservation
+                    # was created at the TensorHolder (before any PR loop).
+                    overlap = child_result.partial_overlap_info.get(
+                        buffet.tensor
+                    )
+                    if overlap is None:
+                        overlap = _compute_overlap_fallback(
+                            buffet.tensor, relevancy.rank,
+                            node.rank_variable, child_shape, info,
+                        )
+                    if overlap is not None:
+                        stride, tile_in_rank = overlap
+                        shift_per_iter = stride * shape_value
+                        if tile_in_rank > shift_per_iter:
+                            halo_factor = (
+                                tile_in_rank
+                                + (shape_repeats - 1) * shift_per_iter
+                            ) / tile_in_rank
+
             accumulated_stats = accumulated_buffet_stats.setdefault(
                 buffet, BuffetStats.blank()
             )
             accumulated_stats += stats.repeat_temporal(
-                shape_repeats, is_fully_relevant=is_fully_relevant
+                shape_repeats,
+                is_fully_relevant=is_fully_relevant,
+                temporal_reuse=temporal_reuse,
+                halo_factor=halo_factor,
             )
             accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
@@ -876,7 +1081,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
-    spatial_component = find_component_object(node.component, info.job.flattened_arch)
+    spatial_component = node.component_object or find_component_object(
+        node.component, info.job.flattened_arch
+    )
     component_spatial_dim = spatial_component.spatial[node_dim]
     stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
 
@@ -1092,6 +1299,7 @@ def analyze_storage(
         # Reservations make these, and they go below the storage node, so the buffet
         # stats are already made at this point
         stats = child_result.buffet_stats[buffet]
+        stats.tile_shape = dict(current_shape)
         backer_id = info.tensor_to_backer_id[tensor]
         is_backing = backer_id == id(node)
         if node.persistent:
@@ -1162,23 +1370,29 @@ def analyze_storage(
 
         # ==========================
         # Data exchanges with parent
-        if count_downward_movement:  # Parent -> Me
-            stats.total_write_actions += stats.total_reads_to_parent * write_scale
-            stats.max_per_unit_write_actions += (
+        # Fill-writes and drain-reads use "parent"-named attributes so that
+        # temporal reuse at bypassed levels correctly applies to them.
+        if count_downward_movement:  # Parent -> Me (fills)
+            stats.total_parent_fill_write_actions += (
                 stats.total_reads_to_parent * write_scale
             )
-            stats.total_skipped_first_write_actions += (
+            stats.max_per_parent_fill_write_actions += (
+                stats.max_per_parent_reads_to_parent * write_scale
+            )
+            stats.total_skipped_first_parent_fill_write_actions += (
                 stats.total_skipped_first_reads_to_parent * write_scale
             )
-            stats.min_per_unit_skipped_first_write_actions += (
+            stats.min_per_parent_skipped_first_fill_write_actions += (
                 stats.min_per_parent_skipped_first_reads_to_parent * write_scale
             )
 
-        if count_upward_movement:  # Me -> Parent
-            # Comment this to have the final writeback to a buffer hit both that buffer and
-            # go directly to the parent without incurring another read from the buffer.
-            stats.total_read_actions += stats.total_writes_to_parent * read_scale
-            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
+        if count_upward_movement:  # Me -> Parent (drains/writebacks)
+            stats.total_parent_drain_read_actions += (
+                stats.total_writes_to_parent * read_scale
+            )
+            stats.max_per_parent_drain_read_actions += (
+                stats.max_per_parent_writes_to_parent * read_scale
+            )
 
         # ========================
         # Data exchanges with peer
@@ -1251,6 +1465,7 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     assert buffet not in child_result.buffet_stats
 
     stats = BuffetStats()
+    stats.tile_shape = dict(current_shape)
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
     component_object = find_component_object(node.resource, info.job.flattened_arch)
     bits_per_value_scale = component_object.bits_per_value_scale[tensor]
@@ -1261,6 +1476,20 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
         compute_dense_tile_occupancy(projection, current_shape) * bits_per_value
     )
     child_result.buffet_stats[buffet] = stats
+
+    # Pre-compute partial overlap info for halo/stride reuse.
+    # When the Reservation was created from a PartiallyRelevant loop,
+    # compute (stride, tile_in_rank) so analyze_temporal doesn't re-derive it.
+    if node._partially_relevant_info is not None:
+        rank, rank_variable = node._partially_relevant_info
+        sh = info.stride_and_halo.get(tensor, {})
+        stride_halo = sh.get((rank, rank_variable), None)
+        if stride_halo is not None:
+            stride, _halo = stride_halo
+            if stride > 0:
+                rank_proj = projection[rank]
+                tile_in_rank = compute_rank_occupancy(rank_proj, current_shape)
+                child_result.partial_overlap_info[tensor] = (stride, tile_in_rank)
 
     # Reservation nodes are the first to produce stats for a network
     network_node = info.job.spec.arch.find_first_of_type_above(
@@ -1289,6 +1518,22 @@ def analyze_compute(
 ) -> SymbolicAnalysisOutput:
     einsum = info.mapping[-1].einsum
     node = info.mapping[node_idx]
+
+    if not info.is_copy_operation:
+        einsum_obj = info.workload.einsums[einsum]
+        untiled = {
+            rv: current_shape[rv]
+            for rv in einsum_obj.rank_variables
+            if rv in current_shape and current_shape[rv] != 1
+        }
+        if untiled:
+            dims = ", ".join(f"{rv}={sz}" for rv, sz in sorted(untiled.items()))
+            raise ValueError(
+                f"Mapping for einsum '{einsum}' does not tile all dimensions "
+                f"down to 1 at the compute level. Remaining shape: {dims}. "
+                f"Add Temporal loops with tile_shape=1 for these dimensions "
+                f"above the Compute node."
+            )
 
     computes = 0 if info.is_copy_operation else 1
 

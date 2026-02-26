@@ -9,6 +9,7 @@ from accelforge.frontend.arch import (
     Component,
     Arch,
     Container,
+    TensorHolder,
     Spatialable,
 )
 
@@ -17,6 +18,7 @@ from accelforge.frontend.variables import Variables
 from accelforge.frontend.config import Config
 from accelforge.frontend.mapping import Mapping
 from accelforge.frontend.model import Model
+from accelforge.frontend.sparse import SparseOptimizations, SparseTarget
 import hwcomponents
 
 from accelforge._accelerated_imports import pd
@@ -57,6 +59,42 @@ class Spec(EvalableModel):
 
     model: Model = Model()
     """Configures the model used to evaluate mappings."""
+
+    sparse_optimizations: SparseOptimizations = SparseOptimizations()
+    """Sparse tensor optimization configuration. Specifies compressed
+    representation formats, gating/skipping at storage levels, and
+    compute-level optimizations."""
+
+    @property
+    def effective_sparse_optimizations(self) -> SparseOptimizations:
+        """Merge explicit sparse_optimizations with inline arch component config.
+
+        Walks the arch tree and collects representation_format,
+        action_optimization, and compute_optimization from TensorHolder
+        and Compute nodes. Targets already present in the explicit
+        sparse_optimizations field take precedence.
+        """
+        targets = list(self.sparse_optimizations.targets)
+        explicit_names = {t.target for t in targets}
+        for component in self.arch.get_nodes_of_type(Component):
+            if component.name in explicit_names:
+                continue
+            rep_fmt = []
+            action_opt = []
+            compute_opt = []
+            if isinstance(component, TensorHolder):
+                rep_fmt = list(component.representation_format)
+                action_opt = list(component.action_optimization)
+            if isinstance(component, Compute):
+                compute_opt = list(component.compute_optimization)
+            if rep_fmt or action_opt or compute_opt:
+                targets.append(SparseTarget(
+                    target=component.name,
+                    representation_format=rep_fmt,
+                    action_optimization=action_opt,
+                    compute_optimization=compute_opt,
+                ))
+        return SparseOptimizations(targets=targets)
 
     def _eval_expressions(
         self,

@@ -1,0 +1,18 @@
+# Fig 15 Layer 3: GEMM M=128, K=1152, N=1024 (8-bit)
+# Z[M,N] = A[M,K] * B[N,K]
+
+workload:
+  iteration_space_shape:
+    m: 0 <= m < 128
+    k: 0 <= k < 1152
+    n: 0 <= n < 1024
+
+  bits_per_value: {All: 8}
+  densities: {A: {{ density_A | default(1.0) }}}
+
+  einsums:
+  - name: GEMM
+    tensor_accesses:
+    - {name: A, projection: [m, k]}
+    - {name: B, projection: [n, k]}
+    - {name: Z, projection: [m, n], output: true}

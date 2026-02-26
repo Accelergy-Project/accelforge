@@ -1,0 +1,47 @@
+{% set MainMemoryEnergy=MainMemoryEnergy | default(1) %}
+{% set GlobalBufferLatency=GlobalBufferLatency | default(0) %}
+
+# Sparse-ready variant of simple.yaml.
+# Adds a zero-cost register before compute so that every tensor has a child
+# buffet. Without this, SAF reductions at GlobalBuffer for input tensors
+# bypass the action-count model (read_actions = 0 at the lowest storage level
+# when there is no child). See IMPLEMENTATION_PLAN.md for details.
+
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: {{MainMemoryEnergy}}, latency: 0}
+    - {name: write, energy: {{MainMemoryEnergy}}, latency: 0}
+
+  - !Memory
+    name: GlobalBuffer
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~MainMemory, may_keep: All}
+    actions:
+    - {name: read, energy: 1, latency: {{GlobalBufferLatency}}}
+    - {name: write, energy: 1, latency: {{GlobalBufferLatency}}}
+
+  - !Memory
+    name: Reg
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, latency: 0}
+    - {name: write, energy: 0, latency: 0}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 1, latency: 1}

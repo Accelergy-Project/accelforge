@@ -1,0 +1,45 @@
+# EyerissV2 PE mapping for Layer 07 (M=64, E=32, F=32, C=64)
+# Translates Sparseloop factor-based mapping to AccelForge node list.
+#
+# Sparseloop BS loop nest (outer→inner): M=8, C=8, F=32, E=32
+# Sparseloop psum_spad loop nest: C=8, M=8 (inner)
+#
+# AccelForge placement strategy:
+# - weight_spad ABOVE E,F loops: Weights don't depend on E,F → E*F reuse
+# - iact_spad BELOW E,F loops: Inputs depend on E,F → refilled each (e,f)
+# - psum_spad BELOW E,F loops: Outputs depend on E,F → refilled each (e,f)
+# - M loop between reg and compute: Inputs don't depend on M → M reuse at reg
+
+mapping:
+  nodes:
+  # BackingStorage: all tensors at top level
+  - !Storage
+    tensors: [Inputs, Weights, Outputs]
+    component: BackingStorage
+
+  # BS outer loops: M tiling, C tiling
+  - !Temporal {rank_variable: m, tile_shape: 8}
+  - !Temporal {rank_variable: c, tile_shape: 8}
+
+  # weight_spad ABOVE E,F loops (Weights don't depend on E,F → 1024x reuse)
+  - !Storage {tensors: [Weights], component: weight_spad}
+
+  # BS inner loops: F, E (pixel iteration)
+  - !Temporal {rank_variable: f, tile_shape: 1}
+  - !Temporal {rank_variable: e, tile_shape: 1}
+
+  # iact_spad and psum_spad BELOW E,F loops
+  - !Storage {tensors: [Inputs], component: iact_spad}
+  - !Storage {tensors: [Outputs], component: psum_spad}
+
+  # psum_spad inner loop: C iteration
+  - !Temporal {rank_variable: c, tile_shape: 1}
+
+  # reg stores single Input element, reused across M iterations
+  - !Storage {tensors: [Inputs], component: reg}
+
+  # M loop between reg and compute: Inputs reused across M
+  - !Temporal {rank_variable: m, tile_shape: 1}
+
+  # Compute
+  - !Compute {einsum: GroupedConv, component: MAC}

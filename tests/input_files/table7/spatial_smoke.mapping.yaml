@@ -1,0 +1,37 @@
+# Spatial mapping: 4 PEs split along N dimension
+# MainMemory → temporal(m,2) → GlobalBuffer → spatial(n,1) × 4 PEs
+# → RegFile → temporal(m,1) → temporal(k,1) → MAC
+#
+# Each PE handles: m_tile=2, n_tile=1, k=2 → 4 ops/PE, 32 total
+# A[m,k]: doesn't depend on n → multicast across PEs (4x reuse)
+# B[k,n]: depends on n → unicast (each PE gets different B slice)
+# Z[m,n]: depends on n → unicast (each PE writes different Z slice)
+
+mapping:
+  nodes:
+  - !Storage
+    tensors: [A, B, Z]
+    component: MainMemory
+  - !Temporal
+    rank_variable: m
+    tile_shape: 2
+  - !Storage
+    tensors: [A, B, Z]
+    component: GlobalBuffer
+  - !Spatial
+    rank_variable: n
+    tile_shape: 1
+    name: X
+    component: PEArray
+  - !Storage
+    tensors: [A, B, Z]
+    component: RegFile
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Temporal
+    rank_variable: k
+    tile_shape: 1
+  - !Compute
+    einsum: Matmul
+    component: MAC

@@ -1,0 +1,27 @@
+# EyerissV2 PE workload: MobileNet0.5-sparse Layer 07
+# Grouped-CONV: Outputs[n,g,m,f,e] = Inputs[n,c,g,e+r,f+s] * Weights[c,m,g,r,s]
+# L07: M=64, E=32, F=32, C=64, R=1, S=1, N=1, G=1 (1x1 pointwise conv)
+
+workload:
+  iteration_space_shape:
+    r: 0 <= r < 1
+    s: 0 <= s < 1
+    e: 0 <= e < 32
+    f: 0 <= f < 32
+    c: 0 <= c < 64
+    m: 0 <= m < 64
+    n: 0 <= n < 1
+    g: 0 <= g < 1
+  bits_per_value: {~Outputs: 8, Outputs: 20}
+  einsums:
+  - name: GroupedConv
+    tensor_accesses:
+    - name: Inputs
+      projection: [n, c, g, e, f]
+      density: 0.73
+    - name: Weights
+      projection: [c, m, g, r, s]
+      density: 0.52
+    - name: Outputs
+      projection: [n, g, m, f, e]
+      output: true

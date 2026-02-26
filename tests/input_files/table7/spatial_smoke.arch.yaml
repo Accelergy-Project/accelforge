@@ -1,0 +1,49 @@
+# Simple spatial arch for smoke test: MainMemory → GlobalBuffer → 4-PE array → MAC
+# GlobalBuffer stores all tensors, then spatial fanout distributes to 4 PEs.
+
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: 1e9
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 100, bits_per_action: 16, latency: 0}
+    - {name: write, energy: 100, bits_per_action: 16, latency: 0}
+
+  - !Memory
+    name: GlobalBuffer
+    size: 1e6
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 1, bits_per_action: 16, latency: 0}
+    - {name: write, energy: 1, bits_per_action: 16, latency: 0}
+
+  - !Container
+    name: PEArray
+    spatial:
+    - {name: X, fanout: 4}
+
+  - !Memory
+    name: RegFile
+    size: 1e3
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.1, bits_per_action: 16, latency: 0}
+    - {name: write, energy: 0.1, bits_per_action: 16, latency: 0}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 1, latency: 1}

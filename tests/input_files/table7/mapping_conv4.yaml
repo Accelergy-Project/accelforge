@@ -1,0 +1,94 @@
+
+# Conv4 mapping for Eyeriss v1 (Table 7)
+# Sparseloop factors → AccelForge tile_shapes:
+# DRAM:     C=48→tile4, M=6→tile64
+# shared_glb spatial: Q=13 → 13 PEColumns (of 14 mesh)
+# shared_glb temporal: P=13→tile1
+# DummyBuffer temporal: N=4→tile1
+# DummyBuffer spatial: S=3→tile1, M=4→tile16 (12 of 12 PEs)
+# weights_spad: R=3→tile1, C=4→tile1
+# psum_spad: M=16→tile1
+
+mapping:
+  nodes:
+  # === DRAM level ===
+  - !Storage
+    tensors: [Weights, Inputs, Outputs]
+    component: DRAM
+
+  # DRAM temporal (outer→inner from reversed Sparseloop permutation RSP CMNQ)
+  - !Temporal
+    rank_variable: m
+    tile_shape: 64
+  - !Temporal
+    rank_variable: c
+    tile_shape: 4
+
+  # === shared_glb level ===
+  - !Storage
+    tensors: [Inputs, Outputs]
+    component: shared_glb
+
+  # shared_glb spatial → 13 PEColumns (Q=13)
+  - !Spatial
+    rank_variable: q
+    tile_shape: 1
+    name: X
+    component: PEColumns
+
+  # shared_glb temporal (outer→inner: P)
+  - !Temporal
+    rank_variable: p
+    tile_shape: 1
+
+  # === DummyBuffer pass-through ===
+  - !Toll
+    tensors: [Inputs, Weights, Outputs]
+    component: DummyBuffer
+
+  # DummyBuffer temporal: N=4
+  - !Temporal
+    rank_variable: n
+    tile_shape: 1
+
+  # DummyBuffer spatial → S×M = 3×4 = 12 PEs per column
+  - !Spatial
+    rank_variable: s
+    tile_shape: 1
+    name: Y
+    component: DummyBuffer
+  - !Spatial
+    rank_variable: m
+    tile_shape: 16
+    name: Y
+    component: DummyBuffer
+
+  # === PE-level storage ===
+  - !Storage
+    tensors: [Inputs]
+    component: ifmap_spad
+  - !Storage
+    tensors: [Weights]
+    component: weights_spad
+
+  # weights_spad temporal (outer→inner: R, C)
+  - !Temporal
+    rank_variable: r
+    tile_shape: 1
+  - !Temporal
+    rank_variable: c
+    tile_shape: 1
+
+  - !Storage
+    tensors: [Outputs]
+    component: psum_spad
+
+  # psum_spad temporal: M=16
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+
+  # === Compute ===
+  - !Compute
+    einsum: Conv
+    component: MACs
