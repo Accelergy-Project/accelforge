@@ -20,6 +20,7 @@ from accelforge.frontend.mapping import (
     TensorHolder,
     Temporal,
 )
+from accelforge.frontend.renames import Rank
 from accelforge.frontend.spec import Spec
 from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import (
@@ -249,55 +250,6 @@ def assert_proper_fusion_labeling(
         tensors.update(t.tensors)
 
 
-def get_initial_delta_choices(einsum_name: str, workload: Workload):
-    stride_and_halo = get_stride_and_halo(workload)
-    einsum = workload.einsums[einsum_name]
-
-    choices = defaultdict(lambda: set([0]))
-    consumer_chains = []
-    stack = [[(None, einsum)]]
-    while stack:
-        cur_chain = stack.pop()
-        last_tensor, last_einsum = cur_chain[-1]
-        for tensor in last_einsum.output_tensor_names:
-            einsums_with_tensor_as_input = workload.einsums_with_tensor_as_input(tensor)
-
-            if len(einsums_with_tensor_as_input) == 0:
-                consumer_chains.append(cur_chain)
-
-            for next_einsum in einsums_with_tensor_as_input:
-                stack.append(cur_chain + [(tensor, next_einsum)])
-
-    for chain in consumer_chains:
-        for (_, producer), (tensor, consumer) in zip(
-            list(reversed(chain))[1:], reversed(chain)
-        ):
-            rank_stride_and_halo = stride_and_halo[(consumer.name, tensor)]
-            if tensor is None:
-                break  # done
-
-            for cons_rank_var in consumer.rank_variables:
-                for prod_rank_var in producer.rank_variables:
-                    for cons_choice in choices[cons_rank_var]:
-                        if (prod_rank_var, cons_rank_var) not in rank_stride_and_halo:
-                            continue
-                        stride, halo = rank_stride_and_halo[
-                            (prod_rank_var, cons_rank_var)
-                        ]
-                        choices[prod_rank_var].add(cons_choice * stride + halo)
-
-    return choices
-
-
-def get_ranks_with_tile_pattern(producer_name: EinsumName, workload: Workload):
-    initial_choices = get_initial_delta_choices(producer_name, workload)
-    return {
-        rank_var
-        for rank_var in workload.einsums[producer_name].rank_variables
-        if len(initial_choices[rank_var]) > 1
-    }
-
-
 def iterate_mappings_no_constraints(
     spec: Spec,
     einsum_name: str,
@@ -313,11 +265,13 @@ def iterate_mappings_no_constraints(
     if first_memory is None:
         raise ValueError("No memory found in architecture")
 
-    ranks_with_tile_pattern = get_ranks_with_tile_pattern(einsum_name, spec.workload)
-
     einsum = spec.workload.einsums[einsum_name]
     symbol_table = {r.name: r.source for r in einsum.renames}
     fusable_tensors = job.fusable_tensors
+
+    ranks_with_tile_pattern = {
+        r for r, c in job.initial_delta_choices.items() if len(c) > 1
+    }
 
     fanouts = {}
     fanout = 1
@@ -433,13 +387,13 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
 
     job.tensor_to_relevancy = {
         tensor: get_rank_variable_relevancy(
-            job.spec.workload.einsums[job.einsum_name], tensor
+            job.spec_one_einsum.workload.einsums[job.einsum_name], tensor
         )
-        for tensor in job.spec.workload.einsums[job.einsum_name].tensor_names
+        for tensor in job.spec_one_einsum.workload.einsums[job.einsum_name].tensor_names
     }
 
     mappings_constraints = iterate_mappings_constraints(
-        job.spec,
+        job.spec_one_einsum,
         job.einsum_name,
         job.flattened_arch,
         job.rank_variable_bounds,
@@ -453,7 +407,9 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         )
 
     jobs = SameEinsumJobs()
-    only_output_pmapping_index = job.spec.mapper._only_output_pmapping_with_index
+    only_output_pmapping_index = (
+        job.spec_one_einsum.mapper._only_output_pmapping_with_index
+    )
     for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
         if only_output_pmapping_index is not None and i != only_output_pmapping_index:
             continue

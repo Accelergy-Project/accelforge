@@ -89,13 +89,13 @@ class Spatialable(EvalableModel):
         """The spatial fanout of this node."""
         return int(math.prod(x.fanout for x in self.spatial))
 
-    def get_fanout_along(self, dim_name: str, default: int=1) -> int:
+    def get_fanout_along(self, dim_name: str, default: int = 1) -> int:
         for s in self.spatial:
             if s.name == dim_name:
                 return s.fanout
         return default
 
-    def _get_physical_fanout_along(self, dim_name: str, default: int=1) -> int:
+    def _get_physical_fanout_along(self, dim_name: str, default: int = 1) -> int:
         for s in self._physical_spatial:
             if s.name == dim_name:
                 return s.fanout

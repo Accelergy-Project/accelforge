@@ -18,8 +18,11 @@ from accelforge.frontend.mapping import (
 )
 from accelforge.frontend.workload import Workload
 from accelforge.frontend._workload_isl._symbolic import (
-    get_stride_and_halo_of_einsum,
+    get_stride_and_halo,
     get_rank_variable_relevancy,
+)
+from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
+    get_initial_delta_choices,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
 
@@ -74,7 +77,7 @@ def evaluate_mapping(
     original_job = Job(
         metrics=spec.model.metrics,
         rank_variable_bounds=get_rank_variable_bounds_for_all_einsums(spec),
-        spec=spec,
+        spec_one_einsum=spec,
     )
 
     einsum2pmappings = {}
@@ -88,6 +91,7 @@ def evaluate_mapping(
     needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
 
     fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
+    stride_and_halo = get_stride_and_halo(spec.workload)
 
     assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
@@ -109,15 +113,14 @@ def evaluate_mapping(
                 compute_node=pmapping.nodes[-1].component
             )
 
-        job.spec = cur_spec
+        job.spec_one_einsum = cur_spec
         job.einsum_name = pmapping.nodes[-1].einsum
-        # Stride and halo depends on multiple einsums -> use spec.workload instead of
-        # cur_spec.workload (which only has one Einsum to speed up pickling during
-        # mapping)
-        job.stride_and_halo = get_stride_and_halo_of_einsum(
+        job.stride_and_halo = stride_and_halo
+        # spec, not cur_spec, becuase cur_spec only has one einsum and the delta choices
+        # depend on >1 Einsums
+        job.initial_delta_choices = get_initial_delta_choices(
             job.einsum_name, spec.workload
         )
-
         pmapping.split_reservations()
         pmapping.split_loop_with_multiple_rank_variables(job.einsum_name)
         pmapping.split_tensor_holders_with_multiple_tensors()
@@ -126,9 +129,11 @@ def evaluate_mapping(
         job.mapping = pmapping
         job.tensor_to_relevancy = {
             tensor: get_rank_variable_relevancy(
-                job.spec.workload.einsums[job.einsum_name], tensor
+                job.spec_one_einsum.workload.einsums[job.einsum_name], tensor
             )
-            for tensor in job.spec.workload.einsums[job.einsum_name].tensor_names
+            for tensor in job.spec_one_einsum.workload.einsums[
+                job.einsum_name
+            ].tensor_names
         }
         einsum2jobs[job.einsum_name] = job
 

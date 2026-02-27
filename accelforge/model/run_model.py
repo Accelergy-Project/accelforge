@@ -29,7 +29,7 @@ def run_model(
     add_reservations: bool = True,
 ) -> tuple[list[Symbol], dict[str, float], dict[str, float], dict[str, float]]:
     pmapping = job.mapping
-    spec = job.spec
+    spec = job.spec_one_einsum
     metrics = job.metrics
     is_copy_op = job.is_copy_operation
     workload = spec.workload

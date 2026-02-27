@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 
 from accelforge.frontend import arch
-from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo_of_einsum
+from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo
 from accelforge.frontend.renames import Rank, RankVariable
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.mapping import Loop, Mapping, TensorHolder
@@ -30,6 +30,7 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates import 
 )
 from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
+from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import get_initial_delta_choices
 from accelforge.util.parallel import (
     parallel,
     _memmap_read,
@@ -116,15 +117,17 @@ def get_jobs(
         einsum_name: EinsumName,
         spec: Spec,
         stride_and_halo: dict[
-            TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]
+            EinsumName,
+            dict[TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]],
         ],
+        initial_delta_choices_for_einsum: dict[RankVariable, frozenset[int]],
     ):
         jobs = {}
         workload_einsum = spec.workload.einsums[einsum_name]
         for flattened_arch in spec._get_flattened_architecture(einsum_name=einsum_name):
             # Create jobs for each Einsum
             job = Job(
-                spec=spec,
+                spec_one_einsum=spec,
                 einsum_name=einsum_name,
                 metrics=metrics,
                 rank_variable_bounds=rank_variable_bounds,
@@ -132,15 +135,17 @@ def get_jobs(
                 job_id=uuid.uuid4(),
                 fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
                 stride_and_halo=stride_and_halo,
+                initial_delta_choices=initial_delta_choices_for_einsum,
             )
             for j in make_pmapping_templates(job, print_progress):
                 jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
 
         return einsum_name, jobs
 
-    einsum2stride_and_halo = {
-        einsum_name: get_stride_and_halo_of_einsum(einsum_name, spec.workload)
-        for einsum_name, spec in einsum2spec.items()
+    stride_and_halo = get_stride_and_halo(spec.workload)
+    initial_delta_chocies = {
+        e: get_initial_delta_choices(e, spec.workload)
+        for e in spec.workload.einsum_names
     }
 
     for einsum_name, jobs in parallel(
@@ -148,7 +153,8 @@ def get_jobs(
             delayed(make_jobs_for_einsum)(
                 einsum_name,
                 spec._for_einsum(einsum_name),
-                einsum2stride_and_halo[einsum_name],
+                stride_and_halo,
+                initial_delta_chocies[einsum_name],
             )
             for einsum_name, spec in einsum2spec.items()
         ],
@@ -235,7 +241,7 @@ def get_memories_to_track(
         for einsum in einsum2jobs.keys():
             job = einsum2jobs[einsum][0]
             try:
-                mem: arch.Memory = job.spec.arch.find(memory)
+                mem: arch.Memory = job.spec_one_einsum.arch.find(memory)
             except ValueError:
                 continue
             for tensor in spec.workload.einsums[einsum].tensor_names:

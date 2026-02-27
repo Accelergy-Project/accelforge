@@ -38,8 +38,6 @@ def make_compatibility(
     mapping: Mapping,
     fusable_tensors: set[TensorName],
     workload: Workload,
-    rank_variable_bounds: dict[RankVariable, int],
-    stride_and_halo,
 ) -> Compatibility:
 
     einsum = workload.einsums[mapping.nodes[-1].einsum]
@@ -51,14 +49,18 @@ def make_compatibility(
 
 @dataclass
 class Job:
-    spec: Spec | None
+    spec_one_einsum: Spec | None
     metrics: Metrics
     rank_variable_bounds: dict[RankVariable, int]
 
     job_id: UUID = field(default_factory=uuid4)
 
     stride_and_halo: (
-        dict[TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]] | None
+        dict[
+            tuple[EinsumName, TensorName],
+            dict[tuple[Rank, RankVariable], tuple[int, int]],
+        ]
+        | None
     ) = None
     mapping: Mapping | None = None
     constraints: MappingConstraints | None = None
@@ -84,13 +86,13 @@ class Job:
     n_valid_pmappings: int = 1
     n_evaluated_pmappings: int = 0
 
-    _update_compatibility_with_tile_shapes_args: dict[str, Any] | None = None
-
     symbol_table: SymbolTable | None = None
+
+    initial_delta_choices: dict[RankVariable, frozenset[int]] | None = None
 
     @property
     def einsum(self) -> Einsum:
-        return self.spec.workload.einsums[self.einsum_name]
+        return self.spec_one_einsum.workload.einsums[self.einsum_name]
 
     @property
     def compatibility(self) -> Compatibility:
@@ -102,18 +104,6 @@ class Job:
     def compatibility(self, compatibility: Compatibility):
         self._compatibility = compatibility
 
-    def update_compatibility_with_tile_shapes(
-        self, tile_shapes: Sequence[Number], tensor2size: dict
-    ) -> Callable[[Sequence[Number], dict], Compatibility]:
-        if self._update_compatibility_with_tile_shapes_args is None:
-            self._make_compatibility_and_updater()
-        return update_compatibility_with_tile_shapes(
-            self._compatibility,
-            tile_shapes=tile_shapes,
-            tensor2size=tensor2size,
-            **self._update_compatibility_with_tile_shapes_args,
-        )
-
     def _make_compatibility_and_updater(self):
         from accelforge.model._looptree.reuse.symbolic import (
             quick_insert_reservation_nodes,
@@ -123,14 +113,12 @@ class Job:
         self._compatibility = make_compatibility(
             with_reservations,
             self.fusable_tensors,
-            self.spec.workload,
-            self.rank_variable_bounds,
-            self.stride_and_halo,
+            self.spec_one_einsum.workload,
         )
 
     @property
     def is_copy_operation(self) -> bool:
-        return self.spec.workload.einsums[self.einsum_name].is_copy_operation
+        return self.spec_one_einsum.workload.einsums[self.einsum_name].is_copy_operation
 
     @classmethod
     def make_job(
@@ -250,7 +238,10 @@ class SameEinsumJobs(SameSpecJobs):
     @property
     def stride_and_halo(
         self,
-    ) -> dict[tuple[str, str], dict[tuple[str, str], tuple[int, int]]]:
+    ) -> dict[
+        tuple[EinsumName, TensorName],
+        dict[tuple[Rank, RankVariable], tuple[int, int]],
+    ]:
         return first(self).stride_and_halo
 
     @property
@@ -271,12 +262,6 @@ class SameCompatibilityJobs(SameEinsumJobs):
     @property
     def compatibility(self) -> Compatibility:
         return first(self).compatibility
-
-    @property
-    def update_compatibility_with_tile_shapes(
-        self,
-    ) -> Callable[[Sequence[Number], dict], Compatibility]:
-        return first(self).update_compatibility_with_tile_shapes
 
     def split(self) -> list["SameCompatibilityJobs"]:
         return [SameCompatibilityJobs([j]) for j in self]

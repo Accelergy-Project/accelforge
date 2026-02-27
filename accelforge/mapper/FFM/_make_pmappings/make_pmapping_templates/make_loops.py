@@ -252,7 +252,6 @@ def insert_temporal_loops(
             # want to lower to reduce memory footprint, or raise to reduce number of
             # fused loops.
             elif s._backing and lowerable_backing and partially_relevant_to_previous:
-                assert False
                 lowering_choices.append((False, True))
                 permutable_partially_relevant |= partially_relevant_to_previous
             # No backing in previous. No cost to lowering. Lower all

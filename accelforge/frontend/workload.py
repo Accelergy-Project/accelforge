@@ -362,9 +362,7 @@ def _parse_projection(proj_str: str) -> dict | list:
                     f"Invalid projection key: {k}. Must be a valid ISL identifier. {s}"
                 )
             if k in result:
-                raise ValueError(
-                    f"Duplicate rank entry: {k}. Must be unique. {s}"
-                )
+                raise ValueError(f"Duplicate rank entry: {k}. Must be unique. {s}")
             result[k] = v
         else:
             if not part:
