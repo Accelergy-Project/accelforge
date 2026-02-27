@@ -8,6 +8,9 @@ from accelforge.mapper.FFM import make_pmappings
 from accelforge.mapper.FFM._make_pmappings.make_pmappings import make_pmappings
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import nameloop2col
 
+from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
+    get_initial_delta_choices,
+)
 from pmappingcache import make_pmapping_pickle_cache
 
 

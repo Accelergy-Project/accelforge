@@ -163,13 +163,13 @@ class TestFFMRegression(unittest.TestCase):
                 self.assertIn(
                     c,
                     cur[s],
-                    msg=f"{s2}, {c} not in {cur[s]}",
+                    msg=f"{s2} {c}: not in {cur[s]}",
                 )
                 self.assertAlmostEqual(
                     cur[s][c],
                     ref[s][c],
                     delta=1e-12,
-                    msg=f"{s2}, reference {ref[s][c]} -> current {cur[s][c]}",
+                    msg=f"{s2} {c}: reference {ref[s][c]} -> current {cur[s][c]}",
                 )
 
 

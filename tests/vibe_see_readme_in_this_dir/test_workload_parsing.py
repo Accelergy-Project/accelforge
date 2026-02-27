@@ -209,7 +209,6 @@ class TestParseEinsumString(unittest.TestCase):
         expected = {"B": "b", "M": "p", "H": "h", "E": "e"}
         self.assertEqual(k_tensor["projection"], expected)
 
-
     def test_copy_operation(self):
         result = _parse_einsum_string("I[b, m, d] = I_in[b, m, d]")
         self.assertEqual(result["name"], "I")

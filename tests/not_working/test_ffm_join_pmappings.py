@@ -58,7 +58,11 @@ class TestJoin(unittest.TestCase):
         flattened_arch = spec._get_flattened_architecture()
         pmapping_groups, decompress_data = make_pmappings(spec, flattened_arch)
         mappings = join_pmappings(
-            pmapping_groups, spec, flattened_arch, drop_valid_reservations=False, metrics=Metrics.ENERGY
+            pmapping_groups,
+            spec,
+            flattened_arch,
+            drop_valid_reservations=False,
+            metrics=Metrics.ENERGY,
         )
 
     def test_mha_full(self):
@@ -72,7 +76,9 @@ class TestJoin(unittest.TestCase):
             lambda: make_pmappings(spec, flattened_arch)
         )
 
-        mappings = join_pmappings(pmapping_groups, spec, flattened_arch, metrics=Metrics.ENERGY)
+        mappings = join_pmappings(
+            pmapping_groups, spec, flattened_arch, metrics=Metrics.ENERGY
+        )
 
     def test_mha_full_with_prejoin_pruning(self):
         config_names = ["snowcat.arch", "mha_full.workload", "mha.renames"]
@@ -88,7 +94,9 @@ class TestJoin(unittest.TestCase):
         untiled_compats = pmappings2untiled_compatibilities(pmapping_groups)
         einsum2important_compats = join_compatibilities(untiled_compats, spec)
 
-        mappings = join_pmappings(einsum2pruned_pmappings, spec, flattened_arch, metrics=Metrics.ENERGY)
+        mappings = join_pmappings(
+            einsum2pruned_pmappings, spec, flattened_arch, metrics=Metrics.ENERGY
+        )
 
     def test_mobilenet(self):
         config_names = [
@@ -104,4 +112,6 @@ class TestJoin(unittest.TestCase):
             lambda: make_pmappings(spec)
         )
 
-        mappings = join_pmappings(pmapping_groups, spec, flattened_arch, metrics=Metrics.ENERGY)
+        mappings = join_pmappings(
+            pmapping_groups, spec, flattened_arch, metrics=Metrics.ENERGY
+        )
