@@ -705,6 +705,11 @@ class Einsum(EvalableModel):
             **kwargs,
         )
 
+        # Update the renames with the new values
+        for k, v in rename_symbol_table.items():
+            if k not in evaluated.renames:
+                evaluated.renames.append(Rename(name=k, source=v))
+
         # Put these after the eval because they don't need eval and it slows things
         # down.
         all_renames = set(r.name for r in evaluated.renames)
@@ -722,11 +727,6 @@ class Einsum(EvalableModel):
                         source=InvertibleSet(instance=(), **kwargs_rank_variables),
                     )
                 )
-
-        # Update the renames with the new values
-        for k, v in rename_symbol_table.items():
-            if k not in evaluated.renames:
-                evaluated.renames.append(Rename(name=k, source=v))
 
         st.update(**{k.name: k.source for k in evaluated.renames})
 
