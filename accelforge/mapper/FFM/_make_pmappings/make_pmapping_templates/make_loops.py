@@ -48,23 +48,17 @@ def insert_temporal_loops(
     # - Between any two TensorHolder nodes
     # - After the last TensorHolder node
 
-    # The following logic is really just to make sure that all the storage nodse for the
+    # The following logic is really just to make sure that all the storage nodes for the
     # outermost memory are together at the beginning of the split mapping. After that,
     # each entries in the split mapping has a single TensorHolder.
-    split_mapping: list[list[TensorHolder]] = [[]]
+    split_mapping: list[list[TensorHolder]] = []
     for m in mapping:
         split_mapping.append([m])
         if len(split_mapping) > 1 and m.component == first_memory.name:
             split_mapping[-2].extend(split_mapping.pop(-1))
     for i, s in enumerate[list[TensorHolder | Spatial]](split_mapping):
         for m in s:
-            if i == 0 and m.component != first_memory.name:
-                raise ValueError(
-                    "The first TensorHolder in the mapping is not for the outermost "
-                    "memory. This isn't known to be invalid, but the code may not "
-                    "handle it."
-                )
-            elif i > 0 and m.component == first_memory.name:
+            if i > 0 and m.component == first_memory.name:
                 raise ValueError(
                     "First memory isn't at the top of the hierarchy. This isn't known"
                     "to be invalid, but the code may not handle it."
@@ -74,8 +68,6 @@ def insert_temporal_loops(
                     "Found Spatial node before any TensorHolder. This isn't known to "
                     "be invalid, but the code may not handle it."
                 )
-
-    split_mapping = [m for m in split_mapping if m]
 
     # These Einsum properties are recalculated since Einsum is mutable
     # We're pre-computing and reusing for efficiency
@@ -103,8 +95,19 @@ def insert_temporal_loops(
             return split_mapping[j]
         return []
 
-    prev_fanout = 1
-    someone_elses_spatials_may_be_placed_above = False
+    # If we want to lower the first storage node beneath loops, we put an empty list at
+    # the beginning of the split mapping & put loops between it and the first storage
+    # node. Do this if we can lower the outermost memory OR if the first storage node
+    # does not belong to the outermost memory (i.e., we completely bypass the outermost
+    # memory).
+    outermost_storage_name = None
+    for s in split_mapping:
+        if s and isinstance(s[0], TensorHolder):
+            outermost_storage_name = s[0].component
+            break
+    if _can_lower_outermost_memory or outermost_storage_name != first_memory.name:
+        split_mapping.insert(0, [])
+
     for i, prev_storages in enumerate(split_mapping):
         # =============================================================================
         # Choose what temporal loops to insert between prev_storages and the next
@@ -133,13 +136,11 @@ def insert_temporal_loops(
             [fanouts[s2.component] for s in split_mapping[:i] for s2 in s],
             default=float("inf"),
         )
-        min_fanout_after = min(
-            [fanouts[s2.component] for s in split_mapping[i + 1 :] for s2 in s],
-            default=0,
-        )
         cur_fanout = set(fanouts[s2.component] for s2 in prev_storages)
         next_fanout = set(fanouts[s2.component] for s2 in next_anything)
-        if len(next_fanout) == 0:
+        if len(cur_fanout) == 0:  # Happens if we're inserting above all storage nodes
+            cur_fanout.add(1)
+        if len(next_fanout) == 0:  # Happens if we're inserting below all storage nodes
             next_fanout.add(float("inf"))
         # Either it's main memory or we have one entry in the list, so there should only
         # be one
@@ -179,7 +180,7 @@ def insert_temporal_loops(
             # node's spatial loops below this one, because lowering would add move the
             # spatials down, which would constrain the temporals due to spatial-temporal
             # crossing.
-            if isinstance(prev_storages[0], Toll):
+            if prev_storages and isinstance(prev_storages[0], Toll):
                 rank_variables &= set()
 
             # Generally we want to only use rank variables that are irrelevant to the
@@ -277,10 +278,6 @@ def insert_temporal_loops(
                     rank_variables, permutable_partially_relevant, can_lower
                 )
             )
-        )
-        prev_fanout = cur_fanout
-        someone_elses_spatials_may_be_placed_above = (
-            someone_elses_spatials_may_be_placed_below
         )
 
     # ==================================================================================
