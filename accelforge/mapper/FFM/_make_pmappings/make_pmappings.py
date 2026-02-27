@@ -10,6 +10,8 @@ from tqdm import tqdm
 
 
 from accelforge.frontend import arch
+from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo_of_einsum
+from accelforge.frontend.renames import Rank, RankVariable
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.mapping import Loop, Mapping, TensorHolder
 from accelforge.frontend._workload_isl._isl import (
@@ -96,17 +98,27 @@ def get_jobs(
     for einsum_name in pbar:
         if print_progress:
             pbar.set_description(s + einsum_name)
-        einsum2spec[einsum_name] = spec._spec_eval_expressions(
-            einsum_name=einsum_name,
-            eval_arch=True,
-            eval_non_arch=False,
-        ).calculate_component_area_energy_latency_leak(
-            einsum_name=einsum_name,
-            area=False,
-        )._for_einsum(einsum_name)
+        einsum2spec[einsum_name] = (
+            spec._spec_eval_expressions(
+                einsum_name=einsum_name,
+                eval_arch=True,
+                eval_non_arch=False,
+            )
+            .calculate_component_area_energy_latency_leak(
+                einsum_name=einsum_name,
+                area=False,
+            )
+            ._for_einsum(einsum_name)
+        )
         einsum2spec[einsum_name] = _memmap_read(einsum2spec[einsum_name])
 
-    def make_jobs_for_einsum(einsum_name: EinsumName, spec: Spec):
+    def make_jobs_for_einsum(
+        einsum_name: EinsumName,
+        spec: Spec,
+        stride_and_halo: dict[
+            TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]
+        ],
+    ):
         jobs = {}
         workload_einsum = spec.workload.einsums[einsum_name]
         for flattened_arch in spec._get_flattened_architecture(einsum_name=einsum_name):
@@ -119,15 +131,25 @@ def get_jobs(
                 flattened_arch=_memmap_read(flattened_arch),
                 job_id=uuid.uuid4(),
                 fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
+                stride_and_halo=stride_and_halo,
             )
             for j in make_pmapping_templates(job, print_progress):
                 jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
 
         return einsum_name, jobs
 
+    einsum2stride_and_halo = {
+        einsum_name: get_stride_and_halo_of_einsum(einsum_name, spec.workload)
+        for einsum_name, spec in einsum2spec.items()
+    }
+
     for einsum_name, jobs in parallel(
         [
-            delayed(make_jobs_for_einsum)(einsum_name, spec._for_einsum(einsum_name))
+            delayed(make_jobs_for_einsum)(
+                einsum_name,
+                spec._for_einsum(einsum_name),
+                einsum2stride_and_halo[einsum_name],
+            )
             for einsum_name, spec in einsum2spec.items()
         ],
         pbar="Generating jobs" if print_progress else None,

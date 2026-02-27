@@ -41,6 +41,7 @@ def insert_temporal_loops(
     flattened_arch: list[arch.Leaf],
     max_fused_loops: int,
     fanouts: dict[str, int],
+    fusable_tensors: set[TensorName],
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -88,9 +89,6 @@ def insert_temporal_loops(
     tensor2rank_vars = einsum.tensor2rank_variables
     tensors = einsum.tensor_names
 
-    fusable_tensors = (
-        einsum.tensor_names & workload.tensor_names_used_in_multiple_einsums
-    )
     is_fused_loops = True
     seen_tensors = set()
     choices = []

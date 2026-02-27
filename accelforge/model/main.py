@@ -87,6 +87,8 @@ def evaluate_mapping(
 
     needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
 
+    fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
+
     assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
         einsum_name = pmapping.nodes[-1].einsum
@@ -109,8 +111,11 @@ def evaluate_mapping(
 
         job.spec = cur_spec
         job.einsum_name = pmapping.nodes[-1].einsum
+        # Stride and halo depends on multiple einsums -> use spec.workload instead of
+        # cur_spec.workload (which only has one Einsum to speed up pickling during
+        # mapping)
         job.stride_and_halo = get_stride_and_halo_of_einsum(
-            job.einsum_name, cur_spec.workload
+            job.einsum_name, spec.workload
         )
 
         pmapping.split_reservations()
@@ -132,10 +137,7 @@ def evaluate_mapping(
             m.name for m in flattened_arch if isinstance(m, Memory)
         ]
 
-        job.fusable_tensors = set(
-            cur_spec.workload.tensor_names_used_in_multiple_einsums
-            & set(job.tensor_to_relevancy)
-        )
+        job.fusable_tensors = fusable_tensors & set(job.tensor_to_relevancy)
         einsum = cur_spec.workload.einsums[job.einsum_name]
         rank_variable_to_ranks = {
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
@@ -159,18 +161,7 @@ def evaluate_mapping(
             einsum_name
         )
         for k, v in symbol_renames.items():
-            try:
-                df[v] = df.pop(k)
-            except:
-                Compatibility.from_mapping(
-                    job.mapping,
-                    job.fusable_tensors,
-                    rank_variable_to_ranks,
-                )
-                _calculate_iterations_and_rank_columns(
-                    job.mapping.nodes, job, df, job.rank_variable_bounds
-                )
-                raise
+            df[v] = df.pop(k)
 
         new_df = {}
         for key, value in df.items():

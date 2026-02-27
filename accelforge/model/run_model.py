@@ -100,12 +100,11 @@ def run_model(
         spec, actions, overall_latency, component_to_non_power_gated_porp
     )
 
-    fusable_tensors = workload.tensor_names_used_in_multiple_einsums
     tensor_to_backing = {}
     for node in pmapping.nodes:
         if isinstance(node, TensorHolder):
             for tensor in node.tensors:
-                if tensor not in tensor_to_backing and tensor in fusable_tensors:
+                if tensor not in tensor_to_backing and tensor in job.fusable_tensors:
                     tensor_to_backing[tensor] = node.component
 
     total_occupancy = {}

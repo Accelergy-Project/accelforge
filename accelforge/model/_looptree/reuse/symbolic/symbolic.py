@@ -673,9 +673,6 @@ def insert_reservation_nodes(
 ):
     trackers: list[ReservationAnalysisTracker] = []
     einsum = info.workload.einsums[mapping[-1].einsum]
-    non_intermediate_tensors = (
-        einsum.tensor_names - info.workload.tensor_names_used_in_multiple_einsums
-    )
     seen_tensors = set()  # reservation for top-level buffets cannot be lowered
 
     n_nodes = len(mapping)
@@ -729,7 +726,7 @@ def insert_reservation_nodes(
 
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
-                and buffet.tensor in info.workload.tensor_names_used_in_multiple_einsums
+                and buffet.tensor in fusable_tensors
             ):
                 info.tensor_to_reservation_backer_id[buffet.tensor] = id(node)
 

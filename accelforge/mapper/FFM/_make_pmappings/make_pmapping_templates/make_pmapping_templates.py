@@ -348,6 +348,7 @@ def iterate_mappings_no_constraints(
             flattened_arch,
             spec.mapper.max_fused_loops,
             fanouts,
+            fusable_tensors,
         ):
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(mapping, einsum, flattened_arch)
@@ -451,10 +452,6 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
             desc=f"Generating pmapping templates for compute {compute_name} Einsum {job.einsum_name}",
         )
 
-    stride_and_halo = get_stride_and_halo_of_einsum(
-        job.einsum_name, job.spec.workload, job.rank_variable_bounds
-    )
-
     jobs = SameEinsumJobs()
     only_output_pmapping_index = job.spec.mapper._only_output_pmapping_with_index
     for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
@@ -465,7 +462,6 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
         new_job.rank_variable_bounds = job.rank_variable_bounds
-        new_job.stride_and_halo = stride_and_halo
         new_job.compatibility
         jobs.append(new_job)
 
