@@ -303,6 +303,8 @@ class Evalable(Generic[M]):
     method, which is used to evaluate the object from a string.
     """
 
+    _validator: type = None
+
     def _eval_expressions(
         self, symbol_table: dict[str, Any] = None, **kwargs
     ) -> tuple[M, dict[str, Any]]:
@@ -321,6 +323,7 @@ class Evalable(Generic[M]):
         post_calls: tuple[_PostCall[T], ...],
         use_setattr: bool = True,
         already_evaluated: dict[str, Any] | None = None,
+        validator_from_parent: type | None = None,
         **kwargs,
     ) -> tuple["Evalable", dict[str, Any]]:
         self._evaluated = True
@@ -360,7 +363,12 @@ class Evalable(Generic[M]):
 
         for field in field_order:
             value = getattr(self, field) if use_setattr else self[field]
-            validator = self.get_validator(field)
+            if validator_from_parent is None:
+                validator = self.get_validator(field)
+            else:
+                validator = validator_from_parent
+            if validator == T:
+                raise EvaluationError(f"Validator is {validator} for field {field}")
             evaluated = eval_field(
                 field, value, validator, symbol_table, self, **kwargs
             )
@@ -598,10 +606,30 @@ def eval_field(
             evaluated = value
 
         if isinstance(evaluated, Evalable) and origin is not NoParse:
+            child_validator = None
+            if isinstance(evaluated, EvalableList):
+                validator_args = get_args(validator)
+                if len(validator_args) == 1:
+                    child_validator = validator_args[0]
+                else:
+                    raise EvaluationError(
+                        f"Expected exactly one type argument for EvalableList, got "
+                        f"{len(validator_args)}"
+                    )
+            if isinstance(evaluated, EvalableDict):
+                validator_args = get_args(validator)
+                if len(validator_args) == 2:
+                    child_validator = validator_args[1]
+                else:
+                    raise EvaluationError(
+                        f"Expected exactly two type arguments for EvalableDict, got "
+                        f"{len(validator_args)}"
+                    )
             evaluated, _ = evaluated._eval_expressions(
                 symbol_table=symbol_table,
                 must_copy=must_copy,
                 musteval_tryeval_to=musteval_tryeval_to,
+                validator_from_parent=child_validator,
                 **kwargs,
             )
             return evaluated
@@ -846,7 +874,7 @@ class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
     """
 
     def get_validator(self, field: str) -> Type:
-        return T
+        return T if self._validator is None else self._validator
 
     def _eval_expressions(
         self,
@@ -952,7 +980,7 @@ class EvalableDict(
     """
 
     def get_validator(self, field: str) -> type:
-        return V
+        return V if self._validator is None else self._validator
 
     def get_fields(self) -> list[str]:
         return sorted(self.keys())
