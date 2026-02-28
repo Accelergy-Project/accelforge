@@ -710,7 +710,7 @@ def join_pmappings(
     return mappings
 
 
-def _check_einsum2pmappings_not_empty(einsum2pmappings, pmappings):
+def _check_einsum2pmappings_not_empty(einsum2pmappings: dict[EinsumName, list[PmappingGroup]], pmappings: MultiEinsumPmappings):
     for einsum_name, einsum_pmappings in einsum2pmappings.items():
         total = sum(len(p.mappings.data) for p in einsum_pmappings)
         n_compatibilities = len(einsum_pmappings)
@@ -719,11 +719,17 @@ def _check_einsum2pmappings_not_empty(einsum2pmappings, pmappings):
         )
         if total == 0:
             if einsum_name in pmappings.einsums_with_pmappings_generated:
+                keep_rates = pmappings.pmapping_keep_rates(per_einsum=True)[einsum_name]
+                keep_rates_text = "\n\t".join(
+                    f"{k}: {v:.2e}" for k, v in keep_rates.items()
+                )
                 raise ValueError(
                     f"Einsum {einsum_name} has no pmappings. This likely means that "
                     f"no pmappings satisfied constraints for the Einsum. Please check "
                     f"the stats outputs from the MultiEinsumPmappings object returned "
-                    f"by `af.mapper.FFM.make_pmappings(spec)`."
+                    f"by `af.mapper.FFM.make_pmappings(spec)`. The following are the "
+                    f"keep rates (porportion of pmappings that are NOT pruned) for "
+                    f"various causes of pmapping removal:\n\t{keep_rates_text}"
                 )
 
             raise ValueError(
