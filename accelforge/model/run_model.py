@@ -12,6 +12,7 @@ from accelforge.model._looptree.energy import (
 )
 from accelforge.model._looptree.latency.memory import component_latency
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
+    memory_usage2col,
     nameloop2col,
     tensor2col,
     firstlatency2col,
@@ -132,6 +133,10 @@ def run_model(
         total_occupancy[buffet.level][stats.n_loops_above] += occupancy
         n_loop_options.add(stats.n_loops_above)
 
+        if metrics & Metrics.DETAILED_MEMORY_USAGE:
+            key = memory_usage2col(buffet.level, buffet.tensor)
+            df[key] = occupancy / memory_to_size[buffet.level]
+
     for memory, occupancies in total_occupancy.items():
         if memory not in job.memories_track_all:
             continue
@@ -142,6 +147,12 @@ def run_model(
                 df[nameloop2col(memory, n_loop)] = (
                     running_total / memory_to_size[memory]
                 )
+
+    if metrics & Metrics.DETAILED_MEMORY_USAGE:
+        for buffet, stats in reuse.buffet_stats.items():
+            if buffet.level == compute_unit:
+                continue
+            occupancy = stats.max_occupancy
 
     if metrics & Metrics.ACTIONS:
         detailed_actions = gather_actions(reuse, None, verbose=True, use_name=True)
@@ -182,8 +193,8 @@ def run_model(
             per_memory_spatial_usage_df[key] = (
                 sum(occupancies.values()) / memory_to_size[memory]
             )
-        if metrics & Metrics.ACTIONS:
-            df[key] = sum(occupancies.values()) / memory_to_size[memory]
+        # if metrics & Metrics.ACTIONS:
+        #     df[key] = sum(occupancies.values()) / memory_to_size[memory]
 
     if symbolic.PRINT_FORMULAS:
         for k, v in energy.items():

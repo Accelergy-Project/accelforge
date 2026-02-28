@@ -7,6 +7,21 @@ from accelforge.frontend.workload import Rank
 from accelforge.util._base_analysis_types import ActionKey, VerboseActionKey
 
 
+class ColName(str):
+    def __truediv__(self, other: "ColName"):
+        if not isinstance(other, ColName):
+            raise ValueError(f"{other} must be a ColName")
+        return ColName(f"{self}{SEP}{other}")
+
+
+# Keywords
+SEP = "<SEP>"
+ACTION = ColName("action")
+TOTAL = ColName("Total")
+USAGE = ColName("usage")
+MEMORY = ColName("memory")
+
+
 MAPPING_COLUMN = "mapping"
 COMPRESSED_INDEX = "compressed_index"
 TILE_SHAPE_PREFIX = "tile_shape"
@@ -33,7 +48,7 @@ def dict_cached(func):
 
 
 def partition_col(col, prefix, expected_len=None) -> list[str] | None:
-    col = col.split("<SEP>")
+    col = col.split(SEP)
     if col[0] != prefix:
         return None
     if expected_len is not None and len(col) != expected_len:
@@ -42,6 +57,24 @@ def partition_col(col, prefix, expected_len=None) -> list[str] | None:
             f"but got {len(col)}"
         )
     return col[1:]
+
+
+@dict_cached
+def memory_usage2col(memory_level: str, tensor: str) -> str:
+    return f"usage<SEP>memory<SEP>{memory_level}<SEP>{tensor}"
+
+
+@dict_cached
+def col2memory_usage(col: str) -> tuple[str, str, str]:
+    """Returns a tuple (memory_level, tensor, einsum)."""
+    separated_names = col.split(SEP)
+    assert len(separated_names) == 5, f"invalid column {col}"
+    einsum = separated_names[0]
+    assert separated_names[1] == "usage"
+    assert separated_names[2] == "memory"
+    memory = separated_names[3]
+    tensor = separated_names[4]
+    return memory, tensor, einsum
 
 
 @dict_cached
@@ -54,7 +87,7 @@ def action2col(action: ActionKey | VerboseActionKey) -> str:
 
 @dict_cached
 def col2action(colname: str) -> ActionKey | VerboseActionKey:
-    separated_names = colname.split("<SEP>")
+    separated_names = colname.split(SEP)
     if len(separated_names) == 4:
         assert separated_names[0] == "action"
         return ActionKey(separated_names[1], separated_names[2])
@@ -80,7 +113,7 @@ def energy2col(action: ActionKey | VerboseActionKey) -> str:
 
 @dict_cached
 def col2energy(colname: str) -> ActionKey | VerboseActionKey:
-    separated_names = colname.split("<SEP>")
+    separated_names = colname.split(SEP)
     if len(separated_names) == 4:
         assert separated_names[1] == "energy", colname
         return ActionKey(separated_names[2], separated_names[3])

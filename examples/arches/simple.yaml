@@ -1,5 +1,6 @@
 {% set MainMemoryEnergy=MainMemoryEnergy | default(1) %}
 {% set GlobalBufferLatency=GlobalBufferLatency | default(0) %}
+{% set GlobalBufferSize=GlobalBufferSize | default(inf) %}
 
 arch:
   nodes:
@@ -15,7 +16,7 @@ arch:
 
   - !Memory
     name: GlobalBuffer
-    size: inf #100e6
+    size: {{GlobalBufferSize}}
     leak_power: 0
     area: 0
     tensors: {keep: ~MainMemory, may_keep: All}
