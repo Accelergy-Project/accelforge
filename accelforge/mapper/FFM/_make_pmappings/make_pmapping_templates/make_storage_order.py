@@ -104,7 +104,13 @@ def get_tensor_order_constraint(nodes, symbol_table, tensors):
     for node in nodes:
         if isinstance(node, arch.Container):
             continue
-        for order_constraint in node.tensors.tensor_order_options:
+        node_tensors: arch.Tensors = node.tensors._eval_expressions(
+            symbol_table=symbol_table,
+            musteval_tryeval_to=True,
+            must_copy=False,
+            location=f"arch.{node.name}.tensors",
+        )[0]
+        for order_constraint in node_tensors.tensor_order_options:
             order = Order()
             for together_tensors in order_constraint:
                 in_mapping_together_tensors = [
