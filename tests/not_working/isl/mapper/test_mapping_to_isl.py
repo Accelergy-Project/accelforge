@@ -81,14 +81,9 @@ class TestMappingToIsl(unittest.TestCase):
         for buffer, occupancy in occupancies.buffet_to_occupancy.items():
             try:
                 soln = solns[repr(buffer)]
-                assert (
-                    occupancy.map_ == soln
-                ), (
-                    f"{buffer} should hold:\n" +
-                    f"{soln}\n" +
-                    f"instead holds:\n"
-                    f"{occupancy.map_}\n" +
-                    '-'*3
+                assert occupancy.map_ == soln, (
+                    f"{buffer} should hold:\n" + f"{soln}\n" + f"instead holds:\n"
+                    f"{occupancy.map_}\n" + "-" * 3
                 )
             except (AssertionError, KeyError) as e:
                 errors.append(e)
@@ -105,6 +100,6 @@ class TestMappingToIsl(unittest.TestCase):
 
         if len(errors) != 0:
             for e in errors:
-                print('#' * 15)
+                print("#" * 15)
                 print(e)
             raise ValueError("There were errors in the two_conv1d results (see logs)")

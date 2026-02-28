@@ -316,7 +316,7 @@ def valid_tensor_holder_order(
                         continue
 
                     good = True
-                    for t1, t2 in product(mapping[i].tensors, mapping[j].tensors):
+                    for t1, t2 in product(m0.tensors, m1.tensors):
                         idx_of_i_in_order = order_choice.index(t1)
                         idx_of_j_in_order = order_choice.index(t2)
 

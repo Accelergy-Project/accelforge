@@ -427,7 +427,7 @@ class AnalysisInfo:
 
 def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
     mapping = list(job.mapping.nodes)
-    workload = job.spec.workload
+    workload = job.spec_one_einsum.workload
 
     # TODO: Subclass reservation with TensorReservation or something so that we can
     # track which are for tensors and which are for non-tensor resources.
@@ -492,7 +492,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
     add_reservations: bool = True,
 ) -> SymbolicAnalysisOutput:
     mapping = job.mapping.nodes
-    workload = job.spec.workload
+    workload = job.spec_one_einsum.workload
     einsum_name = mapping[-1].einsum
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
@@ -673,9 +673,6 @@ def insert_reservation_nodes(
 ):
     trackers: list[ReservationAnalysisTracker] = []
     einsum = info.workload.einsums[mapping[-1].einsum]
-    non_intermediate_tensors = (
-        einsum.tensor_names - info.workload.tensor_names_used_in_multiple_einsums
-    )
     seen_tensors = set()  # reservation for top-level buffets cannot be lowered
 
     n_nodes = len(mapping)
@@ -729,7 +726,7 @@ def insert_reservation_nodes(
 
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
-                and buffet.tensor in info.workload.tensor_names_used_in_multiple_einsums
+                and buffet.tensor in fusable_tensors
             ):
                 info.tensor_to_reservation_backer_id[buffet.tensor] = id(node)
 
@@ -1284,7 +1281,7 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     child_result.buffet_stats[buffet] = stats
 
     # Reservation nodes are the first to produce stats for a network
-    network_node = info.job.spec.arch.find_first_of_type_above(
+    network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(
         NetworkSpec, buffet.level, default=None
     )
     if network_node is not None:
@@ -1339,7 +1336,7 @@ def analyze_compute(
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 
-        network_node = info.job.spec.arch.find_first_of_type_above(
+        network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(
             NetworkSpec, node.component, default=None
         )
         if network_node is not None:
@@ -1478,8 +1475,9 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
             continue
 
         stride_halos = set()
-        for t in job.spec.workload.einsums[job.einsum_name].tensor_names:
-            for (rank, rank_variable), (stride, halo) in job.stride_and_halo[t].items():
+        for t in job.spec_one_einsum.workload.einsums[job.einsum_name].tensor_names:
+            cur_stride_halo = job.stride_and_halo[job.einsum_name, t]
+            for (rank, rank_variable), (stride, halo) in cur_stride_halo.items():
                 if rank_variable == node.rank_variable:
                     stride_halos.add((stride, halo))
 

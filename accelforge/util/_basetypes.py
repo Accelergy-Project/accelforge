@@ -894,7 +894,7 @@ class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
             ]
         )
 
-    def __getitem__(self, key: str | int | slice) -> T:
+    def __getitem__(self, key: str | int | slice, _pretty_error: bool = False) -> T:
         if isinstance(key, int):
             return super().__getitem__(key)  # type: ignore
 
@@ -925,14 +925,16 @@ class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
             )
             for x in self
         ]
+        if not _pretty_error:
+            raise KeyError("BUG. You shouldn't be seeing this.")
         fields = sorted(str(x) for x in fields if x is not None)
         raise KeyError(
-            f'No element with name "{key}" found. Available names: {', '.join(fields)}'
+            f'No element with name "{key}" found. Available names: {", ".join(fields)}'
         )
 
     def __contains__(self, item: Any) -> bool:
         try:
-            self[item]
+            self.__getitem__(item, _pretty_error=False)
             return True
         except KeyError:
             return super().__contains__(item)

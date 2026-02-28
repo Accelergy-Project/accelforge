@@ -3,6 +3,7 @@ from numbers import Number
 
 from sympy import Symbol
 
+from accelforge.frontend.renames import EinsumName, TensorName, Rank, RankVariable
 from accelforge.frontend.workload import Workload
 from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo
 from accelforge.frontend.mapping import (
@@ -121,12 +122,10 @@ class SymbolRelations:
 
     @staticmethod
     def from_pmapping_and_shape(
-        pmapping: Mapping, shape: dict[str, int], workload: Workload
+        pmapping: Mapping,
+        shape: dict[str, int],
+        initial_delta_choices: dict[Symbol, frozenset[int]],
     ) -> "SymbolRelations":
-        initial_delta_choices = get_initial_delta_choices(
-            pmapping.nodes[-1].einsum, workload
-        )
-
         relation = SymbolRelations()
         last_seen_loop_per_rank_var: dict[str, Symbol | int] = dict(shape)
         for node in pmapping.nodes:

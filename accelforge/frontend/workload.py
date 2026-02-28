@@ -315,9 +315,12 @@ def _parse_einsum_string(einsum_str: str) -> dict:
 
     def update(match: tuple, is_output: bool):
         name, proj = match
-        tensor_accesses.append(
-            {"name": name, "projection": _parse_projection(proj), "output": is_output}
-        )
+        try:
+            proj = _parse_projection(proj)
+        except ValueError as e:
+            e.add_note(f"Problem Einsum string: {original}")
+            raise
+        tensor_accesses.append({"name": name, "projection": proj, "output": is_output})
 
     output_name = match.group(1)
     rhs = match.group(3)
@@ -341,18 +344,35 @@ def _parse_projection(proj_str: str) -> dict | list:
 
     parts = [p.strip() for p in proj_str.split(",")]
 
-    eq_pattern = re.compile(r"^([A-Za-z_]\w*):([A-Za-z_]\w*)$")
-    id_pattern = re.compile(r"^[A-Za-z_]\w*$")
-
     result = {}
 
+    s = f"Erroneous projection: {proj_str}."
+
     for part in parts:
-        if (eq_match := eq_pattern.match(part)) is not None:
-            result[eq_match.group(1)] = eq_match.group(2)
-        elif id_pattern.match(part):
-            result[part.upper()] = part
+        if ":" in part:
+            split = part.split(":")
+            if len(split) != 2:
+                raise ValueError(
+                    f"Invalid projection: {part}. Must be of the form "
+                    '"rank: projection expression".'
+                )
+            k, v = split
+            if not re.fullmatch(_ISL_REGEX, k):
+                raise ValueError(
+                    f"Invalid projection key: {k}. Must be a valid ISL identifier. {s}"
+                )
+            if k in result:
+                raise ValueError(f"Duplicate rank entry: {k}. Must be unique. {s}")
+            result[k] = v
         else:
-            raise ValueError(f"Invalid projection element: {part}")
+            if not part:
+                raise ValueError(f"Empty projection entry. {s}")
+            if not re.fullmatch(_ISL_REGEX, part.upper()):
+                raise ValueError(
+                    f"Invalid projection value: {part.upper()}. The uppercased form of "
+                    f"entry {part} must be a valid ISL identifier. {s}"
+                )
+            result[part.upper()] = part
 
     return result
 
@@ -615,7 +635,6 @@ class Einsum(EvalableModel):
                 full_space=all_rank_variables,
                 space_type=RankVariable,
             )
-
         intermediates = {
             t
             for t in all_
@@ -662,16 +681,6 @@ class Einsum(EvalableModel):
             # "Above": InvertibleSet(instance=(), **kwargs_tensors),
         }
 
-        for t in workload.tensor_names:
-            if t not in rename_symbol_table:
-                rename_symbol_table[t] = InvertibleSet(instance=(), **kwargs_tensors)
-
-        for r in workload.rank_variables:
-            if r not in rename_symbol_table:
-                rename_symbol_table[r] = InvertibleSet(
-                    instance=(), **kwargs_rank_variables
-                )
-
         st = {**rename_symbol_table, **symbol_table}
 
         self: Einsum = self.model_copy()
@@ -689,13 +698,33 @@ class Einsum(EvalableModel):
         # Parse me!
         kwargs["musteval_tryeval_to"] = True
         evaluated, _ = super(self.__class__, self)._eval_expressions(
-            st, *args, **kwargs
+            st,
+            *args,
+            **kwargs,
         )
 
         # Update the renames with the new values
         for k, v in rename_symbol_table.items():
             if k not in evaluated.renames:
                 evaluated.renames.append(Rename(name=k, source=v))
+
+        # Put these after the eval because they don't need eval and it slows things
+        # down.
+        all_renames = set(r.name for r in evaluated.renames)
+        for t in workload.tensor_names:
+            if t not in all_renames:
+                evaluated.renames.append(
+                    Rename(name=t, source=InvertibleSet(instance=(), **kwargs_tensors))
+                )
+
+        for r in workload.rank_variables:
+            if r not in all_renames:
+                evaluated.renames.append(
+                    Rename(
+                        name=r,
+                        source=InvertibleSet(instance=(), **kwargs_rank_variables),
+                    )
+                )
 
         st.update(**{k.name: k.source for k in evaluated.renames})
 
@@ -797,6 +826,12 @@ class Workload(EvalableModel):
     Set expression for identifying persistent tensors. Evaluated per-Einsum to mark
     matching tensors as persistent. Example: "weight" or "~(Outputs | Intermediates)".
     """
+
+    def _for_einsum(self, einsum_name: EinsumName) -> "Workload":
+        """Return a copy of the workload with only the Einsum with the given name."""
+        new = self.model_copy(deep=False)
+        new.einsums = EvalableList([e for e in new.einsums if e.name == einsum_name])
+        return new
 
     def __init__(self, **data):
         if "einsums" in data and data["einsums"]:
@@ -1042,6 +1077,9 @@ class Workload(EvalableModel):
         bits_per_value_per_einsum = {}
         bits_per_value = {}
         for einsum in evaluated.einsums:
+            for t, bpv in bits_per_value.items():
+                einsum.renames[t].source.bits_per_value = bpv
+
             cur_bpv = {t.name: t.bits_per_value for t in einsum.tensor_accesses}
             # Check for consistency across Einsums
             for prev_einsum, prev_bpv in bits_per_value_per_einsum.items():
@@ -1051,27 +1089,31 @@ class Workload(EvalableModel):
                     b1 = prev_bpv[t]
                     if b0 != b1:
                         raise ValueError(
-                            f"Tensor {t} has bits per value {b0} in Einsum {einsum.name} "
-                            f"and {b1} in Einsum {prev_einsum}. Bits per value must be "
-                            "consistent across all Einsums that access a tensor."
+                            f"Tensor {t} has bits per value {b0} in Einsum "
+                            f"{einsum.name} and {b1} in Einsum {prev_einsum}. Bits per "
+                            "value must be consistent across all Einsums that access "
+                            "a tensor."
                         )
             bits_per_value_per_einsum[einsum.name] = cur_bpv
             bits_per_value.update(cur_bpv)
 
         for einsum in evaluated.einsums:
-            for t, bpv in bits_per_value.items():
-                einsum.renames[t].source.bits_per_value = bpv
-
-                for r in einsum.renames:
-                    src: InvertibleSet = r.source
-                    if (
-                        isinstance(src, InvertibleSet)
-                        and len(src) == 1
-                        and src.space_type == TensorName
-                        and next(iter(src)) in bits_per_value
-                    ):
-                        src.bits_per_value = bits_per_value[next(iter(src))]
-
+            for r in einsum.renames:
+                if (
+                    isinstance(r.source, InvertibleSet)
+                    and len(r.source) == 1
+                    and r.source.space_type == TensorName
+                    and next(iter(r.source)) in bits_per_value
+                ):
+                    source = next(iter(r.source))
+                    if source in bits_per_value:
+                        r.source.bits_per_value = bits_per_value[source]
+                    else:
+                        raise ValueError(
+                            f"Tensor {source} has no bits per value in the "
+                            f"workload. Bits per value must be specified for all "
+                            "tensors."
+                        )
         evaluated._check_consistent_persistent()
 
         return evaluated, symbol_table

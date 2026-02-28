@@ -18,8 +18,11 @@ from accelforge.frontend.mapping import (
 )
 from accelforge.frontend.workload import Workload
 from accelforge.frontend._workload_isl._symbolic import (
-    get_stride_and_halo_of_einsum,
+    get_stride_and_halo,
     get_rank_variable_relevancy,
+)
+from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
+    get_initial_delta_choices,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
 
@@ -74,7 +77,7 @@ def evaluate_mapping(
     original_job = Job(
         metrics=spec.model.metrics,
         rank_variable_bounds=get_rank_variable_bounds_for_all_einsums(spec),
-        spec=spec,
+        spec_one_einsum=spec,
     )
 
     einsum2pmappings = {}
@@ -86,6 +89,9 @@ def evaluate_mapping(
     )
 
     needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
+
+    fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
+    stride_and_halo = get_stride_and_halo(spec.workload)
 
     assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
@@ -107,12 +113,14 @@ def evaluate_mapping(
                 compute_node=pmapping.nodes[-1].component
             )
 
-        job.spec = cur_spec
+        job.spec_one_einsum = cur_spec
         job.einsum_name = pmapping.nodes[-1].einsum
-        job.stride_and_halo = get_stride_and_halo_of_einsum(
-            job.einsum_name, cur_spec.workload
+        job.stride_and_halo = stride_and_halo
+        # spec, not cur_spec, becuase cur_spec only has one einsum and the delta choices
+        # depend on >1 Einsums
+        job.initial_delta_choices = get_initial_delta_choices(
+            job.einsum_name, spec.workload
         )
-
         pmapping.split_reservations()
         pmapping.split_loop_with_multiple_rank_variables(job.einsum_name)
         pmapping.split_tensor_holders_with_multiple_tensors()
@@ -121,9 +129,11 @@ def evaluate_mapping(
         job.mapping = pmapping
         job.tensor_to_relevancy = {
             tensor: get_rank_variable_relevancy(
-                job.spec.workload.einsums[job.einsum_name], tensor
+                job.spec_one_einsum.workload.einsums[job.einsum_name], tensor
             )
-            for tensor in job.spec.workload.einsums[job.einsum_name].tensor_names
+            for tensor in job.spec_one_einsum.workload.einsums[
+                job.einsum_name
+            ].tensor_names
         }
         einsum2jobs[job.einsum_name] = job
 
@@ -132,10 +142,7 @@ def evaluate_mapping(
             m.name for m in flattened_arch if isinstance(m, Memory)
         ]
 
-        job.fusable_tensors = set(
-            cur_spec.workload.tensor_names_used_in_multiple_einsums
-            & set(job.tensor_to_relevancy)
-        )
+        job.fusable_tensors = fusable_tensors & set(job.tensor_to_relevancy)
         einsum = cur_spec.workload.einsums[job.einsum_name]
         rank_variable_to_ranks = {
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
@@ -159,18 +166,7 @@ def evaluate_mapping(
             einsum_name
         )
         for k, v in symbol_renames.items():
-            try:
-                df[v] = df.pop(k)
-            except:
-                Compatibility.from_mapping(
-                    job.mapping,
-                    job.fusable_tensors,
-                    rank_variable_to_ranks,
-                )
-                _calculate_iterations_and_rank_columns(
-                    job.mapping.nodes, job, df, job.rank_variable_bounds
-                )
-                raise
+            df[v] = df.pop(k)
 
         new_df = {}
         for key, value in df.items():

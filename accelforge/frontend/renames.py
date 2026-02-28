@@ -148,3 +148,11 @@ class Renames(EvalableModel):
                 if rank_variable_rename.name not in rename.rank_variables:
                     rename.rank_variables.append(rank_variable_rename)
         return rename
+
+    def _for_einsum(self, einsum_name: EinsumName) -> "Renames":
+        """Return a copy of the renames with only the Einsum with the given name."""
+        new = self.model_copy(deep=False)
+        new.einsums = [
+            e for e in new.einsums if e.name == einsum_name or e.name == "default"
+        ]
+        return new

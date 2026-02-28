@@ -252,9 +252,6 @@ def join_pmappings(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
-    # 0.6-14 1.0-10 0.8-12
-    # pmapping_groups['K'][0].mappings.data
-    # pmapping_groups['K'][1].mappings.data
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = set()
@@ -619,6 +616,7 @@ def join_pmappings(
         # If we delayed the mapping merging, do it now.
         # ======================================================================
         import copy
+
         prev_combined = copy.deepcopy(combined)
         if DELAY:
             mappings = parallel(

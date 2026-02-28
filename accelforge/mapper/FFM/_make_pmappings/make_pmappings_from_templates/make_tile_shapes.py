@@ -1250,7 +1250,7 @@ def get_tile_shape_choices(
         symbols_non_enumerated_set = set(symbols) - set(symbols_enumerated)
         sym_enumerated_set = set(symbols_enumerated)
 
-        if job.spec.mapper._count_option_for_mapsapce_size_evaluation != ():
+        if job.spec_one_einsum.mapper._count_option_for_mapsapce_size_evaluation != ():
             log_message(
                 "Skipping because we're counting options for space size evaluation",
                 f"{choices_enumerated.shape[0]} -> 1",
@@ -1606,7 +1606,7 @@ def _calculate_iterations_and_rank_columns(
         df[f"lower_iterations<SEP>{nloops}"] = outer_stride - rank_var_initial
 
         # Generate rank columns
-        einsum: Einsum = job.spec.workload.einsums[job.einsum_name]
+        einsum: Einsum = job.spec_one_einsum.workload.einsums[job.einsum_name]
         for tensor_access in einsum.tensor_accesses:
             tensor = tensor_access.name
             projections = get_projection_expr(einsum, tensor)
@@ -1648,7 +1648,9 @@ def _make_tile_shapes(job: "Job"):
     model_time = time.time() - t0
     shape = job.rank_variable_bounds
     what_tiles_symbol = SymbolRelations.from_pmapping_and_shape(
-        pmapping, shape, job.spec.workload
+        pmapping,
+        shape,
+        job.initial_delta_choices,
     )
     keep_symbols = make_keep_symbols(pmapping)
     rank_var_to_fused_loops = get_rank_var_to_fused_loops(pmapping, shape)
@@ -1791,9 +1793,9 @@ def _make_tile_shapes(job: "Job"):
                 rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
 
     max_loop_check_groups = [
-        (job.spec.mapper.max_fused_loops, all_fused_loops),
+        (job.spec_one_einsum.mapper.max_fused_loops, all_fused_loops),
         *[
-            (job.spec.mapper.max_fused_loops_per_rank_variable, x)
+            (job.spec_one_einsum.mapper.max_fused_loops_per_rank_variable, x)
             for x in rank_var_to_fused_loops.values()
         ],
     ]

@@ -194,3 +194,5 @@ tests/*.png
 
 *_wip
 .vscode
+
+accelforge/_version.py

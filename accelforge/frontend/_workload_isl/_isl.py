@@ -141,7 +141,7 @@ def get_tensor_size(workload: Workload, tensor: TensorName):
         return _card_box(data_space)
     if not hasattr(data_space, "card"):
         raise RuntimeError(ERRMSG.format(space=str(data_space)))
-    card_pwqp = isl.PwQPolynomial.card(data_space)
+    card_pwqp = data_space.card()
     return card_pwqp.eval(card_pwqp.domain().sample_point()).to_python()
 
 
@@ -151,5 +151,5 @@ def get_operation_space_size(workload: Workload, einsum_name: str):
         return _card_box(operation_space)
     if not hasattr(operation_space, "card"):
         raise RuntimeError(ERRMSG.format(space=str(operation_space)))
-    card_pwqp = isl.PwQPolynomial.card(operation_space)
+    card_pwqp = operation_space.card()
     return card_pwqp.eval(card_pwqp.domain().sample_point()).to_python()

@@ -248,7 +248,7 @@ def _make_pmappings(
         for job in jobs:
             compute_name = job.flattened_arch[-1].name
             flattened_arches[(einsum_name, compute_name)] = job.flattened_arch
-            evaluated_specs[einsum_name] = job.spec
+            evaluated_specs[einsum_name] = job.spec_one_einsum
 
     m = MultiEinsumPmappings(
         spec,
