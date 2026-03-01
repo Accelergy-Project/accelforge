@@ -109,7 +109,7 @@ def get_jobs(
                 einsum_name=einsum_name,
                 area=False,
             )
-            ._for_einsum(einsum_name)
+            ._for_einsum(einsum_name)._clear_component_models()
         )
         einsum2spec[einsum_name] = _memmap_read(einsum2spec[einsum_name])
 

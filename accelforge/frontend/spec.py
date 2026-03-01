@@ -67,6 +67,17 @@ class Spec(EvalableModel):
         new.renames = new.renames._for_einsum(einsum_name)
         return new
 
+    def _clear_component_models(self) -> Self:
+        """
+        Clear the component models from the architecture. This is used to avoid
+        pickling issues when parallelizing.
+        """
+        new = self.model_copy(deep=False)
+        new.arch = self.arch.model_copy()
+        for component in new.arch.get_nodes_of_type(Component):
+            component.component_model = None
+        return new
+
     def _eval_expressions(
         self,
         einsum_name: EinsumName | None = None,
