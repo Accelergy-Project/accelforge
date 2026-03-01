@@ -1,0 +1,889 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Workload and Renames Specification &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'guide/spec/workload';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Expression Evaluation" href="../parsing/evaluation.html" />
+    <link rel="prev" title="Mapping Specification" href="mapping.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../spec.html">Input Specifications</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="architecture.html">Arch Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mapping.html">Mapping Specification</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Workload and Renames Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parsing/evaluation.html">Expression Evaluation</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../parsing/yaml_parsing.html">YAML Parsing</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../modeling.html">How Modeling Works</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../modeling/component_energy_area.html">Component Energy and Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modeling/accelerator_energy_latency.html">Accelerator Energy, Area, and Latency</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modeling/mapping.html">Mapping with Fast &amp; Fusiest</a></li>
+
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../definitions.html">Definitions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../timeloop_compare.html">Migrating from Timeloop</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../guide.html" class="nav-link">User Guide</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../spec.html" class="nav-link">Input Specifications</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Workload and Renames Specification</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="workload-and-renames-specification">
+<span id="specifying-workload"></span><h1>Workload and Renames Specification<a class="headerlink" href="#workload-and-renames-specification" title="Link to this heading">#</a></h1>
+<p>The <a class="reference internal" href="../../accelforge.frontend.html#module-accelforge.frontend.workload" title="accelforge.frontend.workload"><code class="xref py py-class docutils literal notranslate"><span class="pre">workload</span></code></a> object describes a cascade of
+Einsums. An Einsum, described in …, can represent a variety of tensor algebra kernels,
+and a cascade of Einsums is a list of Einsums with data dependencies.</p>
+<p>The following is an example workload for three back-to-back matrix multiplications:</p>
+<div class="code yaml highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">workload</span><span class="p">:</span>
+  <span class="c1"># These rank sizes define the shapes of the tensors in the Einsum. Shapes are assumed</span>
+  <span class="c1"># to go from [0, size-1]. Indexes into a rank are omitted if out of range.</span>
+  <span class="n">rank_sizes</span><span class="p">:</span>
+    <span class="n">M</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">N0</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">N1</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">N2</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">N3</span><span class="p">:</span> <span class="mi">128</span>
+
+  <span class="c1"># Alternatively, we can constrain each of the rank variables to be within a range. The</span>
+  <span class="c1"># values in this dictionary are ISL expressions, and the constraints apply to all</span>
+  <span class="c1"># Einsums that use these rank variables.</span>
+  <span class="n">iteration_space_shape</span><span class="p">:</span>
+    <span class="n">m</span><span class="p">:</span>  <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">m</span>  <span class="o">&lt;</span> <span class="mi">128</span>
+    <span class="n">n0</span><span class="p">:</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">n0</span> <span class="o">&lt;</span> <span class="mi">128</span>
+    <span class="n">n1</span><span class="p">:</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">n1</span> <span class="o">&lt;</span> <span class="mi">128</span>
+    <span class="n">n2</span><span class="p">:</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">n2</span> <span class="o">&lt;</span> <span class="mi">128</span>
+    <span class="n">n3</span><span class="p">:</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">n3</span> <span class="o">&lt;</span> <span class="mi">128</span>
+
+  <span class="c1"># Describe the number of bits of each value of each tensor. This is a dictionary of</span>
+  <span class="c1"># set expressions to bits per value for the tensors given by those expressions. They</span>
+  <span class="c1"># can be overridden by the bits_per_value attribute of any tensor access.</span>
+  <span class="n">bits_per_value</span><span class="p">:</span> <span class="p">{</span><span class="n">All</span><span class="p">:</span> <span class="mi">8</span><span class="p">}</span>
+
+  <span class="c1"># The Einsums in the workload.</span>
+  <span class="n">einsums</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">Matmul1</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">T0</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="n">n0</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">W0</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">n0</span><span class="p">,</span> <span class="n">n1</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">T1</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="n">n1</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="n">renames</span><span class="p">:</span> <span class="p">{</span><span class="nb">input</span><span class="p">:</span> <span class="n">T0</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">Matmul2</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">T1</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="n">n1</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">W1</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">T2</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="n">n2</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">Matmul3</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">T2</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="n">n2</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">W2</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">n2</span><span class="p">,</span> <span class="n">n3</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">T3</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">m</span><span class="p">,</span> <span class="n">n3</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+<span class="n">renames</span><span class="p">:</span>
+  <span class="n">einsums</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">default</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="nb">input</span>
+      <span class="n">source</span><span class="p">:</span> <span class="n">Inputs</span> <span class="o">&amp;</span> <span class="n">Intermediates</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">output</span>
+      <span class="n">source</span><span class="p">:</span> <span class="n">Outputs</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">weight</span>
+      <span class="n">source</span><span class="p">:</span> <span class="o">~</span><span class="p">(</span><span class="nb">input</span> <span class="o">|</span> <span class="n">output</span><span class="p">)</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>The top-level Workload spec has the following attributes:</p>
+<p>Each Einsum in the workload represents a single Einsum with the following attributes:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.is_copy_operation" title="accelforge.frontend.workload.Einsum.is_copy_operation"><code class="xref py py-attr docutils literal notranslate"><span class="pre">is_copy_operation</span></code></a>: Whether the Einsum is a copy operation. Copy operations take the input tensor
+    and directly place them at the location of the output tensor(s) without any
+    computation. If the destination tensor is at the same location, then this is a
+    no-op.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.iteration_space_shape" title="accelforge.frontend.workload.Einsum.iteration_space_shape"><code class="xref py py-attr docutils literal notranslate"><span class="pre">iteration_space_shape</span></code></a>: Bounds of valid rank variable values. This is a list of expressions, each one an ISL
+    expression. Additionally, global iteration_space_shape expressions are appended to
+    the list if their rank variables are present in the Einsum’s rank_variables. For
+    example, if the global scope has “m: 0 &lt;= m &lt; 10” and the Einsum has “m” in its
+    rank_variables, then “0 &lt;= m &lt; 10” will be appended to the iteration_space_shape.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.n_instances" title="accelforge.frontend.workload.Einsum.n_instances"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_instances</span></code></a>: Number of times to repeat the Einsum. Multiplied by `Workload.n_instances` to get
+    the total number of Einsum instances. Energy, latency, and other summable metrics
+    are multiplied by this value. Persistent reservations are also multiplied by this
+    value, but non-persistent reservations are not, as they are assumed to be freed
+    between each instance.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.name" title="accelforge.frontend.workload.Einsum.name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">name</span></code></a>: The name of the Einsum.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.rank_sizes" title="accelforge.frontend.workload.Einsum.rank_sizes"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rank_sizes</span></code></a>: Sizes of ranks. This is a dictionary of rank names to sizes. Sizes are integers, and
+    the rank’s bounds are 0 &lt;= rank &lt; size. Accesses outside of these bounds are
+    skipped.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.renames" title="accelforge.frontend.workload.Einsum.renames"><code class="xref py py-attr docutils literal notranslate"><span class="pre">renames</span></code></a>: Renames of the Einsum. Renames here can be used to rename rank variables or
+    tensors. When this Einsum is executed on an architecture, the architecture can use
+    renamed tensors and rank variables to access the tensors and rank variables.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor_accesses" title="accelforge.frontend.workload.Einsum.tensor_accesses"><code class="xref py py-attr docutils literal notranslate"><span class="pre">tensor_accesses</span></code></a>: The tensors accessed by this Einsum, and how they are accessed.</p></li>
+</ul>
+<p>And each tensor access has the following attributes:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.backing_storage_size_scale" title="accelforge.frontend.workload.TensorAccess.backing_storage_size_scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">backing_storage_size_scale</span></code></a>: If != 1, then the backing storage size will be scaled by this factor.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.bits_per_value" title="accelforge.frontend.workload.TensorAccess.bits_per_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">bits_per_value</span></code></a>: Bits per value for this tensor.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.name" title="accelforge.frontend.workload.TensorAccess.name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">name</span></code></a>: The name of the tensor.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.output" title="accelforge.frontend.workload.TensorAccess.output"><code class="xref py py-attr docutils literal notranslate"><span class="pre">output</span></code></a>: Whether the tensor is an output. False means the tensor is an input.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.persistent" title="accelforge.frontend.workload.TensorAccess.persistent"><code class="xref py py-attr docutils literal notranslate"><span class="pre">persistent</span></code></a>: If True, then a copy of this tensor must remain in backing storage for the full
+    duration of the workload’s execution.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.projection" title="accelforge.frontend.workload.TensorAccess.projection"><code class="xref py py-attr docutils literal notranslate"><span class="pre">projection</span></code></a>: How the rank variables of the Einsum project into the tensor. If this is a list,
+    then it is assumed that each of the elements of the list is a single rank variable
+    and they index into the tensor in ranks that equal the uppercase of the rank
+    variable. For example:
+
+    name: X, projection: [a, b, c] means X[A=a, B=b, C=c]
+
+    If this is a dictionary, it is a mapping from rank names to rank variable
+    expressions. This can be used to either project into a non-matching rank name or to
+    project into a tensor using an expression. For example:
+
+    name: X, projection: {A: a, B2: b, C: a+b} means X[A=a, B2=b, C=a+b]</p></li>
+</ul>
+<p>Workloads include <em>ranks</em> and <em>rank variables</em>. Ranks are the dimensions of the tensors
+in the Einsum, while rank variables are variables that index into these ranks. Generally
+the rank names are uppercased versions of the rank variable names, but not always. In
+more-complex workloads (such as the GPT example later in this doc), there may be cases
+where we index into a rank with multiple different rank variables– in this case, we may
+use a projection dictionary instead of a list.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Matmul0</span>
+<span class="w">  </span><span class="nt">tensor_accesses</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">T0</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">n0</span><span class="p p-Indicator">]}</span><span class="w"> </span><span class="c1"># Implies projection: {M: m, N0: n0}</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">W1</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">k</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">n0</span><span class="p p-Indicator">]}</span><span class="w"> </span><span class="c1"># Implies projection: {K: k, N0: n0}</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">T1</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">n0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">n1</span><span class="p p-Indicator">],</span><span class="nt"> output</span><span class="p">:</span><span class="w"> </span><span class="nv">True</span><span class="p p-Indicator">}</span><span class="w"> </span><span class="c1"># Implies projection: {N0: n0, N1: n1}</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Matmul1</span>
+<span class="w">  </span><span class="nt">tensor_accesses</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># We can be explicit about the projection</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">T1</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">M</span><span class="p">:</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="nt"> N1</span><span class="p">:</span><span class="w"> </span><span class="nv">n1</span><span class="p p-Indicator">}}</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">W1</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">N1</span><span class="p">:</span><span class="w"> </span><span class="nv">n1</span><span class="p p-Indicator">,</span><span class="nt"> N2</span><span class="p">:</span><span class="w"> </span><span class="nv">n2</span><span class="p p-Indicator">}}</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">T2</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">M</span><span class="p">:</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="nt"> N2</span><span class="p">:</span><span class="w"> </span><span class="nv">n2</span><span class="p p-Indicator">},</span><span class="nt"> output</span><span class="p">:</span><span class="w"> </span><span class="nv">True</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<section id="renaming-tensors-and-rank-variables">
+<span id="renaming-tensors-rank-variables"></span><h2>Renaming Tensors and Rank Variables<a class="headerlink" href="#renaming-tensors-and-rank-variables" title="Link to this heading">#</a></h2>
+<p>Renames allow us to write simple, generic names (<em>e.g.,</em> <code class="docutils literal notranslate"><span class="pre">input</span></code>,
+<code class="docutils literal notranslate"><span class="pre">reduced_rank_variable</span></code>) in our set expresssions and have them resolve to tensors or
+rank variable in the Einsum.</p>
+<p>Each Einsum object has a <code class="docutils literal notranslate"><span class="pre">renames</span></code> attribute. This attribute may be populated with one
+of the following:</p>
+<ul class="simple">
+<li><p>A dictionary of <code class="docutils literal notranslate"><span class="pre">{new_name:</span> <span class="pre">source_set_expression}</span></code> expressions, where
+<code class="docutils literal notranslate"><span class="pre">source_set_expression</span></code> may resolve either to tensors or rank variables. This is the
+simplest method.</p></li>
+<li><p>A list of dictionaries, each one having the structure <code class="docutils literal notranslate"><span class="pre">{name:</span> <span class="pre">new_name,</span> <span class="pre">source:</span>
+<span class="pre">source_set_expression,</span> <span class="pre">expected_count:</span> <span class="pre">1}</span></code>. This method allows you to write an
+expected count, which is optional, and checks that your set expression returned the
+expected number of elements. For example, if your source set expression were
+<code class="docutils literal notranslate"><span class="pre">Outputs()</span></code>, an expected count of 1 would pass if there were only one output tensor,
+but fail if there were two.</p></li>
+</ul>
+<p>Additionally, you may define a separate top-level
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.renames.Renames" title="accelforge.frontend.renames.Renames"><code class="xref py py-class docutils literal notranslate"><span class="pre">Renames</span></code></a> object with structure mirroring the
+workload. For example, one is in the bottom of a GPT3 6.7B example workload:</p>
+<div class="code yaml highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Each tensor is shaped by a set of ranks, denoted by capital letters</span>
+<span class="c1"># For example: Q is shaped by (B, M, H, E)</span>
+<span class="c1"># We&#39;ll use lower-case letters to index into the ranks</span>
+<span class="c1"># For example: Q[b, m, h, e] is the tensor Q at index (b, m, h, e)</span>
+
+<span class="c1"># When making a projection list, it&#39;s equivalent to the Einsum subscript notation, so:</span>
+<span class="c1"># Q projection [b, m, h, e] means that b indexes into B, m indexes into M...</span>
+<span class="c1"># When making a projection dict, it&#39;s equivalent to the Einsum subscript/superscript notation, so:</span>
+<span class="c1"># K projection { B: b, M: p, H: h, E: e } means that b indexes into B, p indexes into M...</span>
+
+<span class="c1"># Renames take a tensor name and turn them into a canonical name that we can use in</span>
+<span class="c1"># architecture constraints. For example, we want to use the words &quot;input&quot;, &quot;weight&quot;, and</span>
+<span class="c1"># &quot;output&quot; to refer to the tensors of an Einsum, but the Einsum QK has no clear &quot;weight&quot;</span>
+<span class="c1"># or &quot;input&quot; because both Q and K are inputs. So we rename K to be weight.</span>
+
+<span class="n">workload</span><span class="p">:</span>
+  <span class="n">rank_sizes</span><span class="p">:</span>
+    <span class="p">{</span><span class="o">%</span> <span class="nb">set</span> <span class="n">BATCH_SIZE</span> <span class="o">=</span> <span class="n">BATCH_SIZE</span> <span class="o">|</span> <span class="n">default</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">%</span><span class="p">}</span>
+    <span class="p">{</span><span class="o">%</span> <span class="nb">set</span> <span class="n">N_TOKENS</span> <span class="o">=</span> <span class="n">N_TOKENS</span> <span class="o">|</span> <span class="n">default</span><span class="p">(</span><span class="mi">8192</span><span class="p">)</span> <span class="o">%</span><span class="p">}</span>
+    <span class="n">B</span><span class="p">:</span> <span class="p">{{</span><span class="n">BATCH_SIZE</span><span class="p">}}</span>
+    <span class="n">P</span><span class="p">:</span> <span class="p">{{</span><span class="n">N_TOKENS</span><span class="p">}}</span>
+    <span class="n">M</span><span class="p">:</span> <span class="p">{{</span><span class="n">N_TOKENS</span><span class="p">}}</span>
+    <span class="n">H</span><span class="p">:</span> <span class="mi">32</span>
+    <span class="n">E</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">F</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">D</span><span class="p">:</span> <span class="mi">4096</span> <span class="c1"># = e * h</span>
+    <span class="n">C</span><span class="p">:</span> <span class="mi">16384</span>
+    <span class="n">J</span><span class="p">:</span> <span class="mi">4096</span>
+    <span class="n">G</span><span class="p">:</span> <span class="mi">4096</span>
+
+  <span class="n">bits_per_value</span><span class="p">:</span> <span class="p">{</span><span class="n">All</span><span class="p">:</span> <span class="mi">8</span><span class="p">}</span>
+
+  <span class="n">einsums</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">I</span>
+    <span class="c1"># Copy operation means that we move the input tensor from one place to another</span>
+    <span class="c1"># without doing computation. This lets us copy the input tensor onto the accelerator</span>
+    <span class="c1"># once and then use it in the Q, K, and V operations.</span>
+    <span class="n">is_copy_operation</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">I_in</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">d</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">I</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">d</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="n">renames</span><span class="p">:</span> <span class="p">{</span><span class="n">weight</span><span class="p">:</span> <span class="n">Nothing</span><span class="p">,</span> <span class="nb">input</span><span class="p">:</span> <span class="n">Inputs</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">Outputs</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">V</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">I</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">d</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">WV</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">d</span><span class="p">],</span> <span class="n">persistent</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">V</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">K</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">I</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">d</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">WK</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">d</span><span class="p">],</span> <span class="n">persistent</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">K</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">Q</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">I</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">d</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">WQ</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">d</span><span class="p">],</span> <span class="n">persistent</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">Q</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">QK</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">Q</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">K</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">{</span> <span class="n">B</span><span class="p">:</span> <span class="n">b</span><span class="p">,</span> <span class="n">M</span><span class="p">:</span> <span class="n">p</span><span class="p">,</span> <span class="n">H</span><span class="p">:</span> <span class="n">h</span><span class="p">,</span> <span class="n">E</span><span class="p">:</span> <span class="n">e</span> <span class="p">}}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">QK</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">h</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="n">renames</span><span class="p">:</span> <span class="p">{</span><span class="n">weight</span><span class="p">:</span> <span class="n">K</span><span class="p">,</span> <span class="nb">input</span><span class="p">:</span> <span class="n">Q</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">QK</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">QK_softmax</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">QK</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">h</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">QK_softmax</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">h</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">AV</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">QK_softmax</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">h</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">V</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">{</span> <span class="n">B</span><span class="p">:</span> <span class="n">b</span><span class="p">,</span> <span class="n">M</span><span class="p">:</span> <span class="n">p</span><span class="p">,</span> <span class="n">H</span><span class="p">:</span> <span class="n">h</span><span class="p">,</span> <span class="n">E</span><span class="p">:</span> <span class="n">f</span><span class="p">}}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">AV</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">f</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="n">renames</span><span class="p">:</span> <span class="p">{</span><span class="n">weight</span><span class="p">:</span> <span class="n">V</span><span class="p">,</span> <span class="nb">input</span><span class="p">:</span> <span class="n">QK_softmax</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">Z</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">AV</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">f</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">WZ</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">h</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">g</span><span class="p">],</span> <span class="n">persistent</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">Z</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">g</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">FFA</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">Z</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">g</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">WFFA</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">g</span><span class="p">,</span> <span class="n">c</span><span class="p">],</span> <span class="n">persistent</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">FFA</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">c</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">FFB</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">FFA</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">c</span><span class="p">]}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">WFFB</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">c</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">persistent</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="o">-</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">FFB</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">output</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+<span class="n">renames</span><span class="p">:</span>
+  <span class="n">einsums</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">default</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="nb">input</span>
+      <span class="n">source</span><span class="p">:</span> <span class="n">Inputs</span> <span class="o">&amp;</span> <span class="n">Intermediates</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">output</span>
+      <span class="n">source</span><span class="p">:</span> <span class="n">Outputs</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">weight</span>
+      <span class="n">source</span><span class="p">:</span> <span class="o">~</span><span class="p">(</span><span class="nb">input</span> <span class="o">|</span> <span class="n">output</span><span class="p">)</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">All</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="k">else</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>This renames format includes, for every Einsum, a
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.renames.EinsumRename.tensor_accesses" title="accelforge.frontend.renames.EinsumRename.tensor_accesses"><code class="xref py py-attr docutils literal notranslate"><span class="pre">tensor_accesses</span></code></a> key and a
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.renames.EinsumRename.rank_variables" title="accelforge.frontend.renames.EinsumRename.rank_variables"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rank_variables</span></code></a> key. Both support
+the above dictionary or list-of-dictionary rename formats.</p>
+<p>If an Einsum in the renames is named <code class="docutils literal notranslate"><span class="pre">default</span></code>, then its renames are applied to every
+Einsum unless overridden. Overriding is specific to a single name, so every rename in
+the default must be overridden independently.</p>
+</section>
+<section id="concise-einsum-notation">
+<h2>Concise Einsum Notation<a class="headerlink" href="#concise-einsum-notation" title="Link to this heading">#</a></h2>
+<p>Einsums can be written using concise string notation instead of verbose YAML
+dictionaries. This allows you to concisely write the
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor_accesses" title="accelforge.frontend.workload.Einsum.tensor_accesses"><code class="xref py py-attr docutils literal notranslate"><span class="pre">tensor_accesses</span></code></a>,
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.renames" title="accelforge.frontend.workload.Einsum.renames"><code class="xref py py-attr docutils literal notranslate"><span class="pre">renames</span></code></a> attributes in a single string.
+This notation does not cover all attributes, though it may be mixed with other
+attributes to fully specify the workload. Additionally, workload-level attributes such
+as <a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Workload.bits_per_value" title="accelforge.frontend.workload.Workload.bits_per_value"><code class="xref py py-attr docutils literal notranslate"><span class="pre">bits_per_value</span></code></a> and
+<a class="reference internal" href="../../accelforge.frontend.html#accelforge.frontend.workload.Workload.persistent_tensors" title="accelforge.frontend.workload.Workload.persistent_tensors"><code class="xref py py-attr docutils literal notranslate"><span class="pre">persistent_tensors</span></code></a> can be used to set
+these attribtues for all Einsums in the workload, letting you use a concise notation for
+each Einsum.</p>
+<p>The following is an example of two equivalent workloads, written in both verbose and
+concise notation.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">workload</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">einsums</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Concise version of the V Einsum.</span>
+<span class="w">  </span><span class="c1">#</span>
+<span class="w">  </span><span class="c1"># - The LHS of the equation is the output tensor name and projection. If not</span>
+<span class="w">  </span><span class="c1">#   otherwise specified, the output tensor name is the name of the Einsum.</span>
+<span class="w">  </span><span class="c1"># - The RHS of the equation are the input tensor names and projections.</span>
+<span class="w">  </span><span class="c1"># Concise</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">V[b, m, h, e] = I[b, m, d] * WV[h, e, d]</span>
+<span class="w">  </span><span class="c1"># Verbose</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">V</span>
+<span class="w">    </span><span class="nt">tensor_accesses</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">I</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">b</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">d</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">WV</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">h</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">d</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">V</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">b</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">h</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">],</span><span class="nt"> output</span><span class="p">:</span><span class="w"> </span><span class="nv">True</span><span class="p p-Indicator">}</span>
+
+<span class="w">  </span><span class="c1"># Concise version of the QK Einsum. Notice that we used the M: p notation to support</span>
+<span class="w">  </span><span class="c1"># a projection dictionary. Renames are specified separately in the renames section.</span>
+<span class="w">  </span><span class="c1"># Concise</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;QK[b,</span><span class="nv"> </span><span class="s">m,</span><span class="nv"> </span><span class="s">p,</span><span class="nv"> </span><span class="s">h]</span><span class="nv"> </span><span class="s">=</span><span class="nv"> </span><span class="s">Q[b,</span><span class="nv"> </span><span class="s">m,</span><span class="nv"> </span><span class="s">h,</span><span class="nv"> </span><span class="s">e]</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">K[b,</span><span class="nv"> </span><span class="s">M:</span><span class="nv"> </span><span class="s">p,</span><span class="nv"> </span><span class="s">h,</span><span class="nv"> </span><span class="s">e]&quot;</span>
+<span class="w">  </span><span class="c1"># Verbose</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">QK</span>
+<span class="w">    </span><span class="nt">tensor_accesses</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">Q</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">b</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">h</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">e</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">K</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> B</span><span class="p">:</span><span class="w"> </span><span class="nv">b</span><span class="p p-Indicator">,</span><span class="nt"> M</span><span class="p">:</span><span class="w"> </span><span class="nv">p</span><span class="p p-Indicator">,</span><span class="nt"> H</span><span class="p">:</span><span class="w"> </span><span class="nv">h</span><span class="p p-Indicator">,</span><span class="nt"> E</span><span class="p">:</span><span class="w"> </span><span class="nv">e</span><span class="w"> </span><span class="p p-Indicator">}}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">QK</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">b</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">p</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">h</span><span class="p p-Indicator">],</span><span class="nt"> output</span><span class="p">:</span><span class="w"> </span><span class="nv">True</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">renames</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">output</span><span class="p">:</span><span class="w"> </span><span class="nv">QK</span><span class="p p-Indicator">,</span><span class="nt"> weight</span><span class="p">:</span><span class="w"> </span><span class="nv">K</span><span class="p p-Indicator">,</span><span class="nt"> input</span><span class="p">:</span><span class="w"> </span><span class="nv">Q</span><span class="p p-Indicator">}</span>
+
+<span class="w">  </span><span class="c1"># To specify both the Einsum as a string as well as other attributes, we can use the</span>
+<span class="w">  </span><span class="c1"># einsum keyword. Then we can specify additional attributes in the same entry. Note</span>
+<span class="w">  </span><span class="c1"># that the einsum keyword will set the tensors and projections for the Einsum, and</span>
+<span class="w">  </span><span class="c1"># an error will be raised if these are specified again in the same entry.</span>
+<span class="w">  </span><span class="c1"># Concise</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">einsum</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">I[b, m, d] = I_in[b, m, d]</span>
+<span class="w">    </span><span class="nt">is_copy_operation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
+<span class="w">    </span><span class="nt">tensor_accesses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">I_in</span><span class="p p-Indicator">,</span><span class="nt"> bits_per_value</span><span class="p">:</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">}]</span>
+<span class="w">    </span><span class="nt">renames</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">input</span><span class="p">:</span><span class="w"> </span><span class="nv">I_in</span><span class="p p-Indicator">,</span><span class="nt"> output</span><span class="p">:</span><span class="w"> </span><span class="nv">I</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="c1"># Verbose</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">I</span>
+<span class="w">    </span><span class="nt">is_copy_operation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
+<span class="w">    </span><span class="nt">tensor_accesses</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">I_in</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">b</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">d</span><span class="p p-Indicator">],</span><span class="nt"> bits_per_value</span><span class="p">:</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">I</span><span class="p p-Indicator">,</span><span class="nt"> projection</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">b</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">m</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">d</span><span class="p p-Indicator">],</span><span class="nt"> output</span><span class="p">:</span><span class="w"> </span><span class="nv">True</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">renames</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">input</span><span class="p">:</span><span class="w"> </span><span class="nv">I_in</span><span class="p p-Indicator">,</span><span class="nt"> output</span><span class="p">:</span><span class="w"> </span><span class="nv">I</span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p>Below is the concise notation equivalent of the previously-shown verbose GPT3 6.7B
+example workload:</p>
+<div class="code yaml highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Each tensor is shaped by a set of ranks, denoted by capital letters</span>
+<span class="c1"># For example: Q is shaped by (B, M, H, E)</span>
+<span class="c1"># We&#39;ll use lower-case letters to index into the ranks</span>
+<span class="c1"># For example: Q[b, m, h, e] is the tensor Q at index (b, m, h, e)</span>
+
+<span class="c1"># When making a projection list, it&#39;s equivalent to the Einsum subscript notation, so:</span>
+<span class="c1"># Q projection [b, m, h, e] means that b indexes into B, m indexes into M...</span>
+<span class="c1"># When making a projection dict, it&#39;s equivalent to the Einsum subscript/superscript notation, so:</span>
+<span class="c1"># K projection { B: b, M: p, H: h, E: e } means that b indexes into B, p indexes into M...</span>
+
+<span class="c1"># Renames take a tensor name and turn them into a canonical name that we can use in</span>
+<span class="c1"># architecture constraints. For example, we want to use the words &quot;input&quot;, &quot;weight&quot;, and</span>
+<span class="c1"># &quot;output&quot; to refer to the tensors of an Einsum, but the Einsum QK has no clear &quot;weight&quot;</span>
+<span class="c1"># or &quot;input&quot; because both Q and K are inputs. So we rename K to be weight.</span>
+
+<span class="n">workload</span><span class="p">:</span>
+  <span class="n">rank_sizes</span><span class="p">:</span>
+    <span class="p">{</span><span class="o">%</span> <span class="nb">set</span> <span class="n">BATCH_SIZE</span> <span class="o">=</span> <span class="n">BATCH_SIZE</span> <span class="o">|</span> <span class="n">default</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">%</span><span class="p">}</span>
+    <span class="p">{</span><span class="o">%</span> <span class="nb">set</span> <span class="n">N_TOKENS</span> <span class="o">=</span> <span class="n">N_TOKENS</span> <span class="o">|</span> <span class="n">default</span><span class="p">(</span><span class="mi">8192</span><span class="p">)</span> <span class="o">%</span><span class="p">}</span>
+    <span class="n">B</span><span class="p">:</span> <span class="p">{{</span><span class="n">BATCH_SIZE</span><span class="p">}}</span>
+    <span class="n">P</span><span class="p">:</span> <span class="p">{{</span><span class="n">N_TOKENS</span><span class="p">}}</span>
+    <span class="n">M</span><span class="p">:</span> <span class="p">{{</span><span class="n">N_TOKENS</span><span class="p">}}</span>
+    <span class="n">H</span><span class="p">:</span> <span class="mi">32</span>
+    <span class="n">E</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">F</span><span class="p">:</span> <span class="mi">128</span>
+    <span class="n">D</span><span class="p">:</span> <span class="mi">4096</span> <span class="c1"># = e * h</span>
+    <span class="n">C</span><span class="p">:</span> <span class="mi">16384</span>
+    <span class="n">J</span><span class="p">:</span> <span class="mi">4096</span>
+    <span class="n">G</span><span class="p">:</span> <span class="mi">4096</span>
+
+  <span class="n">bits_per_value</span><span class="p">:</span> <span class="p">{</span><span class="n">All</span><span class="p">:</span> <span class="mi">8</span><span class="p">}</span>
+  <span class="n">persistent_tensors</span><span class="p">:</span> <span class="n">weight</span> <span class="o">-</span> <span class="n">Intermediates</span>
+
+  <span class="n">einsums</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">einsum</span><span class="p">:</span> <span class="s2">&quot;I[b, m, d] = I_in[b, m, d]&quot;</span>
+    <span class="n">is_copy_operation</span><span class="p">:</span> <span class="kc">True</span>
+
+  <span class="o">-</span> <span class="s2">&quot;V[b, m, h, e] = I[b, m, d] * WV[h, e, d]&quot;</span>
+  <span class="o">-</span> <span class="s2">&quot;K[b, m, h, e] = I[b, m, d] * WK[h, e, d]&quot;</span>
+  <span class="o">-</span> <span class="s2">&quot;Q[b, m, h, e] = I[b, m, d] * WQ[h, e, d]&quot;</span>
+
+  <span class="o">-</span> <span class="n">einsum</span><span class="p">:</span> <span class="s2">&quot;QK[b, m, p, h] = Q[b, m, h, e] * K[b, M: p, h, e]&quot;</span>
+    <span class="n">renames</span><span class="p">:</span> <span class="p">{</span><span class="nb">input</span><span class="p">:</span> <span class="n">Q</span><span class="p">}</span>
+  <span class="o">-</span> <span class="s2">&quot;QK_softmax[b, m, p, h] = QK[b, m, p, h]&quot;</span>
+
+  <span class="o">-</span> <span class="n">einsum</span><span class="p">:</span> <span class="s2">&quot;AV[b, m, h, f] = QK_softmax[b, m, p, h] * V[b, M: p, h, E: f]&quot;</span>
+    <span class="n">renames</span><span class="p">:</span> <span class="p">{</span><span class="nb">input</span><span class="p">:</span> <span class="n">QK_softmax</span><span class="p">}</span>
+  <span class="o">-</span> <span class="s2">&quot;Z[b, m, g] = AV[b, m, h, f] * WZ[h, f, g]&quot;</span>
+  <span class="o">-</span> <span class="s2">&quot;FFA[b, m, c] = Z[b, m, g] * WFFA[g, c]&quot;</span>
+  <span class="o">-</span> <span class="s2">&quot;FFB[b, m, j] = FFA[b, m, c] * WFFB[c, j]&quot;</span>
+
+<span class="n">renames</span><span class="p">:</span>
+  <span class="n">einsums</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">default</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="nb">input</span>
+      <span class="n">source</span><span class="p">:</span> <span class="n">Inputs</span> <span class="o">&amp;</span> <span class="n">Intermediates</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">All</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="k">else</span> <span class="n">Inputs</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">output</span>
+      <span class="n">source</span><span class="p">:</span> <span class="n">Outputs</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">weight</span>
+      <span class="n">source</span><span class="p">:</span> <span class="o">~</span><span class="p">(</span><span class="nb">input</span> <span class="o">|</span> <span class="n">output</span><span class="p">)</span>
+      <span class="n">expected_count</span><span class="p">:</span> <span class="mi">1</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">All</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="k">else</span> <span class="mi">0</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="mapping.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Mapping Specification</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../parsing/evaluation.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Expression Evaluation</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-tensors-and-rank-variables">Renaming Tensors and Rank Variables</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#concise-einsum-notation">Concise Einsum Notation</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/guide/spec/workload.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

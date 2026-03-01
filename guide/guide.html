@@ -1,0 +1,704 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>User Guide &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'guide/guide';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Input Specifications" href="spec.html" />
+    <link rel="prev" title="AccelForge" href="../index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="spec.html">Input Specifications</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="spec/architecture.html">Arch Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spec/mapping.html">Mapping Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="spec/workload.html">Workload and Renames Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parsing/evaluation.html">Expression Evaluation</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="parsing/yaml_parsing.html">YAML Parsing</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="modeling.html">How Modeling Works</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="modeling/component_energy_area.html">Component Energy and Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="modeling/accelerator_energy_latency.html">Accelerator Energy, Area, and Latency</a></li>
+<li class="toctree-l2"><a class="reference internal" href="modeling/mapping.html">Mapping with Fast &amp; Fusiest</a></li>
+
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="definitions.html">Definitions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="timeloop_compare.html">Migrating from Timeloop</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">User Guide</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="user-guide">
+<h1>User Guide<a class="headerlink" href="#user-guide" title="Link to this heading">#</a></h1>
+<p>Welcome to the AccelForge user guide. This guide will help you get started with using
+AccelForge to design and model tensor algebra accelerators.</p>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#installation" id="id3">Installation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#pypi-installation" id="id4">PyPI Installation</a></p></li>
+<li><p><a class="reference internal" href="#using-pre-built-docker-images" id="id5">Using Pre-Built Docker Images</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#getting-started" id="id6">Getting Started</a></p>
+<ul>
+<li><p><a class="reference internal" href="#quick-start" id="id7">Quick Start</a></p></li>
+<li><p><a class="reference internal" href="#basic-example" id="id8">Basic Example</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#examples" id="id9">Examples</a></p>
+<ul>
+<li><p><a class="reference internal" href="#example-notebooks" id="id10">Example Notebooks</a></p></li>
+<li><p><a class="reference internal" href="#example-input-files" id="id11">Example Input Files</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#core-topics" id="id12">Core Topics</a></p></li>
+<li><p><a class="reference internal" href="#reference" id="id13">Reference</a></p>
+<ul>
+<li><p><a class="reference internal" href="#additional-resources" id="id14">Additional Resources</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#support" id="id15">Support</a></p></li>
+<li><p><a class="reference internal" href="#migrating-from-timeloop" id="id16">Migrating from Timeloop</a></p></li>
+<li><p><a class="reference internal" href="#references" id="id17">References</a></p></li>
+</ul>
+</nav>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
+<section id="pypi-installation">
+<h3>PyPI Installation<a class="headerlink" href="#pypi-installation" title="Link to this heading">#</a></h3>
+<p>For native installation, install the package from PyPI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>accelforge
+</pre></div>
+</div>
+</section>
+<section id="using-pre-built-docker-images">
+<h3>Using Pre-Built Docker Images<a class="headerlink" href="#using-pre-built-docker-images" title="Link to this heading">#</a></h3>
+<p>Pre-built Docker images are available for AccelForge. TODO: Docker instructions</p>
+</section>
+</section>
+<section id="getting-started">
+<h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading">#</a></h2>
+<section id="quick-start">
+<h3>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h3>
+<p>AccelForge models the energy, area, and latency of accelerator architectures running
+tensor algebra workloads. The basic workflow is:</p>
+<ol class="arabic simple">
+<li><p><strong>Define your architecture</strong> - Specify the hardware components, their organization,
+and their energy/area characteristics</p></li>
+<li><p><strong>Define your workload</strong> - Specify the tensor operations you want to execute</p></li>
+<li><p><strong>Map the workload to the architecture</strong> - Use AccelForge’s mapper to find efficient
+ways to execute your workload on the architecture</p></li>
+<li><p><strong>Analyze results</strong> - Examine the energy, area, and latency of the resulting
+mapping(s)</p></li>
+</ol>
+</section>
+<section id="basic-example">
+<h3>Basic Example<a class="headerlink" href="#basic-example" title="Link to this heading">#</a></h3>
+<p>Here’s a minimal example of using AccelForge:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">accelforge</span> <span class="kn">import</span> <span class="n">Spec</span>
+
+<span class="c1"># Load architecture and workload specifications</span>
+<span class="n">spec</span> <span class="o">=</span> <span class="n">Spec</span><span class="o">.</span><span class="n">from_yaml_files</span><span class="p">(</span>
+    <span class="n">arch</span><span class="o">=</span><span class="s2">&quot;examples/arches/simple.yaml&quot;</span><span class="p">,</span>
+    <span class="n">workload</span><span class="o">=</span><span class="s2">&quot;examples/workloads/three_matmuls_annotated.yaml&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Map the workload to the architecture</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">map_workload_to_arch</span><span class="p">()</span>
+
+<span class="c1"># Analyze the results</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Energy: </span><span class="si">{</span><span class="n">results</span><span class="o">.</span><span class="n">energy</span><span class="p">()</span><span class="si">}</span><span class="s2"> J&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Latency: </span><span class="si">{</span><span class="n">results</span><span class="o">.</span><span class="n">latency</span><span class="p">()</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h2>
+<section id="example-notebooks">
+<h3>Example Notebooks<a class="headerlink" href="#example-notebooks" title="Link to this heading">#</a></h3>
+<p>Example Jupyter notebooks can be found by cloning the repository and navigating to the
+<code class="docutils literal notranslate"><span class="pre">notebooks</span></code> directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Accelergy-Project/accelforge.git
+<span class="nb">cd</span><span class="w"> </span>accelforge/notebooks/tutorials
+jupyter<span class="w"> </span>notebook
+</pre></div>
+</div>
+</section>
+<section id="example-input-files">
+<h3>Example Input Files<a class="headerlink" href="#example-input-files" title="Link to this heading">#</a></h3>
+<p>Example architecture, workload, and mapping YAML files can be found in the <code class="docutils literal notranslate"><span class="pre">examples</span></code>
+directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Accelergy-Project/accelforge.git
+<span class="nb">cd</span><span class="w"> </span>accelforge/examples
+ls
+</pre></div>
+</div>
+<p>The examples directory contains:</p>
+<ul class="simple">
+<li><p><strong>arches/</strong> - Example architecture specifications, including various published and
+commercial accelerators</p></li>
+<li><p><strong>workloads/</strong> - Example workload specifications including matrix multiplications,
+convolutions, and transformer models</p></li>
+<li><p><strong>mappings/</strong> - Example mapping specifications</p></li>
+</ul>
+<p><strong>Architecture:</strong> An architecture specification defines the hardware structure,
+including hardware components and how they are organized into a system. See
+<a class="reference internal" href="spec/architecture.html"><span class="doc">Arch Specification</span></a> for information on architecture specifications.</p>
+<p><strong>Workload:</strong> A workload specification defines what is executed on the architecture.
+Workloads are expressed as a cascade of Einsums. See <a class="reference internal" href="spec/workload.html"><span class="doc">Workload and Renames Specification</span></a> for
+information on workload specifications.</p>
+<p><strong>Mapping:</strong> A mapping specifies how a workload is executed on an architecture,
+including where and when each operation is performed, and how data is moved and stored
+in the hardware’s components. See <a class="reference internal" href="spec/mapping.html"><span class="doc">Mapping Specification</span></a> for information on mapping
+specifications. AccelForge’s mapper automatically finds optimal mappings. See the
+<code class="docutils literal notranslate"><span class="pre">mapper.ipynb</span></code> notebook for examples.</p>
+</section>
+</section>
+<section id="core-topics">
+<h2>Core Topics<a class="headerlink" href="#core-topics" title="Link to this heading">#</a></h2>
+<p>The following sections provide detailed information about using AccelForge.</p>
+<p><strong>Input Specifications:</strong>: Learn how to specify architectures, workloads, and mappings:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="spec.html"><span class="doc">Input Specifications</span></a> - Complete specification reference</p></li>
+<li><p><a class="reference internal" href="spec/architecture.html"><span class="doc">Arch Specification</span></a> - Architecture specification details</p></li>
+<li><p><a class="reference internal" href="spec/workload.html"><span class="doc">Workload and Renames Specification</span></a> - Workload specification details</p></li>
+<li><p><a class="reference internal" href="spec/mapping.html"><span class="doc">Mapping Specification</span></a> - Mapping specification details</p></li>
+</ul>
+<p><strong>Modeling:</strong> Understand how AccelForge models energy, area, and latency:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="modeling.html"><span class="doc">How Modeling Works</span></a> - Overview of the modeling process</p></li>
+<li><p><a class="reference internal" href="modeling/component_energy_area.html"><span class="doc">Component Energy and Area</span></a> - Component-level modeling</p></li>
+<li><p><a class="reference internal" href="modeling/accelerator_energy_latency.html"><span class="doc">Accelerator Energy, Area, and Latency</span></a> - System-level modeling of the accelerator</p></li>
+<li><p><a class="reference internal" href="modeling/mapping.html"><span class="doc">Mapping with Fast &amp; Fusiest</span></a> - How workloads are mapped to architectures</p></li>
+</ul>
+<p><strong>Definitions:</strong> Key terms and concepts:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="definitions.html"><span class="doc">Definitions</span></a> - Definitions of key terms</p></li>
+</ul>
+</section>
+<section id="reference">
+<h2>Reference<a class="headerlink" href="#reference" title="Link to this heading">#</a></h2>
+<section id="additional-resources">
+<h3>Additional Resources<a class="headerlink" href="#additional-resources" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><a class="reference internal" href="../modules.html"><span class="doc">API Reference</span></a> - Complete API reference</p></li>
+<li><p><a class="reference internal" href="definitions.html"><span class="doc">Definitions</span></a> - Definitions of key terms</p></li>
+<li><p><a class="reference internal" href="faqs.html"><span class="doc">Frequently Asked Questions</span></a> - Frequently asked questions</p></li>
+<li><p><a class="reference internal" href="citation.html"><span class="doc">Citing AccelForge</span></a> - How to cite AccelForge</p></li>
+<li><p><a class="reference internal" href="contributing.html"><span class="doc">Contributing</span></a> - Contributing guidelines</p></li>
+</ul>
+</section>
+</section>
+<section id="support">
+<h2>Support<a class="headerlink" href="#support" title="Link to this heading">#</a></h2>
+<p>If you encounter issues or have questions:</p>
+<ul class="simple">
+<li><p>Check the <a class="reference internal" href="faqs.html"><span class="doc">Frequently Asked Questions</span></a> page</p></li>
+<li><p>Review <a class="reference external" href="https://github.com/Accelergy-Project/accelforge/tree/main/notebooks/tutorials">the AccelForge tutorials</a></p></li>
+<li><p>Review <a class="reference external" href="https://github.com/Accelergy-Project/accelforge/tree/main/examples">the AccelForge examples</a></p></li>
+<li><p>Browse the <a class="reference external" href="https://github.com/Accelergy-Project/accelforge">source code on GitHub</a></p></li>
+<li><p>Open an issue on <a class="reference external" href="https://github.com/Accelergy-Project/accelforge">GitHub</a></p></li>
+</ul>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+<section id="migrating-from-timeloop">
+<h2>Migrating from Timeloop<a class="headerlink" href="#migrating-from-timeloop" title="Link to this heading">#</a></h2>
+<p>AccelForge is inspired by and designed to be a successor to the Timeloop <a class="footnote-reference brackets" href="#id2" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a> project,
+and incorporates many of the same ideas, including:</p>
+<ul class="simple">
+<li><p>Analytical modeling of energy, area, and latency</p></li>
+<li><p>Component, architecture, workload, and mapping as separate objects</p></li>
+<li><p>Automated mapping of workloads to architectures</p></li>
+</ul>
+<p>For users of Timeloop, AccelForge can be used as a faster Python-based alternative. Many
+of the features of Timeloop are supported by AccelForge, and input specifications are
+similar, though not identical.</p>
+<p>While AccelForge is under active development and will in the future have a superset of
+Timeloop’s features, currently the two works have differing feature sets. For users who
+are considering migrating, please review the <a class="reference internal" href="timeloop_compare.html"><span class="doc">Migrating from Timeloop</span></a> page for a
+comparison of the features supported by each framework.</p>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="id2" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
+<p>A. Parashar et al., “Timeloop: A Systematic Approach to DNN Accelerator
+Evaluation,” 2019 IEEE International Symposium on Performance Analysis of Systems and
+Software (ISPASS), Madison, WI, USA, 2019, pp. 304-315, doi:
+10.1109/ISPASS.2019.00042. <a class="reference external" href="https://github.com/NVlabs/timeloop">Code Here</a></p>
+</aside>
+</aside>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">AccelForge</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="spec.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Input Specifications</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pypi-installation">PyPI Installation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-pre-built-docker-images">Using Pre-Built Docker Images</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#getting-started">Getting Started</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-example">Basic Example</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#examples">Examples</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-notebooks">Example Notebooks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-input-files">Example Input Files</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-topics">Core Topics</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reference">Reference</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#additional-resources">Additional Resources</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#support">Support</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#migrating-from-timeloop">Migrating from Timeloop</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/guide/guide.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

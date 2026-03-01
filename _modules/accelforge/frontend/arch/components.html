@@ -1,0 +1,1506 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.frontend.arch.components &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/frontend/arch/components';</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.frontend.arch.components</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.frontend.arch.components</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Any</span><span class="p">,</span>
+    <span class="n">Literal</span><span class="p">,</span>
+    <span class="n">Optional</span><span class="p">,</span>
+    <span class="n">Self</span><span class="p">,</span>
+    <span class="n">TypeVar</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">ConfigDict</span>
+<span class="kn">from</span> <span class="nn">hwcomponents</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ComponentModel</span><span class="p">,</span>
+    <span class="n">get_models</span><span class="p">,</span>
+    <span class="n">get_model</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util._basetypes</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EvalableModel</span><span class="p">,</span>
+    <span class="n">EvalableList</span><span class="p">,</span>
+    <span class="n">EvalExtras</span><span class="p">,</span>
+    <span class="n">EvalsTo</span><span class="p">,</span>
+    <span class="n">TryEvalTo</span><span class="p">,</span>
+    <span class="n">_PostCall</span><span class="p">,</span>
+    <span class="n">NoParse</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util.exceptions</span> <span class="kn">import</span> <span class="n">EvaluationError</span>
+<span class="kn">from</span> <span class="nn">accelforge.util._eval_expressions</span> <span class="kn">import</span> <span class="n">eval_expression</span>
+<span class="kn">from</span> <span class="nn">accelforge.util._setexpressions</span> <span class="kn">import</span> <span class="n">InvertibleSet</span><span class="p">,</span> <span class="n">eval_set_expression</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.renames</span> <span class="kn">import</span> <span class="n">TensorName</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.arch.constraints</span> <span class="kn">import</span> <span class="n">Comparison</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.arch.structure</span> <span class="kn">import</span> <span class="n">ArchNode</span><span class="p">,</span> <span class="n">Branch</span><span class="p">,</span> <span class="n">Leaf</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.arch.spatialable</span> <span class="kn">import</span> <span class="n">Spatial</span><span class="p">,</span> <span class="n">Spatialable</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util._basetypes</span> <span class="kn">import</span> <span class="n">_uninstantiable</span>
+
+<span class="n">T</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;T&quot;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="s2">&quot;ArchNode&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Action">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Action">[docs]</a>
+<span class="k">class</span> <span class="nc">Action</span><span class="p">(</span><span class="n">EvalableModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An action that may be performed by a component.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The name of this action. &quot;&quot;&quot;</span>
+
+    <span class="n">energy</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dynamic energy of this action. Per-action energy is multiplied by the component&#39;s</span>
+<span class="sd">    energy_scale and the action&#39;s energy_scale.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">energy_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The scale factor for dynamic energy of this action. Multiplies this action&#39;s energy</span>
+<span class="sd">    by this value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">latency</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Latency of this action. Per-action latency is multiplied by the component&#39;s</span>
+<span class="sd">    latency_scale and the action&#39;s latency_scale.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">latency_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The scale factor for dynamic latency of this action. Multiplies this action&#39;s</span>
+<span class="sd">    latency by this value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">extra_attributes_for_component_model</span><span class="p">:</span> <span class="n">EvalExtras</span> <span class="o">=</span> <span class="n">EvalExtras</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Extra attributes to pass to the component model. In addition to all attributes</span>
+<span class="sd">    of this action, any extra attributes will be passed to the component model as</span>
+<span class="sd">    arguments to the component model&#39;s action. This can be used to define attributes</span>
+<span class="sd">    that are known to the component model, but not accelforge, such as clock</span>
+<span class="sd">    frequency.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_attributes_for_component_model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">shallow_model_dump</span><span class="p">(),</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">extra_attributes_for_component_model</span><span class="o">.</span><span class="n">shallow_model_dump</span><span class="p">(),</span>
+        <span class="p">}</span></div>
+
+
+
+<div class="viewcode-block" id="TensorHolderAction">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.TensorHolderAction">[docs]</a>
+<span class="k">class</span> <span class="nc">TensorHolderAction</span><span class="p">(</span><span class="n">Action</span><span class="p">):</span>
+    <span class="n">bits_per_action</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;1 if bits_per_action is None else bits_per_action&quot;</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The number of bits accessed in this action. For example, setting bits_per_action</span>
+<span class="sd">    to 16 means that each call to this action yields 16 bits. &quot;&quot;&quot;</span></div>
+
+
+
+<span class="n">_COMPONENT_MODEL_CACHE</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">,</span> <span class="s2">&quot;Component&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span> <span class="nf">_set_component_model_cache</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="s2">&quot;Component&quot;</span><span class="p">):</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">_COMPONENT_MODEL_CACHE</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1000</span><span class="p">:</span>
+        <span class="n">_COMPONENT_MODEL_CACHE</span><span class="o">.</span><span class="n">popitem</span><span class="p">(</span><span class="n">last</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">_COMPONENT_MODEL_CACHE</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+
+<span class="k">class</span> <span class="nc">_ExtraAttrs</span><span class="p">(</span><span class="n">EvalExtras</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_evaluated&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="n">symbol_table</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="n">orig_symbol_table</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">symbol_table</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;arch_extra_attributes_for_all_component_models&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">orig_symbol_table</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span>
+                <span class="s2">&quot;arch_extra_attributes_for_all_component_models is not set in the symbol &quot;</span>
+                <span class="s2">&quot;table. Was parsing called from the architecture on top?&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">orig_symbol_table</span><span class="p">[</span>
+            <span class="s2">&quot;arch_extra_attributes_for_all_component_models&quot;</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="n">symbol_table</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Component">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component">[docs]</a>
+<span class="nd">@_uninstantiable</span>
+<span class="k">class</span> <span class="nc">Component</span><span class="p">(</span><span class="n">Spatialable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A component object in the architecture. This is overridden by different</span>
+<span class="sd">    component types, such as `Memory` and `Compute`.&quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The name of this `Component`. &quot;&quot;&quot;</span>
+
+    <span class="n">component_class</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The class of this `Component`. Used if an energy or area model needs to be</span>
+<span class="sd">    called for this `Component`. &quot;&quot;&quot;</span>
+
+    <span class="n">component_model</span><span class="p">:</span> <span class="n">ComponentModel</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The model to use for this `Component`. If not set, the model will be found with</span>
+<span class="sd">    `hwcomponents.get_models()`. If set, the `component_class` will be ignored. &quot;&quot;&quot;</span>
+
+    <span class="n">component_modeling_log</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; A log of the energy and area calculations for this `Component`. &quot;&quot;&quot;</span>
+
+    <span class="n">actions</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">Action</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The actions that this `Component` can perform. &quot;&quot;&quot;</span>
+
+    <span class="n">enabled</span><span class="p">:</span> <span class="n">TryEvalTo</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Whether this component is enabled. If the expression resolves to False, then</span>
+<span class="sd">    the component is disabled. This is evaluated per-pmapping-template, so it is a function</span>
+<span class="sd">    of the tensors in the current Einsum. For example, you may say `len(All) &gt;= 3` and</span>
+<span class="sd">    the component will only be enabled with Einsums with three or more tensors.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">area</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The area of a single instance of this component in m^2. If set, area calculations</span>
+<span class="sd">    will use this value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">total_area</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The total area of all instances of this component in m^2. Do not set this value. It</span>
+<span class="sd">    is calculated when the architecture&#39;s area is calculated.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">area_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The scale factor for the area of this comxponent. This is used to scale the area of</span>
+<span class="sd">    this component. For example, if the area is 1 m^2 and the scale factor is 2, then</span>
+<span class="sd">    the area is 2 m^2.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">leak_power</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The leak power of a single instance of this component in W. If set, leak power</span>
+<span class="sd">    calculations will use this value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">total_leak_power</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The total leak power of all instances of this component in W. Do not set this value.</span>
+<span class="sd">    It is calculated when the architecture&#39;s leak power is calculated. If instances are</span>
+<span class="sd">    power gated, actual leak power may be less than this value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">leak_power_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The scale factor for the leak power of this component. This is used to scale the</span>
+<span class="sd">    leak power of this component. For example, if the leak power is 1 W and the scale</span>
+<span class="sd">    factor is 2, then the leak power is 2 W.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">energy_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The scale factor for dynamic energy of this component. For each action, multiplies</span>
+<span class="sd">    this action&#39;s energy. Multiplies the calculated energy of each action.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">total_latency</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="s2">&quot;sum(*action2latency.values())&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An expression representing the total latency of this component in seconds. This is</span>
+<span class="sd">    used to calculate the latency of a given Einsum. Special variables available are the</span>
+<span class="sd">    following:</span>
+
+<span class="sd">    - `min`: The minimum value of all arguments to the expression.</span>
+<span class="sd">    - `max`: The maximum value of all arguments to the expression.</span>
+<span class="sd">    - `sum`: The sum of all arguments to the expression.</span>
+<span class="sd">    - `X_actions`: The number of times action `X` is performed. For example,</span>
+<span class="sd">      `read_actions` is the number of times the read action is performed.</span>
+<span class="sd">    - `X_latency`: The total latency of all actions of type `X`. For example,</span>
+<span class="sd">      `read_latency` is the total latency of all read actions. It is equal to the</span>
+<span class="sd">      per-read latency multiplied by the number of read actions.</span>
+<span class="sd">    - `action2latency`: A dictionary of action names to their latency.</span>
+
+<span class="sd">    Additionally, all component attributes are availble as variables, and all other</span>
+<span class="sd">    functions generally available in parsing. Note this expression is evaluated after other</span>
+<span class="sd">    component attributes are evaluated.</span>
+
+<span class="sd">    For example, the following expression calculates latency assuming that each read or</span>
+<span class="sd">    write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">latency_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The scale factor for the latency of this component. This is used to scale the</span>
+<span class="sd">    latency of this component. For example, if the latency is 1 ns and the scale factor</span>
+<span class="sd">    is 2, then the latency is 2 ns. Multiplies the calculated latency of each action.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">n_parallel_instances</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of parallel instances of this component. Increasing parallel instances</span>
+<span class="sd">    will proportionally increase area and leakage, while reducing latency (unless</span>
+<span class="sd">    latency calculation is overridden).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">extra_attributes_for_component_model</span><span class="p">:</span> <span class="n">_ExtraAttrs</span> <span class="o">=</span> <span class="n">_ExtraAttrs</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Extra attributes to pass to the component model. In addition to all attributes</span>
+<span class="sd">    of this component, any extra attributes will be passed to the component model. This</span>
+<span class="sd">    can be used to define attributes that are known to the component model, but not</span>
+<span class="sd">    accelforge, such as the technology node.&quot;&quot;&quot;</span>
+
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">arbitrary_types_allowed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_update_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_actions</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">Action</span><span class="p">]):</span>
+        <span class="n">has_actions</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">new_actions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">has_actions</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Component.get_component_class">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.get_component_class">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_component_class</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trying_to_calculate</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the class of this Component.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        trying_toeval : str, optional</span>
+<span class="sd">            What was trying to be calculated using this component. If provided, the</span>
+<span class="sd">            error message will be more specific.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        EvaluationError</span>
+<span class="sd">            If the component_class is not set.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">extra_info</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">trying_to_calculate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">extra_info</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; Occurred while trying to calculate </span><span class="si">{</span><span class="n">trying_to_calculate</span><span class="si">}</span><span class="s2">.&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_class</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;component_class must be set to a valid string. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Got </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">component_class</span><span class="si">}</span><span class="s2">. This occurred because the model tried to &quot;</span>
+                <span class="s2">&quot;talk to hwcomponents, but was missing necessary attributes. If you do &quot;</span>
+                <span class="s2">&quot;not want to use hwcomponents component_models, ensure that area and &quot;</span>
+                <span class="s2">&quot;leak_power are set, as well as, for each action, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;energy and latency are set.</span><span class="si">{</span><span class="n">extra_info</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">source_field</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.component_class&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_class</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_is_dummy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_class</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_class</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;dummy&quot;</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="Component.populate_component_model">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.populate_component_model">[docs]</a>
+    <span class="k">def</span> <span class="nf">populate_component_model</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">:</span> <span class="n">T</span><span class="p">,</span>
+        <span class="n">component_models</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ComponentModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">in_place</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">trying_to_calculate</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Populates the ``component_model`` attribute with the model for this component.</span>
+<span class="sd">        Extends the ``component_modeling_log`` field with log messages. Uses the</span>
+<span class="sd">        ``component_class`` attribute to find the model and populate the</span>
+<span class="sd">        ``component_model`` attribute. Uses the ``hwcomponents.get_model()`` function to</span>
+<span class="sd">        find the model.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        component_models : list[hwcomponents.ComponentModel] | None</span>
+<span class="sd">            The models to use for energy calculation. If not provided, the models will</span>
+<span class="sd">            be found with `hwcomponents.get_models()`.</span>
+<span class="sd">        in_place : bool</span>
+<span class="sd">            If True, the component will be modified in place. Otherwise, a copy will be</span>
+<span class="sd">            returned.</span>
+<span class="sd">        trying_to_calculate : str, optional</span>
+<span class="sd">            What was trying to be calculated using this component. If provided, the</span>
+<span class="sd">            error messages for missing component_class will be more specific.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        T</span>
+<span class="sd">            A copy of the component with the populated ``component_model`` attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">:</span> <span class="n">Self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_copy_for_component_modeling</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_dummy</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">component_models</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">component_models</span> <span class="o">=</span> <span class="n">get_models</span><span class="p">()</span>
+            <span class="n">estimation</span> <span class="o">=</span> <span class="n">get_model</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">get_component_class</span><span class="p">(</span><span class="n">trying_to_calculate</span><span class="o">=</span><span class="n">trying_to_calculate</span><span class="p">),</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_attributes_for_component_model</span><span class="p">(),</span>
+                <span class="n">required_actions</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">),</span>
+                <span class="n">models</span><span class="o">=</span><span class="n">component_models</span><span class="p">,</span>
+                <span class="n">_return_estimation_object</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span> <span class="o">=</span> <span class="n">estimation</span><span class="o">.</span><span class="n">value</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">component_modeling_log</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">estimation</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Component.calculate_action_energy">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.calculate_action_energy">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_action_energy</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">component_models</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ComponentModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">in_place</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates energy for each action of this component. If energy is set in the</span>
+<span class="sd">        action or component (with action taking precedence), that value will be used.</span>
+<span class="sd">        Otherwise, the energy will be calculated using hwcomponents. Populates, for each</span>
+<span class="sd">        action, the ``&lt;action&gt;.energy`` and field. Extends the</span>
+<span class="sd">        ``component_modeling_log`` field with log messages.</span>
+
+<span class="sd">        Uses the ``component_model`` attribute, or, if not set, the ``component_class``</span>
+<span class="sd">        attribute to find the model and populate the ``component_model`` attribute.</span>
+
+<span class="sd">        Note that these methods will be called by the Spec when calculating energy and</span>
+<span class="sd">        area. If you call them yourself, note that string expressions may not be evaluated</span>
+<span class="sd">        because they need the Spec&#39;s global scope. If you are sure that all necessary</span>
+<span class="sd">        values are present and not a result of an expression, you can call these</span>
+<span class="sd">        directly. Otherwise, you can call the</span>
+<span class="sd">        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components</span>
+<span class="sd">        from the returned ``Spec``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        component_models : list[hwcomponents.ComponentModel] | None</span>
+<span class="sd">            The models to use for energy calculation. If not provided, the models will</span>
+<span class="sd">            be found with `hwcomponents.get_models()`.</span>
+<span class="sd">        in_place : bool</span>
+<span class="sd">            If True, the component will be modified in place. Otherwise, a copy will be</span>
+<span class="sd">            returned.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        T</span>
+<span class="sd">            A copy of the component with the calculated energy.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">:</span> <span class="n">Component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_copy_for_component_modeling</span><span class="p">()</span>
+
+        <span class="n">messages</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_modeling_log</span>
+
+        <span class="k">for</span> <span class="n">action</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">:</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Calculating energy for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> action </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">energy</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">energy</span> <span class="o">=</span> <span class="n">action</span><span class="o">.</span><span class="n">energy</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Setting </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> energy to </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">energy</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_dummy</span><span class="p">():</span>
+                <span class="n">energy</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;Component is &quot;Dummy&quot;. Setting energy to 0.&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">populate_component_model</span><span class="p">(</span>
+                    <span class="n">component_models</span><span class="p">,</span>
+                    <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">trying_to_calculate</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;energy for action </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">energy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span><span class="o">.</span><span class="n">try_call_arbitrary_action</span><span class="p">(</span>
+                    <span class="n">action_name</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">_return_estimation_object</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="o">**</span><span class="p">{</span>
+                        <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_attributes_for_component_model</span><span class="p">(),</span>
+                        <span class="o">**</span><span class="n">action</span><span class="o">.</span><span class="n">_attributes_for_component_model</span><span class="p">(),</span>
+                    <span class="p">},</span>
+                <span class="p">)</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">energy</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span>
+                <span class="n">energy</span> <span class="o">=</span> <span class="n">energy</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">energy_scale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">energy</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">energy_scale</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Scaling </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> energy by </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">energy_scale</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">energy_scale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">energy</span> <span class="o">*=</span> <span class="n">action</span><span class="o">.</span><span class="n">energy_scale</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Scaling </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> energy by </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">energy_scale</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">action</span><span class="o">.</span><span class="n">energy</span> <span class="o">=</span> <span class="n">energy</span>
+            <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">energy</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Component </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> action </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> has negative energy: &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">energy</span><span class="si">=}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Component.calculate_leak_power">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.calculate_leak_power">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_leak_power</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">component_models</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ComponentModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">in_place</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the leak power for this component. If leak power is set in the</span>
+<span class="sd">        component, that value will be used. Otherwise, the leak power will be calculated</span>
+<span class="sd">        using hwcomponents. Populates ``leak_power`` field. Extends the</span>
+<span class="sd">        ``component_modeling_log`` field with log messages.</span>
+
+<span class="sd">        Uses the ``component_model`` attribute, or, if not set, the ``component_class``</span>
+<span class="sd">        attribute to find the model and populate the ``component_model`` attribute.</span>
+
+<span class="sd">        Note that these methods will be called by the Spec when calculating energy and</span>
+<span class="sd">        area. If you call them yourself, note that string expressions may not be evaluated</span>
+<span class="sd">        because they need the Spec&#39;s global scope. If you are sure that all necessary</span>
+<span class="sd">        values are present and not a result of an expression, you can call these</span>
+<span class="sd">        directly. Otherwise, you can call the</span>
+<span class="sd">        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components</span>
+<span class="sd">        from the returned ``Spec``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        component_models : list[hwcomponents.ComponentModel] | None</span>
+<span class="sd">            The models to use for energy calculation. If not provided, the models will</span>
+<span class="sd">            be found with `hwcomponents.get_models()`.</span>
+<span class="sd">        in_place : bool</span>
+<span class="sd">            If True, the component will be modified in place. Otherwise, a copy will be</span>
+<span class="sd">            returned.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Self</span>
+<span class="sd">            A copy of the component with the calculated energy.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">:</span> <span class="n">Self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_copy_for_component_modeling</span><span class="p">()</span>
+
+        <span class="n">messages</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_modeling_log</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak_power</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">leak_power</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak_power</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using predefined leak power value </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">leak_power</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_dummy</span><span class="p">():</span>
+            <span class="n">leak_power</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Component is dummy. Setting leak power to 0.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">populate_component_model</span><span class="p">(</span>
+                <span class="n">component_models</span><span class="p">,</span>
+                <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">trying_to_calculate</span><span class="o">=</span><span class="s2">&quot;leak_power&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">leak_power</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span><span class="o">.</span><span class="n">leak_power</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak_power_scale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">leak_power</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak_power_scale</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Scaling leak power by </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">leak_power_scale</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">leak_power</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Scaling leak power by </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">leak_power</span> <span class="o">=</span> <span class="n">leak_power</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">leak_power</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Component </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> has negative leak power: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">leak_power</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Component.calculate_area">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.calculate_area">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_area</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">component_models</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ComponentModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">in_place</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the area for this component. If area is set in the component, that</span>
+<span class="sd">        value will be used. Otherwise, the area will be calculated using the</span>
+<span class="sd">        hwcomponents library. Populates ``area`` field. Extends the</span>
+<span class="sd">        ``component_modeling_log`` field with log messages.</span>
+
+<span class="sd">        Uses the ``component_model`` attribute, or, if not set, the ``component_class``</span>
+<span class="sd">        attribute to find the model and populate the ``component_model`` attribute.</span>
+
+<span class="sd">        Note that these methods will be called by the Spec when calculating energy and</span>
+<span class="sd">        area. If you call them yourself, note that string expressions may not be evaluated</span>
+<span class="sd">        because they need the Spec&#39;s global scope. If you are sure that all necessary</span>
+<span class="sd">        values are present and not a result of an expression, you can call these</span>
+<span class="sd">        directly. Otherwise, you can call the</span>
+<span class="sd">        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components</span>
+<span class="sd">        from the returned ``Spec``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        component_models : list[hwcomponents.ComponentModel] | None</span>
+<span class="sd">            The models to use for area calculation. If not provided, the models will be</span>
+<span class="sd">            found with `hwcomponents.get_models()`.</span>
+<span class="sd">        in_place : bool</span>
+<span class="sd">            If True, the component will be modified in place. Otherwise, a copy will be</span>
+<span class="sd">            returned.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Self</span>
+<span class="sd">            A copy of the component with the calculated area.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">:</span> <span class="n">Self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_copy_for_component_modeling</span><span class="p">()</span>
+
+        <span class="n">messages</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_modeling_log</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">area</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using predefined area value </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">area</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_dummy</span><span class="p">():</span>
+            <span class="n">area</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Component is dummy. Setting area to 0.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">populate_component_model</span><span class="p">(</span>
+                <span class="n">component_models</span><span class="p">,</span>
+                <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">trying_to_calculate</span><span class="o">=</span><span class="s2">&quot;area&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">area</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span><span class="o">.</span><span class="n">area</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">area_scale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">area</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">area_scale</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Scaling area by </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">area_scale</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">area</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Scaling area by </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="o">=</span> <span class="n">area</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Component </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> has negative area: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">area</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Component.calculate_action_latency">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.calculate_action_latency">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_action_latency</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">component_models</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ComponentModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">in_place</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the latency for each action by this component. Populates the</span>
+<span class="sd">        ``&lt;action&gt;.latency`` field. Extends the ``component_modeling_log`` field with</span>
+<span class="sd">        log messages.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        component_models : list[hwcomponents.ComponentModel] | None</span>
+<span class="sd">            The models to use for latency calculation. If not provided, the models will be</span>
+<span class="sd">            found with `hwcomponents.get_models()`.</span>
+<span class="sd">        in_place : bool</span>
+<span class="sd">            If True, the component will be modified in place. Otherwise, a copy will be</span>
+<span class="sd">            returned.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Self</span>
+<span class="sd">            A copy of the component with the calculated latency for each action.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">:</span> <span class="n">Self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_copy_for_component_modeling</span><span class="p">()</span>
+
+        <span class="n">messages</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_modeling_log</span>
+
+        <span class="k">for</span> <span class="n">action</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">:</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Calculating latency for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> action </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">latency</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">latency</span> <span class="o">=</span> <span class="n">action</span><span class="o">.</span><span class="n">latency</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Setting </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> latency to </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">latency</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_dummy</span><span class="p">():</span>
+                <span class="n">latency</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Component is dummy. Setting latency to 0.&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">populate_component_model</span><span class="p">(</span>
+                    <span class="n">component_models</span><span class="p">,</span>
+                    <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">trying_to_calculate</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;latency for action </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">latency</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span><span class="o">.</span><span class="n">try_call_arbitrary_action</span><span class="p">(</span>
+                    <span class="n">action_name</span><span class="o">=</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">_return_estimation_object</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="o">**</span><span class="p">{</span>
+                        <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_attributes_for_component_model</span><span class="p">(),</span>
+                        <span class="o">**</span><span class="n">action</span><span class="o">.</span><span class="n">_attributes_for_component_model</span><span class="p">(),</span>
+                    <span class="p">},</span>
+                <span class="p">)</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">latency</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span>
+                <span class="n">latency</span> <span class="o">=</span> <span class="n">latency</span><span class="o">.</span><span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">latency_scale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">latency</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">latency_scale</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Scaling </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> latency by </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">latency_scale</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">latency_scale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">latency</span> <span class="o">*=</span> <span class="n">action</span><span class="o">.</span><span class="n">latency_scale</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Scaling </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> latency by </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">latency_scale</span><span class="si">=}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">latency</span> <span class="o">/=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span>
+                <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Dividing </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> latency by </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_parallel_instances</span><span class="si">=}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="n">action</span><span class="o">.</span><span class="n">latency</span> <span class="o">=</span> <span class="n">latency</span>
+            <span class="k">if</span> <span class="n">action</span><span class="o">.</span><span class="n">latency</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Component </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> action </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> has negative latency: &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">latency</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Component.calculate_area_energy_latency_leak">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.calculate_area_energy_latency_leak">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_area_energy_latency_leak</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">component_models</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ComponentModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">in_place</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">_use_cache</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculates the area, energy, latency, and leak power for this component.</span>
+<span class="sd">        Populates the ``area``, ``total_area``, ``leak_power``, ``total_leak_power``,</span>
+<span class="sd">        ``total_latency``, and ``component_modeling_log`` fields of this component.</span>
+<span class="sd">        Additionally, for each action, populates the ``&lt;action&gt;.area``,</span>
+<span class="sd">        ``&lt;action&gt;.energy``, ``&lt;action&gt;.latency``, and ``&lt;action&gt;.leak_power`` fields.</span>
+<span class="sd">        Extends the ``component_modeling_log`` field with log messages.</span>
+
+<span class="sd">        Note that these methods will be called by the Spec when calculating energy and</span>
+<span class="sd">        area. If you call them yourself, note that string expressions may not be evaluated</span>
+<span class="sd">        because they need the Spec&#39;s global scope. If you are sure that all necessary</span>
+<span class="sd">        values are present and not a result of an expression, you can call these</span>
+<span class="sd">        directly. Otherwise, you can call the</span>
+<span class="sd">        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components</span>
+<span class="sd">        from the returned ``Spec``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        component_models : list[hwcomponents.ComponentModel] | None</span>
+<span class="sd">            The models to use for energy calculation. If not provided, the models will</span>
+<span class="sd">            be found with `hwcomponents.get_models()`.</span>
+<span class="sd">        in_place : bool</span>
+<span class="sd">            If True, the component will be modified in place. Otherwise, a copy will be</span>
+<span class="sd">            returned.</span>
+<span class="sd">        _use_cache : bool</span>
+<span class="sd">            If True, the component model will be cached and reused if the same component</span>
+<span class="sd">            class, attributes, and actions are provided. Note that this may return</span>
+<span class="sd">            copies of the same object across multiple calls.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Self</span>
+<span class="sd">            The component with the calculated energy, area, and leak power.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">:</span> <span class="n">Self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_copy_for_component_modeling</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">_use_cache</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">cachekey</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">component_class</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_attributes_for_component_model</span><span class="p">(),</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">cachekey</span> <span class="ow">in</span> <span class="n">_COMPONENT_MODEL_CACHE</span><span class="p">:</span>
+                <span class="n">component</span> <span class="o">=</span> <span class="n">_COMPONENT_MODEL_CACHE</span><span class="p">[</span><span class="n">cachekey</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">component_model</span> <span class="o">=</span> <span class="n">component</span><span class="o">.</span><span class="n">component_model</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">component_modeling_log</span> <span class="o">=</span> <span class="n">component</span><span class="o">.</span><span class="n">component_modeling_log</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="n">component</span><span class="o">.</span><span class="n">actions</span>
+                <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_area</span><span class="p">(</span><span class="n">component_models</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_action_energy</span><span class="p">(</span><span class="n">component_models</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_action_latency</span><span class="p">(</span><span class="n">component_models</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_leak_power</span><span class="p">(</span><span class="n">component_models</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">_use_cache</span><span class="p">:</span>
+            <span class="n">_set_component_model_cache</span><span class="p">(</span><span class="n">cachekey</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_attributes_for_component_model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">shallow_model_dump</span><span class="p">(),</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">extra_attributes_for_component_model</span><span class="o">.</span><span class="n">shallow_model_dump</span><span class="p">(),</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_copy_for_component_modeling</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+        <span class="bp">self</span><span class="p">:</span> <span class="n">Component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_copy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extra_attributes_for_component_model</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">extra_attributes_for_component_model</span><span class="o">.</span><span class="n">model_copy</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">actions</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">)([</span><span class="n">a</span><span class="o">.</span><span class="n">model_copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">action</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actions</span><span class="p">:</span>
+            <span class="n">action</span><span class="o">.</span><span class="n">extra_attributes_for_component_model</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">action</span><span class="o">.</span><span class="n">extra_attributes_for_component_model</span><span class="o">.</span><span class="n">model_copy</span><span class="p">()</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+
+<span class="n">MEMORY_ACTIONS</span> <span class="o">=</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">TensorHolderAction</span><span class="p">](</span>
+    <span class="p">[</span>
+        <span class="n">TensorHolderAction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;read&quot;</span><span class="p">),</span>
+        <span class="n">TensorHolderAction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;write&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+
+<span class="n">PROCESSING_STAGE_ACTIONS</span> <span class="o">=</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">TensorHolderAction</span><span class="p">](</span>
+    <span class="p">[</span>
+        <span class="n">TensorHolderAction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;read&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">COMPUTE_ACTIONS</span> <span class="o">=</span> <span class="n">EvalableList</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="n">Action</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;compute&quot;</span><span class="p">),</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_eval_tensor2bits</span><span class="p">(</span>
+    <span class="n">toeval</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">location</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">toeval</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">key_evaluated</span> <span class="o">=</span> <span class="n">eval_set_expression</span><span class="p">(</span>
+            <span class="n">expression</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+            <span class="n">symbol_table</span><span class="o">=</span><span class="n">symbol_table</span><span class="p">,</span>
+            <span class="n">expected_space</span><span class="o">=</span><span class="n">TensorName</span><span class="p">,</span>
+            <span class="n">location</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">location</span><span class="si">}</span><span class="s2"> key </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
+        <span class="n">result</span><span class="p">[</span><span class="n">key_evaluated</span><span class="p">]</span> <span class="o">=</span> <span class="n">eval_expression</span><span class="p">(</span>
+            <span class="n">expression</span><span class="o">=</span><span class="n">value</span><span class="p">,</span>
+            <span class="n">symbol_table</span><span class="o">=</span><span class="n">symbol_table</span><span class="p">,</span>
+            <span class="n">attr_name</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+            <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="nb">all</span> <span class="o">=</span> <span class="n">symbol_table</span><span class="p">[</span><span class="s2">&quot;All&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">instance</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+        <span class="nb">all</span> <span class="o">-=</span> <span class="n">k</span>
+
+    <span class="k">if</span> <span class="nb">all</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Missing bits_per_value_scale for </span><span class="si">{</span><span class="nb">all</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">a</span> <span class="o">&amp;</span> <span class="n">b</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;bits_per_value_scale for </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s2"> overlap&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">{</span><span class="n">k2</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">for</span> <span class="n">k2</span> <span class="ow">in</span> <span class="n">k</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="Tensors">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors">[docs]</a>
+<span class="k">class</span> <span class="nc">Tensors</span><span class="p">(</span><span class="n">EvalableModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fields that control which tensor(s) are kept in a :py:class:`~.TensorHolder` and in</span>
+<span class="sd">    what order their nodes may appear in the mapping.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">keep</span><span class="p">:</span> <span class="n">TryEvalTo</span><span class="p">[</span><span class="n">InvertibleSet</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]]</span> <span class="o">=</span> <span class="s2">&quot;&lt;Defaults to Nothing&gt;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A set expression describing which tensors must be kept in this</span>
+<span class="sd">    :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then all</span>
+<span class="sd">    tensors must be kept. Any tensors that are in ``back`` will also be added to</span>
+<span class="sd">    ``keep``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">may_keep</span><span class="p">:</span> <span class="n">TryEvalTo</span><span class="p">[</span><span class="n">InvertibleSet</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;&lt;Nothing if keep is defined, else All&gt;&quot;</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A set expression describing which tensors may optionally be kept in this</span>
+<span class="sd">    :class:`accelforge.frontend.arch.TensorHolder`. The mapper will explore both keeping</span>
+<span class="sd">    and not keeping each of these tensors. If this is not defined, then all tensors may</span>
+<span class="sd">    be kept.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">back</span><span class="p">:</span> <span class="n">TryEvalTo</span><span class="p">[</span><span class="n">InvertibleSet</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]]</span> <span class="o">=</span> <span class="s2">&quot;Nothing&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A set expression describing which tensors must be backed by this</span>
+<span class="sd">    :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then no</span>
+<span class="sd">    tensors must be backed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">tile_shape</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">Comparison</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The tile shape for each rank variable. This is given as a list of</span>
+<span class="sd">    :class:`~.Comparison` objects, where each comparison must evaluate to True for a</span>
+<span class="sd">    valid mapping.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">no_refetch_from_above</span><span class="p">:</span> <span class="n">TryEvalTo</span><span class="p">[</span><span class="n">InvertibleSet</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]]</span> <span class="o">=</span> <span class="s2">&quot;~All&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The tensors that are not allowed to be refetched from above. This is given as a set</span>
+<span class="sd">    of :class:`~.TensorName` objects or a set expression that resolves to them. These</span>
+<span class="sd">    tensors must be fetched at most one time from above memories, and may not be</span>
+<span class="sd">    refetched across any temporal or spatial loop iterations. Tensors may be fetched in</span>
+<span class="sd">    pieces (if they do not cause re-fetches of any piece).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">tensor_order_options</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span>
+        <span class="n">EvalableList</span><span class="p">[</span><span class="n">TryEvalTo</span><span class="p">[</span><span class="n">InvertibleSet</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]]]</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="n">EvalableList</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Options for the order of tensor storage nodes in the mapping. This is given as a</span>
+<span class="sd">    list-of-lists-of-sets. Each list-of-sets is a valid order of tensor storage nodes.</span>
+<span class="sd">    Order is given from highest in the mapping to lowest.</span>
+
+<span class="sd">    For example, an option could be [input | output, weight], which means that there is</span>
+<span class="sd">    no relative ordering required between input and output, but weight must be below</span>
+<span class="sd">    both.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">force_memory_hierarchy_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    If set to true, storage nodes for lower-level memories must be placed below storage</span>
+<span class="sd">    nodes for higher-level memories. For example, all MainMemory storage nodes must go</span>
+<span class="sd">    above all LocalBuffer storage nodes.</span>
+
+<span class="sd">    This constraint always applies to same-tensor storage nodes (e.g., MainMemory</span>
+<span class="sd">    reusing Output must go above LocalBuffer reusing Output); turning it off will permit</span>
+<span class="sd">    things like MainMemory reusing Output going above LocalBuffer reusing Input.</span>
+
+<span class="sd">    This is identical to the `force_memory_hierarchy_order` field in the `FFM` class,</span>
+<span class="sd">    but only applies to this tensor holder.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">keep</span><span class="p">,</span> <span class="n">may_keep</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">keep</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">may_keep</span>
+        <span class="k">if</span> <span class="n">may_keep</span> <span class="o">==</span> <span class="s2">&quot;&lt;Nothing if keep is defined, else All&gt;&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">may_keep</span> <span class="o">=</span> <span class="s2">&quot;All&quot;</span> <span class="k">if</span> <span class="n">keep</span> <span class="o">==</span> <span class="s2">&quot;&lt;Defaults to Nothing&gt;&quot;</span> <span class="k">else</span> <span class="s2">&quot;~All&quot;</span>
+        <span class="k">if</span> <span class="n">keep</span> <span class="o">==</span> <span class="s2">&quot;&lt;Defaults to Nothing&gt;&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">keep</span> <span class="o">=</span> <span class="s2">&quot;Nothing&quot;</span>
+        <span class="n">evaluated</span><span class="p">,</span> <span class="n">symbol_table</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span>
+            <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">evaluated</span><span class="o">.</span><span class="n">back</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">evaluated</span><span class="o">.</span><span class="n">keep</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">):</span>
+                <span class="n">evaluated</span><span class="o">.</span><span class="n">keep</span> <span class="o">|=</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">back</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">evaluated</span><span class="o">.</span><span class="n">may_keep</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">):</span>
+                <span class="n">evaluated</span><span class="o">.</span><span class="n">may_keep</span> <span class="o">-=</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">back</span>
+
+        <span class="c1"># Assert that there are no intersecting sets</span>
+        <span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">tensor_order_options</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s0</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">order</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">s1</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">order</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">j</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s0</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span>
+                        <span class="n">s1</span><span class="p">,</span> <span class="n">InvertibleSet</span>
+                    <span class="p">):</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="n">s0</span> <span class="o">&amp;</span> <span class="n">s1</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Intersecting entries in tensor_order_options: </span><span class="si">{</span><span class="n">s0</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">s1</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">evaluated</span><span class="p">,</span> <span class="n">symbol_table</span></div>
+
+
+
+<div class="viewcode-block" id="TensorHolder">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.TensorHolder">[docs]</a>
+<span class="nd">@_uninstantiable</span>
+<span class="k">class</span> <span class="nc">TensorHolder</span><span class="p">(</span><span class="n">Component</span><span class="p">,</span> <span class="n">Leaf</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A TensorHolder is a component that holds tensors. These are usually Memories,</span>
+<span class="sd">    but can also be Tolls.&quot;&quot;&quot;</span>
+
+    <span class="n">actions</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">TensorHolderAction</span><span class="p">]</span> <span class="o">=</span> <span class="n">MEMORY_ACTIONS</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The actions that this `TensorHolder` can perform. &quot;&quot;&quot;</span>
+
+    <span class="n">tensors</span><span class="p">:</span> <span class="n">Tensors</span> <span class="o">=</span> <span class="n">Tensors</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fields that control which tensor(s) are kept in this `TensorHolder` and in what</span>
+<span class="sd">    order their nodes may appear in the mapping.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bits_per_value_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;All&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If</span>
+<span class="sd">    this is a dictionary, keys in the dictionary are evaluated as expressions and may</span>
+<span class="sd">    reference one or more tensors.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bits_per_action</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of bits accessed in each of this component&#39;s actions. Overridden by</span>
+<span class="sd">    bits_per_action in any action of this component. If set here, acts as a default</span>
+<span class="sd">    value for the bits_per_action of all actions of this component.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">model_post_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">__context__</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_actions</span><span class="p">(</span><span class="n">MEMORY_ACTIONS</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Sometimes the same component object may appear in the mapping and the</span>
+        <span class="c1"># architecture, in which case we don&#39;t want parsing to happen twice.</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_evaluated&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">class</span> <span class="nc">MyPostCall</span><span class="p">(</span><span class="n">_PostCall</span><span class="p">):</span>
+            <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">evaluated</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">field</span> <span class="o">==</span> <span class="s2">&quot;bits_per_value_scale&quot;</span><span class="p">:</span>
+                    <span class="n">evaluated</span> <span class="o">=</span> <span class="n">_eval_tensor2bits</span><span class="p">(</span>
+                        <span class="n">evaluated</span><span class="p">,</span>
+                        <span class="n">location</span><span class="o">=</span><span class="s2">&quot;bits_per_value_scale&quot;</span><span class="p">,</span>
+                        <span class="n">symbol_table</span><span class="o">=</span><span class="n">symbol_table</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">return</span> <span class="n">evaluated</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">post_calls</span><span class="o">=</span><span class="p">(</span><span class="n">MyPostCall</span><span class="p">(),))</span></div>
+
+
+
+<div class="viewcode-block" id="Container">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Container">[docs]</a>
+<span class="k">class</span> <span class="nc">Container</span><span class="p">(</span><span class="n">Leaf</span><span class="p">,</span> <span class="n">Spatialable</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Creates a container, used to conveniently define spatial arrays, and doesn&#39;t do</span>
+<span class="sd">    anything else.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_color</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;#FCC2FC&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="Memory">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Memory">[docs]</a>
+<span class="k">class</span> <span class="nc">Memory</span><span class="p">(</span><span class="n">TensorHolder</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A `Memory` is a `TensorHolder` that stores data over time, allowing for temporal</span>
+<span class="sd">    reuse.&quot;&quot;&quot;</span>
+
+    <span class="n">size</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The size of this `Memory` in bits. &quot;&quot;&quot;</span>
+
+    <span class="n">actions</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">TensorHolderAction</span><span class="p">]</span> <span class="o">=</span> <span class="n">MEMORY_ACTIONS</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The actions that this `Memory` can perform. &quot;&quot;&quot;</span>
+
+    <span class="n">_n_physical</span><span class="p">:</span> <span class="n">NoParse</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Number of physical units bound to this memory level.</span>
+
+<span class="sd">    Should always be 1 in the spec, but may be &gt; 1 in a flattened arch since</span>
+<span class="sd">    physical units may be flattened into only one logical level.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;cylinder&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_color</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;#D7FCD7&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;String representation of the Memory node.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> (size: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">)&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spatial_str</span><span class="p">(</span>
+            <span class="n">include_newline</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_label</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The label for a Pydot node.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> with size </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spatial_str</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="Toll">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Toll">[docs]</a>
+<span class="k">class</span> <span class="nc">Toll</span><span class="p">(</span><span class="n">TensorHolder</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A `Toll` is a `TensorHolder` that does not store data over time, and</span>
+<span class="sd">    therefore does not allow for temporal reuse. Use this as a toll that charges reads</span>
+<span class="sd">    and writes every time a piece of data moves through it.</span>
+
+<span class="sd">    Every write to a `Toll` is immediately written to the next `Memory`</span>
+<span class="sd">    (which may be above or below depending on where the write came from), and same for</span>
+<span class="sd">    reads.</span>
+
+<span class="sd">    The access counts of a `Toll` are only included in the &quot;read&quot; action.</span>
+<span class="sd">    Each traversal through the `Toll` is counted as a read. Writes are always</span>
+<span class="sd">    zero.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">direction</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;up&quot;</span><span class="p">,</span> <span class="s2">&quot;down&quot;</span><span class="p">,</span> <span class="s2">&quot;up_and_down&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The direction in which data flows through this `Toll`. If &quot;up&quot;, then data</span>
+<span class="sd">    flows from below `TensorHolder`, through this `Toll` (plus paying</span>
+<span class="sd">    associated costs), and then to the next `TensorHolder` above it. Other data</span>
+<span class="sd">    movements are assumed to avoid this Toll.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">actions</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">TensorHolderAction</span><span class="p">]</span> <span class="o">=</span> <span class="n">PROCESSING_STAGE_ACTIONS</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The actions that this `Toll` can perform. &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">model_post_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">__context__</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_actions</span><span class="p">(</span><span class="n">PROCESSING_STAGE_ACTIONS</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;rarrow&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_color</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;#FFCC99&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="Compute">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Compute">[docs]</a>
+<span class="k">class</span> <span class="nc">Compute</span><span class="p">(</span><span class="n">Component</span><span class="p">,</span> <span class="n">Leaf</span><span class="p">):</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">Action</span><span class="p">]</span> <span class="o">=</span> <span class="n">COMPUTE_ACTIONS</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The actions that this `Compute` can perform. &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">model_post_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">__context__</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_actions</span><span class="p">(</span><span class="n">COMPUTE_ACTIONS</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;ellipse&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_color</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;#E0EEFF&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="Network">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Network">[docs]</a>
+<span class="k">class</span> <span class="nc">Network</span><span class="p">(</span><span class="n">Component</span><span class="p">,</span> <span class="n">Leaf</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines a network component.</span>
+
+<span class="sd">    The routing is currently defined using the mapping, the routing follows the order</span>
+<span class="sd">    of the spatial nodes from top to bottom.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bits_per_value_scale</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;All&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If</span>
+<span class="sd">    this is a dictionary, keys in the dictionary are evaluated as expressions and may</span>
+<span class="sd">    reference one or more tensors.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bits_per_action</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The number of bits accessed in each of this component&#39;s actions. Overridden by</span>
+<span class="sd">    bits_per_action in any action of this component. If set here, acts as a default</span>
+<span class="sd">    value for the bits_per_action of all actions of this component.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;Msquare&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_render_node_color</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;#FAF8C8&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Sometimes the same component object may appear in the mapping and the</span>
+        <span class="c1"># architecture, in which case we don&#39;t want parsing to happen twice.</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_evaluated&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">class</span> <span class="nc">MyPostCall</span><span class="p">(</span><span class="n">_PostCall</span><span class="p">):</span>
+            <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">evaluated</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">field</span> <span class="o">==</span> <span class="s2">&quot;bits_per_value_scale&quot;</span><span class="p">:</span>
+                    <span class="n">evaluated</span> <span class="o">=</span> <span class="n">_eval_tensor2bits</span><span class="p">(</span>
+                        <span class="n">evaluated</span><span class="p">,</span>
+                        <span class="n">location</span><span class="o">=</span><span class="s2">&quot;bits_per_value_scale&quot;</span><span class="p">,</span>
+                        <span class="n">symbol_table</span><span class="o">=</span><span class="n">symbol_table</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">return</span> <span class="n">evaluated</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">post_calls</span><span class="o">=</span><span class="p">(</span><span class="n">MyPostCall</span><span class="p">(),))</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

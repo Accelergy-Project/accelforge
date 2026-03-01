@@ -1,0 +1,817 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.frontend.spec &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/frontend/spec';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.frontend.spec</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.frontend.spec</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.frontend.mapper</span> <span class="kn">import</span> <span class="n">FFM</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.renames</span> <span class="kn">import</span> <span class="n">EinsumName</span><span class="p">,</span> <span class="n">Renames</span>
+<span class="kn">from</span> <span class="nn">accelforge.util._eval_expressions</span> <span class="kn">import</span> <span class="n">EvaluationError</span><span class="p">,</span> <span class="n">ParseExpressionsContext</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.arch</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Compute</span><span class="p">,</span>
+    <span class="n">Leaf</span><span class="p">,</span>
+    <span class="n">Component</span><span class="p">,</span>
+    <span class="n">Arch</span><span class="p">,</span>
+    <span class="n">Container</span><span class="p">,</span>
+    <span class="n">Spatialable</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.frontend.workload</span> <span class="kn">import</span> <span class="n">Workload</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.variables</span> <span class="kn">import</span> <span class="n">Variables</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.config</span> <span class="kn">import</span> <span class="n">Config</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.mapping</span> <span class="kn">import</span> <span class="n">Mapping</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.model</span> <span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">import</span> <span class="nn">hwcomponents</span>
+
+<span class="kn">from</span> <span class="nn">accelforge._accelerated_imports</span> <span class="kn">import</span> <span class="n">pd</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Self</span><span class="p">,</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span> <span class="nn">accelforge.util._basetypes</span> <span class="kn">import</span> <span class="n">EvalableModel</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">Field</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">accelforge.mapper.FFM.mappings</span> <span class="kn">import</span> <span class="n">Mappings</span>
+
+
+<div class="viewcode-block" id="Spec">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.spec.Spec">[docs]</a>
+<span class="k">class</span> <span class="nc">Spec</span><span class="p">(</span><span class="n">EvalableModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The top-level spec of all of the inputs to this package.&quot;&quot;&quot;</span>
+
+    <span class="n">arch</span><span class="p">:</span> <span class="n">Arch</span> <span class="o">=</span> <span class="n">Arch</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The hardware architecture being used. &quot;&quot;&quot;</span>
+
+    <span class="n">mapping</span><span class="p">:</span> <span class="n">Mapping</span> <span class="o">=</span> <span class="n">Mapping</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; How the workload is programmed onto the architecture. Do not specify this if</span>
+<span class="sd">    you&#39;d like the mapper to generate a mapping for you. &quot;&quot;&quot;</span>
+
+    <span class="n">workload</span><span class="p">:</span> <span class="n">Workload</span> <span class="o">=</span> <span class="n">Workload</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The program to be run on the arch. &quot;&quot;&quot;</span>
+
+    <span class="n">variables</span><span class="p">:</span> <span class="n">Variables</span> <span class="o">=</span> <span class="n">Variables</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Variables that can be referenced in other places in the spec. &quot;&quot;&quot;</span>
+
+    <span class="n">config</span><span class="p">:</span> <span class="n">Config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Configuration settings. &quot;&quot;&quot;</span>
+
+    <span class="n">renames</span><span class="p">:</span> <span class="n">Renames</span> <span class="o">=</span> <span class="n">Renames</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Aliases for tensors in the workload so that they can be called</span>
+<span class="sd">    by canonical names when writing architecture constraints. For example, workload</span>
+<span class="sd">    tensors may be renamed to &quot;input&quot;, &quot;output&quot;, and &quot;weight&quot;.&quot;&quot;&quot;</span>
+
+    <span class="n">mapper</span><span class="p">:</span> <span class="n">FFM</span> <span class="o">=</span> <span class="n">FFM</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Configures the mapper used to map the workload onto the architecture. &quot;&quot;&quot;</span>
+
+    <span class="n">model</span><span class="p">:</span> <span class="n">Model</span> <span class="o">=</span> <span class="n">Model</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configures the model used to evaluate mappings.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_for_einsum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a copy of the spec with workload and renames only for the given einsum.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">new</span><span class="o">.</span><span class="n">workload</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">_for_einsum</span><span class="p">(</span><span class="n">einsum_name</span><span class="p">)</span>
+        <span class="n">new</span><span class="o">.</span><span class="n">renames</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">renames</span><span class="o">.</span><span class="n">_for_einsum</span><span class="p">(</span><span class="n">einsum_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">new</span>
+
+    <span class="k">def</span> <span class="nf">_clear_component_models</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Clear the component models from the architecture. This is used to avoid</span>
+<span class="sd">        pickling issues when parallelizing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">new</span><span class="o">.</span><span class="n">arch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">model_copy</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">new</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">get_nodes_of_type</span><span class="p">(</span><span class="n">Component</span><span class="p">):</span>
+            <span class="n">component</span><span class="o">.</span><span class="n">component_model</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">new</span>
+
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Self</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Call _spec_eval_expressions instead.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_spec_eval_expressions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">eval_arch</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">eval_non_arch</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parse all string expressions in the spec into concrete values.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        einsum_name: EinsumName | None = None</span>
+<span class="sd">            Optional Einsum name to populate symbols with the Einsum&#39;s symbols from the</span>
+<span class="sd">            workload. If None, only some symbols may be populated from the workload.</span>
+
+<span class="sd">        eval_arch: bool = True</span>
+<span class="sd">            Whether to evaluate expressions in the the architecture.</span>
+
+<span class="sd">        eval_non_arch: bool = True</span>
+<span class="sd">            Whether to evaluate expressions in the non-architecture fields.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Self</span>
+<span class="sd">            The evaluated specification.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        EvaluationError</span>
+<span class="sd">            If any field fails to evaluate; the error is annotated with the field path.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">st</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">st</span><span class="p">[</span><span class="s2">&quot;spec&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">with</span> <span class="n">ParseExpressionsContext</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">already_evaluated</span> <span class="o">=</span> <span class="p">{}</span>
+
+            <span class="n">evaluated_variables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span>
+            <span class="k">if</span> <span class="n">eval_non_arch</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">evaluated_variables</span><span class="p">,</span> <span class="n">st</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="n">st</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">EvaluationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="s2">&quot;Spec().variables&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="n">e</span>
+            <span class="n">already_evaluated</span><span class="p">[</span><span class="s2">&quot;variables&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_variables</span>
+            <span class="n">st</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">evaluated_variables</span><span class="p">)</span>
+            <span class="n">st</span><span class="p">[</span><span class="s2">&quot;variables&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_variables</span>
+
+            <span class="n">evaluated_renames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">renames</span>
+            <span class="k">if</span> <span class="n">eval_non_arch</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">evaluated_renames</span><span class="p">,</span> <span class="n">st</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">renames</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="n">st</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">EvaluationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="s2">&quot;Spec().renames&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="n">e</span>
+            <span class="n">already_evaluated</span><span class="p">[</span><span class="s2">&quot;renames&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_renames</span>
+            <span class="n">st</span><span class="p">[</span><span class="s2">&quot;renames&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_renames</span>
+
+            <span class="n">evaluated_workload</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">workload</span>
+            <span class="k">if</span> <span class="n">eval_non_arch</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">evaluated_workload</span><span class="p">,</span> <span class="n">st</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span>
+                        <span class="n">st</span><span class="p">,</span> <span class="n">renames</span><span class="o">=</span><span class="n">evaluated_renames</span>
+                    <span class="p">)</span>
+                <span class="k">except</span> <span class="n">EvaluationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">add_field</span><span class="p">(</span><span class="s2">&quot;Spec().workload&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="n">e</span>
+            <span class="n">already_evaluated</span><span class="p">[</span><span class="s2">&quot;workload&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_workload</span>
+            <span class="n">st</span><span class="p">[</span><span class="s2">&quot;workload&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_workload</span>
+
+            <span class="k">if</span> <span class="n">einsum_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">renames</span> <span class="o">=</span> <span class="n">evaluated_workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">einsum_name</span><span class="p">]</span><span class="o">.</span><span class="n">renames</span>
+                <span class="n">st</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">k</span><span class="o">.</span><span class="n">source</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">renames</span><span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">st</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">evaluated_workload</span><span class="o">.</span><span class="n">empty_renames</span><span class="p">())</span>
+
+            <span class="k">if</span> <span class="n">eval_arch</span><span class="p">:</span>
+                <span class="n">evaluated_arch</span><span class="p">,</span> <span class="n">st</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="n">st</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">evaluated_arch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span>
+            <span class="n">st</span><span class="p">[</span><span class="s2">&quot;arch&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_arch</span>
+            <span class="n">already_evaluated</span><span class="p">[</span><span class="s2">&quot;arch&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluated_arch</span>
+
+            <span class="n">evaluated_spec</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span>
+                <span class="n">st</span><span class="p">,</span>
+                <span class="n">already_evaluated</span><span class="o">=</span><span class="n">already_evaluated</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">evaluated_spec</span><span class="o">.</span><span class="n">_evaluated</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="n">evaluated_spec</span>
+
+<div class="viewcode-block" id="Spec.calculate_component_area_energy_latency_leak">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak">[docs]</a>
+    <span class="k">def</span> <span class="nf">calculate_component_area_energy_latency_leak</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">area</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">energy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">latency</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">leak</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Spec&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Populates per-component area, energy, latency, and/or leak power. For each</span>
+<span class="sd">        component, populates the ``area``, ``total_area``, ``leak_power`` and</span>
+<span class="sd">        ``total_leak_power``. Additionally, for each action of each component, populates</span>
+<span class="sd">        the ``&lt;action&gt;.energy`` and ``&lt;action&gt;.latency`` fields. Extends the</span>
+<span class="sd">        ``component_modeling_log`` field with log messages. Also populates the</span>
+<span class="sd">        ``component_model`` attribute for each component if not already set.</span>
+
+<span class="sd">        Some architectures&#39; attributes may depend on the workload. In that case, an</span>
+<span class="sd">        Einsum name can be provided to populate those symbols with the Einsum&#39;s symbols</span>
+<span class="sd">        from the workload.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        einsum_name: EinsumName | None = None</span>
+<span class="sd">            Optional Einsum name to populate symbols with the Einsum&#39;s symbols from the</span>
+<span class="sd">            workload. If None, and there are Einsums in the workload, the first Einsum</span>
+<span class="sd">            is used. If None and there are no Einsums in the workload, then no symbols</span>
+<span class="sd">            are populated from the workload.</span>
+<span class="sd">        area : bool, optional</span>
+<span class="sd">            Whether to compute and populate area entries.</span>
+<span class="sd">        energy : bool, optional</span>
+<span class="sd">            Whether to compute and populate energy entries.</span>
+<span class="sd">        latency : bool, optional</span>
+<span class="sd">            Whether to compute and populate latency entries.</span>
+<span class="sd">        leak : bool, optional</span>
+<span class="sd">            Whether to compute and populate leak power entries.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">area</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">energy</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">latency</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">leak</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="n">models</span> <span class="o">=</span> <span class="n">hwcomponents</span><span class="o">.</span><span class="n">get_models</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">component_models</span><span class="p">,</span>
+            <span class="n">include_installed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">use_installed_component_models</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">einsum_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">einsum_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">workload</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_evaluated&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spec_eval_expressions</span><span class="p">(</span><span class="n">einsum_name</span><span class="o">=</span><span class="n">einsum_name</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_copy</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">arch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">EvaluationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;arch&quot;</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">:</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">add_note</span><span class="p">(</span>
+                    <span class="s2">&quot;If this error seems to be caused by a missing symbol that depends on </span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="s2">&quot;the workload, you may need to provide an appropriate einsum_name to </span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="s2">&quot;calculate_component_area_energy_latency_leak. This may occur if the </span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="s2">&quot;architecture depends on something in the workload.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="k">raise</span>
+
+        <span class="k">for</span> <span class="n">leaf</span><span class="p">,</span> <span class="n">parents</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">iterate_hierarchically</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">leaf</span><span class="p">,</span> <span class="n">Component</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="n">global_fanout</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parents</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Spatialable</span><span class="p">):</span>
+                    <span class="n">global_fanout</span> <span class="o">*=</span> <span class="n">p</span><span class="o">.</span><span class="n">get_fanout</span><span class="p">()</span>
+
+            <span class="n">orig</span><span class="p">:</span> <span class="n">Component</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">leaf</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">leaf</span>
+            <span class="k">if</span> <span class="n">area</span><span class="p">:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">calculate_area</span><span class="p">(</span><span class="n">models</span><span class="p">)</span>
+                <span class="n">orig</span><span class="o">.</span><span class="n">area</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">area</span>
+                <span class="n">orig</span><span class="o">.</span><span class="n">total_area</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">area</span> <span class="o">*</span> <span class="n">global_fanout</span>
+            <span class="k">if</span> <span class="n">energy</span><span class="p">:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">calculate_action_energy</span><span class="p">(</span><span class="n">models</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">actions</span><span class="p">:</span>
+                    <span class="n">orig_action</span> <span class="o">=</span> <span class="n">orig</span><span class="o">.</span><span class="n">actions</span><span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+                    <span class="n">orig_action</span><span class="o">.</span><span class="n">energy</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">energy</span>
+            <span class="k">if</span> <span class="n">latency</span><span class="p">:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">calculate_action_latency</span><span class="p">(</span><span class="n">models</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">actions</span><span class="p">:</span>
+                    <span class="n">orig_action</span> <span class="o">=</span> <span class="n">orig</span><span class="o">.</span><span class="n">actions</span><span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+                    <span class="n">orig_action</span><span class="o">.</span><span class="n">latency</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">latency</span>
+            <span class="k">if</span> <span class="n">leak</span><span class="p">:</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">calculate_leak_power</span><span class="p">(</span><span class="n">models</span><span class="p">)</span>
+                <span class="n">orig</span><span class="o">.</span><span class="n">leak_power</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">leak_power</span>
+                <span class="n">orig</span><span class="o">.</span><span class="n">total_leak_power</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">leak_power</span> <span class="o">*</span> <span class="n">global_fanout</span>
+            <span class="n">orig</span><span class="o">.</span><span class="n">component_modeling_log</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">component_modeling_log</span><span class="p">)</span>
+            <span class="n">orig</span><span class="o">.</span><span class="n">component_model</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">component_model</span>
+
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_get_flattened_architecture</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">compute_node</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Compute</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Leaf</span><span class="p">]]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Leaf</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the architecture as paths of ``Leaf`` instances from the highest-level</span>
+<span class="sd">        node to each ``Compute`` node. Parses arithmetic expressions in the</span>
+<span class="sd">        architecture for each one. If a symbol table is provided, it will be used to</span>
+<span class="sd">        parse the expressions.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        compute_node : str or Compute, optional</span>
+<span class="sd">            Optional compute node (name or ``Compute``) to restrict results to a single</span>
+<span class="sd">            compute node.</span>
+
+<span class="sd">        einsum_name: EinsumName | None = None</span>
+<span class="sd">            Optional Einsum name to populate symbols with the Einsum&#39;s symbols from the</span>
+<span class="sd">            workload. If None, no symbols are populated from the workload.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">            - If ``compute_node`` is ``None``: list of lists of ``Leaf`` for all compute</span>
+<span class="sd">              nodes.</span>
+<span class="sd">            - Otherwise: a single-item list containing the list of ``Leaf`` for the</span>
+<span class="sd">              requested node.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AssertionError</span>
+<span class="sd">            If the spec has not been evaluated.</span>
+<span class="sd">        EvaluationError</span>
+<span class="sd">            If there are duplicate names or the requested compute node cannot be found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Assert that we&#39;ve been evaluated</span>
+        <span class="k">assert</span> <span class="nb">getattr</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_evaluated&quot;</span><span class="p">,</span> <span class="kc">False</span>
+        <span class="p">),</span> <span class="s2">&quot;Spec must be evaluated before getting flattened architecture&quot;</span>
+        <span class="k">if</span> <span class="n">einsum_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spec_eval_expressions</span><span class="p">(</span><span class="n">einsum_name</span><span class="o">=</span><span class="n">einsum_name</span><span class="p">)</span>
+
+        <span class="n">all_leaves</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">get_nodes_of_type</span><span class="p">(</span><span class="n">Leaf</span><span class="p">)</span>
+        <span class="n">found_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">leaf</span> <span class="ow">in</span> <span class="n">all_leaves</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">leaf</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">found_names</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Duplicate name in architecture: </span><span class="si">{</span><span class="n">leaf</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">found_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">leaf</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="n">found</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">compute_node</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">compute_nodes</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">get_nodes_of_type</span><span class="p">(</span><span class="n">Compute</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">compute_nodes</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">compute_node</span><span class="o">.</span><span class="n">name</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compute_node</span><span class="p">,</span> <span class="n">Compute</span><span class="p">)</span> <span class="k">else</span> <span class="n">compute_node</span>
+            <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">compute_nodes</span><span class="p">:</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">arch</span><span class="o">.</span><span class="n">_flatten</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">found</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="n">c</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Compute node </span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2"> not found in architecture&quot;</span><span class="p">)</span>
+
+        <span class="c1"># These can&#39;t be pickled if they use dynamically-loaded code</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">found</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="s2">&quot;component_model&quot;</span><span class="p">):</span>
+                    <span class="n">n</span><span class="o">.</span><span class="n">component_model</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">return</span> <span class="n">found</span> <span class="k">if</span> <span class="n">compute_node</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">found</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+<div class="viewcode-block" id="Spec.evaluate_mapping">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.spec.Spec.evaluate_mapping">[docs]</a>
+    <span class="k">def</span> <span class="nf">evaluate_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mappings</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate the mapping in the spec.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">accelforge.model</span> <span class="kn">import</span> <span class="n">evaluate_mapping</span>
+
+        <span class="k">return</span> <span class="n">evaluate_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Spec.map_workload_to_arch">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.spec.Spec.map_workload_to_arch">[docs]</a>
+    <span class="k">def</span> <span class="nf">map_workload_to_arch</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">einsum_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">one_pbar_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">print_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">print_number_of_pmappings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">_pmapping_row_filter_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mappings</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps the workload to the architecture using the AccelForge Fast and Fusiest</span>
+<span class="sd">        Mapper (FFM).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        spec:</span>
+<span class="sd">            The Spec to map.</span>
+<span class="sd">        einsum_names:</span>
+<span class="sd">            The einsum names to map. If None, all einsums will be mapped.</span>
+<span class="sd">        can_combine_multiple_runs: Whether we would like to be able to combine multiple</span>
+<span class="sd">            make_pmappings runs. Having this as True allows you to do things like</span>
+<span class="sd">            `pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)` but slows</span>
+<span class="sd">            down execution.</span>
+<span class="sd">        cache_dir:</span>
+<span class="sd">            The directory to cache pmappings in. If None, no caching will be done.</span>
+<span class="sd">        one_pbar_only:</span>
+<span class="sd">            Whether to only print only a single progress bar. If this is True, then only</span>
+<span class="sd">            a progress bar will be created for making tile shapes, which is generally</span>
+<span class="sd">            the longest-running part of the mapping process.</span>
+<span class="sd">        print_progress:</span>
+<span class="sd">            Whether to print progress of the mapping process, including progress bars.</span>
+<span class="sd">        print_number_of_pmappings:</span>
+<span class="sd">            Whether to print the number of pmappings for each einsum.</span>
+<span class="sd">        _pmapping_row_filter_function:</span>
+<span class="sd">            A function that takes in a row of the pmapping dataframe and returns True if</span>
+<span class="sd">            the row should be included in the final mappings, and False otherwise. If</span>
+<span class="sd">            None, all rows will be included.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Mappings</span>
+<span class="sd">            The mappings of the workload to the architecture.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">accelforge.mapper.FFM.main</span> <span class="kn">import</span> <span class="n">map_workload_to_arch</span>
+
+        <span class="k">return</span> <span class="n">map_workload_to_arch</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">einsum_names</span><span class="o">=</span><span class="n">einsum_names</span><span class="p">,</span>
+            <span class="n">one_pbar_only</span><span class="o">=</span><span class="n">one_pbar_only</span><span class="p">,</span>
+            <span class="n">print_progress</span><span class="o">=</span><span class="n">print_progress</span><span class="p">,</span>
+            <span class="n">print_number_of_pmappings</span><span class="o">=</span><span class="n">print_number_of_pmappings</span><span class="p">,</span>
+            <span class="n">_pmapping_row_filter_function</span><span class="o">=</span><span class="n">_pmapping_row_filter_function</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<span class="n">Specification</span> <span class="o">=</span> <span class="n">Spec</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

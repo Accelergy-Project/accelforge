@@ -1,0 +1,45 @@
+accelforge.mapper.FFM package
+=============================
+
+Submodules
+----------
+
+accelforge.mapper.FFM.data module
+---------------------------------
+
+.. automodule:: accelforge.mapper.FFM.data
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.mapper.FFM.main module
+---------------------------------
+
+.. automodule:: accelforge.mapper.FFM.main
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.mapper.FFM.mappings module
+-------------------------------------
+
+.. automodule:: accelforge.mapper.FFM.mappings
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.mapper.FFM.pmappings module
+--------------------------------------
+
+.. automodule:: accelforge.mapper.FFM.pmappings
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: accelforge.mapper.FFM
+   :members:
+   :show-inheritance:
+   :undoc-members:

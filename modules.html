@@ -1,0 +1,1587 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>API Reference &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'modules';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="accelforge.frontend package" href="accelforge.frontend.html" />
+    <link rel="prev" title="Migrating from Timeloop" href="guide/timeloop_compare.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="accelforge.frontend.html">accelforge.frontend package</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.arch.html">accelforge.frontend.arch package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.mapper.html">accelforge.frontend.mapper package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.mapping.html">accelforge.frontend.mapping package</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="accelforge.mapper.html">accelforge.mapper package</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.FFM.html">accelforge.mapper.FFM package</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.model.html">accelforge.model package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.plotting.html">accelforge.plotting package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.util.html">accelforge.util package</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">API Reference</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading">#</a></h1>
+<section id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Link to this heading">#</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.frontend.html">accelforge.frontend package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#subpackages">Subpackages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.arch.html">accelforge.frontend.arch package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.arch.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.arch.html#module-accelforge.frontend.arch.arch">accelforge.frontend.arch.arch module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.arch.html#module-accelforge.frontend.arch.components">accelforge.frontend.arch.components module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.arch.html#module-accelforge.frontend.arch.constraints">accelforge.frontend.arch.constraints module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.arch.html#module-accelforge.frontend.arch.spatialable">accelforge.frontend.arch.spatialable module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.arch.html#module-accelforge.frontend.arch.structure">accelforge.frontend.arch.structure module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.arch.html#module-accelforge.frontend.arch">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.mapper.html">accelforge.frontend.mapper package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapper.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapper.html#module-accelforge.frontend.mapper.ffm">accelforge.frontend.mapper.ffm module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapper.html#module-accelforge.frontend.mapper.mapper">accelforge.frontend.mapper.mapper module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapper.html#module-accelforge.frontend.mapper.metrics">accelforge.frontend.mapper.metrics module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapper.html#module-accelforge.frontend.mapper">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.mapping.html">accelforge.frontend.mapping package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapping.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapping.html#module-accelforge.frontend.mapping.mapping">accelforge.frontend.mapping.mapping module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.mapping.html#module-accelforge.frontend.mapping">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#module-accelforge.frontend.config">accelforge.frontend.config module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.config.Config"><code class="docutils literal notranslate"><span class="pre">Config</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.config.Config.component_models"><code class="docutils literal notranslate"><span class="pre">Config.component_models</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.config.Config.expression_custom_functions"><code class="docutils literal notranslate"><span class="pre">Config.expression_custom_functions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.config.Config.from_yaml"><code class="docutils literal notranslate"><span class="pre">Config.from_yaml()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.config.Config.use_installed_component_models"><code class="docutils literal notranslate"><span class="pre">Config.use_installed_component_models</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#module-accelforge.frontend.model">accelforge.frontend.model module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.model.Model"><code class="docutils literal notranslate"><span class="pre">Model</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.model.Model.metrics"><code class="docutils literal notranslate"><span class="pre">Model.metrics</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#module-accelforge.frontend.renames">accelforge.frontend.renames module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.EinsumRename"><code class="docutils literal notranslate"><span class="pre">EinsumRename</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.EinsumRename.__init__"><code class="docutils literal notranslate"><span class="pre">EinsumRename.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.EinsumRename.name"><code class="docutils literal notranslate"><span class="pre">EinsumRename.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.EinsumRename.rank_variables"><code class="docutils literal notranslate"><span class="pre">EinsumRename.rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.EinsumRename.tensor_accesses"><code class="docutils literal notranslate"><span class="pre">EinsumRename.tensor_accesses</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.Rename"><code class="docutils literal notranslate"><span class="pre">Rename</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.Rename.expected_count"><code class="docutils literal notranslate"><span class="pre">Rename.expected_count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.Rename.name"><code class="docutils literal notranslate"><span class="pre">Rename.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.Rename.source"><code class="docutils literal notranslate"><span class="pre">Rename.source</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.RenameList"><code class="docutils literal notranslate"><span class="pre">RenameList</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.Renames"><code class="docutils literal notranslate"><span class="pre">Renames</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.Renames.einsums"><code class="docutils literal notranslate"><span class="pre">Renames.einsums</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.Renames.get_renames_for_einsum"><code class="docutils literal notranslate"><span class="pre">Renames.get_renames_for_einsum()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.rename_list_factory"><code class="docutils literal notranslate"><span class="pre">rename_list_factory()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#module-accelforge.frontend.spec">accelforge.frontend.spec module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec"><code class="docutils literal notranslate"><span class="pre">Spec</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.arch"><code class="docutils literal notranslate"><span class="pre">Spec.arch</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak"><code class="docutils literal notranslate"><span class="pre">Spec.calculate_component_area_energy_latency_leak()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.config"><code class="docutils literal notranslate"><span class="pre">Spec.config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.evaluate_mapping"><code class="docutils literal notranslate"><span class="pre">Spec.evaluate_mapping()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.map_workload_to_arch"><code class="docutils literal notranslate"><span class="pre">Spec.map_workload_to_arch()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.mapper"><code class="docutils literal notranslate"><span class="pre">Spec.mapper</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.mapping"><code class="docutils literal notranslate"><span class="pre">Spec.mapping</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.model"><code class="docutils literal notranslate"><span class="pre">Spec.model</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.renames"><code class="docutils literal notranslate"><span class="pre">Spec.renames</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.variables"><code class="docutils literal notranslate"><span class="pre">Spec.variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec.workload"><code class="docutils literal notranslate"><span class="pre">Spec.workload</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Specification"><code class="docutils literal notranslate"><span class="pre">Specification</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#module-accelforge.frontend.variables">accelforge.frontend.variables module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.variables.Variables"><code class="docutils literal notranslate"><span class="pre">Variables</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#module-accelforge.frontend.workload">accelforge.frontend.workload module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum"><code class="docutils literal notranslate"><span class="pre">Einsum</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.__init__"><code class="docutils literal notranslate"><span class="pre">Einsum.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.copy_source_tensor"><code class="docutils literal notranslate"><span class="pre">Einsum.copy_source_tensor()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.empty_renames"><code class="docutils literal notranslate"><span class="pre">Einsum.empty_renames()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.indexing_expressions"><code class="docutils literal notranslate"><span class="pre">Einsum.indexing_expressions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.input_tensor_names"><code class="docutils literal notranslate"><span class="pre">Einsum.input_tensor_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.is_copy_operation"><code class="docutils literal notranslate"><span class="pre">Einsum.is_copy_operation</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.iteration_space_shape"><code class="docutils literal notranslate"><span class="pre">Einsum.iteration_space_shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.n_instances"><code class="docutils literal notranslate"><span class="pre">Einsum.n_instances</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.name"><code class="docutils literal notranslate"><span class="pre">Einsum.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.output_tensor_names"><code class="docutils literal notranslate"><span class="pre">Einsum.output_tensor_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.rank_sizes"><code class="docutils literal notranslate"><span class="pre">Einsum.rank_sizes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.rank_variable2ranks"><code class="docutils literal notranslate"><span class="pre">Einsum.rank_variable2ranks</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.rank_variables"><code class="docutils literal notranslate"><span class="pre">Einsum.rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.ranks"><code class="docutils literal notranslate"><span class="pre">Einsum.ranks</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.renames"><code class="docutils literal notranslate"><span class="pre">Einsum.renames</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor2directly_indexing_rank_variables"><code class="docutils literal notranslate"><span class="pre">Einsum.tensor2directly_indexing_rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor2expression_indexing_rank_variables"><code class="docutils literal notranslate"><span class="pre">Einsum.tensor2expression_indexing_rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor2irrelevant_rank_variables"><code class="docutils literal notranslate"><span class="pre">Einsum.tensor2irrelevant_rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor2rank_variables"><code class="docutils literal notranslate"><span class="pre">Einsum.tensor2rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor_accesses"><code class="docutils literal notranslate"><span class="pre">Einsum.tensor_accesses</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum.tensor_names"><code class="docutils literal notranslate"><span class="pre">Einsum.tensor_names</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.ImpliedProjection"><code class="docutils literal notranslate"><span class="pre">ImpliedProjection</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Shape"><code class="docutils literal notranslate"><span class="pre">Shape</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Shape.rank_variables"><code class="docutils literal notranslate"><span class="pre">Shape.rank_variables</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess"><code class="docutils literal notranslate"><span class="pre">TensorAccess</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.backing_storage_size_scale"><code class="docutils literal notranslate"><span class="pre">TensorAccess.backing_storage_size_scale</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.bits_per_value"><code class="docutils literal notranslate"><span class="pre">TensorAccess.bits_per_value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.directly_indexing_rank_variables"><code class="docutils literal notranslate"><span class="pre">TensorAccess.directly_indexing_rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.expression_indexing_rank_variables"><code class="docutils literal notranslate"><span class="pre">TensorAccess.expression_indexing_rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.name"><code class="docutils literal notranslate"><span class="pre">TensorAccess.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.output"><code class="docutils literal notranslate"><span class="pre">TensorAccess.output</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.persistent"><code class="docutils literal notranslate"><span class="pre">TensorAccess.persistent</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.projection"><code class="docutils literal notranslate"><span class="pre">TensorAccess.projection</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.rank2rank_variables"><code class="docutils literal notranslate"><span class="pre">TensorAccess.rank2rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.rank_variable2ranks"><code class="docutils literal notranslate"><span class="pre">TensorAccess.rank_variable2ranks</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.rank_variables"><code class="docutils literal notranslate"><span class="pre">TensorAccess.rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess.ranks"><code class="docutils literal notranslate"><span class="pre">TensorAccess.ranks</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload"><code class="docutils literal notranslate"><span class="pre">Workload</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.__init__"><code class="docutils literal notranslate"><span class="pre">Workload.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.accesses_for_tensor"><code class="docutils literal notranslate"><span class="pre">Workload.accesses_for_tensor()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.bits_per_value"><code class="docutils literal notranslate"><span class="pre">Workload.bits_per_value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.einsum_names"><code class="docutils literal notranslate"><span class="pre">Workload.einsum_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.einsums"><code class="docutils literal notranslate"><span class="pre">Workload.einsums</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.einsums_with_tensor"><code class="docutils literal notranslate"><span class="pre">Workload.einsums_with_tensor()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.einsums_with_tensor_as_input"><code class="docutils literal notranslate"><span class="pre">Workload.einsums_with_tensor_as_input()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.einsums_with_tensor_as_output"><code class="docutils literal notranslate"><span class="pre">Workload.einsums_with_tensor_as_output()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.empty_renames"><code class="docutils literal notranslate"><span class="pre">Workload.empty_renames()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.get_iteration_space_shape_isl_string"><code class="docutils literal notranslate"><span class="pre">Workload.get_iteration_space_shape_isl_string()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.get_tensor_copies"><code class="docutils literal notranslate"><span class="pre">Workload.get_tensor_copies()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.get_tensor_shape"><code class="docutils literal notranslate"><span class="pre">Workload.get_tensor_shape()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.iteration_space_shape"><code class="docutils literal notranslate"><span class="pre">Workload.iteration_space_shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.n_instances"><code class="docutils literal notranslate"><span class="pre">Workload.n_instances</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.persistent_tensors"><code class="docutils literal notranslate"><span class="pre">Workload.persistent_tensors</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.rank_sizes"><code class="docutils literal notranslate"><span class="pre">Workload.rank_sizes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.rank_variables"><code class="docutils literal notranslate"><span class="pre">Workload.rank_variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.render"><code class="docutils literal notranslate"><span class="pre">Workload.render()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.tensor_names"><code class="docutils literal notranslate"><span class="pre">Workload.tensor_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Workload.tensor_names_used_in_multiple_einsums"><code class="docutils literal notranslate"><span class="pre">Workload.tensor_names_used_in_multiple_einsums</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.isl_expression_has_variable"><code class="docutils literal notranslate"><span class="pre">isl_expression_has_variable()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.frontend.html#module-accelforge.frontend">Module contents</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec"><code class="docutils literal notranslate"><span class="pre">Spec</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.arch"><code class="docutils literal notranslate"><span class="pre">Spec.arch</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.calculate_component_area_energy_latency_leak"><code class="docutils literal notranslate"><span class="pre">Spec.calculate_component_area_energy_latency_leak()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.config"><code class="docutils literal notranslate"><span class="pre">Spec.config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.evaluate_mapping"><code class="docutils literal notranslate"><span class="pre">Spec.evaluate_mapping()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.map_workload_to_arch"><code class="docutils literal notranslate"><span class="pre">Spec.map_workload_to_arch()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.mapper"><code class="docutils literal notranslate"><span class="pre">Spec.mapper</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.mapping"><code class="docutils literal notranslate"><span class="pre">Spec.mapping</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.model"><code class="docutils literal notranslate"><span class="pre">Spec.model</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.renames"><code class="docutils literal notranslate"><span class="pre">Spec.renames</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.variables"><code class="docutils literal notranslate"><span class="pre">Spec.variables</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.Spec.workload"><code class="docutils literal notranslate"><span class="pre">Spec.workload</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.mapper.html">accelforge.mapper package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.html#subpackages">Subpackages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.FFM.html">accelforge.mapper.FFM package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.data">accelforge.mapper.FFM.data module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.main">accelforge.mapper.FFM.main module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.mappings">accelforge.mapper.FFM.mappings module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM.pmappings">accelforge.mapper.FFM.pmappings module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.FFM.html#module-accelforge.mapper.FFM">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.mapper.html#module-accelforge.mapper">Module contents</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics"><code class="docutils literal notranslate"><span class="pre">Metrics</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.ACTIONS"><code class="docutils literal notranslate"><span class="pre">Metrics.ACTIONS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.DETAILED_MEMORY_USAGE"><code class="docutils literal notranslate"><span class="pre">Metrics.DETAILED_MEMORY_USAGE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.DYNAMIC_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.DYNAMIC_ENERGY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.ENERGY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.LATENCY"><code class="docutils literal notranslate"><span class="pre">Metrics.LATENCY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.LEAK_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.LEAK_ENERGY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.RESOURCE_USAGE"><code class="docutils literal notranslate"><span class="pre">Metrics.RESOURCE_USAGE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.__new__"><code class="docutils literal notranslate"><span class="pre">Metrics.__new__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.all_metrics"><code class="docutils literal notranslate"><span class="pre">Metrics.all_metrics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.includes_dynamic_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_dynamic_energy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.mapper.html#accelforge.mapper.Metrics.includes_leak_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_leak_energy()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.model.html">accelforge.model package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.model.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.model.html#module-accelforge.model.main">accelforge.model.main module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.model.html#accelforge.model.main.evaluate_mapping"><code class="docutils literal notranslate"><span class="pre">evaluate_mapping()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.model.html#module-accelforge.model.run_model">accelforge.model.run_model module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.model.html#accelforge.model.run_model.run_model"><code class="docutils literal notranslate"><span class="pre">run_model()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.model.html#module-accelforge.model">Module contents</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.model.html#accelforge.model.evaluate_mapping"><code class="docutils literal notranslate"><span class="pre">evaluate_mapping()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.plotting.html">accelforge.plotting package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.plotting.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.plotting.html#module-accelforge.plotting.mappings">accelforge.plotting.mappings module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.plotting.html#module-accelforge.plotting.roofline">accelforge.plotting.roofline module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.plotting.html#accelforge.plotting.roofline.plot_roofline"><code class="docutils literal notranslate"><span class="pre">plot_roofline()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.plotting.html#module-accelforge.plotting.specs">accelforge.plotting.specs module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.plotting.html#accelforge.plotting.specs.plot_area"><code class="docutils literal notranslate"><span class="pre">plot_area()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.plotting.html#module-accelforge.plotting">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="accelforge.util.html">accelforge.util package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.util.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.util.html#module-accelforge.util.exceptions">accelforge.util.exceptions module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.exceptions.EvaluationError"><code class="docutils literal notranslate"><span class="pre">EvaluationError</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.util.html#accelforge.util.exceptions.EvaluationError.__init__"><code class="docutils literal notranslate"><span class="pre">EvaluationError.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.util.html#accelforge.util.exceptions.EvaluationError.add_field"><code class="docutils literal notranslate"><span class="pre">EvaluationError.add_field()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.util.html#module-accelforge.util.parallel">accelforge.util.parallel module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.parallel.delayed"><code class="docutils literal notranslate"><span class="pre">delayed()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.parallel.get_n_parallel_jobs"><code class="docutils literal notranslate"><span class="pre">get_n_parallel_jobs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.parallel.is_using_parallel_processing"><code class="docutils literal notranslate"><span class="pre">is_using_parallel_processing()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.parallel.parallel"><code class="docutils literal notranslate"><span class="pre">parallel()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.parallel.set_n_parallel_jobs"><code class="docutils literal notranslate"><span class="pre">set_n_parallel_jobs()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="accelforge.util.html#module-accelforge.util">Module contents</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.EvaluationError"><code class="docutils literal notranslate"><span class="pre">EvaluationError</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.util.html#accelforge.util.EvaluationError.__init__"><code class="docutils literal notranslate"><span class="pre">EvaluationError.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="accelforge.util.html#accelforge.util.EvaluationError.add_field"><code class="docutils literal notranslate"><span class="pre">EvaluationError.add_field()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.LiteralString"><code class="docutils literal notranslate"><span class="pre">LiteralString</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.NUMPY_FLOAT_TYPE"><code class="docutils literal notranslate"><span class="pre">NUMPY_FLOAT_TYPE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.delayed"><code class="docutils literal notranslate"><span class="pre">delayed()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.fzs"><code class="docutils literal notranslate"><span class="pre">fzs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.get_n_parallel_jobs"><code class="docutils literal notranslate"><span class="pre">get_n_parallel_jobs()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.is_using_parallel_processing"><code class="docutils literal notranslate"><span class="pre">is_using_parallel_processing()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.parallel"><code class="docutils literal notranslate"><span class="pre">parallel()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="accelforge.util.html#accelforge.util.set_n_parallel_jobs"><code class="docutils literal notranslate"><span class="pre">set_n_parallel_jobs()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="module-accelforge">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-accelforge" title="Link to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Arch">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Arch</span></span><a class="reference internal" href="_modules/accelforge/frontend/arch/arch.html#Arch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Arch" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="accelforge.frontend.arch.html#accelforge.frontend.arch.structure.Hierarchical" title="accelforge.frontend.arch.structure.Hierarchical"><code class="xref py py-class docutils literal notranslate"><span class="pre">Hierarchical</span></code></a></p>
+<p>Top-level architecture specification.</p>
+<p>All attributes in the architecture can refrence variables in the spec-level
+<cite>variables</cite> field as well as symbols from the individual Einsum being processed.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Arch.extra_attributes_for_all_component_models">
+<span class="sig-name descname"><span class="pre">extra_attributes_for_all_component_models</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalExtras</span></span><a class="headerlink" href="#accelforge.Arch.extra_attributes_for_all_component_models" title="Link to this definition">#</a></dt>
+<dd><p>Extra attributes to pass to all component models. This can be used to pass global
+attributes, such as technology node or clock period, to every component model.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Arch.per_component_total_area">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">per_component_total_area</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Arch.per_component_total_area" title="Link to this definition">#</a></dt>
+<dd><p>Returns the total area used by each component in the architecture in m^2.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary of component names to their total area in m^2.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Arch.per_component_total_leak_power">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">per_component_total_leak_power</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Arch.per_component_total_leak_power" title="Link to this definition">#</a></dt>
+<dd><p>Returns the total leak power of each component in the architecture in W.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary of component names to their total leak power in W.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Arch.total_area">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">total_area</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><a class="headerlink" href="#accelforge.Arch.total_area" title="Link to this definition">#</a></dt>
+<dd><p>Returns the total area of the architecture in m^2.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The total area of the architecture in m^2.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Arch.total_leak_power">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">total_leak_power</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><a class="headerlink" href="#accelforge.Arch.total_leak_power" title="Link to this definition">#</a></dt>
+<dd><p>Returns the total leak power of the architecture in W.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The total leak power of the architecture in W.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Arch.variables">
+<span class="sig-name descname"><span class="pre">variables</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalExtras</span></span><a class="headerlink" href="#accelforge.Arch.variables" title="Link to this definition">#</a></dt>
+<dd><p>Like the spec-level <cite>variables</cite> field, this field is evaluated first and its contents
+can be referenced elsewhere in the architecture. Unlike the spec-level <cite>variables</cite>
+field, this, like ther rest of the architecture, is evaluated per-Einsum and can
+reference Einsum-specific symbols.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Config">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Config</span></span><a class="reference internal" href="_modules/accelforge/frontend/config.html#Config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Config" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">EvalableModel</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Config.component_models">
+<span class="sig-name descname"><span class="pre">component_models</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalableList</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://accelergy-project.github.io/hwcomponents/hwcomponents.html#hwcomponents.model.ComponentModel" title="(in HWComponents)"><span class="pre">ComponentModel</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Config.component_models" title="Link to this definition">#</a></dt>
+<dd><p>A list of hwcomponents models to use for the energy and area calculations. These can
+either be paths to Python files that contain the models, or <cite>hwcomponents</cite>
+<a class="reference external" href="https://accelergy-project.github.io/hwcomponents/hwcomponents.html#hwcomponents.ComponentModel" title="(in HWComponents)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ComponentModel</span></code></a> objects.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Config.expression_custom_functions">
+<span class="sig-name descname"><span class="pre">expression_custom_functions</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalableList</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.14)"><span class="pre">Callable</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Config.expression_custom_functions" title="Link to this definition">#</a></dt>
+<dd><p>A list of functions to use while parsing expressions. These can either be functions
+or paths to Python files that contain the functions. If a path is provided, then all
+functions in the file will be added to the evaluator.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Config.from_yaml">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_yaml</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/config.html#Config.from_yaml"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Config.from_yaml" title="Link to this definition">#</a></dt>
+<dd><p>Loads a dictionary from one more more yaml files.</p>
+<p>Each yaml file should contain a dictionary. Dictionaries are combined in the
+order they are given.</p>
+<p>Keyword arguments are also added to the dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>files</strong> – A list of yaml files to load.</p></li>
+<li><p><strong>jinja_parse_data</strong> – Optional[Dict[str, Any]]
+A dictionary of Jinja2 data to use when parsing the yaml files.</p></li>
+<li><p><strong>top_key</strong> – Optional[str]
+The top key to use when parsing the yaml files.</p></li>
+<li><p><strong>kwargs</strong> – Extra keyword arguments to be passed to the Jinja2 parser.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.config.Config" title="accelforge.frontend.config.Config"><code class="xref py py-class docutils literal notranslate"><span class="pre">Config</span></code></a></span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dict containing the combined dictionaries.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Config.use_installed_component_models">
+<span class="sig-name descname"><span class="pre">use_installed_component_models</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><a class="headerlink" href="#accelforge.Config.use_installed_component_models" title="Link to this definition">#</a></dt>
+<dd><p>If True, then the <cite>hwcomponents</cite> library will find all installed models. If False,
+then only the models specified in <cite>component_models</cite> will be used.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="accelforge.EvaluationError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">EvaluationError</span></span><a class="reference internal" href="_modules/accelforge/util/exceptions.html#EvaluationError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.EvaluationError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
+<p>Exception raised when parsing fails.</p>
+<p>This exception is raised when there’s an error parsing specifications,
+architectures, workloads, or mappings.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong> – Standard exception arguments.</p></li>
+<li><p><strong>source_field</strong> (<em>Any</em><em>, </em><em>optional</em>) – The field where the error occurred.</p></li>
+<li><p><strong>message</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a><em>, </em><em>optional</em>) – Error message describing what went wrong.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.EvaluationError.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">source_field</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/util/exceptions.html#EvaluationError.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.EvaluationError.__init__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.EvaluationError.add_field">
+<span class="sig-name descname"><span class="pre">add_field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">field</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/util/exceptions.html#EvaluationError.add_field"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.EvaluationError.add_field" title="Link to this definition">#</a></dt>
+<dd><p>Add a field to the error context. The output error message will include the
+field path as a period-separated string like “spec.arch.nodes.0.name”.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>field</strong> (<em>Any</em>) – The field to add to the error context.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.LiteralString">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">LiteralString</span></span><a class="reference internal" href="_modules/accelforge/util/_eval_expressions.html#LiteralString"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.LiteralString" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></p>
+<p>A string literal that should not be evaluated.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Mapping">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Mapping</span></span><a class="reference internal" href="_modules/accelforge/frontend/mapping/mapping.html#Mapping"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Mapping" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.mapping.Nested" title="accelforge.frontend.mapping.mapping.Nested"><code class="xref py py-class docutils literal notranslate"><span class="pre">Nested</span></code></a></p>
+<p>A Mapping of a workload onto a hardware architecture.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Mapping.loops">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">loops</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.mapping.Loop" title="accelforge.frontend.mapping.mapping.Loop"><span class="pre">Loop</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Mapping.loops" title="Link to this definition">#</a></dt>
+<dd><p>Returns all <a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.mapping.Loop" title="accelforge.frontend.mapping.mapping.Loop"><code class="xref py py-class docutils literal notranslate"><span class="pre">Loop</span></code></a> nodes in the Mapping.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Mapping.remove_reservations">
+<span class="sig-name descname"><span class="pre">remove_reservations</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapping/mapping.html#Mapping.remove_reservations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Mapping.remove_reservations" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Mapping.render">
+<span class="sig-name descname"><span class="pre">render</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">with_reservations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">with_tile_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapping/mapping.html#Mapping.render"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Mapping.render" title="Link to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">_SVGJupyterRender</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Mapping.render_pydot">
+<span class="sig-name descname"><span class="pre">render_pydot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">with_reservations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">with_tile_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapping/mapping.html#Mapping.render_pydot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Mapping.render_pydot" title="Link to this definition">#</a></dt>
+<dd><p>Renders the mapping as a Pydot graph. Returns an SVG string.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dot</span></code></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Mapping.split_loop_with_multiple_rank_variables">
+<span class="sig-name descname"><span class="pre">split_loop_with_multiple_rank_variables</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">einsum_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapping/mapping.html#Mapping.split_loop_with_multiple_rank_variables"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Mapping.split_loop_with_multiple_rank_variables" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Mapping.split_reservations">
+<span class="sig-name descname"><span class="pre">split_reservations</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapping/mapping.html#Mapping.split_reservations"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Mapping.split_reservations" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Mapping.split_tensor_holders_with_multiple_tensors">
+<span class="sig-name descname"><span class="pre">split_tensor_holders_with_multiple_tensors</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapping/mapping.html#Mapping.split_tensor_holders_with_multiple_tensors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Mapping.split_tensor_holders_with_multiple_tensors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Metrics">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Metrics</span></span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Metrics" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Flag" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Flag</span></code></a></p>
+<p>Metrics used to optimize mappings or reported by model.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Metrics.ACTIONS">
+<span class="sig-name descname"><span class="pre">ACTIONS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">32</span></span><a class="headerlink" href="#accelforge.Metrics.ACTIONS" title="Link to this definition">#</a></dt>
+<dd><p>Action counts.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Metrics.DETAILED_MEMORY_USAGE">
+<span class="sig-name descname"><span class="pre">DETAILED_MEMORY_USAGE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">64</span></span><a class="headerlink" href="#accelforge.Metrics.DETAILED_MEMORY_USAGE" title="Link to this definition">#</a></dt>
+<dd><p>Memory usage broken down by tensor and Einsum.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Metrics.DYNAMIC_ENERGY">
+<span class="sig-name descname"><span class="pre">DYNAMIC_ENERGY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></span><a class="headerlink" href="#accelforge.Metrics.DYNAMIC_ENERGY" title="Link to this definition">#</a></dt>
+<dd><p>The amount of dynamic energy consumed by the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Metrics.ENERGY">
+<span class="sig-name descname"><span class="pre">ENERGY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></span><a class="headerlink" href="#accelforge.Metrics.ENERGY" title="Link to this definition">#</a></dt>
+<dd><p>The amount of energy consumed by the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Metrics.LATENCY">
+<span class="sig-name descname"><span class="pre">LATENCY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#accelforge.Metrics.LATENCY" title="Link to this definition">#</a></dt>
+<dd><p>The amount of time taken to execute the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Metrics.LEAK_ENERGY">
+<span class="sig-name descname"><span class="pre">LEAK_ENERGY</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">8</span></span><a class="headerlink" href="#accelforge.Metrics.LEAK_ENERGY" title="Link to this definition">#</a></dt>
+<dd><p>The amount of leak energy consumed by the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Metrics.RESOURCE_USAGE">
+<span class="sig-name descname"><span class="pre">RESOURCE_USAGE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></span><a class="headerlink" href="#accelforge.Metrics.RESOURCE_USAGE" title="Link to this definition">#</a></dt>
+<dd><p>The amount of resources used by the workload.</p>
+<p>When used as a mapper objective, this objective is multivariate, and must
+consider every resource available to the hardware.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Metrics.__new__">
+<span class="sig-name descname"><span class="pre">__new__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#accelforge.Metrics.__new__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Metrics.all_metrics">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">all_metrics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics.all_metrics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Metrics.all_metrics" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Metrics.includes_dynamic_energy">
+<span class="sig-name descname"><span class="pre">includes_dynamic_energy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics.includes_dynamic_energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Metrics.includes_dynamic_energy" title="Link to this definition">#</a></dt>
+<dd><p>Returns True if the metrics include dynamic energy, either alone or as part
+of total energy. False otherwise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Metrics.includes_leak_energy">
+<span class="sig-name descname"><span class="pre">includes_leak_energy</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/mapper/metrics.html#Metrics.includes_leak_energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Metrics.includes_leak_energy" title="Link to this definition">#</a></dt>
+<dd><p>Returns True if the metrics include leak energy, either alone or as part of
+total energy. False otherwise.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Renames">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Renames</span></span><a class="reference internal" href="_modules/accelforge/frontend/renames.html#Renames"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Renames" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">EvalableModel</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Renames.einsums">
+<span class="sig-name descname"><span class="pre">einsums</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.EinsumRename" title="accelforge.frontend.renames.EinsumRename"><span class="pre">EinsumRename</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Renames.einsums" title="Link to this definition">#</a></dt>
+<dd><p>Renames for a workload. The Einsum list is a list of EinsumRename objects, and
+renames will be applied to Einsums whose names match the EinsumRename.name. If an
+EinsumRename is named “default”, then its renames are applied to every Einsum unless
+overridden. Overriding is specific to a single name, so every rename in the default
+must be overridden independently.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Renames.get_renames_for_einsum">
+<span class="sig-name descname"><span class="pre">get_renames_for_einsum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">einsum_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/renames.html#Renames.get_renames_for_einsum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Renames.get_renames_for_einsum" title="Link to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.renames.EinsumRename" title="accelforge.frontend.renames.EinsumRename"><code class="xref py py-class docutils literal notranslate"><span class="pre">EinsumRename</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Spec">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Spec</span></span><a class="reference internal" href="_modules/accelforge/frontend/spec.html#Spec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Spec" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">EvalableModel</span></code></p>
+<p>The top-level spec of all of the inputs to this package.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.arch">
+<span class="sig-name descname"><span class="pre">arch</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#accelforge.Arch" title="accelforge.Arch"><span class="pre">Arch</span></a></span><a class="headerlink" href="#accelforge.Spec.arch" title="Link to this definition">#</a></dt>
+<dd><p>The hardware architecture being used.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Spec.calculate_component_area_energy_latency_leak">
+<span class="sig-name descname"><span class="pre">calculate_component_area_energy_latency_leak</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">einsum_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">energy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latency</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leak</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/spec.html#Spec.calculate_component_area_energy_latency_leak"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Spec.calculate_component_area_energy_latency_leak" title="Link to this definition">#</a></dt>
+<dd><p>Populates per-component area, energy, latency, and/or leak power. For each
+component, populates the <code class="docutils literal notranslate"><span class="pre">area</span></code>, <code class="docutils literal notranslate"><span class="pre">total_area</span></code>, <code class="docutils literal notranslate"><span class="pre">leak_power</span></code> and
+<code class="docutils literal notranslate"><span class="pre">total_leak_power</span></code>. Additionally, for each action of each component, populates
+the <code class="docutils literal notranslate"><span class="pre">&lt;action&gt;.energy</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;action&gt;.latency</span></code> fields. Extends the
+<code class="docutils literal notranslate"><span class="pre">component_modeling_log</span></code> field with log messages. Also populates the
+<code class="docutils literal notranslate"><span class="pre">component_model</span></code> attribute for each component if not already set.</p>
+<p>Some architectures’ attributes may depend on the workload. In that case, an
+Einsum name can be provided to populate those symbols with the Einsum’s symbols
+from the workload.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>einsum_name</strong> (<em>EinsumName</em><em> | </em><em>None = None</em>) – Optional Einsum name to populate symbols with the Einsum’s symbols from the
+workload. If None, and there are Einsums in the workload, the first Einsum
+is used. If None and there are no Einsums in the workload, then no symbols
+are populated from the workload.</p></li>
+<li><p><strong>area</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to compute and populate area entries.</p></li>
+<li><p><strong>energy</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to compute and populate energy entries.</p></li>
+<li><p><strong>latency</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to compute and populate latency entries.</p></li>
+<li><p><strong>leak</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to compute and populate leak power entries.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.spec.Spec" title="accelforge.frontend.spec.Spec"><code class="xref py py-class docutils literal notranslate"><span class="pre">Spec</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.config">
+<span class="sig-name descname"><span class="pre">config</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#accelforge.Config" title="accelforge.Config"><span class="pre">Config</span></a></span><a class="headerlink" href="#accelforge.Spec.config" title="Link to this definition">#</a></dt>
+<dd><p>Configuration settings.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Spec.evaluate_mapping">
+<span class="sig-name descname"><span class="pre">evaluate_mapping</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/spec.html#Spec.evaluate_mapping"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Spec.evaluate_mapping" title="Link to this definition">#</a></dt>
+<dd><p>Evaluate the mapping in the spec.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings" title="accelforge.mapper.FFM.mappings.Mappings"><code class="xref py py-class docutils literal notranslate"><span class="pre">Mappings</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Spec.map_workload_to_arch">
+<span class="sig-name descname"><span class="pre">map_workload_to_arch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">einsum_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">one_pbar_only</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_progress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_number_of_pmappings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_pmapping_row_filter_function</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/spec.html#Spec.map_workload_to_arch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Spec.map_workload_to_arch" title="Link to this definition">#</a></dt>
+<dd><p>Maps the workload to the architecture using the AccelForge Fast and Fusiest
+Mapper (FFM).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spec</strong> – The Spec to map.</p></li>
+<li><p><strong>einsum_names</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">list</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Text" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Text</span></code></a>] | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – The einsum names to map. If None, all einsums will be mapped.</p></li>
+<li><p><strong>can_combine_multiple_runs</strong> (<em>Whether we would like to be able to combine multiple</em>) – make_pmappings runs. Having this as True allows you to do things like
+<cite>pmappings = make_pmappings(*args_a) | make_pmappings(*args_b)</cite> but slows
+down execution.</p></li>
+<li><p><strong>cache_dir</strong> – The directory to cache pmappings in. If None, no caching will be done.</p></li>
+<li><p><strong>one_pbar_only</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Whether to only print only a single progress bar. If this is True, then only
+a progress bar will be created for making tile shapes, which is generally
+the longest-running part of the mapping process.</p></li>
+<li><p><strong>print_progress</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Whether to print progress of the mapping process, including progress bars.</p></li>
+<li><p><strong>print_number_of_pmappings</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></span>) – Whether to print the number of pmappings for each einsum.</p></li>
+<li><p><strong>_pmapping_row_filter_function</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.14)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.14)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<a class="reference external" href="https://pandas.pydata.org/docs/reference/api/pandas.Series.html#pandas.Series" title="(in pandas v3.0.1)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Series</span></code></a>], <a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>]]</span>) – A function that takes in a row of the pmapping dataframe and returns True if
+the row should be included in the final mappings, and False otherwise. If
+None, all rows will be included.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The mappings of the workload to the architecture.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="accelforge.mapper.FFM.html#accelforge.mapper.FFM.mappings.Mappings" title="accelforge.mapper.FFM.mappings.Mappings">Mappings</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.mapper">
+<span class="sig-name descname"><span class="pre">mapper</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="accelforge.frontend.mapper.html#accelforge.frontend.mapper.ffm.FFM" title="accelforge.frontend.mapper.ffm.FFM"><span class="pre">FFM</span></a></span><a class="headerlink" href="#accelforge.Spec.mapper" title="Link to this definition">#</a></dt>
+<dd><p>Configures the mapper used to map the workload onto the architecture.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.mapping">
+<span class="sig-name descname"><span class="pre">mapping</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#accelforge.Mapping" title="accelforge.Mapping"><span class="pre">Mapping</span></a></span><a class="headerlink" href="#accelforge.Spec.mapping" title="Link to this definition">#</a></dt>
+<dd><p>How the workload is programmed onto the architecture. Do not specify this if
+you’d like the mapper to generate a mapping for you.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.model">
+<span class="sig-name descname"><span class="pre">model</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.model.Model" title="accelforge.frontend.model.Model"><span class="pre">Model</span></a></span><a class="headerlink" href="#accelforge.Spec.model" title="Link to this definition">#</a></dt>
+<dd><p>Configures the model used to evaluate mappings.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.renames">
+<span class="sig-name descname"><span class="pre">renames</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#accelforge.Renames" title="accelforge.Renames"><span class="pre">Renames</span></a></span><a class="headerlink" href="#accelforge.Spec.renames" title="Link to this definition">#</a></dt>
+<dd><p>Aliases for tensors in the workload so that they can be called
+by canonical names when writing architecture constraints. For example, workload
+tensors may be renamed to “input”, “output”, and “weight”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.variables">
+<span class="sig-name descname"><span class="pre">variables</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#accelforge.Variables" title="accelforge.Variables"><span class="pre">Variables</span></a></span><a class="headerlink" href="#accelforge.Spec.variables" title="Link to this definition">#</a></dt>
+<dd><p>Variables that can be referenced in other places in the spec.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Spec.workload">
+<span class="sig-name descname"><span class="pre">workload</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#accelforge.Workload" title="accelforge.Workload"><span class="pre">Workload</span></a></span><a class="headerlink" href="#accelforge.Spec.workload" title="Link to this definition">#</a></dt>
+<dd><p>The program to be run on the arch.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Variables">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Variables</span></span><a class="reference internal" href="_modules/accelforge/frontend/variables.html#Variables"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Variables" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">EvalExtras</span></code></p>
+<p>Variables that can be used in parsing. All variables defined here can be referenced
+elsewhere in any of the Spec’s evaluated expressions.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="accelforge.Workload">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">Workload</span></span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">EvalableModel</span></code></p>
+<p>The workload specification as a cascade of Einsums, with each Einsum being a
+computation step in the workload.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.__init__" title="Link to this definition">#</a></dt>
+<dd><p>Create a new model by parsing and validating input data from keyword arguments.</p>
+<p>Raises [<cite>ValidationError</cite>][pydantic_core.ValidationError] if the input data cannot be
+validated to form a valid model.</p>
+<p><cite>self</cite> is explicitly positional-only to allow <cite>self</cite> as a field name.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.accesses_for_tensor">
+<span class="sig-name descname"><span class="pre">accesses_for_tensor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensor</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.accesses_for_tensor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.accesses_for_tensor" title="Link to this definition">#</a></dt>
+<dd><p>Returns all TensorAccess objects that access the given tensor across all
+Einsums.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tensor</strong> (<a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.TensorName" title="accelforge.frontend.mapping.TensorName"><em>TensorName</em></a>) – The tensor to check.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The TensorAccess objects that access the given tensor across all Einsums.
+Order is the same as the order in this workload’s Einsums list.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[<a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.TensorAccess" title="accelforge.frontend.workload.TensorAccess">TensorAccess</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Workload.bits_per_value">
+<span class="sig-name descname"><span class="pre">bits_per_value</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalableDict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.bits_per_value" title="Link to this definition">#</a></dt>
+<dd><p>Bits per value for each tensor. The workload-level bits_per_value is overridden if
+bits_per_value is specified for any given tensor access. This is a dictionary of
+set expressions to bits per value for the tensors given by those expressions. For
+example, we may write “Inputs: 8” to set the bits per value to 8 for all input
+tensors, unless overridden.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Workload.einsum_names">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">einsum_names</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.einsum_names" title="Link to this definition">#</a></dt>
+<dd><p>Returns the names of the Einsums in the workload.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Workload.einsums">
+<span class="sig-name descname"><span class="pre">einsums</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalableList</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum" title="accelforge.frontend.workload.Einsum"><span class="pre">Einsum</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.einsums" title="Link to this definition">#</a></dt>
+<dd><p>The Einsums in the workload.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.einsums_with_tensor">
+<span class="sig-name descname"><span class="pre">einsums_with_tensor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensor</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.einsums_with_tensor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.einsums_with_tensor" title="Link to this definition">#</a></dt>
+<dd><p>Returns the Einsums in the workload that access the given tensor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tensor</strong> (<a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.TensorName" title="accelforge.frontend.mapping.TensorName"><em>TensorName</em></a>) – The tensor to check.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The Einsums in the workload that access the given tensor. Order is the same
+as the order in this workload’s Einsums list.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[<a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum" title="accelforge.frontend.workload.Einsum">Einsum</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.einsums_with_tensor_as_input">
+<span class="sig-name descname"><span class="pre">einsums_with_tensor_as_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensor</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.einsums_with_tensor_as_input"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.einsums_with_tensor_as_input" title="Link to this definition">#</a></dt>
+<dd><p>Returns the Einsums in the workload that use the given tensor as an input.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tensor</strong> (<a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.TensorName" title="accelforge.frontend.mapping.TensorName"><em>TensorName</em></a>) – The tensor to check.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The Einsums in the workload that use the given tensor as an input. Order is
+the same as the order in this workload’s Einsums list.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[<a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum" title="accelforge.frontend.workload.Einsum">Einsum</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.einsums_with_tensor_as_output">
+<span class="sig-name descname"><span class="pre">einsums_with_tensor_as_output</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensor</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.einsums_with_tensor_as_output"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.einsums_with_tensor_as_output" title="Link to this definition">#</a></dt>
+<dd><p>Returns the Einsums in the workload that have the given tensor as an output.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tensor</strong> (<a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.TensorName" title="accelforge.frontend.mapping.TensorName"><em>TensorName</em></a>) – The tensor to check.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The Einsums in the workload that have the given tensor as an output. Order
+is the same as the order in this workload’s Einsums list.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[<a class="reference internal" href="accelforge.frontend.html#accelforge.frontend.workload.Einsum" title="accelforge.frontend.workload.Einsum">Einsum</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.empty_renames">
+<span class="sig-name descname"><span class="pre">empty_renames</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.empty_renames"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.empty_renames" title="Link to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">WSGIEnvironment</span></code>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Text" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Text</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">InvertibleSet[str]</span></code>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.get_iteration_space_shape_isl_string">
+<span class="sig-name descname"><span class="pre">get_iteration_space_shape_isl_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">einsum_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.get_iteration_space_shape_isl_string"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.get_iteration_space_shape_isl_string" title="Link to this definition">#</a></dt>
+<dd><p>Returns the ISL string representing the iteration space of the given Einsum.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>einsum_name</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><em>str</em></a>) – The name of the Einsum for which to get the iteration space shape.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The ISL string representing the iteration space shape of the given Einsum.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.get_tensor_copies">
+<span class="sig-name descname"><span class="pre">get_tensor_copies</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.get_tensor_copies"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.get_tensor_copies" title="Link to this definition">#</a></dt>
+<dd><p>Returns a dictionary specifying which tensors are copies of which other tensors.
+For example, if einsum A copies tensor X into tensors Y and Z, then we’d have in
+the return value X: {Y, Z}, Y: {X, Z}, and Z: {X, Y}. This is transitive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary specifying which tensors are copies of which other tensors. The
+keys are the tensors that are copies, and the values are sets of tensors
+that are copies of the key.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a>[<a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.TensorName" title="accelforge.frontend.mapping.TensorName">TensorName</a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.14)">set</a>[<a class="reference internal" href="accelforge.frontend.mapping.html#accelforge.frontend.mapping.TensorName" title="accelforge.frontend.mapping.TensorName">TensorName</a>]]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.get_tensor_shape">
+<span class="sig-name descname"><span class="pre">get_tensor_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tensor</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.get_tensor_shape"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.get_tensor_shape" title="Link to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">WSGIEnvironment</span></code>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Text" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Text</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]</span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Workload.iteration_space_shape">
+<span class="sig-name descname"><span class="pre">iteration_space_shape</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalableDict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.iteration_space_shape" title="Link to this definition">#</a></dt>
+<dd><p>Bounds of valid rank variable values. This is a dictionary of rank variable
+names to bounds of valid rank variable values. The bounds are specified as a string
+in the ISL format. For example, “0 &lt;= a &lt; 10” means that the rank variable <cite>a</cite> must
+be between 0 and 10, including 0 but not 10. Bounds are included for all Einsums
+that include that rank variable.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Workload.n_instances">
+<span class="sig-name descname"><span class="pre">n_instances</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#accelforge.Workload.n_instances" title="Link to this definition">#</a></dt>
+<dd><p>Number of times to repeat the workload. Multiplied by <cite>Einsum.n_instances</cite> to get
+the total number of Einsum instances. Energy, latency, and other summable metrics
+are multiplied by this value. Persistent reservations are also multiplied by this
+value, but non-persistent reservations are not, as they are assumed to be freed
+between each instance.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Workload.persistent_tensors">
+<span class="sig-name descname"><span class="pre">persistent_tensors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><a class="headerlink" href="#accelforge.Workload.persistent_tensors" title="Link to this definition">#</a></dt>
+<dd><p>Set expression for identifying persistent tensors. Evaluated per-Einsum to mark
+matching tensors as persistent. Example: “weight” or “~(Outputs | Intermediates)”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="accelforge.Workload.rank_sizes">
+<span class="sig-name descname"><span class="pre">rank_sizes</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">EvalableDict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">EvalsTo</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.rank_sizes" title="Link to this definition">#</a></dt>
+<dd><p>Rank sizes. This is a dictionary of rank names to sizes. Sizes are integers, and the
+rank’s bounds are 0 &lt;= rank &lt; size. Accesses outside of these bounds are skipped.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Workload.rank_variables">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">rank_variables</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.14)"><span class="pre">set</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.rank_variables" title="Link to this definition">#</a></dt>
+<dd><p>Returns the names of all rank variables in the workload.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="accelforge.Workload.render">
+<span class="sig-name descname"><span class="pre">render</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/frontend/workload.html#Workload.render"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.Workload.render" title="Link to this definition">#</a></dt>
+<dd><p>Renders the workload as a Pydot graph. Returns an SVG string.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Text" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Text</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Workload.tensor_names">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tensor_names</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.14)"><span class="pre">set</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.tensor_names" title="Link to this definition">#</a></dt>
+<dd><p>Returns the names of all tensors in the workload.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="accelforge.Workload.tensor_names_used_in_multiple_einsums">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tensor_names_used_in_multiple_einsums</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#set" title="(in Python v3.14)"><span class="pre">set</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#accelforge.Workload.tensor_names_used_in_multiple_einsums" title="Link to this definition">#</a></dt>
+<dd><p>Returns the names of the tensors that are used in multiple Einsums.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="accelforge.set_n_parallel_jobs">
+<span class="sig-prename descclassname"><span class="pre">accelforge.</span></span><span class="sig-name descname"><span class="pre">set_n_parallel_jobs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/accelforge/util/parallel.html#set_n_parallel_jobs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#accelforge.set_n_parallel_jobs" title="Link to this definition">#</a></dt>
+<dd><p>Set the number of parallel jobs to use.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_jobs</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><em>int</em></a>) – The number of parallel jobs to use.</p></li>
+<li><p><strong>print_message</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to print a message when the number of parallel jobs is set.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="guide/timeloop_compare.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Migrating from Timeloop</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="accelforge.frontend.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">accelforge.frontend package</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#subpackages">Subpackages</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-accelforge">Module contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Arch"><code class="docutils literal notranslate"><span class="pre">Arch</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Arch.extra_attributes_for_all_component_models"><code class="docutils literal notranslate"><span class="pre">Arch.extra_attributes_for_all_component_models</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Arch.per_component_total_area"><code class="docutils literal notranslate"><span class="pre">Arch.per_component_total_area</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Arch.per_component_total_leak_power"><code class="docutils literal notranslate"><span class="pre">Arch.per_component_total_leak_power</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Arch.total_area"><code class="docutils literal notranslate"><span class="pre">Arch.total_area</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Arch.total_leak_power"><code class="docutils literal notranslate"><span class="pre">Arch.total_leak_power</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Arch.variables"><code class="docutils literal notranslate"><span class="pre">Arch.variables</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Config"><code class="docutils literal notranslate"><span class="pre">Config</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Config.component_models"><code class="docutils literal notranslate"><span class="pre">Config.component_models</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Config.expression_custom_functions"><code class="docutils literal notranslate"><span class="pre">Config.expression_custom_functions</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Config.from_yaml"><code class="docutils literal notranslate"><span class="pre">Config.from_yaml()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Config.use_installed_component_models"><code class="docutils literal notranslate"><span class="pre">Config.use_installed_component_models</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.EvaluationError"><code class="docutils literal notranslate"><span class="pre">EvaluationError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.EvaluationError.__init__"><code class="docutils literal notranslate"><span class="pre">EvaluationError.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.EvaluationError.add_field"><code class="docutils literal notranslate"><span class="pre">EvaluationError.add_field()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.LiteralString"><code class="docutils literal notranslate"><span class="pre">LiteralString</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping"><code class="docutils literal notranslate"><span class="pre">Mapping</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping.loops"><code class="docutils literal notranslate"><span class="pre">Mapping.loops</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping.remove_reservations"><code class="docutils literal notranslate"><span class="pre">Mapping.remove_reservations()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping.render"><code class="docutils literal notranslate"><span class="pre">Mapping.render()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping.render_pydot"><code class="docutils literal notranslate"><span class="pre">Mapping.render_pydot()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping.split_loop_with_multiple_rank_variables"><code class="docutils literal notranslate"><span class="pre">Mapping.split_loop_with_multiple_rank_variables()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping.split_reservations"><code class="docutils literal notranslate"><span class="pre">Mapping.split_reservations()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Mapping.split_tensor_holders_with_multiple_tensors"><code class="docutils literal notranslate"><span class="pre">Mapping.split_tensor_holders_with_multiple_tensors()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics"><code class="docutils literal notranslate"><span class="pre">Metrics</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.ACTIONS"><code class="docutils literal notranslate"><span class="pre">Metrics.ACTIONS</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.DETAILED_MEMORY_USAGE"><code class="docutils literal notranslate"><span class="pre">Metrics.DETAILED_MEMORY_USAGE</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.DYNAMIC_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.DYNAMIC_ENERGY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.ENERGY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.LATENCY"><code class="docutils literal notranslate"><span class="pre">Metrics.LATENCY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.LEAK_ENERGY"><code class="docutils literal notranslate"><span class="pre">Metrics.LEAK_ENERGY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.RESOURCE_USAGE"><code class="docutils literal notranslate"><span class="pre">Metrics.RESOURCE_USAGE</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.__new__"><code class="docutils literal notranslate"><span class="pre">Metrics.__new__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.all_metrics"><code class="docutils literal notranslate"><span class="pre">Metrics.all_metrics()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.includes_dynamic_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_dynamic_energy()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Metrics.includes_leak_energy"><code class="docutils literal notranslate"><span class="pre">Metrics.includes_leak_energy()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Renames"><code class="docutils literal notranslate"><span class="pre">Renames</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Renames.einsums"><code class="docutils literal notranslate"><span class="pre">Renames.einsums</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Renames.get_renames_for_einsum"><code class="docutils literal notranslate"><span class="pre">Renames.get_renames_for_einsum()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec"><code class="docutils literal notranslate"><span class="pre">Spec</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.arch"><code class="docutils literal notranslate"><span class="pre">Spec.arch</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.calculate_component_area_energy_latency_leak"><code class="docutils literal notranslate"><span class="pre">Spec.calculate_component_area_energy_latency_leak()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.config"><code class="docutils literal notranslate"><span class="pre">Spec.config</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.evaluate_mapping"><code class="docutils literal notranslate"><span class="pre">Spec.evaluate_mapping()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.map_workload_to_arch"><code class="docutils literal notranslate"><span class="pre">Spec.map_workload_to_arch()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.mapper"><code class="docutils literal notranslate"><span class="pre">Spec.mapper</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.mapping"><code class="docutils literal notranslate"><span class="pre">Spec.mapping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.model"><code class="docutils literal notranslate"><span class="pre">Spec.model</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.renames"><code class="docutils literal notranslate"><span class="pre">Spec.renames</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.variables"><code class="docutils literal notranslate"><span class="pre">Spec.variables</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Spec.workload"><code class="docutils literal notranslate"><span class="pre">Spec.workload</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Variables"><code class="docutils literal notranslate"><span class="pre">Variables</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload"><code class="docutils literal notranslate"><span class="pre">Workload</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.__init__"><code class="docutils literal notranslate"><span class="pre">Workload.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.accesses_for_tensor"><code class="docutils literal notranslate"><span class="pre">Workload.accesses_for_tensor()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.bits_per_value"><code class="docutils literal notranslate"><span class="pre">Workload.bits_per_value</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.einsum_names"><code class="docutils literal notranslate"><span class="pre">Workload.einsum_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.einsums"><code class="docutils literal notranslate"><span class="pre">Workload.einsums</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.einsums_with_tensor"><code class="docutils literal notranslate"><span class="pre">Workload.einsums_with_tensor()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.einsums_with_tensor_as_input"><code class="docutils literal notranslate"><span class="pre">Workload.einsums_with_tensor_as_input()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.einsums_with_tensor_as_output"><code class="docutils literal notranslate"><span class="pre">Workload.einsums_with_tensor_as_output()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.empty_renames"><code class="docutils literal notranslate"><span class="pre">Workload.empty_renames()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.get_iteration_space_shape_isl_string"><code class="docutils literal notranslate"><span class="pre">Workload.get_iteration_space_shape_isl_string()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.get_tensor_copies"><code class="docutils literal notranslate"><span class="pre">Workload.get_tensor_copies()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.get_tensor_shape"><code class="docutils literal notranslate"><span class="pre">Workload.get_tensor_shape()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.iteration_space_shape"><code class="docutils literal notranslate"><span class="pre">Workload.iteration_space_shape</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.n_instances"><code class="docutils literal notranslate"><span class="pre">Workload.n_instances</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.persistent_tensors"><code class="docutils literal notranslate"><span class="pre">Workload.persistent_tensors</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.rank_sizes"><code class="docutils literal notranslate"><span class="pre">Workload.rank_sizes</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.rank_variables"><code class="docutils literal notranslate"><span class="pre">Workload.rank_variables</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.render"><code class="docutils literal notranslate"><span class="pre">Workload.render()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.tensor_names"><code class="docutils literal notranslate"><span class="pre">Workload.tensor_names</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.Workload.tensor_names_used_in_multiple_einsums"><code class="docutils literal notranslate"><span class="pre">Workload.tensor_names_used_in_multiple_einsums</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accelforge.set_n_parallel_jobs"><code class="docutils literal notranslate"><span class="pre">set_n_parallel_jobs()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/modules.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

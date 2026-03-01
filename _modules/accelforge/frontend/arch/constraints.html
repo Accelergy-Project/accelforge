@@ -1,0 +1,609 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.frontend.arch.constraints &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/frontend/arch/constraints';</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.frontend.arch.constraints</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.frontend.arch.constraints</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Callable</span><span class="p">,</span>
+    <span class="n">List</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util._basetypes</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EvalableModel</span><span class="p">,</span>
+    <span class="n">EvalsTo</span><span class="p">,</span>
+    <span class="n">TryEvalTo</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util._setexpressions</span> <span class="kn">import</span> <span class="n">InvertibleSet</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.renames</span> <span class="kn">import</span> <span class="n">RankVariable</span>
+
+
+<div class="viewcode-block" id="Comparison">
+<a class="viewcode-back" href="../../../../accelforge.frontend.arch.html#accelforge.frontend.arch.constraints.Comparison">[docs]</a>
+<span class="k">class</span> <span class="nc">Comparison</span><span class="p">(</span><span class="n">EvalableModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A comparison between a rank variable&#39;s bound and a value. A comparison is performed</span>
+<span class="sd">    for each rank variable.</span>
+
+<span class="sd">    The LHS of each comparison is the loop bound of a loop that affects this rank</span>
+<span class="sd">    variable. The RHS is the given value.</span>
+
+<span class="sd">    For example, if the expression resolves to [a, b], the operator is &quot;&lt;=&quot;, and the</span>
+<span class="sd">    value is 10, and we have loops &quot;for a0 in [0..A0)&quot; and &quot;for b0 in [0..B0)&quot;, then a</span>
+<span class="sd">    mapping is only valid if A0 &lt;= 10 and B0 &lt;= 10.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">expression</span><span class="p">:</span> <span class="n">TryEvalTo</span><span class="p">[</span><span class="n">InvertibleSet</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The expression to compare. This expression should resolve to a set of rank</span>
+<span class="sd">    variables. A comparison is performed for each rank variable independently, and the</span>
+<span class="sd">    result passes if and only if all comparisons pass. The LHS of each comparison is the</span>
+<span class="sd">    loop bound of a loop that affects this rank variable. The RHS is the given value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">operator</span><span class="p">:</span> <span class="nb">str</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The operator to use for the comparison. Supported operators are:</span>
+<span class="sd">    - == (equal to)</span>
+<span class="sd">    - &lt;= (less than or equal to)</span>
+<span class="sd">    - &gt;= (greater than or equal to)</span>
+<span class="sd">    - &lt; (less than)</span>
+<span class="sd">    - &gt; (greater than)</span>
+<span class="sd">    - product== (product of all loop bounds is equal to)</span>
+<span class="sd">    - product&lt;= (product of all loop bounds is less than or equal to)</span>
+<span class="sd">    - product&gt;= (product of all loop bounds is greater than or equal to)</span>
+<span class="sd">    - product&lt; (product of all loop bounds is less than)</span>
+<span class="sd">    - product&gt; (product of all loop bounds is greater than)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">value</span><span class="p">:</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The value to compare against. &quot;&quot;&quot;</span>
+
+    <span class="n">_str_repr</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; A string to print for this comparison when __str__ is called. If None, a default</span>
+<span class="sd">    string will be used. &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">result</span><span class="p">,</span> <span class="n">symbol_table</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">expression</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="s2">&quot;product&quot;</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">operator</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">operator</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">operator</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;product&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span><span class="p">,</span> <span class="n">symbol_table</span>
+
+    <span class="k">def</span> <span class="nf">_constrained_to_one</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="s2">&quot;==&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;&lt;=&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;product==&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;product&lt;=&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_split_expression</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]]:</span>
+        <span class="k">if</span> <span class="s2">&quot;product&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">expression</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">((</span><span class="n">x</span><span class="p">,))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">expression</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_to_constraint_lambda</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">increasing_sizes</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">bool</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span> <span class="nb">bool</span> <span class="o">|</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+        <span class="c1"># Equal operators can only evaluate when all sizes are known</span>
+        <span class="n">eq_op</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">final</span><span class="p">:</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">equal</span>
+            <span class="k">if</span> <span class="n">final</span>
+            <span class="k">else</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">less_equal</span> <span class="k">if</span> <span class="n">increasing_sizes</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">greater_equal</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># If we&#39;re increasing, we can evaluate leq immediately. If we&#39;re</span>
+        <span class="c1"># decreasing, we can evaluate geq immediately. The other must wait</span>
+        <span class="c1"># until all sizes are known.</span>
+        <span class="n">le_wrapper</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">op</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">final</span><span class="p">,</span> <span class="n">sizes</span><span class="p">:</span> <span class="p">(</span>
+            <span class="n">op</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="k">if</span> <span class="n">final</span> <span class="ow">or</span> <span class="n">increasing_sizes</span> <span class="k">else</span> <span class="kc">True</span>
+        <span class="p">)</span>
+        <span class="n">ge_wrapper</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">op</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">final</span><span class="p">,</span> <span class="n">sizes</span><span class="p">:</span> <span class="p">(</span>
+            <span class="n">op</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="k">if</span> <span class="n">final</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">increasing_sizes</span> <span class="k">else</span> <span class="kc">True</span>
+        <span class="p">)</span>
+
+        <span class="n">_all</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">sizes</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">_prod</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">sizes</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># fmt: off</span>
+        <span class="n">operator_to_wrapper</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;==&quot;</span><span class="p">:</span>        <span class="k">lambda</span> <span class="n">final</span><span class="p">,</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_all</span><span class="p">(</span><span class="n">eq_op</span><span class="p">(</span><span class="n">final</span><span class="p">)(</span><span class="n">sizes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)),</span>
+            <span class="s2">&quot;product==&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">final</span><span class="p">,</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">eq_op</span><span class="p">(</span><span class="n">final</span><span class="p">)(</span><span class="n">_prod</span><span class="p">(</span><span class="n">sizes</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;&lt;=&quot;</span><span class="p">:</span>        <span class="n">le_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_all</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span>  <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;&gt;=&quot;</span><span class="p">:</span>        <span class="n">ge_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_all</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span>  <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;&lt;&quot;</span><span class="p">:</span>         <span class="n">le_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_all</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span>  <span class="o">&lt;</span>  <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;&gt;&quot;</span><span class="p">:</span>         <span class="n">ge_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_all</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span>  <span class="o">&gt;</span>  <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;product&lt;=&quot;</span><span class="p">:</span> <span class="n">le_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_prod</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;product&gt;=&quot;</span><span class="p">:</span> <span class="n">ge_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_prod</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;product&lt;&quot;</span><span class="p">:</span>  <span class="n">le_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_prod</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="o">&lt;</span>  <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;product&gt;&quot;</span><span class="p">:</span>  <span class="n">ge_wrapper</span><span class="p">(</span><span class="k">lambda</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">_prod</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="o">&gt;</span>  <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+        <span class="p">}</span>
+        <span class="c1"># fmt: on</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">operator</span> <span class="ow">in</span> <span class="n">operator_to_wrapper</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">operator_to_wrapper</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">operator</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Unknown operator: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">operator</span><span class="si">}</span><span class="s2">. Known operators: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">operator_to_wrapper</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_str_repr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_str_repr</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expression</span><span class="p">)</span><span class="si">}</span><span class="s2">) </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">operator</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+
+
+
+<span class="k">class</span> <span class="nc">_ConstraintLambda</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">constraint</span><span class="p">:</span> <span class="n">Comparison</span><span class="p">,</span>
+        <span class="n">target_mapping_nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s2">&quot;Spatial&quot;</span><span class="p">],</span>
+        <span class="n">rank_variables</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constraint</span> <span class="o">=</span> <span class="n">constraint</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constraint_lambda</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="kc">None</span> <span class="k">if</span> <span class="n">constraint</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">constraint</span><span class="o">.</span><span class="n">_to_constraint_lambda</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_mapping_nodes</span> <span class="o">=</span> <span class="n">target_mapping_nodes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rank_variables</span> <span class="o">=</span> <span class="n">rank_variables</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_target_node_indices</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_target_loop_indices</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;_ConstraintLambda(</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">target_mapping_nodes</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">rank_variables</span><span class="si">}</span><span class="s2">)&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rank_variables</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">],</span> <span class="n">sizes</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">final</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_variables</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">rank_variables</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint_lambda</span><span class="p">(</span><span class="n">final</span><span class="p">,</span> <span class="n">sizes</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_constrained_node_str</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;constrains </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_target_node_indices</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__bool__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">target_mapping_nodes</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">_TileShapeConstraintLambda</span><span class="p">(</span><span class="n">_ConstraintLambda</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">_str_repr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">_str_repr</span>
+        <span class="k">return</span> <span class="s2">&quot;tile_shape &quot;</span> <span class="o">+</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">pretty_str</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Tile shape </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">operator</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_constrained_node_str</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">_LoopBoundsConstraintLambda</span><span class="p">(</span><span class="n">_ConstraintLambda</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">_str_repr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">_str_repr</span>
+        <span class="k">return</span> <span class="s2">&quot;loop_bounds &quot;</span> <span class="o">+</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">pretty_str</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Loop bounds </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">operator</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">constraint</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_constrained_node_str</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">_MinUsageConstraintLambda</span><span class="p">(</span><span class="n">_ConstraintLambda</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">target_mapping_nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="s2">&quot;Spatial&quot;</span><span class="p">],</span>
+        <span class="n">rank_variables</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">min_usage</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">target_mapping_nodes</span><span class="p">,</span> <span class="n">rank_variables</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_usage</span> <span class="o">=</span> <span class="n">min_usage</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">complete_indices</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">usages</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="c1"># final = self.rank_variables.issubset(rank_variables)</span>
+        <span class="n">final</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_target_loop_indices</span><span class="p">)</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">complete_indices</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">final</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">usages</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+
+        <span class="c1"># Some usages are already above the minimum. Return those.</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">usages</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_usage</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span>
+
+        <span class="c1"># Nobody is amove the minimum. Return the best we can do.</span>
+        <span class="n">max_usage</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">usages</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">usages</span> <span class="o">==</span> <span class="n">max_usage</span>
+
+    <span class="k">def</span> <span class="nf">pretty_str</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;Min usage </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_usage</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_constrained_node_str</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

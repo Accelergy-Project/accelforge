@@ -1,0 +1,1645 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.frontend.workload &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/frontend/workload';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.frontend.workload</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.frontend.workload</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">All the objects used for a Workload description in AccelForge.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">product</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Annotated</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">TypeAlias</span>
+
+<span class="kn">import</span> <span class="nn">pydot</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util.parallel</span> <span class="kn">import</span> <span class="n">_SVGJupyterRender</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.util._basetypes</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EvalableDict</span><span class="p">,</span>
+    <span class="n">EvalableList</span><span class="p">,</span>
+    <span class="n">EvalableModel</span><span class="p">,</span>
+    <span class="n">EvalsTo</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.util._visualization</span> <span class="kn">import</span> <span class="n">_pydot_graph</span>
+<span class="kn">from</span> <span class="nn">accelforge.frontend.renames</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EinsumName</span><span class="p">,</span>
+    <span class="n">RankVariable</span><span class="p">,</span>
+    <span class="n">Rename</span><span class="p">,</span>
+    <span class="n">RenameList</span><span class="p">,</span>
+    <span class="n">Renames</span><span class="p">,</span>
+    <span class="n">TensorName</span><span class="p">,</span>
+    <span class="n">Rank</span><span class="p">,</span>
+    <span class="n">rename_list_factory</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">accelforge.util.exceptions</span> <span class="kn">import</span> <span class="n">EvaluationError</span>
+<span class="kn">from</span> <span class="nn">accelforge.util._eval_expressions</span> <span class="kn">import</span> <span class="n">eval_expression</span>
+<span class="kn">from</span> <span class="nn">accelforge.util._setexpressions</span> <span class="kn">import</span> <span class="n">InvertibleSet</span><span class="p">,</span> <span class="n">eval_set_expression</span>
+
+<span class="kn">from</span> <span class="nn">accelforge.frontend.renames</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EinsumName</span><span class="p">,</span>
+    <span class="n">RankVariable</span><span class="p">,</span>
+    <span class="n">Rename</span><span class="p">,</span>
+    <span class="n">RenameList</span><span class="p">,</span>
+    <span class="n">Renames</span><span class="p">,</span>
+    <span class="n">TensorName</span><span class="p">,</span>
+    <span class="n">Rank</span><span class="p">,</span>
+    <span class="n">rename_list_factory</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="n">CLIST_OPERATORS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;EQ&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;NE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LT&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;GT&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;GE&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;NG&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;NL&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;AND&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;OR&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="n">_ISL_REGEX</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+    <span class="sa">r</span><span class="s2">&quot;\b(?!(?:&quot;</span> <span class="o">+</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">CLIST_OPERATORS</span><span class="p">)</span> <span class="o">+</span> <span class="sa">r</span><span class="s2">&quot;)\b)[a-zA-Z#$@][a-zA-Z0-9_]*\b&quot;</span>
+<span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Pattern[AnyStr@compile] _ISL_REGEX: A compiled regex pattern that matches</span>
+<span class="sd">words that are not exactly in CLIST_OPERATORS (case-sensitive), start with a</span>
+<span class="sd">letter, `#`, `$`, or `@`, and are followed by zero or more letters, digits,</span>
+<span class="sd">or underscores.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="isl_expression_has_variable">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.isl_expression_has_variable">[docs]</a>
+<span class="k">def</span> <span class="nf">isl_expression_has_variable</span><span class="p">(</span><span class="n">expression</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">variable</span><span class="p">:</span> <span class="n">RankVariable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns True if the given ISL expression has the given rank variable.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    expression : str</span>
+<span class="sd">        The ISL expression to check.</span>
+<span class="sd">    variable : RankVariable</span>
+<span class="sd">        The rank variable to check for.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        True if the given ISL expression has the given rank variable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">variable</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">_ISL_REGEX</span><span class="p">,</span> <span class="n">expression</span><span class="p">)</span></div>
+
+
+
+<span class="n">SymbolTable</span><span class="p">:</span> <span class="n">TypeAlias</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="TensorAccess">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.TensorAccess">[docs]</a>
+<span class="k">class</span> <span class="nc">TensorAccess</span><span class="p">(</span><span class="n">EvalableModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Information about how an Einsum accesses a tensor.&quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="n">TensorName</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The name of the tensor. &quot;&quot;&quot;</span>
+
+    <span class="n">projection</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    How the rank variables of the Einsum project into the tensor. If this is a list,</span>
+<span class="sd">    then it is assumed that each of the elements of the list is a single rank variable</span>
+<span class="sd">    and they index into the tensor in ranks that equal the uppercase of the rank</span>
+<span class="sd">    variable. For example:</span>
+
+<span class="sd">    name: X, projection: [a, b, c] means X[A=a, B=b, C=c]</span>
+
+<span class="sd">    If this is a dictionary, it is a mapping from rank names to rank variable</span>
+<span class="sd">    expressions. This can be used to either project into a non-matching rank name or to</span>
+<span class="sd">    project into a tensor using an expression. For example:</span>
+
+<span class="sd">    name: X, projection: {A: a, B2: b, C: a+b} means X[A=a, B2=b, C=a+b]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">output</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Whether the tensor is an output. False means the tensor is an input. &quot;&quot;&quot;</span>
+
+    <span class="n">persistent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; If True, then a copy of this tensor must remain in backing storage for the full</span>
+<span class="sd">    duration of the workload&#39;s execution. &quot;&quot;&quot;</span>
+
+    <span class="n">backing_storage_size_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; If != 1, then the backing storage size will be scaled by this factor. &quot;&quot;&quot;</span>
+
+    <span class="n">bits_per_value</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Bits per value for this tensor. &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">model_post_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">__context__</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="p">:</span> <span class="n">ImpliedProjection</span> <span class="o">=</span> <span class="n">_projection_factory</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_to_formatted_string</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns a string representation of the tensor access for Pydot nodes.&quot;&quot;&quot;</span>
+        <span class="n">subscript</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="p">,</span> <span class="n">ImpliedProjection</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&lt;sub&gt;</span><span class="si">{</span><span class="n">subscript</span><span class="si">}</span><span class="s2">&lt;/sub&gt;&quot;</span>
+
+        <span class="n">string</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="o">==</span> <span class="n">k</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+                <span class="n">string</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">string</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&lt;sub&gt;</span><span class="si">{</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">string</span><span class="p">)</span><span class="si">}</span><span class="s2">&lt;/sub&gt;&quot;</span>
+
+        <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">string</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank2rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of rank names to the rank variables that project into that</span>
+<span class="sd">        rank.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="n">Rank</span><span class="p">(</span><span class="n">rank</span><span class="p">):</span> <span class="nb">set</span><span class="p">(</span>
+                <span class="n">RankVariable</span><span class="p">(</span><span class="n">rank_var</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">rank_var</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">_ISL_REGEX</span><span class="p">,</span> <span class="n">projection</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">projection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank_variable2ranks</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">Rank</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of rank variables to the ranks into which that rank</span>
+<span class="sd">        variable projects.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">projection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">rank_var</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">_ISL_REGEX</span><span class="p">,</span> <span class="n">projection</span><span class="p">):</span>
+                <span class="n">rank_set</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">rank_var</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
+                <span class="n">rank_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">rank</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ranks</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the ranks of this access&#39;s tensor.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Rank</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns all rank variables used in this access.&quot;&quot;&quot;</span>
+        <span class="c1"># Projection values may be expressions, so we need to grab all identifiers</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span>
+            <span class="n">RankVariable</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">_ISL_REGEX</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">directly_indexing_rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the rank variables that directly index into this tensor without any</span>
+<span class="sd">        expression (e.g., &quot;M=m&quot;, NOT &quot;M=m+n&quot;).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span>
+            <span class="n">RankVariable</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">_ISL_REGEX</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">expression_indexing_rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the rank variables that indirectly index into this tensor through an</span>
+<span class="sd">        expression (e.g., &quot;M=m+n&quot;) instead of a direct index (e.g., &quot;M=m&quot;).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_variables</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">directly_indexing_rank_variables</span></div>
+
+
+
+<div class="viewcode-block" id="ImpliedProjection">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.ImpliedProjection">[docs]</a>
+<span class="k">class</span> <span class="nc">ImpliedProjection</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Holds a projection that has been implied by a list of rank variables. The implied</span>
+<span class="sd">    rank names are uppercased versions of the rank variables; for example, [a, b, c] -&gt;</span>
+<span class="sd">    {A: a, B: b, C: c}.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">_projection_factory</span><span class="p">(</span><span class="n">projection</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="nb">list</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">projection</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">projection</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Element at index </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_ISL_REGEX</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Element &#39;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s2">&#39; at index </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> is not a valid ISL identifier&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;In a projection list, all elements must be valid ISL identifiers.&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;For expressions, use a dictionary projection.&quot;</span>
+                <span class="p">)</span>
+        <span class="n">projection</span> <span class="o">=</span> <span class="n">ImpliedProjection</span><span class="p">({</span><span class="n">x</span><span class="o">.</span><span class="n">upper</span><span class="p">():</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">projection</span><span class="p">})</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">projection</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid projection: </span><span class="si">{</span><span class="n">projection</span><span class="si">}</span><span class="s2">. Must be a list of rank variables or a &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;dictionary of rank variable to projection.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">projection</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid projection key: </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">. Must be a string.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">isidentifier</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid projection key: </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">. Must be a valid identifier. Check with &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;the Python isidentifier() function.&quot;</span>
+            <span class="p">)</span>
+    <span class="k">return</span> <span class="n">projection</span>
+
+
+<span class="k">def</span> <span class="nf">_parse_einsum_entry</span><span class="p">(</span><span class="n">einsum_entry</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">einsum_entry</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;workload.einsums entries must be dicts, strings, or Einsum objects. &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">einsum_entry</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="s2">&quot;einsum&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">einsum_entry</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">einsum_entry</span>
+
+    <span class="n">einsum_str</span> <span class="o">=</span> <span class="n">einsum_entry</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;einsum&quot;</span><span class="p">)</span>
+    <span class="n">einsum_entry</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">einsum_entry</span><span class="p">)</span>
+
+    <span class="n">parsed</span> <span class="o">=</span> <span class="n">_parse_einsum_string</span><span class="p">(</span><span class="n">einsum_str</span><span class="p">)</span>
+
+    <span class="n">tensor_accesses</span> <span class="o">=</span> <span class="n">einsum_entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tensor_accesses&quot;</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tensor_accesses</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tensor_accesses must be a list, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">tensor_accesses</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">name2access</span> <span class="o">=</span> <span class="p">{</span><span class="n">ta</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span> <span class="n">ta</span> <span class="k">for</span> <span class="n">ta</span> <span class="ow">in</span> <span class="n">parsed</span><span class="p">[</span><span class="s2">&quot;tensor_accesses&quot;</span><span class="p">]}</span>
+    <span class="k">for</span> <span class="n">ta</span> <span class="ow">in</span> <span class="n">tensor_accesses</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ta</span><span class="p">,</span> <span class="n">TensorAccess</span><span class="p">):</span>
+            <span class="n">ta</span> <span class="o">=</span> <span class="n">ta</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ta</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;tensor_accesses entries must be dicts or TensorAccess objects. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ta</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">name</span> <span class="o">:=</span> <span class="n">ta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tensor_accesses entry missing a name field. Got </span><span class="si">{</span><span class="n">ta</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">name2access</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;tensor_accesses entry </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> not found in einsum string </span><span class="si">{</span><span class="n">einsum_str</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">ta</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">&quot;name&quot;</span> <span class="ow">and</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">name2access</span><span class="p">[</span><span class="n">name</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;tensor_accesses entry </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has set </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">, which is &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;already set by the einsum string </span><span class="si">{</span><span class="n">einsum_str</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="n">name2access</span><span class="p">[</span><span class="n">name</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+
+    <span class="n">einsum_entry</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span>
+    <span class="n">einsum_entry</span><span class="p">[</span><span class="s2">&quot;tensor_accesses&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">name2access</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="n">einsum_entry</span><span class="p">[</span><span class="s2">&quot;renames&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rename_list_factory</span><span class="p">(</span><span class="n">einsum_entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;renames&quot;</span><span class="p">,</span> <span class="p">{}))</span>
+
+    <span class="k">return</span> <span class="n">einsum_entry</span>
+
+
+<span class="k">def</span> <span class="nf">_parse_einsum_string</span><span class="p">(</span><span class="n">einsum_str</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">original</span> <span class="o">=</span> <span class="n">einsum_str</span>
+    <span class="n">einsum_str</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\s+&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">einsum_str</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">einsum_str</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Einsum string cannot be empty&quot;</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">einsum_str</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid einsum format. Einsum string </span><span class="si">{</span><span class="n">original</span><span class="si">}</span><span class="s2"> has </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> equals signs. &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Each Einsum string must have exactly one equals sign.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">tensor_pattern</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;([A-Za-z_]\w*)\[([^\]]*)\]&quot;</span>
+    <span class="n">full_pattern</span> <span class="o">=</span> <span class="sa">rf</span><span class="s2">&quot;^</span><span class="si">{</span><span class="n">tensor_pattern</span><span class="si">}</span><span class="s2">=(.+)$&quot;</span>
+
+    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">full_pattern</span><span class="p">,</span> <span class="n">einsum_str</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid einsum format: </span><span class="si">{</span><span class="n">original</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">tensor_accesses</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="n">match</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span> <span class="n">is_output</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="n">name</span><span class="p">,</span> <span class="n">proj</span> <span class="o">=</span> <span class="n">match</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">proj</span> <span class="o">=</span> <span class="n">_parse_projection</span><span class="p">(</span><span class="n">proj</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">e</span><span class="o">.</span><span class="n">add_note</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Problem Einsum string: </span><span class="si">{</span><span class="n">original</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span>
+        <span class="n">tensor_accesses</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span> <span class="s2">&quot;projection&quot;</span><span class="p">:</span> <span class="n">proj</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">:</span> <span class="n">is_output</span><span class="p">})</span>
+
+    <span class="n">output_name</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">rhs</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">input_matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">tensor_pattern</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">input_matches</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No input tensors: </span><span class="si">{</span><span class="n">original</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">rhs</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">input_matches</span><span class="p">:</span>
+        <span class="n">update</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">update</span><span class="p">((</span><span class="n">output_name</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">output_name</span><span class="p">,</span> <span class="s2">&quot;tensor_accesses&quot;</span><span class="p">:</span> <span class="n">tensor_accesses</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span> <span class="nf">_parse_projection</span><span class="p">(</span><span class="n">proj_str</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="nb">list</span><span class="p">:</span>
+    <span class="n">proj_str</span> <span class="o">=</span> <span class="n">proj_str</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">proj_str</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Projection cannot be empty&quot;</span><span class="p">)</span>
+
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">proj_str</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)]</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Erroneous projection: </span><span class="si">{</span><span class="n">proj_str</span><span class="si">}</span><span class="s2">.&quot;</span>
+
+    <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">in</span> <span class="n">part</span><span class="p">:</span>
+            <span class="n">split</span> <span class="o">=</span> <span class="n">part</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">split</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Invalid projection: </span><span class="si">{</span><span class="n">part</span><span class="si">}</span><span class="s2">. Must be of the form &quot;</span>
+                    <span class="s1">&#39;&quot;rank: projection expression&quot;.&#39;</span>
+                <span class="p">)</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">split</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">_ISL_REGEX</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Invalid projection key: </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">. Must be a valid ISL identifier. </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Duplicate rank entry: </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">. Must be unique. </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">part</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Empty projection entry. </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">_ISL_REGEX</span><span class="p">,</span> <span class="n">part</span><span class="o">.</span><span class="n">upper</span><span class="p">()):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Invalid projection value: </span><span class="si">{</span><span class="n">part</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">. The uppercased form of &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;entry </span><span class="si">{</span><span class="n">part</span><span class="si">}</span><span class="s2"> must be a valid ISL identifier. </span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">part</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span> <span class="o">=</span> <span class="n">part</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<div class="viewcode-block" id="Shape">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.Shape">[docs]</a>
+<span class="k">class</span> <span class="nc">Shape</span><span class="p">(</span><span class="n">EvalableList</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Specifies valid values for the rank variables. This is a list of strings, each one</span>
+<span class="sd">    an ISL expression. The total space is considered to be the logal AND of all the</span>
+<span class="sd">    expressions in the list.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns all rank variables used in this shape.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">_ISL_REGEX</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span></div>
+
+
+
+<div class="viewcode-block" id="Einsum">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.Einsum">[docs]</a>
+<span class="k">class</span> <span class="nc">Einsum</span><span class="p">(</span><span class="n">EvalableModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents an Einsum, which is a single computation step in the workload. The Einsum</span>
+<span class="sd">    includes a set of rank variables, which are used to index into tensors. Rank</span>
+<span class="sd">    variables iterate through an iteration space.</span>
+
+<span class="sd">    For example, if the Einsum is A[m, n] += B[k, n] * C[k, n] and we define the</span>
+<span class="sd">    iteration space as &quot;0 &lt;= m &lt; 10, 0 &lt;= n &lt; 10, 0 &lt;= k &lt; 10&quot;, then the Einsum will</span>
+<span class="sd">    iterate through all possible values of (m, n, k) in the iteration space, indexing</span>
+<span class="sd">    into tensors for each and updating A[m, n] with B[k, n] * C[k, n].</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="n">EinsumName</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The name of the Einsum. &quot;&quot;&quot;</span>
+    <span class="n">tensor_accesses</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">TensorAccess</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The tensors accessed by this Einsum, and how they are accessed. &quot;&quot;&quot;</span>
+    <span class="n">iteration_space_shape</span><span class="p">:</span> <span class="n">Shape</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Shape</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bounds of valid rank variable values. This is a list of expressions, each one an ISL</span>
+<span class="sd">    expression. Additionally, global iteration_space_shape expressions are appended to</span>
+<span class="sd">    the list if their rank variables are present in the Einsum&#39;s rank_variables. For</span>
+<span class="sd">    example, if the global scope has &quot;m: 0 &lt;= m &lt; 10&quot; and the Einsum has &quot;m&quot; in its</span>
+<span class="sd">    rank_variables, then &quot;0 &lt;= m &lt; 10&quot; will be appended to the iteration_space_shape.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rank_sizes</span><span class="p">:</span> <span class="n">EvalableDict</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">EvalableDict</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sizes of ranks. This is a dictionary of rank names to sizes. Sizes are integers, and</span>
+<span class="sd">    the rank&#39;s bounds are 0 &lt;= rank &lt; size. Accesses outside of these bounds are</span>
+<span class="sd">    skipped.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">is_copy_operation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Whether the Einsum is a copy operation. Copy operations take the input tensor</span>
+<span class="sd">    and directly place them at the location of the output tensor(s) without any</span>
+<span class="sd">    computation. If the destination tensor is at the same location, then this is a</span>
+<span class="sd">    no-op.&quot;&quot;&quot;</span>
+    <span class="n">renames</span><span class="p">:</span> <span class="n">RenameList</span><span class="p">[</span><span class="n">Rename</span><span class="p">]</span> <span class="o">=</span> <span class="n">RenameList</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Renames of the Einsum. Renames here can be used to rename rank variables or</span>
+<span class="sd">    tensors. When this Einsum is executed on an architecture, the architecture can use</span>
+<span class="sd">    renamed tensors and rank variables to access the tensors and rank variables. &quot;&quot;&quot;</span>
+    <span class="n">n_instances</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Number of times to repeat the Einsum. Multiplied by `Workload.n_instances` to get</span>
+<span class="sd">    the total number of Einsum instances. Energy, latency, and other summable metrics</span>
+<span class="sd">    are multiplied by this value. Persistent reservations are also multiplied by this</span>
+<span class="sd">    value, but non-persistent reservations are not, as they are assumed to be freed</span>
+<span class="sd">    between each instance.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">model_post_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">__context__</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;Total&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;Einsum name &quot;Total&quot; is reserved for totaling across Einsums.&#39;</span>
+                <span class="sa">f</span><span class="s2">&quot;Use a different name for the Einsum.&quot;</span>
+            <span class="p">)</span>
+
+<div class="viewcode-block" id="Einsum.__init__">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;renames&quot;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;renames&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rename_list_factory</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;renames&quot;</span><span class="p">])</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns all rank variables used in this Einsum.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">rank_variables</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ranks</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">Rank</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns all ranks used in this Einsum.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">ranks</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_tensor_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of the input tensors of this Einsum.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">([</span><span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">t</span><span class="o">.</span><span class="n">output</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output_tensor_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of the output tensors of this Einsum.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">([</span><span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">output</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of all tensors of this Einsum.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">([</span><span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor2rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns a dictionary of tensor names to the rank variables that project into</span>
+<span class="sd">        that tensor.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">):</span> <span class="n">t</span><span class="o">.</span><span class="n">rank_variables</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor2directly_indexing_rank_variables</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of tensor names to the rank variables that directly index</span>
+<span class="sd">        into that tensor. Direct indexing means that the rank variable is used as a</span>
+<span class="sd">        direct index into the tensor, without any expression (e.g., &quot;M=m&quot;, NOT &quot;M=m+n&quot;).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">):</span> <span class="n">t</span><span class="o">.</span><span class="n">directly_indexing_rank_variables</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span>
+        <span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor2expression_indexing_rank_variables</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of tensor names to the rank variables that indirectly index</span>
+<span class="sd">        into that tensor through an expression (e.g., &quot;M=m+n&quot;) instead of a direct index</span>
+<span class="sd">        (e.g., &quot;M=m&quot;).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fully_relevant_rank_vars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor2directly_indexing_rank_variables</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">):</span> <span class="n">t</span><span class="o">.</span><span class="n">rank_variables</span> <span class="o">-</span> <span class="n">fully_relevant_rank_vars</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span>
+        <span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor2irrelevant_rank_variables</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of tensor names to the rank variables that are irrelevant</span>
+<span class="sd">        to that tensor. Irrelevant rank variables are rank variables that are not used</span>
+<span class="sd">        to index into the tensor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">partially_relevant</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor2expression_indexing_rank_variables</span>
+        <span class="n">fully_relevant</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor2directly_indexing_rank_variables</span>
+        <span class="n">rank_variables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_variables</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">):</span> <span class="n">rank_variables</span>
+            <span class="o">-</span> <span class="n">fully_relevant</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="o">-</span> <span class="n">partially_relevant</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_to_formatted_string</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">compress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a string representation of this Einsum for use in a Pydot graph.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        compress : bool, optional</span>
+<span class="sd">            If True, the string will be compressed to a single line.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            A string representation of this Einsum for use in a Pydot graph.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lhs_join</span> <span class="o">=</span> <span class="s2">&quot;,</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">compress</span> <span class="k">else</span> <span class="s2">&quot; , &quot;</span>
+        <span class="n">rhs_join</span> <span class="o">=</span> <span class="s2">&quot; </span><span class="se">\n</span><span class="s2"> &quot;</span> <span class="k">if</span> <span class="n">compress</span> <span class="k">else</span> <span class="s2">&quot;  ×  &quot;</span>
+        <span class="n">lhs</span> <span class="o">=</span> <span class="n">lhs_join</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">_to_formatted_string</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">output</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">rhs_join</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">_to_formatted_string</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">t</span><span class="o">.</span><span class="n">output</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">lhs</span><span class="si">}</span><span class="s2">=</span><span class="se">\n</span><span class="si">{</span><span class="n">rhs</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">compress</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">lhs</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">rhs</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<div class="viewcode-block" id="Einsum.copy_source_tensor">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.copy_source_tensor">[docs]</a>
+    <span class="k">def</span> <span class="nf">copy_source_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TensorName</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        If this Einsum is a copy operation, returns the name of the tensor that is the</span>
+<span class="sd">        source of the copy. Otherwise, returns None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_copy_operation</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">input_tensors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_tensor_names</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Copy Einsum </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">input_tensors</span><span class="p">)</span><span class="si">}</span><span class="s2"> input tensors, expected 1&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">input_tensors</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank_variable2ranks</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">Rank</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of rank variables to the ranks that are indexed into by</span>
+<span class="sd">        that rank variable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">Rank</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">tensor_access</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">tensor_access</span><span class="o">.</span><span class="n">rank_variable2ranks</span>
+            <span class="k">for</span> <span class="n">rank_var</span><span class="p">,</span> <span class="n">ranks</span> <span class="ow">in</span> <span class="n">new</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">rank_var</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">ranks</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">indexing_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a list of all the expressions that index into the tensors of this</span>
+<span class="sd">        Einsum.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">tensor_access</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">projection</span> <span class="ow">in</span> <span class="n">tensor_access</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">projection</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+<div class="viewcode-block" id="Einsum.empty_renames">
+<a class="viewcode-back" href="../../../accelforge.frontend.html#accelforge.frontend.workload.Einsum.empty_renames">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">empty_renames</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">[</span><span class="n">TensorName</span> <span class="o">|</span> <span class="n">RankVariable</span><span class="p">]]:</span>
+        <span class="n">kwargs_tensors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">full_space</span><span class="o">=</span><span class="nb">set</span><span class="p">(),</span>
+            <span class="n">space_type</span><span class="o">=</span><span class="n">TensorName</span><span class="p">,</span>
+            <span class="n">child_access_name</span><span class="o">=</span><span class="s2">&quot;rank_variables&quot;</span><span class="p">,</span>
+            <span class="n">element_to_child_space</span><span class="o">=</span><span class="nb">dict</span><span class="p">(),</span>
+        <span class="p">)</span>
+        <span class="n">kwargs_rank_variables</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">full_space</span><span class="o">=</span><span class="nb">set</span><span class="p">(),</span>
+            <span class="n">space_type</span><span class="o">=</span><span class="n">RankVariable</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;All&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Tensors&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Nothing&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Inputs&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Outputs&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+        <span class="p">}</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">workload</span><span class="p">:</span> <span class="n">Workload</span> <span class="o">=</span> <span class="n">symbol_table</span><span class="p">[</span><span class="s2">&quot;spec_workload&quot;</span><span class="p">]</span>
+        <span class="n">renames</span><span class="p">:</span> <span class="n">Renames</span> <span class="o">=</span> <span class="n">symbol_table</span><span class="p">[</span><span class="s2">&quot;spec_renames&quot;</span><span class="p">]</span>
+
+        <span class="c1"># Put together renames symbol table</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_tensor_names</span>
+        <span class="n">outputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_tensor_names</span>
+        <span class="n">all_</span> <span class="o">=</span> <span class="n">inputs</span> <span class="o">|</span> <span class="n">outputs</span>
+        <span class="n">persistent</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_accesses</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">persistent</span><span class="p">}</span>
+        <span class="n">element_to_child_space</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">all_rank_variables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_variables</span>
+        <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">:</span>
+            <span class="n">element_to_child_space</span><span class="p">[</span><span class="n">tensor</span><span class="p">]</span> <span class="o">=</span> <span class="n">InvertibleSet</span><span class="p">(</span>
+                <span class="n">instance</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tensor2rank_variables</span><span class="p">[</span><span class="n">tensor</span><span class="p">],</span>
+                <span class="n">full_space</span><span class="o">=</span><span class="n">all_rank_variables</span><span class="p">,</span>
+                <span class="n">space_type</span><span class="o">=</span><span class="n">RankVariable</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">intermediates</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">t</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">all_</span>
+            <span class="k">if</span> <span class="n">workload</span><span class="o">.</span><span class="n">einsums_with_tensor_as_input</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">workload</span><span class="o">.</span><span class="n">einsums_with_tensor_as_output</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="n">shared</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">t</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">all_</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span>
+                <span class="nb">set</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">workload</span><span class="o">.</span><span class="n">einsums_with_tensor_as_input</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+                <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">workload</span><span class="o">.</span><span class="n">einsums_with_tensor_as_output</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
+            <span class="p">)</span>
+            <span class="o">&gt;</span> <span class="mi">1</span>
+        <span class="p">}</span>
+
+        <span class="n">kwargs_tensors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">full_space</span><span class="o">=</span><span class="n">all_</span><span class="p">,</span>
+            <span class="n">space_type</span><span class="o">=</span><span class="n">TensorName</span><span class="p">,</span>
+            <span class="n">child_access_name</span><span class="o">=</span><span class="s2">&quot;rank_variables&quot;</span><span class="p">,</span>
+            <span class="n">element_to_child_space</span><span class="o">=</span><span class="n">element_to_child_space</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">kwargs_rank_variables</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">full_space</span><span class="o">=</span><span class="n">all_rank_variables</span><span class="p">,</span>
+            <span class="n">space_type</span><span class="o">=</span><span class="n">RankVariable</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">rename_symbol_table</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;All&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="n">all_</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Tensors&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="n">all_</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Nothing&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Inputs&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Outputs&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Intermediates&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="n">intermediates</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Shared&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="n">shared</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="s2">&quot;Persistent&quot;</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="n">persistent</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">),</span>
+            <span class="o">**</span><span class="p">{</span><span class="n">t</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(</span><span class="n">t</span><span class="p">,),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">all_</span><span class="p">},</span>
+            <span class="o">**</span><span class="p">{</span>
+                <span class="n">r</span><span class="p">:</span> <span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(</span><span class="n">r</span><span class="p">,),</span> <span class="o">**</span><span class="n">kwargs_rank_variables</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">all_rank_variables</span>
+            <span class="p">},</span>
+            <span class="c1"># &quot;Einsum&quot;: self.name,</span>
+            <span class="c1"># CAN&#39;T DEFINE ABOVE HERE. Otherwise the expression &quot;Above&quot; will parse to</span>
+            <span class="c1"># nothing before we ever get to the point of making storage nodes.</span>
+            <span class="c1"># &quot;Above&quot;: InvertibleSet(instance=(), **kwargs_tensors),</span>
+        <span class="p">}</span>
+
+        <span class="n">st</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">rename_symbol_table</span><span class="p">,</span> <span class="o">**</span><span class="n">symbol_table</span><span class="p">}</span>
+
+        <span class="bp">self</span><span class="p">:</span> <span class="n">Einsum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_copy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">renames</span> <span class="o">=</span> <span class="n">RenameList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">renames</span><span class="p">)</span>
+
+        <span class="c1"># Grab the default renames and update the renames with more values</span>
+        <span class="n">default_renames</span> <span class="o">=</span> <span class="n">renames</span><span class="o">.</span><span class="n">get_renames_for_einsum</span><span class="p">(</span><span class="s2">&quot;default&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">tensor_rename</span> <span class="ow">in</span> <span class="n">default_renames</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">tensor_rename</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">renames</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">renames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tensor_rename</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">rank_variable_rename</span> <span class="ow">in</span> <span class="n">default_renames</span><span class="o">.</span><span class="n">rank_variables</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">rank_variable_rename</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">renames</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">renames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rank_variable_rename</span><span class="p">)</span>
+
+        <span class="c1"># Parse me!</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;musteval_tryeval_to&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">evaluated</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span>
+            <span class="n">st</span><span class="p">,</span>
+            <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Update the renames with the new values</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rename_symbol_table</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">renames</span><span class="p">:</span>
+                <span class="n">evaluated</span><span class="o">.</span><span class="n">renames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Rename</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">v</span><span class="p">))</span>
+
+        <span class="c1"># Put these after the eval because they don&#39;t need eval and it slows things</span>
+        <span class="c1"># down.</span>
+        <span class="n">all_renames</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">renames</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">workload</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">all_renames</span><span class="p">:</span>
+                <span class="n">evaluated</span><span class="o">.</span><span class="n">renames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">Rename</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_tensors</span><span class="p">))</span>
+                <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">workload</span><span class="o">.</span><span class="n">rank_variables</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">all_renames</span><span class="p">:</span>
+                <span class="n">evaluated</span><span class="o">.</span><span class="n">renames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">Rename</span><span class="p">(</span>
+                        <span class="n">name</span><span class="o">=</span><span class="n">r</span><span class="p">,</span>
+                        <span class="n">source</span><span class="o">=</span><span class="n">InvertibleSet</span><span class="p">(</span><span class="n">instance</span><span class="o">=</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs_rank_variables</span><span class="p">),</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="n">st</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">k</span><span class="o">.</span><span class="n">source</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">renames</span><span class="p">})</span>
+
+        <span class="c1"># Parse the bits per value</span>
+        <span class="n">bits_per_value</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">bpv_to_source</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">symbol_table</span><span class="p">[</span><span class="s2">&quot;workload_bits_per_value&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">bpv</span> <span class="o">=</span> <span class="n">eval_set_expression</span><span class="p">(</span>
+                <span class="n">expression</span><span class="o">=</span><span class="n">k</span><span class="p">,</span>
+                <span class="n">symbol_table</span><span class="o">=</span><span class="n">st</span><span class="p">,</span>
+                <span class="n">expected_space</span><span class="o">=</span><span class="n">TensorName</span><span class="p">,</span>
+                <span class="n">location</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;(workload global bits_per_value)[</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">bpv</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">bits_per_value</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Tensor </span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2"> is specified in multiple entries in the workload &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;global bits_per_value dictionary.&quot;</span><span class="p">,</span>
+                        <span class="n">source_field</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> AND </span><span class="si">{</span><span class="n">bpv_to_source</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="n">bits_per_value</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+                <span class="n">bpv_to_source</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">bits_per_value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">bits_per_value</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Tensor </span><span class="si">{</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> in Einsum does not have a bits per value &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;specified. Ensure that the tensor is either covered by the set &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;expressions in the workload.bits_per_value dictionary &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;or bits_per_value is specified for the tensor access.&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">source_field</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;tensor_accesses[</span><span class="si">{</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">].bits_per_value&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">bits_per_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">t</span><span class="o">.</span><span class="n">bits_per_value</span> <span class="o">=</span> <span class="n">bits_per_value</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">symbol_table</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;workload_persistent_tensors&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">rename_st_with_evaluated</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">st</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">rename</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">renames</span><span class="p">:</span>
+                <span class="n">rename_st_with_evaluated</span><span class="p">[</span><span class="n">rename</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">rename</span><span class="o">.</span><span class="n">source</span>
+
+            <span class="n">persistent_set</span> <span class="o">=</span> <span class="n">eval_set_expression</span><span class="p">(</span>
+                <span class="n">expression</span><span class="o">=</span><span class="n">symbol_table</span><span class="p">[</span><span class="s2">&quot;workload_persistent_tensors&quot;</span><span class="p">],</span>
+                <span class="n">symbol_table</span><span class="o">=</span><span class="n">rename_st_with_evaluated</span><span class="p">,</span>
+                <span class="n">expected_space</span><span class="o">=</span><span class="n">TensorName</span><span class="p">,</span>
+                <span class="n">location</span><span class="o">=</span><span class="s2">&quot;(workload global persistent_tensors)&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">persistent_set</span><span class="p">:</span>
+                    <span class="n">t</span><span class="o">.</span><span class="n">persistent</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">return</span> <span class="n">evaluated</span><span class="p">,</span> <span class="n">symbol_table</span></div>
+
+
+
+<div class="viewcode-block" id="Workload">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload">[docs]</a>
+<span class="k">class</span> <span class="nc">Workload</span><span class="p">(</span><span class="n">EvalableModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The workload specification as a cascade of Einsums, with each Einsum being a</span>
+<span class="sd">    computation step in the workload.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">einsums</span><span class="p">:</span> <span class="n">EvalableList</span><span class="p">[</span><span class="n">Einsum</span><span class="p">]</span> <span class="o">=</span> <span class="n">EvalableList</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; The Einsums in the workload. &quot;&quot;&quot;</span>
+
+    <span class="n">iteration_space_shape</span><span class="p">:</span> <span class="n">EvalableDict</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">EvalableDict</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bounds of valid rank variable values. This is a dictionary of rank variable</span>
+<span class="sd">    names to bounds of valid rank variable values. The bounds are specified as a string</span>
+<span class="sd">    in the ISL format. For example, &quot;0 &lt;= a &lt; 10&quot; means that the rank variable `a` must</span>
+<span class="sd">    be between 0 and 10, including 0 but not 10. Bounds are included for all Einsums</span>
+<span class="sd">    that include that rank variable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">rank_sizes</span><span class="p">:</span> <span class="n">EvalableDict</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="n">EvalsTo</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="n">EvalableDict</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Rank sizes. This is a dictionary of rank names to sizes. Sizes are integers, and the</span>
+<span class="sd">    rank&#39;s bounds are 0 &lt;= rank &lt; size. Accesses outside of these bounds are skipped.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">n_instances</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Number of times to repeat the workload. Multiplied by `Einsum.n_instances` to get</span>
+<span class="sd">    the total number of Einsum instances. Energy, latency, and other summable metrics</span>
+<span class="sd">    are multiplied by this value. Persistent reservations are also multiplied by this</span>
+<span class="sd">    value, but non-persistent reservations are not, as they are assumed to be freed</span>
+<span class="sd">    between each instance.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bits_per_value</span><span class="p">:</span> <span class="n">EvalableDict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">EvalableDict</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bits per value for each tensor. The workload-level bits_per_value is overridden if</span>
+<span class="sd">    bits_per_value is specified for any given tensor access. This is a dictionary of</span>
+<span class="sd">    set expressions to bits per value for the tensors given by those expressions. For</span>
+<span class="sd">    example, we may write &quot;Inputs: 8&quot; to set the bits per value to 8 for all input</span>
+<span class="sd">    tensors, unless overridden.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">persistent_tensors</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Set expression for identifying persistent tensors. Evaluated per-Einsum to mark</span>
+<span class="sd">    matching tensors as persistent. Example: &quot;weight&quot; or &quot;~(Outputs | Intermediates)&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_for_einsum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">einsum_name</span><span class="p">:</span> <span class="n">EinsumName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Workload&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy of the workload with only the Einsum with the given name.&quot;&quot;&quot;</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">new</span><span class="o">.</span><span class="n">einsums</span> <span class="o">=</span> <span class="n">EvalableList</span><span class="p">([</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">new</span><span class="o">.</span><span class="n">einsums</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">einsum_name</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">new</span>
+
+<div class="viewcode-block" id="Workload.__init__">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">data</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;einsums&quot;</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;einsums&quot;</span><span class="p">]:</span>
+            <span class="n">processed_einsums</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">einsum_entry</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;einsums&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">einsum_entry</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="n">einsum_entry</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;einsum&quot;</span><span class="p">:</span> <span class="n">einsum_entry</span><span class="p">}</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">einsum_entry</span><span class="p">,</span> <span class="n">Einsum</span><span class="p">):</span>
+                    <span class="n">einsum_entry</span> <span class="o">=</span> <span class="n">einsum_entry</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
+                <span class="n">processed_einsums</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_parse_einsum_entry</span><span class="p">(</span><span class="n">einsum_entry</span><span class="p">))</span>
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;einsums&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">processed_einsums</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">data</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="nf">model_post_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">__context__</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_validate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">tensor2ranks</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">einsum_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">einsum</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">einsum_names</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Einsum name </span><span class="si">{</span><span class="n">einsum</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> is not unique&quot;</span><span class="p">)</span>
+            <span class="n">einsum_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">einsum</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">tensor_accesses</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+                <span class="n">tensor2ranks</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">tensor_accesses</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">tensor_accesses</span><span class="o">.</span><span class="n">ranks</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">tensor2ranks</span><span class="p">[</span><span class="n">tensor_accesses</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">!=</span> <span class="n">tensor_accesses</span><span class="o">.</span><span class="n">ranks</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;TensorName </span><span class="si">{</span><span class="n">tensor_accesses</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> has inconsistent ranks. Found &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">tensor2ranks</span><span class="p">[</span><span class="n">tensor_accesses</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">tensor_accesses</span><span class="o">.</span><span class="n">ranks</span><span class="si">}</span><span class="s2">. &quot;</span>
+                        <span class="s2">&quot;TensorName is in Einsums &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+<span class="w">                            </span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">einsums_with_tensor</span><span class="p">(</span><span class="n">tensor_accesses</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<span class="w">                        </span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">einsum_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">EinsumName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of the Einsums in the workload.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">EinsumName</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span><span class="p">]</span>
+
+<div class="viewcode-block" id="Workload.einsums_with_tensor">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.einsums_with_tensor">[docs]</a>
+    <span class="k">def</span> <span class="nf">einsums_with_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="s2">&quot;Einsum&quot;</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the Einsums in the workload that access the given tensor.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tensor : TensorName</span>
+<span class="sd">            The tensor to check.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list[Einsum]</span>
+<span class="sd">            The Einsums in the workload that access the given tensor. Order is the same</span>
+<span class="sd">            as the order in this workload&#39;s Einsums list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span> <span class="k">if</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Workload.einsums_with_tensor_as_input">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.einsums_with_tensor_as_input">[docs]</a>
+    <span class="k">def</span> <span class="nf">einsums_with_tensor_as_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="s2">&quot;Einsum&quot;</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the Einsums in the workload that use the given tensor as an input.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tensor : TensorName</span>
+<span class="sd">            The tensor to check.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list[Einsum]</span>
+<span class="sd">            The Einsums in the workload that use the given tensor as an input. Order is</span>
+<span class="sd">            the same as the order in this workload&#39;s Einsums list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span> <span class="k">if</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">input_tensor_names</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Workload.einsums_with_tensor_as_output">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.einsums_with_tensor_as_output">[docs]</a>
+    <span class="k">def</span> <span class="nf">einsums_with_tensor_as_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="s2">&quot;Einsum&quot;</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the Einsums in the workload that have the given tensor as an output.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tensor : TensorName</span>
+<span class="sd">            The tensor to check.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list[Einsum]</span>
+<span class="sd">            The Einsums in the workload that have the given tensor as an output. Order</span>
+<span class="sd">            is the same as the order in this workload&#39;s Einsums list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span> <span class="k">if</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">output_tensor_names</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Workload.accesses_for_tensor">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.accesses_for_tensor">[docs]</a>
+    <span class="k">def</span> <span class="nf">accesses_for_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">TensorAccess</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns all TensorAccess objects that access the given tensor across all</span>
+<span class="sd">        Einsums.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tensor : TensorName</span>
+<span class="sd">            The tensor to check.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list[TensorAccess]</span>
+<span class="sd">            The TensorAccess objects that access the given tensor across all Einsums.</span>
+<span class="sd">            Order is the same as the order in this workload&#39;s Einsums list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">tensor_accesses</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">tensor</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Workload.get_iteration_space_shape_isl_string">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.get_iteration_space_shape_isl_string">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_iteration_space_shape_isl_string</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">einsum_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the ISL string representing the iteration space of the given Einsum.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        einsum_name : str</span>
+<span class="sd">            The name of the Einsum for which to get the iteration space shape.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str</span>
+<span class="sd">            The ISL string representing the iteration space shape of the given Einsum.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">einsum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span><span class="p">[</span><span class="n">einsum_name</span><span class="p">]</span>
+        <span class="n">einsum_shape</span> <span class="o">=</span> <span class="n">einsum</span><span class="o">.</span><span class="n">iteration_space_shape</span>
+        <span class="n">my_ispace</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteration_space_shape</span>
+        <span class="n">global_shape</span> <span class="o">=</span> <span class="p">[</span><span class="n">my_ispace</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">rank_variables</span> <span class="k">if</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">my_ispace</span><span class="p">]</span>
+        <span class="n">rank_sizes</span> <span class="o">=</span> <span class="n">einsum</span><span class="o">.</span><span class="n">rank_sizes</span>
+        <span class="n">global_rank_sizes</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">r</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_sizes</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">ranks</span> <span class="k">if</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_sizes</span>
+        <span class="p">}</span>
+
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">einsum_shape</span> <span class="o">+</span> <span class="n">global_shape</span>
+        <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">projection</span> <span class="ow">in</span> <span class="n">tensor</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">rank</span> <span class="ow">in</span> <span class="n">rank_sizes</span><span class="p">:</span>
+                    <span class="n">exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;0 &lt;= </span><span class="si">{</span><span class="n">projection</span><span class="si">}</span><span class="s2"> &lt; </span><span class="si">{</span><span class="n">rank_sizes</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">rank</span> <span class="ow">in</span> <span class="n">global_rank_sizes</span><span class="p">:</span>
+                    <span class="n">exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;0 &lt;= </span><span class="si">{</span><span class="n">projection</span><span class="si">}</span><span class="s2"> &lt; </span><span class="si">{</span><span class="n">global_rank_sizes</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="s2">&quot; and &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_check_consistent_persistent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">:</span>
+            <span class="n">persistents</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">[</span><span class="n">tensor</span><span class="p">]</span><span class="o">.</span><span class="n">persistent</span>
+                <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums_with_tensor</span><span class="p">(</span><span class="n">tensor</span><span class="p">)</span>
+            <span class="p">}</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">persistents</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Tensor </span><span class="si">{</span><span class="n">tensor</span><span class="si">}</span><span class="s2"> is used in multiple Einsums with different &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;persistent values. Persistent values must be consistent across &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;all Einsums that use the tensor.&quot;</span>
+                <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor_names_used_in_multiple_einsums</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of the tensors that are used in multiple Einsums.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_names</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">einsums_with_tensor</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensor_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of all tensors in the workload.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">TensorName</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">RankVariable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the names of all rank variables in the workload.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">RankVariable</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">rank_variables</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_repr_svg_</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Workload.render">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.render">[docs]</a>
+    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Renders the workload as a Pydot graph. Returns an SVG string.&quot;&quot;&quot;</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="n">_pydot_graph</span><span class="p">()</span>
+
+        <span class="c1"># Set ranksep to 0.3</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">set_ranksep</span><span class="p">(</span><span class="mf">0.2</span><span class="p">)</span>
+
+        <span class="c1"># Add all tensors as nodes (circles)</span>
+        <span class="n">tensors</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">seen_tensor_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="n">pydot</span><span class="o">.</span><span class="n">Node</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Einsum_</span><span class="si">{</span><span class="n">einsum</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">shape</span><span class="o">=</span><span class="s2">&quot;box&quot;</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;&lt;</span><span class="si">{</span><span class="n">einsum</span><span class="o">.</span><span class="n">_to_formatted_string</span><span class="p">(</span><span class="n">compress</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="si">}</span><span class="s2">&gt;&quot;</span><span class="p">,</span>
+                <span class="n">style</span><span class="o">=</span><span class="s2">&quot;filled&quot;</span><span class="p">,</span>
+                <span class="n">fillcolor</span><span class="o">=</span><span class="s2">&quot;#E0EEFF&quot;</span><span class="p">,</span>  <span class="c1"># Same color as Compute nodes</span>
+            <span class="p">)</span>
+            <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">tensor_access</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">tensor_access</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen_tensor_names</span><span class="p">:</span>
+                    <span class="n">tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tensor_access</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                    <span class="n">seen_tensor_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">tensor_access</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                    <span class="n">node</span> <span class="o">=</span> <span class="n">pydot</span><span class="o">.</span><span class="n">Node</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Tensor_</span><span class="si">{</span><span class="n">tensor_access</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="n">shape</span><span class="o">=</span><span class="s2">&quot;oval&quot;</span><span class="p">,</span>
+                        <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;&lt;</span><span class="si">{</span><span class="n">tensor_access</span><span class="o">.</span><span class="n">_to_formatted_string</span><span class="p">()</span><span class="si">}</span><span class="s2">&gt;&quot;</span><span class="p">,</span>
+                        <span class="n">style</span><span class="o">=</span><span class="s2">&quot;filled&quot;</span><span class="p">,</span>
+                        <span class="n">fillcolor</span><span class="o">=</span><span class="s2">&quot;#D7FCD7&quot;</span><span class="p">,</span>  <span class="c1"># Same color as Storage nodes</span>
+                    <span class="p">)</span>
+                    <span class="n">graph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+        <span class="c1"># Add all einsums as nodes (rectangles)</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+            <span class="c1"># Add edges from tensors to einsums</span>
+            <span class="k">for</span> <span class="n">tensor_access</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">tensor_access</span><span class="o">.</span><span class="n">output</span><span class="p">:</span>
+                    <span class="c1"># Output tensor: einsum -&gt; tensor</span>
+                    <span class="n">edge</span> <span class="o">=</span> <span class="n">pydot</span><span class="o">.</span><span class="n">Edge</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Einsum_</span><span class="si">{</span><span class="n">einsum</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="sa">f</span><span class="s2">&quot;Tensor_</span><span class="si">{</span><span class="n">tensor_access</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="nb">dir</span><span class="o">=</span><span class="s2">&quot;forward&quot;</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">edge</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Input tensor: tensor -&gt; einsum</span>
+                    <span class="n">edge</span> <span class="o">=</span> <span class="n">pydot</span><span class="o">.</span><span class="n">Edge</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Tensor_</span><span class="si">{</span><span class="n">tensor_access</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="sa">f</span><span class="s2">&quot;Einsum_</span><span class="si">{</span><span class="n">einsum</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="nb">dir</span><span class="o">=</span><span class="s2">&quot;forward&quot;</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">graph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">edge</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_SVGJupyterRender</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">create_svg</span><span class="p">(</span><span class="n">prog</span><span class="o">=</span><span class="s2">&quot;dot&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_eval_expressions</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">renames</span><span class="p">:</span> <span class="n">Renames</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
+    <span class="p">):</span>
+        <span class="n">bpv</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bits_per_value</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="n">symbol_table</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">new_st</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="o">**</span><span class="n">symbol_table</span><span class="p">,</span>
+            <span class="s2">&quot;spec_workload&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="p">,</span>
+            <span class="s2">&quot;spec_renames&quot;</span><span class="p">:</span> <span class="n">renames</span><span class="p">,</span>
+            <span class="s2">&quot;workload_bits_per_value&quot;</span><span class="p">:</span> <span class="n">bpv</span><span class="p">,</span>
+            <span class="s2">&quot;workload_persistent_tensors&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">persistent_tensors</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">evaluated</span><span class="p">,</span> <span class="n">new_st</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_eval_expressions</span><span class="p">(</span><span class="n">new_st</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Ensure bits_per_value is consistent across Einsums</span>
+        <span class="n">bits_per_value_per_einsum</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">bits_per_value</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">bpv</span> <span class="ow">in</span> <span class="n">bits_per_value</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">einsum</span><span class="o">.</span><span class="n">renames</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">bits_per_value</span> <span class="o">=</span> <span class="n">bpv</span>
+
+            <span class="n">cur_bpv</span> <span class="o">=</span> <span class="p">{</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">bits_per_value</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">tensor_accesses</span><span class="p">}</span>
+            <span class="c1"># Check for consistency across Einsums</span>
+            <span class="k">for</span> <span class="n">prev_einsum</span><span class="p">,</span> <span class="n">prev_bpv</span> <span class="ow">in</span> <span class="n">bits_per_value_per_einsum</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">shared_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">cur_bpv</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">prev_bpv</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">shared_keys</span><span class="p">:</span>
+                    <span class="n">b0</span> <span class="o">=</span> <span class="n">cur_bpv</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+                    <span class="n">b1</span> <span class="o">=</span> <span class="n">prev_bpv</span><span class="p">[</span><span class="n">t</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">b0</span> <span class="o">!=</span> <span class="n">b1</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Tensor </span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2"> has bits per value </span><span class="si">{</span><span class="n">b0</span><span class="si">}</span><span class="s2"> in Einsum &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">einsum</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">b1</span><span class="si">}</span><span class="s2"> in Einsum </span><span class="si">{</span><span class="n">prev_einsum</span><span class="si">}</span><span class="s2">. Bits per &quot;</span>
+                            <span class="s2">&quot;value must be consistent across all Einsums that access &quot;</span>
+                            <span class="s2">&quot;a tensor.&quot;</span>
+                        <span class="p">)</span>
+            <span class="n">bits_per_value_per_einsum</span><span class="p">[</span><span class="n">einsum</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">cur_bpv</span>
+            <span class="n">bits_per_value</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">cur_bpv</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="n">evaluated</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">renames</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">)</span>
+                    <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">source</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+                    <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">space_type</span> <span class="o">==</span> <span class="n">TensorName</span>
+                    <span class="ow">and</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">source</span><span class="p">))</span> <span class="ow">in</span> <span class="n">bits_per_value</span>
+                <span class="p">):</span>
+                    <span class="n">source</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">source</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">bits_per_value</span><span class="p">:</span>
+                        <span class="n">r</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">bits_per_value</span> <span class="o">=</span> <span class="n">bits_per_value</span><span class="p">[</span><span class="n">source</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Tensor </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> has no bits per value in the &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;workload. Bits per value must be specified for all &quot;</span>
+                            <span class="s2">&quot;tensors.&quot;</span>
+                        <span class="p">)</span>
+        <span class="n">evaluated</span><span class="o">.</span><span class="n">_check_consistent_persistent</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">evaluated</span><span class="p">,</span> <span class="n">symbol_table</span>
+
+    <span class="k">def</span> <span class="nf">_get_ranks_that_share_indexing_rank_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">Rank</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary of ranks to the ranks with which they share indexing rank</span>
+<span class="sd">        variables. For example, if one einsum indexes into rank A with rank variable a</span>
+<span class="sd">        and another einsum indexes into rank B with rank variable a, then A and B share</span>
+<span class="sd">        the indexing rank variable a. Then we&#39;d have in our return value both A: {A, B}</span>
+<span class="sd">        and B: {A, B}. This is transitive and reflexive.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[Rank, set[Rank]]</span>
+<span class="sd">            A dictionary of ranks to the ranks with which they share indexing rank</span>
+<span class="sd">            variables. The ranks are the keys, and the values are sets of ranks that</span>
+<span class="sd">            share indexing rank variables with the key.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rank2rankvars</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">tensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_names</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">accesses_for_tensor</span><span class="p">(</span><span class="n">tensor</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">rank_vars</span> <span class="ow">in</span> <span class="n">acc</span><span class="o">.</span><span class="n">rank2rank_variables</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">rank2rankvars</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">rank</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rank_vars</span><span class="p">)</span>
+
+        <span class="n">rank_var_to_ranks</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="n">rank_vars</span> <span class="ow">in</span> <span class="n">rank2rankvars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">rank_var</span> <span class="ow">in</span> <span class="n">rank_vars</span><span class="p">:</span>
+                <span class="n">rank_var_to_ranks</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">rank_var</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">rank</span><span class="p">)</span>
+
+        <span class="n">rank_to_ranks</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="p">:</span> <span class="nb">set</span><span class="p">((</span><span class="n">r</span><span class="p">,))</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rank2rankvars</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+        <span class="n">update_with</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">rank_var_to_ranks</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="n">changed</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">while</span> <span class="n">changed</span><span class="p">:</span>
+            <span class="n">changed</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">for</span> <span class="n">ranks</span> <span class="ow">in</span> <span class="n">rank_to_ranks</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">update_with</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">u</span> <span class="o">&amp;</span> <span class="n">ranks</span><span class="p">:</span>
+                        <span class="n">changed</span> <span class="o">=</span> <span class="n">changed</span> <span class="ow">or</span> <span class="p">(</span><span class="n">u</span> <span class="o">-</span> <span class="n">ranks</span><span class="p">)</span>
+                        <span class="n">ranks</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">rank_to_ranks</span>
+
+<div class="viewcode-block" id="Workload.get_tensor_copies">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.get_tensor_copies">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_tensor_copies</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">TensorName</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="n">TensorName</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a dictionary specifying which tensors are copies of which other tensors.</span>
+<span class="sd">        For example, if einsum A copies tensor X into tensors Y and Z, then we&#39;d have in</span>
+<span class="sd">        the return value X: {Y, Z}, Y: {X, Z}, and Z: {X, Y}. This is transitive.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict[TensorName, set[TensorName]]</span>
+<span class="sd">            A dictionary specifying which tensors are copies of which other tensors. The</span>
+<span class="sd">            keys are the tensors that are copies, and the values are sets of tensors</span>
+<span class="sd">            that are copies of the key.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">tensor_copies</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">einsum</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">einsums</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">einsum</span><span class="o">.</span><span class="n">is_copy_operation</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">input_tensor</span> <span class="o">=</span> <span class="n">einsum</span><span class="o">.</span><span class="n">copy_source_tensor</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">output_tensor</span> <span class="ow">in</span> <span class="n">einsum</span><span class="o">.</span><span class="n">output_tensor_names</span><span class="p">:</span>
+                <span class="n">tensor_copies</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">input_tensor</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">output_tensor</span><span class="p">)</span>
+                <span class="n">tensor_copies</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">output_tensor</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">input_tensor</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tensor_copies</span></div>
+
+
+<div class="viewcode-block" id="Workload.empty_renames">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.empty_renames">[docs]</a>
+    <span class="k">def</span> <span class="nf">empty_renames</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">InvertibleSet</span><span class="p">[</span><span class="n">TensorName</span> <span class="o">|</span> <span class="n">RankVariable</span><span class="p">]]:</span>
+        <span class="k">return</span> <span class="n">Einsum</span><span class="o">.</span><span class="n">empty_renames</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Workload.get_tensor_shape">
+<a class="viewcode-back" href="../../../modules.html#accelforge.frontend.workload.Workload.get_tensor_shape">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_tensor_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">:</span> <span class="n">TensorName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Rank</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="kn">from</span> <span class="nn">accelforge.frontend._workload_isl._isl</span> <span class="kn">import</span> <span class="n">get_tensor_shape</span>
+
+        <span class="k">return</span> <span class="n">get_tensor_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tensor</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
