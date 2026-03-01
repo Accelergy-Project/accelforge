@@ -18,7 +18,6 @@ from accelforge.model._looptree.latency.memory import component_latency
 from accelforge.model.sparse_adjustment import (
     apply_sparse_adjustments,
     LatencyInfo,
-    _apply_temporal_reuse_corrections,
 )
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
@@ -49,10 +48,6 @@ def run_model(
     reuse = analyze_reuse_and_add_reservations_to_mapping(
         job, add_reservations=add_reservations
     )
-
-    # Temporal reuse correction: divide inflated parent-facing stats for
-    # buffers that sit inside contiguous irrelevant temporal loops.
-    _apply_temporal_reuse_corrections(reuse, spec, job)
 
     # Phase 1: Dense latency (before sparse adjustments)
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
