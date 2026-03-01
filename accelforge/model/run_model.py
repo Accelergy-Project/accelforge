@@ -166,6 +166,11 @@ def run_model(
         for component, cur_latency in latency.items():
             df[f"latency<SEP>{component}"] = cur_latency * n_instances
 
+    actions_df = {}
+    simple_actions = gather_actions(reuse, None, verbose=False, use_name=True)
+    for key, count in simple_actions.items():
+        actions_df[action2col(key)] = count.total * n_instances
+
     if metrics & Metrics.LATENCY:
         df["Total<SEP>latency"] = overall_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances
@@ -210,4 +215,5 @@ def run_model(
         per_memory_spatial_usage_df,
         spatial_usage_df,
         reuse.tensor2mapping,
+        actions_df,
     )

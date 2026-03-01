@@ -86,6 +86,9 @@ def diff_geq_leq_zero(f: Expr, s: Symbol, bounds: tuple[tuple[Symbol, int, int],
             lambda expr: expr.is_Function and expr.func == sympy.ceiling,
             lambda expr: expr.args[0],
         )
+    if isinstance(f, sympy.Eq):
+        return ComparisonResult.UNKNOWN
+
     return geq_leq_zero(diff(sympy.expand(f), s), bounds)
 
 
@@ -759,6 +762,11 @@ def coalesce_symbols(
                 update_symbol2goal(formula, goal, new_symbol2goal)
                 continue
 
+            # If it's an equal, we can't do anything with it
+            if isinstance(formula, sympy.Eq):
+                update_symbol2goal(formula, goal, new_symbol2goal)
+                continue
+
             # If it's a sum, remove any terms that are constant
             if isinstance(formula, sympy.Add):
                 keep = []
@@ -874,7 +882,7 @@ def coalesce_symbols(
                 continue
             log_message(
                 "coalesce symbols",
-                f"can't change formula: {formula}",
+                f"cannot change formula: {formula}",
             )
             update_symbol2goal(formula, goal, new_symbol2goal)
 
@@ -894,13 +902,14 @@ def get_tile_shape_choices(
     what_tiles_symbol: SymbolRelations,
     job: "Job",
     keep_symbols: list[Symbol] = (),
+    alt_objectives: list[Objective] = (),
     max_loop_check_groups: list[tuple[Number, list[Symbol]]] = (),
 ):
     objectives = [copy.deepcopy(o) for o in objectives]
+    alt_objectives = [copy.deepcopy(o) for o in alt_objectives]
+    max_loop_check_groups = [g for g in max_loop_check_groups if g[0] < len(g[1])]
 
     import time
-
-    objectives = objectives.copy()
 
     symbols_enumerated: list[Symbol] = []
     choices_enumerated: np.ndarray = None
@@ -913,7 +922,7 @@ def get_tile_shape_choices(
     # the outer loops, so it does those symbols (which end up multiplying our choices)
     # last. Outer to inner is faster if there's no symbols to keep because that's what
     # happened on exactly one workload that Tanner tested.
-    TILE_SHAPE_ORDER = "inner_to_outer_prod_others"
+    TILE_SHAPE_ORDER = "inner_to_outer_min_loops_to_track_one_rv_at_a_time"
 
     # For imperfect, we make inner tile shapes, then create outer tile shapes that are
     # multiples of the non-residual part of the inner tile shape. This way, the very
@@ -995,20 +1004,36 @@ def get_tile_shape_choices(
             )
 
         def max_formulas(s):
-            prev = prev_tile(s, none_if_fail=True)
-            constrains_prev = isinstance(prev, Symbol) and prev not in keep_symbols
+            following = next_tile(s, none_if_fail=True)
+            constrains_following = (
+                isinstance(following, Symbol) and following not in keep_symbols
+            )
             return (
                 # Sum number of times it appears in all objectives
-                sum(o.formula.count(s) for o in objectives) + 4**constrains_prev,
+                sum(o.formula.count(s) for o in objectives) + 4**constrains_following,
                 # Number of objectives that have this symbol
                 len([o for o in objectives if s in o.formula.free_symbols])
-                + 4**constrains_prev,
+                + 4**constrains_following,
                 # Minimize size
                 min_size(s),
             )
 
+        def min_loops_to_track(s):
+            max_f = prod(max_formulas(s))
+
+            def n_groups(s2):
+                return sum(1 for _, g in max_loop_check_groups if s2 in g) + (
+                    s2 in keep_symbols
+                )
+
+            x = 0
+            while s is not None:
+                x += n_groups(s)
+                s = next_tile(s, none_if_fail=True)
+            return (x, max_f)
+
         def _porp_of_formula(s):
-            prev = prev_tile(s, none_if_fail=True)
+            prev = next_tile(s, none_if_fail=True)
             n = 0
             for o in objectives:
                 f = o.formula
@@ -1051,6 +1076,8 @@ def get_tile_shape_choices(
             objective = lambda s: 1
         elif "porp_of_formulas" in tile_shape_order:
             objective = porp_of_formulas
+        elif "min_loops_to_track" in tile_shape_order:
+            objective = min_loops_to_track
         else:
             raise RuntimeError(f"BUG: invalid tile_shape_order: {tile_shape_order}")
 
@@ -1065,7 +1092,9 @@ def get_tile_shape_choices(
                 best = value
                 choice = i
         choice = symbols_remaining.index(strides[choice])
-        log_message("Selected symbol", f"{symbols_remaining[choice]} with value {best}")
+        log_message(
+            "Selected symbol", f"{symbols_remaining[choice]} with priority {best}"
+        )
         return symbols_remaining.pop(choice)
 
         raise RuntimeError(f"BUG: invalid TILE_SHAPE_ORDER: {TILE_SHAPE_ORDER}")
@@ -1073,6 +1102,8 @@ def get_tile_shape_choices(
     last_stride_symbol = None  # track the last stride symbol to select next symbol
     symbol = None
     while symbols_remaining:
+        for _ in range(5):
+            log_message("")
         # ==============================================================================
         # Enumerate choices for a new symbol
         # ==============================================================================
@@ -1209,281 +1240,352 @@ def get_tile_shape_choices(
             f"size {prev_size} -> {choices_enumerated.shape[0]}",
         )
 
-        # ==============================================================================
-        # Create initial Pareto-finding goals
-        # ==============================================================================
-        symbol2goal = {}
-
-        def update_symbol2goal(
-            symbol: Symbol, goal: Goal, s2g: dict[Symbol, Goal] = None
-        ):
-            if s2g is None:
-                s2g = symbol2goal
-            s2g[symbol] = goal | s2g.get(symbol, Goal())
-
-        # If we're a symbol and a non-enumerated outer loop depends on us, then we need
-        # to track this loop. Minimize it if we're imperfect (giving the outer the most
-        # choices possible), or diff if we're perfect (since perfect constrains choices
-        # so we can't just min).
-        for s in symbols_enumerated:
-            per_prime_factor = not (
-                IMPERFECT
-                or _get_n_prime_factors(what_tiles_symbol.get_max_size(s)) == 1
-            )
-            tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
-            if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
-                update_symbol2goal(
-                    s, Goal("min_per_prime_factor" if per_prime_factor else "min")
-                )
-
-            # Same for inner loops depending on us, but maximize if we're imperfect
-            tiled_by = what_tiles_symbol.get_inner_tiles(s, none_if_fail=True)
-            if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
-                update_symbol2goal(
-                    s, Goal("max_per_prime_factor" if per_prime_factor else "max")
-                )
-
-        # If we need to keep this symbol, must preserve all choices for it
-        for s in set(symbols_enumerated) & set(keep_symbols):
-            update_symbol2goal(s, Goal("diff"))
-
-        symbols_non_enumerated_set = set(symbols) - set(symbols_enumerated)
-        sym_enumerated_set = set(symbols_enumerated)
-
-        if job.spec_one_einsum.mapper._count_option_for_mapsapce_size_evaluation != ():
-            log_message(
-                "Skipping because we're counting options for space size evaluation",
-                f"{choices_enumerated.shape[0]} -> 1",
-            )
-            choices_enumerated = choices_enumerated[:1, :]
-            continue
-
-        choices_enumerated_float = choices_enumerated.astype(util.NUMPY_FLOAT_TYPE)
-
-        # ==============================================================================
-        # Create functions to Pareto using objectives
-        # ==============================================================================
-        for objective in list(objectives):
+        # Assume that optimizing for objectives and optimizing for alt_objectives will
+        # yield the same results. Generally, alt_objectives will be the objective
+        # function chosen by the user, while alt_objectives will be actions.
+        for cur_objectives in [objectives, alt_objectives]:
             # ==========================================================================
-            # If there's a max value, then check for validity
+            # Create initial Pareto-finding goals
             # ==========================================================================
-            complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
-            if objective.max_value is not None:
-                try:
-                    # minimize_for_objective may raise a TypeError if there's unknown
-                    # symbols
-                    result = eval_objective(
-                        objective.formula,
-                        choices_enumerated_float,
-                        minimize_formula=objective.formula,
-                    )
-                    if objective.inclusive:
-                        valid = result <= objective.max_value
-                    else:
-                        valid = result < objective.max_value
-                    if not isinstance(valid, np.ndarray):
-                        valid = (
-                            np.zeros(choices_enumerated.shape[0], dtype=bool) + valid
-                        )
-                    choices_enumerated = choices_enumerated[valid]
-                    choices_enumerated_float = choices_enumerated_float[valid]
-                except (TypeError, ValueError):
-                    # Everyone valid (for counting purposes)
-                    valid = [choices_enumerated.shape[0]]
+            symbol2goal = {}
 
-                porp = sum(valid) / max(1, choices_enumerated.shape[0])
-                job.log_porp_pmappings_kept(
-                    f"{objective.name}",
-                    sum(valid) / max(1, prev_size),
+            def update_symbol2goal(
+                symbol: Symbol, goal: Goal, s2g: dict[Symbol, Goal] = None
+            ):
+                if s2g is None:
+                    s2g = symbol2goal
+                s2g[symbol] = goal | s2g.get(symbol, Goal())
+
+            # If we're a symbol and we will later make a loop outside of this one, then
+            # we need to track this loop because the outer choices depend on this one.
+            # In this case, having a smaller tile shape in each prime factor will yield
+            # more tile shape choices in the future, so do min_per_prime_factor. If
+            # we're doing imperfect, no need to consider prime factors, so just min. If
+            # the symbol or the next one participates in max loop checking, then we need
+            # to use diff because the whether a loop exists depends on whether this tile
+            # shape exactly equals the one it tiles / is tiled by. The same logic
+            # applies if an inner loop depends on us, except with max.
+            pairs_have_eq = set()
+
+            # If a max fused loop check group is fully evaluated, we don't need to check
+            # it
+            known = lambda s: s in symbols_enumerated or not isinstance(s, Symbol)
+            check = [
+                g for _, g in max_loop_check_groups if not all(known(x) for x in g)
+            ]
+
+            for s in symbols_enumerated:
+                direct_min_max = (
+                    IMPERFECT
+                    or _get_n_prime_factors(what_tiles_symbol.get_max_size(s)) == 1
                 )
-                log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
-                if complete:
-                    objective.max_value = None  # We don't care anymore
-                    objective.min_value = None
-                    if objective.only_care_if_valid:
-                        objectives.remove(objective)
-                        log_message(
-                            f"Removed {objective.name} because it is always valid"
-                        )
+                tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
+                tiled_by = what_tiles_symbol.get_inner_tiles(s, none_if_fail=True)
 
-            if objective.min_value is not None:
-                try:
-                    # minimize_for_objective may raise a TypeError if there's unknown
-                    # symbols
-                    result = eval_objective(
-                        objective.formula,
-                        choices_enumerated_float,
-                        maximize_formula=objective.formula,
-                    )
-                    if objective.inclusive:
-                        valid = result >= objective.min_value
-                    else:
-                        valid = result > objective.min_value
-                    if not isinstance(valid, np.ndarray):
-                        valid = (
-                            np.zeros(choices_enumerated.shape[0], dtype=bool) + valid
-                        )
+                append = "" if direct_min_max else "_per_prime_factor"
+                if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
+                    update_symbol2goal(s, Goal("min" + append))
+                if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
+                    update_symbol2goal(s, Goal("max" + append))
 
-                    if not objective.try_best_if_none_reaches_min:
+                for g in check:
+                    # If this symbol != the one we tile, then a loop is added. Since
+                    # we're running with a loop limit in this group, we need to track
+                    # this one being == the outer as "good".
+                    if s in g:
+                        if known(tiles):
+                            log_message(
+                                f"{s=} is in group {g}. {tiles=} known; adding =="
+                            )
+                            pairs_have_eq.add(fzs((tiles, s)))
+                        else:
+                            log_message(
+                                f"{s=} is in group {g}. {tiles=} unknown; diffing {s}"
+                            )
+                            update_symbol2goal(s, Goal("diff"))
+
+                    # If the symbol tiled by us != this one, then a loop is added. Since
+                    # we're running with a loop limit in this group, we need to track
+                    # this one being == the inner as "good".
+                    if tiled_by in g:
+                        log_message(f"{tiled_by} is in group {g}")
+                        if known(tiled_by):
+                            log_message(
+                                f"{tiled_by=} is in group {g}. {tiled_by=} known; adding =="
+                            )
+                            pairs_have_eq.add(fzs((tiled_by, s)))
+                        else:
+                            log_message(
+                                f"{tiled_by=} is in group {g}. {tiled_by=} unknown; diffing"
+                            )
+                            update_symbol2goal(s, Goal("diff"))
+
+            for pair in pairs_have_eq:
+                a, b = tuple(pair)
+                update_symbol2goal(sympy.Eq(a, b), Goal("max"))
+
+            # If we need to keep this symbol, must preserve all choices for it
+            for s in set(symbols_enumerated) & set(keep_symbols):
+                update_symbol2goal(s, Goal("diff"))
+
+            symbols_non_enumerated_set = set(symbols) - set(symbols_enumerated)
+            sym_enumerated_set = set(symbols_enumerated)
+
+            if (
+                job.spec_one_einsum.mapper._count_option_for_mapsapce_size_evaluation
+                != ()
+            ):
+                log_message(
+                    "Skipping because we're counting options for space size evaluation",
+                    f"{choices_enumerated.shape[0]} -> 1",
+                )
+                choices_enumerated = choices_enumerated[:1, :]
+                continue
+
+            choices_enumerated_float = choices_enumerated.astype(util.NUMPY_FLOAT_TYPE)
+
+            # as_strings = {str(s): choices_enumerated_float[:, i] for i, s in enumerate(symbols_enumerated)}
+            # matched = list(range(choices_enumerated.shape[0]))
+            # for s_idx in [0, 1, 6, 5]:
+            #     if f"stride{s_idx}" in as_strings:
+            #         matched = [i for i in matched if as_strings[f"stride{s_idx}"][i] == 1]
+            #         assert matched, f"FAIL after {s_idx}"
+
+            # ==========================================================================
+            # Create functions to Pareto using objectives
+            # ==========================================================================
+            for objective in list(cur_objectives):
+                log_message(
+                    f"Checking objective", f"{objective.name}: {objective.formula}"
+                )
+                # ======================================================================
+                # If there's a max value, then check for validity
+                # ======================================================================
+                complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
+                if objective.max_value is not None:
+                    try:
+                        # minimize_for_objective may raise a TypeError if there's
+                        # unknown symbols
+                        result = eval_objective(
+                            objective.formula,
+                            choices_enumerated_float,
+                            minimize_formula=objective.formula,
+                        )
+                        if objective.inclusive:
+                            valid = result <= objective.max_value
+                        else:
+                            valid = result < objective.max_value
+                        if not isinstance(valid, np.ndarray):
+                            valid = (
+                                np.zeros(choices_enumerated.shape[0], dtype=bool)
+                                + valid
+                            )
                         choices_enumerated = choices_enumerated[valid]
                         choices_enumerated_float = choices_enumerated_float[valid]
-                    else:
-                        if valid.any():
-                            choices_enumerated = choices_enumerated[valid]
-                            choices_enumerated_float = choices_enumerated_float[valid]
-                        elif complete:
-                            valid |= result == (
-                                result.min()
-                                if isinstance(result, np.ndarray)
-                                else result
+                    except (TypeError, ValueError):
+                        # Haven't done any pruning, so valid is the # of total choices
+                        valid = [choices_enumerated.shape[0]]
+
+                    porp = sum(valid) / max(1, choices_enumerated.shape[0])
+                    job.log_porp_pmappings_kept(
+                        f"{objective.name}",
+                        sum(valid) / max(1, prev_size),
+                    )
+                    log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
+                    if complete:
+                        objective.max_value = None  # We don't care anymore
+                        objective.min_value = None
+                        if objective.only_care_if_valid:
+                            cur_objectives.remove(objective)
+                            log_message(
+                                f"Removed {objective.name} because it is always valid"
                             )
+
+                if objective.min_value is not None:
+                    try:
+                        # minimize_for_objective may raise a TypeError if there's unknown
+                        # symbols
+                        result = eval_objective(
+                            objective.formula,
+                            choices_enumerated_float,
+                            maximize_formula=objective.formula,
+                        )
+                        if objective.inclusive:
+                            valid = result >= objective.min_value
+                        else:
+                            valid = result > objective.min_value
+                        if not isinstance(valid, np.ndarray):
+                            valid = (
+                                np.zeros(choices_enumerated.shape[0], dtype=bool)
+                                + valid
+                            )
+
+                        if not objective.try_best_if_none_reaches_min:
                             choices_enumerated = choices_enumerated[valid]
                             choices_enumerated_float = choices_enumerated_float[valid]
-                except (TypeError, ValueError):
-                    # Everyone valid (for counting purposes)
-                    valid = [choices_enumerated.shape[0]]
+                        else:
+                            if valid.any():
+                                choices_enumerated = choices_enumerated[valid]
+                                choices_enumerated_float = choices_enumerated_float[
+                                    valid
+                                ]
+                            elif complete:
+                                valid |= result == (
+                                    result.min()
+                                    if isinstance(result, np.ndarray)
+                                    else result
+                                )
+                                choices_enumerated = choices_enumerated[valid]
+                                choices_enumerated_float = choices_enumerated_float[
+                                    valid
+                                ]
+                    except (TypeError, ValueError):
+                        # Everyone valid (for counting purposes)
+                        valid = [choices_enumerated.shape[0]]
 
-                porp = sum(valid) / max(1, choices_enumerated.shape[0])
-                job.log_porp_pmappings_kept(
-                    f"{objective.name}",
-                    sum(valid) / max(1, prev_size),
+                    porp = sum(valid) / max(1, choices_enumerated.shape[0])
+                    job.log_porp_pmappings_kept(
+                        f"{objective.name}",
+                        sum(valid) / max(1, prev_size),
+                    )
+                    log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
+                    if complete:
+                        objective.max_value = None  # We don't care anymore
+                        objective.min_value = None
+                        if objective.only_care_if_valid:
+                            cur_objectives.remove(objective)
+                            log_message(
+                                f"Removed {objective.name} because it is always valid"
+                            )
+
+            if not choices_enumerated.shape[0]:
+                log_message(
+                    "Skipping because we have no choices",
+                    f"size {choices_enumerated.shape[0]}",
                 )
-                log_message(f"Valid check", f"{objective.name}", f"porp={porp:.2%}")
-                if complete:
-                    objective.max_value = None  # We don't care anymore
-                    objective.min_value = None
-                    if objective.only_care_if_valid:
-                        objectives.remove(objective)
-                        log_message(
-                            f"Removed {objective.name} because it is always valid"
-                        )
+                return np.array([]).reshape(-1, len(symbols))
 
-        if not choices_enumerated.shape[0]:
-            log_message(
-                "Skipping because we have no choices",
-                f"size {choices_enumerated.shape[0]}",
-            )
-            return np.array([]).reshape(-1, len(symbols))
+            if choices_enumerated.shape[0] < 1000 and symbols_remaining:
+                continue
 
-        if choices_enumerated.shape[0] < 1000 and symbols_remaining:
-            continue
+            for objective in cur_objectives:
+                # ======================================================================
+                # If there's a max value, then check for validity
+                # ======================================================================
+                complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
+                prev_size = choices_enumerated.shape[0]
 
-        for objective in objectives:
+                log_message(
+                    "Partitioning formula", f"{objective.name}: {objective.formula}"
+                )
+
+                goals = partition_formula(
+                    objective.formula,
+                    sym_enumerated_set,
+                    what_tiles_symbol.bounds,
+                    objective.terms_do_not_cross_zero,
+                )
+
+                log_message(f"formula", f"{objective.formula}")
+                for k, v in goals.items():
+                    log_message("formula", f"\t -> {k}: {v}")
+
+                for symbol, goal in goals.items():
+                    update_symbol2goal(symbol, goal)
+
+            job.n_evaluated_pmappings += choices_enumerated.shape[0]
+            if not choices_enumerated.shape[0]:
+                return np.array([]).reshape(-1, len(symbols))
+
             # ==========================================================================
-            # If there's a max value, then check for validity
+            # Coalesce symbols. This simplifies our tracked goals. It also breaks down
+            # partially-unknown goals into fully-known and/or fully-unknown goals.
             # ==========================================================================
-            complete = objective.formula.free_symbols.issubset(sym_enumerated_set)
-            prev_size = choices_enumerated.shape[0]
-
-            log_message(
-                "Partitioning formula", f"{objective.name}: {objective.formula}"
+            symbol2goal = coalesce_symbols(
+                symbols_enumerated=symbols_enumerated,
+                symbol2goal=symbol2goal,
+                update_symbol2goal=update_symbol2goal,
+                log_message=log_message,
+                bounds=what_tiles_symbol.bounds,
             )
 
-            goals = partition_formula(
-                objective.formula,
-                sym_enumerated_set,
-                what_tiles_symbol.bounds,
-                objective.terms_do_not_cross_zero,
-            )
+            log_message("coalesce symbols", f"{symbol2goal}")
 
-            log_message(f"formula", f"{objective.formula}")
-            for k, v in goals.items():
-                log_message("formula", f"\t -> {k}: {v}")
+            paretoed_by_key = fzs((f, g.goal) for f, g in symbol2goal.items())
+            if any(p.issubset(paretoed_by_key) for p in paretoed_by):
+                job.log_message(
+                    "Skipping Pareto because we've already found a Pareto with these objectives."
+                )
+                continue
+            paretoed_by.append(paretoed_by_key)
 
-            for symbol, goal in goals.items():
-                update_symbol2goal(symbol, goal)
+            objective_values = {}
+            for formula, goal in list(symbol2goal.items()):
+                objective_values[formula] = eval_objective(
+                    formula, choices_enumerated_float
+                )
+                symbol2goal[formula] = goal
+                log_message("eval", f"{goal.goal}", f"{formula}")
 
-        job.n_evaluated_pmappings += choices_enumerated.shape[0]
-        if not choices_enumerated.shape[0]:
-            return np.array([]).reshape(-1, len(symbols))
+            if not objective_values:
+                # Objective values don't depend on tile shapes
+                choices_enumerated = choices_enumerated[:1, :]
+                choices_enumerated_float = choices_enumerated_float[:1, :]
 
-        # ==============================================================================
-        # Coalesce symbols. This simplifies our tracked goals. It also breaks down
-        # partially-unknown goals into fully-known and/or fully-unknown goals.
-        # ==============================================================================
-        symbol2goal = coalesce_symbols(
-            symbols_enumerated=symbols_enumerated,
-            symbol2goal=symbol2goal,
-            update_symbol2goal=update_symbol2goal,
-            log_message=log_message,
-            bounds=what_tiles_symbol.bounds,
-        )
+            elif not all(
+                symbol2goal.get(s, None) == Goal("diff") for s in symbols_enumerated
+            ):
+                to_pareto = np.concatenate(
+                    [v.reshape(-1, 1) for v in objective_values.values()], axis=1
+                )
+                log_message("Pareto", f"size {to_pareto.shape[0]}", "with objectives:")
+                for obj in cur_objectives:
+                    log_message(f"\t{obj.name}: {obj.formula}")
+                log_message("Formulas:")
+                for formula, goal in symbol2goal.items():
+                    log_message(f"\t{goal.goal}: {formula}")
 
-        log_message("coalesce symbols", f"{symbol2goal}")
+                drop_cols = []
+                pareto_goals = []
+                for i, (formula, goal) in enumerate(objective_values.items()):
+                    goal = symbol2goal[formula]
+                    if i not in drop_cols:
+                        pareto_goals.append(goal.goal)
+                to_pareto = to_pareto[
+                    :, [i for i in range(to_pareto.shape[1]) if i not in drop_cols]
+                ]
+                keep = makepareto_numpy(to_pareto, pareto_goals, dirty=True)
+                prev_size = choices_enumerated.shape[0]
+                choices_enumerated = choices_enumerated[keep]
+                job.log_porp_pmappings_kept(
+                    f"Pareto", sum(keep) / choices_enumerated.shape[0]
+                )
+                log_message(
+                    "pareto", f"size {prev_size} -> {choices_enumerated.shape[0]}"
+                )
 
-        paretoed_by_key = fzs((f, g.goal) for f, g in symbol2goal.items())
-        if any(p.issubset(paretoed_by_key) for p in paretoed_by):
-            job.log_message(
-                "Skipping Pareto because we've already found a Pareto with these objectives."
-            )
-            continue
-        paretoed_by.append(paretoed_by_key)
-
-        objective_values = {}
-        for formula, goal in list(symbol2goal.items()):
-            objective_values[formula] = eval_objective(
-                formula, choices_enumerated_float
-            )
-            symbol2goal[formula] = goal
-            log_message("eval", f"{goal.goal}", f"{formula}")
-
-        if not objective_values:
-            # Objective values don't depend on tile shapes
-            choices_enumerated = choices_enumerated[:1, :]
-            choices_enumerated_float = choices_enumerated_float[:1, :]
-
-        elif not all(
-            symbol2goal.get(s, None) == Goal("diff") for s in symbols_enumerated
-        ):
-            to_pareto = np.concatenate(
-                [v.reshape(-1, 1) for v in objective_values.values()], axis=1
-            )
-            log_message("Pareto", f"size {to_pareto.shape[0]}", "with objectives:")
-            for obj in objectives:
-                log_message(f"\t{obj.name}: {obj.formula}")
-            log_message("Formulas:")
-            for formula, goal in symbol2goal.items():
-                log_message(f"\t{goal.goal}: {formula}")
-
-            drop_cols = []
-            pareto_goals = []
-            for i, (formula, goal) in enumerate(objective_values.items()):
-                goal = symbol2goal[formula]
-                if i not in drop_cols:
-                    pareto_goals.append(goal.goal)
-            to_pareto = to_pareto[
-                :, [i for i in range(to_pareto.shape[1]) if i not in drop_cols]
-            ]
-            keep = makepareto_numpy(to_pareto, pareto_goals, dirty=True)
-            prev_size = choices_enumerated.shape[0]
-            choices_enumerated = choices_enumerated[keep]
-            job.log_porp_pmappings_kept(
-                f"Pareto", sum(keep) / choices_enumerated.shape[0]
-            )
-            log_message("pareto", f"size {prev_size} -> {choices_enumerated.shape[0]}")
-
-        # expected_shapes = {
-        #     'stride0': 64,
-        #     'stride1': 128,
-        #     'stride2': 24,
-        #     'stride3': 24,
-        #     'stride4': 3,
-        #     'stride5': 3,
-        #     'stride6': 2,
-        #     'stride7': 24,
-        #     'stride8': 24,
-        #     'stride9': 3,
-        #     'stride12': 3,
-        #     'stride13': 128,
-        #     'stride14': 32
-        # }
-        # matched = np.ones(len(choices_enumerated), dtype=bool)
-        # for i, s in enumerate(symbols_enumerated):
-        #     s = str(s)
-        #     if s in expected_shapes:
-        #         cur_symbol = choices_enumerated[:, i]
-        #         matched &= cur_symbol == expected_shapes[s]
-        # assert np.sum(matched) > 0
+                # expected_shapes = {
+                #     'stride0': 64,
+                #     'stride1': 128,
+                #     'stride2': 24,
+                #     'stride3': 24,
+                #     'stride4': 3,
+                #     'stride5': 3,
+                #     'stride6': 2,
+                #     'stride7': 24,
+                #     'stride8': 24,
+                #     'stride9': 3,
+                #     'stride12': 3,
+                #     'stride13': 128,
+                #     'stride14': 32
+                # }
+                # matched = np.ones(len(choices_enumerated), dtype=bool)
+                # for i, s in enumerate(symbols_enumerated):
+                #     s = str(s)
+                #     if s in expected_shapes:
+                #         cur_symbol = choices_enumerated[:, i]
+                #         matched &= cur_symbol == expected_shapes[s]
+                # assert np.sum(matched) > 0
 
     # ==================================================================================
     # Return the choices
@@ -1643,6 +1745,7 @@ def _make_tile_shapes(job: "Job"):
         per_memory_usage_df,
         usage_df,
         tensor2mapping,
+        actions_df,
     ) = run_model(job)
 
     model_time = time.time() - t0
@@ -1786,6 +1889,12 @@ def _make_tile_shapes(job: "Job"):
             )
         )
 
+    alt_objectives = []
+    for k, v in actions_df.items():
+        alt_objectives.append(
+            Objective(name=k, formula=v, symbols=symbols, terms_do_not_cross_zero=True)
+        )
+
     rank2symbols = {}
     for node in pmapping.nodes:
         if isinstance(node, (Temporal, Spatial)):
@@ -1805,6 +1914,7 @@ def _make_tile_shapes(job: "Job"):
     choices_enumerated = get_tile_shape_choices(
         objectives=objectives,
         symbols=symbols,
+        alt_objectives=alt_objectives,
         what_tiles_symbol=what_tiles_symbol,
         job=job,
         keep_symbols=keep_symbols,

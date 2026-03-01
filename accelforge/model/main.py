@@ -148,7 +148,7 @@ def evaluate_mapping(
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
 
-        _, df, _, _, tensor2mapping = run_model(
+        _, df, _, _, tensor2mapping, _ = run_model(
             job, add_reservations=needs_reservations
         )
 
