@@ -1,6 +1,6 @@
 {% set MainMemoryEnergy=MainMemoryEnergy | default(1) %}
 {% set GlobalBufferLatency=GlobalBufferLatency | default(0) %}
-{% set GlobalBufferSize=GlobalBufferSize | default(inf) %}
+{% set GlobalBufferSize=GlobalBufferSize | default("inf") %}
 
 arch:
   nodes:
