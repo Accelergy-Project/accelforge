@@ -14,9 +14,15 @@ from accelforge.frontend.mapping import (
     Storage as StorageNode,
     Toll as TollNode,
     Compute as ComputeNode,
+    Reservation,
 )
 
 from accelforge.frontend.spec import Spec
+from accelforge.frontend._workload_isl._symbolic import (
+    get_rank_variable_relevancy,
+    Irrelevant,
+)
+from accelforge.frontend.workload import TensorName
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.model._looptree.reuse.symbolic import (
     Compute,
@@ -103,6 +109,9 @@ class _PipelineState:
     pre_saf_fills: dict
     sparse_actions: dict
     latency_info: LatencyInfo
+
+    # Tile shapes at each (tensor, level), computed from per-tensor mappings.
+    tile_shapes: dict = field(default_factory=dict)
 
     # Phase 3 outputs (read by phases 4, 5)
     saf_probs_for_compute: list = field(default_factory=list)
@@ -226,6 +235,249 @@ def _get_tensor_rank_variables(einsum, tensor_name: str) -> set[str]:
         for token in re.findall(r"[a-zA-Z_]\w*", expr_str):
             rank_vars.add(token.lower())
     return rank_vars
+
+
+def _apply_temporal_reuse_corrections(
+    reuse: SymbolicAnalysisOutput,
+    spec: Spec,
+    job: Job,
+) -> None:
+    """Correct inflated fills caused by irrelevant temporal loops in the dense model.
+
+    The dense model's repeat_temporal multiplies ALL buffet stats (including
+    lower-level stats that propagate upward) by the temporal iteration count,
+    regardless of whether the loop variable is relevant to the tensor.  When
+    contiguous innermost irrelevant temporals sit above a storage zone, the
+    buffer retains data across those iterations — the "temporal reuse" concept
+    from Sparseloop.
+
+    This function computes the reuse factor for each buffet by walking the
+    per-tensor mapping upward from each Storage/Toll node, collecting the
+    innermost contiguous block of irrelevant temporal iterations (skipping
+    Spatials and Reservations, continuing through Tolls).  It then applies
+    delta-based corrections to the inflated stats and action counts.
+
+    Only corrected buffets and their parents are modified — all other buffet
+    stats remain untouched.
+    """
+    if not hasattr(reuse, "tensor2mapping") or not reuse.tensor2mapping:
+        return
+
+    workload = spec.workload
+    einsum_name = job.einsum_name
+    einsum = workload.einsums[einsum_name]
+
+    for tensor_name, mapping in reuse.tensor2mapping.items():
+        relevancy = get_rank_variable_relevancy(einsum, TensorName(tensor_name))
+        nodes = mapping.nodes
+
+        # Build a dict of temporal iteration counts by walking top-down
+        # and tracking the remaining shape at each node.
+        shape = dict(job.rank_variable_bounds)
+        node_iterations: dict[int, int] = {}  # node_index -> iteration_count
+        for idx, node in enumerate(nodes):
+            if isinstance(node, (TemporalNode, SpatialNode)):
+                rv = str(node.rank_variable) if node.rank_variable else None
+                if rv and rv in shape and node.tile_shape is not None:
+                    try:
+                        ts = int(node.tile_shape)
+                        remaining = int(shape[rv])
+                        iters = math.ceil(remaining / ts) if ts > 0 else 1
+                        node_iterations[idx] = iters
+                        shape[rv] = ts
+                    except (TypeError, ValueError):
+                        pass
+
+        # For each Storage/Toll node that holds this tensor, compute the
+        # temporal reuse factor from the zone above it.
+        for i, node in enumerate(nodes):
+            if not isinstance(node, (StorageNode, TollNode)):
+                continue
+            if tensor_name not in [str(t) for t in node.tensors]:
+                continue
+
+            buffet = Buffet(tensor_name, einsum_name, node.component)
+            if buffet not in reuse.buffet_stats:
+                continue
+
+            # Walk upward: collect contiguous innermost irrelevant temporals.
+            # Skip Spatials, Reservations, and Tolls (pass-through).
+            # Stop at relevant Temporal or Storage (parent boundary).
+            reuse_factor = 1
+            for j in range(i - 1, -1, -1):
+                above = nodes[j]
+                if isinstance(above, (SpatialNode, Reservation)):
+                    continue
+                if isinstance(above, TollNode):
+                    # Continue through Toll only if it doesn't hold the tensor
+                    # (i.e., it's a pass-through for this tensor's data path)
+                    if tensor_name in [str(t) for t in above.tensors]:
+                        continue
+                    continue
+                if isinstance(above, TemporalNode):
+                    rv = str(above.rank_variable) if above.rank_variable else None
+                    if rv and isinstance(relevancy.get(rv), Irrelevant):
+                        iters = node_iterations.get(j, 1)
+                        if iters > 1:
+                            reuse_factor *= iters
+                        continue
+                    else:
+                        break  # Relevant temporal → end of contiguous block
+                if isinstance(above, StorageNode):
+                    break  # Parent storage boundary
+
+            if reuse_factor <= 1:
+                continue
+
+            # Delta-based correction: only modify this buffet and its parent.
+            stats = reuse.buffet_stats[buffet]
+            reduction = 1.0 - 1.0 / reuse_factor  # fraction to subtract
+
+            # Save old values for delta computation.
+            old_reads_to_parent = float(stats.total_reads_to_parent)
+            old_max_reads_to_parent = float(stats.max_per_parent_reads_to_parent)
+            old_skip_reads = float(stats.total_skipped_first_reads_to_parent)
+            old_min_skip_reads = float(
+                stats.min_per_parent_skipped_first_reads_to_parent
+            )
+
+            # Correct element counts.
+            inv = 1.0 / reuse_factor
+            stats.total_reads_to_parent *= inv
+            stats.max_per_parent_reads_to_parent *= inv
+            stats.total_skipped_first_reads_to_parent *= inv
+            stats.min_per_parent_skipped_first_reads_to_parent *= inv
+
+            # Correct this buffet's fill action counts (write_actions from fills).
+            component_obj = spec.arch.find(buffet.level)
+            if not isinstance(component_obj, arch.TensorHolder):
+                continue
+            ta = _find_tensor_access(einsum, buffet.tensor)
+            if ta is None:
+                continue
+            count_writes = not isinstance(component_obj, arch.Toll)
+            if count_writes:
+                bpvs = component_obj.bits_per_value_scale[buffet.tensor]
+                bpv = bpvs * ta.bits_per_value
+                write_bpa = component_obj.actions["write"].bits_per_action
+                write_scale = bpv / write_bpa
+
+                delta_write = old_reads_to_parent * reduction * write_scale
+                stats.total_write_actions -= delta_write
+                stats.max_per_unit_write_actions -= delta_write
+                delta_skip_write = old_skip_reads * reduction * write_scale
+                stats.total_skipped_first_write_actions -= delta_skip_write
+                stats.min_per_unit_skipped_first_write_actions -= delta_skip_write
+
+            # Propagate correction upward through the buffet chain.
+            # Tolls with propagate_child_results add child.reads_to_parent
+            # to their own reads_to_parent via inherit_add BEFORE spatial/
+            # temporal multiplications. Thus the absolute delta in
+            # reads_to_parent is the same at every level in the chain.
+            #
+            # Walk up: correct each Toll's reads_to_parent and action counts,
+            # then correct the first Storage parent's read action counts.
+            delta_reads = old_reads_to_parent * reduction
+            delta_max_reads = old_max_reads_to_parent * reduction
+            delta_skip = old_skip_reads * reduction
+            delta_min_skip = old_min_skip_reads * reduction
+
+            cur = buffet
+            while True:
+                parent_buffet = _get_parent_buffet(reuse, cur)
+                if parent_buffet is None:
+                    break
+                parent_stats = reuse.buffet_stats[parent_buffet]
+                parent_obj = spec.arch.find(parent_buffet.level)
+                if not isinstance(parent_obj, arch.TensorHolder):
+                    break
+
+                p_bpvs = parent_obj.bits_per_value_scale[parent_buffet.tensor]
+                p_bpv = p_bpvs * ta.bits_per_value
+                p_read_bpa = parent_obj.actions["read"].bits_per_action
+                p_read_scale = p_bpv / p_read_bpa
+                is_toll = isinstance(parent_obj, arch.Toll)
+
+                if is_toll:
+                    # Toll: correct its reads_to_parent (inherited from child)
+                    # and continue upward.
+                    parent_stats.total_reads_to_parent -= delta_reads
+                    parent_stats.max_per_parent_reads_to_parent -= delta_max_reads
+                    parent_stats.total_skipped_first_reads_to_parent -= delta_skip
+                    parent_stats.min_per_parent_skipped_first_reads_to_parent -= (
+                        delta_min_skip
+                    )
+                    # Toll read_actions (serving child) — usually 0 energy.
+                    parent_stats.total_read_actions -= delta_reads * p_read_scale
+                    parent_stats.max_per_unit_read_actions -= (
+                        delta_max_reads * p_read_scale
+                    )
+                    parent_stats.total_skipped_first_read_actions -= (
+                        delta_skip * p_read_scale
+                    )
+                    parent_stats.min_per_unit_skipped_first_read_actions -= (
+                        delta_min_skip * p_read_scale
+                    )
+                    cur = parent_buffet
+                    continue
+                else:
+                    # Storage: correct read actions from serving child fills.
+                    parent_stats.total_read_actions -= delta_reads * p_read_scale
+                    parent_stats.max_per_unit_read_actions -= (
+                        delta_max_reads * p_read_scale
+                    )
+                    parent_stats.total_skipped_first_read_actions -= (
+                        delta_skip * p_read_scale
+                    )
+                    parent_stats.min_per_unit_skipped_first_read_actions -= (
+                        delta_min_skip * p_read_scale
+                    )
+                    break
+
+
+def _get_parent_buffet(
+    reuse: SymbolicAnalysisOutput,
+    buffet: Buffet,
+) -> Buffet | None:
+    """Find the parent (outer-level) Buffet key for the same tensor.
+
+    buffet_stats are ordered inner-to-outer, so the parent is the next
+    matching entry after the current buffet in forward iteration order.
+    """
+    seen = False
+    for b in reuse.buffet_stats:
+        if not seen:
+            seen = b == buffet
+            continue
+        if b.tensor == buffet.tensor and b.einsum == buffet.einsum:
+            return b
+    return None
+
+
+def _compute_buffet_tile_shapes(
+    reuse: SymbolicAnalysisOutput,
+    job: Job,
+) -> dict[tuple[str, str], dict[str, int]]:
+    """Compute tile shape at each (tensor, level) from per-tensor mappings.
+
+    Walks each per-tensor mapping top-to-bottom, tracking the remaining
+    iteration space shape. At each Storage/Toll node for the tensor,
+    records the current shape (the tile dimensions the buffer sees).
+    """
+    tile_shapes: dict[tuple[str, str], dict[str, int]] = {}
+    for tensor_name, mapping in reuse.tensor2mapping.items():
+        shape = dict(job.rank_variable_bounds)
+        for node in mapping.nodes:
+            if isinstance(node, (TemporalNode, SpatialNode)):
+                rv = str(node.rank_variable) if node.rank_variable else None
+                if rv and rv in shape and node.tile_shape is not None:
+                    try:
+                        shape[rv] = int(node.tile_shape)
+                    except (TypeError, ValueError):
+                        pass
+            elif isinstance(node, (StorageNode, TollNode)):
+                tile_shapes[(tensor_name, node.component)] = dict(shape)
+    return tile_shapes
 
 
 def _get_loops_below_level(
@@ -686,6 +938,9 @@ def _phase1_init(
         else:
             pre_saf_child_reads[(buffet.tensor, buffet.level)] = 0
 
+    # Pre-compute tile shapes from per-tensor mappings (replaces stats.tile_shape).
+    tile_shapes = _compute_buffet_tile_shapes(reuse, job)
+
     return _PipelineState(
         sparse_opts=sparse_opts,
         einsum=einsum,
@@ -697,6 +952,7 @@ def _phase1_init(
         pre_saf_fills=pre_saf_fills,
         sparse_actions={},
         latency_info=LatencyInfo(),
+        tile_shapes=tile_shapes,
     )
 
 
@@ -762,7 +1018,8 @@ def _phase3_saf_application(
                 if job.mapping is not None:
                     tile = _compute_cond_temporal_tile(
                         job.mapping.nodes, buffet.level,
-                        cond_tensor, state.einsum, stats.tile_shape,
+                        cond_tensor, state.einsum,
+                        state.tile_shapes.get((buffet.tensor, buffet.level)),
                     )
                     # Compute full tensor size from rank_variable_bounds
                     cond_rvs = _get_tensor_rank_variables(
@@ -791,7 +1048,9 @@ def _phase3_saf_application(
                             f"self-conditioned skipping."
                         )
                     state.position_skip_info.append(
-                        (target, d, stats.tile_shape or {})
+                        (target, d, state.tile_shapes.get(
+                            (buffet.tensor, buffet.level), {}
+                        ))
                     )
                     state.position_skip_level = buffet.level
 
@@ -1050,6 +1309,7 @@ def _phase5_metadata_and_recompute(
         state.tensor_info,
         state.pre_saf_child_reads,
         state.pre_saf_fills,
+        tile_shapes=state.tile_shapes,
     )
 
     # Snapshot dense net actions before recompute.
@@ -1088,6 +1348,7 @@ def _emit_metadata_actions(
     tensor_info: dict,
     pre_saf_child_reads: dict[tuple[str, str], int],
     pre_saf_fills: dict[tuple[str, str], int],
+    tile_shapes: dict[tuple[str, str], dict[str, int]] | None = None,
 ) -> dict[tuple[str, str], dict]:
     """Emit metadata_read/metadata_write actions and populate latency metadata counts.
 
@@ -1141,7 +1402,9 @@ def _emit_metadata_actions(
         else:
             post_saf_data_reads = 0
 
-        current_shape = stats.tile_shape or {}
+        current_shape = (tile_shapes or {}).get(
+            (buffet.tensor, buffet.level), {}
+        )
 
         if fmt.has_explicit_ranks():
             rank_format_objs = fmt.get_rank_formats()
@@ -1486,38 +1749,20 @@ def _recompute_action_counts(
         stats.min_per_unit_skipped_first_write_actions = 0
         stats.total_skipped_first_read_actions = 0
         stats.min_per_unit_skipped_first_read_actions = 0
-        # Also zero parent-derived action counts
-        stats.total_parent_fill_write_actions = 0
-        stats.max_per_parent_fill_write_actions = 0
-        stats.total_skipped_first_parent_fill_write_actions = 0
-        stats.min_per_parent_skipped_first_fill_write_actions = 0
-        stats.total_parent_drain_read_actions = 0
-        stats.max_per_parent_drain_read_actions = 0
 
-        # Parent -> Me (downward fill): use parent-named attributes for
-        # correct temporal reuse treatment
-        stats.total_parent_fill_write_actions += (
+        # Parent -> Me (downward fill): folded into regular write actions
+        # (matches main's analyze_storage pattern)
+        stats.total_write_actions += (
             stats.total_reads_to_parent * write_scale
         )
-        stats.max_per_parent_fill_write_actions += (
-            stats.max_per_parent_reads_to_parent * write_scale
-        )
-        stats.total_skipped_first_parent_fill_write_actions += (
+        stats.total_skipped_first_write_actions += (
             stats.total_skipped_first_reads_to_parent * write_scale
         )
-        stats.min_per_parent_skipped_first_fill_write_actions += (
-            stats.min_per_parent_skipped_first_reads_to_parent * write_scale
-        )
 
-        # Me -> Parent (upward writeback): skip for output tensors
-        is_output_tensor = tensor in einsum.output_tensor_names
-        if not is_output_tensor:
-            stats.total_parent_drain_read_actions += (
-                stats.total_writes_to_parent * read_scale
-            )
-            stats.max_per_parent_drain_read_actions += (
-                stats.max_per_parent_writes_to_parent * read_scale
-            )
+        # Me -> Parent (upward writeback)
+        stats.total_read_actions += (
+            stats.total_writes_to_parent * read_scale
+        )
 
         # Peer exchanges (not modified by sparse, but include for completeness)
         stats.total_read_actions += stats.total_reads_to_peer * read_scale

@@ -1,0 +1,55 @@
+# Demonstrates an irreducible temporal reuse failure with spatial fanout.
+#
+# Architecture: MainMemory → GlobalBuffer → PEArray(4) → RegFile → MAC
+# Workload: T1[m,n1] = T0[m,n0] * W0[n0,n1]   (M=4, KN=4, bits=8)
+#
+# W0[n0,n1] does NOT depend on m.
+#
+# Mapping (best structural approach — W0 at GlobalBuffer above m):
+#   MainMemory [all]
+#   GlobalBuffer [T1, T0, W0]   ← W0 above m: m cannot inflate GlobalBuffer fills
+#   Temporal m=1                 ← irrelevant to W0, in GlobalBuffer's subtree
+#   Spatial (4 PEs)              ← distributes n0 across PEs
+#   RegFile [W0]                 ← per-PE register for W0
+#   Temporal n0=1
+#   Temporal n1=1
+#   Compute Matmul0 @ MAC
+#
+# GlobalBuffer W0 fills are correct (m is in subtree, doesn't inflate).
+# But RegFile W0 fills are inflated by m because:
+#   - m is above the spatial fanout (shared-level iteration)
+#   - RegFile is below the spatial fanout (per-PE hardware)
+#   - You CANNOT move RegFile above the spatial — it's per-instance
+#
+# With temporal reuse detection:
+#   RegFile W0 write = 1 * KN * bits = 32  per PE  (one fill, m doesn't refill)
+# Without temporal reuse detection:
+#   RegFile W0 write = M * KN * bits = 128 per PE  (m inflates by 4x)
+mapping:
+  nodes:
+  - !Storage
+    tensors: [W0, T0, T1]
+    component: MainMemory
+  - !Storage
+    tensors: [T1, T0, W0]
+    component: GlobalBuffer
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Spatial
+    rank_variable: n0
+    tile_shape: 1
+    name: X
+    component: PEArray
+  - !Storage
+    tensors: [W0]
+    component: RegFile
+  - !Temporal
+    rank_variable: n0
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n1
+    tile_shape: 1
+  - !Compute
+    einsum: Matmul0
+    component: MAC

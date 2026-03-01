@@ -15,7 +15,11 @@ from accelforge.model._looptree.energy import (
     gather_actions_with_sparse,
 )
 from accelforge.model._looptree.latency.memory import component_latency
-from accelforge.model.sparse_adjustment import apply_sparse_adjustments, LatencyInfo
+from accelforge.model.sparse_adjustment import (
+    apply_sparse_adjustments,
+    LatencyInfo,
+    _apply_temporal_reuse_corrections,
+)
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     nameloop2col,
     tensor2col,
@@ -45,6 +49,10 @@ def run_model(
     reuse = analyze_reuse_and_add_reservations_to_mapping(
         job, add_reservations=add_reservations
     )
+
+    # Temporal reuse correction: divide inflated parent-facing stats for
+    # buffers that sit inside contiguous irrelevant temporal loops.
+    _apply_temporal_reuse_corrections(reuse, spec, job)
 
     # Phase 1: Dense latency (before sparse adjustments)
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
@@ -320,14 +328,9 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
         for action in node.actions:
             component_to_actions[component].setdefault(f"{action.name}_actions", 0)
 
-        read_actions = (
-            stats.max_per_unit_read_actions
-            + stats.max_per_parent_drain_read_actions
-        )
-        write_actions = (
-            stats.max_per_unit_write_actions
-            + stats.max_per_parent_fill_write_actions
-        )
+        # On main, fill/drain are folded into regular read/write attrs.
+        read_actions = stats.max_per_unit_read_actions
+        write_actions = stats.max_per_unit_write_actions
 
         # Gated reads still consume BW — add back for latency.
         lt_key = (component, buffet.tensor)
@@ -339,22 +342,18 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
         component_to_actions[component]["pu_read_actions"] += (
             stats.max_per_unit_read_actions
         )
-        total_ra = (
+        component_to_actions[component]["total_read_actions"] += (
             stats.total_read_actions
-            + stats.total_parent_drain_read_actions
         )
-        component_to_actions[component]["total_read_actions"] += total_ra
         if not isinstance(node, arch.Toll):
             component_to_actions[component]["write_actions"] += write_actions
             per_tensor_writes[component][buffet.tensor] += write_actions
             component_to_actions[component]["pu_write_actions"] += (
                 stats.max_per_unit_write_actions
             )
-            total_wa = (
+            component_to_actions[component]["total_write_actions"] += (
                 stats.total_write_actions
-                + stats.total_parent_fill_write_actions
             )
-            component_to_actions[component]["total_write_actions"] += total_wa
 
     # Add metadata actions per level.
     for level, count in latency_info.metadata_read_actions.items():

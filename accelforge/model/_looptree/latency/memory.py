@@ -66,37 +66,25 @@ def component_latency(
             actions[f"{action.name}_actions"] += 0
 
         if isinstance(name2component[component], TensorHolder):
-            read_actions_val = (
-                buffet_stats.max_per_unit_read_actions
-                + buffet_stats.max_per_parent_drain_read_actions
-            )
+            # On main, max_per_unit_read_actions already includes drain reads
+            # (folded in by analyze_storage).
+            read_actions_val = buffet_stats.max_per_unit_read_actions
             actions["read_actions"] += read_actions_val
             per_tensor_reads[component][buffet.tensor] += read_actions_val
-            # Per-unit computation-path reads only (no fill/drain).
-            # Use for PE buffer BW where fills go through the parent's port.
+            # Per-unit computation-path reads (on main, same as read_actions
+            # since fill/drain are folded in).
             actions["pu_read_actions"] += buffet_stats.max_per_unit_read_actions
             # Total actions across all spatial instances (for BW throttling
             # of shared levels above spatial, e.g. shared_glb)
-            total_read_actions_val = (
-                buffet_stats.total_read_actions
-                + buffet_stats.total_parent_drain_read_actions
-            )
-            actions["total_read_actions"] += total_read_actions_val
+            actions["total_read_actions"] += buffet_stats.total_read_actions
             if not isinstance(name2component[component], arch.Toll):
-                write_actions_val = (
-                    buffet_stats.max_per_unit_write_actions
-                    + buffet_stats.max_per_parent_fill_write_actions
-                )
+                write_actions_val = buffet_stats.max_per_unit_write_actions
                 actions["write_actions"] += write_actions_val
                 per_tensor_writes[component][buffet.tensor] += write_actions_val
                 actions["pu_write_actions"] += (
                     buffet_stats.max_per_unit_write_actions
                 )
-                total_write_actions_val = (
-                    buffet_stats.total_write_actions
-                    + buffet_stats.total_parent_fill_write_actions
-                )
-                actions["total_write_actions"] += total_write_actions_val
+                actions["total_write_actions"] += buffet_stats.total_write_actions
         elif isinstance(name2component[component], arch.Compute):
             pass
         else:
