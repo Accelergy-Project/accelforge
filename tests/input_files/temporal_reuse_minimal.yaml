@@ -1,26 +1,23 @@
-# Uneven mapping: GlobalBuffer holds T1 above the m loop (output
-# accumulation) and W0 below it (weight reuse).  This is the pattern
-# used in fused_matmuls_to_simple.yaml and eyeriss-style architectures
-# where different tensors are pegged to the same buffer at different
-# loop-nest levels.
+# Structural temporal reuse via uneven mapping.
 #
-# Because T1 already claims the above-m slot at GlobalBuffer, W0 is
-# forced below the m loop — even though m is irrelevant to W0.
-# Temporal reuse must suppress the redundant parent fills of W0.
+# Both W0 and T1 are stored at GlobalBuffer ABOVE the m loop.
+# Since m is irrelevant to W0[n0,n1], placing GlobalBuffer[W0]
+# above the m loop means m is processed as part of the storage's
+# child subtree — it cannot inflate W0 fills from MainMemory.
+#
+# This achieves the same effect as algorithmic temporal-reuse
+# detection, but purely through mapping structure.
 mapping:
   nodes:
   - !Storage
     tensors: [W0, T0, T1]
     component: MainMemory
   - !Storage
-    tensors: [T1]
+    tensors: [T1, W0]
     component: GlobalBuffer
   - !Temporal
     rank_variable: m
     tile_shape: 1
-  - !Storage
-    tensors: [W0]
-    component: GlobalBuffer
   - !Temporal
     rank_variable: n0
     tile_shape: 1
