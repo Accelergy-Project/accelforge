@@ -244,9 +244,10 @@ class SimAnnealMapping:
         return PmappingGroup(
             compatibility=s.compatibility,
             mappings=PmappingDataframe(
-                data.iloc[i : i + 1],
+                data.iloc[i : i + 1].copy(),
                 n_total_pmappings=s.mappings.n_total_pmappings,
                 n_valid_pmappings=s.mappings.n_valid_pmappings,
+                ignored_resources=s.mappings.ignored_resources,
             ),
         )
 
@@ -535,7 +536,10 @@ def join_pmappings(
     if score_target is not None:
         tracker._scale_score_by *= 1 / score_target
 
-    pop_size_per_thread = max(1, population_size // get_n_parallel_jobs())
+    if population_size != float('inf'):
+        pop_size_per_thread = max(1, population_size // get_n_parallel_jobs())
+    else:
+        pop_size_per_thread = float('inf')
 
     # Multiply by the number of einsums
     # print(

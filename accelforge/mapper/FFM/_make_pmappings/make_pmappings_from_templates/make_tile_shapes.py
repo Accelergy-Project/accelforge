@@ -1605,7 +1605,7 @@ def get_tile_shape_choices(
     # Rearrange in tile shape order
     if choices_enumerated is None:
         return np.array([])
-    choices_enumerated = choices_enumerated.astype(np.int64)
+    # choices_enumerated = choices_enumerated.astype(np.int64)
     return choices_enumerated[:, [symbols_enumerated.index(s) for s in symbols]]
 
 
@@ -1705,7 +1705,7 @@ def _calculate_iterations_and_rank_columns(
         df[iterations2col(nloops)] = np.ceil(
             (outer_initial - rank_var_initial) / rank_var_stride + 1
         )
-        df[f"lower_iterations<SEP>{nloops}"] = outer_stride - rank_var_initial
+        # df[f"lower_iterations<SEP>{nloops}"] = outer_stride - rank_var_initial
 
         # Generate rank columns
         einsum: Einsum = job.spec_one_einsum.workload.einsums[job.einsum_name]

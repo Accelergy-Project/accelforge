@@ -6,6 +6,7 @@ import itertools
 from typing import Callable, Iterable, Optional
 
 import sympy
+import numpy as np
 
 from accelforge.frontend.mapping import Nested, TilePattern
 from accelforge.frontend.mapping import Loop as MappingLoop
@@ -54,6 +55,32 @@ def error_check_wrapper(func):
     return wrapper
 
 
+def reduce_precision(data: pd.DataFrame) -> pd.DataFrame:
+    def _reduce_precision(c: str, s: pd.Series) -> pd.Series:
+        # If it's an int type, check the range. If within range of 8b change to 8b. If
+        # within the range of 16b change to 16b...
+        if not is_fused_loop_col(c):
+            return s
+
+        # Get the range of the column
+        min_val = s.min()
+        if min_val < 0:
+            return s
+
+        max_val = s.max()
+        if max_val <= 2 ** 8 - 1 and s.dtype != np.uint8:
+            return s.astype(np.uint8)
+        elif max_val <= 2 ** 16 - 1 and s.dtype != np.uint16:
+            return s.astype(np.uint16)
+        elif max_val <= 2 ** 32 - 1 and s.dtype != np.uint32:
+            return s.astype(np.uint32)
+        return s
+
+    for c in data.columns:
+        data[c] = _reduce_precision(c, data[c])
+
+    return data
+
 class PmappingDataframe:
     def __init__(
         self,
@@ -70,6 +97,7 @@ class PmappingDataframe:
         limit_capacity_drop_valid_reservations: bool = True,
     ):
         self._data: pd.DataFrame = data
+        reduce_precision(self._data)
         self.right_reservations: dict[set] = None
         self.left_reservations: dict[set] = None
         self._prev_free_to_loop_index = None
