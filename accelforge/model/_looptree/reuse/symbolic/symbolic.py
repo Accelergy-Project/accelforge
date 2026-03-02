@@ -146,6 +146,12 @@ class BuffetStats:
 
     persistent: bool = field(default=False)
 
+    # Temporal reuse tracking: True if a relevant temporal loop has processed
+    # this buffet since the last Storage node set total_reads_to_parent.
+    # When False and an irrelevant temporal is encountered, parent-facing attrs
+    # are not multiplied (the buffer persists across irrelevant iterations).
+    _has_relevant_temporal_above: bool = field(default=False)
+
     @property
     def n_loops_above(self) -> int:
         if self.persistent:
@@ -158,6 +164,10 @@ class BuffetStats:
 
     def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
         new = copy.copy(self)
+        # Temporal reuse: if the loop is irrelevant and no relevant temporal
+        # has intervened since the Storage node set parent-facing stats, the
+        # buffer persists across iterations — skip parent-facing attrs.
+        skip_parent = not is_fully_relevant and not self._has_relevant_temporal_above
         for attr in self.__dict__:
             if not attr.startswith(("total_", "max_", "min_")):
                 continue
@@ -165,7 +175,11 @@ class BuffetStats:
                 continue  # First actions occur once per relevant iteration.
             if attr == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
+            if "parent" in attr and skip_parent:
+                continue  # Temporal reuse: buffer persists across irrelevant iters.
             setattr(new, attr, getattr(new, attr) * factor)
+        if is_fully_relevant:
+            new._has_relevant_temporal_above = True
         return new
 
     def repeat_spatial(self, factor: int, reuse_parent_accesses: bool) -> "BuffetStats":
@@ -204,7 +218,10 @@ class BuffetStats:
     def __add__(self, other: "BuffetStats") -> "BuffetStats":
         new = copy.copy(self)
         for attr in self.__dict__:
-            if attr.startswith("min_"):
+            if attr == "_has_relevant_temporal_above":
+                # Combine conservatively: if either has relevant above, so does result
+                setattr(new, attr, getattr(self, attr) or getattr(other, attr))
+            elif attr.startswith("min_"):
                 setattr(
                     new, attr, min_nonzero(getattr(self, attr), getattr(other, attr))
                 )
@@ -1180,6 +1197,11 @@ def analyze_storage(
                 inherit_add("total_skipped_first_reads_to_parent")
                 inherit_add("min_per_parent_skipped_first_reads_to_parent")
 
+            # Reset temporal reuse tracking: this Storage node just set fresh
+            # parent-facing stats; irrelevant temporals above should not
+            # multiply them until a relevant temporal intervenes.
+            stats._has_relevant_temporal_above = False
+
         # ==============================================================================
         # Convert to actions. These are not used used upward; they are used to get
         # energy and latency.
@@ -1358,6 +1380,10 @@ def analyze_compute(
             stats.total_skipped_first_reads_to_parent = 1
             stats.min_per_parent_skipped_first_reads_to_parent = 1
         stats.max_occupancy = 1
+        # Compute-level accesses have no buffering: every iteration reads from
+        # parent regardless of relevancy.  Mark as having a "relevant temporal
+        # above" so that irrelevant temporal loops still multiply parent attrs.
+        stats._has_relevant_temporal_above = True
         result_accumulator.buffet_stats[buffet] = stats
 
         network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(

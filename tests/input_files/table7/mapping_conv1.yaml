@@ -28,7 +28,7 @@ mapping:
     rank_variable: c
     tile_shape: 1
 
-  # === shared_glb level (Inputs + Outputs; Weights bypass) ===
+  # === shared_glb level ===
   - !Storage
     tensors: [Inputs, Outputs]
     component: shared_glb
@@ -37,6 +37,12 @@ mapping:
   - !Temporal
     rank_variable: m
     tile_shape: 32
+
+  # Weights buffered at shared_glb (split: m relevant above, p irrelevant below)
+  - !Storage
+    tensors: [Weights]
+    component: shared_glb
+
   - !Temporal
     rank_variable: p
     tile_shape: 1

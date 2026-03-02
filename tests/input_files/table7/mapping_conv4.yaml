@@ -36,7 +36,12 @@ mapping:
     name: X
     component: PEColumns
 
-  # shared_glb temporal (outer→inner: P)
+  # Weights buffered at shared_glb (split: p irrelevant below for reuse)
+  - !Storage
+    tensors: [Weights]
+    component: shared_glb
+
+  # shared_glb temporal: P (W-irrelevant, below shared_glb[W] for reuse)
   - !Temporal
     rank_variable: p
     tile_shape: 1
