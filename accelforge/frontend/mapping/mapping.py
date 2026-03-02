@@ -1644,6 +1644,24 @@ class Mapping(Nested):
                 new_nodes.append(node)
         self.nodes = new_nodes
 
+    def clear_irrelevant_reservations(self, relevant_tensors: set[TensorName]):
+        new_nodes = []
+        for node in self.nodes:
+            if isinstance(node, Reservation):
+                if node.purpose not in relevant_tensors:
+                    continue
+                new_nodes.append(node)
+            elif isinstance(node, TensorHolder):
+                node.tensors = [t for t in node.tensors if t in relevant_tensors]
+                if node.tensors:
+                    new_nodes.append(node)
+            elif isinstance(node, MappingNodeWithChildren):
+                node.clear_irrelevant_reservations(relevant_tensors)
+                new_nodes.append(node)
+            else:
+                new_nodes.append(node)
+        self.nodes = new_nodes
+
     def split_tensor_holders_with_multiple_tensors(self):
         new_nodes = []
         for node in self.nodes:
@@ -1756,6 +1774,7 @@ class Mapping(Nested):
         pmappings: list[Nested],
         rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None,
     ) -> "Mapping":
+        orig_pmappings = pmappings
         pmappings = list(copy.deepcopy(pmappings))
         for pmapping in pmappings:
             pmapping._beautify_loops(rank_variable_bounds)

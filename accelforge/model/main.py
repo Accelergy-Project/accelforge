@@ -6,7 +6,7 @@ import pandas as pd
 from accelforge.frontend import arch
 from accelforge.frontend.arch import Memory
 from accelforge.frontend.mapping.mapping import MappingNodeWithChildren
-from accelforge.frontend.renames import EinsumName
+from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.frontend.spec import Mapping, Spec
 from accelforge.frontend.mapping import (
     Compute,
@@ -135,6 +135,8 @@ def evaluate_mapping(
                 job.einsum_name
             ].tensor_names
         }
+        pmapping.clear_irrelevant_reservations(set(job.tensor_to_relevancy))
+
         einsum2jobs[job.einsum_name] = job
 
         job.flattened_arch = flattened_arch
