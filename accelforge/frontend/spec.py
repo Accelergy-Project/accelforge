@@ -379,13 +379,20 @@ class Spec(EvalableModel):
 
         return found if compute_node is None else found[0]
 
-    def evaluate_mapping(self) -> Mappings:
+    def evaluate_mapping(self, validate: bool = True) -> Mappings:
         """
         Evaluate the mapping in the spec.
+
+        Parameters
+        ----------
+        validate : bool
+            If True (default), validates that the mapping satisfies
+            architecture constraints (memory capacity, spatial fanout,
+            etc.) and raises ``InvalidMappingError`` if any are violated.
         """
         from accelforge.model import evaluate_mapping
 
-        return evaluate_mapping(self)
+        return evaluate_mapping(self, validate=validate)
 
     def map_workload_to_arch(
         self,

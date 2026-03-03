@@ -98,6 +98,7 @@ def map_workload_to_arch(
             local_spec,
             flattened_arches=mappings.flattened_arches,
             evaluated_specs=mappings.evaluated_specs,
+            validate=False,
         )
         return i, this_mapping.data
 
