@@ -1,0 +1,20 @@
+# Fig 13 DSTC workload: 4096x4096x4096 GEMM (16-bit elements)
+# Z[M,N] = A[M,K] * B[N,K]
+# Densities configurable per tensor (default: A=0.5, B=0.4)
+
+workload:
+  iteration_space_shape:
+    m: 0 <= m < 4096
+    n: 0 <= n < 4096
+    k: 0 <= k < 4096
+
+  bits_per_value: {All: 16}
+
+  densities: {A: {{ density_A | default(0.5) }}, B: {{ density_B | default(0.4) }}}
+
+  einsums:
+  - name: MatMul
+    tensor_accesses:
+    - {name: A, projection: [m, k]}
+    - {name: B, projection: [n, k]}
+    - {name: Z, projection: [m, n], output: true}

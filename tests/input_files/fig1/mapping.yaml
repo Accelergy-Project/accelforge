@@ -1,0 +1,50 @@
+# Fig1 mapping: BackingStorage → Buffer → Reg → MAC
+# Loop order (outer→inner): n → m → k
+# N above Buffer B (B reused across M), A below both N and M (no N-reuse).
+# All tensors pass through Reg (zero-cost) for sparse child-buffet support.
+
+mapping:
+  nodes:
+  # BackingStorage: all tensors at top level
+  - !Storage
+    tensors: [A, B, Z]
+    component: BackingStorage
+
+  # n loop: 128 iterations, tile=1 (outermost)
+  - !Temporal
+    rank_variable: n
+    tile_shape: 1
+
+  # B at Buffer BELOW n loop, ABOVE m loop (B reused across M)
+  - !Storage
+    tensors: [B]
+    component: Buffer
+
+  # m loop: 128 iterations, tile=1
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+
+  # A at Buffer BELOW both n and m loops (no N-reuse, re-filled each iteration)
+  - !Storage
+    tensors: [A]
+    component: Buffer
+
+  # Z at Reg for accumulation (0.49 pJ read/write)
+  - !Storage
+    tensors: [Z]
+    component: Reg
+  # A,B at RegPassthrough (zero energy, needed for SAF child-buffet support)
+  - !Storage
+    tensors: [A, B]
+    component: RegPassthrough
+
+  # k loop: 128 iterations, tile=1
+  - !Temporal
+    rank_variable: k
+    tile_shape: 1
+
+  # Compute
+  - !Compute
+    einsum: SpMSpM
+    component: MAC

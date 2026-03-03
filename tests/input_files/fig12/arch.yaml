@@ -1,0 +1,174 @@
+# EyerissV2 single-PE architecture for fig12 reproduction.
+# 6-level hierarchy: BackingStorage → iact_spad / weight_spad / psum_spad → reg → MAC
+# ERT values from Accelergy (45nm, Aladdin_table + Cacti estimators).
+# BackingStorage: 0 energy (DRAM boundary, not counted at PE level).
+# psum_spad: single average energy 0.33633 pJ (Sparseloop uses data-delta-dependent).
+# Sparse config (SI-SW) inlined from sparse_SI_SW.yaml.
+
+arch:
+  nodes:
+  - !Memory
+    name: BackingStorage
+    size: 131072
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 0, bits_per_action: 64, latency: 0}
+    - {name: write, energy: 0, bits_per_action: 64, latency: 0}
+    - {name: metadata_read, energy: 0, bits_per_action: 8, latency: 0}
+    - {name: metadata_write, energy: 0, bits_per_action: 8, latency: 0}
+    representation_format:
+    - name: Inputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["G"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["C"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["M"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["S", "F"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["E", "N"]]
+      - format: UOP
+        payload_word_bits: 4
+        flattened_rank_ids: [["R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["C"]]
+    - name: Weights
+      ranks:
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["G"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["M"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["S"]]
+      - format: UOP
+        payload_word_bits: 0
+        flattened_rank_ids: [["C"]]
+      - format: UOP
+        payload_word_bits: 7
+        flattened_rank_ids: [["C", "R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["M"]]
+
+  - !Memory
+    name: iact_spad
+    size: 16
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.13003, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0.13003, bits_per_action: 8, latency: 0}
+    - {name: gated_read, energy: 0.0032, bits_per_action: 8, latency: 0}
+    - {name: gated_write, energy: 0.0032, bits_per_action: 8, latency: 0}
+    - {name: metadata_read, energy: 0.14934, bits_per_action: 4, latency: 0}
+    - {name: metadata_write, energy: 0.14934, bits_per_action: 4, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00195, bits_per_action: 4, latency: 0}
+    - {name: gated_metadata_write, energy: 0.00195, bits_per_action: 4, latency: 0}
+    representation_format:
+    - name: Inputs
+      ranks:
+      - format: UOP
+        payload_word_bits: 4
+        flattened_rank_ids: [["R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["C"]]
+
+  - !Memory
+    name: weight_spad
+    size: 192
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.47678, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0.51919, bits_per_action: 8, latency: 0}
+    - {name: gated_read, energy: 0.00001, bits_per_action: 8, latency: 0}
+    - {name: gated_write, energy: 0.00001, bits_per_action: 8, latency: 0}
+    - {name: metadata_read, energy: 0.88442, bits_per_action: 8, latency: 0}
+    - {name: metadata_write, energy: 0.88442, bits_per_action: 8, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00635, bits_per_action: 8, latency: 0}
+    - {name: gated_metadata_write, energy: 0.00635, bits_per_action: 8, latency: 0}
+    - {name: skipped_read, energy: 0.0, bits_per_action: 8, latency: 0}
+    representation_format:
+    - name: Weights
+      ranks:
+      - format: UOP
+        payload_word_bits: 7
+        flattened_rank_ids: [["C", "R"]]
+      - format: RLE
+        metadata_word_bits: 4
+        flattened_rank_ids: [["M"]]
+    action_optimization:
+    - kind: skipping
+      target: Weights
+      condition_on: [Inputs]
+
+  - !Memory
+    name: psum_spad
+    size: 32
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.33633, bits_per_action: 20, latency: 0}
+    - {name: write, energy: 0.33633, bits_per_action: 20, latency: 0}
+    - {name: skipped_read, energy: 0.0, bits_per_action: 20, latency: 0}
+    - {name: skipped_write, energy: 0.0, bits_per_action: 20, latency: 0}
+    action_optimization:
+    - kind: skipping
+      target: Outputs
+      condition_on: [Inputs, Weights]
+
+  - !Memory
+    name: reg
+    size: 1
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.072, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0.072, bits_per_action: 8, latency: 0}
+    - {name: gated_read, energy: 0.00296, bits_per_action: 8, latency: 0}
+    - {name: gated_write, energy: 0.00296, bits_per_action: 8, latency: 0}
+    - {name: metadata_read, energy: 0.036, bits_per_action: 4, latency: 0}
+    - {name: metadata_write, energy: 0.036, bits_per_action: 4, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00148, bits_per_action: 4, latency: 0}
+    - {name: gated_metadata_write, energy: 0.00148, bits_per_action: 4, latency: 0}
+    representation_format:
+    - name: Inputs
+      ranks:
+      - format: RLE
+        metadata_word_bits: 4
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 0.5608, latency: 1}
+    - {name: gated_compute, energy: 0.01798, latency: 0}
+    - {name: skipped_compute, energy: 0.01798, latency: 0}
+    compute_optimization:
+    - kind: skipping
+      target: Outputs
+      condition_on: [Inputs, Weights]

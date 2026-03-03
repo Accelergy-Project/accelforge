@@ -146,6 +146,18 @@ class BuffetStats:
 
     persistent: bool = field(default=False)
 
+    # Per-tensor tile shape at this buffet level (set by sparse pipeline)
+    tile_shape: dict | None = field(default=None)
+
+    # Parent fill/write actions (for latency bandwidth calculations)
+    total_parent_fill_write_actions: Any = field(default=0)
+
+    # Temporal reuse tracking: True if a relevant temporal loop has processed
+    # this buffet since the last Storage node set total_reads_to_parent.
+    # When False and an irrelevant temporal is encountered, parent-facing attrs
+    # are not multiplied (the buffer persists across irrelevant iterations).
+    _has_relevant_temporal_above: bool = field(default=False)
+
     @property
     def n_loops_above(self) -> int:
         if self.persistent:
@@ -158,6 +170,10 @@ class BuffetStats:
 
     def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
         new = copy.copy(self)
+        # Temporal reuse: if the loop is irrelevant and no relevant temporal
+        # has intervened since the Storage node set parent-facing stats, the
+        # buffer persists across iterations — skip parent-facing attrs.
+        skip_parent = not is_fully_relevant and not self._has_relevant_temporal_above
         for attr in self.__dict__:
             if not attr.startswith(("total_", "max_", "min_")):
                 continue
@@ -165,7 +181,11 @@ class BuffetStats:
                 continue  # First actions occur once per relevant iteration.
             if attr == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
+            if "parent" in attr and skip_parent:
+                continue  # Temporal reuse: buffer persists across irrelevant iters.
             setattr(new, attr, getattr(new, attr) * factor)
+        if is_fully_relevant:
+            new._has_relevant_temporal_above = True
         return new
 
     def repeat_spatial(self, factor: int, reuse_parent_accesses: bool) -> "BuffetStats":
@@ -204,7 +224,10 @@ class BuffetStats:
     def __add__(self, other: "BuffetStats") -> "BuffetStats":
         new = copy.copy(self)
         for attr in self.__dict__:
-            if attr.startswith("min_"):
+            if attr == "_has_relevant_temporal_above":
+                # Combine conservatively: if either has relevant above, so does result
+                setattr(new, attr, getattr(self, attr) or getattr(other, attr))
+            elif attr.startswith("min_"):
                 setattr(
                     new, attr, min_nonzero(getattr(self, attr), getattr(other, attr))
                 )
@@ -414,6 +437,8 @@ class AnalysisInfo:
 
     data_movement_connections: DataMovementConnections = None
 
+
+
     # We track first latency for these nodes (should be Temporal)
     last_temporal_node_idx: int = None
     """
@@ -485,6 +510,44 @@ def convert_to_copy(
     mapping = [node for node in mapping if node not in to_remove]
 
     return mapping, tensor_to_backer_id
+
+
+def _float_irrelevant_temporals(
+    mapping_nodes: list,
+    relevancy: dict,
+) -> list:
+    """Within each zone between Storage/Toll/Compute boundaries, move
+    irrelevant Temporal loops above all other nodes (closer to parent
+    Storage).  Preserves relative order within each group.
+
+    This ensures temporal reuse is structural: the buffer lives inside
+    the irrelevant loop, so data persists across iterations without
+    needing post-hoc corrections.
+    """
+    # Find boundary indices (Storage, Toll, Compute nodes).
+    boundary_indices = [
+        i for i, n in enumerate(mapping_nodes)
+        if isinstance(n, (Storage, Toll, mapping_spec.Compute))
+    ]
+
+    result = []
+    prev = -1
+    for bi in boundary_indices:
+        zone = mapping_nodes[prev + 1 : bi]
+        irrelevant = [
+            n for n in zone
+            if isinstance(n, Temporal)
+            and n.rank_variable is not None
+            and isinstance(relevancy.get(str(n.rank_variable)), Irrelevant)
+        ]
+        others = [n for n in zone if n not in irrelevant]
+        result.extend(irrelevant)
+        result.extend(others)
+        result.append(mapping_nodes[bi])
+        prev = bi
+    # Trailing nodes after last boundary.
+    result.extend(mapping_nodes[prev + 1 :])
+    return result
 
 
 def analyze_reuse_and_add_reservations_to_mapping(
@@ -1139,6 +1202,11 @@ def analyze_storage(
                 inherit_add("total_skipped_first_reads_to_parent")
                 inherit_add("min_per_parent_skipped_first_reads_to_parent")
 
+            # Reset temporal reuse tracking: this Storage node just set fresh
+            # parent-facing stats; irrelevant temporals above should not
+            # multiply them until a relevant temporal intervenes.
+            stats._has_relevant_temporal_above = False
+
         # ==============================================================================
         # Convert to actions. These are not used used upward; they are used to get
         # energy and latency.
@@ -1276,6 +1344,8 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
         assert network not in child_result.network_stats
         child_result.network_stats[network] = NetworkStats()
 
+
+
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
         child_result.fanout[fanout_key] = {}
@@ -1315,6 +1385,10 @@ def analyze_compute(
             stats.total_skipped_first_reads_to_parent = 1
             stats.min_per_parent_skipped_first_reads_to_parent = 1
         stats.max_occupancy = 1
+        # Compute-level accesses have no buffering: every iteration reads from
+        # parent regardless of relevancy.  Mark as having a "relevant temporal
+        # above" so that irrelevant temporal loops still multiply parent attrs.
+        stats._has_relevant_temporal_above = True
         result_accumulator.buffet_stats[buffet] = stats
 
         network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(

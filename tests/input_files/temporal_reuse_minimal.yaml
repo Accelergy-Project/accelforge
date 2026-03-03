@@ -1,0 +1,29 @@
+# Structural temporal reuse via uneven mapping.
+#
+# Both W0 and T1 are stored at GlobalBuffer ABOVE the m loop.
+# Since m is irrelevant to W0[n0,n1], placing GlobalBuffer[W0]
+# above the m loop means m is processed as part of the storage's
+# child subtree — it cannot inflate W0 fills from MainMemory.
+#
+# This achieves the same effect as algorithmic temporal-reuse
+# detection, but purely through mapping structure.
+mapping:
+  nodes:
+  - !Storage
+    tensors: [W0, T0, T1]
+    component: MainMemory
+  - !Storage
+    tensors: [T1, W0]
+    component: GlobalBuffer
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n0
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n1
+    tile_shape: 1
+  - !Compute
+    einsum: Matmul0
+    component: MAC

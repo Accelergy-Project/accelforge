@@ -1,0 +1,94 @@
+{%- set sparse_mode = sparse_mode | default('dense') -%}
+# Lab 4 architecture: DRAM → Buffer → MAC
+# ERT values from Accelergy (SRAM_metadata + regfile_metadata, 45nm).
+# Sparse mode: {{ sparse_mode }} (dense/compressed/gating/skipping)
+
+arch:
+  nodes:
+  - !Memory
+    name: BackingStorage
+    size: 512
+    leak_power: 0
+    area: 0
+    total_latency: "ceil((read_actions + metadata_read_actions) / 1)"
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 2.68, bits_per_action: 32, latency: 0}
+    - {name: write, energy: 3.21, bits_per_action: 32, latency: 0}
+    - {name: metadata_read, energy: 0.85, bits_per_action: 4, latency: 0}
+    - {name: metadata_write, energy: 0.85, bits_per_action: 4, latency: 0}
+{%- if sparse_mode in ('compressed', 'skipping') %}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4
+    - name: B
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 4
+{%- endif %}
+
+  - !Memory
+    name: Buffer
+    size: 192
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max((read_actions + metadata_read_actions) / 30, (write_actions + metadata_write_actions) / 30))"
+    tensors: {keep: ~BackingStorage, may_keep: All}
+    actions:
+    - {name: read, energy: 1.46, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 1.46, bits_per_action: 8, latency: 0}
+    - {name: gated_read, energy: 0.00001, bits_per_action: 8, latency: 0}
+    - {name: skipped_read, energy: 0.0, bits_per_action: 8, latency: 0}
+    - {name: metadata_read, energy: 1.43, bits_per_action: 8, latency: 0}
+    - {name: metadata_write, energy: 1.43, bits_per_action: 8, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00002, bits_per_action: 8, latency: 0}
+{%- if sparse_mode in ('compressed', 'skipping') %}
+    representation_format:
+    - name: A
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 8
+    - name: B
+      format: csr
+      metadata_word_bits: 4
+      metadata_storage_width: 8
+{%- endif %}
+{%- if sparse_mode == 'gating' %}
+    action_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+{%- elif sparse_mode == 'skipping' %}
+    action_optimization:
+    - kind: skipping
+      target: A
+      condition_on: [B]
+    - kind: skipping
+      target: B
+      condition_on: [A]
+    - kind: skipping
+      target: Z
+      condition_on: [A, B]
+{%- endif %}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 0.56, latency: 1}
+    - {name: gated_compute, energy: 0.03642, latency: 0}
+    - {name: skipped_compute, energy: 0.0, latency: 0}
+{%- if sparse_mode == 'gating' %}
+    compute_optimization:
+    - kind: gating
+      target: Z
+      condition_on: [A, B]
+{%- elif sparse_mode == 'skipping' %}
+    compute_optimization:
+    - kind: skipping
+      target: Z
+      condition_on: [A, B]
+{%- endif %}

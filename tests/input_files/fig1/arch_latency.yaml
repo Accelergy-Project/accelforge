@@ -1,0 +1,66 @@
+# AccelForge arch for fig1 with bandwidth-based latency model.
+# total_latency expressions model port bandwidth constraints:
+# - BackingStorage: 8-wide read port
+# - Buffer: dual 2-wide ports (read/write)
+# - Reg: max(read, write) single-cycle
+# - MAC: compute_actions * 1 cycle per op
+# ERT values from ARTIFACT_EVALUATION.md section 2.10.
+
+arch:
+  nodes:
+  - !Memory
+    name: BackingStorage
+    size: inf
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(read_actions + metadata_read_actions)"
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 32.2859, bits_per_action: 64, latency: 0}
+    - {name: write, energy: 26.065, bits_per_action: 64, latency: 0}
+    - {name: metadata_read, energy: 14.0361, bits_per_action: 64, latency: 0}
+
+  - !Memory
+    name: Buffer
+    size: inf
+    leak_power: 0
+    area: 0
+    total_latency: "ceil(max((read_actions + metadata_read_actions) / 2, (write_actions + metadata_write_actions) / 2))"
+    tensors: {keep: ~BackingStorage, may_keep: All}
+    actions:
+    - {name: read, energy: 0.42568, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0.58331, bits_per_action: 8, latency: 0}
+    - {name: gated_read, energy: 0.00001, bits_per_action: 8, latency: 0}
+    - {name: metadata_read, energy: 0.7383, bits_per_action: 8, latency: 0}
+    - {name: metadata_write, energy: 1.42366, bits_per_action: 8, latency: 0}
+    - {name: gated_metadata_read, energy: 0.00002, bits_per_action: 8, latency: 0}
+
+  - !Memory
+    name: Reg
+    size: inf
+    leak_power: 0
+    area: 0
+    total_latency: "max(max_tensor_read_actions, max_tensor_write_actions)"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0.49, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0.49, bits_per_action: 8, latency: 0}
+
+  - !Memory
+    name: RegPassthrough
+    size: inf
+    leak_power: 0
+    area: 0
+    total_latency: "0"
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, bits_per_action: 8, latency: 0}
+    - {name: write, energy: 0, bits_per_action: 8, latency: 0}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 0.5608, latency: 1}
+    - {name: gated_compute, energy: 0.03642, latency: 0}

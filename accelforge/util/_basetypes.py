@@ -607,8 +607,14 @@ def eval_field(
 
         if isinstance(evaluated, Evalable) and origin is not NoParse:
             child_validator = None
+            # Unwrap Optional (Union[X, None]) so get_args sees the inner type
+            _validator = validator
+            if get_origin(_validator) is Union:
+                _vargs = [a for a in get_args(_validator) if a is not type(None)]
+                if len(_vargs) == 1:
+                    _validator = _vargs[0]
             if isinstance(evaluated, EvalableList):
-                validator_args = get_args(validator)
+                validator_args = get_args(_validator)
                 if len(validator_args) == 1:
                     child_validator = validator_args[0]
                 else:
@@ -617,7 +623,7 @@ def eval_field(
                         f"{len(validator_args)}"
                     )
             if isinstance(evaluated, EvalableDict):
-                validator_args = get_args(validator)
+                validator_args = get_args(_validator)
                 if len(validator_args) == 2:
                     child_validator = validator_args[1]
                 else:

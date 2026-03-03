@@ -1,3 +1,4 @@
+import logging
 from copy import copy, deepcopy
 from uuid import uuid4
 
@@ -10,10 +11,13 @@ from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.frontend.spec import Mapping, Spec
 from accelforge.frontend.mapping import (
     Compute,
+    Loop,
     Reservation,
+    Spatial,
     Split,
     Nested,
     NodeList,
+    Temporal,
     TensorHolder,
 )
 from accelforge.frontend.workload import Workload
@@ -24,13 +28,21 @@ from accelforge.frontend._workload_isl._symbolic import (
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
     get_initial_delta_choices,
 )
-from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
+from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining, col2nameloop
+
+logger = logging.getLogger(__name__)
+
+
+class InvalidMappingError(Exception):
+    """Raised when a mapping violates architecture constraints."""
+    pass
 
 
 def evaluate_mapping(
     spec: Spec,
     flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
     evaluated_specs: dict[EinsumName, Spec] | None = None,
+    validate: bool = True,
 ):
     """
     Evaluate a mapping.
@@ -152,9 +164,15 @@ def evaluate_mapping(
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
 
-        _, df, _, _, tensor2mapping, _ = run_model(
+        _, df, per_memory_usage_df, spatial_usage_df, tensor2mapping, _ = run_model(
             job, add_reservations=needs_reservations
         )
+
+        if validate:
+            _validate_mapping(
+                df, per_memory_usage_df, spatial_usage_df,
+                job, flattened_arch,
+            )
 
         # Calculate iteration counts and rank columns
         _clean_energy_columns(df, job.metrics)
@@ -219,6 +237,159 @@ def evaluate_mapping(
         metrics=spec.model.metrics,
         print_progress=False,
     )
+
+
+def _validate_mapping(
+    df: dict,
+    per_memory_usage_df: dict,
+    spatial_usage_df: dict,
+    job,
+    flattened_arch: list,
+):
+    """Validate a mapping against architecture constraints.
+
+    Checks memory capacity (including metadata), spatial fanout, and
+    architecture constraints. Collects all violations into a single
+    ``InvalidMappingError``.
+    """
+    from accelforge.mapper.FFM._make_pmappings.contraints.constraints import (
+        get_constraints,
+    )
+    from accelforge.util._setexpressions import InvertibleSet
+
+    errors = []
+    TOL = 1e-6
+
+    # --- Check 1: Memory capacity (reservation columns > 1.0) ---
+    # Reservation columns encode per-level, per-nloop occupancy ratios.
+    seen_memories = set()
+    for key, value in df.items():
+        parsed = col2nameloop(key)
+        if parsed is not None:
+            name, _ = parsed
+            if value > 1.0 + TOL and name not in seen_memories:
+                seen_memories.add(name)
+                errors.append(
+                    f"Memory '{name}' exceeds capacity: "
+                    f"usage={value:.4f} "
+                    f"({100 * value:.1f}% of capacity, includes metadata)"
+                )
+
+    # Also check total per-memory usage (includes all tensors summed).
+    for key, value in per_memory_usage_df.items():
+        if value > 1.0 + TOL:
+            # key format: "usage<SEP>memory<SEP>{memory_name}"
+            parts = key.split("<SEP>")
+            memory_name = parts[2] if len(parts) >= 3 else key
+            if memory_name not in seen_memories:
+                seen_memories.add(memory_name)
+                errors.append(
+                    f"Memory '{memory_name}' total usage exceeds capacity: "
+                    f"usage={value:.4f} "
+                    f"({100 * value:.1f}% of capacity, includes metadata)"
+                )
+
+    # --- Check 2: Spatial fanout ---
+    for key, value in spatial_usage_df.items():
+        if value > 1.0 + TOL:
+            # key format: "usage<SEP>spatial<SEP>{component}<SEP>{dim}"
+            parts = key.split("<SEP>")
+            component = parts[2] if len(parts) >= 4 else "unknown"
+            dim = parts[3] if len(parts) >= 4 else "unknown"
+            errors.append(
+                f"Spatial fanout exceeded for '{component}' dimension '{dim}': "
+                f"usage={value:.4f} "
+                f"({100 * value:.1f}% of available instances)"
+            )
+
+    # --- Check 3: Architecture constraints (best-effort) ---
+    try:
+        _check_arch_constraints(
+            errors, job, flattened_arch, get_constraints, InvertibleSet,
+        )
+    except Exception:
+        logger.debug(
+            "Skipping architecture constraint check (could not evaluate)",
+            exc_info=True,
+        )
+
+    if errors:
+        raise InvalidMappingError(
+            "Invalid mapping:\n  - " + "\n  - ".join(errors)
+        )
+
+
+def _check_arch_constraints(errors, job, flattened_arch, get_constraints, InvertibleSet):
+    """Evaluate tile_shape and loop_bounds constraints from the architecture."""
+    import numpy as np
+
+    mapping_nodes = list(job.mapping.nodes)
+    einsum_name = job.einsum_name
+
+    # Build symbol_table: component_name -> InvertibleSet of stored tensors.
+    all_tensors = frozenset(job.tensor_to_relevancy.keys())
+    symbol_table = {}
+    for node in mapping_nodes:
+        if isinstance(node, TensorHolder):
+            symbol_table[node.component] = InvertibleSet(
+                instance=frozenset(node.tensors),
+                full_space=all_tensors,
+                space_type=str,
+            )
+
+    _, constraints = get_constraints(
+        flattened_arch, list(mapping_nodes), symbol_table,
+        einsum_name, job.tensor_to_relevancy,
+    )
+
+    loops = [n for n in mapping_nodes if isinstance(n, Loop)]
+    if not loops:
+        return
+
+    constraints.set_loop_indices(mapping_nodes)
+
+    # Extract concrete tile sizes from each loop.
+    tile_sizes = []
+    all_concrete = True
+    for loop in loops:
+        ts = loop.tile_pattern.tile_shape
+        if isinstance(ts, (int, float)):
+            tile_sizes.append(int(ts))
+        else:
+            all_concrete = False
+            break
+
+    if not all_concrete:
+        return
+
+    tile_array = np.array([tile_sizes], dtype=np.float64)
+    complete_indices = list(range(len(loops)))
+
+    # Tile shape constraints.
+    for c in constraints.tile_shape_constraints:
+        if not c.target_mapping_nodes:
+            continue
+        indices = c._target_loop_indices
+        result = c(set(range(len(loops))), tile_array[:, indices])
+        if hasattr(result, '__len__'):
+            violated = not result[0]
+        else:
+            violated = not result
+        if violated:
+            errors.append(f"Tile shape constraint violated: {c.pretty_str()}")
+
+    # Loop bounds constraints.
+    for c in constraints.loop_bounds_constraints:
+        if not c.target_mapping_nodes:
+            continue
+        indices = c._target_loop_indices
+        result = c(set(range(len(loops))), tile_array[:, indices])
+        if hasattr(result, '__len__'):
+            violated = not result[0]
+        else:
+            violated = not result
+        if violated:
+            errors.append(f"Loop bounds constraint violated: {c.pretty_str()}")
 
 
 def _add_backing_to_tensor_holders(pmapping: Mapping):
