@@ -59,6 +59,11 @@ def reduce_precision(data: pd.DataFrame) -> pd.DataFrame:
     def _reduce_precision(c: str, s: pd.Series) -> pd.Series:
         # If it's an int type, check the range. If within range of 8b change to 8b. If
         # within the range of 16b change to 16b...
+
+        # If it's a float, cast to NUMPY_FLOAT_TYPE
+        if pd.api.types.is_float_dtype(s) and s.dtype != NUMPY_FLOAT_TYPE:
+            return s.astype(NUMPY_FLOAT_TYPE)
+
         if not is_fused_loop_col(c):
             return s
 
@@ -505,6 +510,8 @@ class PmappingDataframe:
             )
         else:
             df = pd.merge(sd, rd, how="cross", suffixes=["", "_RIGHT_MERGE"])
+
+        df = reduce_precision(df)
 
         # Drop all fused loop columns that are not used anymore
         remaining_symbols = compatibility_joined.symbols()
