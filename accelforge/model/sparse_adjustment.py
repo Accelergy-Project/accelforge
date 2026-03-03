@@ -49,6 +49,9 @@ class LatencyInfo:
     metadata_read_actions: dict[str, float] = field(default_factory=dict)
     metadata_write_actions: dict[str, float] = field(default_factory=dict)
     compute_latency_ratio: float = 1.0
+    # Gated/skipped compute counts for latency formula (0 = not populated).
+    gated_compute_count: float = 0
+    skipped_compute_count: float = 0
     # PE utilization fraction under position-skipping load imbalance (1.0 = no overhead).
     position_space_utilization: float = 1.0
 
@@ -987,6 +990,8 @@ def _phase4_compute_classification(
     }
 
     # Apply compute classification
+    _gated_total = 0.0
+    _skipped_total = 0.0
     for compute_key, compute_stats in reuse.compute_stats.items():
         compute_opts = state.sparse_opts.get_compute_optimizations_for(compute_key.level)
         if not compute_opts:
@@ -1031,6 +1036,8 @@ def _phase4_compute_classification(
             compute_stats.max_per_unit_ops = min(
                 compute_stats.max_per_unit_ops, result.random_compute
             )
+            _gated_total += result.gated_compute
+            _skipped_total += result.skipped_compute
             # Only emit when no storage SAF covers the same condition.
             if not storage_saf_covers:
                 _emit_if_declared(
@@ -1048,6 +1055,11 @@ def _phase4_compute_classification(
         if pre > 0:
             state.latency_info.compute_latency_ratio = compute_stats.total_ops / pre
             break
+
+    # Pass gated/skipped compute counts to latency path so arch can control
+    # whether they contribute cycles (via per-action latency in the ERT).
+    state.latency_info.gated_compute_count = _gated_total
+    state.latency_info.skipped_compute_count = _skipped_total
 
     # Position-space utilization: load imbalance from position-skipping
     if state.position_skip_info and state.position_skip_level and job.mapping is not None:

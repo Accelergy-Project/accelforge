@@ -382,6 +382,16 @@ def _compute_sparse_latency(reuse, latency_info: LatencyInfo, flattened_arch, sp
         component_to_actions[compute_obj.name].setdefault(
             f"{action.name}_actions", 0
         )
+    # Populate gated/skipped compute counts so arch total_latency formulas
+    # can control whether they contribute cycles (via per-action latency).
+    if latency_info.gated_compute_count > 0:
+        component_to_actions[compute_obj.name]["gated_compute_actions"] = (
+            latency_info.gated_compute_count
+        )
+    if latency_info.skipped_compute_count > 0:
+        component_to_actions[compute_obj.name]["skipped_compute_actions"] = (
+            latency_info.skipped_compute_count
+        )
 
     # Per-tensor max for levels with dedicated ports (e.g., Reg).
     for component in component_to_actions:
