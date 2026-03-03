@@ -109,6 +109,11 @@ class ActionOptimization(EvalableModel):
                 f"got {self.condition_on!r}"
             )
 
+    @property
+    def is_self_conditioned(self) -> bool:
+        """True when the optimization is position-skipping (self-conditioned)."""
+        return self.kind == "position_skipping" and not self.condition_on
+
 
 class ComputeOptimization(EvalableModel):
     """Compute-level optimization (gating or skipping at the MAC)."""
