@@ -146,6 +146,12 @@ class BuffetStats:
 
     persistent: bool = field(default=False)
 
+    # Per-tensor tile shape at this buffet level (set by sparse pipeline)
+    tile_shape: dict | None = field(default=None)
+
+    # Parent fill/write actions (for latency bandwidth calculations)
+    total_parent_fill_write_actions: Any = field(default=0)
+
     # Temporal reuse tracking: True if a relevant temporal loop has processed
     # this buffet since the last Storage node set total_reads_to_parent.
     # When False and an irrelevant temporal is encountered, parent-facing attrs
@@ -633,7 +639,6 @@ def analyze_reuse_and_add_reservations_to_mapping(
             data_movement_connections=DataMovementConnections.from_pmapping(
                 cur_mapping.nodes
             ),
-            stride_and_halo=stride_and_halo,
         )
         cur_result = analyze_node(0, job.rank_variable_bounds, info)
         if result is None:
