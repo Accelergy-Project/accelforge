@@ -2,7 +2,7 @@ DOCKER_EXE ?= docker
 DOCKER_NAME ?= accelforge
 DOCKER_BUILD ?= ${DOCKER_EXE} buildx build --load --pull
 
-VERSION := 0.1.3
+VERSION := 0.1.4
 
 USER    := timeloopaccelergy
 REPO    := accelforge
@@ -63,10 +63,11 @@ push-amd64:
 	#Push Amd64 version
 	"${DOCKER_EXE}" push ${NAME}:${ALTTAG}-amd64
 	#Combine Amd64 version into multi-architecture docker image.
+	"${DOCKER_EXE}" manifest rm ${NAME}:${ALTTAG} || true
 	"${DOCKER_EXE}" manifest create \
 		${NAME}:${ALTTAG} \
-		--amend ${NAME}:${ALTTAG}-amd64 \
-	  --amend ${NAME}:${ALTTAG}-arm64
+		${NAME}:${ALTTAG}-amd64 \
+		${NAME}:${ALTTAG}-arm64
 	"${DOCKER_EXE}" manifest push ${NAME}:${ALTTAG}
 	@echo "Pushing ${INFRA_NAME}:${ALTTAG}-amd64"
 
@@ -75,10 +76,11 @@ push-extra-amd64:
 	@echo "Pushing ${INFRA_NAME}:${ALTTAG}-amd64"
 	"${DOCKER_EXE}" push ${INFRA_NAME}:${ALTTAG}-amd64
 	#Combine Amd64 infrastructure version into multi-architecture docker image.
+	"${DOCKER_EXE}" manifest rm ${INFRA_NAME}:${ALTTAG} || true
 	"${DOCKER_EXE}" manifest create \
 		${INFRA_NAME}:${ALTTAG} \
-		--amend ${INFRA_NAME}:${ALTTAG}-amd64 \
-	  --amend ${INFRA_NAME}:${ALTTAG}-arm64
+		${INFRA_NAME}:${ALTTAG}-amd64 \
+		${INFRA_NAME}:${ALTTAG}-arm64
 	"${DOCKER_EXE}" manifest push ${INFRA_NAME}:${ALTTAG}
 
 push-arm64:
@@ -86,10 +88,11 @@ push-arm64:
 	#Push Arm64 version
 	"${DOCKER_EXE}" push ${NAME}:${ALTTAG}-arm64
 	#Combine Arm64 version into multi-architecture docker image.
+	"${DOCKER_EXE}" manifest rm ${NAME}:${ALTTAG} || true
 	"${DOCKER_EXE}" manifest create \
 		${NAME}:${ALTTAG} \
-		--amend ${NAME}:${ALTTAG}-amd64 \
-	  --amend ${NAME}:${ALTTAG}-arm64
+		${NAME}:${ALTTAG}-amd64 \
+		${NAME}:${ALTTAG}-arm64
 	"${DOCKER_EXE}" manifest push ${NAME}:${ALTTAG}
 
 push-extra-arm64:
@@ -97,10 +100,11 @@ push-extra-arm64:
 	#Push Arm64 infrastructure version
 	"${DOCKER_EXE}" push ${INFRA_NAME}:${ALTTAG}-arm64
 	#Combine Arm64 infrastructure version into multi-architecture docker image.
+	"${DOCKER_EXE}" manifest rm ${INFRA_NAME}:${ALTTAG} || true
 	"${DOCKER_EXE}" manifest create \
 		${INFRA_NAME}:${ALTTAG} \
-		--amend ${INFRA_NAME}:${ALTTAG}-amd64 \
-	  --amend ${INFRA_NAME}:${ALTTAG}-arm64
+		${INFRA_NAME}:${ALTTAG}-amd64 \
+		${INFRA_NAME}:${ALTTAG}-arm64
 	"${DOCKER_EXE}" manifest push ${INFRA_NAME}:${ALTTAG}
 
 all-infra:
