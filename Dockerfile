@@ -46,9 +46,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
             && rm -rf /var/lib/apt/lists/*
 
 # Update certificates (needed for downloading)
-RUN apt-get upgrade -y ca-certificates && \
-    update-ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get upgrade -y ca-certificates \
+    && update-ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 WORKDIR /home/build
 COPY Makefile ./

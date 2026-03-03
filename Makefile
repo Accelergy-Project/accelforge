@@ -1,6 +1,6 @@
 DOCKER_EXE ?= docker
 DOCKER_NAME ?= accelforge
-DOCKER_BUILD ?= ${DOCKER_EXE} buildx build --load
+DOCKER_BUILD ?= ${DOCKER_EXE} buildx build --load --pull
 
 VERSION := 0.1.3
 
