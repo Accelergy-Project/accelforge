@@ -92,7 +92,7 @@ push-arm64:
 	  --amend ${NAME}:${ALTTAG}-arm64
 	"${DOCKER_EXE}" manifest push ${NAME}:${ALTTAG}
 
-push-extra-amd64:
+push-extra-arm64:
 	@echo "Pushing ${INFRA_NAME}:${ALTTAG}-arm64"
 	#Push Arm64 infrastructure version
 	"${DOCKER_EXE}" push ${INFRA_NAME}:${ALTTAG}-arm64
