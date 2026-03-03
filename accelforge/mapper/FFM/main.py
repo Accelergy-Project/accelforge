@@ -17,7 +17,7 @@ from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
 )
 from accelforge._accelerated_imports import pd
 
-from accelforge.util import delayed, parallel
+from accelforge.util import delayed, fillna_and_numeric_cast, parallel
 
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ def map_workload_to_arch(
     #         if "Total" in c or "reservation" in c:
     #             print(f'\t{c}: {r[c]}')
 
-    mappings.data = pd.concat(results).fillna(0)
+    mappings.data = fillna_and_numeric_cast(pd.concat(results), 0)
     return mappings
 
 

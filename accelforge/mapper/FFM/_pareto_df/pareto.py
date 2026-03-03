@@ -308,7 +308,6 @@ def makepareto_numpy(
                 raise ValueError(f"Unknown precision type: {precision_type}")
         else:
             rounded = mappings[:, c]
-        rounded = rounded.reshape((-1, 1))
 
         if goal in ["min", "max"]:
             to_pareto.append(rounded if goal == "min" else -rounded)
@@ -334,5 +333,5 @@ def makepareto_numpy(
         n[0] = True
         return n
 
-    data = np.concatenate(to_pareto, axis=1)
+    data = np.concatenate([x.reshape(-1, 1) for x in to_pareto], axis=1)
     return fast_pareto_mask(data, new_goals)

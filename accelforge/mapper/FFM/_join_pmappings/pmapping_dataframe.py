@@ -15,6 +15,7 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Loop,
     TensorReservation,
 )
+from accelforge.util import fillna_and_numeric_cast
 from accelforge.util._frozenset import fzs
 
 from accelforge._accelerated_imports import pd
@@ -82,7 +83,7 @@ def reduce_precision(data: pd.DataFrame) -> pd.DataFrame:
         return s
 
     for c in data.columns:
-        data[c] = _reduce_precision(c, data[c])
+        data.loc[:, c] = _reduce_precision(c, data.loc[:, c])
 
     return data
 
@@ -724,7 +725,7 @@ class PmappingDataframe:
         concatenated = pd.concat([p.data for p in paretos]).reset_index(drop=True)
 
         p = PmappingDataframe(
-            concatenated.fillna(0),
+            fillna_and_numeric_cast(concatenated, 0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
             fill_reservation_cols=fill_cols,
             n_total_pmappings=sum(p.n_total_pmappings for p in paretos),

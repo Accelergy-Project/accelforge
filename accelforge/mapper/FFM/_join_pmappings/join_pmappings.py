@@ -31,7 +31,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     Compatibility,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col2nameloop
-from accelforge.util import parallel, delayed
+from accelforge.util import fillna_and_numeric_cast, parallel, delayed
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,7 @@ class OptimalityThresholder:
         self,
         prev_solutions: Mappings,
         _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray],
+        print_progress: bool,
     ):
         compare_to = prev_solutions.data
         compare_cols = [c for c in compare_to.columns if col_used_in_pareto(c)]
@@ -72,14 +73,19 @@ class OptimalityThresholder:
         if len(compare_to) > 10:
             chosen_indices = np.round(np.linspace(0, len(compare_to) - 1, 10))
         else:
-            chosen_indices = np.arange(len(compare_to))
-
+            chosen_indices = np.round(np.arange(len(compare_to)))
         self._pmapping_row_filter_function = _pmapping_row_filter_function
 
         self.compare_to: list[dict[str, float]] = []
-        for i in chosen_indices:
-            for c in compare_cols:
-                self.compare_to.append({c: compare_to.iloc[i][c]})
+        for i in chosen_indices.astype(int):
+            self.compare_to.append({c: compare_to.iloc[i][c] for c in compare_cols})
+            if print_progress:
+                print(
+                    "\t"
+                    + "    ".join(
+                        f"{k}={float(v):.2e}" for k, v in self.compare_to[-1].items()
+                    )
+                )
 
     def __call__(self, mapping: pd.DataFrame) -> bool:
         nondominated_by_all = np.ones(len(mapping), dtype=bool)
@@ -141,7 +147,10 @@ def clean_compress_and_join_pmappings(
                 print_progress=print_progress,
                 metrics=metrics,
             )
-            filter_func = OptimalityThresholder(joined, _pmapping_row_filter_function)
+            if i < len(thresholds) - 1:
+                filter_func = OptimalityThresholder(
+                    joined, _pmapping_row_filter_function, print_progress
+                )
         except Exception as e:
             if threshold == 0:
                 raise
@@ -155,7 +164,7 @@ def clean_compress_and_join_pmappings(
         joined.data[col] = joined.data[col].apply(
             lambda x: pmappings.pmapping_objects[einsum_name][x]
         )
-    joined._data = joined.data.fillna(0).reset_index(drop=True)
+    joined._data = fillna_and_numeric_cast(joined.data, 0).reset_index(drop=True)
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(pmappings.spec)
     einsum_names = list(einsum2pmappings.keys())
