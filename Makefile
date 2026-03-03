@@ -103,13 +103,15 @@ push-extra-amd64:
 	  --amend ${INFRA_NAME}:${ALTTAG}-arm64
 	"${DOCKER_EXE}" manifest push ${INFRA_NAME}:${ALTTAG}
 
-build-all:
+all-infra:
 	make build-arm64
 	make build-amd64
 	make push-arm64
 	make push-amd64
 	make build-extra-arm64
 	make build-extra-amd64
+	make push-extra-arm64
+	make push-extra-amd64
 
 run-docker:
 	docker-compose up
