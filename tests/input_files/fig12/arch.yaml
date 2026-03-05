@@ -4,12 +4,17 @@
 # BackingStorage: 0 energy (DRAM boundary, not counted at PE level).
 # psum_spad: single average energy 0.33633 pJ (Sparseloop uses data-delta-dependent).
 # Sparse config (SI-SW) inlined from sparse_SI_SW.yaml.
+#
+# All memory sizes are in BITS (matching occupancy computation units).
+# Sizes include headroom for sparse format metadata (UOP payload + RLE run-lengths).
+# Decompression occurs between levels: BackingStorage stores 7 format ranks for
+# Inputs but iact_spad only retains the innermost 2 (UOP on R + RLE on C).
 
 arch:
   nodes:
   - !Memory
     name: BackingStorage
-    size: 131072
+    size: inf
     leak_power: 0
     area: 0
     total_latency: "0"
@@ -66,7 +71,7 @@ arch:
 
   - !Memory
     name: iact_spad
-    size: 16
+    size: 96  # 12 depth x 8 width = 96 bits (data ~47b + RLE/UOP metadata ~24b)
     leak_power: 0
     area: 0
     total_latency: "0"
@@ -92,7 +97,7 @@ arch:
 
   - !Memory
     name: weight_spad
-    size: 192
+    size: 1408  # 176 depth x 8 width = 1408 bits (data ~267b + UOP/RLE metadata ~196b)
     leak_power: 0
     area: 0
     total_latency: "0"
@@ -123,7 +128,7 @@ arch:
 
   - !Memory
     name: psum_spad
-    size: 32
+    size: 320  # 16 depth x 20 width = 320 bits (no format metadata)
     leak_power: 0
     area: 0
     total_latency: "0"
@@ -140,7 +145,7 @@ arch:
 
   - !Memory
     name: reg
-    size: 1
+    size: 8  # 1 depth x 8 width = 8 bits (1 RLE metadata entry)
     leak_power: 0
     area: 0
     total_latency: "0"

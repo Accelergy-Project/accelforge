@@ -2,12 +2,16 @@
 # Lab 4 architecture: DRAM → Buffer → MAC
 # ERT values from Accelergy (SRAM_metadata + regfile_metadata, 45nm).
 # Sparse mode: {{ sparse_mode }} (dense/compressed/gating/skipping)
+#
+# All memory sizes are in BITS (matching occupancy computation units).
+# Buffer size includes headroom for CSR format metadata (4-bit indices)
+# across all sparse modes. Dense occupancy ~1088b, compressed ~640b+metadata.
 
 arch:
   nodes:
   - !Memory
     name: BackingStorage
-    size: 512
+    size: inf
     leak_power: 0
     area: 0
     total_latency: "ceil((read_actions + metadata_read_actions) / 1)"
@@ -31,7 +35,7 @@ arch:
 
   - !Memory
     name: Buffer
-    size: 192
+    size: 1280  # ~1088b dense data + CSR metadata headroom for compressed/skipping
     leak_power: 0
     area: 0
     total_latency: "ceil(max((read_actions + metadata_read_actions) / 30, (write_actions + metadata_write_actions) / 30))"

@@ -5,12 +5,15 @@
 #
 # Hierarchy: DRAM -> shared_glb -> PEColumns(14) -> DummyBuffer -> PE(12) ->
 #            ifmap_spad, weights_spad, psum_spad -> MACs
+#
+# All memory sizes are in BITS (matching occupancy computation units).
+# PE-level spads have no representation_format, so size = data only.
 
 arch:
   nodes:
   - !Memory
     name: DRAM
-    size: 1e9
+    size: inf
     leak_power: 0
     area: 0
     total_latency: "0"
