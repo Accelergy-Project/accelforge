@@ -148,9 +148,6 @@ def evaluate_mapping(
 
         job.fusable_tensors = fusable_tensors & set(job.tensor_to_relevancy)
         einsum = cur_spec.workload.einsums[job.einsum_name]
-        rank_variable_to_ranks = {
-            t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
-        }
 
         _, df, _, _, tensor2mapping, _ = run_model(
             job, add_reservations=needs_reservations
@@ -164,7 +161,7 @@ def evaluate_mapping(
         compatibility = Compatibility.from_mapping(
             job.mapping,
             job.fusable_tensors,
-            rank_variable_to_ranks,
+            einsum,
         )
         symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
             einsum_name

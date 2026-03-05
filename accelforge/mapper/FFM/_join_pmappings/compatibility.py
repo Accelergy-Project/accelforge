@@ -17,6 +17,7 @@ from accelforge.frontend.mapping import (
     Loop as MappingLoop,
 )
 from accelforge.frontend.renames import Rank, RankVariable, TensorName
+from accelforge.frontend.workload import Einsum
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
     make_fused_loop_col,
@@ -504,8 +505,18 @@ class Compatibility(Updatable):
         cls,
         mapping: Mapping,
         tensors: set[TensorName],
-        rank_variable_to_ranks: dict[TensorName, dict[RankVariable, Rank]],
+        einsum: Einsum,
     ) -> "Compatibility":
+        """
+        Create Compatibility from a mapping, a set of fusable tensors, and the
+        workload.
+        """
+        if not isinstance(einsum, Einsum):
+            raise TypeError(f"einsum should be an Einsum, but {type(einsum)} instead")
+        rank_variable_to_ranks = {
+            t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
+        }
+
         # TODO: update compatibility to handle spatial-for loop per-tensor update
         tensor_indices = []
         split_above_loop_indices = []

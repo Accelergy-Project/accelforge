@@ -425,7 +425,7 @@ class AnalysisInfo:
     """
 
 
-def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
+def quick_insert_reservation_nodes(job: Job) -> Mapping:
     mapping = list(job.mapping.nodes)
     workload = job.spec_one_einsum.workload
 

@@ -57,7 +57,11 @@ from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
     SameEinsumJobs,
 )
-from accelforge.model._looptree.reuse.symbolic import label_fused_loops
+from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
+from accelforge.model._looptree.reuse.symbolic import (
+    label_fused_loops,
+    quick_insert_reservation_nodes,
+)
 
 
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
@@ -423,7 +427,12 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         new_job.constraints = constraints
         new_job.job_id = uuid.uuid4()
         new_job.rank_variable_bounds = job.rank_variable_bounds
-        new_job.compatibility
+        mapping_with_reservations = quick_insert_reservation_nodes(new_job)
+        new_job.compatibility = Compatibility.from_mapping(
+            mapping_with_reservations,
+            new_job.fusable_tensors,
+            new_job.einsum,
+        )
         jobs.append(new_job)
 
     return jobs
