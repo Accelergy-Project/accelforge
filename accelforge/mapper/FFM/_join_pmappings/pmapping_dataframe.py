@@ -4,7 +4,7 @@ import functools
 import itertools
 
 import numbers
-from typing import Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 import sympy
 import numpy as np
@@ -26,6 +26,7 @@ from accelforge.mapper.FFM._pareto_df.pareto import makepareto
 from accelforge.util import NUMPY_FLOAT_TYPE
 
 CHECK_CORRECTNESS = False
+DEBUG_PRINT_NO_VALID = False
 
 
 def error_check_wrapper(func):
@@ -58,13 +59,58 @@ def error_check_wrapper(func):
 
 
 def reduce_precision(data: pd.DataFrame) -> pd.DataFrame:
-    for col in data.columns:
-        if isinstance(data[col].dtype, numbers.Integral):
-            data[col] = pd.to_numeric(data[col], downcast="integer")
-        if isinstance(data[col].dtype, numbers.Real):
-            data[col] = data[col].astype(NUMPY_FLOAT_TYPE)
+    def _reduce_precision(c: str, s: pd.Series) -> pd.Series:
+        # If it's an int type, check the range. If within range of 8b change to 8b. If
+        # within the range of 16b change to 16b...
+
+        # If it's a float, cast to NUMPY_FLOAT_TYPE
+        if pd.api.types.is_float_dtype(s) and s.dtype != NUMPY_FLOAT_TYPE:
+            return s.astype(NUMPY_FLOAT_TYPE)
+
+        if not is_fused_loop_col(c):
+            return s
+
+        # Get the range of the column
+        min_val = s.min()
+        if min_val < 0:
+            return s
+
+        max_val = s.max()
+        if max_val <= 2**8 - 1 and s.dtype != np.uint8:
+            return s.astype(np.uint8)
+        elif max_val <= 2**16 - 1 and s.dtype != np.uint16:
+            return s.astype(np.uint16)
+        elif max_val <= 2**32 - 1 and s.dtype != np.uint32:
+            return s.astype(np.uint32)
+        return s
+
+    for c in data.columns:
+        data.loc[:, c] = _reduce_precision(c, data.loc[:, c])
 
     return data
+
+
+def get_reservation_or_parent(
+    name: str,
+    level: int,
+    l_reservations: dict[str, set[int]],
+    r_reservations: dict[str, set[int]],
+    left: bool = False,
+    return_name_level_left: bool = False,
+) -> str | tuple[str, int, bool] | None:
+    reservations = l_reservations if left else r_reservations
+    if (reservations := reservations.get(name, None)) is not None:
+        while level >= -1:
+            if level in reservations:
+                if return_name_level_left:
+                    return name, level, left
+                return nameloop2col(name, level, left)
+            # The parent of left nodes are right nodes, so if we don't find a
+            # left node immediately then we're back on the right nodes
+            reservations = r_reservations.get(name, set())
+            left = False
+            level -= 1
+    return None
 
 
 class PmappingDataframe:
@@ -85,11 +131,8 @@ class PmappingDataframe:
         limit_capacity_drop_valid_reservations: bool = True,
     ):
         self._data: pd.DataFrame = reduce_precision(data)
-        self.right_reservations: dict[set] = None
-        self.left_reservations: dict[set] = None
         self._prev_free_to_loop_index = None
         self._parallelize_pareto = parallelize_pareto
-        self._make_reservations()
         self.n_total_pmappings: float = n_total_pmappings
         self.n_valid_pmappings: float = n_valid_pmappings
         self.resource_usage_precision: float = resource_usage_precision
@@ -105,7 +148,6 @@ class PmappingDataframe:
                 next_shared_loop_index=next_shared_loop_index,
                 ignored_resources=ignored_resources,
             )
-            self._check_reservations()
 
         if fill_reservation_cols:  # Affects PmappingDataframe so must go before
             self.fill_reservation_cols(fill_reservation_cols)
@@ -122,19 +164,11 @@ class PmappingDataframe:
         if check_above_subset_below:
             self.check_above_subset_below()
 
-        self._check_reservations()
         self.ignored_resources = ignored_resources
 
         assert len(self.data.columns) == len(
             set(self.data.columns)
         ), f"Duplicate columns: {self.data.columns}"
-
-    def all_reservation_levels(self):
-        return set().union(
-            set(),
-            *self.left_reservations.values(),
-            *self.right_reservations.values(),
-        )
 
     def rename(self, renames: dict[str, str]) -> "PmappingDataframe":
         new = self.copy()
@@ -143,16 +177,18 @@ class PmappingDataframe:
 
     @error_check_wrapper
     def fill_reservation_cols(self, columns: set | str):
-        self._check_reservations()
+        l_reservations, r_reservations = self._make_reservations()
         targets = []
         if columns == "auto":
             for left, reservations_dict in [
-                (True, self.left_reservations),
-                (False, self.right_reservations),
+                (True, l_reservations),
+                (False, r_reservations),
             ]:
                 for resource, reservations in reservations_dict.items():
                     for r in sorted(reservations):
-                        above = self.get_reservation_or_parent(resource, r - 1)
+                        above = get_reservation_or_parent(
+                            resource, r - 1, l_reservations, r_reservations
+                        )
                         if above is not None:
                             below = nameloop2col(resource, r, left=left)
                             targets.append((r, above, below))
@@ -161,7 +197,9 @@ class PmappingDataframe:
                 if (name_nloops := col2nameloop(below)) is None:
                     raise ValueError(f"{below} is not a valid reservation column")
                 name, nloops = name_nloops
-                above = self.get_reservation_or_parent(name, nloops - 1)
+                above = get_reservation_or_parent(
+                    name, nloops - 1, l_reservations, r_reservations
+                )
                 if above is not None:
                     targets.append((nloops, above, below))
 
@@ -180,59 +218,42 @@ class PmappingDataframe:
             )
             max_to_col(self.data, below, above)
 
-        self._check_reservations()
-
     @error_check_wrapper
     def max_right_to_left(self):
-        for resource, reservations in self.left_reservations.items():
+        l_reservations, r_reservations = self._make_reservations()
+        for resource, reservations in l_reservations.items():
             for r in reservations:
-                if r in self.right_reservations.get(resource, set()):
+                if r in r_reservations.get(resource, set()):
                     source = nameloop2col(resource, r)
                     target = nameloop2col(resource, r, left=True)
                     max_to_col(self.data, target, source)
-        self._make_reservations()
-        self._check_reservations()
 
     @property
     def data(self) -> pd.DataFrame:
         return self._data
 
     @error_check_wrapper
-    def _make_reservations(self):
+    def _make_reservations(self) -> tuple[dict[str, set[int]], dict[str, set[int]]]:
         """
         Create a dictionary of reservations for each resource.
         The dictionary keys are the resource names and the values are lists
         of column names for each loop index.
         """
-        self.left_reservations, self.right_reservations = {}, {}
+        l_reservations, r_reservations = {}, {}
         for c in self.data.columns:
             if (name_nloops := col2nameloop(c)) is not None:
                 name, nloops = name_nloops
-                target = (
-                    self.left_reservations
-                    if is_left_col(c)
-                    else self.right_reservations
-                )
+                target = l_reservations if is_left_col(c) else r_reservations
                 target.setdefault(name, set()).add(nloops)
                 assert nloops >= -1
 
-    def _check_reservations(self):
-        prev_left, prev_right = self.left_reservations, self.right_reservations
-        self._make_reservations()
-        assert (
-            self.left_reservations == prev_left
-        ), f"Left reservations changed: {self.left_reservations} != {prev_left}"
-        assert (
-            self.right_reservations == prev_right
-        ), f"Right reservations changed: {self.right_reservations} != {prev_right}"
+        return l_reservations, r_reservations
 
     def clear_fused_loop_symbols(self):
         dropcols = [c for c in self.data.columns if is_fused_loop_col(c)]
         if not dropcols:
             return
         self.data.drop(columns=dropcols, inplace=True)
-        self._make_reservations()
-        self._check_reservations()
         self.make_pareto()
 
     @error_check_wrapper
@@ -264,13 +285,14 @@ class PmappingDataframe:
         self._prev_free_to_loop_index = loop_index
 
         drop_columns = []
-        for resource in set(self.left_reservations) | set(self.right_reservations):
+        l_reservations, r_reservations = self._make_reservations()
+        for resource in set(l_reservations) | set(r_reservations):
             max_columns = []
-            left_reservations = self.left_reservations.get(resource, set())
-            right_reservations = self.right_reservations.get(resource, set())
-            left_big_enough = [l for l in left_reservations if l >= loop_index + 1]
+            cur_l_reservations = l_reservations.get(resource, set())
+            cur_r_reservations = r_reservations.get(resource, set())
+            left_big_enough = [l for l in cur_l_reservations if l >= loop_index + 1]
             right_big_enough = [
-                r for r in right_reservations if r >= loop_index + 2
+                r for r in cur_r_reservations if r >= loop_index + 2
             ]  # + 1 is target
 
             if len(right_big_enough) > 1:  # All ones above the last are subsets
@@ -297,11 +319,7 @@ class PmappingDataframe:
                     max_to_col(self.data, target, c)
                 drop_columns += [m for m in max_columns if m != target]
         self.data.drop(columns=drop_columns, inplace=True)
-        self._make_reservations()
 
-        if check_correctness and live_tensors is not None:
-            self.copy().check_reservations(live_tensors=live_tensors)
-        self._check_reservations()
         return len(drop_columns) != 0
 
     @error_check_wrapper
@@ -309,10 +327,12 @@ class PmappingDataframe:
         self,
         name: str,
         level: int,
+        l_reservations: dict[str, set[int]],
+        r_reservations: dict[str, set[int]],
         left: bool = False,
         return_name_level_left: bool = False,
     ) -> str | tuple[str, int, bool] | None:
-        reservations = self.left_reservations if left else self.right_reservations
+        reservations = l_reservations if left else r_reservations
         if (reservations := reservations.get(name, None)) is not None:
             while level >= -1:
                 if level in reservations:
@@ -321,7 +341,7 @@ class PmappingDataframe:
                     return nameloop2col(name, level, left)
                 # The parent of left nodes are right nodes, so if we don't find a
                 # left node immediately then we're back on the right nodes
-                reservations = self.right_reservations.get(name, set())
+                reservations = r_reservations.get(name, set())
                 left = False
                 level -= 1
         return None
@@ -338,12 +358,13 @@ class PmappingDataframe:
                | --- 1             /   --- 1
                E                  E
         """
-        for resource in self.right_reservations:
-            if shared_loop_index + 1 not in self.right_reservations[resource]:
+        l_reservations, r_reservations = self._make_reservations()
+        for resource in r_reservations:
+            if shared_loop_index + 1 not in r_reservations[resource]:
                 continue
-            self.left_reservations.setdefault(resource, set())
-            self.right_reservations[resource].remove(shared_loop_index + 1)
-            self.left_reservations[resource].add(shared_loop_index + 1)
+            l_reservations.setdefault(resource, set())
+            r_reservations[resource].remove(shared_loop_index + 1)
+            l_reservations[resource].add(shared_loop_index + 1)
             source = nameloop2col(resource, shared_loop_index + 1)
             target = nameloop2col(resource, shared_loop_index + 1, left=True)
             if target in self.data:
@@ -351,8 +372,6 @@ class PmappingDataframe:
                 self.data.drop(columns=[source], inplace=True)
             else:
                 self.data.rename(columns={source: target}, inplace=True)
-        self._make_reservations()
-        self._check_reservations()
 
     @staticmethod
     def _get_target_path(suffix: str = None) -> str:
@@ -367,25 +386,27 @@ class PmappingDataframe:
         return os.path.join(f, f"test_{i}{suffix}.png")
 
     def get_max_loop_index(self):
+        l_reservations, r_reservations = self._make_reservations()
         return max(
             max(
-                (max(r, default=-1) for r in self.right_reservations.values()),
+                (max(r, default=-1) for r in r_reservations.values()),
                 default=-1,
             ),
             max(
-                (max(r, default=-1) for r in self.left_reservations.values()),
+                (max(r, default=-1) for r in l_reservations.values()),
                 default=-1,
             ),
         )
 
     def get_min_loop_index(self):
+        l_reservations, r_reservations = self._make_reservations()
         return min(
             min(
-                (min(r, default=1000000) for r in self.right_reservations.values()),
+                (min(r, default=1000000) for r in r_reservations.values()),
                 default=1000000,
             ),
             min(
-                (min(r, default=1000000) for r in self.left_reservations.values()),
+                (min(r, default=1000000) for r in l_reservations.values()),
                 default=1000000,
             ),
         )
@@ -422,8 +443,6 @@ class PmappingDataframe:
               |
               F2+D
         """
-        self._check_reservations()
-        right._check_reservations()
         self.free_to_loop_index(shared_loop_index, live_tensors=live_tensors)
         self.shift_bottom_reservation_left(shared_loop_index)
 
@@ -458,15 +477,18 @@ class PmappingDataframe:
         except ValueError as e:
             make_empty_result = True
 
-        assert not right.left_reservations, f"{right.left_reservations} is not None"
+        right_df_l_reservations, right_df_r_reservations = right._make_reservations()
+        assert not right_df_l_reservations, f"{right_df_l_reservations} is not None"
 
-        for resource, reservations in self.right_reservations.items():
+        l_reservations, r_reservations = self._make_reservations()
+
+        for resource, reservations in r_reservations.items():
             n_reservations = max(reservations, default=-1)
             assert (
                 n_reservations <= shared_loop_index
             ), f"{resource}: {reservations} > {shared_loop_index}"
 
-        for resource, reservations in self.left_reservations.items():
+        for resource, reservations in l_reservations.items():
             n_reservations = max(reservations, default=-1)
             assert (
                 n_reservations <= shared_loop_index + 1
@@ -519,12 +541,15 @@ class PmappingDataframe:
                     if nloops in reservations_dict[resource]:
                         yield resource
 
-            # For the RIGHT tree, RIGHT reservations: If there is no matching node in the left
-            # tree, add the above-this-level reservation from the left tree. If there is a matching
-            # node in the left tree, then we'll add this node to it in the next step.
-            for resource in iter_reservations(right.right_reservations):
+            # For the RIGHT tree, RIGHT reservations: If there is no matching node in
+            # the left tree, add the above-this-level reservation from the left tree. If
+            # there is a matching node in the left tree, then we'll add this node to it
+            # in the next step.
+            for resource in iter_reservations(right_df_r_reservations):
                 if (
-                    source := self.get_reservation_or_parent(resource, nloops - 1)
+                    source := get_reservation_or_parent(
+                        resource, nloops - 1, l_reservations, r_reservations
+                    )
                 ) is None:
                     continue
                 target = nameloop2col(resource, nloops)
@@ -534,9 +559,11 @@ class PmappingDataframe:
                 add_to_col(df, target, source)
             # For LEFT tree, LEFT reservations: Add the immediately-above
             # reservation from the right tree.
-            for resource in iter_reservations(self.left_reservations):
+            for resource in iter_reservations(l_reservations):
                 if (
-                    source := right.get_reservation_or_parent(resource, nloops - 1)
+                    source := right.get_reservation_or_parent(
+                        resource, nloops - 1, l_reservations, r_reservations
+                    )
                 ) is None:
                     continue
                 right_merge_source = source + "_RIGHT_MERGE"
@@ -547,12 +574,14 @@ class PmappingDataframe:
                         target,
                         right_merge_source if right_merge_source in df else source,
                     )
-            # For LEFT tree, RIGHT reservations: Add the same-level reservation from
-            # the right tree. This will double-count reservations that are in both branches,
+            # For LEFT tree, RIGHT reservations: Add the same-level reservation from the
+            # right tree. This will double-count reservations that are in both branches,
             # so we remove them later.
-            for resource in iter_reservations(self.right_reservations):
+            for resource in iter_reservations(r_reservations):
                 if (
-                    source := right.get_reservation_or_parent(resource, nloops)
+                    source := right.get_reservation_or_parent(
+                        resource, nloops, l_reservations, r_reservations
+                    )
                 ) is None:
                     continue
                 right_merge_source = source + "_RIGHT_MERGE"
@@ -613,7 +642,6 @@ class PmappingDataframe:
         if _pmapping_row_filter_function is not None:
             result = result.filter_rows(_pmapping_row_filter_function)
         result.make_pareto()
-        result._check_reservations()
 
         return result
 
@@ -628,19 +656,21 @@ class PmappingDataframe:
         # Iterate through each reservation and level
         targets = defaultdict(int)
 
+        l_reservations, r_reservations = self._make_reservations()
+
         # Must allocate at the above_loop_index level
         for t in itertools.chain(alloc, free):
-            self.right_reservations.setdefault(resource, set()).add(t.above_loop_index)
+            r_reservations.setdefault(resource, set()).add(t.above_loop_index)
 
         for t, negate in [(t, False) for t in alloc] + [(t, True) for t in free]:
             size = self.data[tensor2col(t.name)]
             size = -size if negate else size
             targets[t.above_loop_index, False] += size
             # Allocate at any levels below the above_loop_index level
-            for level in self.right_reservations[resource]:
+            for level in r_reservations[resource]:
                 if level > t.above_loop_index:
                     targets[level, False] += size
-            for level in self.left_reservations.get(resource, set()):
+            for level in l_reservations.get(resource, set()):
                 if level > t.above_loop_index:
                     targets[level, True] += size
 
@@ -655,7 +685,9 @@ class PmappingDataframe:
                 continue
 
             # We're creating a new column, so copy allocations from any parents
-            source = self.get_reservation_or_parent(resource, level - 1)
+            source = get_reservation_or_parent(
+                resource, level - 1, l_reservations, r_reservations
+            )
             if source:
                 add_to_col(self.data, target, source)
             else:
@@ -745,19 +777,26 @@ class PmappingDataframe:
     ):
         precision = self.resource_usage_precision
         dropcols = []
-        for resource in sorted(
-            set(self.right_reservations) | set(self.left_reservations)
-        ):
+        l_reservations, r_reservations = self._make_reservations()
+        for resource in sorted(set(r_reservations) | set(l_reservations)):
             # Right reservations: Only check the greatest-index level. If a loop
             # is 0 and the next shared loop index is -1, then we can drop the
             # column.
-            right_loops = self.right_reservations.get(resource, set())
-            if right_loops:
-                n = max(right_loops)
-                col = nameloop2col(resource, n)
-                self._data = self.data[self.data[col] <= 1 + precision]
+            right_loops = r_reservations.get(resource, set())
             for l in list(right_loops):
                 col = nameloop2col(resource, l)
+                if (
+                    DEBUG_PRINT_NO_VALID
+                    and sum(self.data[col] <= 1 + precision) == 0
+                    and len(self.data) == 1
+                    and precision == 0
+                ):
+                    print(
+                        f"Resource {resource} has no valid reservations. Failed for {col}: {next(iter(self.data[col]))} <= {1 + precision}: {next(iter(self.data[col])) <= 1 + precision}"
+                    )
+                    for col in self.data.columns:
+                        print(f"{col}: {list[Any](self.data[col])}")
+                self._data = self.data[self.data[col] <= 1 + precision]
                 if (
                     l == 0
                     and next_shared_loop_index == -1
@@ -770,9 +809,20 @@ class PmappingDataframe:
 
             # Left reservations: Check all levels. If a loop is 0,
             # then we can drop the column.
-            left_loops = self.left_reservations.get(resource, set())
+            left_loops = l_reservations.get(resource, set())
             for l in list(left_loops):
                 col = nameloop2col(resource, l, left=True)
+                if (
+                    DEBUG_PRINT_NO_VALID
+                    and sum(self.data[col] <= 1 + precision) == 0
+                    and len(self.data) == 1
+                    and precision == 0
+                ):
+                    print(
+                        f"Resource {resource} has no valid reservations. Failed for {col}: {next(iter(self.data[col]))} <= {1 + precision}: {next(iter(self.data[col])) <= 1 + precision}"
+                    )
+                    for col in self.data.columns:
+                        print(f"{col}: {list[Any](self.data[col])}")
                 self._data = self.data[self.data[col] <= 1 + precision]
                 if (
                     l == 0
@@ -784,10 +834,8 @@ class PmappingDataframe:
                     dropcols.append(col)
 
         self._data = self.data.drop(columns=dropcols)
-        self._make_reservations()
 
     def make_pareto(self, columns: list[str] = None, parallelize: bool = False):
-        self._check_reservations()
         resources_are_objectives = not self.drop_valid_reservations
         self._data = makepareto(
             self.data,
@@ -797,7 +845,6 @@ class PmappingDataframe:
             objective_precision=self.objective_precision,
             use_objective_precision_for_resource_usage=resources_are_objectives,
         )
-        self._check_reservations()
 
     def has_reservations(self):
         return any(col2nameloop(c) is not None for c in self.data.columns)
@@ -808,13 +855,16 @@ class PmappingDataframe:
     def check_above_subset_below(self, live_tensors: set[str] = fzs()):
         assert not self.data.isnull().values.any(), f"NaN in {self.data}"
         targets = []
+        l_reservations, r_reservations = self._make_reservations()
         for left, reservations_dict in [
-            (True, self.left_reservations),
-            (False, self.right_reservations),
+            (True, l_reservations),
+            (False, r_reservations),
         ]:
             for resource, reservations in reservations_dict.items():
                 for r in reservations:
-                    above = self.get_reservation_or_parent(resource, r - 1)
+                    above = get_reservation_or_parent(
+                        resource, r - 1, l_reservations, r_reservations
+                    )
                     if above is not None:
                         below = nameloop2col(resource, r, left=left)
                         targets.append((above, below))
@@ -872,7 +922,7 @@ class PmappingDataframe:
     #             continue
 
     #         for k, v in reservations.items():
-    #             col = self.get_reservation_or_parent(k, 0, left=True)
+    #             col = get_reservation_or_parent(k, 0, left=True)
     #             if str(k) == "0":
     #                 continue
     #             if col not in self.data.columns:
