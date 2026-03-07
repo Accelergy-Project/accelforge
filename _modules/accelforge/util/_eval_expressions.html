@@ -1,0 +1,725 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>accelforge.util._eval_expressions &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/accelforge/util/_eval_expressions';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../guide/contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">accelforge.util._eval_expressions</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for accelforge.util._eval_expressions</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">from</span> <span class="nn">inspect</span> <span class="kn">import</span> <span class="n">signature</span>
+<span class="kn">from</span> <span class="nn">importlib.machinery</span> <span class="kn">import</span> <span class="n">SourceFileLoader</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span>
+<span class="kn">from</span> <span class="nn">._yaml</span> <span class="kn">import</span> <span class="n">load_yaml</span><span class="p">,</span> <span class="n">SCRIPTS_FROM</span>
+<span class="kn">from</span> <span class="nn">ruamel.yaml.scalarstring</span> <span class="kn">import</span> <span class="n">DoubleQuotedScalarString</span><span class="p">,</span> <span class="n">SingleQuotedScalarString</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">keyword</span>
+
+
+<span class="c1"># Import EvaluationError from public exceptions module</span>
+<span class="kn">from</span> <span class="nn">accelforge.util.exceptions</span> <span class="kn">import</span> <span class="n">EvaluationError</span>
+
+
+<div class="viewcode-block" id="LiteralString">
+<a class="viewcode-back" href="../../../modules.html#accelforge.util.LiteralString">[docs]</a>
+<span class="k">class</span> <span class="nc">LiteralString</span><span class="p">(</span><span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A string literal that should not be evaluated.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">pass</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">is_literal_string</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="n">DoubleQuotedScalarString</span><span class="p">,</span> <span class="n">SingleQuotedScalarString</span><span class="p">,</span> <span class="n">LiteralString</span><span class="p">)</span>
+    <span class="p">)</span>
+
+
+<span class="n">MATH_FUNCS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;ceil&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">,</span>
+    <span class="s2">&quot;comb&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">comb</span><span class="p">,</span>
+    <span class="s2">&quot;copysign&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">copysign</span><span class="p">,</span>
+    <span class="s2">&quot;fabs&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">fabs</span><span class="p">,</span>
+    <span class="s2">&quot;factorial&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">factorial</span><span class="p">,</span>
+    <span class="s2">&quot;floor&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">,</span>
+    <span class="s2">&quot;fmod&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">fmod</span><span class="p">,</span>
+    <span class="s2">&quot;frexp&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">frexp</span><span class="p">,</span>
+    <span class="s2">&quot;fsum&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">fsum</span><span class="p">,</span>
+    <span class="s2">&quot;gcd&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">gcd</span><span class="p">,</span>
+    <span class="s2">&quot;isclose&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">isclose</span><span class="p">,</span>
+    <span class="s2">&quot;isfinite&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">,</span>
+    <span class="s2">&quot;isinf&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">isinf</span><span class="p">,</span>
+    <span class="s2">&quot;isnan&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">isnan</span><span class="p">,</span>
+    <span class="s2">&quot;isqrt&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">isqrt</span><span class="p">,</span>
+    <span class="s2">&quot;ldexp&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">ldexp</span><span class="p">,</span>
+    <span class="s2">&quot;modf&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">modf</span><span class="p">,</span>
+    <span class="s2">&quot;perm&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">perm</span><span class="p">,</span>
+    <span class="s2">&quot;prod&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">,</span>
+    <span class="s2">&quot;remainder&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">remainder</span><span class="p">,</span>
+    <span class="s2">&quot;trunc&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">trunc</span><span class="p">,</span>
+    <span class="s2">&quot;exp&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span>
+    <span class="s2">&quot;expm1&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">expm1</span><span class="p">,</span>
+    <span class="s2">&quot;log&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">,</span>
+    <span class="s2">&quot;log1p&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">log1p</span><span class="p">,</span>
+    <span class="s2">&quot;log2&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">log2</span><span class="p">,</span>
+    <span class="s2">&quot;log10&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">log10</span><span class="p">,</span>
+    <span class="s2">&quot;pow&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">pow</span><span class="p">,</span>
+    <span class="s2">&quot;sqrt&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">,</span>
+    <span class="s2">&quot;acos&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">acos</span><span class="p">,</span>
+    <span class="s2">&quot;asin&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">asin</span><span class="p">,</span>
+    <span class="s2">&quot;atan&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">atan</span><span class="p">,</span>
+    <span class="s2">&quot;atan2&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">atan2</span><span class="p">,</span>
+    <span class="s2">&quot;cos&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">,</span>
+    <span class="s2">&quot;dist&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span>
+    <span class="s2">&quot;hypot&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">hypot</span><span class="p">,</span>
+    <span class="s2">&quot;sin&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">,</span>
+    <span class="s2">&quot;tan&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">tan</span><span class="p">,</span>
+    <span class="s2">&quot;degrees&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">degrees</span><span class="p">,</span>
+    <span class="s2">&quot;radians&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">,</span>
+    <span class="s2">&quot;acosh&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">acosh</span><span class="p">,</span>
+    <span class="s2">&quot;asinh&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">asinh</span><span class="p">,</span>
+    <span class="s2">&quot;atanh&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">atanh</span><span class="p">,</span>
+    <span class="s2">&quot;cosh&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">cosh</span><span class="p">,</span>
+    <span class="s2">&quot;sinh&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">sinh</span><span class="p">,</span>
+    <span class="s2">&quot;tanh&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">tanh</span><span class="p">,</span>
+    <span class="s2">&quot;erf&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">erf</span><span class="p">,</span>
+    <span class="s2">&quot;erfc&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">erfc</span><span class="p">,</span>
+    <span class="s2">&quot;gamma&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span>
+    <span class="s2">&quot;lgamma&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">lgamma</span><span class="p">,</span>
+    <span class="s2">&quot;pi&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+    <span class="s2">&quot;e&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">e</span><span class="p">,</span>
+    <span class="s2">&quot;tau&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">tau</span><span class="p">,</span>
+    <span class="s2">&quot;inf&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+    <span class="s2">&quot;nan&quot;</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+    <span class="s2">&quot;abs&quot;</span><span class="p">:</span> <span class="nb">abs</span><span class="p">,</span>
+    <span class="s2">&quot;round&quot;</span><span class="p">:</span> <span class="nb">round</span><span class="p">,</span>
+    <span class="s2">&quot;pow&quot;</span><span class="p">:</span> <span class="nb">pow</span><span class="p">,</span>
+    <span class="s2">&quot;sum&quot;</span><span class="p">:</span> <span class="nb">sum</span><span class="p">,</span>
+    <span class="s2">&quot;range&quot;</span><span class="p">:</span> <span class="nb">range</span><span class="p">,</span>
+    <span class="s2">&quot;len&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">,</span>
+    <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="nb">min</span><span class="p">,</span>
+    <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="nb">max</span><span class="p">,</span>
+    <span class="s2">&quot;float&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="s2">&quot;int&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="s2">&quot;str&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="s2">&quot;bool&quot;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+    <span class="s2">&quot;tuple&quot;</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span>
+    <span class="s2">&quot;enumerate&quot;</span><span class="p">:</span> <span class="nb">enumerate</span><span class="p">,</span>
+    <span class="s2">&quot;getcwd&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">,</span>
+    <span class="s2">&quot;map&quot;</span><span class="p">:</span> <span class="nb">map</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">SCRIPT_FUNCS</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="n">eval_expressions_local</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">local</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">OwnedLock</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_owner</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">acquire</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_owner</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">release</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_owner</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_locked_by_current_thread</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_owner</span> <span class="o">==</span> <span class="n">threading</span><span class="o">.</span><span class="n">get_ident</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">lock</span><span class="o">.</span><span class="n">locked</span><span class="p">()</span>
+
+
+<span class="n">eval_expression_thread_lock</span> <span class="o">=</span> <span class="n">OwnedLock</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">ParseExpressionsContext</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="s2">&quot;Spec&quot;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spec</span> <span class="o">=</span> <span class="n">spec</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grabbed_lock</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">eval_expression_thread_lock</span><span class="o">.</span><span class="n">is_locked_by_current_thread</span><span class="p">():</span>
+            <span class="k">return</span>
+        <span class="n">eval_expression_thread_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="n">eval_expressions_local</span><span class="o">.</span><span class="n">script_funcs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">expression_custom_functions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">eval_expressions_local</span><span class="o">.</span><span class="n">script_funcs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">load_functions_from_file</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Callable</span><span class="p">):</span>
+                <span class="n">eval_expressions_local</span><span class="o">.</span><span class="n">script_funcs</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span> <span class="o">=</span> <span class="n">p</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid expression custom function: </span><span class="si">{</span><span class="n">p</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grabbed_lock</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grabbed_lock</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">spec</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">del</span> <span class="n">eval_expressions_local</span><span class="o">.</span><span class="n">script_funcs</span>
+            <span class="n">eval_expression_thread_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">cast_to_numeric</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;true&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;false&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">CallableLambda</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">expression</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="vm">__doc__</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_original_expression</span> <span class="o">=</span> <span class="n">expression</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_func</span> <span class="o">=</span> <span class="n">func</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">infostr_log_cache</span><span class="p">(</span><span class="n">infostr</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">infostr</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">eval_expression</span><span class="p">(</span>
+    <span class="n">expression</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">location</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">cast_to_numeric</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expression</span>
+
+    <span class="k">if</span> <span class="n">expression</span> <span class="ow">in</span> <span class="n">symbol_table</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">symbol_table</span><span class="p">[</span><span class="n">expression</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">LiteralString</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="n">FUNCTION_BINDINGS</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">FUNCTION_BINDINGS</span><span class="p">[</span><span class="s2">&quot;__builtins__&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Safety</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">eval_expressions_local</span><span class="p">,</span> <span class="s2">&quot;script_funcs&quot;</span><span class="p">):</span>
+        <span class="n">FUNCTION_BINDINGS</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">eval_expressions_local</span><span class="o">.</span><span class="n">script_funcs</span><span class="p">)</span>
+    <span class="n">FUNCTION_BINDINGS</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">MATH_FUNCS</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">FUNCTION_BINDINGS</span><span class="p">,</span> <span class="n">symbol_table</span><span class="p">)</span>
+        <span class="n">infostr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Calculated &quot;</span><span class="si">{</span><span class="n">expression</span><span class="si">}</span><span class="s1">&quot; = </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s1">.&#39;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">LiteralString</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Callable</span><span class="p">):</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">CallableLambda</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">expression</span><span class="p">)</span>
+        <span class="n">success</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">errstr</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Failed to evaluate: </span><span class="si">{</span><span class="n">expression</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">expression</span><span class="o">.</span><span class="n">isidentifier</span><span class="p">()</span>
+            <span class="ow">and</span> <span class="n">expression</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">symbol_table</span>
+            <span class="ow">and</span> <span class="n">expression</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">FUNCTION_BINDINGS</span>
+        <span class="p">):</span>
+            <span class="n">e</span> <span class="o">=</span> <span class="ne">NameError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Name &#39;</span><span class="si">{</span><span class="n">expression</span><span class="si">}</span><span class="s2">&#39; is not defined.&quot;</span><span class="p">)</span>
+        <span class="n">extra</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">attr_name</span> <span class="ow">and</span> <span class="n">location</span><span class="p">:</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; while parsing </span><span class="si">{</span><span class="n">location</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="n">attr_name</span><span class="p">:</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; while parsing </span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">elif</span> <span class="n">location</span><span class="p">:</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot; while parsing </span><span class="si">{</span><span class="n">location</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">errstr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;Problem encountered</span><span class="si">{</span><span class="n">extra</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="n">err</span> <span class="o">=</span> <span class="n">errstr</span>
+        <span class="n">errstr</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;Symbol table: &quot;</span>
+        <span class="n">bindings</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">bindings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">symbol_table</span><span class="p">)</span>
+        <span class="n">bindings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">eval_expressions_local</span><span class="p">,</span> <span class="s2">&quot;script_funcs&quot;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="n">extras</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">bindings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Callable</span><span class="p">):</span>
+                <span class="n">bindings</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}{</span><span class="n">signature</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;_func&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">extras</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">    </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">bindings</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">bindings</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">n&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bindings</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">:</span>
+                <span class="n">bindings</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">bindings</span><span class="p">[</span><span class="n">k</span><span class="p">][:</span><span class="mi">100</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;...&quot;</span>
+        <span class="n">errstr</span> <span class="o">+=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">bindings</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">errstr</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">err</span>
+        <span class="n">errstr</span> <span class="o">+=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Please ensure that the expression used is a valid Python expression.</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+        <span class="n">possibly_used</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">k</span><span class="p">:</span> <span class="n">bindings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">FUNCTION_BINDINGS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="s2">&quot;UNDEFINED&quot;</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;([a-zA-Z_][a-zA-Z0-9_]*)&quot;</span><span class="p">,</span> <span class="n">expression</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">keyword</span><span class="o">.</span><span class="n">kwlist</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">possibly_used</span><span class="p">:</span>
+            <span class="n">errstr</span> <span class="o">+=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;The following may have been used in the expression:</span><span class="se">\n\t</span><span class="s2">&quot;</span>
+                <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">possibly_used</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+            <span class="p">)</span>
+        <span class="n">errstr</span> <span class="o">+=</span> <span class="p">(</span>
+            <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">If you meant to enter a string in a YAML file, please wrap the</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;expression in single or double quotes. If you meant to enter a raw </span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;string, cast it to a accelforge.LiteralString object.&quot;</span>
+        <span class="p">)</span>
+        <span class="n">success</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">success</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">EvaluationError</span><span class="p">(</span><span class="n">errstr</span><span class="p">)</span>
+
+    <span class="n">infostr_log_cache</span><span class="p">(</span><span class="n">infostr</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">v</span>
+
+
+<span class="k">class</span> <span class="nc">PicklingSafeCallable</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">func</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;func&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+            <span class="s2">&quot;module&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__module__</span><span class="p">,</span>
+            <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="c1"># Restore required attributes so subsequent pickling works</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;path&quot;</span><span class="p">)</span>
+        <span class="n">func_name</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;func&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">load_functions_from_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)[</span><span class="n">func_name</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">=</span> <span class="n">func_name</span>
+
+    <span class="k">def</span> <span class="nf">__copy__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">PicklingSafeCallable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__deepcopy__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">memo</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">PicklingSafeCallable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+
+
+<span class="nd">@functools</span><span class="o">.</span><span class="n">lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">load_functions_from_file</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not find math function file </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+    <span class="n">python_module</span> <span class="o">=</span> <span class="n">SourceFileLoader</span><span class="p">(</span><span class="s2">&quot;python_plug_in&quot;</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">load_module</span><span class="p">()</span>
+    <span class="n">funcs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">defined_funcs</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">python_module</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">python_module</span><span class="p">,</span> <span class="n">f</span><span class="p">),</span> <span class="n">Callable</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="k">for</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">defined_funcs</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Adding function </span><span class="si">{</span><span class="n">func</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> to the script library.&quot;</span><span class="p">)</span>
+        <span class="n">funcs</span><span class="p">[</span><span class="n">func</span><span class="p">]</span> <span class="o">=</span> <span class="n">PicklingSafeCallable</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">python_module</span><span class="p">,</span> <span class="n">func</span><span class="p">),</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">funcs</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
