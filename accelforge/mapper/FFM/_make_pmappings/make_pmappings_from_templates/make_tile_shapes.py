@@ -932,6 +932,7 @@ def get_tile_shape_choices(
     symbols: list[Symbol],
     what_tiles_symbol: SymbolRelations,
     job: "Job",
+    alt_objectives_first: bool,
     keep_symbols: list[Symbol] = (),
     max_loop_check_groups: list[tuple[Number, list[Symbol]]] = (),
 ):
@@ -956,6 +957,8 @@ def get_tile_shape_choices(
     what_tiles_symbol : SymbolRelations
         Which symbol(s) are tiling which others. Also includes direct numbers if any
         tile shapes are numeric.
+    alt_objectives_first : bool
+        Whether to prioritize alt objectives over objectives for pruning.
     job : Job
         The mapper job
     keep_symbols : list[Symbol]
@@ -1340,7 +1343,12 @@ def get_tile_shape_choices(
         # Assume that optimizing for objectives and optimizing for alt_objectives will
         # yield the same results. Generally, alt_objectives will be the objective
         # function chosen by the user, while alt_objectives will be actions.
-        for cur_objectives in [alt_objectives, objectives]:
+
+        prune_by = [objectives, alt_objectives]
+        if alt_objectives_first:
+            prune_by = prune_by[::-1]
+
+        for cur_objectives in prune_by:
             # ==========================================================================
             # Create initial Pareto-finding goals
             # ==========================================================================
@@ -1692,6 +1700,11 @@ def get_tile_shape_choices(
                 #         matched &= cur_symbol == expected_shapes[s]
                 # assert np.sum(matched) > 0
 
+            # There's diminishing returns with more sets of Pareto objectives, so only
+            # attempt multiple sets if there's a lot of choices already.
+            if len(choices_enumerated) < 1000000:
+                break
+
     # ==================================================================================
     # Return the choices
     # ==================================================================================
@@ -2010,6 +2023,7 @@ def _make_tile_shapes(job: "Job"):
     # conclude that a mapping has reduced latency and energy, grab it, and if we can
     # conclude it has lower action counts for all actions, it must have lower energy and
     # latency, so also grab it.
+    n_total_objectives = 0
     for k, v in symbolic_df.items():
         if "Total" not in k:
             continue
@@ -2023,6 +2037,8 @@ def _make_tile_shapes(job: "Job"):
                 precision=job.objective_precision,
             )
         )
+        n_total_objectives += 1
+
     for k, v in actions_df.items():
         alt_objectives.append(
             Objective(
@@ -2050,6 +2066,7 @@ def _make_tile_shapes(job: "Job"):
 
     max_loop_check_groups = [g for g in max_loop_check_groups if g[1]]
 
+    alt_objectives_first = n_total_objectives > 1
     choices_enumerated = get_tile_shape_choices(
         objectives=objectives,
         symbols=symbols,
@@ -2058,6 +2075,7 @@ def _make_tile_shapes(job: "Job"):
         job=job,
         keep_symbols=keep_symbols,
         max_loop_check_groups=max_loop_check_groups,
+        alt_objectives_first=alt_objectives_first,
     )
 
     try:
