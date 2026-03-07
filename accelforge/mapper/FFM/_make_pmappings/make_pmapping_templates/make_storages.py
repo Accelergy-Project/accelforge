@@ -49,9 +49,7 @@ def make_tensor_choices_one_level(
     node = copy.copy(node)
     if not node.tensors.tensor_order_options and prioritize_reuse_of_unfused_tensors:
         node.tensors = copy.copy(node.tensors)
-        node.tensors.tensor_order_options.append(
-            EvalableList(["Above", "~Above"])
-        )
+        node.tensors.tensor_order_options.append(EvalableList(["Above", "~Above"]))
     try:
         node.tensors: arch.Tensors = node.tensors._eval_expressions(
             symbol_table=symbol_table,

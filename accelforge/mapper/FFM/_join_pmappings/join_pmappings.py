@@ -82,7 +82,7 @@ class OptimalityThresholder:
         for i in chosen_indices.astype(int):
             self.compare_to.append({c: compare_to.iloc[i][c] for c in compare_cols})
             if print_progress:
-                print(f'Filtering out pmappings worse than the following:')
+                print(f"Filtering out pmappings worse than the following:")
                 print(
                     "\t"
                     + "    ".join(

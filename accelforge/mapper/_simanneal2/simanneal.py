@@ -251,6 +251,7 @@ class SimAnnealMapping:
                 drop_valid_reservations=s.mappings.drop_valid_reservations,
                 resource_usage_precision=s.mappings.resource_usage_precision,
                 objective_precision=s.mappings.objective_precision,
+                lossy_resource_usage_precision=s.mappings.lossy_resource_usage_precision,
             ),
         )
 

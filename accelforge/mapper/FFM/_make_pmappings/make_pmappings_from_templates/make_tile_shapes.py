@@ -294,7 +294,7 @@ class Goal:
         goal: str = None,
         max_value: Optional[float] = None,
         only_care_if_valid: bool = False,
-        precision: tuple[str, float] = ("round", 0),
+        precision: float = 0,
     ):
         self.goal = goal
         self.max_value = max_value
@@ -311,14 +311,14 @@ class Goal:
         mv = self.max_value
         care = self.only_care_if_valid or other.only_care_if_valid
 
-        if self.precision[0] == other.precision[0]:
-            p = (self.precision[0], min(self.precision[1], other.precision[1]))
-        else:
-            p = ("round", 0)
-
         # If the goals are the same, space doesn't change
         if self.goal == other.goal:
-            return Goal(self.goal, max_value=mv, only_care_if_valid=care, precision=p)
+            return Goal(
+                self.goal,
+                max_value=mv,
+                only_care_if_valid=care,
+                precision=min(self.precision, other.precision),
+            )
 
         # min_per_prime_factor is a superset of min, so we can just keep the min_per_prime_factor goal
         if {self.goal, other.goal} == {"min", "min_per_prime_factor"}:
@@ -326,7 +326,7 @@ class Goal:
                 "min_per_prime_factor",
                 max_value=mv,
                 only_care_if_valid=care,
-                precision=p,
+                precision=min(self.precision, other.precision),
             )
 
         # max_per_prime_factor is a superset of max, so we can just keep the max_per_prime_factor goal
@@ -335,7 +335,7 @@ class Goal:
                 "max_per_prime_factor",
                 max_value=mv,
                 only_care_if_valid=care,
-                precision=p,
+                precision=min(self.precision, other.precision),
             )
 
         # Otherwise, there's a disagreement and the only space we're both in can be diff
@@ -448,12 +448,13 @@ def _partition_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
+    precision: float,
     terms_do_not_cross_zero: bool = False,
 ) -> dict[Symbol, Goal]:
     goals: dict[Symbol, Goal] = {}
 
-    def update_goal(symbol: Symbol, goal: str, **kwargs):
-        goals[symbol] = Goal(goal) | goals.get(symbol, Goal())
+    def update_goal(symbol: Symbol, goal: Goal, **kwargs):
+        goals[symbol] = goal | goals.get(symbol, Goal())
 
     negate = False
 
@@ -529,6 +530,7 @@ def _partition_formula(
         # CAN break this up because if we can guarantee that for any settings of all the
         # unknown terms, then if one known term is lower, the sum is lower.
         terms = _recombine_terms(f.args)
+        precision /= len(terms)
         # If the formula is a product:
         # - Divide the max value by the constant factors
         # - For non-constant factors, if they're >1 then we can keep the max.
@@ -554,7 +556,8 @@ def _partition_formula(
     for term in terms:
         term, goal = try_replace_single_term(term, fzs(symbols_enumerated), bounds)
         if goal is not None:
-            update_goal(term, goal.goal)
+            goal.precision = precision
+            update_goal(term, goal)
             continue
 
         # Constant! Don't care
@@ -562,17 +565,17 @@ def _partition_formula(
             continue
 
         if term.free_symbols.issubset(symbols_enumerated):
-            update_goal(term, "min")
+            update_goal(term, Goal("min", precision=precision))
             continue
 
         # Don't recurse with the same formula. If we got here without simplifying it,
         # give up and mark everything "diff".
         if term == f:
             for symbol in term.free_symbols:
-                update_goal(symbol, "diff")
+                update_goal(symbol, Goal("diff"))
         else:
             for subterm, subgoal in partition_formula(
-                term, symbols_enumerated, bounds
+                term, symbols_enumerated, bounds, precision
             ).items():
                 goals[subterm] = subgoal | goals.get(subterm, Goal())
 
@@ -594,10 +597,15 @@ def partition_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
+    precision: float,
     terms_do_not_cross_zero: bool = False,
 ) -> dict[Symbol, Goal]:
     return _partition_formula(
-        f, fzs(symbols_enumerated & f.free_symbols), bounds, terms_do_not_cross_zero
+        f,
+        fzs(symbols_enumerated & f.free_symbols),
+        bounds,
+        precision,
+        terms_do_not_cross_zero,
     )
 
 
@@ -758,7 +766,7 @@ def coalesce_symbols(
 
     log_message("coalesce symbols", f"initial")
     for s, g in symbol2goal.items():
-        log_message(f"\t{g.goal}: {s}")
+        log_message(f"\t{g.goal} {g.precision}: {s}")
 
     changed = True
     while changed:
@@ -837,6 +845,7 @@ def coalesce_symbols(
                     formula, sym_enumerated_set, bounds
                 )
                 if new_goal is not None:
+                    new_goal.precision = 0
                     log_message("coalesce symbols", f"replacing single term: {formula}")
                     update_symbol2goal(formula, new_goal, new_symbol2goal)
 
@@ -853,6 +862,7 @@ def coalesce_symbols(
                     log_message("coalesce symbols", f"replacing reciprocal: {formula}")
                     formula = 1 / formula
                     goal = ~goal
+                    goal.precision = 0
 
             # If a formula agrees entirely with other goals, then we can remove it
             disagrees = []
@@ -911,7 +921,7 @@ def coalesce_symbols(
 
     log_message("coalesce symbols", f"final")
     for s, g in symbol2goal.items():
-        log_message(f"\t{g.goal}: {s}")
+        log_message(f"\t{g.goal} {g.precision}: {s}")
 
     return symbol2goal
 
@@ -971,7 +981,7 @@ def get_tile_shape_choices(
     # the outer loops, so it does those symbols (which end up multiplying our choices)
     # last. Outer to inner is faster if there's no symbols to keep because that's what
     # happened on exactly one workload that Tanner tested.
-    TILE_SHAPE_ORDER = "inner_to_outer"  # "min_loops_to_track_one_rv_at_a_time"
+    TILE_SHAPE_ORDER = "inner_to_outer_hybrid"  # "min_loops_to_track_one_rv_at_a_time"
 
     # For imperfect, we make inner tile shapes, then create outer tile shapes that are
     # multiples of the non-residual part of the inner tile shape. This way, the very
@@ -1052,6 +1062,42 @@ def get_tile_shape_choices(
                 "one_rv_at_a_time", "smallest_first"
             )
 
+        def hybrid(s):
+            keep = s in keep_symbols
+
+            # Score for the % of symbols in objectives that are this symbol
+            score = 0
+            all_symbols = set(symbols_enumerated)
+            for o in objectives:
+                f = o.formula.subs({g: 1 for g in symbols_enumerated})
+                n_symbols = sum(1 for _ in f.atoms(Symbol))
+                score += o.formula.count(s) / max(1, n_symbols)
+
+            # Score for max_loop_check_groups partially resolved by this symbol
+            tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
+            tiled_by = what_tiles_symbol.get_inner_tiles(s, none_if_fail=True)
+            for _, g in max_loop_check_groups:
+                s_affects_group = s in g or tiled_by in g or tiles in g
+
+                # If we affect the group and we haven't enumerated anything else in the
+                # group, we'll need to keep this symbol for the current iteration.
+                if s_affects_group and not (set(g) & all_symbols):
+                    keep = True
+                    break
+
+                # Otherwise, add score for nearing the completion of the group.
+                remaining = set(g) - all_symbols
+                if s in remaining:
+                    score += 1 / len(remaining)
+
+            score /= len(objectives) + len(max_loop_check_groups)
+
+            return (
+                -keep,
+                score,
+                min_size(s),
+            )
+
         def max_formulas(s):
             following = next_tile(s, none_if_fail=True)
             constrains_following = (
@@ -1127,6 +1173,8 @@ def get_tile_shape_choices(
             objective = porp_of_formulas
         elif "min_loops_to_track" in tile_shape_order:
             objective = min_loops_to_track
+        elif "hybrid" in tile_shape_order:
+            objective = hybrid
         else:
             raise RuntimeError(f"BUG: invalid tile_shape_order: {tile_shape_order}")
 
@@ -1532,6 +1580,7 @@ def get_tile_shape_choices(
                     objective.formula,
                     sym_enumerated_set,
                     what_tiles_symbol.bounds,
+                    objective.precision,
                     objective.terms_do_not_cross_zero,
                 )
 
@@ -1595,7 +1644,7 @@ def get_tile_shape_choices(
                     log_message(f"\t{obj.name}: {obj.formula}")
                 log_message("Formulas:")
                 for formula, goal in symbol2goal.items():
-                    log_message(f"\t{goal.goal}: {formula}")
+                    log_message(f"\t{goal.goal} {goal.precision=}: {formula}")
 
                 drop_cols = []
                 pareto_goals = []
@@ -1914,6 +1963,10 @@ def _make_tile_shapes(job: "Job"):
         if k in usage_df:
             only_care_if_valid = True
 
+        precision = job.resource_usage_precision + job.lossy_resource_usage_precision
+        if job.metrics & Metrics.RESOURCE_USAGE:
+            precision = job.resource_usage_precision
+
         objectives.append(
             Objective(
                 name=k,
@@ -1922,7 +1975,7 @@ def _make_tile_shapes(job: "Job"):
                 only_care_if_valid=only_care_if_valid,
                 max_value=1,
                 terms_do_not_cross_zero=True,
-                precision=("logscale", job.resource_usage_precision),
+                precision=precision,
             )
         )
 
@@ -1967,7 +2020,7 @@ def _make_tile_shapes(job: "Job"):
                 formula=v,
                 symbols=symbols,
                 terms_do_not_cross_zero="energy" in k or "latency" in k,
-                precision=("logscale", job.objective_precision),
+                precision=job.objective_precision,
             )
         )
     for k, v in actions_df.items():
@@ -1977,7 +2030,7 @@ def _make_tile_shapes(job: "Job"):
                 formula=v,
                 symbols=symbols,
                 terms_do_not_cross_zero=True,
-                precision=("logscale", job.objective_precision),
+                precision=job.objective_precision,
             )
         )
 

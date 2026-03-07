@@ -297,6 +297,7 @@ def make_pmappings_from_templates(
                 drop_valid_reservations=False,
                 resource_usage_precision=job.resource_usage_precision,
                 objective_precision=job.objective_precision,
+                lossy_resource_usage_precision=job.lossy_resource_usage_precision,
             )
             for r in results
         ],
@@ -323,7 +324,8 @@ def make_pmappings_from_templates(
     df = makepareto(
         df,
         split_by_cols=fused_loop_cols,
-        resource_usage_precision=job0.resource_usage_precision,
+        resource_usage_precision=job0.resource_usage_precision
+        + job0.lossy_resource_usage_precision,
         objective_precision=job0.objective_precision,
         use_objective_precision_for_resource_usage=not drop_valid_reservations,
     ).copy()
@@ -410,6 +412,7 @@ def make_pmappings_from_templates(
             drop_valid_reservations=False,
             resource_usage_precision=job0.resource_usage_precision,
             objective_precision=job0.objective_precision,
+            lossy_resource_usage_precision=job.lossy_resource_usage_precision,
         )
         pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
 

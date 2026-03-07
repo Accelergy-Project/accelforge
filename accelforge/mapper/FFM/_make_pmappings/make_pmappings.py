@@ -141,6 +141,7 @@ def get_jobs(
                 initial_delta_choices=initial_delta_choices_for_einsum,
                 resource_usage_precision=0,
                 objective_precision=spec.mapper._objective_precision,
+                lossy_resource_usage_precision=spec.mapper._resource_usage_precision,
             )
             for j in make_pmapping_templates(job, print_progress):
                 jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)

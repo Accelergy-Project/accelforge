@@ -341,6 +341,7 @@ class Mapping:
                         drop_valid_reservations=sim.mappings.drop_valid_reservations,
                         resource_usage_precision=sim.mappings.resource_usage_precision,
                         objective_precision=sim.mappings.objective_precision,
+                        lossy_resource_usage_precision=sim.mappings.lossy_resource_usage_precision,
                     )
                 ]
                 chosen_mappings = quick_join(new_sims, mapspace_globals)

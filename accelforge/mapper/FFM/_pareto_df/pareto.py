@@ -300,15 +300,7 @@ def makepareto_numpy(
 
         goal = goals[c]
         if precisions[c] is not None:
-            precision_type, precision = precisions[c]
-            if precision_type == "round":
-                if precision != 0:
-                    assert False, "I thought I removed these from tile shape making"
-                rounded = round_to_precision(mappings[:, c], precision)
-            elif precision_type == "logscale":
-                rounded = logscale_to_precision(mappings[:, c], precision)
-            else:
-                raise ValueError(f"Unknown precision type: {precision_type}")
+            rounded = logscale_to_precision(mappings[:, c], precisions[c])
         else:
             rounded = mappings[:, c]
 

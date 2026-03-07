@@ -80,6 +80,7 @@ def evaluate_mapping(
         spec_one_einsum=spec,
         resource_usage_precision=0,  # spec.model._resource_usage_precision,
         objective_precision=0,  # spec.model._objective_precision,
+        lossy_resource_usage_precision=0,  # spec.model._resource_usage_precision,
     )
 
     einsum2pmappings = {}
@@ -190,6 +191,7 @@ def evaluate_mapping(
                     ignored_resources=set(),
                     resource_usage_precision=job.resource_usage_precision,
                     objective_precision=job.objective_precision,
+                    lossy_resource_usage_precision=job.lossy_resource_usage_precision,
                     drop_valid_reservations=False,
                 ),
             )
