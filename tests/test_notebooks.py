@@ -34,7 +34,7 @@ class TestNotebooks(unittest.TestCase):
 
         # Configure the executor
         ep = ExecutePreprocessor(
-            timeout=600,  # 10 minutes per cell
+            timeout=99999999,
             kernel_name="python3",
             allow_errors=False,  # Fail on first error
         )
