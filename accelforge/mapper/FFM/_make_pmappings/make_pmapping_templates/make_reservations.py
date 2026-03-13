@@ -3,7 +3,6 @@ from typing import Any
 
 import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import MappingNode, Reservation, Storage, TensorHolder
-from accelforge.frontend.spec import Spec
 
 
 def _recursive_iter_fence_positions(

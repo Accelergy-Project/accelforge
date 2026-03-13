@@ -32,7 +32,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
     Compatibility,
 )
-from accelforge.mapper.FFM._pareto_df.df_convention import col2nameloop
+from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
 from accelforge.util import _fillna_and__numeric_cast, parallel, delayed
 
 
@@ -242,7 +242,7 @@ def multi_strategy_join(
                 maxvalue = joined.data[c].max()
                 if maxvalue > 1:
                     if print_progress:
-                        oversubscribed = f"{col2nameloop(c)[0]} ({maxvalue * 100:.2f}%)"
+                        oversubscribed = f"{col2reservation(c)[0]} ({maxvalue * 100:.2f}%)"
                         print(f"Oversubscribed {oversubscribed}. Reducing threshold...")
                     break
         else:
@@ -351,9 +351,9 @@ def get_memories_to_track(
     for _, einsum_pmapping_groups in pmapping_groups.items():
         for s in einsum_pmapping_groups:
             for col in s.mappings.data.columns:
-                name_nloops = col2nameloop(col)
+                name_nloops = col2reservation(col)
                 if name_nloops is not None:
-                    always_below.add(col2nameloop(col)[0])
+                    always_below.add(col2reservation(col)[0])
 
     total_sizes = {}
     ignored_resources = set()
@@ -363,7 +363,7 @@ def get_memories_to_track(
         for s in einsum_pmapping_groups:
             n_fused_loops = s.compatibility.n_loops
             for col in s.mappings.data.columns:
-                name_nloops = col2nameloop(col)
+                name_nloops = col2reservation(col)
                 if name_nloops is None:
                     continue
 
@@ -393,7 +393,7 @@ def get_memories_to_track(
         data = s.mappings.data
         keep_cols = []
         for col in data.columns:
-            name_nloops = col2nameloop(col)
+            name_nloops = col2reservation(col)
             if name_nloops is None or name_nloops[0] not in ignore:
                 keep_cols.append(col)
         run_pareto = len(keep_cols) < len(data.columns)

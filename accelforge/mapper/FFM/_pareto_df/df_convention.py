@@ -130,7 +130,7 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
 
 
 @dict_cached
-def col2nameloop(x: str) -> tuple[str, int] | None:
+def col2reservation(x: str) -> tuple[str, int] | None:
     """Format: reservation name level left"""
     x = partition_col(x, "reservation", 4)
     if x is None:
@@ -139,7 +139,7 @@ def col2nameloop(x: str) -> tuple[str, int] | None:
 
 
 @dict_cached
-def nameloop2col(name: str, nloops: int, left: bool = False) -> str:
+def reservation2col(name: str, nloops: int, left: bool = False) -> str:
     """Format: reservation name level left"""
     return f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
 
@@ -219,7 +219,7 @@ def col2nameloopleft(x: str) -> tuple[str, int, bool] | None:
 
 
 def is_reservation_col(x: str) -> bool:
-    return col2nameloop(x) is not None
+    return col2reservation(x) is not None
 
 
 @dict_cached
@@ -282,7 +282,7 @@ def is_objective_col(c):
 
 
 def col_used_in_pareto(c):
-    return col2nameloop(c) is not None or is_objective_col(c)
+    return col2reservation(c) is not None or is_objective_col(c)
 
 
 def col_used_in_joining(c):

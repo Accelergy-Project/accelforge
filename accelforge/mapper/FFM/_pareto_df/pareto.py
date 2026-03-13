@@ -12,7 +12,7 @@ from accelforge._accelerated_imports import np
 from accelforge.util.parallel import parallel
 
 from accelforge.mapper.FFM._pareto_df.df_convention import (
-    col2nameloop,
+    col2reservation,
     col_used_in_pareto,
     is_fused_loop_col,
     is_n_iterations_col,
@@ -249,7 +249,7 @@ def makepareto(
             goals.append("diff")
         elif c in columns:
             x = mappings[c]
-            if col2nameloop(c) is not None:
+            if col2reservation(c) is not None:
                 x = multi_round(
                     x, resource_usage_tolerance, absolute_resource_usage_tolerance
                 )

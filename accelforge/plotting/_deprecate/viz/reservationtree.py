@@ -7,7 +7,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     Loop,
 )
 from accelforge.util import _expfmt
-from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import col2nameloop
+from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import col2reservation
 
 PYDOT_NODE_DEFAULTS = {
     "shape": "box",
@@ -277,7 +277,7 @@ def mappings2reservationtree(
     if add_reservations is not None:
         for einsum, reservations in add_reservations.items():
             for resource, size in dict(reservations).items():
-                nameloop = col2nameloop(resource)
+                nameloop = col2reservation(resource)
                 if nameloop is None:
                     continue
                 name, _ = nameloop

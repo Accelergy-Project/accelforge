@@ -4,7 +4,6 @@ from numbers import Number
 
 from sympy import Symbol
 
-from accelforge.frontend.renames import EinsumName, TensorName, Rank, RankVariable
 from accelforge.frontend.workload import Workload
 from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo
 from accelforge.frontend.mapping import (

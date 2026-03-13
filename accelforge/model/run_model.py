@@ -13,7 +13,7 @@ from accelforge.model._looptree.energy import (
 from accelforge.model._looptree.latency.memory import component_latency
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
-    nameloop2col,
+    reservation2col,
     tensor2col,
     firstlatency2col,
     action2col,
@@ -144,7 +144,7 @@ def run_model(
         for n_loop in sorted(n_loop_options):
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
-                df[nameloop2col(memory, n_loop)] = (
+                df[reservation2col(memory, n_loop)] = (
                     running_total / memory_to_size[memory]
                 )
 

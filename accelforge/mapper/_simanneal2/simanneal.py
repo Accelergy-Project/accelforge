@@ -17,7 +17,7 @@ from accelforge.frontend.mapping import Mapping
 from accelforge.mapper.FFM import PmappingGroup
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     MAPPING_COLUMN,
-    col2nameloop,
+    col2reservation,
 )
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
 from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
@@ -294,7 +294,7 @@ class SimAnnealMapping:
             joined_new = _merge_next(joined, self._access_index(e))
             if len(joined_new.mappings.data) == 1:
                 joined = joined_new
-                # print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2nameloop(k)))
+                # print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2reservation(k)))
                 continue
             if len(joined_new.mappings.data) > 1:
                 raise ValueError(
@@ -325,7 +325,7 @@ class SimAnnealMapping:
                 # If it worked, set the index
                 self.einsum2index[e] = i
                 joined = joined_new
-                # print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2nameloop(k)))
+                # print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2reservation(k)))
                 continue
 
             if len(joined_new.mappings.data) > 1:

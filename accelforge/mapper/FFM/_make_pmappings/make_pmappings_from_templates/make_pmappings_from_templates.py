@@ -13,14 +13,12 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     MAPPING_COLUMN,
     PmappingDataframe,
-    col2nameloop,
+    col2reservation,
     col_used_in_pareto,
     is_reservation_col,
     makepareto,
     tensor2col,
-    col2nameloop,
-    is_reservation_col,
-    nameloop2col,
+    reservation2col,
 )
 
 from accelforge.frontend.mapper.metrics import Metrics
@@ -49,12 +47,12 @@ def shift_reservations_by_null_loop_indices(
     for c in mappings.columns:
         if not is_reservation_col(c):
             continue
-        name, above = col2nameloop(c)
+        name, above = col2reservation(c)
         new_above = above - sum(above > i for i in null_loop_indices)
-        target = nameloop2col(name, new_above)
+        target = reservation2col(name, new_above)
         if target in target2newabovename:
             if above > target2newabovename[target][1]:
-                dropcols.append(nameloop2col(*target2newabovename[target]))
+                dropcols.append(reservation2col(*target2newabovename[target]))
                 target2newabovename[target] = (name, above)
             else:
                 dropcols.append(c)
@@ -64,7 +62,7 @@ def shift_reservations_by_null_loop_indices(
     mappings.drop(columns=dropcols, inplace=True)
     renames = {}
     for target, (name, above) in target2newabovename.items():
-        renames[nameloop2col(name, above)] = target
+        renames[reservation2col(name, above)] = target
     mappings.rename(columns=renames, inplace=True)
     if len(mappings.columns) != len(mappings.columns.unique()):
         shift_reservations_by_null_loop_indices(prev, null_loop_indices)
@@ -264,7 +262,7 @@ def make_pmappings_from_templates(
         cols_to_drop = []
         for col in result.columns:
             if is_reservation_col(col):
-                resource = col2nameloop(col)[0]
+                resource = col2reservation(col)[0]
                 if resource in job.memories_track_pmappings_only:
                     cols_to_drop.append(col)
         result.drop(columns=cols_to_drop, inplace=True)

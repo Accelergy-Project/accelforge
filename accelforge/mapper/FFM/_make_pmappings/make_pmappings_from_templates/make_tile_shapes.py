@@ -31,11 +31,6 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
 )
 from accelforge.mapper.FFM._pareto_df.pareto import makepareto_numpy
 from accelforge.model._looptree.reuse.symbolic import IMPERFECT, PRINT_FORMULAS
-from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
-    nameloop2col,
-    tensor2col,
-    firstlatency2col,
-)
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.util._frozenset import fzs
 import math
@@ -46,7 +41,6 @@ from numbers import Number
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
     SymbolRelations,
 )
-from accelforge.util._sympy.broadcast_max import MaxGeqZero, Max, Min, MinGeqZero
 from accelforge.model.run_model import (
     run_model,
 )
