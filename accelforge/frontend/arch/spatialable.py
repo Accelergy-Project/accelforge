@@ -79,6 +79,12 @@ class Spatialable(EvalableModel):
     specified at this level also apply to lower-level `Leaf` nodes in the architecture.
     """
 
+    support_concurrent_binding: EvalsTo[bool] = False
+    """
+    Whether different Einsums can be concurrently bound to different elements in this
+    spatial array.
+    """
+
     _physical_spatial: NoParse[Spatial] = EvalableList()
     """
     The physical spatial fanout of this node. Should only have a value for a

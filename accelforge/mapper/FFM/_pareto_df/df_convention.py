@@ -1,6 +1,5 @@
 from collections import namedtuple
 import functools
-import re
 import pandas as pd
 from accelforge.util import NUMPY_FLOAT_TYPE
 from accelforge.util._frozenset import fzs
@@ -10,8 +9,8 @@ from accelforge.util._base_analysis_types import ActionKey, VerboseActionKey
 
 class ColName(str):
     def __truediv__(self, other: "ColName"):
-        if not isinstance(other, ColName):
-            raise ValueError(f"{other} must be a ColName")
+        if not isinstance(other, (ColName, str)):
+            raise ValueError(f"{other} must be a ColName or str")
         return ColName(f"{self}{SEP}{other}")
 
 
@@ -21,6 +20,7 @@ ACTION = ColName("action")
 TOTAL = ColName("Total")
 USAGE = ColName("usage")
 MEMORY = ColName("memory")
+LATENCY = ColName("latency")
 
 
 MAPPING_COLUMN = "mapping"
@@ -72,6 +72,17 @@ def col2memory_usage(col: str) -> tuple[str, str, str]:
     memory = separated_names[3]
     tensor = separated_names[4]
     return memory, tensor, einsum
+
+
+@dict_cached
+def memorylatency2col(memory_name: str):
+    return LATENCY / memory_name
+
+
+@dict_cached
+def col2memorylatency(col: str):
+    split_col = partition_col(col, LATENCY, 2)
+    return split_col[0]
 
 
 @dict_cached

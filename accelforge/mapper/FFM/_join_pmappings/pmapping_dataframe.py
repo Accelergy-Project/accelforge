@@ -281,8 +281,8 @@ class PmappingDataframe:
         for i in sorted(indices_to_consolidate, reverse=True):
             if i == loop_index:
                 break
-            self.shift_bottom_reservation_left(i)
-            self.consolidate_bottom_split(i)
+            self.shift_bottom_reservation_left()
+            self.consolidate_bottom_split()
         return True
 
     @error_check_wrapper
@@ -311,10 +311,10 @@ class PmappingDataframe:
 
 
     @error_check_wrapper
-    def consolidate_bottom_split(self, bottom_loop_index: int):
+    def consolidate_bottom_split(self):
         """
         Consolidate bottom split.
-        Example (bottom_loop_index = 1):
+        Example:
             Before:                After:
             A  B                   A B
              / | --- 0             / | --- 0
@@ -322,35 +322,38 @@ class PmappingDataframe:
              / | --- 1
             F  E
         """
+        bottom_index = self.get_max_loop_index()
         # TODO: account for other metrics
         l_reservations, _r_reservations = self._make_reservations()
         drop_columns = []
-        idx_under_bottom_loop = bottom_loop_index + 1
         for resource in l_reservations:
-            if idx_under_bottom_loop not in l_reservations[resource]:
+            if bottom_index not in l_reservations[resource]:
                 continue
-            target = reservation2col(resource, bottom_loop_index, is_left=False)
             left_reservation_cols = set(get_reservation_cols_with(
                 self.data,
                 resource,
-                idx_under_bottom_loop,
+                bottom_index,
                 is_left=True
             ))
             drop_columns.extend(left_reservation_cols)
             reservation_above = self.get_reservation_or_parent(
                 resource,
-                bottom_loop_index,
+                bottom_index,
                 l_reservations,
                 _r_reservations
             )
-            self.data.iloc[:,target] = -self.data[reservation_above]*len(left_reservation_cols)
+            if reservation_above:
+                target = reservation2col(resource, col2reservation(reservation_above).nloops, left=False)
+                self.data.loc[:,target] = -self.data[reservation_above]*len(left_reservation_cols)
+            else:
+                target = reservation2col(resource, -1, left=False)
             for left_reservation_col in left_reservation_cols:
                 add_to_col(self.data, target, left_reservation_col)
-        self.data.drop(drop_columns)
+        self.data.drop(columns=drop_columns, inplace=True)
 
 
     @error_check_wrapper
-    def shift_bottom_reservation_left(self, bottom_loop_index: int):
+    def shift_bottom_reservation_left(self):
         """
         Shifts the bottom reservation from right to left.
         Example:
@@ -361,23 +364,12 @@ class PmappingDataframe:
                | --- 1             /   --- 1
                E                  E
         """
+        bottom_loop_index = self.get_max_loop_index()
         _l_reservations, r_reservations = self._make_reservations()
-        left_concurrent_threads = None
-        for resource in r_reservations:
-            if bottom_loop_index + 1 not in r_reservations[resource]:
-                continue
-            right_reservation = reservation2col(resource, bottom_loop_index + 1)
-            left_reservation_cols = set(
-                get_reservation_cols_with(self.data, resource, bottom_loop_index+1, is_left=True)
-            )
-            new_left_concurrent_threads = {
-                col2reservation(c).threads for c in left_reservation_cols
-            }
-            if left_concurrent_threads is None:
-                left_concurrent_threads = new_left_concurrent_threads
-            else:
-                assert left_concurrent_threads == new_left_concurrent_threads
-
+        left_concurrent_threads = set()
+        for col in get_reservation_cols_with(self.data, nloops=bottom_loop_index, is_left=True):
+            reservation_key = col2reservation(col)
+            left_concurrent_threads.add(reservation_key.thread)
         if not left_concurrent_threads:
             left_concurrent_threads = {0}
 
@@ -390,10 +382,10 @@ class PmappingDataframe:
         for thread_i in left_concurrent_threads:
             df = self.data.copy()
             for resource in r_reservations:
-                if bottom_loop_index + 1 not in r_reservations[resource]:
+                if bottom_loop_index not in r_reservations[resource]:
                     continue
-                right_reservation = reservation2col(resource, bottom_loop_index + 1)
-                left_reservation = reservation2col(resource, bottom_loop_index+1, True, thread_i)
+                right_reservation = reservation2col(resource, bottom_loop_index)
+                left_reservation = reservation2col(resource, bottom_loop_index, True, thread_i)
                 if left_reservation in df:
                     max_to_col(df, left_reservation, right_reservation)
                     df.drop(columns=[right_reservation], inplace=True)
@@ -402,7 +394,7 @@ class PmappingDataframe:
             assert not set(get_reservation_cols_with(
                 df,
                 name=None,
-                nloops=bottom_loop_index+1,
+                nloops=bottom_loop_index,
                 is_left=False
             ))
             all_data.append(df)
@@ -484,7 +476,7 @@ class PmappingDataframe:
         next_shared_loop_index = compatibility_joined.n_loops-1
 
         self.free_to_loop_index(shared_loop_index)
-        self.shift_bottom_reservation_left(shared_loop_index)
+        self.shift_bottom_reservation_left()
 
         shared_tensor_names = (
             compatibility_left.tensor_names & compatibility_right.tensor_names
@@ -979,7 +971,7 @@ class PmappingDataframe:
     #     self = self.copy()
 
     #     self.free_to_loop_index(-1)
-    #     self.shift_bottom_reservation_left(-1)
+    #     self.shift_bottom_reservation_left()
 
     #     for i, r in self.data.iterrows():
     #         looptree = mappings2reservationtree(

@@ -1,4 +1,7 @@
+from collections.abc import Iterable
+
 from sympy import Symbol
+
 import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import TensorHolder
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
@@ -13,6 +16,7 @@ from accelforge.model._looptree.energy import (
 from accelforge.model._looptree.latency.memory import component_latency
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
+    memorylatency2col,
     reservation2col,
     tensor2col,
     firstlatency2col,
@@ -25,6 +29,26 @@ from numbers import Number
 from accelforge.util._sympy.broadcast_max import MaxGeqZero
 
 
+def _max_latencies(latencies: Iterable):
+    try:
+        overall_latency = MaxGeqZero(*latencies)
+    except Exception as e:
+        for k, v in latencies.items():
+            if not isinstance(v, (Number, sympy.Symbol, sympy.Expr)):
+                raise ValueError(
+                    f"Invalid type for latency: {k}: {type(v)} {str(v).strip()}"
+                )
+
+        raise ValueError(
+            f"Could not calculate a symbolic max of the following latencies:\n\t"
+            +
+            "\n\t".join(
+                [f"{k}: {type(v)} {str(v).strip()}" for k, v in latencies.items()]
+            )
+        )
+    return overall_latency
+
+
 def run_model(
     job: Job,
     add_reservations: bool = True,
@@ -35,6 +59,8 @@ def run_model(
     is_copy_op = job.is_copy_operation
     workload = spec.workload
 
+    modeling_error = ValueError(f"Error modeling {job.einsum_name}")
+
     df = {}
 
     reuse = analyze_reuse_and_add_reservations_to_mapping(
@@ -42,22 +68,21 @@ def run_model(
     )
 
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
+    nodes_always_in_one_thread = []
+    for node in reversed(job.flattened_arch):
+        if isinstance(node, arch.Spatialable) and node.support_concurrent_binding:
+            break
+        nodes_always_in_one_thread.append(node.name)
     try:
-        overall_latency = MaxGeqZero(*latency.values())
+        thread_latency = _max_latencies(latency[c] for c in latency if c in nodes_always_in_one_thread)
     except Exception as e:
-        for k, v in latency.items():
-            if not isinstance(v, (Number, sympy.Symbol, sympy.Expr)):
-                raise ValueError(
-                    f"Invalid type for latency: {k}: {type(v)} {str(v).strip()}"
-                )
+        raise modeling_error from e
 
-        raise ValueError(
-            f"Error calculating latency for {job.einsum_name}. Could not calculate "
-            f"a symbolic max of the following latencies:\n\t"
-            + "\n\t".join(
-                [f"{k}: {type(v)} {str(v).strip()}" for k, v in latency.items()]
-            )
-        )
+    try:
+        overall_latency = _max_latencies(latency.values())
+    except Exception as e:
+        raise modeling_error from e
+
 
     used_fanout = {
         (component, dim): n
@@ -159,7 +184,7 @@ def run_model(
         for key, count in detailed_actions.items():
             df[action2col(key)] = count.total * n_instances
         detailed_energy = compute_energy_from_actions(
-            spec, detailed_actions, overall_latency, component_to_non_power_gated_porp
+            spec, detailed_actions, thread_latency, component_to_non_power_gated_porp
         )
         for key, energy_val in detailed_energy.items():
             df[energy2col(key)] = energy_val * n_instances
@@ -172,7 +197,7 @@ def run_model(
         actions_df[action2col(key)] = count.total * n_instances
 
     if metrics & Metrics.LATENCY:
-        df["Total<SEP>latency"] = overall_latency * n_instances
+        df["Total<SEP>latency"] = thread_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
@@ -181,6 +206,10 @@ def run_model(
                 df[firstlatency2col(compute_level.level, idx)] = (
                     max_first_latency * n_instances
                 )
+        for component, l in latency.items():
+            if component in nodes_always_in_one_thread:
+                continue
+            df[memorylatency2col(component)] = l
 
     if metrics.includes_dynamic_energy():
         dynamic_energy = [e for k, e in energy.items() if k.action != "leak"]
