@@ -146,6 +146,28 @@ def reservation2col(name: str, nloops: int, left: bool = False, thread: int = 0)
     )
 
 
+def get_reservation_cols_with(
+    df,
+    name: str=None,
+    nloops: int=None,
+    is_left: bool=None,
+    thread: int=None
+):
+    for c in df.columns:
+        if not "reservation" in c:
+            continue
+        key = col2reservation(c)
+        if name is not None and key.name != name:
+            continue
+        if nloops is not None and key.nloops != nloops:
+            continue
+        if is_left is not None and key.is_left != is_left:
+            continue
+        if thread is not None and key.thread != thread:
+            continue
+        yield c
+
+
 @dict_cached
 def stride2col(rank_name: Rank, nloops: int) -> str:
     """Format: stride rank_name nloops"""

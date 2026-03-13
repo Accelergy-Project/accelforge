@@ -348,16 +348,44 @@ class PmappingDataframe:
                E                  E
         """
         _l_reservations, r_reservations = self._make_reservations()
+        left_concurrent_threads = None
         for resource in r_reservations:
             if bottom_loop_index + 1 not in r_reservations[resource]:
                 continue
-            source = reservation2col(resource, bottom_loop_index + 1)
-            target = reservation2col(resource, bottom_loop_index + 1, left=True)
-            if target in self.data:
-                max_to_col(self.data, target, source)
-                self.data.drop(columns=[source], inplace=True)
+            right_reservation = reservation2col(resource, bottom_loop_index + 1)
+            new_left_concurrent_threads = set(
+                get_reservation_cols_with(self.data, resource, bottom_loop_index+1, is_left=True)
+            )
+            if left_concurrent_threads is None:
+                left_concurrent_threads = new_left_concurrent_threads
             else:
-                self.data.rename(columns={source: target}, inplace=True)
+                assert left_concurrent_threads == new_left_concurrent_threads
+
+        if not left_concurrent_threads:
+            left_concurrent_threads = {0}
+
+        # Explore placing right branch in any of the left threads
+        assert len(left_concurrent_threads) > 0
+        all_data = []
+        for thread_i in left_concurrent_threads:
+            df = self.data.copy()
+            for resource in r_reservations:
+                if bottom_loop_index + 1 not in r_reservations[resource]:
+                    continue
+                right_reservation = reservation2col(resource, bottom_loop_index + 1)
+                left_reservation = reservation2col(resource, bottom_loop_index+1, True, thread_i)
+                if left_reservation in df:
+                    max_to_col(df, left_reservation, right_reservation)
+                    df.drop(columns=[right_reservation], inplace=True)
+                else:
+                    df.rename(columns={right_reservation: left_reservation}, inplace=True)
+            all_data.append(df)
+
+        assert len(all_data) > 0
+        if len(all_data) == 1:
+            self._data = all_data[0]
+        else:
+            self._data = pd.concat(all_data, ignore_index=True)
 
     @staticmethod
     def _get_target_path(suffix: str = None) -> str:
