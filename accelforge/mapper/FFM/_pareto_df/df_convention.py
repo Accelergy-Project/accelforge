@@ -126,24 +126,20 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
         raise ValueError(f"bad column name: {colname}")
 
 
-ReservationKey = namedtuple("ReservationKey", ["name", "nloops", "is_left", "thread"])
+ReservationKey = namedtuple("ReservationKey", ["name", "nloops"])
 @dict_cached
 def col2reservation(x: str) -> ReservationKey | None:
-    """Format: reservation name nloops left thread"""
-    x = partition_col(x, "reservation", 5)
+    """Format: reservation name nloops left"""
+    x = partition_col(x, "reservation", 4)
     if x is None:
         return None
-    return ReservationKey(x[0], int(x[1]), x[2] == "left", int(x[3]))
+    return ReservationKey(x[0], int(x[1]))
 
 
 @dict_cached
-def reservation2col(name: str, nloops: int, left: bool = False, thread: int = 0) -> str:
-    """Format: reservation name nloops left thread"""
-    return (
-        f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
-        +
-        f"<SEP>{thread}"
-    )
+def reservation2col(name: str, nloops: int, left: bool = False) -> str:
+    """Format: reservation name nloops left"""
+    return f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
 
 
 @dict_cached
@@ -222,6 +218,15 @@ def col2nameloopleft(x: str) -> tuple[str, int, bool] | None:
 
 def is_reservation_col(x: str) -> bool:
     return col2reservation(x) is not None
+
+
+@dict_cached
+def is_left_col(x: str) -> bool:
+    """Format: reservation name level left"""
+    x = partition_col(x, "reservation", 4)
+    if x is None:
+        return False
+    return x[2] == "left"
 
 
 def make_fused_loop_col(s: str) -> str:

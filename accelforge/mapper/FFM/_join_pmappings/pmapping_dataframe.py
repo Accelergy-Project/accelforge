@@ -237,7 +237,7 @@ class PmappingDataframe:
         l_reservations, r_reservations = {}, {}
         for c in self.data.columns:
             if (key := col2reservation(c)) is not None:
-                target = l_reservations if key.is_left else r_reservations
+                target = l_reservations if is_left_col(c) else r_reservations
                 target.setdefault(key.name, set()).add(key.nloops)
                 assert key.nloops >= -1
 
