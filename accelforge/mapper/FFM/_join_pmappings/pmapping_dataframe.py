@@ -273,43 +273,17 @@ class PmappingDataframe:
             return False
         self._prev_free_to_loop_index = loop_index
 
-        drop_columns = []
-        l_reservations, r_reservations = self._make_reservations()
-        for resource in set(l_reservations) | set(r_reservations):
-            max_columns = []
-            cur_l_reservations = l_reservations.get(resource, set())
-            cur_r_reservations = r_reservations.get(resource, set())
-            left_big_enough = [l for l in cur_l_reservations if l >= loop_index + 1]
-            right_big_enough = [
-                r for r in cur_r_reservations if r >= loop_index + 2
-            ]  # + 1 is target
+        if self._bottom_index() is None:
+            return False
 
-            if len(right_big_enough) > 1:  # All ones above the last are subsets
-                right_biggest = max(right_big_enough)
-                right_big_enough.remove(right_biggest)
-                drop_columns += [reservation2col(resource, r) for r in right_big_enough]
-                right_big_enough = [right_biggest]
+        indices_to_consolidate = self._indices_with_split() | {self._bottom_index()}
 
-            max_columns = [reservation2col(resource, r) for r in right_big_enough] + [
-                reservation2col(resource, l, left=True) for l in left_big_enough
-            ]
-
-            if not max_columns:
-                continue
-
-            target = reservation2col(resource, loop_index + 1)
-            if target in self.data:
-                max_columns.append(target)
-
-            if len(max_columns) == 1:
-                self.data.rename(columns={max_columns[0]: target}, inplace=True)
-            else:
-                for c in max_columns:
-                    max_to_col(self.data, target, c)
-                drop_columns += [m for m in max_columns if m != target]
-        self.data.drop(columns=drop_columns, inplace=True)
-
-        return len(drop_columns) != 0
+        for i in sorted(indices_to_consolidate, reverse=True):
+            if i == loop_index:
+                break
+            self.shift_bottom_reservation_left(i)
+            self.consolidate_bottom_split(i)
+        return True
 
     @error_check_wrapper
     def get_reservation_or_parent(
@@ -335,6 +309,46 @@ class PmappingDataframe:
                 level -= 1
         return None
 
+
+    @error_check_wrapper
+    def consolidate_bottom_split(self, bottom_loop_index: int):
+        """
+        Consolidate bottom split.
+        Example (bottom_loop_index = 1):
+            Before:                After:
+            A  B                   A B
+             / | --- 0             / | --- 0
+            C  D                  C  E+F-D
+             / | --- 1
+            F  E
+        """
+        # TODO: account for other metrics
+        l_reservations, _r_reservations = self._make_reservations()
+        drop_columns = []
+        idx_under_bottom_loop = bottom_loop_index + 1
+        for resource in l_reservations:
+            if idx_under_bottom_loop not in l_reservations[resource]:
+                continue
+            target = reservation2col(resource, bottom_loop_index, is_left=False)
+            left_reservation_cols = set(get_reservation_cols_with(
+                self.data,
+                resource,
+                idx_under_bottom_loop,
+                is_left=True
+            ))
+            drop_columns.extend(left_reservation_cols)
+            reservation_above = self.get_reservation_or_parent(
+                resource,
+                bottom_loop_index,
+                l_reservations,
+                _r_reservations
+            )
+            self.data.iloc[:,target] = -self.data[reservation_above]*len(left_reservation_cols)
+            for left_reservation_col in left_reservation_cols:
+                add_to_col(self.data, target, left_reservation_col)
+        self.data.drop(drop_columns)
+
+
     @error_check_wrapper
     def shift_bottom_reservation_left(self, bottom_loop_index: int):
         """
@@ -353,9 +367,12 @@ class PmappingDataframe:
             if bottom_loop_index + 1 not in r_reservations[resource]:
                 continue
             right_reservation = reservation2col(resource, bottom_loop_index + 1)
-            new_left_concurrent_threads = set(
+            left_reservation_cols = set(
                 get_reservation_cols_with(self.data, resource, bottom_loop_index+1, is_left=True)
             )
+            new_left_concurrent_threads = {
+                col2reservation(c).threads for c in left_reservation_cols
+            }
             if left_concurrent_threads is None:
                 left_concurrent_threads = new_left_concurrent_threads
             else:
@@ -365,6 +382,9 @@ class PmappingDataframe:
             left_concurrent_threads = {0}
 
         # Explore placing right branch in any of the left threads
+        # TODO: extend lifetime of live_tensors
+        # TODO: account for latency
+        # TODO: account for other metrics
         assert len(left_concurrent_threads) > 0
         all_data = []
         for thread_i in left_concurrent_threads:
@@ -379,6 +399,12 @@ class PmappingDataframe:
                     df.drop(columns=[right_reservation], inplace=True)
                 else:
                     df.rename(columns={right_reservation: left_reservation}, inplace=True)
+            assert not set(get_reservation_cols_with(
+                df,
+                name=None,
+                nloops=bottom_loop_index+1,
+                is_left=False
+            ))
             all_data.append(df)
 
         assert len(all_data) > 0
@@ -876,6 +902,25 @@ class PmappingDataframe:
 
     def has_reservations(self):
         return any(col2reservation(c) is not None for c in self.data.columns)
+
+    # ============================================================================
+    # Helper functions
+    # ============================================================================
+    def _indices_with_split(self) -> set[int]:
+        return {
+            col2reservation(c).nloops
+            for c in (
+                set(get_reservation_cols_with(self.data, is_left=False))
+                &
+                set(get_reservation_cols_with(self.data, is_left=True))
+            )
+        }
+
+    def _bottom_index(self) -> int:
+        reservations = list(get_reservation_cols_with(self.data))
+        if not reservations:
+            return None
+        return max([col2reservation(c).nloops for c in reservations])
 
     # ============================================================================
     # Checking functions
