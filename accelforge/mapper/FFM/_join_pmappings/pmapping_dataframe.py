@@ -336,7 +336,7 @@ class PmappingDataframe:
         return None
 
     @error_check_wrapper
-    def shift_bottom_reservation_left(self, shared_loop_index: int):
+    def shift_bottom_reservation_left(self, bottom_loop_index: int):
         """
         Shifts the bottom reservation from right to left.
         Example:
@@ -347,15 +347,12 @@ class PmappingDataframe:
                | --- 1             /   --- 1
                E                  E
         """
-        l_reservations, r_reservations = self._make_reservations()
+        _l_reservations, r_reservations = self._make_reservations()
         for resource in r_reservations:
-            if shared_loop_index + 1 not in r_reservations[resource]:
+            if bottom_loop_index + 1 not in r_reservations[resource]:
                 continue
-            l_reservations.setdefault(resource, set())
-            r_reservations[resource].remove(shared_loop_index + 1)
-            l_reservations[resource].add(shared_loop_index + 1)
-            source = reservation2col(resource, shared_loop_index + 1)
-            target = reservation2col(resource, shared_loop_index + 1, left=True)
+            source = reservation2col(resource, bottom_loop_index + 1)
+            target = reservation2col(resource, bottom_loop_index + 1, left=True)
             if target in self.data:
                 max_to_col(self.data, target, source)
                 self.data.drop(columns=[source], inplace=True)
