@@ -162,7 +162,6 @@ def join_strategy_2(
             else:
                 print("Final clean join.")
         try:
-            compressed = deepcopy(compressed)
             compressed = prune_with_tolerance(
                 compressed,
                 objective_tolerance=threshold,
@@ -170,7 +169,7 @@ def join_strategy_2(
                 print_progress=print_progress,
             )
             joined = join_pmappings(
-                compressed,
+                deepcopy(compressed),
                 spec,
                 _pmapping_row_filter_function=filter_func,
                 print_progress=print_progress,
