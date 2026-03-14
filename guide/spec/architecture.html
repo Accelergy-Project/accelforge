@@ -1,0 +1,813 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Arch Specification &#8212; accelforge 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'guide/spec/architecture';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Mapping Specification" href="mapping.html" />
+    <link rel="prev" title="Input Specifications" href="../spec.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt="accelforge 0.1.0 documentation - Home"/>
+    <img src="../../_static/logo.svg" class="logo__image only-dark pst-js-only" alt="accelforge 0.1.0 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../guide.html">
+    User Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../modules.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../citation.html">
+    Citing AccelForge
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contributing.html">
+    Contributing
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../spec.html">Input Specifications</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Arch Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mapping.html">Mapping Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="workload.html">Workload and Renames Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parsing/evaluation.html">Expression Evaluation</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../parsing/yaml_parsing.html">YAML Parsing</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../modeling.html">How Modeling Works</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../modeling/component_energy_area.html">Component Energy and Area</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modeling/accelerator_energy_latency.html">Accelerator Energy, Area, and Latency</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modeling/mapping.html">Mapping with Fast &amp; Fusiest</a></li>
+
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../definitions.html">Definitions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../timeloop_compare.html">Migrating from Timeloop</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../guide.html" class="nav-link">User Guide</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../spec.html" class="nav-link">Input Specifications</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Arch Specification</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="arch-specification">
+<h1>Arch Specification<a class="headerlink" href="#arch-specification" title="Link to this heading">#</a></h1>
+<p>The architecture, defined by the <a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Arch" title="accelforge.frontend.arch.Arch"><code class="xref py py-class docutils literal notranslate"><span class="pre">Arch</span></code></a> class,
+describes the hardware that is running the workload. An architecture is represented as a
+tree, where branches in the tree represent different compute paths that may be taken.
+For the rest of this section, we will assume that the architecture has been <em>flattened</em>,
+meaning that there are no branches in the tree. The flattening procedure is described in
+the <a class="reference internal" href="#flattening"><span class="std std-ref">Flattening</span></a> section.</p>
+<p>A flattened architecture is a hierarchy of components with a
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Compute" title="accelforge.frontend.arch.Compute"><code class="xref py py-class docutils literal notranslate"><span class="pre">Compute</span></code></a> at the bottom. The following components
+are supported:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Memory" title="accelforge.frontend.arch.Memory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Memory</span></code></a> components store and reuse data.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Toll" title="accelforge.frontend.arch.Toll"><code class="xref py py-class docutils literal notranslate"><span class="pre">Toll</span></code></a> components perform some non-compute action
+(<em>e.g.,</em> quantizing or transferring data) and charge for data passing through them.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Compute" title="accelforge.frontend.arch.Compute"><code class="xref py py-class docutils literal notranslate"><span class="pre">Compute</span></code></a> components performs the Einsum’s
+computation.</p></li>
+</ul>
+<p>In architecture YAML files, each component is represented by a YAML dictionary. Component
+types are preceded by the <code class="docutils literal notranslate"><span class="pre">!</span></code> character. An example architecture is shown below:</p>
+<div class="code yaml highlight-default notranslate"><div class="highlight"><pre><span></span>arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    leak_power: 0
+    area: 0 # Don&#39;t include off-chip DRAM area
+    actions:
+      # Upper end of the range from the TPU paper. The lower end came from their
+      # reference, and they said it left out some things.
+    - {name: read, energy: 7.03e-12, latency: 1 / (8 * 614e9)}
+    - {name: write, energy: 7.03e-12, latency: 1 / (8 * 614e9)}
+    tensors: {keep: ~Intermediates, may_keep: All}
+
+  - !Memory
+    name: GlobalBuffer
+    size: 1024*1024*128*8 # 128MB
+    total_latency: max(read_latency, write_latency) # Separate ports
+    leak_power: 0
+    area: 112e-6 # 112 mm^2
+    actions:
+    - {name: read, energy: 1.88e-12, latency: 1 / (8 * 2048e9)}
+    - {name: write, energy: 2.36e-12, latency: 1 / (8 * 1024e9)}
+    tensors: {keep: ~MainMemory.tensors, may_keep: All}
+
+  - !Memory
+    name: LocalBuffer
+    spatial: [{name: Z, fanout: 4, may_reuse: Nothing, min_usage: 1}]
+    size: 1024*1024*4*8 # 4MB
+    leak_power: 0
+    area: 50e-6 # 50 mm^2. Very rough estimate based on die photo.
+    actions:
+    - {name: read, energy: 0.249e-12, latency: 0}
+    - {name: write, energy: 0.293e-12, latency: 0}
+    tensors: {keep: input | output}
+
+  - !Compute
+    name: ScalarUnit
+    area: 10e-6 # 10 um^2. Very rough estimate based on die photo.
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 0, latency: 1 / 1.05e9 / 128}
+    enabled: len(All) == 2
+
+  - !Container
+    name: ProcessingElement
+    spatial:
+    - {name: reuse_input, fanout: 128, may_reuse: input, reuse: input, min_usage: 1}
+    - {name: reuse_output, fanout: 128, may_reuse: output, reuse: output, min_usage: 1}
+
+  - !Memory
+    name: Register
+    size: weight.bits_per_value if weight else 0
+    area: 1e-11 # 10 um^2. Very rough estimate based on die photo.
+    leak_power: 0
+    actions:
+    - {name: read, energy: 0, latency: 0}
+    - {name: write, energy: 0, latency: 0}
+    tensors: {keep: weight}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 9e-11 # 90 um^2. Very rough estimate based on die photo.
+    actions:
+    - {name: compute, energy: 0.084e-12, latency: 1 / 1.05e9}
+    enabled: len(All) == 3
+</pre></div>
+</div>
+<section id="flattening">
+<span id="id1"></span><h2>Flattening<a class="headerlink" href="#flattening" title="Link to this heading">#</a></h2>
+<p>A given Einsum may be executed only on a single
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Compute" title="accelforge.frontend.arch.Compute"><code class="xref py py-class docutils literal notranslate"><span class="pre">Compute</span></code></a>, and it may use hardware objects between
+the root of the tree and the leaf for that
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Compute" title="accelforge.frontend.arch.Compute"><code class="xref py py-class docutils literal notranslate"><span class="pre">Compute</span></code></a>. Flattening an architecture converts a
+tree architecture into multiple parallel <em>Flattened Architectures</em>, each one
+representing one possible path from the root of the tree to the leaf for that
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Compute" title="accelforge.frontend.arch.Compute"><code class="xref py py-class docutils literal notranslate"><span class="pre">Compute</span></code></a>.</p>
+<p>For example, in the architecture above, there are two compute units, the <code class="docutils literal notranslate"><span class="pre">scalar_unit</span></code>
+and the <code class="docutils literal notranslate"><span class="pre">mac</span></code>. Flattening this architecture will produce two Flattened Architectures;
+one with a <code class="docutils literal notranslate"><span class="pre">scalar_unit</span></code> and one with a <code class="docutils literal notranslate"><span class="pre">mac</span></code>. The partial mappings for each of
+these architectures can be combined, and can share hardware that exists above both
+compute units.</p>
+<p>Inserting a <a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Compute" title="accelforge.frontend.arch.Compute"><code class="xref py py-class docutils literal notranslate"><span class="pre">Compute</span></code></a> directly into the top-level
+architecture hierarchy will create an optional compute path that goes from the top node
+to the compute. More complex topologies (<em>e.g.,</em> give an upper-level compute a private
+cache) can be created by creating sub-branches following <a class="reference internal" href="#sub-branches"><span class="std std-ref">Sub-Branches</span></a>.</p>
+</section>
+<section id="sub-branches">
+<span id="id2"></span><h2>Sub-Branches<a class="headerlink" href="#sub-branches" title="Link to this heading">#</a></h2>
+<p>Sub-branches in the architecture can represent different execution paths. The primary
+<cite>~accelforge.frontend.arch.Arch</cite> class is a <cite>~accelforge.frontend.arch.Hierarchical</cite>
+node, which represents a single hierarchy where each node is a parent of the following
+nodes. Additionally, <cite>~accelforge.frontend.arch.Fork</cite> can branch off from the main
+hierarchy. to represent alternate compute paths. They may be written with the following
+syntax:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="kt">!Memory</span>
+<span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="kt">!Memory</span>
+<span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="kt">!Fork</span>
+<span class="w">  </span><span class="nt">nodes</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="kt">!Memory</span>
+<span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+<span class="w">  </span><span class="c1"># This compute is the final node in the Fork. The Fork is terminated afterwards</span>
+<span class="w">  </span><span class="c1"># (because we end the list), and the main hierarchy continues.</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="kt">!Compute</span>
+<span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="c1"># Continuing the main hierarchy</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="kt">!Memory</span>
+<span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="kt">!Compute</span>
+<span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">...</span>
+</pre></div>
+</div>
+</section>
+<section id="spatial-fanouts">
+<h2>Spatial Fanouts<a class="headerlink" href="#spatial-fanouts" title="Link to this heading">#</a></h2>
+<p>Spatial fanouts describe the spatial organization of components in the architecture. Any
+component may have spatial fanouts, and fanouts are allowed in any dimension. While any
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Leaf" title="accelforge.frontend.arch.Leaf"><code class="xref py py-class docutils literal notranslate"><span class="pre">Leaf</span></code></a> node can instantiate spatial fanouts, it is
+often convenient to use the dedicated <a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Container" title="accelforge.frontend.arch.Container"><code class="xref py py-class docutils literal notranslate"><span class="pre">Container</span></code></a>
+class.</p>
+<p>When a fanout is instantiated, the given component, alongside all of its children, are
+duplicated in the given dimension(s). For example, in the TPU v4i architecture above,
+the <code class="docutils literal notranslate"><span class="pre">LocalBuffer</span></code> component has a size-4 spatial fanout in the <code class="docutils literal notranslate"><span class="pre">Z</span></code> dimension,
+meaning
+that there are 4 instances of the component. The register component has both the size-4
+<code class="docutils literal notranslate"><span class="pre">Z</span></code> fanout spatial fanout, as well as two size-128 spatial fanouts in the <code class="docutils literal notranslate"><span class="pre">reuse_input</span></code>
+and <code class="docutils literal notranslate"><span class="pre">reuse_output</span></code> dimensions, respectively.</p>
+<p>Reuse in spatial dimensions may be controlled with the
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Spatial.may_reuse" title="accelforge.frontend.arch.Spatial.may_reuse"><code class="xref py py-attr docutils literal notranslate"><span class="pre">may_reuse</span></code></a> keyword, which takes in a set
+expression that is evaluated according to the set expression section of the <a class="reference internal" href="../parsing/evaluation.html#set-expressions"><span class="std std-ref">Set
+Expressions</span></a> guide. In the example, nothing is reused spatially
+betweeen <code class="docutils literal notranslate"><span class="pre">LocalBuffer</span></code> instances, while inputs and outputs are reused across registers
+in the <code class="docutils literal notranslate"><span class="pre">reuse_input</span></code> and <code class="docutils literal notranslate"><span class="pre">reuse_output</span></code> dimensions, respectively. Additionally, the
+<code class="docutils literal notranslate"><span class="pre">reuse</span></code> keyword can be used to force reuse; for example, <code class="docutils literal notranslate"><span class="pre">reuse:</span> <span class="pre">input</span></code> means that
+all spatial instances must use the same input values, otherwise the mapping will be
+invalid.</p>
+<p>Spatial fanouts support the following keywords:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.fanout" title="accelforge.frontend.arch.spatialable.Spatial.fanout"><code class="xref py py-attr docutils literal notranslate"><span class="pre">fanout</span></code></a>: The size of this fanout.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.loop_bounds" title="accelforge.frontend.arch.spatialable.Spatial.loop_bounds"><code class="xref py py-attr docutils literal notranslate"><span class="pre">loop_bounds</span></code></a>: Bounds for loops over this dimension. This is a list of :class:`~.Comparison`
+    objects, all of which must be satisfied by the loops to which this constraint
+    applies.
+
+    Note: Loops may be removed if they are constrained to only one iteration.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.may_reuse" title="accelforge.frontend.arch.spatialable.Spatial.may_reuse"><code class="xref py py-attr docutils literal notranslate"><span class="pre">may_reuse</span></code></a>: The tensors that can be reused spatially across instances of this fanout. This
+    expression will be evaluated for each mapping template.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.min_usage" title="accelforge.frontend.arch.spatialable.Spatial.min_usage"><code class="xref py py-attr docutils literal notranslate"><span class="pre">min_usage</span></code></a>: The minimum usage of spatial instances, as a value from 0 to 1. A mapping
+    is invalid if less than this porportion of this dimension’s fanout is utilized.
+    Mappers that support it (e.g., FFM) may, if no mappings satisfy this constraint,
+    return the highest-usage mappings.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.name" title="accelforge.frontend.arch.spatialable.Spatial.name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">name</span></code></a>: The name of the dimension over which this spatial fanout is occurring (e.g., X or Y).</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.power_gateable" title="accelforge.frontend.arch.spatialable.Spatial.power_gateable"><code class="xref py py-attr docutils literal notranslate"><span class="pre">power_gateable</span></code></a>: Whether this spatial fanout has power gating. If True, then unused spatial instances
+    will be power gated if not used by a particular Einsum.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.reuse" title="accelforge.frontend.arch.spatialable.Spatial.reuse"><code class="xref py py-attr docutils literal notranslate"><span class="pre">reuse</span></code></a>: A set of tensors or a set expression representing tensors that must be reused
+    across spatial iterations. Spatial loops may only be placed that reuse ALL tensors
+    given here.
+
+    Note: Loops may be removed if they do not reuse a tensor given here and they do not
+    appear in another loop bound constraint.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatial.usage_scale" title="accelforge.frontend.arch.spatialable.Spatial.usage_scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">usage_scale</span></code></a>: This factor scales the usage in this dimension. For example, if usage_scale is 2 and
+    10/20 spatial instances are used, then the usage will be scaled to 20/20.</p></li>
+</ul>
+</section>
+<section id="tensor-holders">
+<h2>Tensor Holders<a class="headerlink" href="#tensor-holders" title="Link to this heading">#</a></h2>
+<p>Tensor holders, which include <a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Memory" title="accelforge.frontend.arch.Memory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Memory</span></code></a> and
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Toll" title="accelforge.frontend.arch.Toll"><code class="xref py py-class docutils literal notranslate"><span class="pre">Toll</span></code></a> components, hold tensors.</p>
+<p>A <cite>Memory</cite> is a <cite>TensorHolder</cite> that stores data over time, allowing for temporal reuse..</p>
+<p>A <cite>Toll</cite> is a <cite>TensorHolder</cite> that does not store data over time, and therefore does not allow for temporal reuse. Use this as a toll that charges reads and writes every time a piece of data moves through it. Every write to a <cite>Toll</cite> is immediately written to the next <cite>Memory</cite> (which may be above or below depending on where the write came from), and same for reads. The access counts of a <cite>Toll</cite> are only included in the “read” action. Each traversal through the <cite>Toll</cite> is counted as a read. Writes are always zero..</p>
+<p>A <cite>Memory</cite> is a <cite>TensorHolder</cite> that stores data over time, allowing for temporal reuse. and
+A <cite>Toll</cite> is a <cite>TensorHolder</cite> that does not store data over time, and therefore does not allow for temporal reuse. Use this as a toll that charges reads and writes every time a piece of data moves through it. Every write to a <cite>Toll</cite> is immediately written to the next <cite>Memory</cite> (which may be above or below depending on where the write came from), and same for reads. The access counts of a <cite>Toll</cite> are only included in the “read” action. Each traversal through the <cite>Toll</cite> is counted as a read. Writes are always zero. support the following fields:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.actions" title="accelforge.frontend.arch.components.Component.actions"><code class="xref py py-attr docutils literal notranslate"><span class="pre">actions</span></code></a>: The actions that this `TensorHolder` can perform.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.area" title="accelforge.frontend.arch.components.Component.area"><code class="xref py py-attr docutils literal notranslate"><span class="pre">area</span></code></a>: The area of a single instance of this component in m^2. If set, area calculations
+    will use this value.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.area_scale" title="accelforge.frontend.arch.components.Component.area_scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">area_scale</span></code></a>: The scale factor for the area of this comxponent. This is used to scale the area of
+    this component. For example, if the area is 1 m^2 and the scale factor is 2, then
+    the area is 2 m^2.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.TensorHolder.bits_per_action" title="accelforge.frontend.arch.components.TensorHolder.bits_per_action"><code class="xref py py-attr docutils literal notranslate"><span class="pre">bits_per_action</span></code></a>: The number of bits accessed in each of this component’s actions. Overridden by
+    bits_per_action in any action of this component. If set here, acts as a default
+    value for the bits_per_action of all actions of this component.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.TensorHolder.bits_per_value_scale" title="accelforge.frontend.arch.components.TensorHolder.bits_per_value_scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">bits_per_value_scale</span></code></a>: A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
+    this is a dictionary, keys in the dictionary are evaluated as expressions and may
+    reference one or more tensors.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.component_class" title="accelforge.frontend.arch.components.Component.component_class"><code class="xref py py-attr docutils literal notranslate"><span class="pre">component_class</span></code></a>: The class of this `Component`. Used if an energy or area model needs to be
+    called for this `Component`.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.component_model" title="accelforge.frontend.arch.components.Component.component_model"><code class="xref py py-attr docutils literal notranslate"><span class="pre">component_model</span></code></a>: The model to use for this `Component`. If not set, the model will be found with
+    `hwcomponents.get_models()`. If set, the `component_class` will be ignored.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.component_modeling_log" title="accelforge.frontend.arch.components.Component.component_modeling_log"><code class="xref py py-attr docutils literal notranslate"><span class="pre">component_modeling_log</span></code></a>: A log of the energy and area calculations for this `Component`.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.enabled" title="accelforge.frontend.arch.components.Component.enabled"><code class="xref py py-attr docutils literal notranslate"><span class="pre">enabled</span></code></a>: Whether this component is enabled. If the expression resolves to False, then
+    the component is disabled. This is evaluated per-pmapping-template, so it is a function
+    of the tensors in the current Einsum. For example, you may say `len(All) &gt;= 3` and
+    the component will only be enabled with Einsums with three or more tensors.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.energy_scale" title="accelforge.frontend.arch.components.Component.energy_scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">energy_scale</span></code></a>: The scale factor for dynamic energy of this component. For each action, multiplies
+    this action’s energy. Multiplies the calculated energy of each action.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.extra_attributes_for_component_model" title="accelforge.frontend.arch.components.Component.extra_attributes_for_component_model"><code class="xref py py-attr docutils literal notranslate"><span class="pre">extra_attributes_for_component_model</span></code></a>: Extra attributes to pass to the component model. In addition to all attributes
+    of this component, any extra attributes will be passed to the component model. This
+    can be used to define attributes that are known to the component model, but not
+    accelforge, such as the technology node.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.latency_scale" title="accelforge.frontend.arch.components.Component.latency_scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">latency_scale</span></code></a>: The scale factor for the latency of this component. This is used to scale the
+    latency of this component. For example, if the latency is 1 ns and the scale factor
+    is 2, then the latency is 2 ns. Multiplies the calculated latency of each action.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.leak_power" title="accelforge.frontend.arch.components.Component.leak_power"><code class="xref py py-attr docutils literal notranslate"><span class="pre">leak_power</span></code></a>: The leak power of a single instance of this component in W. If set, leak power
+    calculations will use this value.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.leak_power_scale" title="accelforge.frontend.arch.components.Component.leak_power_scale"><code class="xref py py-attr docutils literal notranslate"><span class="pre">leak_power_scale</span></code></a>: The scale factor for the leak power of this component. This is used to scale the
+    leak power of this component. For example, if the leak power is 1 W and the scale
+    factor is 2, then the leak power is 2 W.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.n_parallel_instances" title="accelforge.frontend.arch.components.Component.n_parallel_instances"><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_parallel_instances</span></code></a>: The number of parallel instances of this component. Increasing parallel instances
+    will proportionally increase area and leakage, while reducing latency (unless
+    latency calculation is overridden).</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.structure.Leaf.name" title="accelforge.frontend.arch.structure.Leaf.name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">name</span></code></a>: The name of this `Component`.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.spatialable.Spatialable.spatial" title="accelforge.frontend.arch.spatialable.Spatialable.spatial"><code class="xref py py-attr docutils literal notranslate"><span class="pre">spatial</span></code></a>: The spatial fanouts of this `Leaf`.
+
+    Spatial fanouts describe the spatial organization of components in the architecture.
+    A spatial fanout of size N for this node means that there are N instances of this
+    node. Multiple spatial fanouts lead to a multi-dimensional fanout. Spatial
+    constraints apply to the data exchange across these instances. Spatial fanouts
+    specified at this level also apply to lower-level `Leaf` nodes in the architecture.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.TensorHolder.tensors" title="accelforge.frontend.arch.components.TensorHolder.tensors"><code class="xref py py-attr docutils literal notranslate"><span class="pre">tensors</span></code></a>: Fields that control which tensor(s) are kept in this `TensorHolder` and in what
+    order their nodes may appear in the mapping.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.total_area" title="accelforge.frontend.arch.components.Component.total_area"><code class="xref py py-attr docutils literal notranslate"><span class="pre">total_area</span></code></a>: The total area of all instances of this component in m^2. Do not set this value. It
+    is calculated when the architecture’s area is calculated.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.total_latency" title="accelforge.frontend.arch.components.Component.total_latency"><code class="xref py py-attr docutils literal notranslate"><span class="pre">total_latency</span></code></a>: An expression representing the total latency of this component in seconds. This is
+    used to calculate the latency of a given Einsum. Special variables available are the
+    following:
+
+    - `min`: The minimum value of all arguments to the expression.
+    - `max`: The maximum value of all arguments to the expression.
+    - `sum`: The sum of all arguments to the expression.
+    - `X_actions`: The number of times action `X` is performed. For example,
+      `read_actions` is the number of times the read action is performed.
+    - `X_latency`: The total latency of all actions of type `X`. For example,
+      `read_latency` is the total latency of all read actions. It is equal to the
+      per-read latency multiplied by the number of read actions.
+    - `action2latency`: A dictionary of action names to their latency.
+
+    Additionally, all component attributes are availble as variables, and all other
+    functions generally available in parsing. Note this expression is evaluated after other
+    component attributes are evaluated.
+
+    For example, the following expression calculates latency assuming that each read or
+    write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Component.total_leak_power" title="accelforge.frontend.arch.components.Component.total_leak_power"><code class="xref py py-attr docutils literal notranslate"><span class="pre">total_leak_power</span></code></a>: The total leak power of all instances of this component in W. Do not set this value.
+    It is calculated when the architecture’s leak power is calculated. If instances are
+    power gated, actual leak power may be less than this value.</p></li>
+</ul>
+<p>Additionally, <a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Memory" title="accelforge.frontend.arch.Memory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Memory</span></code></a> objects include:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Memory.size" title="accelforge.frontend.arch.components.Memory.size"><code class="xref py py-attr docutils literal notranslate"><span class="pre">size</span></code></a>: The size of this `Memory` in bits.</p></li>
+</ul>
+<p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Toll" title="accelforge.frontend.arch.Toll"><code class="xref py py-class docutils literal notranslate"><span class="pre">Toll</span></code></a> objects also include:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Toll.direction" title="accelforge.frontend.arch.components.Toll.direction"><code class="xref py py-attr docutils literal notranslate"><span class="pre">direction</span></code></a>: The direction in which data flows through this `Toll`. If “up”, then data
+    flows from below `TensorHolder`, through this `Toll` (plus paying
+    associated costs), and then to the next `TensorHolder` above it. Other data
+    movements are assumed to avoid this Toll.</p></li>
+</ul>
+<p>Additionally, they have an additional <code class="docutils literal notranslate"><span class="pre">tensors</span></code> field, which is used to define the
+tensors that are held by the component. They are represented by the
+<a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.Tensors" title="accelforge.frontend.arch.Tensors"><code class="xref py py-class docutils literal notranslate"><span class="pre">Tensors</span></code></a> class, which supports the following
+fields:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors.back" title="accelforge.frontend.arch.components.Tensors.back"><code class="xref py py-attr docutils literal notranslate"><span class="pre">back</span></code></a>: A set expression describing which tensors must be backed by this
+    :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then no
+    tensors must be backed.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors.force_memory_hierarchy_order" title="accelforge.frontend.arch.components.Tensors.force_memory_hierarchy_order"><code class="xref py py-attr docutils literal notranslate"><span class="pre">force_memory_hierarchy_order</span></code></a>: If set to true, storage nodes for lower-level memories must be placed below storage
+    nodes for higher-level memories. For example, all MainMemory storage nodes must go
+    above all LocalBuffer storage nodes.
+
+    This constraint always applies to same-tensor storage nodes (e.g., MainMemory
+    reusing Output must go above LocalBuffer reusing Output); turning it off will permit
+    things like MainMemory reusing Output going above LocalBuffer reusing Input.
+
+    This is identical to the `force_memory_hierarchy_order` field in the `FFM` class,
+    but only applies to this tensor holder.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors.keep" title="accelforge.frontend.arch.components.Tensors.keep"><code class="xref py py-attr docutils literal notranslate"><span class="pre">keep</span></code></a>: A set expression describing which tensors must be kept in this
+    :class:`accelforge.frontend.arch.TensorHolder`. If this is not defined, then all
+    tensors must be kept. Any tensors that are in ``back`` will also be added to
+    ``keep``.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors.may_keep" title="accelforge.frontend.arch.components.Tensors.may_keep"><code class="xref py py-attr docutils literal notranslate"><span class="pre">may_keep</span></code></a>: A set expression describing which tensors may optionally be kept in this
+    :class:`accelforge.frontend.arch.TensorHolder`. The mapper will explore both keeping
+    and not keeping each of these tensors. If this is not defined, then all tensors may
+    be kept.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors.no_refetch_from_above" title="accelforge.frontend.arch.components.Tensors.no_refetch_from_above"><code class="xref py py-attr docutils literal notranslate"><span class="pre">no_refetch_from_above</span></code></a>: The tensors that are not allowed to be refetched from above. This is given as a set
+    of :class:`~.TensorName` objects or a set expression that resolves to them. These
+    tensors must be fetched at most one time from above memories, and may not be
+    refetched across any temporal or spatial loop iterations. Tensors may be fetched in
+    pieces (if they do not cause re-fetches of any piece).</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors.tensor_order_options" title="accelforge.frontend.arch.components.Tensors.tensor_order_options"><code class="xref py py-attr docutils literal notranslate"><span class="pre">tensor_order_options</span></code></a>: Options for the order of tensor storage nodes in the mapping. This is given as a
+    list-of-lists-of-sets. Each list-of-sets is a valid order of tensor storage nodes.
+    Order is given from highest in the mapping to lowest.
+
+    For example, an option could be [input | output, weight], which means that there is
+    no relative ordering required between input and output, but weight must be below
+    both.</p></li>
+<li><p><a class="reference internal" href="../../accelforge.frontend.arch.html#accelforge.frontend.arch.components.Tensors.tile_shape" title="accelforge.frontend.arch.components.Tensors.tile_shape"><code class="xref py py-attr docutils literal notranslate"><span class="pre">tile_shape</span></code></a>: The tile shape for each rank variable. This is given as a list of
+    :class:`~.Comparison` objects, where each comparison must evaluate to True for a
+    valid mapping.</p></li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../spec.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Input Specifications</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="mapping.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Mapping Specification</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#flattening">Flattening</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sub-branches">Sub-Branches</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-fanouts">Spatial Fanouts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tensor-holders">Tensor Holders</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/guide/spec/architecture.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
