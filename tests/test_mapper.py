@@ -14,6 +14,17 @@ M_SHAPE = 64
 KN_SHAPE = 64
 
 
+class TestTransformer(unittest.TestCase):
+    def test_bert(self):
+        spec = Spec.from_yaml(
+            af.examples.arches.tpu_v4i,
+            af.examples.workloads.bert,
+        )
+        spec.arch.nodes["MainMemory"].tensors.keep = "All"
+        spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
+        mappings = spec.map_workload_to_arch()
+
+
 class ActionChecker(unittest.TestCase):
     def _check_memory_actions_exist(self, spec, memory_names, result):
         for einsum_name in spec.workload.einsum_names:

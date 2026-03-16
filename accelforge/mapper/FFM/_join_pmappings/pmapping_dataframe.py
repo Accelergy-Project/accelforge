@@ -2,6 +2,7 @@ from collections import defaultdict
 import copy
 import functools
 import itertools
+from operator import or_
 
 from typing import Any, Callable, Iterable
 
@@ -273,17 +274,14 @@ class PmappingDataframe:
             return False
         self._prev_free_to_loop_index = loop_index
 
-        if self._bottom_index() is None:
-            return False
-
-        indices_to_consolidate = self._indices_with_split() | {self._bottom_index()}
-
-        for i in sorted(indices_to_consolidate, reverse=True):
-            if i == loop_index:
-                break
+        updated = False
+        while self.get_max_loop_index() > loop_index:
+            updated = True
             self.shift_bottom_reservation_left()
             self.consolidate_bottom_split()
-        return True
+
+        return updated
+
 
     @error_check_wrapper
     def get_reservation_or_parent(
@@ -335,18 +333,21 @@ class PmappingDataframe:
                 bottom_index,
                 is_left=True
             ))
-            drop_columns.extend(left_reservation_cols)
             reservation_above = self.get_reservation_or_parent(
                 resource,
                 bottom_index,
                 l_reservations,
                 _r_reservations
             )
+            split_above = self._get_split_above(bottom_index)
+            assert split_above <= col2reservation(reservation_above).nloops
+            drop_columns = [
+                c for c in get_reservation_cols_with(self.data, resource)
+                if col2reservation(c).nloops >= split_above
+            ]
+            target = reservation2col(resource, split_above, left=False)
             if reservation_above:
-                target = reservation2col(resource, col2reservation(reservation_above).nloops, left=False)
                 self.data.loc[:,target] = -self.data[reservation_above]*len(left_reservation_cols)
-            else:
-                target = reservation2col(resource, -1, left=False)
             for left_reservation_col in left_reservation_cols:
                 add_to_col(self.data, target, left_reservation_col)
         self.data.drop(columns=drop_columns, inplace=True)
@@ -374,7 +375,7 @@ class PmappingDataframe:
             left_concurrent_threads = {0}
 
         # Explore placing right branch in any of the left threads
-        # TODO: extend lifetime of live_tensors
+        # TODO: extend lifetime of live_tensors and deduplicate tensors
         # TODO: account for latency
         # TODO: account for other metrics
         assert len(left_concurrent_threads) > 0
@@ -906,6 +907,12 @@ class PmappingDataframe:
     # ============================================================================
     # Helper functions
     # ============================================================================
+    def _get_split_above(self, idx: int):
+        """
+        Return the first index < `idx` which has both a left and right reservation.
+        """
+        return max([i for i in self._indices_with_split() if i < idx], default=-1)
+
     def _indices_with_split(self) -> set[int]:
         return {
             col2reservation(c).nloops
@@ -915,12 +922,6 @@ class PmappingDataframe:
                 set(get_reservation_cols_with(self.data, is_left=True))
             )
         }
-
-    def _bottom_index(self) -> int:
-        reservations = list(get_reservation_cols_with(self.data))
-        if not reservations:
-            return None
-        return max([col2reservation(c).nloops for c in reservations])
 
     # ============================================================================
     # Checking functions
