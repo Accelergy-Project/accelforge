@@ -386,7 +386,14 @@ def iterate_mappings_constraints(
                 yield mapping, constraints, symbol_table
                 n_yielded += 1
                 if n_yielded >= spec.mapper.max_pmapping_templates_per_einsum:
-                    return
+                    if spec.mapper._only_output_pmapping_with_index is None:
+                        return
+                    if (
+                        isinstance(spec.mapper._only_output_pmapping_with_index, dict)
+                        and einsum_name
+                        not in spec.mapper._only_output_pmapping_with_index
+                    ):
+                        return
 
 
 # =================================================================================================

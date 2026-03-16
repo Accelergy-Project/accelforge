@@ -66,18 +66,24 @@ class PmappingGroup:
         shared_loop_index = self.compatibility.shared_loop_index(
             right.compatibility.tensor_names | live_tensors_post_join
         )
-        assert shared_loop_index == self.compatibility.n_loops-1, \
-            "shared loop index not equal to left pmapping n_loops - 1"
-        next_shared_loop_index = compatibility_joined.shared_loop_index(live_tensors_post_join)
-        assert next_shared_loop_index == compatibility_joined.n_loops - 1, \
-            "next shared loop index not equal to joined pmapping n_loops - 1"
-        assert compatibility_joined.tensor_names.issubset(live_tensors_post_join), \
-            "joined compatibility includes tensors not live after joining"
+        assert (
+            shared_loop_index == self.compatibility.n_loops - 1
+        ), "shared loop index not equal to left pmapping n_loops - 1"
+        next_shared_loop_index = compatibility_joined.shared_loop_index(
+            live_tensors_post_join
+        )
+        assert (
+            next_shared_loop_index == compatibility_joined.n_loops - 1
+        ), "next shared loop index not equal to joined pmapping n_loops - 1"
+        assert compatibility_joined.tensor_names.issubset(
+            live_tensors_post_join
+        ), "joined compatibility includes tensors not live after joining"
 
         still_live_reservations = [
             r
             for r in self.compatibility.tensors
-            if r.name in live_tensors_post_join and r.name not in right.compatibility.tensor_names
+            if r.name in live_tensors_post_join
+            and r.name not in right.compatibility.tensor_names
         ]
 
         duplicated_aliased_tensors = set()

@@ -123,18 +123,26 @@ class ArchNode(EvalableModel):
             yield self, _parents
             _parents.append(self)
 
+        # Fork -> don't update the _parents list from MY parent because we're branching
+        # off
+        if isinstance(self, Fork):
+            _parents = list(_parents)
+
         if isinstance(self, Leaf):
             return
 
-        assert isinstance(self, Branch)
-        if isinstance(self, (Fork, Array)):
+        # Array -> Each node is independent. Create a new parent list for each one.
+        elif isinstance(self, Array):
             for node in self.nodes:
                 yield from node.iterate_hierarchically(list(_parents))
+
+        # Hierarchical -> Each node will update the _parents list to add itself and
+        # create the hierarchy
         elif isinstance(self, Hierarchical):
             for node in self.nodes:
                 yield from node.iterate_hierarchically(_parents)
         else:
-            raise RuntimeError("unhandled structure type")
+            raise RuntimeError(f"Unhandled structure type {type(self)}")
 
     def _render_node_name(self) -> str:
         """The name for a Pydot node."""

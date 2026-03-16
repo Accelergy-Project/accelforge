@@ -472,8 +472,8 @@ class PmappingDataframe:
               F2+D
         """
         live_tensors = compatibility_joined.tensor_names
-        shared_loop_index = compatibility_left.n_loops-1
-        next_shared_loop_index = compatibility_joined.n_loops-1
+        shared_loop_index = compatibility_left.n_loops - 1
+        next_shared_loop_index = compatibility_joined.n_loops - 1
 
         self.free_to_loop_index(shared_loop_index)
         self.shift_bottom_reservation_left()
@@ -593,8 +593,11 @@ class PmappingDataframe:
             # reservation from the right tree.
             for resource in iter_reservations(l_reservations):
                 if (
-                    source := right.get_reservation_or_parent(
-                        resource, nloops - 1, l_reservations, r_reservations
+                    source := get_reservation_or_parent(
+                        resource,
+                        nloops - 1,
+                        right_df_l_reservations,
+                        right_df_r_reservations,
                     )
                 ) is None:
                     continue
@@ -611,8 +614,11 @@ class PmappingDataframe:
             # so we remove them later.
             for resource in iter_reservations(r_reservations):
                 if (
-                    source := right.get_reservation_or_parent(
-                        resource, nloops, l_reservations, r_reservations
+                    source := get_reservation_or_parent(
+                        resource,
+                        nloops,
+                        right_df_l_reservations,
+                        right_df_r_reservations,
                     )
                 ) is None:
                     continue
@@ -653,10 +659,12 @@ class PmappingDataframe:
         ]
         reservations_of_live_tensor_not_in_right = [
             compatibility_joined.get_reservation_of_tensor(t)
-            for t in compatibility_joined.tensor_names - compatibility_right.tensor_names
+            for t in compatibility_joined.tensor_names
+            - compatibility_right.tensor_names
         ]
         live_to_alloc = [
-            r for r in reservations_of_live_tensor_not_in_right
+            r
+            for r in reservations_of_live_tensor_not_in_right
             if r.above_loop_index > shared_loop_index
         ]
         result.adjust_reservations(
@@ -829,8 +837,8 @@ class PmappingDataframe:
                     print(
                         f"Resource {resource} has no valid reservations. Failed for {col}: {next(iter(self.data[col]))} <= {1 + tolerance}: {next(iter(self.data[col])) <= 1 + tolerance}"
                     )
-                    for col in self.data.columns:
-                        print(f"{col}: {list[Any](self.data[col])}")
+                    for col2 in self.data.columns:
+                        print(f"{col2}: {list[Any](self.data[col2])}")
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
                     l == 0
@@ -856,8 +864,8 @@ class PmappingDataframe:
                     print(
                         f"Resource {resource} has no valid reservations. Failed for {col}: {next(iter(self.data[col]))} <= {1 + tolerance}: {next(iter(self.data[col])) <= 1 + tolerance}"
                     )
-                    for col in self.data.columns:
-                        print(f"{col}: {list[Any](self.data[col])}")
+                    for col2 in self.data.columns:
+                        print(f"{col2}: {list[Any](self.data[col2])}")
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
                     l == 0
