@@ -21,6 +21,7 @@ TOTAL = ColName("Total")
 USAGE = ColName("usage")
 MEMORY = ColName("memory")
 LATENCY = ColName("latency")
+LIVE = ColName("live")
 
 
 MAPPING_COLUMN = "mapping"
@@ -75,14 +76,28 @@ def col2memory_usage(col: str) -> tuple[str, str, str]:
 
 
 @dict_cached
+def live_tensors2col(name: str, nloops: int, thread: int = 0) -> str:
+    return LIVE / name / str(nloops) / str(thread)
+
+
+LiveTensorsKey = namedtuple("LiveTensorsKey", ["name", "nloops", "thread"])
+@dict_cached
+def col2live_tensors(col: str) -> LiveTensorsKey:
+    split_col = partition_col(col, LIVE, 4)
+    return LiveTensorsKey(split_col[0], split_col[1], split_col[2])
+
+
+@dict_cached
 def memorylatency2col(memory_name: str):
-    return LATENCY / memory_name
+    return str(LATENCY / MEMORY / memory_name)
 
 
 @dict_cached
 def col2memorylatency(col: str):
-    split_col = partition_col(col, LATENCY, 2)
-    return split_col[0]
+    split_col = partition_col(col, LATENCY)
+    if split_col is None or len(split_col) != 2:
+        return None
+    return split_col[1]
 
 
 @dict_cached
@@ -270,19 +285,25 @@ def is_n_iterations_col(c: str) -> bool:
 
 
 def ensure_float_type(df, target, source):
-    if target in df:
-        target_type = df[target].dtype
-    else:
-        target_type = NUMPY_FLOAT_TYPE
+    try:
+        if target in df:
+            target_type = df[target].dtype
+        else:
+            target_type = NUMPY_FLOAT_TYPE
 
-    if isinstance(source, pd.Series):
-        if target in df and target_type != source.dtype:
-            df[target] = df[target].astype(NUMPY_FLOAT_TYPE)
-    elif source in df:
-        if target_type != df[source].dtype:
-            if target in df:
+        if isinstance(source, pd.Series):
+            if target in df and target_type != source.dtype:
                 df[target] = df[target].astype(NUMPY_FLOAT_TYPE)
-            df[source] = df[source].astype(NUMPY_FLOAT_TYPE)
+        elif source in df:
+            if target_type != df[source].dtype:
+                if target in df:
+                    df[target] = df[target].astype(NUMPY_FLOAT_TYPE)
+                df[source] = df[source].astype(NUMPY_FLOAT_TYPE)
+    except Exception as e:
+        raise RuntimeError(
+            "Failed to ensure matching types between target and source.\n"
+            "target: " + target + "\nsource: " + source
+        ) from e
 
 
 def add_to_col(df, target, source):
@@ -308,7 +329,7 @@ def is_objective_col(c):
 
 
 def col_used_in_pareto(c):
-    return col2reservation(c) is not None or is_objective_col(c)
+    return col2reservation(c) is not None or col2memorylatency(c) is not None or is_objective_col(c)
 
 
 def col_used_in_joining(c):

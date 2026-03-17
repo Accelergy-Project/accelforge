@@ -2089,7 +2089,7 @@ def _make_tile_shapes(job: "Job"):
     # transformation of the values between these steps, so error doesn't stack (it's
     # just doing the same pruning, perhaps with a different number of objectives).
     for k, v in symbolic_df.items():
-        if "Total" not in k:
+        if "Total" not in k and "latency<SEP>memory" not in k:
             continue
 
         objectives.append(

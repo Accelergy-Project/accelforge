@@ -190,6 +190,7 @@ def evaluate_mapping(
                     n_valid_pmappings=1,
                     ignored_resources=set(),
                     drop_valid_reservations=False,
+                    n_concurrent_threads=spec.mapper.n_concurrent_threads
                 ),
             )
         ]

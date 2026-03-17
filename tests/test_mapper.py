@@ -17,13 +17,29 @@ KN_SHAPE = 64
 class TestTransformer(unittest.TestCase):
     def test_bert(self):
         spec = Spec.from_yaml(
-            af.examples.arches.tpu_v4i,
+            af.examples.arches.simple,
             af.examples.workloads.bert,
         )
-        spec.arch.nodes["MainMemory"].tensors.keep = "All"
         spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
         mappings = spec.map_workload_to_arch()
 
+    def test_bert_heterogeneous(self):
+        spec = Spec.from_yaml(
+            af.examples.arches.simple_heterogeneous,
+            af.examples.workloads.bert,
+        )
+        spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
+        spec.mapper.n_concurrent_threads = 2
+        mappings = spec.map_workload_to_arch()
+
+    def test_tpuv4i_gpt3(self):
+        spec = Spec.from_yaml(
+            af.examples.arches.tpu_v4i,
+            af.examples.workloads.gpt3_6_7B,
+        )
+        spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
+        spec.mapper.n_concurrent_threads = 2
+        mappings = spec.map_workload_to_arch()
 
 class ActionChecker(unittest.TestCase):
     def _check_memory_actions_exist(self, spec, memory_names, result):

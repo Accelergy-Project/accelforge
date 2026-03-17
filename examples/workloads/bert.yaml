@@ -20,7 +20,7 @@ workload:
     B: {{BATCH_SIZE}}
     P: {{N_TOKENS}}
     M: {{N_TOKENS}}
-    H: 1
+    H: 8
     E: 64
     F: 64
     D: 512 # = e * h

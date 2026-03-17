@@ -295,6 +295,7 @@ def make_pmappings_from_templates(
                 # to another Einsum. drop_valid_reservations is turned on later at the
                 # joining stage because we have full information of live tensors then.
                 drop_valid_reservations=False,
+                n_concurrent_threads=job.spec_one_einsum.mapper.n_concurrent_threads,
             )
             for r in results
         ],
@@ -422,6 +423,7 @@ def make_pmappings_from_templates(
             # Einsum. drop_valid_reservations is turned on later at the joining stage
             # because we have full information of live tensors then.
             drop_valid_reservations=False,
+            n_concurrent_threads=job.spec_one_einsum.mapper.n_concurrent_threads,
         )
         # If we have fewer fused loops, reservations likely got freed. We can free!
         if next_shared_loop_index_this_group != next_shared_loop_index:

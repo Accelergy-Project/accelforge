@@ -155,3 +155,8 @@ class FFM(EvalableModel):
     If set to True, we can have temporal loops above the backing storage for
     non-intermediate tensors, which effectively causes them to respawn.
     """
+
+    n_concurrent_threads: int = 1
+    """
+    Number of concurrent threads to bind Einsum computation to.
+    """

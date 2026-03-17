@@ -1,0 +1,44 @@
+{% set MainMemoryEnergy=MainMemoryEnergy | default(10) %}
+{% set GlobalBufferLatency=GlobalBufferLatency | default(1) %}
+{% set GlobalBufferSize=GlobalBufferSize | default("inf") %}
+{% set LocalBufferLatency=LocalBufferLatency | default(0.1) %}
+{% set LocalBufferSize=LocalBufferSize | default("inf") %}
+
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: {{MainMemoryEnergy}}, latency: 10}
+    - {name: write, energy: {{MainMemoryEnergy}}, latency: 10}
+
+  - !Memory
+    name: GlobalBuffer
+    size: {{GlobalBufferSize}}
+    leak_power: 0
+    area: 0
+    tensors: {may_keep: All}
+    actions:
+    - {name: read, energy: 1, latency: {{GlobalBufferLatency}}}
+    - {name: write, energy: 1, latency: {{GlobalBufferLatency}}}
+
+  - !Memory
+    name: LocalBuffer
+    size: {{LocalBufferSize}}
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~(GlobalBuffer | MainMemory), may_keep: All}
+    actions:
+    - {name: read, energy: 0.1, latency: {{LocalBufferLatency}}}
+    - {name: write, energy: 0.1, latency: {{LocalBufferLatency}}}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 1, latency: 1}

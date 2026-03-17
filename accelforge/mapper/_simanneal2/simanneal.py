@@ -249,6 +249,7 @@ class SimAnnealMapping:
                 n_valid_pmappings=s.mappings.n_valid_pmappings,
                 ignored_resources=s.mappings.ignored_resources,
                 drop_valid_reservations=s.mappings.drop_valid_reservations,
+                n_concurrent_threads=s.mappings.n_concurrent_threads,
             ),
         )
 

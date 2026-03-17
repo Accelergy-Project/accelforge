@@ -240,6 +240,12 @@ class Component(Spatialable):
     can be used to define attributes that are known to the component model, but not
     accelforge, such as the technology node."""
 
+    support_concurrent_binding: EvalsTo[bool] = False
+    """
+    Whether different Einsums can be concurrently bound to use this unit.
+    """
+
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _update_actions(self, new_actions: EvalableList[Action]):

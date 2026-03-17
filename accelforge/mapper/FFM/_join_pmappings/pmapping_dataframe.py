@@ -27,20 +27,6 @@ CHECK_CORRECTNESS = False
 DEBUG_PRINT_NO_VALID = False
 
 
-def _log_pre_and_post_call(f):
-    def wrapped(self, *args, **kwargs):
-        if self._indices_with_split():
-            print(f.__name__)
-            print(" pre:")
-            self._log_state()
-            res = f(self, *args, **kwargs)
-            print(" post:")
-            self._log_state()
-        else:
-            res = f(self, *args, **kwargs)
-        return res
-    return wrapped
-
 def error_check_wrapper(func):
     if not CHECK_CORRECTNESS:
         return func
@@ -135,6 +121,7 @@ class PmappingDataframe:
         n_valid_pmappings: float,
         ignored_resources: set[str],
         drop_valid_reservations: bool,
+        n_concurrent_threads: int,
         skip_pareto: bool = False,
         fill_reservation_cols: set | str = fzs(),
         check_above_subset_below: bool = CHECK_CORRECTNESS,
@@ -143,11 +130,19 @@ class PmappingDataframe:
         excess_resource_tolerance: float = 0,
     ):
         self._data: pd.DataFrame = reduce_precision(data)
+        if len(list(_get_duplicates(self._data.columns))) > 0:
+            breakpoint()
+            raise ValueError(
+                "Some columns in PmappingDataframe are duplicated:\n"
+                +
+                " " + list(_get_duplicates(self._data.columns))
+            )
         self._prev_free_to_loop_index = None
         self.n_total_pmappings: float = n_total_pmappings
         self.n_valid_pmappings: float = n_valid_pmappings
         self.drop_valid_reservations: bool = drop_valid_reservations
         self.excess_resource_tolerance: float = excess_resource_tolerance
+        self.n_concurrent_threads = n_concurrent_threads
 
         if next_shared_loop_index is not None:
             assert (
@@ -286,6 +281,8 @@ class PmappingDataframe:
         """
         if loop_index == self._prev_free_to_loop_index:
             return False
+        if loop_index < -1:
+            raise ValueError("loop_index must be >= -1")
         self._prev_free_to_loop_index = loop_index
 
         updated = False
@@ -322,7 +319,6 @@ class PmappingDataframe:
         return None
 
 
-    # @_log_pre_and_post_call
     @error_check_wrapper
     def consolidate_bottom_split(self):
         """
@@ -336,7 +332,6 @@ class PmappingDataframe:
             F  E
         """
         bottom_index = self.get_max_loop_index()
-        # TODO: account for other metrics
         l_reservations, _r_reservations = self._make_reservations()
         drop_columns = []
         for resource in l_reservations:
@@ -367,8 +362,6 @@ class PmappingDataframe:
                 add_to_col(self.data, target, left_reservation_col)
         self.data.drop(columns=drop_columns, inplace=True)
 
-
-    # @_log_pre_and_post_call
     @error_check_wrapper
     def shift_bottom_reservation_left(self):
         """
@@ -383,17 +376,10 @@ class PmappingDataframe:
         """
         bottom_loop_index = self.get_max_loop_index()
         _l_reservations, r_reservations = self._make_reservations()
-        left_concurrent_threads = set()
-        for col in get_reservation_cols_with(self.data, nloops=bottom_loop_index, is_left=True):
-            reservation_key = col2reservation(col)
-            left_concurrent_threads.add(reservation_key.thread)
-        if not left_concurrent_threads:
-            left_concurrent_threads = {0}
 
         # Explore placing right branch in any of the left threads
         # TODO: extend lifetime of live_tensors and deduplicate tensors
-        # TODO: account for latency
-        # TODO: account for other metrics
+        left_concurrent_threads = set(range(self.n_concurrent_threads))
         assert len(left_concurrent_threads) > 0
         all_data = []
         for thread_i in left_concurrent_threads:
@@ -406,6 +392,11 @@ class PmappingDataframe:
                 if left_reservation in df:
                     max_to_col(df, left_reservation, right_reservation)
                     df.drop(columns=[right_reservation], inplace=True)
+                    # TODO: extend lifetime of live tensors
+                    # left_live_tensors = live_tensors2col(resource, bottom_loop_index, thread_i)
+                    # assert left_live_tensors in df
+                    # left_live_tensors = df[left_live_tensors]
+                    # left_live_tensors.apply(lambda left_live: left_live - right_tensors)
                 else:
                     df.rename(columns={right_reservation: left_reservation}, inplace=True)
             assert not set(get_reservation_cols_with(
@@ -414,6 +405,7 @@ class PmappingDataframe:
                 nloops=bottom_loop_index,
                 is_left=False
             ))
+            assert len(list(_get_duplicates(df.columns))) == 0
             all_data.append(df)
 
         assert len(all_data) > 0
@@ -492,8 +484,8 @@ class PmappingDataframe:
         shared_loop_index = compatibility_left.n_loops - 1
         next_shared_loop_index = compatibility_joined.n_loops - 1
 
-        self.free_to_loop_index(shared_loop_index)
-        self.shift_bottom_reservation_left()
+        if self.free_to_loop_index(shared_loop_index):
+            self.shift_bottom_reservation_left()
 
         shared_tensor_names = (
             compatibility_left.tensor_names & compatibility_right.tensor_names
@@ -668,27 +660,28 @@ class PmappingDataframe:
             n_valid_pmappings=n_valid_pmappings,
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
+            n_concurrent_threads=self.n_concurrent_threads
         )
-        # Remove tensors that were allocated in both branches and got added
-        # together.
-        shared_to_free = [
-            s for s in shared_tensors if s.above_loop_index <= shared_loop_index
-        ]
-        reservations_of_live_tensor_not_in_right = [
-            compatibility_joined.get_reservation_of_tensor(t)
-            for t in compatibility_joined.tensor_names
-            - compatibility_right.tensor_names
-        ]
-        live_to_alloc = [
-            r
-            for r in reservations_of_live_tensor_not_in_right
-            if r.above_loop_index > shared_loop_index
-        ]
-        result.adjust_reservations(
-            alloc=live_to_alloc,
-            free=list(itertools.chain(shared_to_free, duplicated_aliased_tensors)),
-            ignored_resources=ignored_resources,
-        )
+        # # Remove tensors that were allocated in both branches and got added
+        # # together.
+        # shared_to_free = [
+        #     s for s in shared_tensors if s.above_loop_index <= shared_loop_index
+        # ]
+        # reservations_of_live_tensor_not_in_right = [
+        #     compatibility_joined.get_reservation_of_tensor(t)
+        #     for t in compatibility_joined.tensor_names
+        #     - compatibility_right.tensor_names
+        # ]
+        # live_to_alloc = [
+        #     r
+        #     for r in reservations_of_live_tensor_not_in_right
+        #     if r.above_loop_index > shared_loop_index
+        # ]
+        # result.adjust_reservations(
+        #     alloc=live_to_alloc,
+        #     free=list(itertools.chain(shared_to_free, duplicated_aliased_tensors)),
+        #     ignored_resources=ignored_resources,
+        # )
 
         if CHECK_CORRECTNESS:
             result.check_above_subset_below(live_tensors)
@@ -790,19 +783,22 @@ class PmappingDataframe:
 
         required_cols = set.union(*[set(p.data.columns) for p in paretos])
         shared_cols = set.intersection(*[set(p.data.columns) for p in paretos])
-        fill_cols = required_cols - shared_cols
-        fill_cols = [c for c in fill_cols if col_used_in_pareto(c)]
+        reservation_cols_to_fill = [
+            c for c in required_cols - shared_cols
+            if col_used_in_pareto(c) and col2reservation(c)
+        ]
 
         concatenated = pd.concat([p.data for p in paretos]).reset_index(drop=True)
 
         p = PmappingDataframe(
             _fillna_and__numeric_cast(concatenated, 0),
             skip_pareto=len(paretos) == 1 or skip_pareto,
-            fill_reservation_cols=fill_cols,
+            fill_reservation_cols=reservation_cols_to_fill,
             n_total_pmappings=sum(p.n_total_pmappings for p in paretos),
             n_valid_pmappings=sum(p.n_valid_pmappings for p in paretos),
             ignored_resources=next(iter(paretos)).ignored_resources,
             drop_valid_reservations=next(iter(paretos)).drop_valid_reservations,
+            n_concurrent_threads=next(iter(paretos)).n_concurrent_threads,
         )
         return p
 
@@ -819,6 +815,7 @@ class PmappingDataframe:
             n_valid_pmappings=self.n_valid_pmappings,
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
+            n_concurrent_threads=self.n_concurrent_threads,
         )
         args.update(kwargs)
         return PmappingDataframe(**args)
@@ -1098,3 +1095,11 @@ def row2pmappings(
         pmapping._beautify_loops(rank_variable_bounds)
     return pmappings
 
+
+def _get_duplicates(items: Iterable):
+    count = defaultdict(lambda: 0)
+    for i in items:
+        count[i] += 1
+    for key, value in count.items():
+        if value > 1:
+            yield key

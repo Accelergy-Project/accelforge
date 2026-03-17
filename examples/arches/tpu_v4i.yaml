@@ -29,6 +29,7 @@ arch:
     size: 1024*1024*4*8 # 4MB
     leak_power: 0
     area: 50e-6 # 50 mm^2. Very rough estimate based on die photo.
+    support_concurrent_binding: True
     actions:
     - {name: read, energy: 0.249e-12, latency: 0}
     - {name: write, energy: 0.293e-12, latency: 0}

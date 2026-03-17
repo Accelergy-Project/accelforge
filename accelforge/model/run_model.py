@@ -70,7 +70,7 @@ def run_model(
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
     nodes_always_in_one_thread = []
     for node in reversed(job.flattened_arch):
-        if isinstance(node, arch.Spatialable) and node.support_concurrent_binding:
+        if isinstance(node, arch.Component) and node.support_concurrent_binding:
             break
         nodes_always_in_one_thread.append(node.name)
     try:

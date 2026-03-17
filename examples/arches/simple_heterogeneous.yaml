@@ -1,0 +1,40 @@
+{% set MainMemoryEnergy=MainMemoryEnergy | default(1) %}
+{% set GlobalBufferLatency=GlobalBufferLatency | default(0) %}
+{% set GlobalBufferSize=GlobalBufferSize | default("inf") %}
+
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: {{MainMemoryEnergy}}, latency: 0}
+    - {name: write, energy: {{MainMemoryEnergy}}, latency: 0}
+
+  - !Memory
+    name: GlobalBuffer
+    size: {{GlobalBufferSize}}
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~MainMemory, may_keep: All}
+    support_concurrent_binding: True
+    actions:
+    - {name: read, energy: 1, latency: {{GlobalBufferLatency}}}
+    - {name: write, energy: 1, latency: {{GlobalBufferLatency}}}
+
+  - !Compute
+    name: MacA
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 1, latency: 1}
+
+  - !Compute
+    name: MacB
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: compute, energy: 1, latency: 1}
