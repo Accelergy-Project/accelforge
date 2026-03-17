@@ -909,7 +909,8 @@ def join_pmappings(
     assert len(s_final) == 1
     mappings = s_final[0].mappings
     mappings.limit_capacity(next_shared_loop_index=-1)
-    mappings.free_to_loop_index(-2)
+    # TODO: check if this is correct index
+    mappings.free_to_loop_index(-1)
     mappings.make_pareto()
 
     timer.log_total_time()

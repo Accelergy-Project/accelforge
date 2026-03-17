@@ -27,6 +27,20 @@ CHECK_CORRECTNESS = False
 DEBUG_PRINT_NO_VALID = False
 
 
+def _log_pre_and_post_call(f):
+    def wrapped(self, *args, **kwargs):
+        if self._indices_with_split():
+            print(f.__name__)
+            print(" pre:")
+            self._log_state()
+            res = f(self, *args, **kwargs)
+            print(" post:")
+            self._log_state()
+        else:
+            res = f(self, *args, **kwargs)
+        return res
+    return wrapped
+
 def error_check_wrapper(func):
     if not CHECK_CORRECTNESS:
         return func
@@ -308,6 +322,7 @@ class PmappingDataframe:
         return None
 
 
+    # @_log_pre_and_post_call
     @error_check_wrapper
     def consolidate_bottom_split(self):
         """
@@ -340,19 +355,20 @@ class PmappingDataframe:
                 _r_reservations
             )
             split_above = self._get_split_above(bottom_index)
-            assert split_above <= col2reservation(reservation_above).nloops
             drop_columns = [
                 c for c in get_reservation_cols_with(self.data, resource)
                 if col2reservation(c).nloops >= split_above
             ]
             target = reservation2col(resource, split_above, left=False)
             if reservation_above:
+                assert split_above <= col2reservation(reservation_above).nloops
                 self.data.loc[:,target] = -self.data[reservation_above]*len(left_reservation_cols)
             for left_reservation_col in left_reservation_cols:
                 add_to_col(self.data, target, left_reservation_col)
         self.data.drop(columns=drop_columns, inplace=True)
 
 
+    # @_log_pre_and_post_call
     @error_check_wrapper
     def shift_bottom_reservation_left(self):
         """
@@ -1052,6 +1068,11 @@ class PmappingDataframe:
             skip_pareto=True,
         )
 
+    def _log_state(self):
+        print("  max loop index:", self.get_max_loop_index())
+        print("  min loop index:", self.get_min_loop_index())
+        print("  indices with split:", self._indices_with_split())
+
 
 def row2pmappings(
     row: pd.Series,
@@ -1076,3 +1097,4 @@ def row2pmappings(
         pmappings.append(pmapping)
         pmapping._beautify_loops(rank_variable_bounds)
     return pmappings
+
