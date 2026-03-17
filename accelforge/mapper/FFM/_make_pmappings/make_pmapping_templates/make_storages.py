@@ -93,7 +93,7 @@ def make_tensor_choices_one_level(
         keep_choice = tensors.to_my_space(subset | must_keep)
         # Below line is so users can do MainMemory().tensors() or MainMemory.tensors
         new_symbol_table[node.name] = keep_choice
-        new_symbol_table["Above"] |= keep_choice
+        new_symbol_table["Above"] = symbol_table["Above"] | keep_choice
         new_seen_tensors = seen_tensors | set(keep_choice)
 
         # Make sure they're all tensors
