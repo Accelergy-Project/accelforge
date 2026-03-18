@@ -5,6 +5,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from accelforge.mapper.FFM import Mappings
+from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     col2energy,
     col2action,
@@ -132,7 +133,7 @@ def plot_memory_usage_breakdown(
 ):
     tensor2color = {}
     if memory_levels is None:
-        memory_levels = set()
+        memory_levels = oset()
         for mapper_result in mappings:
             for c in mapper_result.data.columns:
                 if not USAGE / MEMORY in c:
@@ -189,7 +190,7 @@ def plot_memory_usage_breakdown(
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels)]
 
     # grab unique labels
-    unique_labels = set(labels)
+    unique_labels = oset(labels)
 
     # assign labels and legends in dict
     legend_dict = dict(zip(labels, lines))

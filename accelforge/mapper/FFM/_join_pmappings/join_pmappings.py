@@ -33,7 +33,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     Compatibility,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
-from accelforge.util import _fillna_and__numeric_cast, parallel, delayed
+from accelforge.util import _fillna_and__numeric_cast, parallel, delayed, oset
 
 
 logger = logging.getLogger(__name__)
@@ -320,7 +320,7 @@ class PmappingsOneEinsum:
     def __init__(self, einsum_name: str, pm_group_list: list[PmappingGroup]):
         self.einsum_name: str = einsum_name
         self.pmapping_groups: list[PmappingGroup] = pm_group_list
-        self.tensor_names: set[str] = set(pm_group_list[0].tensor_names)
+        self.tensor_names: set[str] = oset(pm_group_list[0].tensor_names)
 
     def __getitem__(self, i):
         return self.pmapping_groups[i]
@@ -328,7 +328,7 @@ class PmappingsOneEinsum:
 
 def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
     full_equivalent_rank_variables = {
-        k: set(v) for k, v in pairwise_equivalent_rank_variables.items()
+        k: oset(v) for k, v in pairwise_equivalent_rank_variables.items()
     }
     changed = True
     while changed:
@@ -348,7 +348,7 @@ def get_memories_to_track(
     print_progress: bool = True,
 ) -> tuple[dict[str, list[PmappingGroup]], set[str], set[str]]:
 
-    always_below = set()
+    always_below = oset()
     for _, einsum_pmapping_groups in pmapping_groups.items():
         for s in einsum_pmapping_groups:
             for col in s.mappings.data.columns:
@@ -357,7 +357,7 @@ def get_memories_to_track(
                     always_below.add(reservation_key.name)
 
     total_sizes = {}
-    ignored_resources = set()
+    ignored_resources = oset()
 
     for _, einsum_pmapping_groups in pmapping_groups.items():
         max_sizes = {}
@@ -386,7 +386,7 @@ def get_memories_to_track(
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
 
-    ignore = set(t for t, s in total_sizes.items() if s <= 1) | always_below
+    ignore = oset(t for t, s in total_sizes.items() if s <= 1) | always_below
 
     if not ignore:
         return pmapping_groups, ignore
@@ -456,7 +456,7 @@ def join_pmappings(
     """
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
-    ignored_resources = set()
+    ignored_resources = oset()
 
     if _pmapping_row_filter_function is not None:
         n = sum(len(s.mappings.data) for sg in pmapping_groups.values() for s in sg)
@@ -513,7 +513,7 @@ def join_pmappings(
     n_mappings["Post Intra-Layer"] = 0
     for i, einsum_pmappings in enumerate(pmgroups):
         cur_tensors = einsum_pmappings.tensor_names
-        right_tensors = set.union(set(), *[s.tensor_names for s in pmgroups[i + 1 :]])
+        right_tensors = oset.union(oset(), *[s.tensor_names for s in pmgroups[i + 1 :]])
         # First Einsum: Remove dead tensors and left consolidate. This is because the
         # first Einsum will have the first pmappigns that are joined from the left
         if i == 0:
@@ -538,7 +538,7 @@ def join_pmappings(
         # All other Einsums: Will be joined from the right. Remove dead tensors, right
         # consolidate, combine, group.
         t0 = time.time()
-        left_tensors = set.union(set(), *[s.tensor_names for s in pmgroups[:i]])
+        left_tensors = oset.union(oset(), *[s.tensor_names for s in pmgroups[:i]])
         live_tensors = right_tensors
         shared_tensors = left_tensors & einsum_pmappings.tensor_names
 
@@ -626,8 +626,8 @@ def join_pmappings(
 
         partial_mapping_size += 1
 
-        live_tensors = set.union(set(), *[s.tensor_names for s in pmgroups])
-        shared_tensors = set(left_tensors) & set(right_tensors)
+        live_tensors = oset.union(oset(), *[s.tensor_names for s in pmgroups])
+        shared_tensors = oset(left_tensors) & oset(right_tensors)
         live_tensors_with_right = live_tensors | right_tensors
 
         # ======================================================================
@@ -665,7 +665,7 @@ def join_pmappings(
         # ======================================================================
         combined: list[PmappingGroup] = []
         cur_nmappings = 0
-        combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = set()
+        combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
         for k in left:
             found = False
@@ -787,12 +787,12 @@ def join_pmappings(
                     continue
                 prev_combined = combined
                 combined = PmappingGroup.group(combined, next_right_tensors)
-                next_keys = {
+                next_keys = oset(
                     c.clear_dead_tensors(
                         cur_tensors
                     ).clear_tile_patterns_and_reservation_indices()
                     for c in next_pmapping_groups.pmapping_groups
-                }
+                )
                 for k in list[PmappingGroup](combined):
                     perms = k.make_equivalent_permutations()
                     perms = [
@@ -904,7 +904,7 @@ def join_pmappings(
         left, None, pbar="Final consolidate" if print_progress else None
     )
     s_final = PmappingGroup.combine_combineable(
-        left, set(), print_progress=print_progress
+        left, oset(), print_progress=print_progress
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings

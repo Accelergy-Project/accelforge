@@ -11,6 +11,7 @@ import uuid
 from tqdm import tqdm
 
 import accelforge.frontend.arch as arch
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Compute,
     Loop,
@@ -36,7 +37,6 @@ from accelforge.frontend.workload import (
     EinsumName,
     RankVariable,
     Workload,
-    isl_expression_has_variable,
     SymbolTable,
 )
 from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
@@ -140,58 +140,58 @@ def remove_unordered_spatial_temporal_loops(
     for node in flattened_arch:
         fanouts[node.name] = (fanout := fanout * node.get_fanout())
 
-    index_exprs = einsum.indexing_expressions
+    # TensorHolders' tiles include the full iteration space of temporal loops below
+    # them. If all of the following are true:
+    # - Any later spatials have <= the fanout of this TensorHolder
+    # - There's a temporal loop between the TensorHolder and the Spatial
+    # - The temporal/spatial have the same rank variable
+    # - The rank variable indexes into the tensor
+    #
+    # Then the temporal/spatial pair will result in a non-contiguous tile of the
+    # iteration space, which is not supported and must be removed.
 
-    # Remove a temporal loop if:
-    # - It's between a spatial loop and a storage node above that fanout in the arch
-    # - It indexes into one of the same indexing expressions as the spatial loop
 
+    tensor2rvs = einsum.tensor2rank_variables
     disallowed_combinations: list[tuple[set[int], set[int]]] = []
     for i, node in enumerate(mapping):
-        if not isinstance(node, Spatial):
+        # Track TensorHolders that have been seen and the rank variables that affect
+        # them
+        if not isinstance(node, TensorHolder):
             continue
 
-        last_idx_to_check = _idx_of_lowest_tensor_holder_with_component_above_fanout(
-            mapping, i, fanouts, node
-        )
-        to_check = mapping[i + 1 : last_idx_to_check]
-        to_remove = set()
-        for n in to_check:
-            if isinstance(n, Temporal):
-                for expr in index_exprs:
-                    if not isl_expression_has_variable(expr, node.rank_variable):
-                        continue
-                    if not isl_expression_has_variable(expr, n.rank_variable):
-                        continue
-                    to_remove.add(id(n))
-                    break
+        relevent_rvs = oset.union(*[tensor2rvs[t] for t in node.tensors])
 
-        if to_remove:
-            disallowed_combinations.append((set([id(node)]), to_remove))
+        # Find the last spatial whose component's fanout is <= the TensorHolder's
+        # component fanout. This spatial will affect the TensorHolder's tile.
+        check_up_to = i
+        for j, node2 in enumerate(mapping[i+1:]):
+            if isinstance(node2, Spatial):
+                if fanouts[node.component] >= fanouts[node2.component]:
+                    check_up_to = i + j + 1
+
+        # Find all temporal and spatial loops between the TensorHolder and the last
+        # spatial that affects it.
+        rv2spatial = {}
+        rv2temporal = {}
+        for node2 in mapping[i+1:check_up_to]:
+            if isinstance(node2, Spatial) and node2.rank_variable in relevent_rvs:
+                rv2spatial.setdefault(node2.rank_variable, []).append(node2)
+            if isinstance(node2, Temporal):
+                rv2temporal.setdefault(node2.rank_variable, []).append(node2)
+
+        for shared_rv in sorted(oset(rv2spatial) & oset(rv2temporal) & relevent_rvs):
+            disallowed_combinations.append((
+                tuple(id(x) for x in rv2spatial[shared_rv]),
+                tuple(id(x) for x in rv2temporal[shared_rv]),
+            ))
 
     if not explore_unordered_spatial_loops:
         disallowed_combinations = [x[1:] for x in disallowed_combinations]
 
     for combo in itertools.product(*disallowed_combinations):
-        combo = set.union(set(), *combo)
+        combo = oset.union(oset(), *combo)
         yield [n for n in mapping if id(n) not in combo]
 
-
-def _idx_of_lowest_tensor_holder_with_component_above_fanout(
-    mapping, start_idx, fanouts, node
-):
-    """
-    Return idx of lowest tensor holder with component above fanout. If none
-    found, returns index right under start idx (start_idx + 1).
-    """
-    for j in range(len(mapping) - 1, start_idx, -1):
-        n = mapping[j]
-        if (
-            isinstance(n, TensorHolder)
-            and fanouts[n.component] < fanouts[node.component]
-        ):
-            return j
-    return start_idx + 1
 
 
 def pad_with_bottom_loops(mapping: list[MappingNode], einsum: Einsum):
@@ -234,12 +234,12 @@ def assert_proper_fusion_labeling(
     fusable_tensors: set[TensorName],
     check_loops: bool = True,
 ):
-    tensors = set()
+    tensors = oset()
     for i, t in enumerate(mapping):
         if not isinstance(t, TensorHolder):
             continue
 
-        new = (set(t.tensors) - tensors) & fusable_tensors
+        new = (oset(t.tensors) - tensors) & fusable_tensors
 
         if new and check_loops:
             for j in range(i):

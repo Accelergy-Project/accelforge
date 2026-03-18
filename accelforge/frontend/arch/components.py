@@ -1,6 +1,7 @@
 import copy
 import itertools
 import logging
+from accelforge.util._frozenset import oset
 from typing import (
     Any,
     Literal,
@@ -249,7 +250,7 @@ class Component(Spatialable):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _update_actions(self, new_actions: EvalableList[Action]):
-        has_actions = set(x.name for x in self.actions)
+        has_actions = oset(x.name for x in self.actions)
         for action in new_actions:
             if action.name not in has_actions:
                 self.actions.append(action)

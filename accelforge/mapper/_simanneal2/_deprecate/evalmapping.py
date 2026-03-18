@@ -5,7 +5,7 @@ from accelforge._accelerated_imports import pd
 from accelforge.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compatibility
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
 from accelforge.mapper.simanneal.mapspaceglobals import MapspaceGlobals
-from accelforge.util._frozenset import fzs
+from accelforge.util._frozenset import fzs, oset
 
 
 def mapping2sims(einsum_to_result: Compatibility):
@@ -32,13 +32,13 @@ def get_possible_translations(
     # each possible rank.
     def translate_loop(l: Loop):
         compatible_rank_variables = (
-            set.union(
+            oset.union(
                 *(full_equivalent_rank_variables[n] for n in l.rank_variable_names)
             )
             & right_rank_variables
         )
         pairwise_compatible_rank_variables = (
-            set.union(
+            oset.union(
                 *(pairwise_equivalent_rank_variables[n] for n in l.rank_variable_names)
             )
             & right_rank_variables
@@ -86,7 +86,7 @@ class PmappingsOneEinsum:
     def __init__(self, einsum_name: str, pm_group_list: list[PmappingGroup]):
         self.einsum_name: str = einsum_name
         self.pmapping_groups: list[PmappingGroup] = pm_group_list
-        self.tensor_names: set[str] = set(pm_group_list[0].tensor_names)
+        self.tensor_names: set[str] = oset(pm_group_list[0].tensor_names)
 
     def __getitem__(self, i):
         return self.pmapping_groups[i]
@@ -94,7 +94,7 @@ class PmappingsOneEinsum:
 
 def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
     full_equivalent_rank_variables = {
-        k: set(v) for k, v in pairwise_equivalent_rank_variables.items()
+        k: oset(v) for k, v in pairwise_equivalent_rank_variables.items()
     }
     changed = True
     while changed:
@@ -137,8 +137,8 @@ def quick_join(
     # Initial consolidate and group all PmappingGroups
     # ======================================================================
     for i, sim_holder in enumerate(pmapping_groups):
-        right_tensors = set.union(
-            set(), *[s.tensor_names for s in pmapping_groups[i + 1 :]]
+        right_tensors = oset.union(
+            oset(), *[s.tensor_names for s in pmapping_groups[i + 1 :]]
         )
         if i == 0:
             sim_holder.pmapping_groups = PmappingGroup.left_consolidate(
@@ -147,7 +147,7 @@ def quick_join(
             )
             continue
         t0 = time.time()
-        left_tensors = set.union(set(), *[s.tensor_names for s in pmapping_groups[:i]])
+        left_tensors = oset.union(oset(), *[s.tensor_names for s in pmapping_groups[:i]])
         live_tensors = right_tensors
         shared_tensors = left_tensors & sim_holder.tensor_names
         sim_holder.pmapping_groups = sorted(
@@ -198,8 +198,8 @@ def quick_join(
 
         partial_mapping_size += 1
 
-        live_tensors = set.union(set(), *[s.tensor_names for s in pmapping_groups])
-        shared_tensors = set(left_tensors) & set(right_tensors)
+        live_tensors = oset.union(oset(), *[s.tensor_names for s in pmapping_groups])
+        shared_tensors = oset(left_tensors) & oset(right_tensors)
         live_tensors_with_right = live_tensors | right_tensors
 
         # ======================================================================
@@ -264,7 +264,7 @@ def quick_join(
     # ======================================================================
     t0 = time.time()
     left = PmappingGroup.left_consolidate(left, None)
-    s_final = PmappingGroup.combine_combineable(left, set(), drop_tags=True)
+    s_final = PmappingGroup.combine_combineable(left, oset(), drop_tags=True)
     assert len(s_final) == 1
     mappings = s_final[0].mappings
 

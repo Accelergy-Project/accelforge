@@ -32,7 +32,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
 from accelforge.mapper.FFM._pareto_df.pareto import makepareto_numpy
 from accelforge.model._looptree.reuse.symbolic import IMPERFECT, PRINT_FORMULAS
 from accelforge.frontend.mapper.metrics import Metrics
-from accelforge.util._frozenset import fzs
+from accelforge.util._frozenset import fzs, oset
 import math
 import sympy
 import numpy as np
@@ -320,11 +320,11 @@ class Goal:
             return Goal(self.goal, **kwargs)
 
         # min_per_prime_factor is a superset of min, so we can just keep the min_per_prime_factor goal
-        if {self.goal, other.goal} == {"min", "min_per_prime_factor"}:
+        if oset([self.goal, other.goal]) == oset(["min", "min_per_prime_factor"]):
             return Goal("min_per_prime_factor", **kwargs)
 
         # max_per_prime_factor is a superset of max, so we can just keep the max_per_prime_factor goal
-        if {self.goal, other.goal} == {"max", "max_per_prime_factor"}:
+        if oset([self.goal, other.goal]) == oset(["max", "max_per_prime_factor"]):
             return Goal("max_per_prime_factor", **kwargs)
 
         # Otherwise, there's a disagreement and the only space we're both in can be diff
@@ -637,7 +637,7 @@ def get_possible_factor_sizes(n: int, imperfect: bool = False) -> list[int]:
             continue
         factors.append(i)
         factors.append(math.ceil(n / i))
-    return sorted(set(factors))
+    return sorted(oset(factors))
 
 
 def append_vector(matrix: np.ndarray, vector: np.ndarray):
@@ -1096,7 +1096,7 @@ def get_tile_shape_choices(
 
             # Score for the % of symbols in objectives that are this symbol
             score = 0
-            all_symbols = set(symbols_enumerated)
+            all_symbols = oset(symbols_enumerated)
             for o in objectives:
                 f = o._formula_subs_one
                 n_symbols = sum(1 for _ in f.atoms(Symbol))
@@ -1110,12 +1110,12 @@ def get_tile_shape_choices(
 
                 # If we affect the group and we haven't enumerated anything else in the
                 # group, we'll need to keep this symbol for the current iteration.
-                if s_affects_group and not (set(g) & all_symbols):
+                if s_affects_group and not (oset(g) & all_symbols):
                     keep = True
                     break
 
                 # Otherwise, add score for nearing the completion of the group.
-                remaining = set(g) - all_symbols
+                remaining = oset(g) - all_symbols
                 if s in remaining:
                     score += 1 / len(remaining)
 
@@ -1271,10 +1271,10 @@ def get_tile_shape_choices(
                 raise RuntimeError("BUG: both inner and outer tiles are unknown")
 
             # Use inner size and outer size to generate choices
-            if inner_tiles_type in {"set", "unknown"} and outer_tiles_type in {
+            if inner_tiles_type in oset(["set", "unknown"]) and outer_tiles_type in oset([
                 "set",
                 "unknown",
-            }:
+            ]):
                 factorize = math.ceil(outer_size / inner_size)
                 factors = list(get_possible_factor_sizes(factorize, imperfect))
                 scaled = np.array(factors) * inner_size
@@ -1406,7 +1406,7 @@ def get_tile_shape_choices(
             # to use diff because the whether a loop exists depends on whether this tile
             # shape exactly equals the one it tiles / is tiled by. The same logic
             # applies if an inner loop depends on us, except with max.
-            pairs_have_eq = set()
+            pairs_have_eq = oset()
 
             # If a max fused loop check group is fully evaluated, we don't need to check
             # it
@@ -1466,11 +1466,11 @@ def get_tile_shape_choices(
                 update_symbol2goal(sympy.Eq(a, b), Goal("max"))
 
             # If we need to keep this symbol, must preserve all choices for it
-            for s in set(symbols_enumerated) & set(keep_symbols):
+            for s in oset(symbols_enumerated) & oset(keep_symbols):
                 update_symbol2goal(s, Goal("diff"))
 
-            symbols_non_enumerated_set = set(symbols) - set(symbols_enumerated)
-            sym_enumerated_set = set(symbols_enumerated)
+            symbols_non_enumerated_set = oset(symbols) - oset(symbols_enumerated)
+            sym_enumerated_set = oset(symbols_enumerated)
 
             if (
                 job.spec_one_einsum.mapper._count_option_for_mapsapce_size_evaluation
@@ -1775,7 +1775,7 @@ def makesymbol(name: str):
 
 
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
-    keep_symbols = set()
+    keep_symbols = oset()
     for node in pmapping.nodes:
         if isinstance(node, Loop) and node._fused:
             if isinstance(node.initial_tile_shape, Symbol):
@@ -1933,7 +1933,7 @@ def _make_tile_shapes(job: "Job"):
     )
     keep_symbols = make_keep_symbols(pmapping)
     rank_var_to_fused_loops = get_rank_var_to_fused_loops(pmapping, shape)
-    all_fused_loops = set(sum(rank_var_to_fused_loops.values(), []))
+    all_fused_loops = oset(sum(rank_var_to_fused_loops.values(), []))
 
     assert (
         Metrics.ACTIONS not in job.metrics

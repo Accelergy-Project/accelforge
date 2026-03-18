@@ -16,7 +16,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     MAPPING_COLUMN,
     PmappingDataframe,
 )
-from accelforge.util._frozenset import fzs
+from accelforge.util._frozenset import fzs, oset
 from accelforge.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 
 OBJECTIVE_COLUMN = None  # None -> Product
@@ -88,7 +88,7 @@ class Mapping:
                     tensors = list(t for t in tensors if t.above_loop_index > i)
                     if not tensors:
                         continue
-                    possible_loops = set.intersection(
+                    possible_loops = oset.intersection(
                         *(
                             mapspace_globals.tensor2possible_loops_above_set[einsum][t]
                             for t in tensors
@@ -153,7 +153,7 @@ class Mapping:
     ):
         self.n_changes += 1
         if tensor is None:
-            memories = set().union(*(t.tensors for t in self.einsum2tiling.values()))
+            memories = oset().union(*(t.tensors for t in self.einsum2tiling.values()))
             memories = [m for m in memories if m.above_loop_index > 0]
             if not memories:
                 raise FailedMutation("No memories to mutate")

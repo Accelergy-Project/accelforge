@@ -11,7 +11,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
     make_fused_loop_col,
 )
-from accelforge.util import parallel
+from accelforge.util import parallel, oset
 
 
 class PmappingGroup:
@@ -24,7 +24,7 @@ class PmappingGroup:
         self.n_pre_prune_mappings = 0
 
         if isinstance(self.mappings, PmappingDataframe):
-            checked = set()
+            checked = oset()
             for s in self.compatibility.symbols():
                 checked.add(s)
                 assert (
@@ -42,7 +42,7 @@ class PmappingGroup:
 
     @cached_property
     def tensor_names(self) -> set[str]:
-        return set(self.tensors)
+        return oset(self.tensors)
 
     def copy(self) -> "PmappingGroup":
         return PmappingGroup(self.compatibility, self.mappings.copy())
@@ -86,9 +86,9 @@ class PmappingGroup:
             and r.name not in right.compatibility.tensor_names
         ]
 
-        duplicated_aliased_tensors = set()
+        duplicated_aliased_tensors = oset()
         for name, my_tensor in self.tensors.items():
-            for aliased_tensor in aliased_tensors.get(name, set()):
+            for aliased_tensor in aliased_tensors.get(name, oset()):
                 if (aliased_tensor := right.tensors.get(aliased_tensor, None)) is None:
                     continue
                 if my_tensor.resource_name == aliased_tensor.resource_name:
@@ -125,8 +125,8 @@ class PmappingGroup:
         live_tensors: set[str] = None,
         shared_tensors: set[str] = None,
     ):
-        dead_tensors = set(self.tensors) - (live_tensors or set())
-        check_tensors = (shared_tensors or set()) | (live_tensors or set())
+        dead_tensors = oset(self.tensors) - (live_tensors or oset())
+        check_tensors = (shared_tensors or oset()) | (live_tensors or oset())
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.tensors.pop(t)
@@ -135,7 +135,7 @@ class PmappingGroup:
         return self
 
     def _left_consolidate(self, live_tensors: set[str] = None):
-        check_tensors = live_tensors or set()
+        check_tensors = live_tensors or oset()
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         self.mappings.free_to_loop_index(shared_loop_index)
         if live_tensors is None:
@@ -187,7 +187,7 @@ class PmappingGroup:
         pmapping_groups = list(pmapping_groups)
         assert len(pmapping_groups) > 0, "Cannot concat empty list of PmappingGroups"
         if not allow_different_compatibilies:
-            s = set(
+            s = oset(
                 s.compatibility.clear_symbolic_tile_patterns() for s in pmapping_groups
             )
             if len(s) > 1:
@@ -268,7 +268,7 @@ class PmappingGroup:
         if try_permute_into_equivalent:
             assert not include_permutations
             new_grouped = {}
-            pmgroups_remaining = {id(s) for s in pmapping_groups}
+            pmgroups_remaining = oset(id(s) for s in pmapping_groups)
             for c, g in sorted(grouped.items(), key=lambda x: len(x[1]), reverse=True):
                 if not pmgroups_remaining:
                     break
@@ -278,7 +278,7 @@ class PmappingGroup:
                     if id(s) in pmgroups_remaining
                 ]
                 if g:
-                    pmgroups_remaining -= {id(s) for s, _ in g}
+                    pmgroups_remaining -= oset(id(s) for s, _ in g)
                     permuted = [
                         PmappingGroup(
                             s.compatibility.permute(lc),
@@ -342,7 +342,7 @@ class PmappingGroup:
                         return False
             return True
 
-        tensors = set(tensors)
+        tensors = oset(tensors)
         if isinstance(pmapping_groups, list):
             return [s for s in pmapping_groups if check(s.compatibility.tensors)]
         if isinstance(pmapping_groups, dict):

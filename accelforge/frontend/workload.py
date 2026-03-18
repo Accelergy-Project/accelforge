@@ -13,6 +13,7 @@ import pydot
 
 from accelforge.util.parallel import _SVGJupyterRender
 
+from accelforge.util._frozenset import oset
 from accelforge.util._basetypes import (
     EvalableDict,
     EvalableList,
@@ -153,7 +154,7 @@ class TensorAccess(EvalableModel):
         rank.
         """
         return {
-            Rank(rank): set(
+            Rank(rank): oset(
                 RankVariable(rank_var)
                 for rank_var in re.findall(_ISL_REGEX, projection)
             )
@@ -169,7 +170,7 @@ class TensorAccess(EvalableModel):
         result = {}
         for rank, projection in self.projection.items():
             for rank_var in re.findall(_ISL_REGEX, projection):
-                rank_set: set = result.setdefault(rank_var, set())
+                rank_set: set = result.setdefault(rank_var, oset())
                 rank_set.add(rank)
         return result
 
@@ -182,7 +183,7 @@ class TensorAccess(EvalableModel):
     def rank_variables(self) -> set[RankVariable]:
         """Returns all rank variables used in this access."""
         # Projection values may be expressions, so we need to grab all identifiers
-        return set(
+        return oset(
             RankVariable(x)
             for x in re.findall(_ISL_REGEX, " ".join(self.projection.values()))
         )
@@ -193,7 +194,7 @@ class TensorAccess(EvalableModel):
         Returns the rank variables that directly index into this tensor without any
         expression (e.g., "M=m", NOT "M=m+n").
         """
-        return set(
+        return oset(
             RankVariable(x) for x in self.projection.values() if _ISL_REGEX.match(x)
         )
 
@@ -388,8 +389,8 @@ class Shape(EvalableList):
     def rank_variables(self) -> set[str]:
         """Returns all rank variables used in this shape."""
         if not self:
-            return set()
-        return set.union(*[set(re.findall(_ISL_REGEX, x)) for x in self])
+            return oset()
+        return oset.union(*[oset(re.findall(_ISL_REGEX, x)) for x in self])
 
 
 class Einsum(EvalableModel):
@@ -456,30 +457,30 @@ class Einsum(EvalableModel):
     def rank_variables(self) -> set[RankVariable]:
         """Returns all rank variables used in this Einsum."""
         if not self.tensor_accesses:
-            return set()
-        return set.union(*[t.rank_variables for t in self.tensor_accesses])
+            return oset()
+        return oset.union(*[t.rank_variables for t in self.tensor_accesses])
 
     @property
     def ranks(self) -> set[Rank]:
         """Returns all ranks used in this Einsum."""
         if not self.tensor_accesses:
-            return set()
-        return set.union(*[set(t.ranks) for t in self.tensor_accesses])
+            return oset()
+        return oset.union(*[oset(t.ranks) for t in self.tensor_accesses])
 
     @property
     def input_tensor_names(self) -> set[TensorName]:
         """Returns the names of the input tensors of this Einsum."""
-        return set([TensorName(t.name) for t in self.tensor_accesses if not t.output])
+        return oset([TensorName(t.name) for t in self.tensor_accesses if not t.output])
 
     @property
     def output_tensor_names(self) -> set[TensorName]:
         """Returns the names of the output tensors of this Einsum."""
-        return set([TensorName(t.name) for t in self.tensor_accesses if t.output])
+        return oset([TensorName(t.name) for t in self.tensor_accesses if t.output])
 
     @property
     def tensor_names(self) -> set[TensorName]:
         """Returns the names of all tensors of this Einsum."""
-        return set([TensorName(t.name) for t in self.tensor_accesses])
+        return oset([TensorName(t.name) for t in self.tensor_accesses])
 
     @property
     def tensor2rank_variables(self) -> dict[TensorName, set[RankVariable]]:
@@ -583,7 +584,7 @@ class Einsum(EvalableModel):
         for tensor_access in self.tensor_accesses:
             new = tensor_access.rank_variable2ranks
             for rank_var, ranks in new.items():
-                result.setdefault(rank_var, set()).update(ranks)
+                result.setdefault(rank_var, oset()).update(ranks)
         return result
 
     @property
@@ -592,7 +593,7 @@ class Einsum(EvalableModel):
         Returns a list of all the expressions that index into the tensors of this
         Einsum.
         """
-        result = set()
+        result = oset()
         for tensor_access in self.tensor_accesses:
             for _, projection in tensor_access.projection.items():
                 result.add(projection)
@@ -601,13 +602,13 @@ class Einsum(EvalableModel):
     @staticmethod
     def empty_renames() -> dict[str, InvertibleSet[TensorName | RankVariable]]:
         kwargs_tensors = dict(
-            full_space=set(),
+            full_space=oset(),
             space_type=TensorName,
             child_access_name="rank_variables",
             element_to_child_space=dict(),
         )
         kwargs_rank_variables = dict(
-            full_space=set(),
+            full_space=oset(),
             space_type=RankVariable,
         )
         return {
@@ -645,8 +646,8 @@ class Einsum(EvalableModel):
             t
             for t in all_
             if len(
-                set(e.name for e in workload.einsums_with_tensor_as_input(t))
-                | set(e.name for e in workload.einsums_with_tensor_as_output(t))
+                oset(e.name for e in workload.einsums_with_tensor_as_input(t))
+                | oset(e.name for e in workload.einsums_with_tensor_as_output(t))
             )
             > 1
         }
@@ -710,7 +711,7 @@ class Einsum(EvalableModel):
 
         # Put these after the eval because they don't need eval and it slows things
         # down.
-        all_renames = set(r.name for r in evaluated.renames)
+        all_renames = oset(r.name for r in evaluated.renames)
         for t in workload.tensor_names:
             if t not in all_renames:
                 evaluated.renames.append(
@@ -851,7 +852,7 @@ class Workload(EvalableModel):
 
     def _validate(self):
         tensor2ranks = {}
-        einsum_names = set()
+        einsum_names = oset()
         for einsum in self.einsums:
             if einsum.name in einsum_names:
                 raise ValueError(f"Einsum name {einsum.name} is not unique")
@@ -1015,7 +1016,7 @@ class Workload(EvalableModel):
 
         # Add all tensors as nodes (circles)
         tensors = []
-        seen_tensor_names = set()
+        seen_tensor_names = oset()
         for einsum in self.einsums:
             node = pydot.Node(
                 f"Einsum_{einsum.name}",
@@ -1083,7 +1084,7 @@ class Workload(EvalableModel):
             cur_bpv = {t.name: t.bits_per_value for t in einsum.tensor_accesses}
             # Check for consistency across Einsums
             for prev_einsum, prev_bpv in bits_per_value_per_einsum.items():
-                shared_keys = set(cur_bpv.keys()) & set(prev_bpv.keys())
+                shared_keys = oset(cur_bpv.keys()) & oset(prev_bpv.keys())
                 for t in shared_keys:
                     b0 = cur_bpv[t]
                     b1 = prev_bpv[t]
@@ -1137,14 +1138,14 @@ class Workload(EvalableModel):
         for tensor in self.tensor_names:
             for acc in self.accesses_for_tensor(tensor):
                 for rank, rank_vars in acc.rank2rank_variables.items():
-                    rank2rankvars.setdefault(rank, set()).update(rank_vars)
+                    rank2rankvars.setdefault(rank, oset()).update(rank_vars)
 
         rank_var_to_ranks = {}
         for rank, rank_vars in rank2rankvars.items():
             for rank_var in rank_vars:
-                rank_var_to_ranks.setdefault(rank_var, set()).add(rank)
+                rank_var_to_ranks.setdefault(rank_var, oset()).add(rank)
 
-        rank_to_ranks = {r: set((r,)) for r in rank2rankvars.keys()}
+        rank_to_ranks = {r: oset((r,)) for r in rank2rankvars.keys()}
         update_with = list(rank_var_to_ranks.values())
         changed = True
         while changed:
@@ -1176,8 +1177,8 @@ class Workload(EvalableModel):
                 continue
             input_tensor = einsum.copy_source_tensor()
             for output_tensor in einsum.output_tensor_names:
-                tensor_copies.setdefault(input_tensor, set()).add(output_tensor)
-                tensor_copies.setdefault(output_tensor, set()).add(input_tensor)
+                tensor_copies.setdefault(input_tensor, oset()).add(output_tensor)
+                tensor_copies.setdefault(output_tensor, oset()).add(input_tensor)
         return tensor_copies
 
     def empty_renames(self) -> dict[str, InvertibleSet[TensorName | RankVariable]]:

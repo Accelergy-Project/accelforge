@@ -4,6 +4,7 @@ from tqdm import tqdm
 from accelforge._accelerated_imports import pd
 from accelforge.frontend.workload import EinsumName
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
+from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     COMPRESSED_INDEX,
     col_used_in_pareto,
@@ -116,7 +117,7 @@ def decompress_pmappings(
         # end index so we know when to change to the next
         decompressed_iter = reversed(decompress.items())
         start_index, chosen = float("inf"), None
-        for i in reversed(sorted(set(data[f"{einsum_name}<SEP>{COMPRESSED_INDEX}"]))):
+        for i in reversed(sorted(oset(data[f"{einsum_name}<SEP>{COMPRESSED_INDEX}"]))):
             while chosen is None or i < start_index:
                 start_index, chosen = next(decompressed_iter)
             cur_chosen = chosen[chosen.index == i]

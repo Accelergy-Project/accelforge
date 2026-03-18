@@ -17,7 +17,7 @@ from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
 )
 from accelforge._accelerated_imports import pd
 
-from accelforge.util import delayed, _fillna_and__numeric_cast, parallel
+from accelforge.util import delayed, _fillna_and__numeric_cast, parallel, oset
 
 
 logger = logging.getLogger(__name__)
@@ -277,7 +277,7 @@ def _make_pmappings(
         pmapping_objects,
         einsum2jobs,
         can_combine_multiple_runs=can_combine_multiple_runs,
-        einsums_with_pmappings_generated=set(
+        einsums_with_pmappings_generated=oset(
             einsum_names if einsum_names else spec.workload.einsum_names
         ),
         flattened_arches=flattened_arches,

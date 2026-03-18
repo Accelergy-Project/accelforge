@@ -1,6 +1,6 @@
 from .parallel import _expfmt, _lambdify_type_check
 from .parallel import *
-from ._frozenset import fzs
+from ._frozenset import fzs, oset
 from ._mathfuncs import _fillna_and__numeric_cast, _numeric_cast
 from ._eval_expressions import LiteralString
 from .exceptions import EvaluationError
@@ -22,6 +22,7 @@ __all__ = [
     "delayed",
     # Utilities
     "fzs",
+    "oset",
     "LiteralString",
     "EvaluationError",
     # Private but exposed (used internally)

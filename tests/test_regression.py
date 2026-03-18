@@ -19,50 +19,50 @@ from accelforge.mapper import Metrics
 JSON_PATH = Path(__file__).parent / "regression_reference.json"
 
 REGRESSION_CASES = {
-    # af.examples.arches.simple: [
-    #     {
-    #         "workload": af.examples.workloads.matmuls,
-    #         "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
-    #     },
-    #     {"workload": af.examples.workloads.three_matmuls_annotated},
-    #     {"workload": af.examples.workloads.gpt3_175B},
-    #     {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-    #     # {"workload": af.examples.workloads.gpt3_6_7B},
-    #     # {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
-    # ],
-    # af.examples.arches.eyeriss: [
-    #     {
-    #         "workload": af.examples.workloads.matmuls,
-    #         "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
-    #     },
-    #     {"workload": af.examples.workloads.three_matmuls_annotated},
-    #     # {"workload": af.examples.workloads.gpt3_175B},
-    #     # {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-    #     {"workload": af.examples.workloads.gpt3_6_7B},
-    #     {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
-    # ],
-    # af.examples.arches.simba: [
-    #     {
-    #         "workload": af.examples.workloads.matmuls,
-    #         "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
-    #     },
-    #     {"workload": af.examples.workloads.three_matmuls_annotated},
-    #     # {"workload": af.examples.workloads.gpt3_175B},
-    #     # {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-    #     {"workload": af.examples.workloads.gpt3_6_7B},
-    #     {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
-    # ],
-    # af.examples.arches.tpu_v4i: [
-    #     {
-    #         "workload": af.examples.workloads.matmuls,
-    #         "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
-    #     },
-    #     {"workload": af.examples.workloads.three_matmuls_annotated},
-    #     {"workload": af.examples.workloads.gpt3_175B},
-    #     {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-    #     # {"workload": af.examples.workloads.gpt3_6_7B},
-    #     # {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
-    # ],
+    af.examples.arches.simple: [
+        {
+            "workload": af.examples.workloads.matmuls,
+            "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
+        },
+        {"workload": af.examples.workloads.three_matmuls_annotated},
+        {"workload": af.examples.workloads.gpt3_175B},
+        {"workload": af.examples.workloads.gpt3_175B_kv_cache},
+        # {"workload": af.examples.workloads.gpt3_6_7B},
+        # {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+    ],
+    af.examples.arches.eyeriss: [
+        {
+            "workload": af.examples.workloads.matmuls,
+            "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
+        },
+        {"workload": af.examples.workloads.three_matmuls_annotated},
+        # {"workload": af.examples.workloads.gpt3_175B},
+        # {"workload": af.examples.workloads.gpt3_175B_kv_cache},
+        {"workload": af.examples.workloads.gpt3_6_7B},
+        {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+    ],
+    af.examples.arches.simba: [
+        {
+            "workload": af.examples.workloads.matmuls,
+            "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
+        },
+        {"workload": af.examples.workloads.three_matmuls_annotated},
+        # {"workload": af.examples.workloads.gpt3_175B},
+        # {"workload": af.examples.workloads.gpt3_175B_kv_cache},
+        {"workload": af.examples.workloads.gpt3_6_7B},
+        {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+    ],
+    af.examples.arches.tpu_v4i: [
+        {
+            "workload": af.examples.workloads.matmuls,
+            "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
+        },
+        {"workload": af.examples.workloads.three_matmuls_annotated},
+        {"workload": af.examples.workloads.gpt3_175B},
+        {"workload": af.examples.workloads.gpt3_175B_kv_cache},
+        # {"workload": af.examples.workloads.gpt3_6_7B},
+        # {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+    ],
 }
 
 

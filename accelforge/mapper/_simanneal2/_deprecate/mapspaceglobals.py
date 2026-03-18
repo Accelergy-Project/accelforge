@@ -5,7 +5,7 @@ from accelforge.frontend import arch
 from accelforge.frontend.spec import Spec
 from accelforge.mapper.FFM._join_pmappings.join_pmappings import PmappingGroup
 from accelforge.mapper.FFM._join_pmappings.compatibility import Loop, Compatibility
-from accelforge.util._frozenset import fzs
+from accelforge.util._frozenset import fzs, oset
 from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
     make_full_equivalent_rank_variables,
 )
@@ -29,7 +29,7 @@ class MapspaceGlobals:
             einsum_name: spec.workload.einsums[einsum_name].tensor_names
             for einsum_name in self.einsum_names
         }
-        self.tensor_names = set().union(
+        self.tensor_names = oset().union(
             *(self.einsum2tensors[e] for e in self.einsum_names)
         )
         self.tensor_names_used_in_multiple_einsums = (
@@ -67,12 +67,12 @@ class MapspaceGlobals:
                     continue
                 print(f"Checking {left_id} {right_id}")
 
-                right_tilings = {
+                right_tilings = oset(
                     s.compatibility.clear_dead_tensors(
                         live_tensors=left_live
                     ).clear_dead_tensors(left_tensors, keep_loops=True)
                     for s in right_sims
-                }
+                )
                 assert right_tilings, f"R {left_id} {right_id}"
                 for s in list(left_sims):
                     for t in self.get_possible_translations(s.compatibility, right_id):
@@ -88,12 +88,12 @@ class MapspaceGlobals:
                     left_sims
                 ), f"Removed all of left {left_id} while checking right {right_id}"
 
-                left_tilings = {
+                left_tilings = oset(
                     s.compatibility.clear_dead_tensors(
                         live_tensors=right_live
                     ).clear_dead_tensors(right_tensors, keep_loops=True)
                     for s in left_sims
-                }
+                )
                 assert left_tilings, f"L {left_id} {right_id}"
                 for s in list(right_sims):
                     for t in self.get_possible_translations(s.compatibility, left_id):
@@ -111,7 +111,7 @@ class MapspaceGlobals:
 
         self.tensor2possible_loops_above = self._create_tensor2possible_loops_above()
         self.tensor2possible_loops_above_set = {
-            k: {k2: set(v2) for k2, v2 in v.items()}
+            k: {k2: oset(v2) for k2, v2 in v.items()}
             for k, v in self.tensor2possible_loops_above.items()
         }
         self.tensor2memories = self._create_tensor2memories()
@@ -138,7 +138,7 @@ class MapspaceGlobals:
         self.aliased_tensors = spec.workload.get_tensor_copies()
 
     def get_live_tensors(self, *einsums: str):
-        return set.union(*(self.einsum2tensors[e] for e in einsums))
+        return oset.union(*(self.einsum2tensors[e] for e in einsums))
 
     def _create_compatibility(self):
         tiling2leftcompatibility = {}
@@ -198,7 +198,7 @@ class MapspaceGlobals:
             tensor2possible_loops_above[einsum_name] = defaultdict(set)
             for sim in pm_group_list:
                 for tensor in sim.compatibility.tensors:
-                    tensor2possible_loops_above[einsum_name][tensor] |= set(
+                    tensor2possible_loops_above[einsum_name][tensor] |= oset(
                         sim.compatibility.loops[: tensor.above_loop_index]
                     )
         return {
@@ -211,7 +211,7 @@ class MapspaceGlobals:
         for t in self.tensor_names_used_in_multiple_einsums:
             possible_memories = []
             for einsum_name, pm_group_list in self.pmapping_groups.items():
-                cur_memories = set()
+                cur_memories = oset()
                 if t not in pm_group_list[0].tensor_names:
                     continue
                 for sim in pm_group_list:
@@ -219,7 +219,7 @@ class MapspaceGlobals:
                     cur_memories.add(tensor)
                 possible_memories.append(cur_memories)
             if possible_memories:
-                tensor2memories[t] = list(set.intersection(*possible_memories))
+                tensor2memories[t] = list(oset.intersection(*possible_memories))
             else:
                 raise ValueError(f"No memories for {t}")
         return tensor2memories
@@ -242,7 +242,7 @@ class MapspaceGlobals:
         self, pairwise_equivalent_ranks: dict[str, set[str]]
     ):
         full_equivalent_ranks = {
-            k: set(v) for k, v in pairwise_equivalent_ranks.items()
+            k: oset(v) for k, v in pairwise_equivalent_ranks.items()
         }
         changed = True
         while changed:
@@ -271,7 +271,7 @@ class MapspaceGlobals:
         return einsum_rank_index_to_loops
 
     def get_tensors(self, *einsums: str):
-        return set.union(*(self.einsum2tensors[e] for e in einsums))
+        return oset.union(*(self.einsum2tensors[e] for e in einsums))
 
     def get_possible_translations(self, t: Compatibility, to_einsum: str):
         pairwise_equivalent_ranks = self.pairwise_equivalent_ranks
@@ -280,11 +280,11 @@ class MapspaceGlobals:
 
         def translate_loop(l: Loop):
             compatible_ranks = (
-                set.union(*(full_equivalent_ranks[n] for n in l.rank_variable_names))
+                oset.union(*(full_equivalent_ranks[n] for n in l.rank_variable_names))
                 & right_ranks
             )
             pairwise_compatible_ranks = (
-                set.union(
+                oset.union(
                     *(pairwise_equivalent_ranks[n] for n in l.rank_variable_names)
                 )
                 & right_ranks

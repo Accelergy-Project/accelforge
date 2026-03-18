@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import Callable, List, Tuple
 import islpy as isl
 
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Mapping,
     MappingNode,
@@ -113,8 +114,8 @@ def skews_from_mapping(mapping: Mapping, workload: Workload) -> SkewsInfo:
             .set_tuple_name(isl.dim_type.out, base_space)
         )
 
-        buffer_storage_past: set[Tuple[ComponentName, TensorName]] = set()
-        buffer_fully_complete: set[ComponentName] = set()
+        buffer_storage_past: set[Tuple[ComponentName, TensorName]] = oset()
+        buffer_fully_complete: set[ComponentName] = oset()
         buffer_to_dim_removal_mask: defaultdict[
             Tuple[ComponentName, TensorName], List[bool]
         ] = defaultdict(list)

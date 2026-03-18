@@ -25,7 +25,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 
-from accelforge.util import _expfmt, fzs
+from accelforge.util import _expfmt, fzs, oset
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -310,7 +310,7 @@ class Compatibility(Updatable):
 
     @property
     def tensor_names(self) -> set[str]:
-        return {t.name for t in self.tensors}
+        return oset(t.name for t in self.tensors)
 
     @property
     def max_above_loop_index(self) -> int:
@@ -370,7 +370,7 @@ class Compatibility(Updatable):
         if not keep_reservation_indices_and_splits:
             splits = fzs(s for s in splits if s.above_loop_index < new_n_loops)
             reservation_indices = fzs(
-                {min(i, new_n_loops) for i in self.reservation_indices}
+                oset(min(i, new_n_loops) for i in self.reservation_indices)
             )
             reservation_indices = fzs(x for x in reservation_indices if x >= 0)
 
@@ -415,7 +415,7 @@ class Compatibility(Updatable):
                 f"be carried through a LoopTree to where it's needed."
             )
 
-        live_minus_mine = live_tensors - {s.name for s in self.tensors}
+        live_minus_mine = live_tensors - oset(s.name for s in self.tensors)
         tensors_a = self._and_tensors_with_names(live_tensors)
         tensors_b = right._and_tensors_with_names(live_minus_mine)
 
@@ -432,9 +432,9 @@ class Compatibility(Updatable):
         return all(any(s == t for s in self.tensors) for t in tensors)
 
     def _permute_stops(self):
-        stops = set(len(s.loops) for s in self.tensors)
+        stops = oset(len(s.loops) for s in self.tensors)
         stops |= self.reservation_indices
-        stops |= set(s.above_loop_index for s in self.splits)
+        stops |= oset(s.above_loop_index for s in self.splits)
         return stops
 
     def permute(
@@ -442,7 +442,7 @@ class Compatibility(Updatable):
         loop_changes: list[int],
     ) -> "Compatibility":
         assert len(loop_changes) <= self.n_loops
-        assert set(loop_changes) == set(
+        assert oset(loop_changes) == oset(
             range(len(loop_changes))
         ), f"Loop changes {loop_changes} are not a permutation of {range(len(loop_changes))}"
         if len(loop_changes) < len(self.loops):
@@ -491,7 +491,7 @@ class Compatibility(Updatable):
     def per_tensor_compatibility(self) -> dict[str, "Compatibility"]:
         result = {}
         for s in self.tensors:
-            result[s.name] = self.clear_dead_tensors(set([s.name]))
+            result[s.name] = self.clear_dead_tensors(oset([s.name]))
         return result
 
     def clear_loop_bounds(self) -> "Compatibility":
@@ -535,13 +535,13 @@ class Compatibility(Updatable):
         tensor_indices = []
         split_above_loop_indices = []
         reservation_indices = []
-        backing_remaining = set(tensors)
+        backing_remaining = oset(tensors)
         n_seen_loops = 0
         n_fused_loops = 0
         for i, n in enumerate(mapping.nodes):
             if isinstance(n, MappingReservation):
                 reservation_indices.append(n_seen_loops)
-                if not (backing := set(n.purposes) & backing_remaining):
+                if not (backing := oset(n.purposes) & backing_remaining):
                     continue
                 backing_remaining -= backing
                 assert (
@@ -564,7 +564,7 @@ class Compatibility(Updatable):
         ), f"Tensors {backing_remaining} not found in mapping"
 
         def get_rank(rank_variable, tensor):
-            rv = rank_variable_to_ranks[tensor].get(rank_variable, set())
+            rv = rank_variable_to_ranks[tensor].get(rank_variable, oset())
             assert (
                 len(rv) <= 1
             ), f"Rank variable {rank_variable} indexes into multiple ranks {rv} for tensor {tensor} "
@@ -615,7 +615,7 @@ class Compatibility(Updatable):
         return symbols
 
     def drop_loop_indices(self, loop_indices: set[int]) -> "Compatibility":
-        loop_indices = set(loop_indices)
+        loop_indices = oset(loop_indices)
         tensors = fzs(t.drop_loop_indices(loop_indices) for t in self.tensors)
         splits = fzs(s for s in self.splits if s.above_loop_index not in loop_indices)
 
@@ -669,7 +669,7 @@ class Compatibility(Updatable):
         )
 
     def clear_unrelated_columns(self, mappings: pd.DataFrame) -> "Compatibility":
-        my_symbols = set(self.symbols())
+        my_symbols = oset(self.symbols())
         for c in my_symbols:
             assert c in mappings.columns, f"Column {c} not found in mappings"
         should_drop = lambda x: is_fused_loop_col(x) and x not in my_symbols

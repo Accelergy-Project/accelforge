@@ -3,6 +3,7 @@ from typing import (
     List,
 )
 
+from accelforge.util._frozenset import oset
 from accelforge.util._basetypes import (
     EvalableModel,
     EvalsTo,
@@ -72,7 +73,7 @@ class Comparison(EvalableModel):
     def _split_expression(self) -> List[set[RankVariable]]:
         if "product" in self.operator:
             return [self.expression]
-        return sorted(set((x,)) for x in self.expression)
+        return sorted(oset((x,)) for x in self.expression)
 
     def _to_constraint_lambda(
         self,
@@ -190,7 +191,7 @@ class _MinUsageConstraintLambda(_ConstraintLambda):
 
     def __call__(self, complete_indices: list[int], usages: np.ndarray) -> bool:
         # final = self.rank_variables.issubset(rank_variables)
-        final = set(self._target_loop_indices).issubset(set(complete_indices))
+        final = oset(self._target_loop_indices).issubset(oset(complete_indices))
         if not final:
             return np.ones(usages.shape[0], dtype=np.bool)
 

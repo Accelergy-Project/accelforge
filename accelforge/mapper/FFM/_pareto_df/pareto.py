@@ -9,6 +9,7 @@ from joblib import delayed
 from sympy import factorint
 
 from accelforge._accelerated_imports import np
+from accelforge.util._frozenset import oset
 from accelforge.util.parallel import parallel
 
 from accelforge.mapper.FFM._pareto_df.df_convention import (
@@ -286,7 +287,7 @@ def prime_factor_counts(arr: np.ndarray) -> np.ndarray:
     factorizations = {x: _factorint_cached(x) for x in unique_vals}
 
     # Gather all unique primes
-    all_primes = sorted({p for f in factorizations.values() for p in f})
+    all_primes = sorted(oset(p for f in factorizations.values() for p in f))
 
     # Build result matrix
     result = np.zeros((len(arr), len(all_primes)), dtype=int)

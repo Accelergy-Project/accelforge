@@ -5,6 +5,7 @@ import math
 import numbers
 import pandas as pd
 import numpy as np
+from accelforge.util._frozenset import oset
 
 NUMPY_FLOAT_TYPE = np.float32
 
@@ -21,7 +22,7 @@ def _count_factorizations_imperfect(n, into_n_parts):
 
     shapes = list(range(1, ceil(n**0.5) + 1))
     shapes = shapes + [ceil(n / s) for s in shapes]
-    shapes = sorted(set(shapes))
+    shapes = sorted(oset(shapes))
 
     if RUBY_STYLE_IMPERFECT:
         shapes = list(range(1, n + 1))
@@ -50,7 +51,7 @@ def _count_factorizations(n, into_n_parts, imperfect=False):
     if into_n_parts <= 1:
         return 1
     f = _prime_factorization(n)
-    factors = {f2: f.count(f2) for f2 in set(f)}
+    factors = {f2: f.count(f2) for f2 in oset(f)}
     total = 1
     for exp in factors.values():
         total *= comb(exp + into_n_parts - 1, into_n_parts - 1)  # n choose k

@@ -36,7 +36,7 @@ from typing import (
     Self,
 )
 
-from accelforge.util import _yaml
+from accelforge.util import _yaml, oset
 from accelforge.util._eval_expressions import (
     eval_expression,
     EvaluationError,
@@ -95,7 +95,7 @@ def _uninstantiable(cls):
     prev_init = cls.__init__
 
     def _get_all_subclasses(cls):
-        subclasses = set()
+        subclasses = oset()
         for subclass in cls.__subclasses__():
             subclasses.add(subclass.__name__)
             subclasses.update(_get_all_subclasses(subclass))
@@ -670,7 +670,7 @@ def _get_parsable_field_order(
 
     field2validator = {f: v for f, v, _ in field_value_validator_triples}
 
-    dependencies = {field: set() for field, _ in to_sort}
+    dependencies = {field: oset() for field, _ in to_sort}
     for other_field, other_value in to_sort:
         # Can't have any dependencies if you're not going to be evaluated
         if not isinstance(other_value, str) or is_literal_string(other_value):
@@ -799,7 +799,7 @@ class EvalableModel(_OurBaseModel, Evalable["EvalableModel"]):
         required_type = kwargs.pop("type", None)
 
         if self.model_config["extra"] == "forbid":
-            supported_fields = set(self.__class__.model_fields.keys())
+            supported_fields = oset(self.__class__.model_fields.keys())
             for k in kwargs.keys():
                 if k not in supported_fields:
                     raise ValueError(
@@ -831,7 +831,7 @@ class EvalableModel(_OurBaseModel, Evalable["EvalableModel"]):
         return EvalsTo[Any]
 
     def get_fields(self) -> list[str]:
-        fields = set(self.__class__.model_fields.keys())
+        fields = oset(self.__class__.model_fields.keys())
         if getattr(self, "__pydantic_extra__", None) is not None:
             fields.update(self.__pydantic_extra__.keys())
         return sorted(fields)

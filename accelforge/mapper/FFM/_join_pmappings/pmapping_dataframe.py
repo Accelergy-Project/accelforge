@@ -16,7 +16,7 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
     TensorReservation,
 )
 from accelforge.util import _fillna_and__numeric_cast, _numeric_cast
-from accelforge.util._frozenset import fzs
+from accelforge.util._frozenset import fzs, oset
 
 from accelforge._accelerated_imports import pd
 
@@ -38,7 +38,7 @@ def error_check_wrapper(func):
             return func(*args, **kwargs)
         except Exception as e:
             print(f"EXCEPTION: {e}")
-            live_tensors = set()
+            live_tensors = oset()
             if "live_tensors" in kwargs:
                 live_tensors = kwargs["live_tensors"]
             else:
@@ -107,7 +107,7 @@ def get_reservation_or_parent(
                 return reservation2col(name, level, left)
             # The parent of left nodes are right nodes, so if we don't find a
             # left node immediately then we're back on the right nodes
-            reservations = r_reservations.get(name, set())
+            reservations = r_reservations.get(name, oset())
             left = False
             level -= 1
     return None
@@ -172,7 +172,7 @@ class PmappingDataframe:
         self.ignored_resources = ignored_resources
 
         assert len(self.data.columns) == len(
-            set(self.data.columns)
+            oset(self.data.columns)
         ), f"Duplicate columns: {self.data.columns}"
 
     def rename(self, renames: dict[str, str]) -> "PmappingDataframe":
@@ -228,7 +228,7 @@ class PmappingDataframe:
         l_reservations, r_reservations = self._make_reservations()
         for resource, reservations in l_reservations.items():
             for r in reservations:
-                if r in r_reservations.get(resource, set()):
+                if r in r_reservations.get(resource, oset()):
                     source = reservation2col(resource, r)
                     target = reservation2col(resource, r, left=True)
                     max_to_col(self.data, target, source)
@@ -248,7 +248,7 @@ class PmappingDataframe:
         for c in self.data.columns:
             if (key := col2reservation(c)) is not None:
                 target = l_reservations if key.is_left else r_reservations
-                target.setdefault(key.name, set()).add(key.nloops)
+                target.setdefault(key.name, oset()).add(key.nloops)
                 assert key.nloops >= -1
 
         return l_reservations, r_reservations
@@ -714,7 +714,7 @@ class PmappingDataframe:
 
         # Must allocate at the above_loop_index level
         for t in itertools.chain(alloc, free):
-            r_reservations.setdefault(resource, set()).add(t.above_loop_index)
+            r_reservations.setdefault(resource, oset()).add(t.above_loop_index)
 
         for t, negate in [(t, False) for t in alloc] + [(t, True) for t in free]:
             size = self.data[tensor2col(t.name)]
@@ -724,7 +724,7 @@ class PmappingDataframe:
             for level in r_reservations[resource]:
                 if level > t.above_loop_index:
                     targets[level, False] += size
-            for level in l_reservations.get(resource, set()):
+            for level in l_reservations.get(resource, oset()):
                 if level > t.above_loop_index:
                     targets[level, True] += size
 
@@ -756,12 +756,12 @@ class PmappingDataframe:
         self,
         alloc: Iterable[TensorReservation],
         free: Iterable[TensorReservation],
-        ignored_resources: set[str] = set(),
+        ignored_resources: set[str] = oset(),
     ):
         alloc, free = list(alloc), list(free)
-        all_resources = {t.resource_name for t in alloc} | {
+        all_resources = oset(t.resource_name for t in alloc) | oset(
             t.resource_name for t in free
-        }
+        )
         ignored_resources = ignored_resources | self.ignored_resources
         # Handle each resource separately
         for resource in all_resources:
@@ -781,8 +781,8 @@ class PmappingDataframe:
         if len(paretos) == 1:
             return paretos[0]
 
-        required_cols = set.union(*[set(p.data.columns) for p in paretos])
-        shared_cols = set.intersection(*[set(p.data.columns) for p in paretos])
+        required_cols = oset.union(*[oset(p.data.columns) for p in paretos])
+        shared_cols = oset.intersection(*[oset(p.data.columns) for p in paretos])
         reservation_cols_to_fill = [
             c for c in required_cols - shared_cols
             if col_used_in_pareto(c) and col2reservation(c)
@@ -830,16 +830,16 @@ class PmappingDataframe:
     def limit_capacity(
         self,
         next_shared_loop_index: int = None,
-        ignored_resources: set[str] = set(),
+        ignored_resources: set[str] = oset(),
     ):
         dropcols = []
         l_reservations, r_reservations = self._make_reservations()
         tolerance = self.excess_resource_tolerance
-        for resource in sorted(set(r_reservations) | set(l_reservations)):
+        for resource in sorted(oset(r_reservations) | oset(l_reservations)):
             # Right reservations: Only check the greatest-index level. If a loop
             # is 0 and the next shared loop index is -1, then we can drop the
             # column.
-            right_loops = r_reservations.get(resource, set())
+            right_loops = r_reservations.get(resource, oset())
             for l in list(right_loops):
                 col = reservation2col(resource, l)
                 if (
@@ -866,7 +866,7 @@ class PmappingDataframe:
 
             # Left reservations: Check all levels. If a loop is 0,
             # then we can drop the column.
-            left_loops = l_reservations.get(resource, set())
+            left_loops = l_reservations.get(resource, oset())
             for l in list(left_loops):
                 col = reservation2col(resource, l, left=True)
                 if (
@@ -1035,7 +1035,7 @@ class PmappingDataframe:
     #     assert not self.data.isnull().values.any(), f"NaN in {self.data}"
     #     self = self.copy()
     #     self._draw_index(index, live_tensors, self._get_target_path(suffix="fail"))
-    #     all_tensors = set(t for tn in r[MAPPING_COLUMN].values() for t in tn.tensors)
+    #     all_tensors = oset(t for tn in r[MAPPING_COLUMN].values() for t in tn.tensors)
     #     all_tensors = TensorReservation.get_backing_tensors(all_tensors)
     #     for t in sorted(all_tensors):
     #         print(f"{t.__repr__()},")

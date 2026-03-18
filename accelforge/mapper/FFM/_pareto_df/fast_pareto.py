@@ -23,6 +23,7 @@ from sympy import factorint
 import functools
 
 from accelforge.util import NUMPY_FLOAT_TYPE
+from accelforge.util._frozenset import oset
 
 
 # ============================================================================
@@ -75,7 +76,7 @@ def prime_factor_counts(arr):
     arr = np.asarray(arr, dtype=int).ravel()
     unique_vals = np.unique(arr)
     factorizations = {int(x): _factorint_cached(int(x)) for x in unique_vals}
-    all_primes = sorted({p for f in factorizations.values() for p in f})
+    all_primes = sorted(oset(p for f in factorizations.values() for p in f))
     if not all_primes:
         return np.zeros((len(arr), 1), dtype=NUMPY_FLOAT_TYPE)
     result = np.zeros((len(arr), len(all_primes)), dtype=NUMPY_FLOAT_TYPE)

@@ -14,6 +14,7 @@ from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo
 from accelforge.frontend.renames import Rank, RankVariable
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.mapping import Loop, Mapping, TensorHolder
+from accelforge.util._frozenset import oset
 from accelforge.frontend._workload_isl._isl import (
     get_rank_variable_bounds,
     get_tensor_size,
@@ -54,7 +55,7 @@ def get_rank_variable_bounds_for_all_einsums(spec: Spec):
     for e1, rv1 in rank_variable_bounds.items():
         result.update(rv1)
         for e2, rv2 in rank_variable_bounds.items():
-            for r in set(rv1.keys()) & set(rv2.keys()):
+            for r in oset(rv1.keys()) & oset(rv2.keys()):
                 if rv1[r] != rv2[r]:
                     raise ValueError(
                         f"Rank variable {r} has different bounds for "
@@ -158,8 +159,8 @@ def get_jobs(
         for e in spec.workload.einsum_names
     }
 
-    input_tensors = set.union(*[e.input_tensor_names for e in spec.workload.einsums])
-    output_tensors = set.union(*[e.output_tensor_names for e in spec.workload.einsums])
+    input_tensors = oset.union(*[e.input_tensor_names for e in spec.workload.einsums])
+    output_tensors = oset.union(*[e.output_tensor_names for e in spec.workload.einsums])
     intermediate_tensors = input_tensors & output_tensors
 
     n_einsums = len(spec.workload.einsum_names)
@@ -230,7 +231,7 @@ def get_memories_to_track(
     print_progress: bool = True,
 ) -> tuple[list[str], list[str]]:
 
-    memories_track_all = set()
+    memories_track_all = oset()
     for einsum, jobs in einsum2jobs.items():
         for job in jobs:
             memories_track_all.update(
@@ -238,12 +239,12 @@ def get_memories_to_track(
             )
 
     memories_track_pmappings_only = []
-    ignored_resources = set()
+    ignored_resources = oset()
 
     # If we're combining the pmappings from multiple runs, we can't conclude anything
     # about the metrics to track
     if can_combine_multiple_runs or metrics.RESOURCE_USAGE in metrics:
-        ignored_resources = set()
+        ignored_resources = oset()
         return (
             memories_track_all,
             memories_track_pmappings_only,

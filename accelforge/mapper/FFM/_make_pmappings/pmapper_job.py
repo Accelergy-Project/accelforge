@@ -6,6 +6,7 @@ from typing import Any, Callable
 from uuid import UUID, uuid4
 
 import accelforge.frontend.arch as arch
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Mapping,
 )
@@ -192,7 +193,7 @@ class SameSpecJobs(list[Job]):
 
 class SameEinsumJobs(SameSpecJobs):
     def check_invariance(self):
-        all_einsums = set(job.einsum_name for job in self)
+        all_einsums = oset(job.einsum_name for job in self)
         if len(all_einsums) > 1:
             raise RuntimeError("broken invariance: not all Einsums are equal.")
 
@@ -226,7 +227,7 @@ class SameCompatibilityJobs(SameEinsumJobs):
     """Jobs with the same compatibility before tile shape exploration."""
 
     def check_invariance(self):
-        all_compatibilities = set(job.compatibility for job in self)
+        all_compatibilities = oset(job.compatibility for job in self)
         if len(all_compatibilities) > 1:
             raise RuntimeError(
                 "broken invariance: " "not all compatibilities are equal."

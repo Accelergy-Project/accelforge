@@ -7,6 +7,7 @@ from collections import defaultdict
 import sympy
 from accelforge.frontend.mapping import Loop, Mapping, Spatial, Temporal
 from accelforge.frontend.workload import EinsumName
+from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
 )
@@ -211,7 +212,7 @@ def assert_all_jobs_have_same_symbols(
         for t in j.compatibility.tensors:
             for i, l in enumerate(t.loops):
                 if len(iteration2symbols) <= i:
-                    iteration2symbols.append(set())
+                    iteration2symbols.append(oset())
                 iteration2symbols[i].add(l.tile_pattern.calculated_n_iterations)
     assert all(
         len(s) == 1 for s in iteration2symbols
@@ -414,7 +415,7 @@ def make_pmappings_from_templates(
             n_total_pmappings=total_pmappings_per_group,
             n_valid_pmappings=valid_pmappings_per_group,
             ignored_resources=job.ignored_resources
-            | set(job.memories_track_pmappings_only),
+            | oset(job.memories_track_pmappings_only),
             skip_pareto=True,
             # False because we may have lifetimes that stretch through this Einsum due
             # to data dependencies, not loops. For example, if we have no fused loops,

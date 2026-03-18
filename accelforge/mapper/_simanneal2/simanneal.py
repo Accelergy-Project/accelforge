@@ -8,6 +8,7 @@ from accelforge import arch, util
 from accelforge import Spec
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
+from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._join_pmappings.compress_pmappings import (
     compress_einsum2pmappings,
     decompress_pmappings,
@@ -224,14 +225,14 @@ class SimAnnealMapping:
             # {e: s.compatibility for e, s in new_einsum2sim.items()}
 
         assert len(new_einsum2sim) == len(self.einsum2sim)
-        assert set(new_einsum2sim.keys()) == set(self.einsum2sim.keys())
+        assert oset(new_einsum2sim.keys()) == oset(self.einsum2sim.keys())
         self.einsum2sim = {k: new_einsum2sim[k] for k in self.einsum2sim.keys()}
 
     def _einsum2tensors(
         self, e: EinsumName | int | Generator[EinsumName | int, None, None]
     ) -> set[str]:
         if isinstance(e, Generator) or isinstance(e, range):
-            return set.union(set(), *(self._einsum2tensors(i) for i in e))
+            return oset.union(oset(), *(self._einsum2tensors(i) for i in e))
         if isinstance(e, int):
             e = list(self.mapspace_globals.einsum2sims.keys())[e]
         return self.mapspace_globals.einsum2sims[e][0].compatibility.tensor_names
@@ -285,7 +286,7 @@ class SimAnnealMapping:
                         permuted_compatibility_right=right.compatibility,
                         drop_valid_reservations=True,
                         delay=False,
-                        ignored_resources=set(),
+                        ignored_resources=oset(),
                     )
                 except ValueError as err:
                     # print(err)
@@ -315,7 +316,7 @@ class SimAnnealMapping:
             )
             s.mappings._data = s.mappings.data.drop(columns=["_INDEX"])
             try:
-                i = random.choice(list(set(joined_new.mappings.data["_INDEX"])))
+                i = random.choice(list(oset(joined_new.mappings.data["_INDEX"])))
             except IndexError:
                 raise FailedMutation(f"No valid pmappings for {e}")
 

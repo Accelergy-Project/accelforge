@@ -1,5 +1,6 @@
 import functools
 from accelforge.util.exceptions import EvaluationError
+from accelforge.util._frozenset import _sorted_iter, oset
 from pydantic import BaseModel, ConfigDict, model_serializer
 from typing import Iterator, Optional, TypeVar, Generic, Any, Union
 from accelforge.util._eval_expressions import MATH_FUNCS
@@ -147,7 +148,7 @@ class InvertibleSet(BaseModel, Generic[T]):
             iter(self.element_to_child_space.values())
         )
         return first_child_space_item.to_my_space(
-            set.union(*(set(self.element_to_child_space[item]) for item in self), set())
+            oset.union(oset(), *(oset(self.element_to_child_space[item]) for item in self))
         )
 
     def __bool__(self):
@@ -160,15 +161,15 @@ class InvertibleSet(BaseModel, Generic[T]):
         return item in self.instance
 
     def __iter__(self):
-        return iter(self.instance)
+        return _sorted_iter(self.instance)
 
     def __getitem__(self, item):
         return self.instance[item]
 
     def iter_one_element_sets(self) -> Iterator["InvertibleSet[T]"]:
-        for item in self.instance:
+        for item in _sorted_iter(self.instance):
             yield InvertibleSet(
-                instance=set((item,)),
+                instance=oset((item,)),
                 full_space=self.full_space,
                 space_type=self.space_type,
                 # child_access_name=self.child_access_name,

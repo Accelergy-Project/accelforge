@@ -6,6 +6,7 @@ from numbers import Real
 from accelforge.frontend import arch
 from accelforge.frontend.spec import Spec
 from accelforge.model._looptree.reuse.symbolic import SymbolicAnalysisOutput
+from accelforge.util._frozenset import oset
 from accelforge.util._base_analysis_types import (
     ActionCount,
     ActionKey,
@@ -21,7 +22,7 @@ def gather_actions(
     use_name=False,
 ):
     actions: dict[tuple[str, str], ActionCount] = {}
-    compute_levels = set(c.level for c in looptree_results.compute_stats)
+    compute_levels = oset(c.level for c in looptree_results.compute_stats)
 
     buffet_keyer = _get_buffet_keyer(verbose, use_name, bindings)
     compute_keyer = _get_compute_keyer(verbose, use_name, bindings)

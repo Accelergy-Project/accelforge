@@ -10,6 +10,7 @@ from pprint import pformat
 
 import islpy as isl
 
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     # Types
     MappingNode,
@@ -97,7 +98,7 @@ def get_mapping_group_einsums(
                         dfs_stack.append((node.nodes[0], last_non_branch))
                     # Log all branching children and explore all children.
                     case _:
-                        children: set[MappingNode] = set(node.nodes)
+                        children: set[MappingNode] = oset(node.nodes)
                         child_stack.append((last_non_branch, children))
                         dfs_stack.extend((child, child) for child in children)
             # Assumed no children, log as a folded result.

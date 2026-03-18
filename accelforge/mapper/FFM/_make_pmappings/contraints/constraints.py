@@ -21,7 +21,7 @@ from accelforge.frontend.mapping import (
 from accelforge.frontend.renames import TensorName
 from accelforge.frontend.workload import EinsumName, RankVariable
 from accelforge.util._setexpressions import InvertibleSet
-from accelforge.util._frozenset import fzs
+from accelforge.util._frozenset import fzs, oset
 
 
 # =================================================================================================
@@ -74,7 +74,7 @@ class MappingConstraints:
         # because the loop above determines the number of tiles
         for c in self.min_usage_constraints.values():
             # Rank variables must be unique between mapping nodes
-            rank_variables = set(t.rank_variable for t in c.target_mapping_nodes)
+            rank_variables = oset(t.rank_variable for t in c.target_mapping_nodes)
             assert len(rank_variables) == len(
                 c.target_mapping_nodes
             ), "Rank variables must be unique between mapping nodes"
@@ -95,7 +95,7 @@ class MappingConstraints:
     ) -> list["MappingNode"]:
         # Not constrained to one --> Can't remove
         node2constraints = defaultdict(list)
-        do_not_remove = set()
+        do_not_remove = oset()
         for c in self.tile_shape_constraints:
             for t in c.target_mapping_nodes:
                 node2constraints[id(t)].append(c)
@@ -107,10 +107,10 @@ class MappingConstraints:
                     do_not_remove.add(id(t))
 
         # Constrained to one --> remove iff not in do_not_remove
-        to_remove = set()
+        to_remove = oset()
         for c in self.loop_bounds_constraints:
             if c.constraint._constrained_to_one():
-                my_remove = set(id(t) for t in c.target_mapping_nodes)
+                my_remove = oset(id(t) for t in c.target_mapping_nodes)
                 if my_remove & do_not_remove:
                     loops = [n for n in mapping if id(n) in my_remove]
                     p = len(loops) == 1
@@ -185,7 +185,7 @@ def constrained_loops(
     one_loop_per_rank_variable: bool = True,
 ) -> list[Loop]:
     nodes = []
-    remaining_rank_variables = set(rank_variables)
+    remaining_rank_variables = oset(rank_variables)
 
     if look_behind:
         to_check = list(enumerate(mapping))
@@ -310,7 +310,7 @@ def get_constraints(
                         value=1,
                     )
                 )
-                loop_bounds[-1]._str_repr = f"reuse {set(dim.reuse)}"
+                loop_bounds[-1]._str_repr = f"reuse {oset(dim.reuse)}"
 
             # Loop bounds constraints
             if loop_bounds:
@@ -332,7 +332,7 @@ def get_constraints(
             if dim.min_usage > 0:
                 if not target_mapping_nodes:
                     continue
-                rank_variables = {t.rank_variable for t in target_mapping_nodes}
+                rank_variables = oset(t.rank_variable for t in target_mapping_nodes)
                 constraint = _MinUsageConstraintLambda(
                     target_mapping_nodes,
                     rank_variables,
