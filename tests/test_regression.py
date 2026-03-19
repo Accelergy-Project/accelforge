@@ -17,6 +17,7 @@ from accelforge.frontend.spec import Spec
 from accelforge.mapper import Metrics
 
 JSON_PATH = Path(__file__).parent / "regression_reference.json"
+HWCOMPONENTS_JSON_PATH = Path(__file__).parent / "hwcomponents_expected.json"
 
 REGRESSION_CASES = {
     af.examples.arches.simple: [
@@ -183,6 +184,96 @@ for _k, _a, _w, _f in _cases():
         return t
 
     setattr(TestFFMRegression, _name, _t())
+
+class TestHWComponentsConsistency(unittest.TestCase):
+    """Checks that hwcomponents models produce expected energy/latency values.
+
+    If these fail but the mapper logic hasn't changed, the hwcomponents install
+    likely differs between environments.
+    """
+
+    _expected = None
+    _results = {}
+
+    @classmethod
+    def setUpClass(cls):
+        af.set_n_parallel_jobs(os.cpu_count(), print_message=True)
+        assert HWCOMPONENTS_JSON_PATH.exists(), (
+            f"No hwcomponents reference json at {HWCOMPONENTS_JSON_PATH}"
+        )
+        with open(HWCOMPONENTS_JSON_PATH) as f:
+            cls._expected = json.load(f)
+
+        matmuls_workload = {
+            "workload": af.examples.workloads.matmuls,
+            "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
+        }
+        arches = {
+            "eyeriss": af.examples.arches.eyeriss,
+            "simba": af.examples.arches.simba,
+            "simple": af.examples.arches.simple,
+            "tpu_v4i": af.examples.arches.tpu_v4i,
+        }
+        for name, arch_path in arches.items():
+            spec = Spec.from_yaml(
+                arch_path,
+                matmuls_workload["workload"],
+                jinja_parse_data=matmuls_workload.get("jinja_parse_data"),
+            )
+            spec.mapper.metrics = Metrics.ENERGY
+            spec.mapper.max_fused_loops = 1
+            mappings = spec.map_workload_to_arch(print_progress=False)
+            m = mappings[0]
+            cls._results[name] = {
+                "energy": float(m.energy()),
+                "latency": float(m.latency()),
+                "energy_per_component": {
+                    str(k): float(v)
+                    for k, v in m.energy(per_component=True).items()
+                },
+            }
+
+    def _check_arch(self, name):
+        expected = self._expected[name]
+        actual = self._results[name]
+
+        self.assertAlmostEqual(
+            actual["energy"],
+            expected["energy"],
+            delta=max(abs(expected["energy"]) * 1e-6, 1e-15),
+            msg=f"{name} total energy mismatch — likely hwcomponents version difference",
+        )
+        self.assertAlmostEqual(
+            actual["latency"],
+            expected["latency"],
+            delta=max(abs(expected["latency"]) * 1e-6, 1e-15),
+            msg=f"{name} total latency mismatch — likely hwcomponents version difference",
+        )
+
+        for comp, exp_val in expected["energy_per_component"].items():
+            act_val = actual["energy_per_component"].get(comp)
+            self.assertIsNotNone(
+                act_val, f"{name} missing component {comp} in energy breakdown"
+            )
+            delta = max(abs(exp_val) * 1e-6, 1e-15)
+            self.assertAlmostEqual(
+                act_val,
+                exp_val,
+                delta=delta,
+                msg=f"{name} {comp} energy: {act_val} != {exp_val} — likely hwcomponents version difference",
+            )
+
+
+for _arch_name in ["eyeriss", "simba", "simple", "tpu_v4i"]:
+    _test_name = f"test_{_arch_name}"
+
+    def _make_test(_name=_arch_name):
+        def t(self):
+            self._check_arch(_name)
+        return t
+
+    setattr(TestHWComponentsConsistency, _test_name, _make_test())
+
 
 if __name__ == "__main__":
     generate(fusion_choices=(True, False))
