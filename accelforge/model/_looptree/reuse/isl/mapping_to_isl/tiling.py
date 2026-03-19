@@ -68,7 +68,7 @@ def get_mapping_group_einsums(
     dfs_stack: deque[Tuple[MappingNode, MappingNode]] = deque()
     # Each pair is a (last_non_branch_node, set_of_children_nodes)
     child_stack: deque[Tuple[MappingNode, set[MappingNode]]] = deque()
-    result: defaultdict[MappingNode, set[EinsumName]] = defaultdict(set)
+    result: defaultdict[MappingNode, set[EinsumName]] = defaultdict(oset)
 
     # Start DFS hierarchical search from the root.
     dfs_stack.append((mapping, mapping))
@@ -142,7 +142,7 @@ def get_head_among_einsums(
     The set of all head einsums.
     """
     # Returns set of einsums that are not data producers.
-    return {
+    return oset(
         einsum
         for einsum in einsum_set
         if all(
@@ -152,7 +152,7 @@ def get_head_among_einsums(
             )
             for output_tensor in workload.einsums[einsum].output_tensor_names
         )
-    }
+    )
 
 
 def add_new_tile_dim(
@@ -467,7 +467,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
         get_mapping_group_einsums(mapping)
     )
     mapping_group_heads: defaultdict[MappingNode, set[EinsumName]] = defaultdict(
-        set,
+        oset,
         {
             node: get_head_among_einsums(group, workload)
             for node, group in mapping_groups.items()
@@ -577,7 +577,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
 
                     # Adds the ranks to the tiling isl.Map.
                     iteration_set: isl.Set = tiling.domain()
-                    for einsum in mapping_groups[fusing_node] - {head}:
+                    for einsum in mapping_groups[fusing_node] - oset({head}):
                         tiling = tiling_info[fusing_node][einsum]
                         # Index variables for the branch.
                         tiling = insert_dims_preserve_name_map(

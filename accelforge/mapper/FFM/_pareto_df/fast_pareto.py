@@ -182,7 +182,7 @@ def _sfs_bnl_core(data, sorted_idx, offsets, n_total_groups, result_mask):
 
         if dv == 2:
             # 2D: sort by col0, group-aware sweep
-            order = np.argsort(local[:n, 0])
+            order = np.argsort(local[:n, 0], kind='mergesort')
             best_c1 = numba.float64(1e308)
             i_start = numba.int64(0)
             while i_start < n:
@@ -209,7 +209,7 @@ def _sfs_bnl_core(data, sorted_idx, offsets, n_total_groups, result_mask):
                 s += local[i, kk]
             sums_buf[i] = s
 
-        order = np.argsort(sums_buf[:n])
+        order = np.argsort(sums_buf[:n], kind='mergesort')
 
         n_blk = (n >> 4) + 1
         for b in range(n_blk):

@@ -28,6 +28,7 @@ These steps are detailed in the following sections:
 .. toctree::
    :maxdepth: 1
 
+   modeling/assumptions
    modeling/component_energy_area
    modeling/accelerator_energy_latency
    modeling/mapping

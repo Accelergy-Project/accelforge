@@ -627,7 +627,7 @@ class Einsum(EvalableModel):
         inputs = self.input_tensor_names
         outputs = self.output_tensor_names
         all_ = inputs | outputs
-        persistent = {t.name for t in self.tensor_accesses if t.persistent}
+        persistent = oset(t.name for t in self.tensor_accesses if t.persistent)
         element_to_child_space = {}
         all_rank_variables = self.rank_variables
         for tensor in self.tensor_names:
@@ -636,13 +636,13 @@ class Einsum(EvalableModel):
                 full_space=all_rank_variables,
                 space_type=RankVariable,
             )
-        intermediates = {
+        intermediates = oset(
             t
             for t in all_
             if workload.einsums_with_tensor_as_input(t)
             and workload.einsums_with_tensor_as_output(t)
-        }
-        shared = {
+        )
+        shared = oset(
             t
             for t in all_
             if len(
@@ -650,7 +650,7 @@ class Einsum(EvalableModel):
                 | oset(e.name for e in workload.einsums_with_tensor_as_output(t))
             )
             > 1
-        }
+        )
 
         kwargs_tensors = dict(
             full_space=all_,
@@ -992,17 +992,17 @@ class Workload(EvalableModel):
     @property
     def tensor_names_used_in_multiple_einsums(self) -> set[TensorName]:
         """Returns the names of the tensors that are used in multiple Einsums."""
-        return {t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1}
+        return oset(t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1)
 
     @property
     def tensor_names(self) -> set[TensorName]:
         """Returns the names of all tensors in the workload."""
-        return {TensorName(t.name) for e in self.einsums for t in e.tensor_accesses}
+        return oset(TensorName(t.name) for e in self.einsums for t in e.tensor_accesses)
 
     @property
     def rank_variables(self) -> set[RankVariable]:
         """Returns the names of all rank variables in the workload."""
-        return {RankVariable(r) for e in self.einsums for r in e.rank_variables}
+        return oset(RankVariable(r) for e in self.einsums for r in e.rank_variables)
 
     def _repr_svg_(self) -> str:
         return self.render()

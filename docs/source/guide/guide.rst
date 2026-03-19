@@ -130,6 +130,7 @@ The following sections provide detailed information about using AccelForge.
 **Modeling:** Understand how AccelForge models energy, area, and latency:
 
 - :doc:`modeling` - Overview of the modeling process
+- :doc:`modeling/assumptions` - Modeling assumptions
 - :doc:`modeling/component_energy_area` - Component-level modeling
 - :doc:`modeling/accelerator_energy_latency` - System-level modeling of the accelerator
 - :doc:`modeling/mapping` - How workloads are mapped to architectures
