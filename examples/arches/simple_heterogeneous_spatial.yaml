@@ -31,6 +31,8 @@ arch:
     area: 0
     actions:
     - {name: compute, energy: 1, latency: 1}
+    spatial:
+    - {name: X, fanout: 128, min_usage: 1}
 
   - !Compute
     name: MacB

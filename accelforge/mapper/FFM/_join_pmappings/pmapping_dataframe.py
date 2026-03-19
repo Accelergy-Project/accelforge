@@ -128,21 +128,20 @@ class PmappingDataframe:
         max_right_to_left: bool = False,
         next_shared_loop_index: int = None,
         excess_resource_tolerance: float = 0,
+        track_binding_sequence: bool = False
     ):
         self._data: pd.DataFrame = reduce_precision(data)
-        if len(list(_get_duplicates(self._data.columns))) > 0:
-            breakpoint()
-            raise ValueError(
-                "Some columns in PmappingDataframe are duplicated:\n"
-                +
-                " " + list(_get_duplicates(self._data.columns))
-            )
-        self._prev_free_to_loop_index = None
+        if track_binding_sequence and "binding_order" not in self._data:
+            self._data.loc[:,"binding_order"] = [BindingOrder([]) for _ in range(self._data.shape[0])]
+
         self.n_total_pmappings: float = n_total_pmappings
         self.n_valid_pmappings: float = n_valid_pmappings
         self.drop_valid_reservations: bool = drop_valid_reservations
         self.excess_resource_tolerance: float = excess_resource_tolerance
         self.n_concurrent_threads = n_concurrent_threads
+        self.track_binding_sequence = track_binding_sequence
+
+        self._assert_no_duplicate_cols()
 
         if next_shared_loop_index is not None:
             assert (
@@ -279,19 +278,32 @@ class PmappingDataframe:
         We skip incorporating E into the max because its reservations are
         already incorporated into F and G.
         """
-        if loop_index == self._prev_free_to_loop_index:
-            return False
         if loop_index < -1:
             raise ValueError("loop_index must be >= -1")
-        self._prev_free_to_loop_index = loop_index
+
+        if self.get_max_loop_index() <= loop_index:
+            return False
+
+        if not self._has_left():
+            self.move_reservations_to_index(loop_index)
+            return True
 
         updated = False
         while self.get_max_loop_index() > loop_index:
             updated = True
-            self.shift_bottom_reservation_left()
+            if self._has_bottom_right():
+                self.shift_bottom_reservation_left()
             self.consolidate_bottom_split()
 
         return updated
+
+
+    def move_reservations_to_index(self, loop_index):
+        for i in sorted(range(loop_index, self.get_max_loop_index())):
+            for col in get_reservation_cols_with(self.data, nloops=i, is_left=False):
+                key = col2reservation(col)
+                target = reservation2col(key.name, loop_index)
+                max_to_col(self.data, target, col)
 
 
     @error_check_wrapper
@@ -331,11 +343,13 @@ class PmappingDataframe:
              / | --- 1
             F  E
         """
+        assert not self._has_bottom_right()
         bottom_index = self.get_max_loop_index()
-        l_reservations, _r_reservations = self._make_reservations()
-        drop_columns = []
-        for resource in l_reservations:
-            if bottom_index not in l_reservations[resource]:
+        target_index = bottom_index-1
+        l_reservations, r_reservations = self._make_reservations()
+        for resource in set(l_reservations) | set(r_reservations):
+            target = reservation2col(resource, target_index, left=False)
+            if resource not in l_reservations or bottom_index not in l_reservations[resource]:
                 continue
             left_reservation_cols = set(get_reservation_cols_with(
                 self.data,
@@ -343,24 +357,30 @@ class PmappingDataframe:
                 bottom_index,
                 is_left=True
             ))
+            for left_reservation_col in left_reservation_cols:
+                add_to_col(self.data, target, left_reservation_col)
+            # Reservation above is included in the left, so we deduplicate
             reservation_above = self.get_reservation_or_parent(
                 resource,
                 bottom_index,
                 l_reservations,
-                _r_reservations
+                r_reservations
             )
-            split_above = self._get_split_above(bottom_index)
-            drop_columns = [
-                c for c in get_reservation_cols_with(self.data, resource)
-                if col2reservation(c).nloops >= split_above
-            ]
-            target = reservation2col(resource, split_above, left=False)
             if reservation_above:
-                assert split_above <= col2reservation(reservation_above).nloops
-                self.data.loc[:,target] = -self.data[reservation_above]*len(left_reservation_cols)
-            for left_reservation_col in left_reservation_cols:
-                add_to_col(self.data, target, left_reservation_col)
+                assert target_index >= col2reservation(reservation_above).nloops
+                self.data.loc[:,target] -= self.data[reservation_above]*len(left_reservation_cols)
+        drop_columns = [
+            c for c in get_reservation_cols_with(self.data)
+            if col2reservation(c).nloops > target_index
+        ]
+
+        self.data["Total<SEP>latency"] = 0
+        for thread_i in range(self.n_concurrent_threads):
+            max_to_col(self.data, "Total<SEP>latency", f"Total<SEP>latency<SEP>{thread_i}")
+            drop_columns.append(f"Total<SEP>latency<SEP>{thread_i}")
         self.data.drop(columns=drop_columns, inplace=True)
+
+        assert self._has_bottom_right()
 
     @error_check_wrapper
     def shift_bottom_reservation_left(self):
@@ -374,12 +394,15 @@ class PmappingDataframe:
                | --- 1             /   --- 1
                E                  E
         """
+        if not self._has_bottom_right():
+            return
+
         bottom_loop_index = self.get_max_loop_index()
         _l_reservations, r_reservations = self._make_reservations()
 
         # Explore placing right branch in any of the left threads
         # TODO: extend lifetime of live_tensors and deduplicate tensors
-        left_concurrent_threads = set(range(self.n_concurrent_threads))
+        left_concurrent_threads = list(range(self.n_concurrent_threads))
         assert len(left_concurrent_threads) > 0
         all_data = []
         for thread_i in left_concurrent_threads:
@@ -389,6 +412,12 @@ class PmappingDataframe:
                     continue
                 right_reservation = reservation2col(resource, bottom_loop_index)
                 left_reservation = reservation2col(resource, bottom_loop_index, True, thread_i)
+
+                for thread_j in left_concurrent_threads:
+                    key = reservation2col(resource,bottom_loop_index,True,thread_j)
+                    if key not in df:
+                        df.loc[:,key] = 0
+
                 if left_reservation in df:
                     max_to_col(df, left_reservation, right_reservation)
                     df.drop(columns=[right_reservation], inplace=True)
@@ -399,6 +428,16 @@ class PmappingDataframe:
                     # left_live_tensors.apply(lambda left_live: left_live - right_tensors)
                 else:
                     df.rename(columns={right_reservation: left_reservation}, inplace=True)
+
+            for thread_j in left_concurrent_threads:
+                key = f"Total<SEP>latency<SEP>{thread_j}"
+                if key not in df:
+                    df.loc[:,key] = 0
+            add_to_col(df, f"Total<SEP>latency<SEP>{thread_i}", "Total<SEP>latency")
+
+            df.drop(columns=["Total<SEP>latency"], inplace=True)
+            if self.track_binding_sequence:
+                df["binding_order"] += BindingOrder([thread_i])
             assert not set(get_reservation_cols_with(
                 df,
                 name=None,
@@ -413,6 +452,10 @@ class PmappingDataframe:
             self._data = all_data[0]
         else:
             self._data = pd.concat(all_data, ignore_index=True)
+        breakpoint()
+
+        assert not self._has_bottom_right()
+
 
     @staticmethod
     def _get_target_path(suffix: str = None) -> str:
@@ -484,15 +527,14 @@ class PmappingDataframe:
         shared_loop_index = compatibility_left.n_loops - 1
         next_shared_loop_index = compatibility_joined.n_loops - 1
 
-        if self.free_to_loop_index(shared_loop_index):
+        assert compatibility_left.n_loops <= compatibility_right.n_loops
+        if self._has_bottom_right():
+            assert "Total<SEP>latency" in self.data
             self.shift_bottom_reservation_left()
 
         shared_tensor_names = (
             compatibility_left.tensor_names & compatibility_right.tensor_names
         )
-        shared_tensors = [
-            compatibility_left.get_reservation_of_tensor(s) for s in shared_tensor_names
-        ]
         left_match, right_match = [], []
         make_empty_result = False
 
@@ -646,6 +688,8 @@ class PmappingDataframe:
             target = source[: -len("_RIGHT_MERGE")]
             if is_tensor_col(target):
                 continue
+            if "Total<SEP>latency" in target:
+                continue
             if not col_used_in_pareto(target):
                 raise ValueError(f"{target} is not used in pareto")
             if col2reservation(target) is None:
@@ -687,12 +731,16 @@ class PmappingDataframe:
             result.check_above_subset_below(live_tensors)
             result.check_reservations(live_tensors)
 
+        assert result._has_bottom_right()
         result.free_to_loop_index(next_shared_loop_index)
+        result.shift_bottom_reservation_left()
+        assert not result._has_bottom_right()
+
         if not CHECK_CORRECTNESS:
             result.limit_capacity(
                 next_shared_loop_index, ignored_resources=ignored_resources
             )
-        result.max_right_to_left()
+        # result.max_right_to_left()
         if _pmapping_row_filter_function is not None:
             result = result.filter_rows(_pmapping_row_filter_function)
         result.make_pareto()
@@ -936,6 +984,29 @@ class PmappingDataframe:
             )
         }
 
+    def _has_bottom_right(self):
+        """Whether the pmapping has a RIGHT branch at the bottom."""
+        bottom_index = self.get_max_loop_index()
+        has_right_reservations = (
+            len(list(get_reservation_cols_with(self.data, nloops=bottom_index, is_left=False)))
+            >
+            0
+        )
+        has_right_latency = "Total<SEP>latency" in self.data
+        assert has_right_latency == has_right_reservations
+        return has_right_reservations
+
+    def _has_bottom_left(self):
+        bottom_index = self.get_max_loop_index()
+        return (
+            len(list(get_reservation_cols_with(self.data, nloops=bottom_index, is_left=True)))
+            >
+            0
+        )
+
+    def _has_left(self):
+        return len(list(get_reservation_cols_with(self.data, is_left=True))) > 0
+
     # ============================================================================
     # Checking functions
     # ============================================================================
@@ -984,6 +1055,14 @@ class PmappingDataframe:
 
     def __len__(self) -> int:
         return len(self._data)
+
+    def _assert_no_duplicate_cols(self):
+        if len(list(_get_duplicates(self._data.columns))) > 0:
+            raise ValueError(
+                "Some columns in PmappingDataframe are duplicated:\n"
+                +
+                " " + list(_get_duplicates(self._data.columns))
+            )
 
     # @error_check_wrapper
     # def check_reservations(self, live_tensors: set[int]):
@@ -1065,11 +1144,6 @@ class PmappingDataframe:
             skip_pareto=True,
         )
 
-    def _log_state(self):
-        print("  max loop index:", self.get_max_loop_index())
-        print("  min loop index:", self.get_min_loop_index())
-        print("  indices with split:", self._indices_with_split())
-
 
 def row2pmappings(
     row: pd.Series,
@@ -1103,3 +1177,20 @@ def _get_duplicates(items: Iterable):
     for key, value in count.items():
         if value > 1:
             yield key
+
+
+class BindingOrder:
+    """Lightweight class to hold the binding choices during merging."""
+    def __init__(self, choices: list[int]):
+        self._sequence = choices
+
+    def __add__(self, new_sequence: "BindingOrder"):
+        assert isinstance(new_sequence, BindingOrder)
+        return BindingOrder(self._sequence + new_sequence._sequence)
+
+    def __iadd__(self, new_sequence: "BindingOrder"):
+        # copy-on-write: create a new copy of _sequence, which may be shared
+        # originally
+        assert isinstance(new_sequence, BindingOrder)
+        self._sequence = list(self._sequence)
+        self._sequence.extend(new_sequence._sequence)

@@ -29,7 +29,7 @@ workload:
     G: 512
 
   bits_per_value: {All: 8}
-  persistent_tensors: weight - Intermediates
+  # persistent_tensors: weight - Intermediates
 
   einsums:
   - einsum: "I[b, m, d] = I_in[b, m, d]"

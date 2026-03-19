@@ -1,0 +1,68 @@
+mapping:
+  nodes:
+  - !Storage
+    tensors: [T0, T{{N_EINSUMS}}]
+    component: MainMemory
+  {% for i in range(N_EINSUMS) %}
+  - !Storage
+    tensors: [W{{i}}]
+    component: MainMemory
+  {% endfor %}
+  {% for i in range(N_EINSUMS) %}
+  - !Storage
+    tensors: [W{{i}}]
+    component: GlobalBuffer
+  {% endfor %}
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Storage
+    tensors: [T2]
+    component: GlobalBuffer
+  - !Pipeline
+    binding: [0, 0]
+    nodes:
+    - !Nested
+      nodes:
+      - !Storage
+        tensors: [T0]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Storage
+        tensors: [T1]
+        component: GlobalBuffer
+      - !Pipeline
+        binding: [0, 1]
+        nodes:
+        - !Nested
+          nodes:
+          - !Temporal
+            rank_variable: n0
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul0
+            component: MacA
+        - !Nested
+          nodes:
+          - !Temporal
+            rank_variable: n2
+            tile_shape: 1
+          - !Compute
+            einsum: Matmul1
+            component: MacB
+    - !Nested
+      nodes:
+      - !Temporal
+        rank_variable: n3
+        tile_shape: 1
+      - !Storage
+        tensors: [T3]
+        component: GlobalBuffer
+      - !Temporal
+        rank_variable: n2
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul2
+        component: MacA

@@ -1503,8 +1503,7 @@ class Pipeline(Split):
     A :class:`~.Split` where each branch operates at the same time in different
     spatially-organized hardware.
     """
-
-    pass
+    binding: List[int] = EvalableList()
 
 
 class Sequential(Split):

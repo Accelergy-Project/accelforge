@@ -13,6 +13,8 @@ except ImportError:
 M_SHAPE = 64
 KN_SHAPE = 64
 
+# af.set_n_parallel_jobs(1)
+
 
 class TestTransformer(unittest.TestCase):
     def test_bert(self):
@@ -30,7 +32,7 @@ class TestTransformer(unittest.TestCase):
         )
         spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
         spec.mapper.n_concurrent_threads = 2
-        mappings = spec.map_workload_to_arch()
+        mappings = spec.map_workload_to_arch(einsum_names=["Q", "K", "QK"])
 
     def test_tpuv4i_gpt3(self):
         spec = Spec.from_yaml(

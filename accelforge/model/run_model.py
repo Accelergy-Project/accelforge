@@ -69,11 +69,14 @@ def run_model(
     )
 
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
+    concurrently_boundable_units = []
     nodes_always_in_one_thread = []
     for node in reversed(job.flattened_arch):
-        if isinstance(node, arch.Component) and node.support_concurrent_binding:
-            break
+        assert isinstance(node, arch.Component)
         nodes_always_in_one_thread.append(node.name)
+        if node.support_concurrent_binding:
+            concurrently_boundable_units.append(node.name)
+            break
     try:
         thread_latency = _max_latencies(latency[c] for c in latency if c in nodes_always_in_one_thread)
     except Exception as e:
@@ -174,6 +177,18 @@ def run_model(
                     running_total / memory_to_size[memory]
                 )
 
+    # Record reservation of spatial concurrently-boundable units
+    max_nloops = max(n_loop_options)
+    for boundable_unit in concurrently_boundable_units:
+        found = False
+        for (component, spatial_dim), usage in spatial_usage.items():
+            if component != boundable_unit:
+                continue
+            found = True
+            df[reservation2col(f"{boundable_unit}_{spatial_dim}", max_nloops)] = spatial_usage
+        if not found:
+            df[reservation2col(f"{boundable_unit}", max_nloops)] = 1.0
+
     if metrics & Metrics.DETAILED_MEMORY_USAGE:
         for buffet, stats in reuse.buffet_stats.items():
             if buffet.level == compute_unit:
@@ -207,10 +222,14 @@ def run_model(
                 df[firstlatency2col(compute_level.level, idx)] = (
                     max_first_latency * n_instances
                 )
-        for component, l in latency.items():
+        for component, cur_latency in latency.items():
             if component in nodes_always_in_one_thread:
                 continue
-            df[memorylatency2col(component)] = l
+            df[f"latency<SEP>{component}"] = cur_latency * n_instances
+        # for component, l in latency.items():
+        #     if component in nodes_always_in_one_thread:
+        #         continue
+        #     df[memorylatency2col(component)] = l
 
     if metrics.includes_dynamic_energy():
         dynamic_energy = [e for k, e in energy.items() if k.action != "leak"]
