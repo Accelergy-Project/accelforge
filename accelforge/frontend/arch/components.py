@@ -811,6 +811,15 @@ class Tensors(EvalableModel):
     pieces (if they do not cause re-fetches of any piece).
     """
 
+    no_resend_to_below: TryEvalTo[InvertibleSet[TensorName]] = "~All"
+    """
+    The tensors that are not allowed to be refetched to below. This is given as a set of
+    :class:`~.TensorName` objects or a set expression that resolves to them. These
+    tensors must be fetched at most one time from this memory to below memories, and may
+    not be refetched across any temporal or spatial loop iterations. Tensors may be
+    fetched in pieces (if they do not cause re-fetches of any piece).
+    """
+
     tensor_order_options: EvalableList[
         EvalableList[TryEvalTo[InvertibleSet[TensorName]]]
     ] = EvalableList()

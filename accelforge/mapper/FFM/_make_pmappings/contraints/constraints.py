@@ -250,9 +250,11 @@ def get_constraints(
                 constraint = _TileShapeConstraintLambda(c, new_nodes, exp)
                 constraints.tile_shape_constraints.append(constraint)
 
-        exp = symbol_table[m.name] & m.tensors.no_refetch_from_above
+        no_refetch = mapping[index].component_object.tensors.no_refetch_from_above
+        exp = symbol_table[m.name] & no_refetch
 
         nodes = []
+        seen = oset()
         for no_refetch in exp.iter_one_element_sets():
             # Start from the first index of the tensor holder, stop at index - 1
             start_index = 0
@@ -265,7 +267,7 @@ def get_constraints(
                     break
                 start_index += 1
 
-            end_index = start_index
+            end_index = start_index + 1
             while end_index < len(mapping):
                 if (
                     isinstance(mapping[end_index], TensorHolder)
@@ -275,11 +277,44 @@ def get_constraints(
                     break
                 end_index += 1
 
-            for i in range(start_index, end_index):
+            for i in range(start_index, min(end_index, len(mapping))):
                 if isinstance(mapping[i], Temporal) and not isinstance(
                     tensor_to_relevancy[n][mapping[i].rank_variable], Relevant
                 ):
-                    if mapping[i] not in nodes:
+                    if id(mapping[i]) not in seen:
+                        seen.add(id(mapping[i]))
+                        nodes.append(mapping[i])
+
+        no_resend = mapping[index].component_object.tensors.no_resend_to_below
+        for no_resend in no_resend.iter_one_element_sets():
+            # Start from the first index of this one, stop when we find someone else
+            # below
+            start_index = 0
+            n = next(iter(no_resend))
+            while start_index < len(mapping):
+                if (
+                    isinstance(mapping[start_index], TensorHolder)
+                    and n in mapping[start_index].tensors
+                    and mapping[start_index].component == m.name
+                ):
+                    break
+                start_index += 1
+
+            end_index = start_index + 1
+            while end_index < len(mapping):
+                if (
+                    isinstance(mapping[end_index], TensorHolder)
+                    and n in mapping[end_index].tensors
+                ):
+                    break
+                end_index += 1
+
+            for i in range(start_index, min(end_index, len(mapping))):
+                if isinstance(mapping[i], Temporal) and not isinstance(
+                    tensor_to_relevancy[n][mapping[i].rank_variable], Relevant
+                ):
+                    if id(mapping[i]) not in seen:
+                        seen.add(id(mapping[i]))
                         nodes.append(mapping[i])
 
         if nodes:

@@ -1,0 +1,48 @@
+{
+  "eyeriss": {
+    "energy": 3.196837728679512e-06,
+    "latency": 5.178643550607376e-05,
+    "energy_per_component": {
+      "GlobalBuffer": 6.644207815043046e-07,
+      "InputScratchpad": 1.053181951425842e-07,
+      "MAC": 8.233064406360937e-07,
+      "MainMemory": 1.048575995810097e-06,
+      "OutputScratchpad": 3.122350733519852e-07,
+      "WeightScratchpad": 2.429813017424012e-07
+    }
+  },
+  "simba": {
+    "energy": 1.232771651859281e-06,
+    "latency": 3.717530944413738e-06,
+    "energy_per_component": {
+      "AccumulationBuffer": 3.299047079963202e-08,
+      "GlobalBuffer": 1.707209129619969e-08,
+      "InputBuffer": 1.599224772448690e-08,
+      "MAC": 1.085053437253465e-07,
+      "MainMemory": 1.048575995810097e-06,
+      "Register": 0.0,
+      "WeightBuffer": 9.635503950278235e-09
+    }
+  },
+  "simple": {
+    "energy": 1.7235968e+07,
+    "latency": 524288.0,
+    "energy_per_component": {
+      "GlobalBuffer": 0.0,
+      "MAC": 524288.0,
+      "MainMemory": 1.671168e+07
+    }
+  },
+  "tpu_v4i": {
+    "energy": 1.175453678541368e-06,
+    "latency": 1.219047618405966e-07,
+    "energy_per_component": {
+      "GlobalBuffer": 1.389363148973644e-07,
+      "LocalBuffer": 7.104102470504500e-08,
+      "MAC": 4.404019200000000e-08,
+      "MainMemory": 9.214361398335313e-07,
+      "Register": 0.0,
+      "ScalarUnit": 0.0
+    }
+  }
+}
