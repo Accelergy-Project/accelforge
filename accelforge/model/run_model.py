@@ -72,9 +72,8 @@ def run_model(
     concurrently_boundable_units = []
     nodes_always_in_one_thread = []
     for node in reversed(job.flattened_arch):
-        assert isinstance(node, arch.Component)
         nodes_always_in_one_thread.append(node.name)
-        if node.support_concurrent_binding:
+        if isinstance(node, arch.ConcurrentlyBoundable) and node.support_concurrent_binding:
             concurrently_boundable_units.append(node.name)
             break
     try:

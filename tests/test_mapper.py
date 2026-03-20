@@ -13,7 +13,7 @@ except ImportError:
 M_SHAPE = 64
 KN_SHAPE = 64
 
-# af.set_n_parallel_jobs(1)
+af.set_n_parallel_jobs(4)
 
 
 class TestTransformer(unittest.TestCase):
@@ -23,7 +23,9 @@ class TestTransformer(unittest.TestCase):
             af.examples.workloads.bert,
         )
         spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
-        mappings = spec.map_workload_to_arch()
+        spec.mapper.n_concurrent_threads = 2
+        # spec.mapper._only_output_pmapping_with_index = {"Q": 1, "K": 1, "QK": 0}
+        mappings = spec.map_workload_to_arch(einsum_names=["Q", "K", "QK"])
 
     def test_bert_heterogeneous(self):
         spec = Spec.from_yaml(

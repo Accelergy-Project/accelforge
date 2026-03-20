@@ -284,7 +284,7 @@ class PmappingDataframe:
         if self.get_max_loop_index() <= loop_index:
             return False
 
-        if not self._has_left():
+        if not self._has_left_reservations():
             self.move_reservations_to_index(loop_index)
             return True
 
@@ -295,6 +295,7 @@ class PmappingDataframe:
                 self.shift_bottom_reservation_left()
             self.consolidate_bottom_split()
 
+        assert self._has_bottom_right()
         return updated
 
 
@@ -376,8 +377,8 @@ class PmappingDataframe:
 
         self.data["Total<SEP>latency"] = 0
         for thread_i in range(self.n_concurrent_threads):
-            max_to_col(self.data, "Total<SEP>latency", f"Total<SEP>latency<SEP>{thread_i}")
-            drop_columns.append(f"Total<SEP>latency<SEP>{thread_i}")
+            max_to_col(self.data, "Total<SEP>latency", f"Total<SEP>latency<SEP>{bottom_index}<SEP>{thread_i}")
+            drop_columns.append(f"Total<SEP>latency<SEP>{bottom_index}<SEP>{thread_i}")
         self.data.drop(columns=drop_columns, inplace=True)
 
         assert self._has_bottom_right()
@@ -430,10 +431,10 @@ class PmappingDataframe:
                     df.rename(columns={right_reservation: left_reservation}, inplace=True)
 
             for thread_j in left_concurrent_threads:
-                key = f"Total<SEP>latency<SEP>{thread_j}"
+                key = f"Total<SEP>latency<SEP>{bottom_loop_index}<SEP>{thread_j}"
                 if key not in df:
                     df.loc[:,key] = 0
-            add_to_col(df, f"Total<SEP>latency<SEP>{thread_i}", "Total<SEP>latency")
+            add_to_col(df, f"Total<SEP>latency<SEP>{bottom_loop_index}<SEP>{thread_i}", "Total<SEP>latency")
 
             df.drop(columns=["Total<SEP>latency"], inplace=True)
             if self.track_binding_sequence:
@@ -452,7 +453,6 @@ class PmappingDataframe:
             self._data = all_data[0]
         else:
             self._data = pd.concat(all_data, ignore_index=True)
-        breakpoint()
 
         assert not self._has_bottom_right()
 
@@ -733,8 +733,6 @@ class PmappingDataframe:
 
         assert result._has_bottom_right()
         result.free_to_loop_index(next_shared_loop_index)
-        result.shift_bottom_reservation_left()
-        assert not result._has_bottom_right()
 
         if not CHECK_CORRECTNESS:
             result.limit_capacity(
@@ -986,15 +984,11 @@ class PmappingDataframe:
 
     def _has_bottom_right(self):
         """Whether the pmapping has a RIGHT branch at the bottom."""
-        bottom_index = self.get_max_loop_index()
-        has_right_reservations = (
-            len(list(get_reservation_cols_with(self.data, nloops=bottom_index, is_left=False)))
-            >
-            0
-        )
-        has_right_latency = "Total<SEP>latency" in self.data
-        assert has_right_latency == has_right_reservations
-        return has_right_reservations
+        if self._has_right_latency():
+            assert self._has_bottom_right_reservations() or not self._has_right_reservations()
+            return True
+        assert not self._has_bottom_right_reservations()
+        return False
 
     def _has_bottom_left(self):
         bottom_index = self.get_max_loop_index()
@@ -1004,8 +998,26 @@ class PmappingDataframe:
             0
         )
 
-    def _has_left(self):
+    def _has_left_reservations(self):
         return len(list(get_reservation_cols_with(self.data, is_left=True))) > 0
+
+    def _has_right_reservations(self):
+        return (
+            len(list(get_reservation_cols_with(self.data, is_left=False)))
+            >
+            0
+        )
+
+    def _has_bottom_right_reservations(self):
+        bottom_index = self.get_max_loop_index()
+        return (
+            len(list(get_reservation_cols_with(self.data, nloops=bottom_index, is_left=False)))
+            >
+            0
+        )
+
+    def _has_right_latency(self):
+        return "Total<SEP>latency" in self.data
 
     # ============================================================================
     # Checking functions

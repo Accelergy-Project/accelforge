@@ -33,6 +33,7 @@ from accelforge.frontend.renames import TensorName
 from accelforge.frontend.arch.constraints import Comparison
 from accelforge.frontend.arch.structure import ArchNode, Branch, Leaf
 from accelforge.frontend.arch.spatialable import Spatial, Spatialable
+from accelforge.frontend.arch.binding_support import ConcurrentlyBoundable
 
 from accelforge.util._basetypes import _uninstantiable
 
@@ -240,11 +241,6 @@ class Component(Spatialable):
     of this component, any extra attributes will be passed to the component model. This
     can be used to define attributes that are known to the component model, but not
     accelforge, such as the technology node."""
-
-    support_concurrent_binding: EvalsTo[bool] = False
-    """
-    Whether different Einsums can be concurrently bound to use this unit.
-    """
 
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -941,7 +937,7 @@ class Container(Leaf, Spatialable):
         return "#FCC2FC"
 
 
-class Memory(TensorHolder):
+class Memory(TensorHolder, ConcurrentlyBoundable):
     """A `Memory` is a `TensorHolder` that stores data over time, allowing for temporal
     reuse."""
 

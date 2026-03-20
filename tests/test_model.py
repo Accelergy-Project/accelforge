@@ -24,6 +24,7 @@ class TestModelWithBinding(unittest.TestCase):
         spec.mapper.n_concurrent_threads = 2
 
         mappings = spec.evaluate_mapping()
+        print(mappings["Total<SEP>latency"])
 
 
 class TestModel(unittest.TestCase):
