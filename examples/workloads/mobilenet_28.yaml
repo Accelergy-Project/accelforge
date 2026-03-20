@@ -15,6 +15,7 @@ workload:
     N2: 24
 
   bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
 
   einsums:
   - name: PiecewiseA0

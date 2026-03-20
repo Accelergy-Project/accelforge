@@ -773,7 +773,9 @@ class PmappingDataframe:
                 if (
                     l == 0
                     and next_shared_loop_index == -1
-                    and self.drop_valid_reservations
+                    # CAN'T DROP RESERVATIONS. Persistent tensors may get saved later
+                    # and would live at the same time as these reservations.
+                    and False # self.drop_valid_reservations
                     and resource not in ignored_resources
                     and (tolerance == 0 or not any(self.data[col] > 1))
                 ):
@@ -799,7 +801,8 @@ class PmappingDataframe:
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
                     l == 0
-                    and self.drop_valid_reservations
+                    # CAN'T DROP RESERVATIONS. Persistent tensors may get saved later.
+                    and False # self.drop_valid_reservations
                     and resource not in ignored_resources
                     and (tolerance == 0 or not any(self.data[col] > 1))
                 ):

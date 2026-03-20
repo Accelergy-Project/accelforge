@@ -33,6 +33,9 @@ workload:
     rd2: 0 <= rd2 < 3
     sd2: 0 <= sd2 < 3
 
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
   einsums:
   - name: P0
     tensor_accesses:
