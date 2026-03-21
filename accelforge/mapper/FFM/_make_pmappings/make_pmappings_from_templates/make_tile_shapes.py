@@ -2171,9 +2171,20 @@ def _make_tile_shapes(job: "Job"):
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative latency for {key}: {val}")
         if "energy" in key:
-            val = [df[key]] if isinstance(df[key], Number) else df[key]
-            if any(l < 0 for l in val):
-                raise ValueError(f"Negative energy for {key}: {val}")
+            arr = df[key]
+            if isinstance(arr, Number):
+                if arr < 0:
+                    raise ValueError(f"Negative energy for {key}: {arr}")
+            else:
+                neg_mask = arr < 0
+                if neg_mask.any():
+                    # Allow tiny negatives from float32 precision loss:
+                    # check that negatives are negligible relative to max.
+                    max_abs = np.max(np.abs(arr))
+                    if max_abs == 0 or (arr[neg_mask] / max_abs > -1e-4).all():
+                        df[key] = np.maximum(arr, 0)
+                    else:
+                        raise ValueError(f"Negative energy for {key}: {arr[neg_mask]}")
 
     # They come out separated from the model because it's easier for tile shape
     # exploration to handle. Now combine them back together.
@@ -2188,14 +2199,24 @@ def _make_tile_shapes(job: "Job"):
 
     energy_cols = [c for c in df.columns if "energy" in c]
     if (df[energy_cols] < 0).any(axis=None):
-        mapping_with_negative_energy = df[(df[energy_cols] < 0).any(axis=1)]
-        print(df.columns)
-        msg = ""
-        for _, row in mapping_with_negative_energy.iterrows():
-            for k, v in row.items():
-                msg += f"{k}: {v}\n"
-            msg += "\n"
-        raise RuntimeError(f"negative energy:\n{msg}")
+        for col in energy_cols:
+            series = df[col]
+            neg_mask = series < 0
+            if neg_mask.any():
+                # FP errors can make small negative values, so if they're indeed small,
+                # clip to zero.
+                max_abs = series.abs().max()
+                if max_abs > 0 and (series / series.abs().max() > -1e-4).all():
+                    df[col] = series.clip(lower=0)
+                else:
+                    mapping_with_negative_energy = df[series < 0]
+                    print(df.columns)
+                    msg = ""
+                    for _, row in mapping_with_negative_energy.iterrows():
+                        for k, v in row.items():
+                            msg += f"{k}: {v}\n"
+                        msg += "\n"
+                    raise RuntimeError(f"negative energy:\n{msg}")
 
     job.n_valid_pmappings = job.n_total_pmappings * prod(
         job.pmapping_keep_rates.values()

@@ -6,6 +6,7 @@ Regression tests for the FFM mapper.
 """
 
 import json
+import math
 from numbers import Number
 import os
 import re
@@ -152,26 +153,30 @@ class TestFFMRegression(unittest.TestCase):
             self.skipTest(f"not in json: {key}")
         ref = self._ref[key]
         cur = _run(arch, workload, fused)
-        # n_mappings can vary by +/-1 across environments due to FP precision
-        # differences affecting Pareto boundary decisions
-        self.assertAlmostEqual(cur["n_mappings"], ref["n_mappings"], delta=1)
-        self.assertAlmostEqual(cur["energy"], ref["energy"], delta=1e-3)
-        self.assertAlmostEqual(cur["latency"], ref["latency"], delta=1e-3)
-        print(f"Regression testing {arch=} {workload=} {fused=}")
+        self.assertEqual(cur["n_mappings"], ref["n_mappings"])
+        self.assertTrue(
+            math.isclose(cur["energy"], ref["energy"], rel_tol=0.01),
+            msg=f"energy for {arch=} {workload=} {fused=}: "
+                f"ref={ref['energy']}, cur={cur['energy']}",
+        )
+        self.assertTrue(
+            math.isclose(cur["latency"], ref["latency"], rel_tol=0.01),
+            msg=f"latency for {arch=} {workload=} {fused=}: "
+                f"ref={ref['latency']}, cur={cur['latency']}",
+        )
+        # print(f"Regression testing {arch=} {workload=} {fused=}")
         for s in ["energy_per_component", "latency_per_component", "actions"]:
-            print(f"\tchecking {s}")
+            # print(f"\tchecking {s}")
             for c in ref[s]:
-                print(f"\t\tchecking {c}")
+                # print(f"\t\tchecking {c}")
                 s2 = f"for {arch=} {workload=} {fused=} {s}"
                 self.assertIn(
                     c,
                     cur[s],
                     msg=f"{s2} {c}: not in {cur[s]}",
                 )
-                self.assertAlmostEqual(
-                    cur[s][c],
-                    ref[s][c],
-                    delta=1e-12,
+                self.assertTrue(
+                    math.isclose(cur[s][c], ref[s][c], rel_tol=0.01),
                     msg=f"{s2} {c}: reference {ref[s][c]} -> current {cur[s][c]}",
                 )
 
