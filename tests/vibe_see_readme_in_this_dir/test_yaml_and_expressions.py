@@ -71,8 +71,7 @@ class TestYAMLMergeOperators(unittest.TestCase):
 
     def test_shallow_merge(self):
         """<< merges dictionaries without recursion."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   base: &base
     a: 1
@@ -81,8 +80,7 @@ variables:
     <<: *base
     b: 99
     c: 3
-"""
-        )
+""")
         v = spec.variables
         self.assertEqual(v["merged"]["a"], 1)
         self.assertEqual(v["merged"]["b"], 99)
@@ -90,8 +88,7 @@ variables:
 
     def test_hierarchical_merge(self):
         """<<< merges dictionaries recursively into nested dicts."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   base: &base
     a: 1
@@ -99,8 +96,7 @@ variables:
   merged:
     <<<: *base
     nested: {x: 99}
-"""
-        )
+""")
         v = spec.variables
         self.assertEqual(v["merged"]["a"], 1)
         self.assertEqual(v["merged"]["nested"]["x"], 99)
@@ -110,24 +106,21 @@ variables:
     def test_hierarchical_merge_list_local_wins(self):
         """<<< would concatenate lists, but merge_check's iteration order
         causes the local value to overwrite the merged result."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   base: &base
     mylist: [4, 5, 6]
   merged:
     <<<: *base
     mylist: [1, 2, 3]
-"""
-        )
+""")
         v = spec.variables
         # Local value overwrites merged result due to iteration order
         self.assertEqual(v["merged"]["mylist"], [1, 2, 3])
 
     def test_hierarchical_merge_adds_missing_keys(self):
         """<<< adds keys from base that aren't in the local dict."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   base: &base
     from_base: [4, 5, 6]
@@ -135,39 +128,34 @@ variables:
   merged:
     <<<: *base
     shared: 99
-"""
-        )
+""")
         v = spec.variables
         self.assertEqual(v["merged"]["from_base"], [4, 5, 6])
         self.assertEqual(v["merged"]["shared"], 99)
 
     def test_nomerge_blocks_list_merge(self):
         """!nomerge prevents list concatenation under <<<."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   base: &base
     mylist: [4, 5, 6]
   merged:
     <<<: *base
     mylist: !nomerge [1, 2, 3]
-"""
-        )
+""")
         v = spec.variables
         self.assertEqual(v["merged"]["mylist"], [1, 2, 3])
 
     def test_shallow_merge_does_not_recurse(self):
         """<< does NOT recurse into nested dicts (unlike <<<)."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   base: &base
     nested: {x: 10, y: 20}
   merged:
     <<: *base
     nested: {x: 99}
-"""
-        )
+""")
         v = spec.variables
         self.assertEqual(v["merged"]["nested"]["x"], 99)
         # Shallow merge: nested is fully overridden
@@ -175,8 +163,7 @@ variables:
 
     def test_merge_multiple_anchors(self):
         """<< can merge multiple anchors; earlier anchors take precedence."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   d1: &d1
     a: 1
@@ -186,8 +173,7 @@ variables:
     c: 3
   merged:
     <<: [*d1, *d2]
-"""
-        )
+""")
         v = spec.variables
         self.assertEqual(v["merged"]["a"], 1)
         self.assertEqual(v["merged"]["b"], 2)  # d1 takes precedence
@@ -313,14 +299,12 @@ class TestExpressionEvalInSpec(unittest.TestCase):
 
     def test_variables_evaluate_cross_references(self):
         """Variables can reference other variables: b = a + 5."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   a: 123
   b: a + 5
   c: min(b, 3)
-"""
-        )
+""")
         evaluated = spec._spec_eval_expressions()
         self.assertEqual(evaluated.variables["a"], 123)
         self.assertEqual(evaluated.variables["b"], 128)
@@ -328,8 +312,7 @@ variables:
 
     def test_arch_expressions_reference_variables(self):
         """Arch fields can reference top-level variables."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 variables:
   mem_size: 1024 * 1024
 
@@ -358,8 +341,7 @@ workload:
     tensor_accesses:
     - {name: A, projection: [m]}
     - {name: B, projection: [m], output: true}
-"""
-        )
+""")
         evaluated = spec._spec_eval_expressions()
         mem = evaluated.arch.find("Mem")
         self.assertEqual(mem.size, 1024 * 1024 * 8)
@@ -375,8 +357,7 @@ class TestSetExpressionsParsed(unittest.TestCase):
 
     def test_complement(self):
         """~Intermediates is a complement set expression."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 arch:
   nodes:
   - !Memory
@@ -394,14 +375,12 @@ arch:
     area: 0
     actions:
     - {name: compute, energy: 1, latency: 1}
-"""
-        )
+""")
         mem = spec.arch.find("Mem")
         self.assertEqual(mem.tensors.keep, "~Intermediates")
 
     def test_union_expression(self):
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 arch:
   nodes:
   - !Memory
@@ -419,15 +398,13 @@ arch:
     area: 0
     actions:
     - {name: compute, energy: 1, latency: 1}
-"""
-        )
+""")
         mem = spec.arch.find("Mem")
         self.assertEqual(mem.tensors.keep, "input | output")
 
     def test_reference_above_memory(self):
         """~MainMemory.tensors references Above node."""
-        spec = _yaml_spec(
-            """\
+        spec = _yaml_spec("""\
 arch:
   nodes:
   - !Memory
@@ -454,8 +431,7 @@ arch:
     area: 0
     actions:
     - {name: compute, energy: 1, latency: 1}
-"""
-        )
+""")
         buf = spec.arch.find("Buffer")
         self.assertEqual(buf.tensors.keep, "~MainMemory.tensors")
 

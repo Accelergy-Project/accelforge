@@ -154,7 +154,8 @@ class TestFFMRegression(unittest.TestCase):
         ref = self._ref[key]
         cur = _run(arch, workload, fused)
         self.assertEqual(
-            cur["n_mappings"], ref["n_mappings"],
+            cur["n_mappings"],
+            ref["n_mappings"],
             msg=f"n_mappings for {key}: ref={ref['n_mappings']}, cur={cur['n_mappings']}",
         )
         self.assertTrue(
@@ -169,10 +170,12 @@ class TestFFMRegression(unittest.TestCase):
         for s in ["energy_per_component", "latency_per_component", "actions"]:
             for c in ref[s]:
                 if c not in cur[s]:
-                    failures.append(f"{s} {c}: missing in current (keys: {sorted(cur[s].keys())})")
+                    failures.append(
+                        f"{s} {c}: missing in current (keys: {sorted(cur[s].keys())})"
+                    )
                     continue
                 if not math.isclose(cur[s][c], ref[s][c], rel_tol=0.01):
-                    ratio = cur[s][c] / ref[s][c] if ref[s][c] != 0 else float('inf')
+                    ratio = cur[s][c] / ref[s][c] if ref[s][c] != 0 else float("inf")
                     failures.append(
                         f"{s} {c}: ref={ref[s][c]:.6e} cur={cur[s][c]:.6e} "
                         f"ratio={ratio:.4f}"
@@ -198,6 +201,7 @@ for _k, _a, _w, _f in _cases():
 
     setattr(TestFFMRegression, _name, _t())
 
+
 class TestHWComponentsConsistency(unittest.TestCase):
     """
     Checks that hwcomponents models produce expected per-component area, energy, leak
@@ -211,9 +215,9 @@ class TestHWComponentsConsistency(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        assert HWCOMPONENTS_JSON_PATH.exists(), (
-            f"No hwcomponents reference json at {HWCOMPONENTS_JSON_PATH}"
-        )
+        assert (
+            HWCOMPONENTS_JSON_PATH.exists()
+        ), f"No hwcomponents reference json at {HWCOMPONENTS_JSON_PATH}"
         with open(HWCOMPONENTS_JSON_PATH) as f:
             cls._expected = json.load(f)
 
@@ -269,12 +273,15 @@ class TestHWComponentsConsistency(unittest.TestCase):
                     self.assertIsNotNone(act_val, f"{name}.{comp_name}.{field} missing")
                     delta = max(abs(exp_val) * 1e-6, 1e-15)
                     self.assertAlmostEqual(
-                        act_val, exp_val, delta=delta,
+                        act_val,
+                        exp_val,
+                        delta=delta,
                         msg=f"{name}.{comp_name}.{field}: {act_val} != {exp_val}",
                     )
             for act_name, exp_act in exp_comp.get("actions", {}).items():
                 self.assertIn(
-                    act_name, act_comp.get("actions", {}),
+                    act_name,
+                    act_comp.get("actions", {}),
                     f"{name}.{comp_name}: missing action {act_name}",
                 )
                 act_act = act_comp["actions"][act_name]
@@ -285,7 +292,9 @@ class TestHWComponentsConsistency(unittest.TestCase):
                     )
                     delta = max(abs(exp_val) * 1e-6, 1e-15)
                     self.assertAlmostEqual(
-                        act_val, exp_val, delta=delta,
+                        act_val,
+                        exp_val,
+                        delta=delta,
                         msg=f"{name}.{comp_name}.{act_name}.{field}: {act_val} != {exp_val}",
                     )
 
@@ -296,6 +305,7 @@ for _arch_name in ["eyeriss", "simba", "simple", "tpu_v4i"]:
     def _make_test(_name=_arch_name):
         def t(self):
             self._check_arch(_name)
+
         return t
 
     setattr(TestHWComponentsConsistency, _test_name, _make_test())

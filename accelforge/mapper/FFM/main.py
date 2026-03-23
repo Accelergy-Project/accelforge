@@ -19,7 +19,6 @@ from accelforge._accelerated_imports import pd
 
 from accelforge.util import delayed, _fillna_and__numeric_cast, parallel, oset
 
-
 logger = logging.getLogger(__name__)
 
 

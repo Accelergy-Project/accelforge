@@ -14,7 +14,6 @@ import threading
 import time
 from accelforge.util._frozenset import oset
 
-
 PARSING_LOCK = threading.Lock()
 THREAD_ID = 0
 

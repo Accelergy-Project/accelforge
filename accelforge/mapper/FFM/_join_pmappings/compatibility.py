@@ -267,10 +267,12 @@ class Compatibility(Updatable):
     @property
     def n_loops(self) -> int:
         try:
-            return object.__getattribute__(self, '_n_loops_cached')
+            return object.__getattribute__(self, "_n_loops_cached")
         except AttributeError:
-            val = max((len(s.loops) for s in frozenset.__iter__(self.tensors)), default=0)
-            object.__setattr__(self, '_n_loops_cached', val)
+            val = max(
+                (len(s.loops) for s in frozenset.__iter__(self.tensors)), default=0
+            )
+            object.__setattr__(self, "_n_loops_cached", val)
             return val
 
     @property
@@ -282,10 +284,10 @@ class Compatibility(Updatable):
 
     def __hash__(self):
         try:
-            return object.__getattribute__(self, '_hash_cached')
+            return object.__getattribute__(self, "_hash_cached")
         except AttributeError:
             val = hash(self._get_hash_tuple())
-            object.__setattr__(self, '_hash_cached', val)
+            object.__setattr__(self, "_hash_cached", val)
             return val
 
     def __eq__(self, other):

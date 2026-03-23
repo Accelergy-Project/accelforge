@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Callable, TypeVar
 from accelforge.util._frozenset import oset
 
-
 T = TypeVar("T")
 
 

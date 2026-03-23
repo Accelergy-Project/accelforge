@@ -35,7 +35,6 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
 from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
 from accelforge.util import _fillna_and__numeric_cast, parallel, delayed, oset
 
-
 logger = logging.getLogger(__name__)
 
 

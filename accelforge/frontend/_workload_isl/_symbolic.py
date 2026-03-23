@@ -24,8 +24,7 @@ def parse_expr(s: str) -> sympy.Expr:
 def get_projection_expr(einsum: Einsum, tensor: TensorName) -> dict[Rank, sympy.Expr]:
     projection = einsum.tensor_accesses[tensor].projection
     return {
-        rank_name: parse_expr(proj_str)
-        for rank_name, proj_str in projection.items()
+        rank_name: parse_expr(proj_str) for rank_name, proj_str in projection.items()
     }
 
 

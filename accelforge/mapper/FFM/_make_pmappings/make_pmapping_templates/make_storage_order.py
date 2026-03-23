@@ -367,7 +367,8 @@ def valid_tensor_holder_order(
             ):
                 if same_fanout and (i == j or i == j - 1):
                     if s1_idx < s2_idx and not (
-                        (oset(m0._must_keep_tensors) & oset(m1.tensors)) or either_backing
+                        (oset(m0._must_keep_tensors) & oset(m1.tensors))
+                        or either_backing
                     ):
                         shared = oset(m0._must_keep_tensors) & oset(m1.tensors)
                         return (
@@ -375,7 +376,8 @@ def valid_tensor_holder_order(
                             f"{shared} stored in back-to-back storage nodes, and could have bypassed the outer one.",
                         )
                     if s2_idx < s1_idx and not (
-                        (oset(m1._must_keep_tensors) & oset(m0.tensors)) or either_backing
+                        (oset(m1._must_keep_tensors) & oset(m0.tensors))
+                        or either_backing
                     ):
                         shared = oset(m1._must_keep_tensors) & oset(m0.tensors)
                         return (

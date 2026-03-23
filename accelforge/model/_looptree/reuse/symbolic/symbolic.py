@@ -89,6 +89,7 @@ def min_nonzero(a: Any, b: Any) -> Any:
         return a
     return MinGeqZero(a, b)
 
+
 def max_dict(a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
     new = {**a}
     for key, value in b.items():
@@ -214,9 +215,9 @@ class BuffetStats:
             elif v is None:
                 new.__dict__[k] = other_v
             else:
-                assert v == other_v, (
-                    f"BUG: {k} is different. self: {v} other: {other_v}"
-                )
+                assert (
+                    v == other_v
+                ), f"BUG: {k} is different. self: {v} other: {other_v}"
         return new
 
     def __iadd__(self, other: "BuffetStats") -> "BuffetStats":
@@ -380,7 +381,10 @@ class SymbolicAnalysisOutput:
         self.symbols.extend([s for s in other.symbols if s not in self.symbols])
         for key in self.compute_stats:
             if key in other.compute_stats:
-                assert self.compute_stats[key].total_ops == other.compute_stats[key].total_ops
+                assert (
+                    self.compute_stats[key].total_ops
+                    == other.compute_stats[key].total_ops
+                )
 
     def add_network_stats(self, other: "SymbolicAnalysisOutput"):
         assert not (oset(self.network_stats) & oset(other.network_stats)), "BUG"
@@ -432,10 +436,8 @@ class AnalysisInfo:
 
 
 def quick_insert_reservation_nodes(
-        job: Job,
-        mapping: Mapping | None = None,
-        tensors: oset[TensorName] | None = None
-    ) -> Mapping:
+    job: Job, mapping: Mapping | None = None, tensors: oset[TensorName] | None = None
+) -> Mapping:
     if mapping is None:
         mapping = list(job.mapping.nodes)
     else:
@@ -509,10 +511,7 @@ def convert_to_copy(
             j = i + 1
             while j < len(mapping):
                 node2 = mapping[j]
-                if (
-                    isinstance(node2, Reservation)
-                    and node.resource == node2.resource
-                ):
+                if isinstance(node2, Reservation) and node.resource == node2.resource:
                     mapping.pop(j)
                 else:
                     j += 1
@@ -611,8 +610,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
     tensor2mapping = {}
     for tensor in [None] + sorted(tensors):
         rvs = einsum.tensor2rank_variables.get(
-            tensor,
-            oset.union(*einsum.tensor2rank_variables.values())
+            tensor, oset.union(*einsum.tensor2rank_variables.values())
         )
         cur_mapping = mapping._get_single_tensor_mapping(
             tensor,
@@ -652,7 +650,8 @@ def analyze_reuse_and_add_reservations_to_mapping(
     if is_copy_operation:
         for t in workload.einsums[einsum_name].tensor_names:
             tensor2mapping[t] = job.mapping._get_single_tensor_mapping(
-                t, job.flattened_arch,
+                t,
+                job.flattened_arch,
                 tensor_rank_variables=einsum.tensor2rank_variables[t],
             )
 
@@ -886,7 +885,7 @@ def _loop_stride_and_shape(node, current_shape, node_idx, info):
     # iteration count from the original mapping order.
     if (
         not info.is_recording_iterations
-        and node.rank_variable not in info.tensor_rank_variables # True -> irrelevant
+        and node.rank_variable not in info.tensor_rank_variables  # True -> irrelevant
     ):
         n_iters = info.precomputed_iterations[id(node)]
         stride = node.tile_shape

@@ -401,8 +401,7 @@ def make_pmappings(
         )
 
     return_jobs = {
-        e: [j for jobs in v.values() for j in jobs]
-        for e, v in einsum2jobs.items()
+        e: [j for jobs in v.values() for j in jobs] for e, v in einsum2jobs.items()
     }
 
     return pmapping_groups, pmapping_objects, return_jobs

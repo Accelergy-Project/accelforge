@@ -46,7 +46,6 @@ from accelforge.frontend.renames import (
     rename_list_factory,
 )
 
-
 CLIST_OPERATORS = [
     "EQ",
     "NE",
@@ -992,7 +991,9 @@ class Workload(EvalableModel):
     @property
     def tensor_names_used_in_multiple_einsums(self) -> set[TensorName]:
         """Returns the names of the tensors that are used in multiple Einsums."""
-        return oset(t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1)
+        return oset(
+            t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1
+        )
 
     @property
     def tensor_names(self) -> set[TensorName]:

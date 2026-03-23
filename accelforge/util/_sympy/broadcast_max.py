@@ -16,7 +16,7 @@ def MaxGeqZero(*args):
     # Fast path covers most calls, avoids sympy
     if len(args) == 2:
         a, b = args
-        for (a, b) in ((args[0], args[1]), (args[1], args[0])):
+        for a, b in ((args[0], args[1]), (args[1], args[0])):
             a_is_numeric = isinstance(a, (int, float))
             b_is_numeric = isinstance(b, (int, float))
             if a_is_numeric and b_is_numeric:

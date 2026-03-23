@@ -17,7 +17,6 @@ from accelforge.frontend.mapping import Compute, MappingNode
 from accelforge.frontend.workload import TensorName
 from accelforge.model._looptree.types import Buffet
 
-
 # Mapper intermediates.
 ##
 #   @brief Iteration -> Operation relation that specifies the tiling.
