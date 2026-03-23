@@ -7,8 +7,9 @@ from accelforge.util._basetypes import (
     _PostCall,
 )
 
-from accelforge.frontend.arch.structure import Leaf, Hierarchical
+from accelforge.frontend.arch.structure import Leaf, Branch, Hierarchical
 from accelforge.frontend.arch.components import Component
+from accelforge.frontend.arch.spatialable import Spatialable, Spatial
 
 
 class Arch(Hierarchical):
@@ -141,7 +142,76 @@ class Arch(Hierarchical):
         return evaluated, symbol_table
 
     def __getitem__(self, name: str) -> Leaf:
-        return self.name2leaf(name)
+        attr_error = None
+        find_error = None
+        try:
+            return super().__getitem__(name)
+        except KeyError as e1:
+            attr_error = e1
+        try:
+            return self.find(name)
+        except ValueError as e2:
+            find_error = e2
+
+        e1_str = "\n\t" + str(attr_error).replace("\n", "\n\t")
+        e2_str = "\n\t" + str(find_error).replace("\n", "\n\t")
+
+        errstr = (
+            f"Could not access {name} in {self}, either as an attribute or as the name "
+            f"of a leaf node. Error for accessing as an attribute:{e1_str}\n"
+            f"Error for accessing as the name of a leaf node:{e2_str}"
+        )
+
+        raise KeyError(errstr)
+
+    def find_spatial(
+        self, name: str, return_spatialable: bool = False
+    ) -> Spatial | tuple[Spatialable, Spatial]:
+        """
+        Find a spatial dimension by name. Raises an error if zero or more than one
+        spatial dimension has the given name.
+
+        Parameters
+        ----------
+        name: str
+            The name of the spatial dimension to find.
+        return_spatialable: bool
+            Whether to return the node that the spatial dimension is associated with.
+
+        Returns
+        -------
+        Spatial
+            The spatial dimension with the given name if `return_spatialable` is False.
+        tuple[Spatialable, Spatial]
+            The node and spatial dimension with the given name if `return_spatialable`
+            is True.
+
+        Raises
+        ------
+        ValueError
+            If no spatial dimension with the given name exists, or if more than one
+            spatial dimension with the given name exists.
+        """
+
+        matches = []
+        for node in self.get_nodes_of_type(Spatialable):
+            for s in node.spatial:
+                if s.name == name:
+                    matches.append((node, s))
+
+        if len(matches) == 0:
+            raise ValueError(
+                f"No spatial dimension with name '{name}' found in the architecture"
+            )
+        if len(matches) > 1:
+            node_names = [getattr(n, "name", type(n).__name__) for n, _ in matches]
+            raise ValueError(
+                f"Multiple spatials with name '{name}' found in the architecture "
+                f"(in nodes: {node_names}). Expected exactly one."
+            )
+        if return_spatialable:
+            return matches[0]
+        return matches[0][1]
 
     def model_post_init(self, __context__=None) -> None:
         # Make sure all leaf names are unique
