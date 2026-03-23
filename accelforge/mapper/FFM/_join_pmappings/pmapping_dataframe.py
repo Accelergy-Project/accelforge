@@ -246,10 +246,11 @@ class PmappingDataframe:
         l_reservations, r_reservations = {}, {}
         for c in self.data.columns:
             if (key := col2reservation(c)) is not None:
-                target = l_reservations if key.is_left else r_reservations
-                target.setdefault(key.name, oset()).add(key.nloops)
                 assert key.nloops >= -1
-
+                if key.is_left:
+                    l_reservations.setdefault(key.name, oset()).add(key.nloops)
+                else:
+                    r_reservations.setdefault(key.name, oset()).add(key.nloops)
         return l_reservations, r_reservations
 
     def clear_fused_loop_symbols(self):
@@ -615,6 +616,10 @@ class PmappingDataframe:
         n_total_pmappings *= scale_by
         n_valid_pmappings *= scale_by
 
+        # Calculate the merged reservations of both trees.
+        # Reservations of shared tensors are going to be doubly-counted.
+        # We free these reservations later.
+
         # Make sure everything is done in increasing loop order so we don't have
         # read-after-write hazards
         for nloops in range(max_nloops, min_nloops - 1, -1):
@@ -652,17 +657,19 @@ class PmappingDataframe:
                     )
                 ) is None:
                     continue
-                right_merge_source = source + "_RIGHT_MERGE"
-                target = reservation2col(resource, nloops, left=True)
-                if source is not None:
-                    add_to_col(
-                        df,
-                        target,
-                        right_merge_source if right_merge_source in df else source,
-                    )
+                if source not in df:
+                    source += "_RIGHT_MERGE"
+                    assert source in df
+                for target in get_reservation_cols_with(
+                    df,
+                    name=resource,
+                    nloops=nloops,
+                    is_left=True,
+                    filter=lambda col: "RIGHT_MERGE" not in col,
+                ):
+                    add_to_col(df, target, source)
             # For LEFT tree, RIGHT reservations: Add the same-level reservation from the
-            # right tree. This will double-count reservations that are in both branches,
-            # so we remove them later.
+            # right tree.
             for resource in iter_reservations(r_reservations):
                 if (
                     source := get_reservation_or_parent(
@@ -673,14 +680,11 @@ class PmappingDataframe:
                     )
                 ) is None:
                     continue
-                right_merge_source = source + "_RIGHT_MERGE"
+                if source not in df:
+                    source += "_RIGHT_MERGE"
+                    assert source in df
                 target = reservation2col(resource, nloops)
-                if source is not None:
-                    add_to_col(
-                        df,
-                        target,
-                        right_merge_source if right_merge_source in df else source,
-                    )
+                add_to_col(df, target, source)
 
         # For everything else: Simple add
         dropcols = [c for c in df.columns if c.endswith("_RIGHT_MERGE")]
@@ -704,28 +708,17 @@ class PmappingDataframe:
             n_valid_pmappings=n_valid_pmappings,
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
-            n_concurrent_threads=self.n_concurrent_threads
+            n_concurrent_threads=self.n_concurrent_threads,
         )
-        # # Remove tensors that were allocated in both branches and got added
-        # # together.
-        # shared_to_free = [
-        #     s for s in shared_tensors if s.above_loop_index <= shared_loop_index
-        # ]
-        # reservations_of_live_tensor_not_in_right = [
-        #     compatibility_joined.get_reservation_of_tensor(t)
-        #     for t in compatibility_joined.tensor_names
-        #     - compatibility_right.tensor_names
-        # ]
-        # live_to_alloc = [
-        #     r
-        #     for r in reservations_of_live_tensor_not_in_right
-        #     if r.above_loop_index > shared_loop_index
-        # ]
-        # result.adjust_reservations(
-        #     alloc=live_to_alloc,
-        #     free=list(itertools.chain(shared_to_free, duplicated_aliased_tensors)),
-        #     ignored_resources=ignored_resources,
-        # )
+
+        doubly_counted_reservations = _get_doubly_counted_reservations(
+            compatibility_left.tensors,
+            compatibility_right.tensors,
+            duplicated_aliased_tensors,
+            shared_loop_index,
+        )
+        for resource, tensor_index_set in doubly_counted_reservations.items():
+            result.free_reservations_of_resource(resource, tensor_index_set)
 
         if CHECK_CORRECTNESS:
             result.check_above_subset_below(live_tensors)
@@ -746,33 +739,28 @@ class PmappingDataframe:
         return result
 
     @error_check_wrapper
-    def _adjust_reservations_one_resource(
+    def free_reservations_of_resource(
         self,
         resource: str,
-        alloc: Iterable[TensorReservation],
-        free: Iterable[TensorReservation],
+        tensor_indices_to_free: Iterable[tuple[str, int]],
     ):
-        alloc, free = list(alloc), list(free)
-        # Iterate through each reservation and level
+        """
+        For every `(tensor, nloops)` in `tensor_indices_to_free`, reduces all 
+        right reservations of `resource` at `index >= nloops` and left reservations
+        at `index > nloops` by the size of the tensor as recorded in
+        `self.data[tensor2col(tensor)]`.
+        """
         targets = defaultdict(int)
-
-        l_reservations, r_reservations = self._make_reservations()
-
-        # Must allocate at the above_loop_index level
-        for t in itertools.chain(alloc, free):
-            r_reservations.setdefault(resource, oset()).add(t.above_loop_index)
-
-        for t, negate in [(t, False) for t in alloc] + [(t, True) for t in free]:
-            size = self.data[tensor2col(t.name)]
-            size = -size if negate else size
-            targets[t.above_loop_index, False] += size
-            # Allocate at any levels below the above_loop_index level
-            for level in r_reservations[resource]:
-                if level > t.above_loop_index:
-                    targets[level, False] += size
-            for level in l_reservations.get(resource, oset()):
-                if level > t.above_loop_index:
-                    targets[level, True] += size
+        for tensor_name, to_free_nloops in tensor_indices_to_free:
+            size = self.data[tensor2col(tensor_name)]
+            for col in get_reservation_cols_with(self.data, name=resource):
+                key = col2reservation(col)
+                if (
+                    (key.is_left and key.nloops > to_free_nloops)
+                    or
+                    (key.is_right and key.nloops >= to_free_nloops)
+                ):
+                    targets[level, True] -= size
 
         # Now apply the allocations. Sort so we go from top to bottom in case
         # there are maxes that propagate down.
@@ -780,43 +768,10 @@ class PmappingDataframe:
             targets.items(), key=lambda x: x[0], reverse=True
         ):
             target = reservation2col(resource, level, left=left)
-            if target in self.data:
-                add_to_col(self.data, target, size)
-                continue
-
-            # We're creating a new column, so copy allocations from any parents
-            source = get_reservation_or_parent(
-                resource, level - 1, l_reservations, r_reservations
-            )
-            if source:
-                add_to_col(self.data, target, source)
-                add_to_col(self.data, target, size)
-            else:
-                self.data[target] = size
-
+            assert target in self.data
+            add_to_col(self.data, target, size)
             # Assert all reservations are >= 0
             assert (self.data[target] >= 0).all(), f"Negative reservation: {target}"
-
-    @error_check_wrapper
-    def adjust_reservations(
-        self,
-        alloc: Iterable[TensorReservation],
-        free: Iterable[TensorReservation],
-        ignored_resources: set[str] = oset(),
-    ):
-        alloc, free = list(alloc), list(free)
-        all_resources = oset(t.resource_name for t in alloc) | oset(
-            t.resource_name for t in free
-        )
-        ignored_resources = ignored_resources | self.ignored_resources
-        # Handle each resource separately
-        for resource in all_resources:
-            if resource in ignored_resources:
-                continue
-            cur_alloc = [t for t in alloc if t.resource_name == resource]
-            cur_free = [t for t in free if t.resource_name == resource]
-            if cur_alloc or cur_free:
-                self._adjust_reservations_one_resource(resource, cur_alloc, cur_free)
 
     @staticmethod
     def concat(
@@ -919,30 +874,30 @@ class PmappingDataframe:
             # then we can drop the column.
             left_loops = l_reservations.get(resource, oset())
             for l in list(left_loops):
-                col = reservation2col(resource, l, left=True)
-                if (
-                    DEBUG_PRINT_NO_VALID
-                    and sum(self.data[col] <= 1 + tolerance) == 0
-                    and len(self.data) == 1
-                    and tolerance == 0
-                ):
-                    print(
-                        f"Resource {resource} has no valid reservations. Failed for {col}: {next(iter(self.data[col]))} <= {1 + tolerance}: {next(iter(self.data[col])) <= 1 + tolerance}"
-                    )
-                    for col2 in self.data.columns:
-                        print(f"{col2}: {list[Any](self.data[col2])}")
-                self._data = self.data[self.data[col] <= 1 + tolerance]
-                if (
-                    l == 0
-                    # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
-                    # tensors may get saved later.
-                    and finished
-                    and self.drop_valid_reservations
-                    and resource not in ignored_resources
-                    and (tolerance == 0 or not any(self.data[col] > 1))
-                ):
-                    left_loops.discard(l)
-                    dropcols.append(col)
+                for col in get_reservation_cols_with(self.data, name=resource, nloops=l, is_left=True):
+                    if (
+                        DEBUG_PRINT_NO_VALID
+                        and sum(self.data[col] <= 1 + tolerance) == 0
+                        and len(self.data) == 1
+                        and tolerance == 0
+                    ):
+                        print(
+                            f"Resource {resource} has no valid reservations. Failed for {col}: {next(iter(self.data[col]))} <= {1 + tolerance}: {next(iter(self.data[col])) <= 1 + tolerance}"
+                        )
+                        for col2 in self.data.columns:
+                            print(f"{col2}: {list[Any](self.data[col2])}")
+                    self._data = self.data[self.data[col] <= 1 + tolerance]
+                    if (
+                        l == 0
+                        # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
+                        # tensors may get saved later.
+                        and finished
+                        and self.drop_valid_reservations
+                        and resource not in ignored_resources
+                        and (tolerance == 0 or not any(self.data[col] > 1))
+                    ):
+                        left_loops.discard(l)
+                        dropcols.append(col)
 
         self._data = self.data.drop(columns=dropcols)
 
@@ -1214,3 +1169,20 @@ class BindingOrder:
         assert isinstance(new_sequence, BindingOrder)
         self._sequence = list(self._sequence)
         self._sequence.extend(new_sequence._sequence)
+
+
+def _get_doubly_counted_reservations(
+    left_tensor_reservations: oset[TensorReservation],
+    right_tensor_reservations: oset[TensorReservation],
+    duplicated_aliased_tensors: oset[TensorReservation],
+    shared_loop_index,
+):
+    doubly_counted_reservations = {}
+    shared_reservations = left_tensor_reservations & right_tensor_reservations
+    for s in shared_reservations | duplicated_aliased_tensors:
+        if s.above_loop_index > shared_loop_index:
+            continue
+        tensor_index_set = doubly_counted_reservations.get(s.resource_name, oset())
+        tensor_index_set.add((s.name, s.above_loop_index))
+        doubly_counted_reservations[s.resource_name] = tensor_index_set
+    return doubly_counted_reservations

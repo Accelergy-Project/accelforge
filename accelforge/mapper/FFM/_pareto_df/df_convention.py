@@ -1,4 +1,5 @@
 from collections import namedtuple
+from typing import NamedTuple
 import functools
 import pandas as pd
 from accelforge.util import NUMPY_FLOAT_TYPE
@@ -76,15 +77,20 @@ def col2memory_usage(col: str) -> tuple[str, str, str]:
 
 
 @dict_cached
-def live_tensors2col(name: str, nloops: int, thread: int = 0) -> str:
-    return LIVE / name / str(nloops) / str(thread)
+def live_tensors2col(resource: str, tensor: str, nloops: int, thread: int = 0) -> str:
+    return str(LIVE / resource / tensor / str(nloops) / str(thread))
 
 
-LiveTensorsKey = namedtuple("LiveTensorsKey", ["name", "nloops", "thread"])
+class LiveReservationKey(NamedTuple):
+    resource: str
+    tensor: str
+    nloops: int
+    thread: int
+
 @dict_cached
-def col2live_tensors(col: str) -> LiveTensorsKey:
+def col2live_tensors(col: str) -> LiveReservationKey:
     split_col = partition_col(col, LIVE, 4)
-    return LiveTensorsKey(split_col[0], split_col[1], split_col[2])
+    return LiveReservationKey(split_col[0], split_col[1], int(split_col[2]), int(split_col[3]))
 
 
 @dict_cached
@@ -152,7 +158,17 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
         raise ValueError(f"bad column name: {colname}")
 
 
-ReservationKey = namedtuple("ReservationKey", ["name", "nloops", "is_left", "thread"])
+class ReservationKey(NamedTuple):
+    name: str
+    nloops: int
+    is_left: bool
+    thread: int
+
+    @property
+    def is_right(self):
+        return not self.is_left
+
+
 @dict_cached
 def col2reservation(x: str) -> ReservationKey | None:
     """Format: reservation name nloops left thread"""
@@ -163,7 +179,7 @@ def col2reservation(x: str) -> ReservationKey | None:
 
 
 @dict_cached
-def reservation2col(name: str, nloops: int, left: bool = False, thread: int = 0) -> str:
+def reservation2col(name: str, nloops: int, left: bool = False, thread: int = -1) -> str:
     """Format: reservation name nloops left thread"""
     return (
         f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
@@ -177,10 +193,13 @@ def get_reservation_cols_with(
     name: str=None,
     nloops: int=None,
     is_left: bool=None,
-    thread: int=None
+    thread: int=None,
+    filter=None,
 ):
+    if filter is None:
+        filter = lambda col: True
     for c in df.columns:
-        if not "reservation" in c:
+        if (not "reservation" in c) or (not filter(c)):
             continue
         key = col2reservation(c)
         if name is not None and key.name != name:

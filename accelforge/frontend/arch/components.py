@@ -1007,7 +1007,7 @@ class Toll(TensorHolder):
         return "#FFCC99"
 
 
-class Compute(Component, Leaf):
+class Compute(Component, Leaf, ConcurrentlyBoundable):
     actions: EvalableList[Action] = COMPUTE_ACTIONS
     """ The actions that this `Compute` can perform. """
 
