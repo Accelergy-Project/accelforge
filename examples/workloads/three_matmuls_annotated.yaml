@@ -23,6 +23,10 @@ workload:
   # can be overridden by the bits_per_value attribute of any tensor access.
   bits_per_value: {All: 8}
 
+  # Mark tensors as persistent if they must live in their backing storage for the entire
+  # workload's execution.
+  persistent_tensors: weight - Intermediates
+
   # The Einsums in the workload.
   einsums:
   - name: Matmul1

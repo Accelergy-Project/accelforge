@@ -198,7 +198,7 @@ def _compare_to_zero(
     # symbol that appears the least times. Also tried the symbol that appears the most
     # times and the symbol that appears first in the bounds list. They had equivalent
     # speeds, approx. 3% slower overall tile shape exploration than min.
-    chosen_s = min(f.free_symbols, key=lambda s: f.count(s))
+    chosen_s = min(f.free_symbols, key=lambda s: (f.count(s), str(s)))
     for s, lo, hi in bounds:
         if s == chosen_s:
             break
@@ -417,7 +417,7 @@ def _try_replace_single_term(
 ):
     goal = None
     if len(t.free_symbols & symbols_enumerated) == 1:
-        s = next(iter(t.free_symbols & symbols_enumerated))
+        s = min(t.free_symbols & symbols_enumerated, key=str)
         try:
             diff_result = diff_geq_leq_zero(t, s, bounds)
             if diff_result == ComparisonResult.ALWAYS_GEQ_THAN_ZERO:
@@ -478,7 +478,7 @@ def _partition_formula(
     absolute_tolerance = 0
 
     def _try_replace_unknowns(t: Expr):
-        for s in t.free_symbols - symbols_enumerated:
+        for s in sorted(t.free_symbols - symbols_enumerated, key=str):
             if not affects_comparison(t, s, symbols_enumerated):
                 t = t.subs(s, 1)
         return t
@@ -587,7 +587,7 @@ def _partition_formula(
         # Don't recurse with the same formula. If we got here without simplifying it,
         # give up and mark everything "diff".
         if term == f:
-            for symbol in term.free_symbols:
+            for symbol in sorted(term.free_symbols, key=str):
                 update_goal(symbol, Goal("diff"))
         else:
             for subterm, subgoal in partition_formula(
@@ -674,7 +674,7 @@ def symbol2int(symbol: Symbol):
 def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
     fs = {
         s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
-        for s in f.free_symbols & symbols_enumerated
+        for s in sorted(f.free_symbols & symbols_enumerated, key=str)
     }
     return f.subs(fs) - f > 0
 
@@ -842,7 +842,7 @@ def coalesce_symbols(
             # compare and it won't affect comparisons, then we can drop it.
 
             # If it's a function of a non-enumerated symbol &
-            for s in formula.free_symbols:
+            for s in sorted(formula.free_symbols, key=str):
                 if s in symbols_enumerated and latest().get(s, Goal()).goal != "diff":
                     continue
 
@@ -889,7 +889,7 @@ def coalesce_symbols(
 
             # If a formula agrees entirely with other goals, then we can remove it
             disagrees = []
-            for s in formula.free_symbols:
+            for s in sorted(formula.free_symbols, key=str):
                 g = latest(s).goal if s in latest() else None
                 if g in ["min", "max"]:
                     log_message(
@@ -1889,7 +1889,7 @@ def _calculate_iterations_and_rank_columns(
                 ):
                     continue
 
-                free_symbols = tuple(expr.free_symbols)
+                free_symbols = tuple(sorted(expr.free_symbols, key=str))
                 free_symbols_str = tuple(symbol.name for symbol in free_symbols)
                 if n.rank_variable not in free_symbols_str:
                     continue
@@ -2171,9 +2171,20 @@ def _make_tile_shapes(job: "Job"):
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative latency for {key}: {val}")
         if "energy" in key:
-            val = [df[key]] if isinstance(df[key], Number) else df[key]
-            if any(l < 0 for l in val):
-                raise ValueError(f"Negative energy for {key}: {val}")
+            arr = df[key]
+            if isinstance(arr, Number):
+                if arr < 0:
+                    raise ValueError(f"Negative energy for {key}: {arr}")
+            else:
+                neg_mask = arr < 0
+                if neg_mask.any():
+                    # Allow tiny negatives from float32 precision loss:
+                    # check that negatives are negligible relative to max.
+                    max_abs = np.max(np.abs(arr))
+                    if max_abs == 0 or (arr[neg_mask] / max_abs > -1e-4).all():
+                        df[key] = np.maximum(arr, 0)
+                    else:
+                        raise ValueError(f"Negative energy for {key}: {arr[neg_mask]}")
 
     # They come out separated from the model because it's easier for tile shape
     # exploration to handle. Now combine them back together.
@@ -2188,14 +2199,24 @@ def _make_tile_shapes(job: "Job"):
 
     energy_cols = [c for c in df.columns if "energy" in c]
     if (df[energy_cols] < 0).any(axis=None):
-        mapping_with_negative_energy = df[(df[energy_cols] < 0).any(axis=1)]
-        print(df.columns)
-        msg = ""
-        for _, row in mapping_with_negative_energy.iterrows():
-            for k, v in row.items():
-                msg += f"{k}: {v}\n"
-            msg += "\n"
-        raise RuntimeError(f"negative energy:\n{msg}")
+        for col in energy_cols:
+            series = df[col]
+            neg_mask = series < 0
+            if neg_mask.any():
+                # FP errors can make small negative values, so if they're indeed small,
+                # clip to zero.
+                max_abs = series.abs().max()
+                if max_abs > 0 and (series / series.abs().max() > -1e-4).all():
+                    df[col] = series.clip(lower=0)
+                else:
+                    mapping_with_negative_energy = df[series < 0]
+                    print(df.columns)
+                    msg = ""
+                    for _, row in mapping_with_negative_energy.iterrows():
+                        for k, v in row.items():
+                            msg += f"{k}: {v}\n"
+                        msg += "\n"
+                    raise RuntimeError(f"negative energy:\n{msg}")
 
     job.n_valid_pmappings = job.n_total_pmappings * prod(
         job.pmapping_keep_rates.values()

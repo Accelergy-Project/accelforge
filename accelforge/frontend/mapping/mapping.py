@@ -1756,6 +1756,7 @@ class Mapping(Nested):
         cls,
         pmappings: list[Nested],
         rank_variable_bounds: Optional[dict[str, dict[str, int]]] = None,
+        _for_model: bool = False,
     ) -> "Mapping":
         orig_pmappings = pmappings
         pmappings = list(copy.deepcopy(pmappings))
@@ -1800,7 +1801,19 @@ class Mapping(Nested):
 
         mapping: Mapping = cls(nodes=pmappings[0].nodes)
         mapping._elevate_persistent_nodes_above_splits()
-        mapping._elevate_tensor_holders_above_splits()
+
+        # This was messing up the model because it could do relative reordering of
+        # storage nodes. Specifically, in copy ops, it would cause problems in the
+        # following case:
+        #
+        # [Copy source] [Copy destination]
+        #
+        # Where copy destination is shared between multiple einsums. Then, source and
+        # destination would both be below the split, causing destination to be elevated
+        # above, and the actual copy operation to move things from destination ->
+        # source.
+        if not _for_model:
+            mapping._elevate_tensor_holders_above_splits()
         mapping._propagate_backing_reservations_between_splits()
         mapping._consolidate_tensor_holders()
         mapping._consolidate_reservations()

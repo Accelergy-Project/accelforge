@@ -377,18 +377,13 @@ def make_pmappings(
         return max([len(j2.mapping.nodes) for j2 in j])
 
     calls = sorted(calls, key=get_longest_mapping_length, reverse=True)
-    # # Randomly permute the calls
-    # import random
-    # random.shuffle(calls)
 
     pmapping_objects = {}
     pmapping_groups = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
-    return_jobs = {}
     for (
         einsum_name,
         new_pmapping_groups,
         pmappings,
-        jobs_with_similar_compatibilities,
     ) in parallel(
         calls,
         pbar=f"Generating pmappings" if print_progress or one_pbar_only else None,
@@ -396,9 +391,6 @@ def make_pmappings(
     ):
         pmapping_groups[einsum_name].extend(new_pmapping_groups)
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
-        return_jobs.setdefault(einsum_name, []).extend(
-            jobs_with_similar_compatibilities
-        )
 
     for einsum_name in list(pmapping_groups.keys()):
         pmapping_groups[einsum_name] = PmappingGroup.combine_combineable(
@@ -407,6 +399,11 @@ def make_pmappings(
             pbar_postfix=f" for {einsum_name}",
             print_progress=print_progress,
         )
+
+    return_jobs = {
+        e: [j for jobs in v.values() for j in jobs]
+        for e, v in einsum2jobs.items()
+    }
 
     return pmapping_groups, pmapping_objects, return_jobs
 
@@ -430,17 +427,6 @@ def _allocate_jobs(einsum2jobs, print_progress: bool = True):
         )
 
     split = True
-    # if (
-    #     not split
-    #     and is_using_parallel_processing()
-    #     and len(calls) < get_n_parallel_jobs() * 4
-    # ):
-    #     if print_progress:
-    #         print(
-    #             f"Insufficient jobs available to utilize available threads. "
-    #             f"Splitting jobs into smaller chunks."
-    #         )
-    #     split = True
 
     if split:
         calls = []

@@ -31,7 +31,7 @@ from accelforge.util._frozenset import oset
 # ============================================================================
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def _is_constant(arr, n):
     """Check if a 1D array is constant. O(1) best case via early exit."""
     v0 = arr[0]
@@ -41,7 +41,7 @@ def _is_constant(arr, n):
     return True
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def _counting_sort(codes, n_groups):
     """Counting sort: O(n + k)."""
     n = len(codes)
@@ -92,7 +92,7 @@ def prime_factor_counts(arr):
 # ============================================================================
 
 
-@numba.jit(nopython=True, fastmath=True)
+@numba.jit(nopython=True, fastmath=True, cache=True)
 def _sfs_bnl_core(data, sorted_idx, offsets, n_total_groups, result_mask):
     d = data.shape[1]
     max_n = numba.int64(0)

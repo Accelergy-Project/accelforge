@@ -221,7 +221,7 @@ def assert_all_jobs_have_same_symbols(
 
 def make_pmappings_from_templates(
     jobs_with_similar_compatibilities: SameCompatibilityJobs,
-) -> tuple[EinsumName, list[PmappingGroup], dict[UUID, Mapping], SameCompatibilityJobs]:
+) -> tuple[EinsumName, list[PmappingGroup], dict[UUID, Mapping]]:
     jwsc = jobs_with_similar_compatibilities
 
     results = []
@@ -303,7 +303,7 @@ def make_pmappings_from_templates(
         skip_pareto=True,
     ).data
     if df.empty:
-        return einsum_name, [], {}, jobs_with_similar_compatibilities
+        return einsum_name, [], {}
 
     tensor_cols = [tensor2col(tensor) for tensor in fusable_tensors]
     df.columns = [
@@ -435,9 +435,12 @@ def make_pmappings_from_templates(
             )
         pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
 
+    # Defragment to speed up pickling
+    for pg in pmapping_groups:
+        pg.mappings._data = pg.mappings._data.copy()
+
     return (
         einsum_name,
         pmapping_groups,
         pmapping_objects,
-        jobs_with_similar_compatibilities,
     )

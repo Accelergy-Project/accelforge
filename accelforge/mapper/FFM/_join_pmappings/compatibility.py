@@ -266,7 +266,12 @@ class Compatibility(Updatable):
 
     @property
     def n_loops(self) -> int:
-        return max([len(s.loops) for s in self.tensors], default=0)
+        try:
+            return object.__getattribute__(self, '_n_loops_cached')
+        except AttributeError:
+            val = max((len(s.loops) for s in frozenset.__iter__(self.tensors)), default=0)
+            object.__setattr__(self, '_n_loops_cached', val)
+            return val
 
     @property
     def loops(self) -> tuple[Loop, ...]:
@@ -276,17 +281,24 @@ class Compatibility(Updatable):
         return self.n_loops, self.tensors, self.reservation_indices
 
     def __hash__(self):
-        return hash(self._get_hash_tuple())
+        try:
+            return object.__getattribute__(self, '_hash_cached')
+        except AttributeError:
+            val = hash(self._get_hash_tuple())
+            object.__setattr__(self, '_hash_cached', val)
+            return val
 
     def __eq__(self, other):
+        if self is other:
+            return True
         return self._get_hash_tuple() == other._get_hash_tuple()
 
     def __post_init__(self):
-        assert isinstance(self.n_loops, int)
         assert isinstance(self.tensors, fzs)
         assert isinstance(self.splits, fzs)
         assert isinstance(self.reservation_indices, fzs)
         if self.check_reservation_indices:
+            assert isinstance(self.n_loops, int)
             assert (
                 max(self.reservation_indices, default=-1) <= self.n_loops
             ), f"Extra reservation indices {self.reservation_indices} are greater than n_loops {self.n_loops}"

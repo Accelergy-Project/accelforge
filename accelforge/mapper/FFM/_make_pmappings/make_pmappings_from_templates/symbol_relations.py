@@ -156,7 +156,7 @@ class SymbolRelations:
                 relation.delta_choices.append(
                     (
                         node.initial_tile_shape,
-                        fzs(initial_delta_choices[node.rank_variable]),
+                        fzs(initial_delta_choices.get(node.rank_variable, oset([0]))),
                     )
                 )
 
@@ -205,4 +205,4 @@ def get_initial_delta_choices(einsum_name: str, workload: Workload):
                         stride, halo = rank_stride_and_halo[key]
                         choices[prod_rank_var].add(int(cons_choice * stride + halo))
 
-    return choices
+    return dict(choices)

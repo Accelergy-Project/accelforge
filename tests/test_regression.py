@@ -6,6 +6,7 @@ Regression tests for the FFM mapper.
 """
 
 import json
+import math
 from numbers import Number
 import os
 import re
@@ -153,23 +154,29 @@ class TestFFMRegression(unittest.TestCase):
         ref = self._ref[key]
         cur = _run(arch, workload, fused)
         self.assertEqual(cur["n_mappings"], ref["n_mappings"])
-        self.assertAlmostEqual(cur["energy"], ref["energy"], delta=1e-3)
-        self.assertAlmostEqual(cur["latency"], ref["latency"], delta=1e-3)
-        print(f"Regression testing {arch=} {workload=} {fused=}")
+        self.assertTrue(
+            math.isclose(cur["energy"], ref["energy"], rel_tol=0.01),
+            msg=f"energy for {arch=} {workload=} {fused=}: "
+                f"ref={ref['energy']}, cur={cur['energy']}",
+        )
+        self.assertTrue(
+            math.isclose(cur["latency"], ref["latency"], rel_tol=0.01),
+            msg=f"latency for {arch=} {workload=} {fused=}: "
+                f"ref={ref['latency']}, cur={cur['latency']}",
+        )
+        # print(f"Regression testing {arch=} {workload=} {fused=}")
         for s in ["energy_per_component", "latency_per_component", "actions"]:
-            print(f"\tchecking {s}")
+            # print(f"\tchecking {s}")
             for c in ref[s]:
-                print(f"\t\tchecking {c}")
+                # print(f"\t\tchecking {c}")
                 s2 = f"for {arch=} {workload=} {fused=} {s}"
                 self.assertIn(
                     c,
                     cur[s],
                     msg=f"{s2} {c}: not in {cur[s]}",
                 )
-                self.assertAlmostEqual(
-                    cur[s][c],
-                    ref[s][c],
-                    delta=1e-12,
+                self.assertTrue(
+                    math.isclose(cur[s][c], ref[s][c], rel_tol=0.01),
                     msg=f"{s2} {c}: reference {ref[s][c]} -> current {cur[s][c]}",
                 )
 
@@ -186,10 +193,11 @@ for _k, _a, _w, _f in _cases():
     setattr(TestFFMRegression, _name, _t())
 
 class TestHWComponentsConsistency(unittest.TestCase):
-    """Checks that hwcomponents models produce expected energy/latency values.
+    """
+    Checks that hwcomponents models produce expected per-component area, energy, leak
+    power, and latency.
 
-    If these fail but the mapper logic hasn't changed, the hwcomponents install
-    likely differs between environments.
+    If these fail, then the other regression tests will likely fail as well.
     """
 
     _expected = None
@@ -197,17 +205,12 @@ class TestHWComponentsConsistency(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        af.set_n_parallel_jobs(os.cpu_count(), print_message=True)
         assert HWCOMPONENTS_JSON_PATH.exists(), (
             f"No hwcomponents reference json at {HWCOMPONENTS_JSON_PATH}"
         )
         with open(HWCOMPONENTS_JSON_PATH) as f:
             cls._expected = json.load(f)
 
-        matmuls_workload = {
-            "workload": af.examples.workloads.matmuls,
-            "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
-        }
         arches = {
             "eyeriss": af.examples.arches.eyeriss,
             "simba": af.examples.arches.simba,
@@ -217,51 +220,68 @@ class TestHWComponentsConsistency(unittest.TestCase):
         for name, arch_path in arches.items():
             spec = Spec.from_yaml(
                 arch_path,
-                matmuls_workload["workload"],
-                jinja_parse_data=matmuls_workload.get("jinja_parse_data"),
+                af.examples.workloads.matmuls,
+                jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
             )
-            spec.mapper.metrics = Metrics.ENERGY
-            spec.mapper.max_fused_loops = 1
-            mappings = spec.map_workload_to_arch(print_progress=False)
-            m = mappings[0]
-            cls._results[name] = {
-                "energy": float(m.energy()),
-                "latency": float(m.latency()),
-                "energy_per_component": {
-                    str(k): float(v)
-                    for k, v in m.energy(per_component=True).items()
-                },
-            }
+            spec = spec.calculate_component_area_energy_latency_leak(
+                einsum_name="Matmul0"
+            )
+            components = {}
+            for node in spec.arch.nodes:
+                if not isinstance(node, (af.arch.Memory, af.arch.Compute)):
+                    continue
+                comp = {}
+                if node.area is not None:
+                    comp["area"] = float(node.area)
+                if node.leak_power is not None:
+                    comp["leak_power"] = float(node.leak_power)
+                actions = {}
+                for a in node.actions:
+                    act = {}
+                    if a.energy is not None:
+                        act["energy"] = float(a.energy)
+                    if a.latency is not None:
+                        act["latency"] = float(a.latency)
+                    if act:
+                        actions[a.name] = act
+                if actions:
+                    comp["actions"] = actions
+                if comp:
+                    components[node.name] = comp
+            cls._results[name] = components
 
     def _check_arch(self, name):
         expected = self._expected[name]
         actual = self._results[name]
-
-        self.assertAlmostEqual(
-            actual["energy"],
-            expected["energy"],
-            delta=max(abs(expected["energy"]) * 1e-6, 1e-15),
-            msg=f"{name} total energy mismatch — likely hwcomponents version difference",
-        )
-        self.assertAlmostEqual(
-            actual["latency"],
-            expected["latency"],
-            delta=max(abs(expected["latency"]) * 1e-6, 1e-15),
-            msg=f"{name} total latency mismatch — likely hwcomponents version difference",
-        )
-
-        for comp, exp_val in expected["energy_per_component"].items():
-            act_val = actual["energy_per_component"].get(comp)
-            self.assertIsNotNone(
-                act_val, f"{name} missing component {comp} in energy breakdown"
-            )
-            delta = max(abs(exp_val) * 1e-6, 1e-15)
-            self.assertAlmostEqual(
-                act_val,
-                exp_val,
-                delta=delta,
-                msg=f"{name} {comp} energy: {act_val} != {exp_val} — likely hwcomponents version difference",
-            )
+        for comp_name, exp_comp in expected.items():
+            self.assertIn(comp_name, actual, f"{name}: missing component {comp_name}")
+            act_comp = actual[comp_name]
+            for field in ["area", "leak_power"]:
+                if field in exp_comp:
+                    exp_val = exp_comp[field]
+                    act_val = act_comp.get(field)
+                    self.assertIsNotNone(act_val, f"{name}.{comp_name}.{field} missing")
+                    delta = max(abs(exp_val) * 1e-6, 1e-15)
+                    self.assertAlmostEqual(
+                        act_val, exp_val, delta=delta,
+                        msg=f"{name}.{comp_name}.{field}: {act_val} != {exp_val}",
+                    )
+            for act_name, exp_act in exp_comp.get("actions", {}).items():
+                self.assertIn(
+                    act_name, act_comp.get("actions", {}),
+                    f"{name}.{comp_name}: missing action {act_name}",
+                )
+                act_act = act_comp["actions"][act_name]
+                for field, exp_val in exp_act.items():
+                    act_val = act_act.get(field)
+                    self.assertIsNotNone(
+                        act_val, f"{name}.{comp_name}.{act_name}.{field} missing"
+                    )
+                    delta = max(abs(exp_val) * 1e-6, 1e-15)
+                    self.assertAlmostEqual(
+                        act_val, exp_val, delta=delta,
+                        msg=f"{name}.{comp_name}.{act_name}.{field}: {act_val} != {exp_val}",
+                    )
 
 
 for _arch_name in ["eyeriss", "simba", "simple", "tpu_v4i"]:

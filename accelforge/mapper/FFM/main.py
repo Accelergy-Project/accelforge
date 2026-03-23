@@ -89,7 +89,9 @@ def map_workload_to_arch(
     def eval_mapping(i, spec, mappings):
         local_spec = deepcopy(spec)
         local_spec.model.metrics = local_spec.mapper.info_metrics
-        local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"]()
+        local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"](
+            _for_model=True,
+        )
         try:
             this_mapping = evaluate_mapping(
                 local_spec,

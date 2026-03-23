@@ -75,12 +75,12 @@ def _fillna_and__numeric_cast(df: pd.DataFrame, value: float) -> pd.DataFrame:
             and (math.isnan(x) or int(x) == x)
         )
 
-    for col in df.columns:
+    for col in [c for c in df.columns if df.dtypes[c] == object]:
         # If it's an object col and all of them are integers, convert to int. nans count
         # as True
-        if df[col].dtype == object and all(_is_int(x) for x in df[col]):
+        if all(_is_int(x) for x in df[col]):
             df[col] = df[col].replace(float("nan"), value).astype(int)
-        if df[col].dtype == object and all(_is_float(x) for x in df[col]):
+        elif all(_is_float(x) for x in df[col]):
             df[col] = df[col].replace(float("nan"), value).astype(float)
 
     cols = df.select_dtypes(include=[np.floating, float, np.integer, int]).columns
@@ -99,14 +99,16 @@ def _numeric_cast(df: pd.DataFrame) -> pd.DataFrame:
         return isinstance(x, numbers.Real)
 
     def _is_int(x) -> bool:
-        return
+        return (
+            isinstance(x, numbers.Integral)
+            or isinstance(x, numbers.Real)
+            and int(x) == x
+        )
 
-    for col in df.columns:
-        # If it's an object col and all of them are integers, convert to int. nans count
-        # as True
-        if df[col].dtype == object and all(_is_int(x) for x in df[col]):
-            df[col] = df[col].astype(int)
-        if df[col].dtype == object and all(_is_float(x) for x in df[col]):
-            df[col] = df[col].astype(NUMPY_FLOAT_TYPE)
-
+    for col in [c for c in df.columns if df.dtypes[c] == object]:
+        series = df[col]
+        if all(_is_int(x) for x in series):
+            df[col] = series.astype(int)
+        elif all(_is_float(x) for x in series):
+            df[col] = series.astype(NUMPY_FLOAT_TYPE)
     return df

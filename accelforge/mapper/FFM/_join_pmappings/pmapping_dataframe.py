@@ -877,6 +877,7 @@ class PmappingDataframe:
         self,
         next_shared_loop_index: int = None,
         ignored_resources: set[str] = oset(),
+        finished: bool = False,
     ):
         dropcols = []
         l_reservations, r_reservations = self._make_reservations()
@@ -903,6 +904,10 @@ class PmappingDataframe:
                 if (
                     l == 0
                     and next_shared_loop_index == -1
+                    # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
+                    # tensors may get saved later and would live at the same time as
+                    # these reservations.
+                    and finished
                     and self.drop_valid_reservations
                     and resource not in ignored_resources
                     and (tolerance == 0 or not any(self.data[col] > 1))
@@ -929,6 +934,9 @@ class PmappingDataframe:
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
                     l == 0
+                    # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
+                    # tensors may get saved later.
+                    and finished
                     and self.drop_valid_reservations
                     and resource not in ignored_resources
                     and (tolerance == 0 or not any(self.data[col] > 1))

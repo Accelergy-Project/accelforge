@@ -701,6 +701,18 @@ def _get_parsable_field_order(
     return order
 
 
+_object_setattr = object.__setattr__
+
+
+def _reconstruct_pydantic_model(cls, d, extra, fs, priv):
+    obj = cls.__new__(cls)
+    _object_setattr(obj, '__dict__', d)
+    _object_setattr(obj, '__pydantic_extra__', extra)
+    _object_setattr(obj, '__pydantic_fields_set__', fs)
+    _object_setattr(obj, '__pydantic_private__', priv)
+    return obj
+
+
 class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):
     # Exclude is supported OK, but makes the docs a lot longer because it's in so many
     # objects and has a very long type.
@@ -782,6 +794,18 @@ class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):
 
     def __len__(self) -> int:
         return len(self.get_fields())
+
+    def __reduce__(self):
+        return (
+            _reconstruct_pydantic_model,
+            (
+                self.__class__,
+                self.__dict__,
+                self.__pydantic_extra__,
+                self.__pydantic_fields_set__,
+                self.__pydantic_private__,
+            ),
+        )
 
 
 @_uninstantiable

@@ -908,7 +908,7 @@ def join_pmappings(
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
-    mappings.limit_capacity(next_shared_loop_index=-1)
+    mappings.limit_capacity(next_shared_loop_index=-1, finished=True)
     # TODO: check if this is correct index
     mappings.free_to_loop_index(-1)
     mappings.make_pareto()
@@ -968,10 +968,11 @@ class MappingFromRow:
         self.rank_variable_bounds = rank_variable_bounds
         self.einsum_names = einsum_names
 
-    def __call__(self) -> Mapping:
+    def __call__(self, _for_model: bool = False) -> Mapping:
         return Mapping._from_pmappings(
             row2pmappings(self.row, self.einsum_names, self.rank_variable_bounds),
             rank_variable_bounds=self.rank_variable_bounds,
+            _for_model=_for_model,
         )
 
     def _repr_svg_(self) -> str:

@@ -344,9 +344,9 @@ def consumer_based_tile_shape_inference(
 
         # For each tensor read by this einsum, tile that tensor's producers.
         for tensor in workload.einsums[einsum].input_tensor_names:
-            producer_einsums: set[EinsumName] = {
-                e for e in workload.einsums[einsum].output_tensor_names
-            }
+            producer_einsums: oset[EinsumName] = oset(
+                [e for e in workload.einsums[einsum].output_tensor_names]
+            )
             if len(producer_einsums) > 1:
                 raise NotImplementedError(
                     "Tile shape inference cannot handle multiple einsums writing the same tensor."
@@ -362,7 +362,7 @@ def consumer_based_tile_shape_inference(
                 continue
 
             # Collates all the consumer einsum read accesses.
-            producer_einsum: EinsumName = next(iter(producer_einsums))
+            producer_einsum: EinsumName = producer_einsums.pop()
             read_accesses: isl.Map = get_projection_map(
                 workload.einsums[einsum], tensor
             )
@@ -624,7 +624,7 @@ def tiling_from_mapping(mapping: Mapping, workload: Workload) -> BranchTiling:
                         # There can't be a tiling, so no inference to be done.
                         break
 
-                    random_head = next(iter(heads))
+                    random_head = min(heads, key=str)
                     if len(_ := detect_shared_input_tensor(fused_set, workload)) == 1:
                         shared_input_based_tile_shape_inference(
                             workload,
