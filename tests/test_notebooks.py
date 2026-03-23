@@ -4,7 +4,6 @@ import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 from nbconvert.preprocessors.execute import CellExecutionError
 
-
 try:
     from .paths import NOTEBOOKS_DIR
 except ImportError:

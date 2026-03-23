@@ -150,7 +150,6 @@ def remove_unordered_spatial_temporal_loops(
     # Then the temporal/spatial pair will result in a non-contiguous tile of the
     # iteration space, which is not supported and must be removed.
 
-
     tensor2rvs = einsum.tensor2rank_variables
     disallowed_combinations: list[tuple[set[int], set[int]]] = []
     for i, node in enumerate(mapping):
@@ -164,7 +163,7 @@ def remove_unordered_spatial_temporal_loops(
         # Find the last spatial whose component's fanout is <= the TensorHolder's
         # component fanout. This spatial will affect the TensorHolder's tile.
         check_up_to = i
-        for j, node2 in enumerate(mapping[i+1:]):
+        for j, node2 in enumerate(mapping[i + 1 :]):
             if isinstance(node2, Spatial):
                 if fanouts[node.component] >= fanouts[node2.component]:
                     check_up_to = i + j + 1
@@ -173,17 +172,19 @@ def remove_unordered_spatial_temporal_loops(
         # spatial that affects it.
         rv2spatial = {}
         rv2temporal = {}
-        for node2 in mapping[i+1:check_up_to]:
+        for node2 in mapping[i + 1 : check_up_to]:
             if isinstance(node2, Spatial) and node2.rank_variable in relevent_rvs:
                 rv2spatial.setdefault(node2.rank_variable, []).append(node2)
             if isinstance(node2, Temporal):
                 rv2temporal.setdefault(node2.rank_variable, []).append(node2)
 
         for shared_rv in sorted(oset(rv2spatial) & oset(rv2temporal) & relevent_rvs):
-            disallowed_combinations.append((
-                tuple(id(x) for x in rv2spatial[shared_rv]),
-                tuple(id(x) for x in rv2temporal[shared_rv]),
-            ))
+            disallowed_combinations.append(
+                (
+                    tuple(id(x) for x in rv2spatial[shared_rv]),
+                    tuple(id(x) for x in rv2temporal[shared_rv]),
+                )
+            )
 
     if not explore_unordered_spatial_loops:
         disallowed_combinations = [x[1:] for x in disallowed_combinations]
@@ -191,7 +192,6 @@ def remove_unordered_spatial_temporal_loops(
     for combo in itertools.product(*disallowed_combinations):
         combo = oset.union(oset(), *combo)
         yield [n for n in mapping if id(n) not in combo]
-
 
 
 def pad_with_bottom_loops(mapping: list[MappingNode], einsum: Einsum):
@@ -273,9 +273,9 @@ def iterate_mappings_no_constraints(
     symbol_table = {r.name: r.source for r in einsum.renames}
     fusable_tensors = job.fusable_tensors
 
-    ranks_with_tile_pattern = {
+    ranks_with_tile_pattern = oset(
         r for r, c in job.initial_delta_choices.items() if len(c) > 1
-    }
+    )
     job.ranks_with_tile_pattern = ranks_with_tile_pattern
 
     fanouts = {}

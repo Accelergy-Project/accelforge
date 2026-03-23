@@ -148,7 +148,9 @@ class InvertibleSet(BaseModel, Generic[T]):
             iter(self.element_to_child_space.values())
         )
         return first_child_space_item.to_my_space(
-            oset.union(oset(), *(oset(self.element_to_child_space[item]) for item in self))
+            oset.union(
+                oset(), *(oset(self.element_to_child_space[item]) for item in self)
+            )
         )
 
     def __bool__(self):

@@ -46,7 +46,6 @@ from accelforge.frontend.renames import (
     rename_list_factory,
 )
 
-
 CLIST_OPERATORS = [
     "EQ",
     "NE",
@@ -978,10 +977,10 @@ class Workload(EvalableModel):
 
     def _check_consistent_persistent(self):
         for tensor in self.tensor_names:
-            persistents = {
+            persistents = oset(
                 e.tensor_accesses[tensor].persistent
                 for e in self.einsums_with_tensor(tensor)
-            }
+            )
             if len(persistents) > 1:
                 raise ValueError(
                     f"Tensor {tensor} is used in multiple Einsums with different "
@@ -992,7 +991,9 @@ class Workload(EvalableModel):
     @property
     def tensor_names_used_in_multiple_einsums(self) -> set[TensorName]:
         """Returns the names of the tensors that are used in multiple Einsums."""
-        return oset(t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1)
+        return oset(
+            t for t in self.tensor_names if len(self.einsums_with_tensor(t)) > 1
+        )
 
     @property
     def tensor_names(self) -> set[TensorName]:

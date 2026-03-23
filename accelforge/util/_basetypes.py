@@ -706,10 +706,10 @@ _object_setattr = object.__setattr__
 
 def _reconstruct_pydantic_model(cls, d, extra, fs, priv):
     obj = cls.__new__(cls)
-    _object_setattr(obj, '__dict__', d)
-    _object_setattr(obj, '__pydantic_extra__', extra)
-    _object_setattr(obj, '__pydantic_fields_set__', fs)
-    _object_setattr(obj, '__pydantic_private__', priv)
+    _object_setattr(obj, "__dict__", d)
+    _object_setattr(obj, "__pydantic_extra__", extra)
+    _object_setattr(obj, "__pydantic_fields_set__", fs)
+    _object_setattr(obj, "__pydantic_private__", priv)
     return obj
 
 

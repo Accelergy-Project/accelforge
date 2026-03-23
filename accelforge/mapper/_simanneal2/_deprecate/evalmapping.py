@@ -147,7 +147,9 @@ def quick_join(
             )
             continue
         t0 = time.time()
-        left_tensors = oset.union(oset(), *[s.tensor_names for s in pmapping_groups[:i]])
+        left_tensors = oset.union(
+            oset(), *[s.tensor_names for s in pmapping_groups[:i]]
+        )
         live_tensors = right_tensors
         shared_tensors = left_tensors & sim_holder.tensor_names
         sim_holder.pmapping_groups = sorted(

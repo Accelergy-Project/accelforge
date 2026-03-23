@@ -11,7 +11,6 @@ from ruamel.yaml.scalarstring import DoubleQuotedScalarString, SingleQuotedScala
 import os
 import keyword
 
-
 # Import EvaluationError from public exceptions module
 from accelforge.util.exceptions import EvaluationError
 

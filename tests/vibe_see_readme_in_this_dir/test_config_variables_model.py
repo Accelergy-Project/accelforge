@@ -16,7 +16,6 @@ from accelforge.frontend.model import Model
 from accelforge.frontend.mapper.ffm import FFM
 from accelforge.frontend.mapper.metrics import Metrics
 
-
 # ============================================================================
 # Config
 # ============================================================================

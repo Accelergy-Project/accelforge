@@ -14,7 +14,6 @@ from accelforge.frontend.spec import Spec
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.mapper.FFM import make_pmappings, join_pmappings
 
-
 TESTS_DIR = Path(__file__).resolve().parent
 INPUT_FILES_DIR = TESTS_DIR / "input_files"
 TOLL_ARCH = INPUT_FILES_DIR / "toll.arch.yaml"

@@ -43,11 +43,11 @@ def get_tensor_choices(
 
     tensors = spec.workload.einsums[einsum_name].tensor_names
     is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
-    persistent_tensors = {
+    persistent_tensors = oset(
         t.name
         for t in spec.workload.einsums[einsum_name].tensor_accesses
         if t.persistent
-    }
+    )
 
     for choice, symbol_table in make_storage_choices_all_levels(
         nodes=nodes,
@@ -153,11 +153,11 @@ def recursive_order_tensor_choices(
 ) -> Generator[list[MappingNode], None, None]:
     def check_has_tensors(mapping: list[MappingNode]):
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
-        tensors_in_mapping = {
+        tensors_in_mapping = oset(
             tensor
             for tensor_holder in tensor_holders
             for tensor in tensor_holder.tensors
-        }
+        )
         if tensors_in_mapping != tensors:
             raise ValueError(
                 f"Einsum {einsum_name} has a pmapping template that is missing tensors. Ensure "
@@ -324,9 +324,9 @@ def valid_tensor_holder_order(
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:
-                    memory_to_satisfied_constraints[s1] = {
+                    memory_to_satisfied_constraints[s1] = oset(
                         i for i in range(len(required_orders[s1]))
-                    }
+                    )
 
                 good = True
                 for order_idx, order_choice in enumerate(required_orders[s1]):
@@ -367,7 +367,8 @@ def valid_tensor_holder_order(
             ):
                 if same_fanout and (i == j or i == j - 1):
                     if s1_idx < s2_idx and not (
-                        (oset(m0._must_keep_tensors) & oset(m1.tensors)) or either_backing
+                        (oset(m0._must_keep_tensors) & oset(m1.tensors))
+                        or either_backing
                     ):
                         shared = oset(m0._must_keep_tensors) & oset(m1.tensors)
                         return (
@@ -375,7 +376,8 @@ def valid_tensor_holder_order(
                             f"{shared} stored in back-to-back storage nodes, and could have bypassed the outer one.",
                         )
                     if s2_idx < s1_idx and not (
-                        (oset(m1._must_keep_tensors) & oset(m0.tensors)) or either_backing
+                        (oset(m1._must_keep_tensors) & oset(m0.tensors))
+                        or either_backing
                     ):
                         shared = oset(m1._must_keep_tensors) & oset(m0.tensors)
                         return (

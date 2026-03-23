@@ -1271,10 +1271,14 @@ def get_tile_shape_choices(
                 raise RuntimeError("BUG: both inner and outer tiles are unknown")
 
             # Use inner size and outer size to generate choices
-            if inner_tiles_type in oset(["set", "unknown"]) and outer_tiles_type in oset([
-                "set",
-                "unknown",
-            ]):
+            if inner_tiles_type in oset(
+                ["set", "unknown"]
+            ) and outer_tiles_type in oset(
+                [
+                    "set",
+                    "unknown",
+                ]
+            ):
                 factorize = math.ceil(outer_size / inner_size)
                 factors = list(get_possible_factor_sizes(factorize, imperfect))
                 scaled = np.array(factors) * inner_size
