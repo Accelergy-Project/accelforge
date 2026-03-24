@@ -160,3 +160,22 @@ class FFM(EvalableModel):
     """
     Number of concurrent threads to bind Einsum computation to.
     """
+
+    _skip_invalid: bool = True
+    """
+    Whether to skip invalid joinings. This is used for a paper ablation study. Do not
+    use this unless you're ablating or want to burn CPU cycles.
+    """
+
+    _combine_reservations: bool = True
+    """
+    Whether to combine reservations to increase pruning effectiveness. This is used for
+    a paper ablation study. Do not use this unless you're ablating or want to burn CPU
+    cycles.
+    """
+
+    _runtime_log_file: str | None = None
+    """
+    If set, append per-step runtime as JSON lines to this file. Used for ablation study
+    measurements.
+    """

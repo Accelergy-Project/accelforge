@@ -154,12 +154,19 @@ def join_strategy_2(
     thresholds.append(spec.mapper.objective_tolerance)
 
     filter_func = _pmapping_row_filter_function
+    _runtime_log_file = spec.mapper._runtime_log_file
     for i, threshold in enumerate(thresholds):
+        is_dirty = i < len(thresholds) - 1
         if not for_model and print_progress:
-            if i < len(thresholds) - 1:
+            if is_dirty:
                 print(f"Dirty joining with objectives <= {1 + threshold}× optimal")
             else:
                 print("Final clean join.")
+        # Write round marker so the notebook can distinguish dirty vs clean
+        if _runtime_log_file and is_dirty:
+            import json
+            with open(_runtime_log_file, "a") as f:
+                f.write(json.dumps({"round": i, "threshold": threshold}) + "\n")
         try:
             cur_compressed = prune_with_tolerance(
                 compressed,
@@ -434,9 +441,6 @@ def get_memories_to_track(
 def join_pmappings(
     pmapping_groups: dict[str, list[PmappingGroup]],
     spec: Spec,
-    # Optimality-maintaining optimizations.
-    skip_invalid: bool = True,
-    combine_reservations: bool = True,
     lookahead_filter: bool = True,
     metrics: Metrics = None,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
@@ -453,6 +457,9 @@ def join_pmappings(
       memories lower in the hierarchy. e.g., memory 0 is the largest,
       memory 1 the next largest, and memory N is the smallest.
     """
+    skip_invalid = spec.mapper._skip_invalid
+    combine_reservations = spec.mapper._combine_reservations
+    _runtime_log_file = spec.mapper._runtime_log_file
 
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = oset()
@@ -572,7 +579,7 @@ def join_pmappings(
         einsum_pmappings.pmapping_groups = PmappingGroup.combine_combineable(
             einsum_pmappings.pmapping_groups,
             left_tensors | right_tensors,
-            combine_reservations=combine_reservations,
+            _combine_reservations=combine_reservations,
             pbar_postfix=f" for {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
             print_progress=print_progress,
         )
@@ -583,7 +590,12 @@ def join_pmappings(
             einsum_pmappings.pmapping_groups, left_tensors
         )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
-        runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
+        step_time = time.time() - t0
+        runtime[f"{prev_einsum} → {einsum}"] = step_time
+        if _runtime_log_file:
+            import json as _json
+            with open(_runtime_log_file, "a") as _f:
+                _f.write(_json.dumps({"step": f"{prev_einsum} → {einsum}", "phase": "consolidate", "time": step_time}) + "\n")
         t0 = time.time()
     timer.print_time(f"Initial consolidate and group")
 
@@ -641,7 +653,7 @@ def join_pmappings(
         left = PmappingGroup.combine_combineable(
             left,
             live_tensors | right_tensors,
-            combine_reservations=combine_reservations,
+            _combine_reservations=combine_reservations,
             print_progress=print_progress,
         )
 
@@ -720,8 +732,6 @@ def join_pmappings(
                         ignored_resources=ignored_resources,
                     )
                 )
-                t1 = time.time()
-                # print(f'Took {t1 - t0:.2f} seconds to generate {len(combined[-1].mappings.data)} mappings')
 
                 if not DELAY:
                     cur_nmappings += len(a.mappings.data) * len(b.mappings.data)
@@ -863,9 +873,12 @@ def join_pmappings(
             cur_nmappings = left_nmappings * right_nmappings
         n_mappings[f"{left_einsum} → {right_einsum}"] = cur_nmappings
         n_evaluations += cur_nmappings
-        runtime[f"{left_einsum} → {right_einsum}"] += (time.time() - t0) * (
-            cur_nmappings / prev_nmappings
-        )
+        step_time = (time.time() - t0) * (cur_nmappings / prev_nmappings)
+        runtime[f"{left_einsum} → {right_einsum}"] += step_time
+        if _runtime_log_file:
+            import json as _json
+            with open(_runtime_log_file, "a") as _f:
+                _f.write(_json.dumps({"step": f"{left_einsum} → {right_einsum}", "phase": "join", "time": step_time}) + "\n")
         # print(
         #     f'Scaled runtime by {cur_nmappings / prev_nmappings}. Runtime: {runtime[f"{prev_einsum} → {einsum}"]:.2f}'
         # )

@@ -62,6 +62,8 @@ class PmappingGroup:
         permuted_compatibility_right: Compatibility,
         delay: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+        _force_allow_invalid_only_for_runtime_test: bool = False,
+        _is_invalid: bool = False,
     ) -> "PmappingGroup":
         shared_loop_index = self.compatibility.shared_loop_index(
             right.compatibility.tensor_names | live_tensors_post_join
@@ -102,6 +104,8 @@ class PmappingGroup:
             compatibility_joined=compatibility_joined,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
             ignored_resources=ignored_resources,
+            _force_allow_invalid_only_for_runtime_test=_force_allow_invalid_only_for_runtime_test,
+            _is_invalid=_is_invalid,
         )
 
         if not delay:
@@ -296,13 +300,13 @@ class PmappingGroup:
         pmapping_groups: list["PmappingGroup"],
         live_tensors: set[str] | Literal["All"],
         allow_different_compatibilies: bool = False,
-        combine_reservations: bool = True,
+        _combine_reservations: bool = True,
         print_progress: bool = True,
         pbar_postfix: str = "",
     ) -> list["PmappingGroup"]:
         pmapping_groups = [s for s in pmapping_groups if len(s.mappings.data) > 0]
         no_combine = []
-        if not combine_reservations:
+        if not _combine_reservations:
             has_reservations = [s.mappings.has_reservations() for s in pmapping_groups]
             no_combine = [s for s, h in zip(pmapping_groups, has_reservations) if h]
             pmapping_groups = [

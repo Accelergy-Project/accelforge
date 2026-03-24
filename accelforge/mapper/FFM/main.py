@@ -210,6 +210,9 @@ def join_pmappings(
     require_all_einsums: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     print_progress: bool = True,
+    _skip_invalid: bool = True,
+    _combine_reservations: bool = True,
+    _runtime_log_file: str | None = None,
 ) -> Mappings:
     """
     Joins pmappings into a full mappings for the entire workload. Pmappings can be
@@ -230,11 +233,24 @@ def join_pmappings(
         Whether to print progress of the mapping process, including progress bars.
     metrics:
         The metrics to optimize when joining pmappings.
+    _skip_invalid:
+        If True, skip joining incompatible pmappings. If False, join all pairs.
+    _combine_reservations:
+        If True, consolidate reservations to increase pruning effectiveness.
+    _runtime_log_file:
+        If set, append per-step runtime as JSON lines to this file.
     Returns
     -------
     Mappings
         A Mappings object containing all valid, optimal mappings for the workload.
     """
+    spec = pmappings.spec
+    if _skip_invalid is not True:
+        spec.mapper._skip_invalid = _skip_invalid
+    if _combine_reservations is not True:
+        spec.mapper._combine_reservations = _combine_reservations
+    if _runtime_log_file is not None:
+        spec.mapper._runtime_log_file = _runtime_log_file
     return clean_compress_and_join_pmappings(
         pmappings=pmappings,
         metrics=metrics,

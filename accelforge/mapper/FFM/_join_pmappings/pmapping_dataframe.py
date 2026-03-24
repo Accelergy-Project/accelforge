@@ -530,6 +530,8 @@ class PmappingDataframe:
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+        _force_allow_invalid_only_for_runtime_test: bool = False,
+        _is_invalid: bool = False,
     ) -> "PmappingDataframe":
         """
            A  B            A2
@@ -615,7 +617,8 @@ class PmappingDataframe:
             sd = sd.iloc[0:0]
             rd = rd.iloc[0:0]
 
-        if left_match:
+        # _force_allow_invalid_only_for_runtime_test -> only merge matched ones
+        if left_match and not _force_allow_invalid_only_for_runtime_test:
             df = pd.merge(
                 sd,
                 rd,
@@ -766,6 +769,25 @@ class PmappingDataframe:
         result.make_pareto()
 
         result.check_live_reservations(compatibility_joined)
+
+        # This join was invalid (we only ran it for runtime measurement). Clear all the
+        # mappings.
+        if _is_invalid:
+            result._data = result.data.iloc[0:0]
+
+        # If we're running _force_allow_invalid_only_for_runtime_test, we don't want to
+        # have all those invalid combinations, so return the actual merge result.
+        elif _force_allow_invalid_only_for_runtime_test:
+            return self.merge_next(
+                right,
+                duplicated_aliased_tensors,
+                compatibility_left,
+                compatibility_right,
+                compatibility_joined,
+                ignored_resources,
+                _pmapping_row_filter_function,
+                _force_allow_invalid_only_for_runtime_test=False,
+            )
 
         return result
 

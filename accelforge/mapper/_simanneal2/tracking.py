@@ -3,7 +3,7 @@ import time
 
 class EvaluationsScoreTracker:
     def __init__(
-        self, max_evaluations: int, stop_at_score: float, print_period: int = 10
+        self, max_evaluations: int, stop_at_score: float, optimal: float, print_period: int = 10
     ):
         self.max_evaluations = max_evaluations
         self.stop_at_score = stop_at_score
@@ -11,19 +11,19 @@ class EvaluationsScoreTracker:
         self.score = float("inf")
         self.history = [(0, float("inf"))]
         self._scale_by = 1
-        self._scale_score_by = 1
         self.print_period = print_period
         self.prev_print_time = None
         self.print_stopped_text = False
         self.n_mappings = {}
         self.runtime = {}
+        self.optimal = optimal
 
     def add_evaluation(self, n_evaluations: int, best_score: float):
         self.evaluations += n_evaluations * self._scale_by
-        new_score = best_score * self._scale_score_by
+        new_score = best_score / self.optimal
         if new_score < self.score:
             print(f"New score {new_score} after evaluation {self.evaluations}")
-        self.score = min(self.score, best_score * self._scale_score_by)
+        self.score = min(self.score, new_score)
         # Same score as before, remove the last entry
         if len(self.history) > 2 and self.history[-2][1] == self.score:
             self.history.pop(-1)
@@ -60,9 +60,6 @@ class EvaluationsScoreTracker:
             self.stop_at_score is not None and self.score < self.stop_at_score
         )
         return enough_evaluations or enough_score
-
-    def multiply_score_by(self, scale_by: float):
-        self._scale_score_by *= scale_by
 
     def __repr__(self):
         return f"Evaluations: {self.evaluations}, Score: {self.score}"

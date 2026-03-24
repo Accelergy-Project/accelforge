@@ -1,3 +1,4 @@
+import copy
 from accelforge.frontend.renames import EinsumName
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 import inspect
@@ -260,9 +261,11 @@ class SimAnnealMapping:
 
         items: list[tuple[EinsumName, PmappingGroup]] = list(self.einsum2sim.items())
         joined: PmappingGroup = items.pop(0)[1]
+        joined = copy.deepcopy(joined)
         for i, (e, s) in enumerate(items):
-            right_tensors = self._einsum2tensors(i)
-            live_tensors = self._einsum2tensors(range(i + 1, len(items)))
+            # - 1 because items doesn't include the first Einsum
+            right_tensors = self._einsum2tensors(i - 1)
+            live_tensors = self._einsum2tensors(range(i, len(items)))
 
             joined.compatibility = joined.compatibility.clear_dead_tensors(
                 live_tensors | right_tensors
@@ -275,7 +278,7 @@ class SimAnnealMapping:
                 try:
                     return left.merge_next(
                         right,
-                        live_tensors=live_tensors,
+                        live_tensors_post_join=live_tensors,
                         live_tensors_with_right=live_tensors | right_tensors,
                         aliased_tensors=self.mapspace_globals.aliased_tensors,
                         compatibility_joined=joined.compatibility.merge_next(
@@ -284,7 +287,6 @@ class SimAnnealMapping:
                         ),
                         permuted_compatibility_left=left.compatibility,
                         permuted_compatibility_right=right.compatibility,
-                        drop_valid_reservations=True,
                         delay=False,
                         ignored_resources=oset(),
                     )
@@ -294,14 +296,13 @@ class SimAnnealMapping:
 
             # Try to merge using the index we already have set
             joined_new = _merge_next(joined, self._access_index(e))
-            if len(joined_new.mappings.data) == 1:
+            if len(joined_new.mappings.data) >= 1:
+                # If multiple valid joined mappings, keep only the first one
+                if len(joined_new.mappings.data) > 1:
+                    joined_new.mappings._data = joined_new.mappings.data.iloc[:1].copy()
                 joined = joined_new
                 # print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2reservation(k)))
                 continue
-            if len(joined_new.mappings.data) > 1:
-                raise ValueError(
-                    f"Got {len(joined_new.mappings.data)} pmappings for {e}"
-                )
 
             # No valid pmappings! Merge all possible, then pick one. We'll charge for
             # evaluations again because we're picking a new mapping.
@@ -323,17 +324,15 @@ class SimAnnealMapping:
             # Now that we've picked, merge with the index we just set
             joined_new = _merge_next(joined, self._access_index(e, i))
 
-            if len(joined_new.mappings.data) == 1:
+            if len(joined_new.mappings.data) >= 1:
+                # If multiple valid joined mappings, keep only the first one
+                if len(joined_new.mappings.data) > 1:
+                    joined_new.mappings._data = joined_new.mappings.data.iloc[:1].copy()
                 # If it worked, set the index
                 self.einsum2index[e] = i
                 joined = joined_new
                 # print(' '.join(f'{k}={v}' for k, v in dict(joined.mappings.data.iloc[0]).items() if col2reservation(k)))
                 continue
-
-            if len(joined_new.mappings.data) > 1:
-                raise ValueError(
-                    f"Got {len(joined_new.mappings.data)} pmappings for {e}"
-                )
 
             raise FailedMutation(
                 f"Got {len(joined_new.mappings.data)} pmappings for {e}"
@@ -520,6 +519,7 @@ def join_pmappings(
     population_size=1000,
     score_target: float | None = None,
     algorithm: str = "simanneal",
+    optimal: float | None = None,
 ) -> EvaluationsScoreTracker:
 
     spec = pmappings.spec
@@ -527,6 +527,7 @@ def join_pmappings(
         max_evaluations=max_evaluations / get_n_parallel_jobs(),
         stop_at_score=None,
         print_period=1,
+        optimal=optimal,
     )
 
     # Disable validation in the compatibility class to avoid errors when joining
@@ -535,9 +536,6 @@ def join_pmappings(
     Compatibility.__post_init__ = lambda *args, **kwargs: None
 
     compressed, decompress_data = compress_einsum2pmappings(pmappings.einsum2pmappings)
-
-    if score_target is not None:
-        tracker._scale_score_by *= 1 / score_target
 
     if population_size != float("inf"):
         pop_size_per_thread = max(1, population_size // get_n_parallel_jobs())

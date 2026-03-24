@@ -414,6 +414,7 @@ class Compatibility(Updatable):
         self,
         right: "Compatibility",
         live_tensors: set[str],
+        _force_allow_invalid_only_for_runtime_test: bool = False,
     ) -> "Compatibility":
         self_freed = self.clear_dead_tensors(
             live_tensors, keep_reservation_indices_and_splits=True
@@ -421,7 +422,7 @@ class Compatibility(Updatable):
         right_freed = right.clear_dead_tensors(
             live_tensors, keep_reservation_indices_and_splits=True
         )
-        if self_freed.n_loops > right_freed.n_loops:
+        if self_freed.n_loops > right_freed.n_loops and not _force_allow_invalid_only_for_runtime_test:
             # This can be relaxed if we have a way to do order-independent joining
             # and/or non-looptree mappings.
             raise ValueError(
