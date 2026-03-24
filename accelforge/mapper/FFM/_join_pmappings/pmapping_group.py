@@ -330,6 +330,9 @@ class PmappingGroup:
         )
         return groups_with_one + others + no_combine
 
+    def check_dataframe_live_reservations(self):
+        self.mappings.check_live_reservations(self.compatibility)
+
     @staticmethod
     def filter_by_tensors(
         pmapping_groups: list["PmappingGroup"] | dict[Compatibility, Any],

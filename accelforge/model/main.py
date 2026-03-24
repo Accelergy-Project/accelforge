@@ -191,7 +191,8 @@ def evaluate_mapping(
                     n_valid_pmappings=1,
                     ignored_resources=oset(),
                     drop_valid_reservations=False,
-                    n_concurrent_threads=spec.mapper.n_concurrent_threads
+                    n_concurrent_threads=spec.mapper.n_concurrent_threads,
+                    create_live_reservation_from_compatibility=compatibility,
                 ),
             )
         ]

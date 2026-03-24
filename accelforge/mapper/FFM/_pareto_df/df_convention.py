@@ -1,4 +1,5 @@
-from collections import namedtuple
+from collections.abc import Mapping as MappingABC
+from typing import Any
 from typing import NamedTuple
 import functools
 import pandas as pd
@@ -13,6 +14,10 @@ class ColName(str):
         if not isinstance(other, (ColName, str)):
             raise ValueError(f"{other} must be a ColName or str")
         return ColName(f"{self}{SEP}{other}")
+
+
+# Defaults
+DEFAULT_THREAD = -1
 
 
 # Keywords
@@ -74,23 +79,6 @@ def col2memory_usage(col: str) -> tuple[str, str, str]:
     memory = separated_names[3]
     tensor = separated_names[4]
     return memory, tensor, einsum
-
-
-@dict_cached
-def live_tensors2col(resource: str, tensor: str, nloops: int, thread: int = 0) -> str:
-    return str(LIVE / resource / tensor / str(nloops) / str(thread))
-
-
-class LiveReservationKey(NamedTuple):
-    resource: str
-    tensor: str
-    nloops: int
-    thread: int
-
-@dict_cached
-def col2live_tensors(col: str) -> LiveReservationKey:
-    split_col = partition_col(col, LIVE, 4)
-    return LiveReservationKey(split_col[0], split_col[1], int(split_col[2]), int(split_col[3]))
 
 
 @dict_cached
@@ -158,6 +146,32 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
         raise ValueError(f"bad column name: {colname}")
 
 
+class LiveReservationKey(NamedTuple):
+    resource: str
+    tensor: str
+    nloops: int
+    thread: int
+
+def is_live_reservation_col(col):
+    return LIVE in col
+
+@dict_cached
+def live_reservation2col(resource: str, tensor: str, nloops: int, thread: int = DEFAULT_THREAD) -> str:
+    return str(LIVE / resource / tensor / str(nloops) / str(thread))
+
+@dict_cached
+def col2live_reservation(col: str) -> LiveReservationKey:
+    split_col = partition_col(col, LIVE, 5)
+    return LiveReservationKey(split_col[0], split_col[1], int(split_col[2]), int(split_col[3]))
+
+def contains_live_reservation(df, **kwargs) -> bool:
+    return _contains_any(
+        df,
+        col2live_reservation,
+        kwargs,
+    )
+
+
 class ReservationKey(NamedTuple):
     name: str
     nloops: int
@@ -168,7 +182,6 @@ class ReservationKey(NamedTuple):
     def is_right(self):
         return not self.is_left
 
-
 @dict_cached
 def col2reservation(x: str) -> ReservationKey | None:
     """Format: reservation name nloops left thread"""
@@ -177,9 +190,8 @@ def col2reservation(x: str) -> ReservationKey | None:
         return None
     return ReservationKey(x[0], int(x[1]), x[2] == "left", int(x[3]))
 
-
 @dict_cached
-def reservation2col(name: str, nloops: int, left: bool = False, thread: int = -1) -> str:
+def reservation2col(name: str, nloops: int, left: bool = False, thread: int = DEFAULT_THREAD) -> str:
     """Format: reservation name nloops left thread"""
     return (
         f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
@@ -348,7 +360,7 @@ def is_objective_col(c):
 
 
 def col_used_in_pareto(c):
-    return col2reservation(c) is not None or col2memorylatency(c) is not None or is_objective_col(c)
+    return col2reservation(c) is not None or col2memorylatency(c) is not None or is_objective_col(c) or is_live_reservation_col(c)
 
 
 def col_used_in_joining(c):
@@ -358,46 +370,22 @@ def col_used_in_joining(c):
         or is_fused_loop_col(c)
         or is_tensor_col(c)
         or is_n_iterations_col(c)
+        or is_live_reservation_col(c)
     )
 
 
-# Pipeline:
-# - Need to share temporal loops up to the spatial loop index
-#   Resources:
-#   - Energy
-#   - ProcessingElement usage
-#   - Buf usage
-#   - Buf accesses (for BW calculation later)
-
-# - Options:
-#   - Non-pipelined: Sum resources above shared loops, max below.
-#   - Pipelined: Sum resources above shared loops, max below. Sum
-#     ProcessingElement usage. Latency is pipeline latency summed.
-#
-#  *  Can't bake into compatiblity unless we have a notion of left vs.
-#     right pipelined.
-
-# PIPELINE CHANGES REQUIRED:
-# - Latency above above loop index (first tile), below (all subsequent tiles)
-# - Compatibility includes information for how may be fused:
-#   - Pipelined: Max below latencies,
-#   - Non-pipelined:
-# Shared resources:
-# -
-# SEQUENTIAL:
-# - In parallel: Fetch all above-shared-loop resources for all operations
-# - Sequentially: Fetch any below-shared-loop resources for all operations
-# PIPELINE:
-# - In parallel: Fetch all above-shared-loop resources for all operations
-# - Sequentially: Fetch any below-shared-loop resources for the first iteration of all operations
-# - In parallel: Fetch all below-shared-loop resources for all operations in all subsequent iterations
+def _contains_any(df, from_col_f, ref_any: MappingABC[str, Any]):
+    return len(list(_filter(df, from_col_f, ref_any))) > 0
 
 
-# Above index 0: Freed when Einsum fully terminates
-# Above index 1: Freed after each iteration of the outermost loop
-
-# -1 -> global resource
-# 0 -> einsum only
-
-# Shared index -1: Sum -1 resources, max everyone below
-# Shared index 0: Sum 0 resources, max everyone below
+def _filter(df, from_col_f, ref_key: MappingABC[str, Any]):
+    def should_include(col):
+        try:
+            key = from_col_f(col)
+        except:
+            return False
+        for k, v in ref_key.items():
+            if not hasattr(key, k) or getattr(key, k) != v:
+                return False
+        return True
+    return filter(should_include, df.columns)

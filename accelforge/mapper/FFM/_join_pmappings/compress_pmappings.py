@@ -7,10 +7,6 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     COMPRESSED_INDEX,
-    col_used_in_pareto,
-    is_fused_loop_col,
-    is_n_iterations_col,
-    is_tensor_col,
     col_used_in_joining,
 )
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe

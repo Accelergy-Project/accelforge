@@ -425,6 +425,7 @@ def make_pmappings_from_templates(
             # because we have full information of live tensors then.
             drop_valid_reservations=False,
             n_concurrent_threads=job.spec_one_einsum.mapper.n_concurrent_threads,
+            create_live_reservation_from_compatibility=compatibility,
         )
         # If we have fewer fused loops, reservations likely got freed. We can free!
         if next_shared_loop_index_this_group != next_shared_loop_index:

@@ -490,6 +490,9 @@ def join_pmappings(
 
     n_evaluations = 0
 
+    for pg_list in pmapping_groups.values():
+        for pg in pg_list:
+            pg.check_dataframe_live_reservations()
     pmapping_groups = list(pmapping_groups.items())
 
     if not skip_invalid:
@@ -701,6 +704,8 @@ def join_pmappings(
 
                 t0 = time.time()
 
+                a.check_dataframe_live_reservations()
+                b.check_dataframe_live_reservations()
                 combined.append(
                     a.merge_next(
                         b,

@@ -122,6 +122,7 @@ class PmappingDataframe:
         ignored_resources: set[str],
         drop_valid_reservations: bool,
         n_concurrent_threads: int,
+        create_live_reservation_from_compatibility: Compatibility = None,
         skip_pareto: bool = False,
         fill_reservation_cols: set | str = fzs(),
         check_above_subset_below: bool = CHECK_CORRECTNESS,
@@ -169,6 +170,11 @@ class PmappingDataframe:
             self.check_above_subset_below()
 
         self.ignored_resources = ignored_resources
+
+        if create_live_reservation_from_compatibility is not None:
+            self._create_live_reservation_from_compatibility(
+                create_live_reservation_from_compatibility
+            )
 
         assert len(self.data.columns) == len(
             oset(self.data.columns)
@@ -436,8 +442,10 @@ class PmappingDataframe:
                 if key not in df:
                     df.loc[:,key] = 0
             add_to_col(df, f"Total<SEP>latency<SEP>{bottom_loop_index}<SEP>{thread_i}", "Total<SEP>latency")
-
             df.drop(columns=["Total<SEP>latency"], inplace=True)
+
+            # for col in get_live_reservation_cols()
+
             if self.track_binding_sequence:
                 df["binding_order"] += BindingOrder([thread_i])
             assert not set(get_reservation_cols_with(
@@ -527,6 +535,8 @@ class PmappingDataframe:
         live_tensors = compatibility_joined.tensor_names
         shared_loop_index = compatibility_left.n_loops - 1
         next_shared_loop_index = compatibility_joined.n_loops - 1
+
+        self.check_live_reservations(compatibility_left)
 
         assert compatibility_left.n_loops <= compatibility_right.n_loops
         if self._has_bottom_right():
@@ -727,6 +737,10 @@ class PmappingDataframe:
         assert result._has_bottom_right()
         result.free_to_loop_index(next_shared_loop_index)
 
+        # TODO: remove unneeded live tensors
+        # TODO: handle shifting live tensors to left threads
+        # TODO: allocate live tensors when shifting to left thread
+
         if not CHECK_CORRECTNESS:
             result.limit_capacity(
                 next_shared_loop_index, ignored_resources=ignored_resources
@@ -735,6 +749,8 @@ class PmappingDataframe:
         if _pmapping_row_filter_function is not None:
             result = result.filter_rows(_pmapping_row_filter_function)
         result.make_pareto()
+
+        result.check_live_reservations(compatibility_joined)
 
         return result
 
@@ -760,14 +776,13 @@ class PmappingDataframe:
                     or
                     (key.is_right and key.nloops >= to_free_nloops)
                 ):
-                    targets[level, True] -= size
+                    targets[key.nloops, col] -= size
 
         # Now apply the allocations. Sort so we go from top to bottom in case
         # there are maxes that propagate down.
-        for (level, left), size in sorted(
+        for (_, target), size in sorted(
             targets.items(), key=lambda x: x[0], reverse=True
         ):
-            target = reservation2col(resource, level, left=left)
             assert target in self.data
             add_to_col(self.data, target, size)
             # Assert all reservations are >= 0
@@ -929,6 +944,15 @@ class PmappingDataframe:
     # ============================================================================
     # Helper functions
     # ============================================================================
+    def _create_live_reservation_from_compatibility(self, compatibility: Compatibility):
+        for tensor in compatibility.tensors:
+            col = live_reservation2col(
+                tensor.resource_name,
+                tensor.name,
+                tensor.above_loop_index
+            )
+            add_to_col(self.data, col, tensor2col(tensor.name))
+
     def _get_split_above(self, idx: int):
         """
         Return the first index < `idx` which has both a left and right reservation.
@@ -1038,6 +1062,19 @@ class PmappingDataframe:
                 +
                 " " + list(_get_duplicates(self._data.columns))
             )
+
+    def check_live_reservations(self, compatibility: Compatibility):
+        for tensor in compatibility.tensors:
+            if not contains_live_reservation(
+                self.data,
+                resource=tensor.resource_name,
+                tensor=tensor.name,
+                nloops=tensor.above_loop_index,
+            ):
+                colnames = ""
+                for c in self.data.columns:
+                    colnames += f"  {c}\n"
+                raise RuntimeError(f"missing live reservation for {tensor}. columns:\n" + colnames)
 
     # @error_check_wrapper
     # def check_reservations(self, live_tensors: set[int]):
