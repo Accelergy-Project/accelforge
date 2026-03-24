@@ -424,16 +424,14 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         )
 
     jobs = SameEinsumJobs()
-    only_output_pmapping_index = (
-        job.spec_one_einsum.mapper._only_output_pmapping_with_index
-    )
-    if isinstance(only_output_pmapping_index, dict):
-        only_output_pmapping_index = only_output_pmapping_index.get(
-            job.einsum_name, None
-        )
+    only_output_index = job.spec_one_einsum.mapper._only_output_pmapping_with_index
+    if isinstance(only_output_index, dict):
+        only_output_index = only_output_index.get(job.einsum_name, None)
 
     for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
-        if only_output_pmapping_index is not None and i != only_output_pmapping_index:
+        if only_output_index is not None and i != only_output_index:
+            continue
+        if isinstance(only_output_index, set) and i not in only_output_index:
             continue
         new_job = copy.copy(job)
         new_job.mapping = mapping
