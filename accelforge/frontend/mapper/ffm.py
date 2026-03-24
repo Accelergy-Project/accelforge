@@ -89,7 +89,7 @@ class FFM(EvalableModel):
     "save_outermost_memory_usage".
     """
 
-    _only_output_pmapping_with_index: int | dict[EinsumName, int] | None = None
+    _only_output_pmapping_with_index: int | set[int] | dict[EinsumName, int | set[int]] | None = None
     """
     For debugging. Only output the pmapping with this index. If a dictionary, then the
     keys are einsum names and the values are the indices.

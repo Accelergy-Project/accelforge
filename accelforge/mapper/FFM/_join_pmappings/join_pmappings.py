@@ -161,14 +161,14 @@ def join_strategy_2(
             else:
                 print("Final clean join.")
         try:
-            compressed = prune_with_tolerance(
+            cur_compressed = prune_with_tolerance(
                 compressed,
                 objective_tolerance=threshold,
                 resource_usage_tolerance=resource_usage_tolerance,
                 print_progress=print_progress,
             )
             joined = join_pmappings(
-                deepcopy(compressed),
+                cur_compressed,
                 spec,
                 _pmapping_row_filter_function=filter_func,
                 print_progress=print_progress,
