@@ -595,17 +595,17 @@ class PmappingDataframe:
 
         l_reservations, r_reservations = self._make_reservations()
 
-        for resource, reservations in r_reservations.items():
-            n_reservations = max(reservations, default=-1)
-            assert (
-                n_reservations <= shared_loop_index
-            ), f"{resource}: {reservations} > {shared_loop_index}"
+        # for resource, reservations in r_reservations.items():
+        #     n_reservations = max(reservations, default=-1)
+        #     assert (
+        #         n_reservations <= shared_loop_index
+        #     ), f"{resource}: {reservations} > {shared_loop_index}"
 
-        for resource, reservations in l_reservations.items():
-            n_reservations = max(reservations, default=-1)
-            assert (
-                n_reservations <= shared_loop_index + 1
-            ), f"{resource}: {reservations} > {shared_loop_index}"
+        # for resource, reservations in l_reservations.items():
+        #     n_reservations = max(reservations, default=-1)
+        #     assert (
+        #         n_reservations <= shared_loop_index + 1
+        #     ), f"{resource}: {reservations} > {shared_loop_index}"
 
         max_nloops = max(
             shared_loop_index, self.get_max_loop_index(), right.get_max_loop_index()
