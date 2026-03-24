@@ -152,6 +152,9 @@ class LiveReservationKey(NamedTuple):
     nloops: int
     thread: int
 
+def get_live_reservation_cols_with(df, **kwargs):
+    yield from _filter(df, col2live_reservation, kwargs)
+
 def is_live_reservation_col(col):
     return LIVE in col
 

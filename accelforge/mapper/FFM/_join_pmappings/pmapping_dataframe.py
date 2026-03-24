@@ -409,7 +409,6 @@ class PmappingDataframe:
         _l_reservations, r_reservations = self._make_reservations()
 
         # Explore placing right branch in any of the left threads
-        # TODO: extend lifetime of live_tensors and deduplicate tensors
         left_concurrent_threads = list(range(self.n_concurrent_threads))
         assert len(left_concurrent_threads) > 0
         all_data = []
@@ -421,6 +420,30 @@ class PmappingDataframe:
                 right_reservation = reservation2col(resource, bottom_loop_index)
                 left_reservation = reservation2col(resource, bottom_loop_index, True, thread_i)
 
+                for live_tensor in get_live_reservation_cols_with(
+                    df,
+                    resource=resource,
+                    nloops=bottom_loop_index,
+                    thread=thread_i
+                ):
+                    add_to_col(df, right_reservation, live_tensor)
+
+                for live_tensor_in_right in get_live_reservation_cols_with(
+                    df,
+                    resource=resource,
+                    nloops=bottom_loop_index,
+                    thread=DEFAULT_THREAD,
+                ):
+                    right_key = col2live_reservation(live_tensor_in_right)
+                    new_live_tensor = live_reservation2col(
+                        resource,
+                        right_key.tensor,
+                        bottom_loop_index,
+                        thread_i
+                    )
+                    add_to_col(df, new_live_tensor, live_tensor_in_right)
+                    df.drop(columns=[live_tensor_in_right])
+
                 for thread_j in left_concurrent_threads:
                     key = reservation2col(resource,bottom_loop_index,True,thread_j)
                     if key not in df:
@@ -429,11 +452,6 @@ class PmappingDataframe:
                 if left_reservation in df:
                     max_to_col(df, left_reservation, right_reservation)
                     df.drop(columns=[right_reservation], inplace=True)
-                    # TODO: extend lifetime of live tensors
-                    # left_live_tensors = live_tensors2col(resource, bottom_loop_index, thread_i)
-                    # assert left_live_tensors in df
-                    # left_live_tensors = df[left_live_tensors]
-                    # left_live_tensors.apply(lambda left_live: left_live - right_tensors)
                 else:
                     df.rename(columns={right_reservation: left_reservation}, inplace=True)
 
@@ -443,8 +461,6 @@ class PmappingDataframe:
                     df.loc[:,key] = 0
             add_to_col(df, f"Total<SEP>latency<SEP>{bottom_loop_index}<SEP>{thread_i}", "Total<SEP>latency")
             df.drop(columns=["Total<SEP>latency"], inplace=True)
-
-            # for col in get_live_reservation_cols()
 
             if self.track_binding_sequence:
                 df["binding_order"] += BindingOrder([thread_i])
@@ -537,6 +553,7 @@ class PmappingDataframe:
         next_shared_loop_index = compatibility_joined.n_loops - 1
 
         self.check_live_reservations(compatibility_left)
+        self._remove_dead_reservations(compatibility_joined)
 
         assert compatibility_left.n_loops <= compatibility_right.n_loops
         if self._has_bottom_right():
@@ -721,6 +738,8 @@ class PmappingDataframe:
             n_concurrent_threads=self.n_concurrent_threads,
         )
 
+        result._remove_dead_reservations(compatibility_joined)
+
         doubly_counted_reservations = _get_doubly_counted_reservations(
             compatibility_left.tensors,
             compatibility_right.tensors,
@@ -736,10 +755,6 @@ class PmappingDataframe:
 
         assert result._has_bottom_right()
         result.free_to_loop_index(next_shared_loop_index)
-
-        # TODO: remove unneeded live tensors
-        # TODO: handle shifting live tensors to left threads
-        # TODO: allocate live tensors when shifting to left thread
 
         if not CHECK_CORRECTNESS:
             result.limit_capacity(
@@ -944,6 +959,15 @@ class PmappingDataframe:
     # ============================================================================
     # Helper functions
     # ============================================================================
+    def _remove_dead_reservations(self, compatibility: Compatibility):
+        live_tensors = oset(tensor.name for tensor in compatibility.tensors)
+        dropcols = []
+        for col in get_live_reservation_cols_with(self.data):
+            key = col2live_reservation(col)
+            if key.tensor not in live_tensors:
+                dropcols.append(col)
+        self.data.drop(columns=dropcols)
+
     def _create_live_reservation_from_compatibility(self, compatibility: Compatibility):
         for tensor in compatibility.tensors:
             col = live_reservation2col(
