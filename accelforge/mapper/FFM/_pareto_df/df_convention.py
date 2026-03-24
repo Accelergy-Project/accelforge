@@ -18,6 +18,7 @@ class ColName(str):
 
 # Defaults
 DEFAULT_THREAD = -1
+DEFAULT_SPATIAL_DIMENSION = "<DEFAULT>"
 
 
 # Keywords
@@ -28,6 +29,10 @@ USAGE = ColName("usage")
 MEMORY = ColName("memory")
 LATENCY = ColName("latency")
 LIVE = ColName("live")
+SPATIAL = ColName("spatial")
+RESERVATION = ColName("reservation")
+LEFT = ColName("left")
+RIGHT = ColName("right")
 
 
 MAPPING_COLUMN = "mapping"
@@ -51,16 +56,24 @@ def dict_cached(func):
     return wrapper
 
 
-def partition_col(col, prefix, expected_len=None) -> list[str] | None:
-    col = col.split(SEP)
-    if col[0] != prefix:
+def partition_col(col: str, prefix, expected_len=None) -> list[str] | None:
+    """
+    Returns elements of `col` split at `SEP` if `col` starts with `prefix`;
+    otherwise, returns None.
+
+    If given, the number of elements compared to `expected_len`. If not equal,
+    an exception is raised.
+    """
+    if not col.startswith(prefix + SEP):
         return None
+    col = col.removeprefix(prefix + SEP)
+    col = col.split(SEP)
     if expected_len is not None and len(col) != expected_len:
         raise ValueError(
             f'Expected {expected_len} parts in "{col}" with prefix "{prefix}" '
             f"but got {len(col)}"
         )
-    return col[1:]
+    return col
 
 
 @dict_cached
@@ -152,6 +165,10 @@ class LiveReservationKey(NamedTuple):
     nloops: int
     thread: int
 
+@dict_cached
+def live_reservation2col(resource: str, tensor: str, nloops: int, thread: int = DEFAULT_THREAD) -> str:
+    return str(LIVE / resource / tensor / str(nloops) / str(thread))
+
 def get_live_reservation_cols_with(df, **kwargs):
     yield from _filter(df, col2live_reservation, kwargs)
 
@@ -159,20 +176,12 @@ def is_live_reservation_col(col):
     return LIVE in col
 
 @dict_cached
-def live_reservation2col(resource: str, tensor: str, nloops: int, thread: int = DEFAULT_THREAD) -> str:
-    return str(LIVE / resource / tensor / str(nloops) / str(thread))
-
-@dict_cached
 def col2live_reservation(col: str) -> LiveReservationKey:
-    split_col = partition_col(col, LIVE, 5)
+    split_col = partition_col(col, LIVE, 4)
     return LiveReservationKey(split_col[0], split_col[1], int(split_col[2]), int(split_col[3]))
 
 def contains_live_reservation(df, **kwargs) -> bool:
-    return _contains_any(
-        df,
-        col2live_reservation,
-        kwargs,
-    )
+    return len(list(get_live_reservation_cols_with(df, **kwargs))) > 0
 
 
 class ReservationKey(NamedTuple):
@@ -186,22 +195,16 @@ class ReservationKey(NamedTuple):
         return not self.is_left
 
 @dict_cached
-def col2reservation(x: str) -> ReservationKey | None:
-    """Format: reservation name nloops left thread"""
-    x = partition_col(x, "reservation", 5)
-    if x is None:
-        return None
-    return ReservationKey(x[0], int(x[1]), x[2] == "left", int(x[3]))
+def reservation2col(name: str, nloops: int, left: bool = False, thread: int = DEFAULT_THREAD) -> str:
+    left = LEFT if left else RIGHT
+    return RESERVATION / MEMORY / name / str(nloops) / left / str(thread)
 
 @dict_cached
-def reservation2col(name: str, nloops: int, left: bool = False, thread: int = DEFAULT_THREAD) -> str:
-    """Format: reservation name nloops left thread"""
-    return (
-        f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
-        +
-        f"<SEP>{thread}"
-    )
-
+def col2reservation(x: str) -> ReservationKey | None:
+    x = partition_col(x, RESERVATION / MEMORY, 4)
+    if x is None:
+        return None
+    return ReservationKey(x[0], int(x[1]), x[2] == LEFT, int(x[3]))
 
 def get_reservation_cols_with(
     df,
@@ -214,7 +217,7 @@ def get_reservation_cols_with(
     if filter is None:
         filter = lambda col: True
     for c in df.columns:
-        if (not "reservation" in c) or (not filter(c)):
+        if (not (RESERVATION / MEMORY) in c) or (not filter(c)):
             continue
         key = col2reservation(c)
         if name is not None and key.name != name:
@@ -228,6 +231,26 @@ def get_reservation_cols_with(
         yield c
 
 
+class SpatialReservationKey(NamedTuple):
+    name: str
+    dimension: str
+    is_left: bool
+    thread: int
+
+def spatial_reservation2col(
+    name: str,
+    dimension: str=DEFAULT_SPATIAL_DIMENSION,
+    is_left: bool=False,
+    thread: int=DEFAULT_THREAD
+):
+    left = LEFT if is_left else RIGHT
+    return RESERVATION / SPATIAL / name / dimension / left / str(thread)
+
+def col2spatial_reservation(col: str):
+    split_col = partition_col(col, RESERVATION / SPATIAL, 4)
+    return SpatialReservationKey(*split_col)
+
+
 @dict_cached
 def stride2col(rank_name: Rank, nloops: int) -> str:
     """Format: stride rank_name nloops"""
@@ -237,7 +260,7 @@ def stride2col(rank_name: Rank, nloops: int) -> str:
 @dict_cached
 def col2stride(col: str) -> tuple[Rank, int] | None:
     """Format: stride rank_name nloops"""
-    x = partition_col(col, "stride", 3)
+    x = partition_col(col, "stride", 2)
     return x[0], int(x[1])
 
 
@@ -250,7 +273,7 @@ def initial2col(rank_name: Rank, nloops: int) -> str:
 @dict_cached
 def col2initial(col: str) -> tuple[Rank, int] | None:
     """Format: initial rank_name nloops"""
-    x = partition_col(col, "initial", 3)
+    x = partition_col(col, "initial", 2)
     return x[0], int(x[1])
 
 
@@ -263,7 +286,7 @@ def iterations2col(nloops: int) -> str:
 @dict_cached
 def col2iterations(col: str) -> int | None:
     """Format: n_iterations nloops"""
-    x = partition_col(col, "n_iterations", 2)
+    x = partition_col(col, "n_iterations", 1)
     return x[0]
 
 
@@ -280,26 +303,8 @@ def tensor2col(tensor: str) -> str:
 
 
 @dict_cached
-def col2nametensor(col: str) -> str | None:
-    """Format: tensor tensor_name"""
-    x = partition_col(col, "tensor", 2)
-    if x is None:
-        return None
-    return x[1]
-
-
-@dict_cached
 def is_tensor_col(c: str) -> bool:
     return c.startswith("tensor<SEP>")
-
-
-@dict_cached
-def col2nameloopleft(x: str) -> tuple[str, int, bool] | None:
-    """Format: reservation name level left"""
-    x = partition_col(x, "reservation", 4)
-    if x is None:
-        return None
-    return x[0], x[1], x[2] == "left"
 
 
 def is_reservation_col(x: str) -> bool:
@@ -375,10 +380,6 @@ def col_used_in_joining(c):
         or is_n_iterations_col(c)
         or is_live_reservation_col(c)
     )
-
-
-def _contains_any(df, from_col_f, ref_any: MappingABC[str, Any]):
-    return len(list(_filter(df, from_col_f, ref_any))) > 0
 
 
 def _filter(df, from_col_f, ref_key: MappingABC[str, Any]):

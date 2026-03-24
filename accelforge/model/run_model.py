@@ -17,7 +17,7 @@ from accelforge.model._looptree.energy import (
 from accelforge.model._looptree.latency.memory import component_latency
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
-    memorylatency2col,
+    spatial_reservation2col,
     reservation2col,
     tensor2col,
     firstlatency2col,
@@ -177,16 +177,13 @@ def run_model(
                 )
 
     # Record reservation of spatial concurrently-boundable units
-    max_nloops = max(n_loop_options)
     for boundable_unit in concurrently_boundable_units:
-        found = False
         for (component, spatial_dim), usage in spatial_usage.items():
-            if component != boundable_unit:
-                continue
-            found = True
-            df[reservation2col(f"{boundable_unit}_{spatial_dim}", max_nloops)] = spatial_usage
-        if not found:
-            df[reservation2col(f"{boundable_unit}", max_nloops)] = 1.0
+            if component == boundable_unit:
+                df[spatial_reservation2col(boundable_unit, spatial_dim)] = usage
+                break
+        else:
+            df[spatial_reservation2col(boundable_unit)] = 1.0
 
     if metrics & Metrics.DETAILED_MEMORY_USAGE:
         for buffet, stats in reuse.buffet_stats.items():
@@ -213,7 +210,6 @@ def run_model(
 
     if metrics & Metrics.LATENCY:
         df["Total<SEP>latency"] = thread_latency * n_instances
-        # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
         for compute_level, stats in reuse.compute_stats.items():  # FIRST LATENCY
@@ -225,10 +221,6 @@ def run_model(
             if component in nodes_always_in_one_thread:
                 continue
             df[f"latency<SEP>{component}"] = cur_latency * n_instances
-        # for component, l in latency.items():
-        #     if component in nodes_always_in_one_thread:
-        #         continue
-        #     df[memorylatency2col(component)] = l
 
     if metrics.includes_dynamic_energy():
         dynamic_energy = [e for k, e in energy.items() if k.action != "leak"]

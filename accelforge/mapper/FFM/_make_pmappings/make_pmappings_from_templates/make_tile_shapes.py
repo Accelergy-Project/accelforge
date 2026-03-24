@@ -270,7 +270,13 @@ def compile_dict(symbols, dictionary):
         x = util._lambdify_type_check(symbols, value)
         return x
 
-    return {k: lambdify(symbols, v) for k, v in dictionary.items()}
+    result = {}
+    for k, v in dictionary.items():
+        try:
+            result[k] = lambdify(symbols, v)
+        except:
+            breakpoint()
+    return result
 
 
 class Goal:
