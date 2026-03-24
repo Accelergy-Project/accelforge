@@ -37,7 +37,10 @@ class TestMapperComprehensiveness(unittest.TestCase):
             )
             spec.arch.find("GlobalBuffer").size = glb_size * 1024 * 1024 * 8
             spec.mapper.metrics = Metrics.ENERGY
-            result = spec.map_workload_to_arch()
+            spec.arch["MainMemory"].tensors.keep = "~Intermediates"
+            spec.arch["MainMemory"].tensors.may_keep = "All"
+            spec.arch["GlobalBuffer"].tensors.keep = "~MainMemory"
+            spec.arch["GlobalBuffer"].tensors.may_keep = "All"
             relaxed_num_accesses = result.energy()
 
             spec.arch["MainMemory"].tensors.keep = "All"
