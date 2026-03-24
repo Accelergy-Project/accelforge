@@ -59,6 +59,29 @@ class ActionChecker(unittest.TestCase):
                     )
 
 
+class TestMapperComprehensiveness(unittest.TestCase):
+    def test_gpt3(self):
+        for glb_size in [2, 4, 8]:
+            spec = Spec.from_yaml(
+                af.examples.arches.snowcat_like,
+                af.examples.workloads.gpt3_6_7B,
+                jinja_parse_data={"GLB_SIZE": glb_size}
+            )
+            spec.mapper.metrics = Metrics.ENERGY
+            result = spec.map_workload_to_arch()
+            relaxed_num_accesses = result.energy()
+
+            spec.arch["MainMemory"].tensors.keep = "All"
+            result = spec.map_workload_to_arch()
+            unfused_num_accesses = result.energy()
+
+            self.assertGreaterEqual(
+                unfused_num_accesses,
+                relaxed_num_accesses,
+                "more relaxed constraint led to worse ski-slope."
+            )
+
+
 class TestMapper(ActionChecker, unittest.TestCase):
     def test_one_matmul(self):
         spec = Spec.from_yaml(

@@ -1187,5 +1187,23 @@ class Workload(EvalableModel):
 
     def get_tensor_shape(self, tensor: TensorName) -> dict[Rank, int]:
         from accelforge.frontend._workload_isl._isl import get_tensor_shape
-
         return get_tensor_shape(self, tensor)
+
+    def get_tensor_occupancy(self, tensor: TensorName) -> int:
+        from accelforge.frontend._workload_isl._isl import get_tensor_size
+        return get_tensor_size(self, tensor)
+
+    def get_einsum_computations(self, einsum_name: str) -> int:
+        from accelforge.frontend._workload_isl._isl import get_operation_space_size
+        return get_operation_space_size(self, einsum_name)
+
+    def get_computational_intensity(self, einsum_name: str) -> float:
+        """Return computational intensity in #operations / #tensor-elements"""
+        return (
+            self.get_einsum_computations(einsum_name)
+            /
+            sum(
+                self.get_tensor_occupancy(tensor)
+                for tensor in self.einsums[einsum_name].tensor_names
+            )
+        )
