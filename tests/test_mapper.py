@@ -63,10 +63,10 @@ class TestMapperComprehensiveness(unittest.TestCase):
     def test_gpt3(self):
         for glb_size in [2, 4, 8]:
             spec = Spec.from_yaml(
-                af.examples.arches.snowcat_like,
+                af.examples.arches.snowcat,
                 af.examples.workloads.gpt3_6_7B,
-                jinja_parse_data={"GLB_SIZE": glb_size}
             )
+            spec.arch.find("GlobalBuffer").size = glb_size * 1024 * 1024 * 8
             spec.mapper.metrics = Metrics.ENERGY
             result = spec.map_workload_to_arch()
             relaxed_num_accesses = result.energy()
