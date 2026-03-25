@@ -136,6 +136,7 @@ class PmappingGroup:
             t = self.tensors.pop(t)
         if self.mappings.free_to_loop_index(shared_loop_index):
             self.mappings.make_pareto()
+        self.mappings.check_live_reservations(self.compatibility)
         return self
 
     def _left_consolidate(self, live_tensors: set[str] = None):
@@ -144,6 +145,7 @@ class PmappingGroup:
         self.mappings.free_to_loop_index(shared_loop_index)
         if live_tensors is None:
             self.mappings.clear_fused_loop_symbols()
+        self.mappings.check_live_reservations(self.compatibility)
         return self
 
     @staticmethod

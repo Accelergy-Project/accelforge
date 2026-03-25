@@ -160,14 +160,14 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
 
 
 class LiveReservationKey(NamedTuple):
-    resource: str
+    name: str
     tensor: str
     nloops: int
     thread: int
 
 @dict_cached
-def live_reservation2col(resource: str, tensor: str, nloops: int, thread: int = DEFAULT_THREAD) -> str:
-    return str(LIVE / resource / tensor / str(nloops) / str(thread))
+def live_reservation2col(name: str, tensor: str, nloops: int, thread: int = DEFAULT_THREAD) -> str:
+    return str(LIVE / name / tensor / str(nloops) / str(thread))
 
 def get_live_reservation_cols_with(df, **kwargs):
     yield from _filter(df, col2live_reservation, kwargs)
@@ -389,7 +389,9 @@ def _filter(df, from_col_f, ref_key: MappingABC[str, Any]):
         except:
             return False
         for k, v in ref_key.items():
-            if not hasattr(key, k) or getattr(key, k) != v:
+            if not hasattr(key, k):
+                raise ValueError(f"column {col} has no key {k}")
+            if getattr(key, k) != v:
                 return False
         return True
     return filter(should_include, df.columns)
