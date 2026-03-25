@@ -864,7 +864,7 @@ class PmappingDataframe:
             self._data = new_data
             return self
         else:
-            return self.update(data=new_data)
+            return self.update(data=new_data, skip_pareto=True)
 
     def has_reservations(self):
         return any(col2reservation(c) is not None for c in self.data.columns)
