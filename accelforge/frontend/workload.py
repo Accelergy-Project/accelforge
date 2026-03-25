@@ -1189,21 +1189,64 @@ class Workload(EvalableModel):
         from accelforge.frontend._workload_isl._isl import get_tensor_shape
         return get_tensor_shape(self, tensor)
 
-    def get_tensor_occupancy(self, tensor: TensorName) -> int:
+    def get_tensor_size(self, tensor: TensorName) -> int:
+        """
+        Returns the number of elements in the given tensor.
+
+        Parameters
+        ----------
+        tensor:
+            The name of the tensor.
+
+        Returns
+        -------
+        int
+            The number of elements in the tensor.
+        """
         from accelforge.frontend._workload_isl._isl import get_tensor_size
         return get_tensor_size(self, tensor)
 
-    def get_einsum_computations(self, einsum_name: str) -> int:
+    def num_computes(self, einsum_name: str | None = None) -> int:
+        """
+        Returns the number of computes for the given Einsum name, or total computes
+        across all Einsums if ``einsum_name`` is ``None``.
+
+        Parameters
+        ----------
+        einsum_name:
+            The name of the Einsum. If ``None``, returns the total number of computes
+            across all Einsums.
+
+        Returns
+        -------
+        int
+            The number of computes.
+        """
         from accelforge.frontend._workload_isl._isl import get_operation_space_size
+        if einsum_name is None:
+            return sum(get_operation_space_size(self, e) for e in self.einsum_names)
         return get_operation_space_size(self, einsum_name)
 
-    def get_computational_intensity(self, einsum_name: str) -> float:
-        """Return computational intensity in #operations / #tensor-elements"""
+    def get_compute_intensity(self, einsum_name: str) -> float:
+        """
+        Returns the compute intensity of the given Einsum, defined as the number of
+        computes divided by the total number of tensor elements.
+
+        Parameters
+        ----------
+        einsum_name:
+            The name of the Einsum.
+
+        Returns
+        -------
+        float
+            The compute intensity in #computes / #tensor elements.
+        """
         return (
-            self.get_einsum_computations(einsum_name)
+            self.num_computes(einsum_name)
             /
             sum(
-                self.get_tensor_occupancy(tensor)
+                self.get_tensor_size(tensor)
                 for tensor in self.einsums[einsum_name].tensor_names
             )
         )

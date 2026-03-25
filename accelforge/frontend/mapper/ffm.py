@@ -179,3 +179,11 @@ class FFM(EvalableModel):
     If set, append per-step runtime as JSON lines to this file. Used for ablation study
     measurements.
     """
+
+    _metric_aggregator: Literal["sum", "prod", "any"] = "any"
+    """
+    How to aggregate metrics together to determine whether one pmapping is better than
+    another. "sum" means that the metrics are added together, "prod" means that the
+    metrics are multiplied together, and "any" means that any metric being better than
+    the other is enough to consider it non-dominated.
+    """

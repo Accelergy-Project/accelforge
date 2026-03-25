@@ -82,6 +82,7 @@ class TestMapperComprehensiveness(unittest.TestCase):
             spec.arch["MainMemory"].tensors.may_keep = "All"
             spec.arch["GlobalBuffer"].tensors.keep = "~MainMemory"
             spec.arch["GlobalBuffer"].tensors.may_keep = "All"
+            result = spec.map_workload_to_arch()
             relaxed_num_accesses = result.energy()
 
             spec.arch["MainMemory"].tensors.keep = "All"
