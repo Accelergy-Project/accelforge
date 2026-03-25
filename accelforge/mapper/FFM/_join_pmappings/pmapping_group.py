@@ -337,6 +337,9 @@ class PmappingGroup:
     def check_dataframe_live_reservations(self):
         self.mappings.check_live_reservations(self.compatibility)
 
+    def check_only_relevant_reservations_kept(self):
+        self.mappings.get_max_loop_index() == self.compatibility.n_loops
+
     @staticmethod
     def filter_by_tensors(
         pmapping_groups: list["PmappingGroup"] | dict[Compatibility, Any],

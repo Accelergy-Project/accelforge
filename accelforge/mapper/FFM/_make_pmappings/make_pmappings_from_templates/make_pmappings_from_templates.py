@@ -427,6 +427,10 @@ def make_pmappings_from_templates(
             n_concurrent_threads=job.spec_one_einsum.mapper.n_concurrent_threads,
             create_live_reservation_from_compatibility=compatibility,
         )
+
+        # We only need reservations for the fused portion
+        partial_mappings.free_to_loop_index(compatibility.n_loops)
+
         # If we have fewer fused loops, reservations likely got freed. We can free!
         if next_shared_loop_index_this_group != next_shared_loop_index:
             partial_mappings.make_pareto(
@@ -434,7 +438,9 @@ def make_pmappings_from_templates(
                 objective_tolerance=job0.objective_tolerance,
                 absolute_resource_usage_tolerance=absolute_resource_usage_tolerance,
             )
-        pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
+        pmapping_group = PmappingGroup(compatibility, partial_mappings)
+        pmapping_group.check_only_relevant_reservations_kept()
+        pmapping_groups.append(pmapping_group)
 
     # Defragment to speed up pickling
     for pg in pmapping_groups:
