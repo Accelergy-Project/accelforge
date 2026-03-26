@@ -43,17 +43,7 @@ class TestTransformer(unittest.TestCase):
         )
         spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
         spec.mapper.n_concurrent_threads = 2
-        import pickle
-        # spec.mapper._only_output_pmapping_with_index = {"Q": 0, "K": 0, "QK": 0}
-        # mappings = spec.map_workload_to_arch(einsum_names=["I", "Q", "K", "QK"])
-
-        # pmappings = af.mapper.FFM.make_pmappings(spec, einsum_names=["I", "Q", "K", "QK"])
-        # with open("tmp.pkl", "wb") as f:
-        #     pickle.dump(pmappings, f)
-
-        with open("tmp.pkl", "rb") as f:
-            pmappings = pickle.load(f)
-        af.mapper.FFM.join_pmappings(pmappings, spec.mapper.metrics, require_all_einsums=False)
+        mappings = spec.map_workload_to_arch()
 
 class ActionChecker(unittest.TestCase):
     def _check_memory_actions_exist(self, spec, memory_names, result):

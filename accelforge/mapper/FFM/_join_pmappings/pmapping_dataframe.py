@@ -6,6 +6,7 @@ from operator import or_
 
 from typing import Any, Callable, Iterable
 
+import numpy as np
 import sympy
 
 from accelforge.frontend.mapping import Nested, TilePattern
@@ -92,6 +93,18 @@ def reduce_precision(data: pd.DataFrame) -> pd.DataFrame:
 
 
 class PmappingDataframe:
+    def _assert_invariants_before_and_after(f):
+        def wrapped(self, *args, **kwargs):
+            self._assert_reservation_includes_live_tensors()
+            self._assert_consistent_left_right_reservations()
+            self._assert_reservation_inclusivity()
+            result = f(self, *args, **kwargs)
+            self._assert_reservation_includes_live_tensors()
+            self._assert_consistent_left_right_reservations()
+            self._assert_reservation_inclusivity()
+            return result
+        return wrapped
+
     def __init__(
         self,
         data: pd.DataFrame,
@@ -230,6 +243,7 @@ class PmappingDataframe:
         self.make_pareto()
 
     @error_check_wrapper
+    @_assert_invariants_before_and_after
     def free_to_loop_index(self, loop_index: int) -> bool:
         """
            A  B
@@ -251,8 +265,6 @@ class PmappingDataframe:
         if loop_index < -1:
             raise ValueError("loop_index must be >= -1")
 
-        self._check_reservation_inclusivity()
-
         # We keep reservations under loop_index, which is index loop_index+1
         reservation_max_index = loop_index + 1
 
@@ -263,7 +275,6 @@ class PmappingDataframe:
 
         if not self._has_left_reservations():
             self._move_reservations_to_index(reservation_max_index)
-            self._check_reservation_inclusivity()
             return True
 
         updated = False
@@ -276,7 +287,6 @@ class PmappingDataframe:
         assert self._has_bottom_right()
         assert self.get_max_loop_index() == reservation_max_index
 
-        self._check_reservation_inclusivity()
         return updated
 
     def get_max_loop_index(self):
@@ -307,6 +317,7 @@ class PmappingDataframe:
         )
 
     @error_check_wrapper
+    @_assert_invariants_before_and_after
     def merge_next(
         self,
         right: "PmappingDataframe",
@@ -343,12 +354,10 @@ class PmappingDataframe:
 
             right.free_to_loop_index(compatibility_right.n_loops-1)
             right.check_live_reservations(compatibility_right.tensors & compatibility_joined.tensors)
-            right._check_reservation_inclusivity()
 
             assert not right._has_left_reservations()
             assert self.get_max_loop_index()-1 <= compatibility_left.n_loops, f"max reservation index is {self.get_max_loop_index()} and compatibility has {compatibility_left.n_loops} loops"
             assert right.get_max_loop_index()-1 <= compatibility_right.n_loops
-            self.check_consistent_left_right_reservation()
 
             self._remove_dead_reservations(compatibility_joined)
 
@@ -357,7 +366,6 @@ class PmappingDataframe:
                 self._shift_bottom_reservation_left()
 
             self.check_live_reservations(compatibility_joined.tensors & compatibility_left.tensors)
-            self._check_reservation_inclusivity()
 
             shared_tensor_names = (
                 compatibility_left.tensor_names & compatibility_right.tensor_names
@@ -454,7 +462,7 @@ class PmappingDataframe:
                     if not (live_col in df and right_live_col in df):
                         continue
                     adjustment_val = (
-                        max(df[live_col], df[right_live_col]) # what it should be
+                        np.maximum(df[live_col], df[right_live_col]) # what it should be
                         -
                         (df[live_col] + df[right_live_col]) # what the following logic otherwise would count
                     )
@@ -570,16 +578,13 @@ class PmappingDataframe:
 
             result._remove_dead_reservations(compatibility_joined)
 
-            result._check_reservation_inclusivity()
             result.check_live_reservations(compatibility_joined.tensors)
 
             if CHECK_CORRECTNESS:
                 result.check_above_subset_below(live_tensors)
-                result.check_reservations(live_tensors)
 
             result.free_to_loop_index(next_shared_loop_index)
 
-            result.check_consistent_left_right_reservation()
             assert result._has_bottom_right()
 
             if not CHECK_CORRECTNESS:
@@ -784,42 +789,6 @@ class PmappingDataframe:
                 level -= 1
         return None
 
-    # def _free_reservations_of_resource(
-    #     self,
-    #     resource: str,
-    #     tensor_indices_to_free: Iterable[tuple[str, int]],
-    # ):
-    #     """
-    #     For every `(tensor, nloops)` in `tensor_indices_to_free`, reduces all 
-    #     right reservations of `resource` at `index >= nloops` and left reservations
-    #     at `index > nloops` by the size of the tensor as recorded in
-    #     `self.data[tensor2col(tensor)]`.
-    #     """
-    #     targets = defaultdict(int)
-    #     for tensor_name, to_free_nloops in tensor_indices_to_free:
-    #         size = self.data[tensor2col(tensor_name)]
-    #         for col in get_reservation_cols_with(self.data, name=resource):
-    #             key = col2reservation(col)
-    #             if (
-    #                 (key.is_left and key.nloops > to_free_nloops)
-    #                 or
-    #                 (key.is_right and key.nloops >= to_free_nloops)
-    #             ):
-    #                 targets[key.nloops, col] -= size
-
-    #     # Now apply the allocations. Sort so we go from top to bottom in case
-    #     # there are maxes that propagate down.
-    #     for (_, target), size in sorted(
-    #         targets.items(), key=lambda x: x[0], reverse=True
-    #     ):
-    #         assert target in self.data
-    #         add_to_col(self.data, target, size)
-    #         # Assert all reservations are >= 0
-    #         try:
-    #             assert (self.data[target] >= 0).all(), f"Negative reservation: {target}"
-    #         except:
-    #             breakpoint()
-
     @staticmethod
     def concat(
         paretos: list["PmappingDataframe"], skip_pareto: bool = False
@@ -850,6 +819,7 @@ class PmappingDataframe:
         )
         return p
 
+    @_assert_invariants_before_and_after
     def _shift_bottom_reservation_left(self):
         """
         Shifts the bottom reservation from right to left.
@@ -964,7 +934,6 @@ class PmappingDataframe:
             self._data = pd.concat(all_data, ignore_index=True)
 
         assert not self._has_bottom_right()
-        self._check_reservation_inclusivity()
 
     def _move_reservations_to_index(self, loop_index):
         dropcols = []
@@ -975,8 +944,8 @@ class PmappingDataframe:
                 target = reservation2col(key.name, loop_index)
                 max_to_col(self.data, target, col)
         self.data.drop(columns=dropcols, inplace=True)
-        self._check_reservation_inclusivity()
 
+    @_assert_invariants_before_and_after
     def _consolidate_bottom_split(self):
         """
         Consolidate bottom split.
@@ -989,7 +958,6 @@ class PmappingDataframe:
             F  E
         """
         assert not self._has_bottom_right()
-        self._check_reservation_inclusivity()
 
         bottom_index = self.get_max_loop_index()
         target_index = bottom_index-1
@@ -1040,7 +1008,6 @@ class PmappingDataframe:
             drop_columns.append(f"Total<SEP>latency<SEP>{bottom_index}<SEP>{thread_i}")
         self.data.drop(columns=drop_columns, inplace=True)
 
-        self._check_reservation_inclusivity()
         assert self._has_bottom_right()
 
     def _remove_dead_reservations(self, compatibility: Compatibility):
@@ -1162,6 +1129,18 @@ class PmappingDataframe:
     def __len__(self) -> int:
         return len(self._data)
 
+    def check_live_reservations(self, tensors: oset[TensorReservation]):
+        for tensor in tensors:
+            if len(list(get_live_reservation_cols_with(
+                self.data,
+                name=tensor.resource_name,
+                tensor=tensor.name
+            ))) == 0:
+                colnames = ""
+                for c in self.data.columns:
+                    colnames += f"  {c}\n"
+                raise RuntimeError(f"missing live reservation for {tensor}. columns:\n" + colnames)
+
     def _assert_no_duplicate_cols(self):
         if len(list(_get_duplicates(self._data.columns))) > 0:
             raise ValueError(
@@ -1170,39 +1149,28 @@ class PmappingDataframe:
                 " " + list(_get_duplicates(self._data.columns))
             )
 
-    def check_live_reservations(self, tensors: oset[TensorReservation]):
-        for tensor in tensors:
-            for col in get_live_reservation_cols_with(
+    def _assert_reservation_includes_live_tensors(self):
+        for col in get_live_reservation_cols_with(self.data):
+            live_res_key = col2live_reservation(col)
+            if (self.data[col] > self.data[tensor2col(live_res_key.tensor)]).any():
+                raise RuntimeError(f"reservation for live tensor larger than tensor size for {col}")
+
+            for res_col in get_reservation_cols_with(
                 self.data,
-                name=tensor.resource_name,
-                tensor=tensor.name,
+                name=live_res_key.name,
+                thread=live_res_key.thread,
             ):
-                if (self.data[col] > self.data[tensor2col(tensor.name)]).any():
-                    raise RuntimeError(f"reservation for live tensor larger than tensor size for {col}")
-
-                live_res_key = col2live_reservation(col)
-                for res_col in get_reservation_cols_with(
-                    self.data,
-                    name=tensor.resource_name,
-                    thread=live_res_key.thread,
+                res_key = col2reservation(res_col)
+                if (
+                    res_key.is_right and res_key.nloops < live_res_key.nloops
+                    or
+                    res_key.is_left and res_key.nloops != live_res_key.nloops
                 ):
-                    res_key = col2reservation(res_col)
-                    if (
-                        res_key.is_right and res_key.nloops < live_res_key.nloops
-                        or
-                        res_key.is_left and res_key.nloops != live_res_key.nloops
-                    ):
-                        continue
-                    if (self.data[res_col] < self.data[col]).any():
-                        raise RuntimeError(f"reservation smaller than reservation for live tensor {col}")
-                break
-            else:
-                colnames = ""
-                for c in self.data.columns:
-                    colnames += f"  {c}\n"
-                raise RuntimeError(f"missing live reservation for {tensor}. columns:\n" + colnames)
+                    continue
+                if (self.data[res_col] < self.data[col]).any():
+                    raise RuntimeError(f"reservation smaller than reservation for live tensor {col}")
 
-    def _check_reservation_inclusivity(self):
+    def _assert_reservation_inclusivity(self):
         _, r_reservations = self._make_reservations()
         for resource in r_reservations:
             for higher_col in get_reservation_cols_with(self.data, name=resource, is_left=False):
@@ -1214,7 +1182,7 @@ class PmappingDataframe:
                     if (self.data[lower_col] < self.data[higher_col]).any():
                         raise ValueError("Lower reservation smaller than higher reservation")
 
-    def check_consistent_left_right_reservation(self):
+    def _assert_consistent_left_right_reservations(self):
         if self._has_right_latency():
             assert self._has_bottom_right_reservations() or not self._has_right_reservations()
             return
