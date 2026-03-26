@@ -685,10 +685,17 @@ class PmappingDataframe:
                 resource, level - 1, l_reservations, r_reservations
             )
             if source:
+                assert (
+                    source in self.data.columns
+                ), f"{source} not in {sorted(self.data.columns)}"
                 add_to_col(self.data, target, source)
                 add_to_col(self.data, target, size)
             else:
                 self.data[target] = size
+
+            # We made a new column! Update our reservations so future iterations
+            # know about it.
+            l_reservations, r_reservations = self._make_reservations()
 
             # Assert all reservations are >= 0
             assert (self.data[target] >= 0).all(), f"Negative reservation: {target}"
