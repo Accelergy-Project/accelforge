@@ -136,7 +136,7 @@ class PmappingGroup:
             t = self.tensors.pop(t)
         if self.mappings.free_to_loop_index(shared_loop_index):
             self.mappings.make_pareto()
-        self.mappings.check_live_reservations(self.compatibility)
+        self.check_dataframe_live_reservations()
         return self
 
     def _left_consolidate(self, live_tensors: set[str] = None):
@@ -145,7 +145,7 @@ class PmappingGroup:
         self.mappings.free_to_loop_index(shared_loop_index)
         if live_tensors is None:
             self.mappings.clear_fused_loop_symbols()
-        self.mappings.check_live_reservations(self.compatibility)
+        self.check_dataframe_live_reservations()
         return self
 
     @staticmethod
@@ -337,7 +337,7 @@ class PmappingGroup:
         return groups_with_one + others + no_combine
 
     def check_dataframe_live_reservations(self):
-        self.mappings.check_live_reservations(self.compatibility)
+        self.mappings.check_live_reservations(self.compatibility.tensors)
 
     def check_only_relevant_reservations_kept(self):
         self.mappings.get_max_loop_index() == self.compatibility.n_loops
