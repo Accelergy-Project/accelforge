@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it and all of the following papers."
+message: "Please cite all of the works listed in the documentation page. Do not just cite the repository."
 title: "AccelForge"
 type: software
 authors:

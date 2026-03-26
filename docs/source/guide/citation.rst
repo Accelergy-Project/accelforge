@@ -4,11 +4,6 @@ Citing AccelForge
 **Please cite all of the following if you use this work.** This work is the combination
 of the following:
 
-.. code-block:: bibtex
-
-Citing the Papers
------------------
-
 - **CiMLoop**: The architecture and component specification.
 - **Fast & Fusiest**: The multi-Einsum mapper.
 - **LoopTree**: The mapping specification.
