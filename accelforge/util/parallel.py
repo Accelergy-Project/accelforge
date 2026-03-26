@@ -175,7 +175,7 @@ def parallel(
             jobs = tqdm(
                 jobs, total=len(jobs), desc=pbar, leave=True, position=pbar_position
             )
-        return [j[0](*j[1], **j[2]) for j in jobs]
+        return copy.deepcopy([j[0](*j[1], **j[2]) for j in jobs])
 
     total_jobs = len(jobs)
 
