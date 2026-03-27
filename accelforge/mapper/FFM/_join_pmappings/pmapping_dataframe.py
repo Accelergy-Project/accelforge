@@ -425,6 +425,12 @@ class PmappingDataframe:
                 df = pd.merge(sd, rd, how="cross", suffixes=["", MERGE_SUFFIX])
 
             df = reduce_precision(df)
+            # We made a new column! Update our reservations so future iterations
+            # know about it.
+            l_reservations, r_reservations = self._make_reservations()
+
+            # Assert all reservations are >= 0
+            assert (self.data[target] >= 0).all(), f"Negative reservation: {target}"
 
             # Drop all fused loop columns that are not used anymore
             remaining_symbols = compatibility_joined.symbols()
