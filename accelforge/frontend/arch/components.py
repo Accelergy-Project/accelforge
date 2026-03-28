@@ -749,7 +749,7 @@ def _eval_tensor2bits(
         all -= k
 
     if all:
-        raise EvaluationError(f"Missing bits_per_value_scale for {all}")
+        raise EvaluationError(f"Missing bits_per_value_scale for {all}. Have {result}.")
 
     for a, b in itertools.combinations(result.keys(), 2):
         if a & b:
