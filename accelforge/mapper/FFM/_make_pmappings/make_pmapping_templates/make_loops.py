@@ -166,10 +166,10 @@ def insert_temporal_loops(
         if max_fused_loops == 0 and (fusable_tensors - seen_tensors):
             rank_variables &= oset()
 
-        #  The fanout for a prior node may be placed here, so spatial nodes may be moved
-        #  here
+        # The fanout for a prior node may be placed here, so spatial nodes may be moved
+        # here
         someone_elses_spatials_may_be_placed_below = (
-            next_fanout > cur_fanout and max_fanout_before > cur_fanout
+            next_fanout < cur_fanout and max_fanout_before < cur_fanout
         )
 
         # If the fanout is about to increase, then spatial loops may be placed below the
