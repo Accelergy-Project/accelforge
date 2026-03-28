@@ -44,6 +44,7 @@ def insert_temporal_loops(
     fusable_tensors: set[TensorName],
     intermediate_tensors: set[TensorName],
     let_non_intermediate_tensors_respawn_in_backing_storage: bool,
+    explore_loop_orders: bool,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -274,7 +275,7 @@ def insert_temporal_loops(
         choices.append(
             list(
                 canonical_loop_orders(
-                    rank_variables, permutable_partially_relevant, can_lower
+                    rank_variables, permutable_partially_relevant, can_lower, explore_loop_orders
                 )
             )
         )
@@ -376,6 +377,7 @@ def canonical_loop_orders(
     rank_variables: set[RankVariable],
     partially_relevant_to_previous: set[RankVariable],
     can_lower: bool,
+    explore_loop_orders: bool,
 ):
     """Generate loop orders that result in unique reuse patterns."""
     # Only the first partially-relevant rank variable matters is a meaningful
@@ -393,3 +395,5 @@ def canonical_loop_orders(
             + tuple(sorted(rest_of_partially_relevant))
             + tuple(sorted(rest_rank_vars))
         )
+        if not explore_loop_orders:
+            return

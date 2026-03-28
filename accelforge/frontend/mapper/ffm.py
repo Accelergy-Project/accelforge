@@ -78,6 +78,14 @@ class FFM(EvalableModel):
     3 means that the number of loops can be up to (the number of ranks + 3).
     """
 
+    explore_loop_orders: bool = True
+    """
+    Whether to explore loop orders for loops where we may get partial reuse. Note that
+    loop orders that don't matter (i.e., ones that have either full or no reuse) are not
+    explored, except in joining where we may join partial mappings who have
+    different-but-equivalent loop orders.
+    """
+
     _can_lower_outermost_memory: bool = False
     """
     Whether the storage node of outermost memory can be lowered. If set to True, the

@@ -311,6 +311,7 @@ def iterate_mappings_no_constraints(
             fusable_tensors,
             job.intermediate_tensors,
             spec.mapper._let_non_intermediate_tensors_respawn_in_backing_storage,
+            spec.mapper.explore_loop_orders,
         ):
             mapping = copy.deepcopy(mapping)
             insert_spatial_loops(
