@@ -1,0 +1,32 @@
+# Based on examples/arches/nvdla.yaml
+arch:
+  nodes:
+  - !Memory
+    name: Network
+    size: inf
+    leak_power: 0
+    actions:
+      # TODO: Get the network energies for NVLink.
+      # 150 GB/s NVLink transfer speeds.
+    - {name: read, energy: 7.03e-12, latency: 1 / (150e9 * 8)}
+    - {name: write, energy: 7.03e-12, latency: 1 / (150e9 * 8)}
+    tensors: {keep: All, may_keep: All}
+
+  - !Memory
+    name: NV100
+    size: 16*1024*1024*8 # 16 GB
+    total_latency: max(read_latency, write_latency) # Separate ports
+    leak_power: 0
+    actions:
+    # Prima facie network analysis assuming NV100 mem hierarchy characteristics
+    # are dominated by the NVLink connection.
+    - {name: read, energy: 0, latency: 0}
+    - {name: write, energy: 0, latency: 0}
+    tensors: {keep: All}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    actions:
+    # Prima facie assume compute is dominated by NVLink data mvmt.
+    - {name: compute, energy: 0, latency: 0}
