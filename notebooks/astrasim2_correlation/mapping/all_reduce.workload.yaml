@@ -1,0 +1,15 @@
+workload:
+  iteration_space_shape:
+    vec_len: 0 <= vec_len < {{ collective_size / (data_width * nodes) }}
+    nodes: 0 <= nodes < {{ nodes }}
+  einsums:
+  - name: scatter
+    tensor_accesses:
+    - {name: I, projection: [ vec_len, nodes ]}
+    - {name: W_scatter, projection: [ vec_len, nodes ]}
+    - {name: S, projection: [ nodes ], output: True}
+  - name: all_gather
+    tensor_accesses:
+    - {name: S, projection: [nodes]}
+    - {name: W_gather, projection: [vec_len. nodes]}
+    - {name: G, projection: [vec_len, nodes]}
