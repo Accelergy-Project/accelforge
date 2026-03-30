@@ -2,7 +2,7 @@ import functools
 from math import prod
 import time
 
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 
 from paretoset import paretoset
 from joblib import delayed

@@ -12,7 +12,7 @@ import joblib
 import sys
 import os
 from tqdm import tqdm
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
 
 from accelforge.util._mathfuncs import NUMPY_FLOAT_TYPE
 

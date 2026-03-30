@@ -16,9 +16,9 @@ SFS + Block-BNL (block size 16) with:
 
 """
 
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
 import numba
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from sympy import factorint
 import functools
 

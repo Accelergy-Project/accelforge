@@ -276,6 +276,12 @@ def get_constraints(
                 ):
                     break
                 end_index += 1
+            else:
+                # This tensor isn't stored in this component at all. Don't look at any
+                # loops. We can also end up here if the tensor is backed in this
+                # component, in which case we'll start looking below the component &
+                # never find it.
+                end_index = start_index
 
             for i in range(start_index, min(end_index, len(mapping))):
                 if isinstance(mapping[i], Temporal) and not isinstance(
@@ -306,6 +312,8 @@ def get_constraints(
                     isinstance(mapping[end_index], TensorHolder)
                     and n in mapping[end_index].tensors
                 ):
+                    # Can't have two tensor holders for the same tensor + component
+                    assert mapping[end_index].component != m.name
                     break
                 end_index += 1
 

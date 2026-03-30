@@ -47,7 +47,7 @@ def magnitude_encode_hist(weights) -> List[ProbableBits]:
     A signed value is encoded as a positive or negative magnitude of that value.
     Signed hardware is requireed.
     """
-    nbits = get_num_bits(weights)
+    nbits = get_n_bits(weights)
     encoded = []
     halfwidth = len(weights) / 2
     for i, w in enumerate(weights):
@@ -75,7 +75,7 @@ def offset_encode_hist(weights):
     This maps a range of [-min, max] to [0, max - min]. The bias must be added
     back after computation.
     """
-    nbits = get_num_bits(weights)
+    nbits = get_n_bits(weights)
     encoded = []
     for i, w in enumerate(weights):
         normed = norm(i, len(weights), 0, len(weights))
@@ -107,7 +107,7 @@ def xnor_encode_hist(weights):
     """
     XNOR encoding based on Jia JSSCC 2020.
     """
-    nbits = get_num_bits(weights)
+    nbits = get_n_bits(weights)
     encoded = []
     halfwidth = len(weights) / 2
     for i, w in enumerate(weights):
@@ -150,7 +150,7 @@ def norm_encoded_hist(encoded_hist: List[ProbableBits]):
     return [ProbableBits(e.bits, e.probability / sum_probs) for e in encoded_hist]
 
 
-def get_num_bits(hist):
+def get_n_bits(hist):
     n_bits = 0
     while 2**n_bits < len(hist) + 1:
         n_bits += 1

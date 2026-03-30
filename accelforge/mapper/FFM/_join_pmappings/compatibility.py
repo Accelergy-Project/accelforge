@@ -5,7 +5,7 @@ import itertools
 from numbers import Number
 from typing import Literal, TypeVar
 
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from accelforge.frontend.mapping import (
     Mapping,
     Spatial,
@@ -283,12 +283,7 @@ class Compatibility(Updatable):
         return self.n_loops, self.tensors, self.reservation_indices
 
     def __hash__(self):
-        try:
-            return object.__getattribute__(self, "_hash_cached")
-        except AttributeError:
-            val = hash(self._get_hash_tuple())
-            object.__setattr__(self, "_hash_cached", val)
-            return val
+        return hash(self._get_hash_tuple())
 
     def __eq__(self, other):
         if self is other:
@@ -422,7 +417,10 @@ class Compatibility(Updatable):
         right_freed = right.clear_dead_tensors(
             live_tensors, keep_reservation_indices_and_splits=True
         )
-        if self_freed.n_loops > right_freed.n_loops and not _force_allow_invalid_only_for_runtime_test:
+        if (
+            self_freed.n_loops > right_freed.n_loops
+            and not _force_allow_invalid_only_for_runtime_test
+        ):
             # This can be relaxed if we have a way to do order-independent joining
             # and/or non-looptree mappings.
             raise ValueError(

@@ -201,7 +201,7 @@ class HypercubeMulticastModel(TransferModel):
 
         # TODO: Read once from all buffers, assert that
         # card(mcs) == tensor_size * duplication factor
-        num_meshcasts: int = mcs.card()
+        n_meshcasts: int = mcs.card()
         return TransferInfo(
             fulfilled_fill=Transfers(fills.tags, fills.map_),
             parent_reads=Reads(occs.tags, mcs),

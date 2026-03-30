@@ -355,7 +355,7 @@ class Spec(EvalableModel):
         einsum_names: list[EinsumName] | None = None,
         one_pbar_only: bool = False,
         print_progress: bool = True,
-        print_number_of_pmappings: bool = True,
+        print_number_of_pmappings: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     ) -> Mappings:
         """

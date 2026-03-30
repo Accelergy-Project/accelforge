@@ -1,7 +1,7 @@
 from copy import copy, deepcopy
 from uuid import uuid4
 
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 
 from accelforge.frontend import arch
 from accelforge.frontend.arch import Memory

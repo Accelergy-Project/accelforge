@@ -9,7 +9,7 @@ from accelforge.util._basetypes import (
     EvalsTo,
     TryEvalTo,
 )
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
 
 from accelforge.util._setexpressions import InvertibleSet
 from accelforge.frontend.renames import RankVariable

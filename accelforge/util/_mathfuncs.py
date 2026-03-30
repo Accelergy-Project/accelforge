@@ -3,8 +3,8 @@ from math import ceil, comb
 import functools
 import math
 import numbers
-import pandas as pd
-import numpy as np
+from accelforge._accelerated_imports import pandas as pd
+from accelforge._accelerated_imports import numpy as np
 from accelforge.util._frozenset import oset
 
 NUMPY_FLOAT_TYPE = np.float32

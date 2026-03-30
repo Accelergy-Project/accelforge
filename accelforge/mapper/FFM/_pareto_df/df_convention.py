@@ -2,7 +2,8 @@ from collections.abc import Mapping as MappingABC
 from typing import Any
 from typing import NamedTuple
 import functools
-import pandas as pd
+import re
+from accelforge._accelerated_imports import pandas as pd
 from accelforge.util import NUMPY_FLOAT_TYPE
 from accelforge.util._frozenset import fzs, oset
 from accelforge.frontend.workload import Rank

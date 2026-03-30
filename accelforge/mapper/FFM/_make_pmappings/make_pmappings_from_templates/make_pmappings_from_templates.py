@@ -1,6 +1,6 @@
 import copy
 import math
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from uuid import UUID
 from collections import defaultdict
 
@@ -225,6 +225,7 @@ def make_pmappings_from_templates(
     jwsc = jobs_with_similar_compatibilities
 
     results = []
+    pmapping_keep_rates = []
 
     for job in jobs_with_similar_compatibilities:
         try:
@@ -270,6 +271,9 @@ def make_pmappings_from_templates(
                     cols_to_drop.append(col)
         result.drop(columns=cols_to_drop, inplace=True)
         results.append(result)
+        pmapping_keep_rates.append(
+            (job.job_id, dict(job.pmapping_keep_rates), job.n_total_pmappings)
+        )
 
     fusable_tensors = jwsc.fusable_tensors
     einsum_name = jwsc.einsum_name
@@ -303,7 +307,7 @@ def make_pmappings_from_templates(
         skip_pareto=True,
     ).data
     if df.empty:
-        return einsum_name, [], {}
+        return einsum_name, [], {}, pmapping_keep_rates
 
     tensor_cols = [tensor2col(tensor) for tensor in fusable_tensors]
     df.columns = [
@@ -450,4 +454,5 @@ def make_pmappings_from_templates(
         einsum_name,
         pmapping_groups,
         pmapping_objects,
+        pmapping_keep_rates,
     )

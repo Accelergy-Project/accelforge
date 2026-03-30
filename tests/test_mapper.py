@@ -73,15 +73,15 @@ class TestMapperComprehensiveness(unittest.TestCase):
             spec.arch["GlobalBuffer"].tensors.keep = "~MainMemory"
             spec.arch["GlobalBuffer"].tensors.may_keep = "All"
             result = spec.map_workload_to_arch()
-            relaxed_num_accesses = result.energy()
+            relaxed_n_accesses = result.energy()
 
             spec.arch["MainMemory"].tensors.keep = "All"
             result = spec.map_workload_to_arch()
-            unfused_num_accesses = result.energy()
+            unfused_n_accesses = result.energy()
 
             self.assertGreaterEqual(
-                unfused_num_accesses,
-                relaxed_num_accesses,
+                unfused_n_accesses,
+                relaxed_n_accesses,
                 "more relaxed constraint led to worse ski-slope."
             )
 

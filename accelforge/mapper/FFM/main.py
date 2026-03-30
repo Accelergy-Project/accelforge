@@ -29,7 +29,7 @@ def map_workload_to_arch(
     cache_dir: str | None = None,
     one_pbar_only: bool = False,
     print_progress: bool = True,
-    print_number_of_pmappings: bool = True,
+    print_number_of_pmappings: bool = False,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ) -> Mappings:
     """
@@ -147,7 +147,7 @@ def make_pmappings(
     can_combine_multiple_runs: bool = False,
     cache_dir: str | None = None,
     print_progress: bool = True,
-    print_number_of_pmappings: bool = True,
+    print_number_of_pmappings: bool = False,
     one_pbar_only: bool = False,
 ) -> MultiEinsumPmappings:
     """

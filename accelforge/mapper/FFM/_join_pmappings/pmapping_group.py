@@ -1,7 +1,7 @@
 from collections import defaultdict
 from functools import cached_property
 from typing import Any, Callable, Iterable
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from joblib import delayed
 
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe

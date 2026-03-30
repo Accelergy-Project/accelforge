@@ -66,4 +66,4 @@ arch:
   - !Component
     name: mac
     class: mac_compute
-    attributes: {num_pipline_stages: 2}
+    attributes: {n_pipline_stages: 2}

@@ -35,7 +35,7 @@ from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.util._frozenset import fzs, oset
 import math
 import sympy
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
 from numbers import Number
 
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (

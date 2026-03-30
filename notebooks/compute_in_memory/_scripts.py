@@ -241,7 +241,7 @@ def bar_stacked(
         title: Chart title
         ax: Matplotlib axes to plot on
     """
-    import numpy as np
+    from accelforge._accelerated_imports import numpy as np
 
     # Get all categories
     x_categories = list(data.keys())
@@ -286,7 +286,7 @@ def bar_comparison(
         title: Chart title
         ax: Matplotlib axes to plot on
     """
-    import numpy as np
+    from accelforge._accelerated_imports import numpy as np
 
     # Get categories (use first dataset's keys)
     categories = list(next(iter(data_dict.values())).keys())
@@ -328,7 +328,7 @@ def bar(
         title: Chart title
         ax: Matplotlib axes to plot on
     """
-    import numpy as np
+    from accelforge._accelerated_imports import numpy as np
 
     categories = list(data.keys())
     values = list(data.values())

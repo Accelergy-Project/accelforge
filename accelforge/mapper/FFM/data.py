@@ -2,7 +2,7 @@
 Results from mapping exploration.
 """
 
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 
 from accelforge.mapper.FFM._pareto_df.df_convention import col2action
 from accelforge.util._base_analysis_types import ActionKey, VerboseActionKey

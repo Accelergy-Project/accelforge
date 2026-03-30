@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
 
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
