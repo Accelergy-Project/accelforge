@@ -213,32 +213,27 @@ def join_strategy_2(
             import json
             with open(_runtime_log_file, "a") as f:
                 f.write(json.dumps({"round": i, "threshold": threshold}) + "\n")
-        try:
-            cur_compressed = prune_with_tolerance(
-                compressed,
-                objective_tolerance=threshold,
-                resource_usage_tolerance=resource_usage_tolerance,
-                print_progress=print_progress,
+
+        cur_compressed = prune_with_tolerance(
+            compressed,
+            objective_tolerance=threshold,
+            resource_usage_tolerance=resource_usage_tolerance,
+            print_progress=print_progress,
+        )
+        joined = join_pmappings(
+            cur_compressed,
+            spec,
+            _pmapping_row_filter_function=filter_func,
+            print_progress=print_progress,
+            metrics=metrics,
+        )
+        if i < len(thresholds) - 1:
+            filter_func = OptimalityThresholder(
+                joined,
+                _pmapping_row_filter_function,
+                spec.mapper._metric_aggregator,
+                print_progress
             )
-            joined = join_pmappings(
-                cur_compressed,
-                spec,
-                _pmapping_row_filter_function=filter_func,
-                print_progress=print_progress,
-                metrics=metrics,
-            )
-            if i < len(thresholds) - 1:
-                filter_func = OptimalityThresholder(
-                    joined,
-                    _pmapping_row_filter_function,
-                    spec.mapper._metric_aggregator,
-                    print_progress
-                )
-        except Exception as e:
-            if i == len(thresholds) - 1:
-                raise
-            if print_progress:
-                print(f"Error with optimality threshold {threshold}: {e}")
 
     return joined
 

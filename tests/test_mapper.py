@@ -40,10 +40,21 @@ class TestTransformer(unittest.TestCase):
         spec = Spec.from_yaml(
             af.examples.arches.tpu_v4i,
             af.examples.workloads.gpt3_6_7B,
+            jinja_parse_data={"N_TOKENS": 2048},
         )
         spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
         spec.mapper.n_concurrent_threads = 2
-        mappings = spec.map_workload_to_arch()
+        # mappings = spec.map_workload_to_arch()
+
+        import pickle
+
+        pmappings = af.mapper.FFM.make_pmappings(spec)
+        with open("tmp.pkl", "wb") as f:
+            pickle.dump(pmappings, f)
+
+        with open("tmp.pkl", "rb") as f:
+            pmappings = pickle.load(f)
+        mappings = af.mapper.FFM.join_pmappings(pmappings, spec.mapper.metrics)
 
 class ActionChecker(unittest.TestCase):
     def _check_memory_actions_exist(self, spec, memory_names, result):
