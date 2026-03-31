@@ -40,7 +40,7 @@ class Spatial(EvalableModel):
     """ The minimum usage of spatial instances, as a value from 0 to 1. A mapping
     is invalid if less than this porportion of this dimension's fanout is utilized.
     Mappers that support it (e.g., FFM) may, if no mappings satisfy this constraint,
-    return the highest-usage mappings.
+    return the highest-usage mappings. These constraints are disabled for copy Einsums.
     """
 
     reuse: TryEvalTo[InvertibleSet[TensorName]] = "Nothing"

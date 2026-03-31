@@ -1,6 +1,5 @@
 from typing import Generic, TypeVar
 
-
 T = TypeVar("T")
 
 
@@ -17,6 +16,13 @@ def _sorted_iter(iterable):
 
 
 class fzs(frozenset[T], Generic[T]):
+    __slots__ = ("_sorted_cache",)
+
+    def __new__(cls, *args, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        object.__setattr__(obj, "_sorted_cache", None)
+        return obj
+
     def __repr__(self):
         return f"{{{', '.join(sorted(x.__repr__() for x in self))}}}"
 
@@ -24,7 +30,21 @@ class fzs(frozenset[T], Generic[T]):
         return self.__repr__()
 
     def __iter__(self):
-        return _sorted_iter(frozenset.__iter__(self))
+        cached = object.__getattribute__(self, "_sorted_cache")
+        if cached is not None:
+            return iter(cached)
+        items = list(frozenset.__iter__(self))
+        if items:
+            try:
+                items.sort()
+            except TypeError:
+                items.sort(key=lambda x: str(x))
+        result = tuple(items)
+        try:
+            object.__setattr__(self, "_sorted_cache", result)
+        except (TypeError, AttributeError):
+            pass  # frozenset subclass may resist setattr in some contexts
+        return iter(result)
 
     def __or__(self, other: "fzs[T]") -> "fzs[T]":
         return fzs(super().__or__(other))
