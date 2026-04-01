@@ -1190,6 +1190,11 @@ def analyze_storage(
     einsum_name = mapping[-1].einsum
     node: TensorHolder = mapping[node_idx]
 
+    if not isinstance(count_upward_movement, dict):
+        count_upward_movement = {TensorName(t): count_upward_movement for t in node.tensors}
+    if not isinstance(count_downward_movement, dict):
+        count_downward_movement = {TensorName(t): count_downward_movement for t in node.tensors}
+
     child_result = analyze_node(node_idx + 1, current_shape, info)
     component_object = find_component_object(node.component, info.job.flattened_arch)
     skip_initial = isinstance(component_object, arch.Memory) and component_object.skip_initial_output_write
@@ -1276,7 +1281,7 @@ def analyze_storage(
 
         # ==========================
         # Data exchanges with parent
-        if count_downward_movement:  # Parent -> Me
+        if count_downward_movement[tensor]:  # Parent -> Me
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
             stats.max_per_unit_write_actions += (
                 stats.total_reads_to_parent * write_scale
@@ -1288,7 +1293,7 @@ def analyze_storage(
                 stats.min_per_parent_skipped_first_reads_to_parent * write_scale
             )
 
-        if count_upward_movement:  # Me -> Parent
+        if count_upward_movement[tensor]:  # Me -> Parent
             # Comment this to have the final writeback to a buffer hit both that buffer and
             # go directly to the parent without incurring another read from the buffer.
             stats.total_read_actions += stats.total_writes_to_parent * read_scale
@@ -1302,7 +1307,7 @@ def analyze_storage(
         # =========================
         # Data exchanges with child
         if child is not None:
-            if count_downward_movement:  # Me -> Child
+            if count_downward_movement[tensor]:  # Me -> Child
                 stats.total_read_actions += child.total_reads_to_parent * read_scale
                 stats.max_per_unit_read_actions += (
                     child.max_per_parent_reads_to_parent * read_scale
@@ -1317,7 +1322,7 @@ def analyze_storage(
                         * read_scale
                     )
 
-            if count_upward_movement:  # Child -> Me
+            if count_upward_movement[tensor]:  # Child -> Me
                 stats.total_write_actions += child.total_writes_to_parent * write_scale
                 stats.max_per_unit_write_actions += (
                     child.max_per_parent_writes_to_parent * write_scale
@@ -1331,13 +1336,16 @@ def analyze_toll(node_idx, current_shape, info: AnalysisInfo):
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
     component_object = find_component_object(node.component, info.job.flattened_arch)
+    direction = component_object.direction
+    count_up = {TensorName(t): direction[t] != "down" for t in node.tensors}
+    count_down = {TensorName(t): direction[t] != "up" for t in node.tensors}
     storage_result = analyze_storage(
         node_idx,
         current_shape,
         info,
         propagate_child_results=True,
-        count_upward_movement=component_object.direction != "down",
-        count_downward_movement=component_object.direction != "up",
+        count_upward_movement=count_up,
+        count_downward_movement=count_down,
         count_writes=False,
     )
     for tensor in node.tensors:

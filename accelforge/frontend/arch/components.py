@@ -758,6 +758,36 @@ def _eval_tensor2bits(
     return {k2: v for k, v in result.items() for k2 in k}
 
 
+def _eval_direction(toeval, symbol_table: dict[str, Any]) -> dict[str, str]:
+    """Evaluate a direction field. If a string, expand to all tensors. If a dict,
+    resolve tensor expression keys."""
+    if isinstance(toeval, str):
+        # Single direction for all tensors
+        all_tensors = symbol_table["All"].instance
+        return {t: toeval for t in all_tensors}
+
+    result = {}
+    for key, value in toeval.items():
+        key_evaluated = eval_set_expression(
+            expression=key,
+            symbol_table=symbol_table,
+            expected_space=TensorName,
+            location=f"direction key {key}",
+        ).instance
+        result[key_evaluated] = value
+
+    all_tensors = symbol_table["All"].instance
+    for k in result:
+        all_tensors -= k
+
+    if all_tensors:
+        raise EvaluationError(
+            f"Missing direction for {all_tensors}. Have {result}."
+        )
+
+    return {t: v for k, v in result.items() for t in k}
+
+
 class Tensors(EvalableModel):
     """
     Fields that control which tensor(s) are kept in a :py:class:`~.TensorHolder` and in
@@ -990,10 +1020,15 @@ class Toll(TensorHolder):
     zero.
     """
 
-    direction: Literal["up", "down", "up_and_down"]
+    direction: EvalsTo[dict[str, Literal["up", "down", "up_and_down"]]]
     """
-    The direction in which data flows through this `Toll`. If "up", then data
-    flows from below `TensorHolder`, through this `Toll` (plus paying
+    The direction in which data flows through this `Toll`. Can be:
+
+    - A string: ``"up"``, ``"down"``, or ``"up_and_down"`` — applies to all tensors.
+    - A dict mapping tensor expressions to direction strings, e.g.
+      ``{input: "down", output: "up"}`` — sets direction per tensor.
+
+    If "up", then data flows from below `TensorHolder`, through this `Toll` (plus paying
     associated costs), and then to the next `TensorHolder` above it. Other data
     movements are assumed to avoid this Toll.
     """
@@ -1003,6 +1038,32 @@ class Toll(TensorHolder):
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(PROCESSING_STAGE_ACTIONS)
+
+    def _eval_expressions(self, *args, **kwargs):
+        if getattr(self, "_evaluated", False):
+            return super()._eval_expressions(*args, **kwargs)
+
+        # Override TensorHolder's _PostCall to also handle direction
+        class MyPostCall(_PostCall):
+            def __call__(self_pc, field, value, evaluated, symbol_table):
+                if field == "bits_per_value_scale":
+                    evaluated = _eval_tensor2bits(
+                        evaluated,
+                        location="bits_per_value_scale",
+                        symbol_table=symbol_table,
+                    )
+                if field == "direction":
+                    evaluated = _eval_direction(
+                        evaluated,
+                        symbol_table=symbol_table,
+                    )
+                return evaluated
+
+        # Skip TensorHolder's _eval_expressions (which adds its own post_calls
+        # for bits_per_value_scale) since we handle it here too
+        return Component._eval_expressions(
+            self, *args, **kwargs, post_calls=(MyPostCall(),)
+        )
 
     def _render_node_shape(self) -> str:
         return "rarrow"
