@@ -953,6 +953,12 @@ class Memory(TensorHolder):
     physical units may be flattened into only one logical level.
     """
 
+    skip_initial_output_write: bool = True
+    """
+    If False, the initial value of output tensors will be fetched from above and used to
+    initalize outputs. If True, this initial fetch and fill is skipped.
+    """
+
     def _render_node_shape(self) -> str:
         return "cylinder"
 
@@ -1008,6 +1014,13 @@ class Toll(TensorHolder):
 class Compute(Component, Leaf):
     actions: EvalableList[Action] = COMPUTE_ACTIONS
     """ The actions that this `Compute` can perform. """
+
+    skip_initial_output_write: bool = True
+    """
+    If False, the initial value of output tensors will be fetched from above and used to
+    initalize outputs. If True, this initial fetch and fill is skipped.
+    """
+
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
