@@ -1448,8 +1448,18 @@ def get_tile_shape_choices(
                 append = "" if direct_min_max else "_per_prime_factor"
                 if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
                     update_symbol2goal(s, Goal("min" + append))
+                    # TODO: Study on whether the following line makes things
+                    # faster. Doing "diff" no matter what may lead to less
+                    # pruning BUT it's much faster to prune using "diff"s than
+                    # "min"s.
+                    update_symbol2goal(s, Goal("diff"))
                 if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
                     update_symbol2goal(s, Goal("max" + append))
+                    # TODO: Study on whether the following line makes things
+                    # faster. Doing "diff" no matter what may lead to less
+                    # pruning BUT it's much faster to prune using "diff"s than
+                    # "min"s.
+                    update_symbol2goal(s, Goal("diff"))
 
                 for g in check:
                     # If this symbol != the one we tile, then a loop is added. Since
