@@ -19,6 +19,7 @@ from accelforge.frontend.mapping import (
     Loop,
 )
 from accelforge.frontend.workload import Workload
+from accelforge.frontend._workload_isl._symbolic import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import (
     get_stride_and_halo,
     get_rank_variable_relevancy,
@@ -292,8 +293,11 @@ def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload)
 
 def _assert_valid_pmapping(pmapping: Mapping, workload: Workload):
     """Assert that pmapping has loops with shape 1."""
-    einsum = workload.einsums[pmapping.nodes[-1].einsum]
-    rank_variables = set(einsum.rank_variables)
+    einsum_name = pmapping.nodes[-1].einsum
+    rank_variables = {
+        rv for rv, bound in get_rank_variable_bounds(workload, einsum_name).items()
+        if bound > 1
+    }
     for node in pmapping.nodes:
         if isinstance(node, Loop) and node.tile_shape == 1:
             if isinstance(node.rank_variable, set):
@@ -302,5 +306,5 @@ def _assert_valid_pmapping(pmapping: Mapping, workload: Workload):
                 rank_variables.remove(node.rank_variable)
     if len(rank_variables) > 0:
         raise InvalidMappingError(
-            f"Missing loop with shape 1 for rank variables {rank_variables} in Einsum {einsum.name}"
+            f"Missing loop with shape 1 for rank variables {rank_variables} in Einsum {einsum_name}"
         )
