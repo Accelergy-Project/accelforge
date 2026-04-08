@@ -8,8 +8,8 @@ arch:
     actions:
       # TODO: Get the network energies for NVLink.
       # 150 GB/s NVLink transfer speeds.
-    - {name: read, energy: 7.03e-12, latency: 1 / (150e9 * 8)}
-    - {name: write, energy: 7.03e-12, latency: 1 / (150e9 * 8)}
+    - {name: read, energy: 0, latency: 1 / (150e9 * 8)}
+    - {name: write, energy: 0, latency: 1 / (150e9 * 8)}
     tensors: {keep: All, may_keep: All}
 
   - !Memory
