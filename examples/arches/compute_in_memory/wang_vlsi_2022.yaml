@@ -75,8 +75,8 @@ arch:
     # ===========================================================================
     # Hardware
     # ===========================================================================
-    base_latency: 6.4e-9
-    latency_columns_scale: dac_unit_resistance / 5000 * array_bitlines / 128
+    base_latency: 6.8e-9
+    latency_columns_scale: dac_unit_resistance / 5000 * array_parallel_outputs / 16
     latency_dac_resolution_scale: voltage_dac_resolution / 8
     # Digital clock runs at 2x analog clock speed. Don't let analog clock go
     # faster than that
@@ -96,7 +96,7 @@ arch:
     name: DAC
     tensors: {keep: input}
     direction: down
-    bits_per_action: input_bits / n_input_slices # n_input_slices reads to send an input
+    bits_per_action: average_input_bits_per_slice
     component_class: DualSidedR2RLadderDAC
     n_parallel_instances: array_parallel_inputs # One DAC for each row
     extra_attributes_for_component_model:
@@ -106,11 +106,21 @@ arch:
       bit_distribution: input_bit_distribution
       hist: hist_to_magnitude(inputs_hist)
 
+  # This memory catches sliding windows that may be sent spatially in the array. E.g.,
+  # convolution steps spatially unrolled onto columns with overlapping windows. Size =
+  # one input value per row. no_resend_to_below prevents reuse across temporal
+  # iterations because it's not really a memory.
+  - !Memory
+    name: DummyRowDriverMemory
+    component_class: Dummy
+    size: input.bits_per_value * array_parallel_inputs
+    tensors: {keep: input, no_resend_to_below: input}
+
   - !Toll # Row drivers feed inputs onto the rows of the array
     name: RowDrivers
     tensors: {keep: input}
     direction: down
-    bits_per_action: input_bits / n_input_slices # n_input_slices reads to send an input
+    bits_per_action: average_input_bits_per_slice
     component_class: ArrayRowDrivers
 
   - !Toll # Weight drivers write weights to the array
@@ -118,14 +128,15 @@ arch:
     tensors: {keep: weight & Above} # Only program the weights if they're not backed in the CiM units
     direction: down
     component_class: ArrayRowDrivers
-    bits_per_action: weight_bits / n_weight_slices # n_weight_slices writes to send a weight
+    bits_per_action: average_weight_bits_per_slice
+    area_scale: 17.3  # Calibrate to paper (Misc = 11% of total area)
     extra_attributes_for_component_model: {<<: [*weight_drivers_attributes]}
 
   - !Toll # Select different sets of weights each timestep
     name: SelectWordlineDrivers
     tensors: {keep: input}
     direction: down
-    bits_per_action: input_bits / n_input_slices # n_input_slices reads to send an input
+    bits_per_action: average_input_bits_per_slice
     component_class: ArrayRowDrivers
     extra_attributes_for_component_model:
       # Unlike normal row drivers, this is always fully asserted to select a row
@@ -136,7 +147,7 @@ arch:
     tensors: {keep: output}
     direction: up
     component_class: ADC
-    bits_per_action: output_bits / n_sliced_psums
+    bits_per_action: average_output_bits_per_sliced_psum
     energy_scale: adc_energy_scale
     area_scale: adc_area_scale
     extra_attributes_for_component_model:
@@ -152,13 +163,13 @@ arch:
     bits_per_action: output_bits / n_sliced_psums
     actions: [{name: read, latency: cycle_period / cols_active_at_once}]
 
-  - !Container
+  - !Container # Each column of sub banks stores a different weight slice. Columns share inputs.
     name: ColumnOfSubBanks
     spatial:
-    - name: array_reuse_input # Special name that determines array size
+    - name: columns_ARRAY_COLUMNS # Special name that determines array size
       fanout: 16
       usage_scale: n_weight_slices
-      reuse: input
+      may_reuse: input
       min_usage: 1
 
   # Column bandwidth limiter to limit write speed (only one value can be written per
@@ -167,24 +178,22 @@ arch:
     name: ColumnBandwidthLimiter
     # Keep weight and output tensors. Don't keep anything if it doesn't leave the array.
     tensors: {keep: (weight | output) & Above}
-    direction: down
+    direction: {Outputs: up, ~Outputs: down}
     component_class: Dummy
-
     # Each time a weight slice is written to the array, consume 0.5 "bits". 0.5 because
     # the digital clock (writing weights) runs at 2x the speed of the analog clock. Each
     # time a sliced psum is read from the array, consume 1 "bit"
     bits_per_value_scale:
-      weight: n_weight_slices / weight_bits / 2
-      output: n_sliced_psums / output_bits
+      weight: 1 / average_weight_bits_per_slice / 2
+      output: 1 / average_output_bits_per_sliced_psum
       All - (weight | output): 0 # Don't care
-
     # One cycle period per "bit"
     actions: [{name: read, latency: cycle_period}]
 
   - !Container # Each sub-bank receives a different input slice. Sub-banks share outputs.
     name: SubBank
     spatial:
-    - name: array_reuse_output # Special name that determines array size
+    - name: rows_ARRAY_ROWS # Special name that determines array size
       fanout: 64
       reuse: output
       min_usage: 1
@@ -235,6 +244,11 @@ arch:
     name: FreeCompute
     component_class: Dummy
     enabled: len(All) == 3
+    # The column bandwidth limiter simulates sending an output down here each time the
+    # free compute is used. By default we can skip the first time an output is written
+    # (since the initial value is zero), but this would mess up the column bandwidth
+    # limiter, so we disable it here.
+    skip_initial_output_write: False
 
 # These variables pertain to the workload, microarch, and circuits. They should
 # be matched between architectures when comparing for a fair comparison.

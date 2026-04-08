@@ -1,19 +1,32 @@
 from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 
 from accelforge.util._base_analysis_types import VerboseActionKey
 from accelforge.mapper.FFM import Mappings
 
 
-def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, keyer):
+def _plot_breakdown(
+    mappings,
+    labels,
+    separate_by,
+    stack_by,
+    col_keyword: str,
+    keyer,
+    ax=None,
+    hide_zeros=False,
+):
     all_data = [m.data for m in mappings]
-    n_axes = sum(map(len, all_data))
 
-    fig, axes = plt.subplots(1, n_axes, sharey=True, figsize=(n_axes * 3, 4))
-    if n_axes == 1:
-        axes = [axes]
+    if ax is not None:
+        fig = ax.get_figure()
+        axes = [ax]
+    else:
+        n_axes = sum(map(len, all_data))
+        fig, axes = plt.subplots(1, n_axes, sharey=True, figsize=(n_axes * 3, 4))
+        if n_axes == 1:
+            axes = [axes]
 
     if labels is not None:
         labels = [l + "-" for l in labels]
@@ -32,10 +45,11 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
         )
 
         for j, (_key, row) in enumerate(df.iterrows()):
-            ax = axes[idx]
+            cur_ax = axes[min(idx, len(axes) - 1)]
             idx += 1
 
-            ax.set_title(f"{label}m{j}")
+            if ax is None:
+                cur_ax.set_title(f"{label}m{j}")
 
             # Collect names of bars and initialize label2hieghts
             bars = []
@@ -63,6 +77,17 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
                     heights[bar_i] = height
                     assert len(heights) == len(bars)
 
+            if hide_zeros:
+                nonzero = set()
+                for heights in label2heights.values():
+                    for i, h in enumerate(heights):
+                        if h != 0:
+                            nonzero.add(i)
+                if nonzero:
+                    bars = [bars[i] for i in nonzero]
+                    for lbl in label2heights:
+                        label2heights[lbl] = [label2heights[lbl][i] for i in nonzero]
+
             # Stack the bar heights in reverse order
             cur_heights = [0] * len(bars)
             for label, heights in reversed(list(label2heights.items())):
@@ -71,12 +96,13 @@ def _plot_breakdown(mappings, labels, separate_by, stack_by, col_keyword: str, k
                     heights[i] = cur_heights[i]
 
             for label, heights in label2heights.items():
-                ax.bar(bars, height=heights, label=label)
-                ax.set_xticks(bars, labels=bars, rotation=90)
-                # ax.set_xticklabels(bars, rotation=90)
+                cur_ax.bar(bars, height=heights, label=label)
+                cur_ax.set_xticks(bars, labels=bars, rotation=90)
 
-    for ax in axes:
-        ax.legend()
+    for a in axes:
+        handles, labels = a.get_legend_handles_labels()
+        if handles:
+            a.legend()
     return fig, axes
 
 
@@ -123,15 +149,18 @@ def _get_bar_components(colnames, keyer, separate_by, stack_by=None):
     )
 
     result = []
-    for group, subdf in df.groupby(by=separate_by):
-        group = ", ".join(group)
+    for group, subdf in df.groupby(by=separate_by, sort=False):
+        group = ", ".join(group) if isinstance(group, tuple) else str(group)
         if not stack_by:
             result.append((group, [(None, subdf["colname"])]))
         else:
             finer_separation = []
-            for subgroup, stack_df in subdf.groupby(by=stack_by):
-                stack_df = stack_df.sort_values(by="colname")
-                subgroup = ", ".join(subgroup)
+            for subgroup, stack_df in subdf.groupby(by=stack_by, sort=False):
+                subgroup = (
+                    ", ".join(subgroup)
+                    if isinstance(subgroup, tuple)
+                    else str(subgroup)
+                )
                 finer_separation.append((subgroup, stack_df["colname"]))
             result.append((group, finer_separation))
     return result

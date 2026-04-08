@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 import accelforge.frontend.arch as arch
-from accelforge.frontend.mapping import MappingNode, Toll, TensorHolder
+from accelforge.frontend.mapping import MappingNode, Storage, Toll, TensorHolder
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.workload import TensorName, SymbolTable
 from accelforge.util._eval_expressions import MATH_FUNCS
@@ -63,6 +63,8 @@ def get_tensor_choices(
             f"\t\tUnordered storage choice: {", ".join(n.compact_str() for n in x)}"
         )
         all_tensor_holders = [v2 for v in choice.values() for v2 in v]
+        storage_holders = [th for th in all_tensor_holders if isinstance(th, Storage)]
+        toll_holders = [th for th in all_tensor_holders if isinstance(th, Toll)]
 
         # Start out the mapping with the outermost memory name
         base_mapping = []
@@ -97,7 +99,7 @@ def get_tensor_choices(
             tensors,
             base_mapping,
             nodes,
-            all_tensor_holders,
+            storage_holders,
             required_order,
             spec,
             is_copy_op,
@@ -105,6 +107,7 @@ def get_tensor_choices(
             fusable_tensors,
             fanouts,
         ):
+            mapping = insert_tolls(mapping, toll_holders, nodes, fanouts)
             yield mapping, symbol_table, cur_compute
 
 
@@ -136,6 +139,74 @@ def get_tensor_order_constraint(nodes, symbol_table, tensors):
                 required_order.setdefault(node.name, []).append(order)
         seen_tensors.update(node_tensors.keep)
     return required_order
+
+
+def insert_tolls(
+    mapping: list[TensorHolder],
+    toll_holders: list[Toll],
+    arch_nodes: list[arch.TensorHolder],
+    fanouts: dict[str, int],
+) -> list[MappingNode]:
+    if not toll_holders:
+        return mapping
+
+    mapping = list(mapping)
+
+    arch_order = {n.name: i for i, n in enumerate(arch_nodes)}
+
+    # Sort tolls by arch order, then by tensor name
+    toll_holders = sorted(
+        toll_holders,
+        key=lambda t: (arch_order[t.component], sorted(t.tensors)),
+    )
+
+    for toll in toll_holders:
+        toll_arch_idx = arch_order[toll.component]
+        toll_fanout = fanouts.get(toll.component, 0)
+
+        # Must go below the storage node above them
+        toll_tensors = oset(toll.tensors)
+        min_pos = 0
+        for i, m in enumerate(mapping):
+            if (
+                oset(m.tensors) & toll_tensors
+                and arch_order[m.component] < toll_arch_idx
+            ):
+                min_pos = max(min_pos, i + 1)
+
+        # Rule 2: Must go above the storage node below them
+        max_pos = len(mapping)
+        for i, m in enumerate(mapping):
+            if (
+                oset(m.tensors) & toll_tensors
+                and arch_order[m.component] > toll_arch_idx
+            ):
+                max_pos = min(max_pos, i)
+                break
+
+        assert min_pos <= max_pos
+
+        # If possible, go below fanout above them
+        for i in range(min_pos, min(max_pos, len(mapping))):
+            if fanouts.get(mapping[i].component, 0) < toll_fanout:
+                min_pos = i + 1
+
+        # Go below any already-inserted entry from an arch level above this toll, and
+        # maintain alphabetical order for tolls at the same arch level
+        for i in range(min_pos, min(max_pos, len(mapping))):
+            m = mapping[i]
+            m_arch_idx = arch_order.get(m.component, -1)
+            if m_arch_idx < toll_arch_idx:
+                min_pos = i + 1
+            elif m_arch_idx == toll_arch_idx and sorted(m.tensors) < sorted(
+                toll.tensors
+            ):
+                min_pos = i + 1
+
+        # Rule 4: Go as high as possible
+        mapping.insert(min_pos, toll)
+
+    return mapping
 
 
 def recursive_order_tensor_choices(
@@ -301,26 +372,6 @@ def valid_tensor_holder_order(
                     )
                 # Ignore the following constraints
                 continue
-
-            # We don't really care about toll order, so just make it follow the regular
-            # memory hierarchy order. For tolls at a given level, make them
-            # alphabetical.
-            if (
-                isinstance(m0, Toll)
-                and m0.component == m1.component
-                and m0.tensor < m1.tensor
-            ):
-                return (
-                    False,
-                    f"Processing stage {m0} is not ordered alphabetically by tensor; has tensor {m0.tensor} before {m1.tensor}",
-                )
-
-            # If there is a toll, don't explore order. If there's two back-to-back nodes
-            # and one is a toll, make them follow the memory hierarchy order.
-            if isinstance(m0, Toll) and s2_idx < s1_idx and i == j - 1:
-                return False, f"Processing stage {m0} is directly above {m1}"
-            if isinstance(m1, Toll) and s2_idx < s1_idx and i == j - 1:
-                return False, f"Processing stage {m1} is directly above {m0}"
 
             if s1 == s2 and s1 in required_orders and i != j:
                 if s1 not in memory_to_satisfied_constraints:

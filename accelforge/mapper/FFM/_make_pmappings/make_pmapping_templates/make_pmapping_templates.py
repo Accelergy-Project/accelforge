@@ -358,7 +358,12 @@ def iterate_mappings_constraints(
             job,
         ):
             mapping, constraints = get_constraints(
-                flattened_arch, mapping, symbol_table, einsum_name, tensor_to_relevancy
+                flattened_arch,
+                mapping,
+                symbol_table,
+                einsum_name,
+                tensor_to_relevancy,
+                is_copy_operation=spec.workload.einsums[einsum_name].is_copy_operation,
             )
 
             # This goes after the constraints because constraints may remove some loops,

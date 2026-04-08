@@ -78,40 +78,98 @@ arch:
     cycle_period: cycle_period
 
   nodes:
+
+  # NOTE: THE BELOW IS NOT TESTED.
+
+  #   {% if INCLUDE_CHIP | default(False) %}
+
+  # # - !Container # Tile
+  # #   name: SharedRouterGroup
+  # #   spatial: [{name: SharedRouterGroup, fanout: 32, power_gateable: True, min_usage: 1}]
+
+  # # - !Toll # Router: Sends data to other tiles
+  # #   name: Router
+  # #   subclass: IsaacRouter
+  # #   extra_attributes_for_component_model: {width: 128}
+
+  # # - !Container # Tile
+  # #   name: Tile # long name so it doesn't conflict with other names
+  # #   spatial: [{name: Tile, fanout: 4, power_gateable: True, min_usage: 1}]
+
+  #   {% endif %}
+
+  #   {% if INCLUDE_TILE | default(False) %}
+
+  # # - !Component # eDRAM buffer serves a set of tiles
+  # #   name: EDRAMBuffer
+  # #   <<<: [*component_defaults]
+  # #   subclass: IsaacEDRAM
+  # #   size: 64 * 1024 * 8 # 64KB
+  # #   constraints: {dataspace: {keep_only: [Inputs, Outputs]}}
+
+  # # # The original ISAAC paper does not have this component, but we add it
+  # # # to match the other models and let ISAAC support lower precision.
+  # # - !Toll # Quantize outputs before sending them to the next tile
+  # #   name: RaellaQuantEDRAM
+  # #   <<<: [*component_defaults, *keep_outputs, *no_coalesce]
+  # #   subclass: RaellaQuantEDRAM
+  # #   extra_attributes_for_component_model:
+  # #     size: 32 * 1024 * 8 # 32kB for scales
+  # #     width: 16 # 16b outputs pre-quantize
+  # #   # Reads are NOT per-bit here! One read should quantize one output value
+  # #   bits_per_action: output.bits_per_value
+
+  # # - !Component # Inter-tile network feeds inputs/outputs between tiles
+  # #   name: InterMacroNetwork
+  # #   subclass: IsaacEDRAMBus
+  # #   extra_attributes_for_component_model: {width: 256}
+  # #   n_instances: MacroGroup.get_fanout()
+  # #   tensors: {keep: input | output, tensor_order_options: [[output, input]]}
+  # #   bits_per_value_scale: {output: 2, ~output: 1} # Accumulate outputs in 2x precision
+
+  # # - !Container # Macro
+  # #   name: MacroGroup
+  # #   spatial: [{name: MacroGroup, fanout: 8, power_gateable: True}]
+
+  #   {% endif %}
+
   - !Memory # Input buffer
     name: InputBuffer
     tensors: {keep: input}
-    size: MultiArrayFanout.get_fanout() * array_parallel_inputs * supported_input_bits
+    size: Macro.get_fanout() * array_parallel_inputs * supported_input_bits
     component_class: SmartBufferSRAM
+    extra_attributes_for_component_model: {width: 64}
 
   - !Memory # Output buffer
     name: OutputBuffer
     tensors: {keep: output}
-    size: MultiArrayFanout.get_fanout() * array_parallel_outputs // min_weight_slices * supported_output_bits * 2
+    # Max size: Number of arrays * outputs/array / (weight slices, since outputs shared
+    # among weight slices) * output precision (doubled for accumulation)
+    size: Macro.get_fanout() * array_parallel_outputs // min_weight_slices * supported_output_bits * 2
     component_class: SmartBufferSRAM
+    bits_per_value_scale: {output: 2, ~output: 1} # Accumulate outputs in 2x precision
+    extra_attributes_for_component_model: {width: 64}
 
   - !Toll # Shift+add sums outputs from multiple slices
     name: ShiftAdd
     tensors: {keep: output}
     direction: up
-    n_parallel_instances: MultiArrayFanout.get_fanout() # Match throughput with arrays
-    bits_per_action: output_bits / n_sliced_psums # n_sliced_psums reads to get an output
+    n_parallel_instances: Macro.get_fanout() # Match throughput with arrays
+    bits_per_action: average_output_bits_per_sliced_psum
     component_class: ISAACShiftAdd
     extra_attributes_for_component_model:
       n_bits: supported_output_bits
       shift_register_n_bits: supported_output_bits * 2
 
-  - !Container # array: Independent array with memory elements and peripherals.
-    name: MultiArrayFanout
-    spatial:
-     - name: array
-       fanout: 8
+  - !Container # Independent array with memory elements and peripherals
+    name: Macro
+    spatial: [{name: array, fanout: 8}]
 
   - !Toll # ADC
     name: ADC
     tensors: {keep: output}
     direction: up
-    bits_per_action: output_bits / n_sliced_psums # n_sliced_psums reads to get an output
+    bits_per_action: average_output_bits_per_sliced_psum
     component_class: ADC
     energy_scale: adc_energy_scale
     area_scale: adc_area_scale
@@ -120,30 +178,39 @@ arch:
       throughput: 1 / cycle_period * cols_active_at_once * throughput_scale
       n_bits: adc_resolution
 
+  # This memory catches sliding windows that may be sent spatially in the array. E.g.,
+  # convolution steps spatially unrolled onto columns with overlapping windows. Size =
+  # one input value per row. no_resend_to_below prevents reuse across temporal
+  # iterations because it's not really a memory.
+  - !Memory
+    name: DummyRowDriverMemory
+    component_class: Dummy
+    size: input.bits_per_value * array_parallel_inputs
+    tensors: {keep: input, no_resend_to_below: input}
+
   - !Toll # Row drivers feed inputs onto the rows of the array
     name: RowDrivers
     tensors: {keep: input}
     direction: down
-    bits_per_action: input_bits / n_input_slices # n_input_slices reads to send an input
+    bits_per_action: average_input_bits_per_slice
     component_class: ArrayRowDrivers
 
   - !Toll # Column drivers precharge the array columns
     name: ColumnDrivers
     tensors: {keep: output}
     direction: up
-    bits_per_action: output_bits / n_sliced_psums # n_sliced_psums reads to get an output
+    bits_per_action: average_output_bits_per_sliced_psum
     component_class: ArrayColumnDrivers
 
   - !Container
-    name: ArrayFanout
+    name: MemoryCell
     spatial:
-    - name: array_reuse_input # Special name that determines array size
+    - name: columns_ARRAY_COLUMNS # Special name that determines array size
       fanout: 128
       may_reuse: input
-      reuse: input
       min_usage: 1
       usage_scale: n_weight_slices
-    - name: array_reuse_output # Special name that determines array size
+    - name: rows_ARRAY_ROWS # Special name that determines array size
       fanout: 128
       may_reuse: output
       reuse: output
@@ -158,12 +225,11 @@ arch:
     name: CimUnit
     tensors: {keep: weight, no_refetch_from_above: weight, force_memory_hierarchy_order: False}
     size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell * n_weight_slices
-    # Requires (n_weight_slices * n_input_slices) = n_sliced_psums reads to fully use
-    # one weight
-    bits_per_action: weight.bits_per_value / n_sliced_psums
+    bits_per_action: average_weight_bits_per_sliced_psum
     # Bind together n_weight_slices instances to hold one weight
     n_parallel_instances: n_weight_slices
     component_class: MemoryCell
+    actions: [{name: read, latency: cycle_period}]
     extra_attributes_for_component_model:
       n_instances: cim_unit_width_cells * cim_unit_depth_cells
 

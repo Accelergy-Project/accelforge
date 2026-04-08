@@ -1,7 +1,7 @@
 """
 Regression tests for the FFM mapper.
 
-    python tests/test_regression.py            # (re)generate reference json
+    python tests/test_regression.py            # (re)generate both reference jsons
     pytest tests/test_regression.py -v         # compare against reference
 """
 
@@ -311,5 +311,51 @@ for _arch_name in ["eyeriss", "simba", "simple", "tpu_v4i"]:
     setattr(TestHWComponentsConsistency, _test_name, _make_test())
 
 
+def generate_hwcomponents():
+    arches = {
+        "eyeriss": af.examples.arches.eyeriss,
+        "simba": af.examples.arches.simba,
+        "simple": af.examples.arches.simple,
+        "tpu_v4i": af.examples.arches.tpu_v4i,
+    }
+    results = {}
+    for name, arch_path in arches.items():
+        spec = Spec.from_yaml(
+            arch_path,
+            af.examples.workloads.matmuls,
+            jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
+        )
+        spec = spec.calculate_component_area_energy_latency_leak(
+            einsum_name="Matmul0"
+        )
+        components = {}
+        for node in spec.arch.nodes:
+            if not isinstance(node, (af.arch.Memory, af.arch.Compute)):
+                continue
+            comp = {}
+            if node.area is not None:
+                comp["area"] = float(node.area)
+            if node.leak_power is not None:
+                comp["leak_power"] = float(node.leak_power)
+            actions = {}
+            for a in node.actions:
+                act = {}
+                if a.energy is not None:
+                    act["energy"] = float(a.energy)
+                if a.latency is not None:
+                    act["latency"] = float(a.latency)
+                if act:
+                    actions[a.name] = act
+            if actions:
+                comp["actions"] = actions
+            if comp:
+                components[node.name] = comp
+        results[name] = components
+    with open(HWCOMPONENTS_JSON_PATH, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Wrote {len(results)} arch results to {HWCOMPONENTS_JSON_PATH}")
+
+
 if __name__ == "__main__":
+    generate_hwcomponents()
     generate(fusion_choices=(True, False))

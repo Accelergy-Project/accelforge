@@ -275,7 +275,10 @@ def insert_temporal_loops(
         choices.append(
             list(
                 canonical_loop_orders(
-                    rank_variables, permutable_partially_relevant, can_lower, explore_loop_orders
+                    rank_variables,
+                    permutable_partially_relevant,
+                    can_lower,
+                    explore_loop_orders,
                 )
             )
         )

@@ -672,7 +672,10 @@ class Mappings:
 
             # Not per-Einsum and not per-component: sum into a single value
             else:
-                result = np.sum(list(result.values()))
+                summed = None
+                for v in result.values():
+                    summed = v if summed is None else summed + v
+                result = summed
 
         return _series2list(result, list_if_one_mapping)
 

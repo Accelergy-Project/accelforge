@@ -16,8 +16,10 @@ from accelforge.frontend.mapping import (
     Nested,
     NodeList,
     TensorHolder,
+    Loop,
 )
 from accelforge.frontend.workload import Workload
+from accelforge.frontend._workload_isl._symbolic import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import (
     get_stride_and_halo,
     get_rank_variable_relevancy,
@@ -26,6 +28,11 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_
     get_initial_delta_choices,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
+
+
+class InvalidMappingError(Exception):
+    def __init__(self, *args):
+        super().__init__(*args)
 
 
 def evaluate_mapping(
@@ -99,6 +106,8 @@ def evaluate_mapping(
 
     assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
+        _assert_valid_pmapping(pmapping, spec.workload)
+
         einsum_name = pmapping.nodes[-1].einsum
         compute_name = pmapping.nodes[-1].component
         pmapping_id = uuid4()
@@ -282,3 +291,22 @@ def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload)
             new_nodes.append(node)
 
     pmapping.nodes = new_nodes
+
+
+def _assert_valid_pmapping(pmapping: Mapping, workload: Workload):
+    """Assert that pmapping has loops with shape 1."""
+    einsum_name = pmapping.nodes[-1].einsum
+    rank_variables = {
+        rv for rv, bound in get_rank_variable_bounds(workload, einsum_name).items()
+        if bound > 1
+    }
+    for node in pmapping.nodes:
+        if isinstance(node, Loop) and node.tile_shape == 1:
+            if isinstance(node.rank_variable, set):
+                rank_variables.difference_update(node.rank_variable)
+            else:
+                rank_variables.remove(node.rank_variable)
+    if len(rank_variables) > 0:
+        raise InvalidMappingError(
+            f"Missing loop with shape 1 for rank variables {rank_variables} in Einsum {einsum_name}"
+        )

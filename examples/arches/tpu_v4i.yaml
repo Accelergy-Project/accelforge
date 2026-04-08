@@ -1,3 +1,11 @@
+# Norm Jouppi, George Kurian, Sheng Li, Peter Ma, Rahul Nagarajan, Lifeng Nai, Nishant
+# Patil, Suvinay Subramanian, Andy Swing, Brian Towles, Clifford Young, Xiang Zhou,
+# Zongwei Zhou, and David A Patterson. 2023. TPU v4: An Optically Reconfigurable
+# Supercomputer for Machine Learning with Hardware Support for Embeddings. In
+# Proceedings of the 50th Annual International Symposium on Computer Architecture (ISCA
+# '23). Association for Computing Machinery, New York, NY, USA, Article 82, 1–14.
+# https://doi.org/10.1145/3579371.3589350
+
 arch:
   nodes:
   - !Memory
@@ -17,7 +25,7 @@ arch:
     size: 1024*1024*128*8 # 128MB
     total_latency: max(read_latency, write_latency) # Separate ports
     leak_power: 0
-    area: 112e-6 # 112 mm^2
+    area: 112e-6 # From paper fig. 6
     actions:
     - {name: read, energy: 1.88e-12, latency: 1 / (8 * 2048e9)}
     - {name: write, energy: 2.36e-12, latency: 1 / (8 * 1024e9)}
@@ -28,7 +36,7 @@ arch:
     spatial: [{name: Z, fanout: 4, may_reuse: Nothing, min_usage: 1}]
     size: 1024*1024*4*8 # 4MB
     leak_power: 0
-    area: 50e-6 # 50 mm^2. Very rough estimate based on die photo.
+    area: 51e-6 # From paper fig. 6
     support_concurrent_binding: True
     actions:
     - {name: read, energy: 0.249e-12, latency: 0}
@@ -37,7 +45,7 @@ arch:
 
   - !Compute
     name: ScalarUnit
-    area: 10e-6 # 10 um^2. Very rough estimate based on die photo.
+    area: 8.7e-6 # From die photo.
     leak_power: 0
     actions:
     - {name: compute, energy: 0, latency: 1 / 1.05e9 / 128}
@@ -52,7 +60,7 @@ arch:
   - !Memory
     name: Register
     size: weight.bits_per_value if weight else 0
-    area: 1e-11 # 10 um^2. Very rough estimate based on die photo.
+    area: 8.5e-11 # Fig. 6 has 14mm^2 for a 128x128. Assume regs are 10%.
     leak_power: 0
     actions:
     - {name: read, energy: 0, latency: 0}
@@ -62,7 +70,7 @@ arch:
   - !Compute
     name: MAC
     leak_power: 0
-    area: 9e-11 # 90 um^2. Very rough estimate based on die photo.
+    area: 8.5e-10 # Fig. 6 has 14mm^2 for a 128x128. Assume MAC is 90%.
     actions:
     - {name: compute, energy: 0.084e-12, latency: 1 / 1.05e9}
     enabled: len(All) == 3

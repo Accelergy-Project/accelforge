@@ -42,28 +42,6 @@ class MappingConstraints:
             + list(self.min_usage_constraints.values())
         )
 
-    def check_tile_shape_constraints(
-        self, tile_shapes: np.ndarray, complete_indices: list[int]
-    ):
-        mask = np.ones(tile_shapes.shape[0], dtype=np.bool)
-        for c in self.tile_shape_constraints:
-            mask = mask & c(complete_indices, tile_shapes[:, c._target_loop_indices])
-        return mask
-
-    def check_min_usage_constraints(
-        self,
-        component_name: str,
-        name: str,
-        usage: np.ndarray,
-        complete_indices: list[int],
-    ):
-        if (component_name, name) not in self.min_usage_constraints:
-            return np.ones(usage.shape[0], dtype=np.bool)
-
-        return self.min_usage_constraints[(component_name, name)](
-            complete_indices, usage
-        )
-
     def set_loop_indices(self, nodes: list[MappingNode]):
         loops = [n for n in nodes if isinstance(n, Loop)]
         for c in self.get_all_constraints():
@@ -226,6 +204,7 @@ def get_constraints(
     tensor_to_relevancy: dict[
         TensorName, dict[RankVariable, Relevant | PartiallyRelevant]
     ],
+    is_copy_operation: bool,
 ) -> tuple[List[MappingNode], MappingConstraints]:
 
     constraints = MappingConstraints()
@@ -372,7 +351,8 @@ def get_constraints(
                 and n.component == m.name
                 and n.name == dim.name
             ]
-            if dim.min_usage > 0:
+            # Min usage constraints don't apply to copy operations
+            if dim.min_usage > 0 and not is_copy_operation:
                 if not target_mapping_nodes:
                     continue
                 rank_variables = oset(t.rank_variable for t in target_mapping_nodes)

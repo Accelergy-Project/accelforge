@@ -53,6 +53,9 @@ variables_global: &variables_global
 
   average_input_bits_per_slice: encoded_input_bits / n_input_slices
   average_weight_bits_per_slice: encoded_weight_bits / n_weight_slices
+  average_input_bits_per_sliced_psum: encoded_input_bits / n_sliced_psums
+  average_weight_bits_per_sliced_psum: encoded_weight_bits / n_sliced_psums
+  average_output_bits_per_sliced_psum: encoded_output_bits / n_sliced_psums
 
   # This is for the bitwise-multiplication of the input and weight slices
   n_virtual_macs: max_input_bits_per_slice * max_weight_bits_per_slice * encoded_output_bits

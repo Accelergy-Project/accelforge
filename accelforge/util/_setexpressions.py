@@ -8,10 +8,13 @@ from accelforge.util._eval_expressions import MATH_FUNCS
 T = TypeVar("T")
 
 
-def _reconstruct_invertible_set(state):
+def _reconstruct_invertible_set(dict_state, pydantic_private):
     """Helper function to reconstruct InvertibleSet during unpickling."""
     obj = object.__new__(InvertibleSet)
-    obj.__dict__.update(state)
+    obj.__dict__.update(dict_state)
+    object.__setattr__(obj, "__pydantic_fields_set__", set())
+    object.__setattr__(obj, "__pydantic_extra__", {})
+    object.__setattr__(obj, "__pydantic_private__", pydantic_private or {})
     return obj
 
 
@@ -53,13 +56,23 @@ class InvertibleSet(BaseModel, Generic[T]):
         self._bits_per_value = value
 
     def __reduce__(self):
-        return (_reconstruct_invertible_set, (self.__dict__,))
+        return (
+            _reconstruct_invertible_set,
+            (
+                self.__dict__,
+                getattr(self, "__pydantic_private__", {}),
+            ),
+        )
 
     def __getstate__(self):
-        return self.__dict__
+        return self.__dict__, getattr(self, "__pydantic_private__", {})
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        dict_state, pydantic_private = state
+        self.__dict__.update(dict_state)
+        object.__setattr__(self, "__pydantic_fields_set__", set())
+        object.__setattr__(self, "__pydantic_extra__", {})
+        object.__setattr__(self, "__pydantic_private__", pydantic_private or {})
 
     def __deepcopy__(self, memo):
         """Custom deepcopy implementation to avoid pydantic deepcopy issues."""

@@ -97,12 +97,10 @@ def get_jobs(
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     einsum2spec: dict[EinsumName, Spec] = {}
-    s = f"Getting energy, latency, and leak power for components running "
-    pbar = tqdm(einsum_names, desc=s) if print_progress else einsum_names
-    for einsum_name in pbar:
-        if print_progress:
-            pbar.set_description(s + einsum_name)
-        einsum2spec[einsum_name] = (
+    s = "Getting energy, latency, and leak power for components running each Einsum. "
+
+    def _get_per_einsum_spec(spec, einsum_name):
+        result = (
             spec._spec_eval_expressions(
                 einsum_name=einsum_name,
                 eval_arch=True,
@@ -115,7 +113,16 @@ def get_jobs(
             ._for_einsum(einsum_name)
             ._clear_component_models()
         )
-        einsum2spec[einsum_name] = _memmap_read(einsum2spec[einsum_name])
+        return einsum_name, _memmap_read(result)
+
+    for einsum_name, result in parallel(
+        [
+            delayed(_get_per_einsum_spec)(spec, einsum_name)
+            for einsum_name in einsum_names
+        ],
+        pbar=s if print_progress else None,
+    ):
+        einsum2spec[einsum_name] = result
 
     def make_jobs_for_einsum(
         einsum_name: EinsumName,

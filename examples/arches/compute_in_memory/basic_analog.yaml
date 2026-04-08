@@ -1,0 +1,175 @@
+# Basic analog CiM macro.
+# A simple analog compute-in-memory macro demonstrating the fundamental
+# components of an analog CiM array: row drivers (DAC), column drivers,
+# ADC, memory cells, and a virtualized MAC compute unit.
+
+{{include_text('_include.yaml')}}
+{{add_to_path('./memory_cells')}}
+
+arch:
+  variables:
+    <<: *variables_global
+
+    # ===========================================================================
+    # Encoding-dependent parameters
+    # ===========================================================================
+    encoded_input_bits:  input_bits
+    encoded_weight_bits: weight_bits
+    encoded_output_bits: output_bits
+
+    input_encoding_func: offset_encode_hist
+    weight_encoding_func: offset_encode_hist
+
+    # For accuracy model. Can in-array accumulation include signed values?
+    # Signed accumulation not compatible with offset encoding (since offset
+    # encoding makes values non-negative).
+    signed_sum_across_inputs: False
+    signed_sum_across_weights: False
+
+    # ===========================================================================
+    # Architecture & CiM Array Structure
+    # ===========================================================================
+    cim_unit_width_cells:  1
+    cim_unit_depth_cells:  1
+    bits_per_cell:         8
+
+    # ===========================================================================
+    # Data Converters
+    # ===========================================================================
+    adc_resolution: 8
+    voltage_dac_resolution: 1
+    temporal_dac_resolution: 8
+
+    n_adc_per_bank: 2
+
+    # ===========================================================================
+    # Hardware
+    # ===========================================================================
+    cycle_period: 1e-7 * voltage_latency_scale
+    read_pulse_width: 1e-9
+
+  extra_attributes_for_all_component_models:
+    <<: *cim_component_attributes
+    tech_node: tech_node
+    cycle_period: cycle_period
+
+  nodes:
+  - !Toll # ADC: Column readout
+    name: ADC
+    tensors: {keep: output}
+    direction: up
+    bits_per_action: average_output_bits_per_sliced_psum
+    component_class: ADC
+    energy_scale: adc_energy_scale
+    area_scale: adc_area_scale
+    extra_attributes_for_component_model:
+      n_bits: adc_resolution
+      throughput_scale: 1
+      throughput: 1 / cycle_period * cols_active_at_once * throughput_scale
+
+  - !Toll # Column drivers precharge the array columns
+    name: ColumnDrivers
+    tensors: {keep: output}
+    direction: up
+    bits_per_action: average_output_bits_per_sliced_psum
+    component_class: ArrayColumnDrivers
+
+  - !Toll # Row drivers feed inputs onto the rows of the array
+    name: RowDrivers
+    tensors: {keep: input}
+    direction: down
+    bits_per_action: average_input_bits_per_slice
+    component_class: ArrayRowDrivers
+    extra_attributes_for_component_model:
+      temporal_spiking: true
+
+  # This memory catches sliding windows that may be sent spatially in the array. E.g.,
+  # convolution steps spatially unrolled onto columns with overlapping windows. Size =
+  # one input value per row. no_resend_to_below prevents reuse across temporal
+  # iterations.
+  - !Memory
+    name: DummyRowDriverMemory
+    component_class: Dummy
+    size: input.bits_per_value * array_parallel_inputs
+    tensors: {keep: input, no_resend_to_below: input}
+
+  - !Container # Each column stores a different weight slice. Columns share inputs.
+    name: Column
+    spatial:
+    - name: column_ARRAY_COLUMNS
+      fanout: 32
+      may_reuse: input
+      min_usage: 1
+      usage_scale: n_weight_slices
+
+  - !Container # Each row receives a different input slice. Rows share outputs.
+    name: Row
+    spatial:
+    - name: row_ARRAY_ROWS
+      fanout: 32
+      may_reuse: output
+      reuse: output
+      min_usage: 1
+
+  # CiM unit stores weights and computes MACs.
+  - !Memory
+    name: CimUnit
+    tensors: {keep: weight, no_refetch_from_above: weight, force_memory_hierarchy_order: False}
+    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell * n_weight_slices
+    bits_per_action: average_weight_bits_per_sliced_psum
+    n_parallel_instances: n_weight_slices
+    component_class: MemoryCell
+    actions: [{name: read, latency: cycle_period}]
+    extra_attributes_for_component_model:
+      n_instances: cim_unit_width_cells * cim_unit_depth_cells
+
+  # We account for compute energy in the CimUnit reads
+  - !Compute
+    name: FreeCompute
+    component_class: Dummy
+    enabled: len(All) == 3
+
+
+# These variables pertain to the workload, microarch, and circuits.
+variables:
+  inputs_hist: [0, 0, 0, 3, 2, 1, 0]
+  weights_hist: ([1] * 15)
+  outputs_hist: inputs_hist
+
+  ## Microarch ----------------------------------------------------------------
+  supported_input_bits:  8
+  supported_weight_bits: 8
+  supported_output_bits: 8
+  min_supported_input_bits: 1
+  min_supported_weight_bits: 1
+  min_supported_output_bits: 1
+
+  # Circuits ------------------------------------------------------------------
+  voltage: 1
+  tech_node: 65e-9 # 65nm
+  cell_config: "{{find_path('rram_example.yaml')}}"
+  voltage_energy_scale: voltage ** 2
+  voltage_latency_scale: 1 / voltage
+
+  # Calibration ---------------------------------------------------------------
+  adc_energy_scale: voltage_energy_scale
+  adc_area_scale: 1
+  row_col_drivers_area_scale: 1
+
+
+# This workload is sized to get peak throughput & energy efficiency.
+# 32 columns × 32 rows fills the array.
+workload:
+  rank_sizes:
+    M: 1
+    N: 32
+    K: 32
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: input, projection: [m, k], bits_per_value: 8}
+    - {name: weight, projection: [k, n], bits_per_value: 8}
+    - {name: output, projection: [m, n], output: True, bits_per_value: 8}
+
+renames: {} # Not needed for this workload

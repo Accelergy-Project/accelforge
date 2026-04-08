@@ -247,7 +247,7 @@
       }
     },
     "LocalBuffer": {
-      "area": 5e-05,
+      "area": 5.1e-05,
       "leak_power": 0.0,
       "actions": {
         "read": {
@@ -261,7 +261,7 @@
       }
     },
     "ScalarUnit": {
-      "area": 1e-05,
+      "area": 8.7e-06,
       "leak_power": 0.0,
       "actions": {
         "compute": {
@@ -271,7 +271,7 @@
       }
     },
     "Register": {
-      "area": 1e-11,
+      "area": 8.5e-11,
       "leak_power": 0.0,
       "actions": {
         "read": {
@@ -285,7 +285,7 @@
       }
     },
     "MAC": {
-      "area": 9e-11,
+      "area": 8.5e-10,
       "leak_power": 0.0,
       "actions": {
         "compute": {

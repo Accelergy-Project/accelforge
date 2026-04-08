@@ -1190,7 +1190,29 @@ def analyze_storage(
     einsum_name = mapping[-1].einsum
     node: TensorHolder = mapping[node_idx]
 
+    if not isinstance(count_upward_movement, dict):
+        count_upward_movement = {
+            TensorName(t): count_upward_movement for t in node.tensors
+        }
+    if not isinstance(count_downward_movement, dict):
+        count_downward_movement = {
+            TensorName(t): count_downward_movement for t in node.tensors
+        }
+
     child_result = analyze_node(node_idx + 1, current_shape, info)
+    component_object = find_component_object(node.component, info.job.flattened_arch)
+
+    # Toll -> No initial output write because things just pass through. Keep
+    # skip_initial True so that it inherits the value from the child.
+    if isinstance(component_object, arch.Toll):
+        skip_initial = True
+    # Memory -> Skip initial output write is a setting
+    elif isinstance(component_object, arch.Memory):
+        skip_initial = component_object.skip_initial_output_write
+    else:
+        raise ValueError(f"Unknown component object: {component_object}")
+
+    skip_initial = skip_initial and not info.is_copy_operation
 
     for tensor in node.tensors:
         tensor = TensorName(tensor)
@@ -1243,12 +1265,12 @@ def analyze_storage(
 
             # For read+write tensors, we skip the first fill because the data will be
             # initialized with a zero value. This only applies where reads from
-            # parent actually occur (below the backing store). At and above the
-            # backing there are no parent reads to skip.
+            # parent actually occur (below the backing store).
             if (
                 tensor in info.workload.einsums[einsum_name].output_tensor_names
                 and not is_backing
                 and below_backing
+                and skip_initial
             ):
                 inherit_add("total_skipped_first_reads_to_parent")
                 inherit_add("min_per_parent_skipped_first_reads_to_parent")
@@ -1257,9 +1279,6 @@ def analyze_storage(
         # Convert to actions. These are not used used upward; they are used to get
         # energy and latency.
         # ==============================================================================
-        component_object = find_component_object(
-            node.component, info.job.flattened_arch
-        )
         bits_per_value_scale = component_object.bits_per_value_scale[tensor]
         bits_per_value = (
             bits_per_value_scale
@@ -1275,7 +1294,7 @@ def analyze_storage(
 
         # ==========================
         # Data exchanges with parent
-        if count_downward_movement:  # Parent -> Me
+        if count_downward_movement[tensor]:  # Parent -> Me
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
             stats.max_per_unit_write_actions += (
                 stats.total_reads_to_parent * write_scale
@@ -1287,7 +1306,7 @@ def analyze_storage(
                 stats.min_per_parent_skipped_first_reads_to_parent * write_scale
             )
 
-        if count_upward_movement:  # Me -> Parent
+        if count_upward_movement[tensor]:  # Me -> Parent
             # Comment this to have the final writeback to a buffer hit both that buffer and
             # go directly to the parent without incurring another read from the buffer.
             stats.total_read_actions += stats.total_writes_to_parent * read_scale
@@ -1301,20 +1320,21 @@ def analyze_storage(
         # =========================
         # Data exchanges with child
         if child is not None:
-            if count_downward_movement:  # Me -> Child
+            if count_downward_movement[tensor]:  # Me -> Child
                 stats.total_read_actions += child.total_reads_to_parent * read_scale
                 stats.max_per_unit_read_actions += (
                     child.max_per_parent_reads_to_parent * read_scale
                 )
                 # Skip first read
-                stats.total_skipped_first_read_actions += (
-                    child.total_skipped_first_reads_to_parent * read_scale
-                )
-                stats.min_per_unit_skipped_first_read_actions += (
-                    child.min_per_parent_skipped_first_reads_to_parent * read_scale
-                )
+                if skip_initial:
+                    stats.total_skipped_first_read_actions += (
+                        child.total_skipped_first_reads_to_parent * read_scale
+                    )
+                    stats.min_per_unit_skipped_first_read_actions += (
+                        child.min_per_parent_skipped_first_reads_to_parent * read_scale
+                    )
 
-            if count_upward_movement:  # Child -> Me
+            if count_upward_movement[tensor]:  # Child -> Me
                 stats.total_write_actions += child.total_writes_to_parent * write_scale
                 stats.max_per_unit_write_actions += (
                     child.max_per_parent_writes_to_parent * write_scale
@@ -1328,13 +1348,16 @@ def analyze_toll(node_idx, current_shape, info: AnalysisInfo):
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
     component_object = find_component_object(node.component, info.job.flattened_arch)
+    direction = component_object.direction
+    count_up = {TensorName(t): direction[t] != "down" for t in node.tensors}
+    count_down = {TensorName(t): direction[t] != "up" for t in node.tensors}
     storage_result = analyze_storage(
         node_idx,
         current_shape,
         info,
         propagate_child_results=True,
-        count_upward_movement=component_object.direction != "down",
-        count_downward_movement=component_object.direction != "up",
+        count_upward_movement=count_up,
+        count_downward_movement=count_down,
         count_writes=False,
     )
     for tensor in node.tensors:
@@ -1405,6 +1428,11 @@ def analyze_compute(
 
     computes = 0 if info.is_copy_operation else 1
 
+    component_object = find_component_object(node.component, info.job.flattened_arch)
+    skip_initial = (
+        component_object.skip_initial_output_write and not info.is_copy_operation
+    )
+
     result_accumulator = SymbolicAnalysisOutput()
 
     compute_key = Compute(einsum, node.component)
@@ -1426,8 +1454,9 @@ def analyze_compute(
         if tensor in info.workload.einsums[einsum].output_tensor_names:
             stats.total_writes_to_parent = 1
             stats.max_per_parent_writes_to_parent = 1
-            stats.total_skipped_first_reads_to_parent = 1
-            stats.min_per_parent_skipped_first_reads_to_parent = 1
+            if skip_initial:
+                stats.total_skipped_first_reads_to_parent = 1
+                stats.min_per_parent_skipped_first_reads_to_parent = 1
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 

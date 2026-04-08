@@ -3,7 +3,11 @@ import time
 
 class EvaluationsScoreTracker:
     def __init__(
-        self, max_evaluations: int, stop_at_score: float, optimal: float, print_period: int = 10
+        self,
+        max_evaluations: int,
+        stop_at_score: float,
+        optimal: float,
+        print_period: int = 10,
     ):
         self.max_evaluations = max_evaluations
         self.stop_at_score = stop_at_score
@@ -22,7 +26,9 @@ class EvaluationsScoreTracker:
         self.evaluations += n_evaluations * self._scale_by
         new_score = best_score / self.optimal
         if new_score < self.score:
-            print(f"New score {new_score} after evaluation {self.evaluations}")
+            print(
+                f"New score {new_score} after evaluation {self.evaluations / self.max_evaluations:.2%}"
+            )
         self.score = min(self.score, new_score)
         # Same score as before, remove the last entry
         if len(self.history) > 2 and self.history[-2][1] == self.score:

@@ -24,10 +24,7 @@ class TestToll(unittest.TestCase):
     def test_toll_energy(self):
         spec = Spec.from_yaml(str(TOLL_ARCH), str(MATMUL_WORKLOAD))
         spec.mapper.metrics = Metrics.ENERGY
-        pmappings = make_pmappings(spec, print_progress=False)
-        mappings = join_pmappings(
-            pmappings, print_progress=False, metrics=Metrics.ENERGY
-        )
+        mappings = spec.map_workload_to_arch(print_progress=False)
 
         self.assertGreater(
             len(mappings.data), 0, "mapper should return at least one mapping"
