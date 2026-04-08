@@ -6,7 +6,8 @@ import accelforge as af
 class TestParsing(TestCase):
     def test_hierarchical(self):
         spec = af.Spec.from_yaml(
-            af.examples.arches.networked.hierarchical,
+            # af.examples.arches.networked.hierarchical,
+            "input_files/networked/hierarchical.yaml",
         )
         self.assertIn("PeArray", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["PeArray"].get_fanout(), 1)
@@ -22,7 +23,8 @@ class TestParsing(TestCase):
 
     def test_flat(self):
         spec = af.Spec.from_yaml(
-            af.examples.arches.networked.flat,
+            # af.examples.arches.networked.flat,
+            "input_files/networked/flat.yaml",
         )
         self.assertIn("NoC", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)
@@ -57,8 +59,10 @@ class TestModel(TestCase):
 
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
-            af.examples.arches.networked.hierarchical,
-            af.examples.mappings.one_matmul_to_networked_hierarchical,
+            # af.examples.arches.networked.hierarchical,
+            "input_files/networked/hierarchical.yaml",
+            # af.examples.mappings.one_matmul_to_networked_hierarchical,
+            "input_files/networked/one_matmul_to_networked_hierarchical.yaml",
             jinja_parse_data={
                 "N_EINSUMS": 1,
                 "M": 8,
@@ -134,7 +138,8 @@ class TestMapper(TestCase):
 
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
-            af.examples.arches.networked.hierarchical,
+            # af.examples.arches.networked.hierarchical,
+            "input_files/networked/hierarchical.yaml",
             jinja_parse_data={
                 "N_EINSUMS": 1,
                 "M": 8,
