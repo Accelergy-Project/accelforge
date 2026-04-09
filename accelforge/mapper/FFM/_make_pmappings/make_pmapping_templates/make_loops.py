@@ -5,6 +5,7 @@ import itertools
 from enum import Enum
 
 import accelforge.frontend.arch as arch
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     MappingNode,
     Toll,
@@ -17,7 +18,6 @@ from accelforge.frontend.workload import (
     RankVariable,
     Workload,
 )
-
 
 # =================================================================================================
 # Insert loops
@@ -42,6 +42,9 @@ def insert_temporal_loops(
     max_fused_loops: int,
     fanouts: dict[str, int],
     fusable_tensors: set[TensorName],
+    intermediate_tensors: set[TensorName],
+    let_non_intermediate_tensors_respawn_in_backing_storage: bool,
+    explore_loop_orders: bool,
 ):
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
@@ -78,11 +81,10 @@ def insert_temporal_loops(
     for k, v in tensor2partially_relevant_rank_vars.items():
         tensor2partially_relevant_rank_vars[k] = v - tensor2fully_relevant_rank_vars[k]
     tensor2irrelevant_rank_vars = einsum.tensor2irrelevant_rank_variables
-    tensor2rank_vars = einsum.tensor2rank_variables
     tensors = einsum.tensor_names
 
     is_fused_loops = True
-    seen_tensors = set()
+    seen_tensors = oset()
     choices = []
     lowering_choices: list[tuple[bool, ...]] = []
 
@@ -125,19 +127,19 @@ def insert_temporal_loops(
 
         rank_variables = einsum.rank_variables
         # rank_variables = {r for r in rank_variables if rank_variable_bounds[r] > 1}
-        seen_tensors |= set.union(*(set(t.tensors) for t in prev_storages), set())
+        seen_tensors |= oset.union(*(oset(t.tensors) for t in prev_storages), oset())
         is_fused_loops = is_fused_loops and len(fusable_tensors - seen_tensors) > 0
-        prev_tensors = set.union(set(), *(set(t.tensors) for t in prev_storages))
-        next_persistent = set.union(
-            set(), *(set(t.tensors) for t in next_storages if t.persistent)
+        prev_tensors = oset.union(oset(), *(oset(t.tensors) for t in prev_storages))
+        next_persistent = oset.union(
+            oset(), *(oset(t.tensors) for t in next_storages if t.persistent)
         )
 
         max_fanout_before = max(
             [fanouts[s2.component] for s in split_mapping[:i] for s2 in s],
             default=float("inf"),
         )
-        cur_fanout = set(fanouts[s2.component] for s2 in prev_storages)
-        next_fanout = set(fanouts[s2.component] for s2 in next_anything)
+        cur_fanout = oset(fanouts[s2.component] for s2 in prev_storages)
+        next_fanout = oset(fanouts[s2.component] for s2 in next_anything)
         if len(cur_fanout) == 0:  # Happens if we're inserting above all storage nodes
             cur_fanout.add(1)
         if len(next_fanout) == 0:  # Happens if we're inserting below all storage nodes
@@ -151,29 +153,34 @@ def insert_temporal_loops(
 
         # Can't have loops above persistent tensor holders
         if next_persistent:
-            rank_variables &= set()
+            rank_variables &= oset()
 
         # No recomputation: If we haven't seen a tensor yet, must only iterate over
         # fully-relevant rank variables.
-        for t in tensors - seen_tensors:
+        check_tensors = tensors
+        if let_non_intermediate_tensors_respawn_in_backing_storage:
+            check_tensors = intermediate_tensors
+
+        for t in check_tensors - seen_tensors:
             rank_variables &= tensor2fully_relevant_rank_vars[t]
 
         if max_fused_loops == 0 and (fusable_tensors - seen_tensors):
-            rank_variables &= set()
+            rank_variables &= oset()
 
-        #  The fanout for a prior node may be placed here, so spatial nodes may be moved
-        #  here
+        # The fanout for a prior node may be placed here, so spatial nodes may be moved
+        # here
         someone_elses_spatials_may_be_placed_below = (
-            next_fanout > cur_fanout and max_fanout_before > cur_fanout
+            next_fanout < cur_fanout and max_fanout_before < cur_fanout
         )
 
         # If the fanout is about to increase, then spatial loops may be placed below the
         # current node. There may have been constrained temporal loops earlier that need
-        # to be placed here, so we won't prohibit any loops.
+        # to be placed here, so we won't prohibit any loops. TODO:
+        # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: This causes all loops to be added, but
+        # really we only need to re-add the ones that may conflict with a spatial loop.
         if someone_elses_spatials_may_be_placed_below:
             pass
         else:
-
             # Optimality-preserving optimization: Loops below tolls aren't helpful
             # because there is no storage. Ctrl-F for
             # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if we may put another
@@ -181,20 +188,15 @@ def insert_temporal_loops(
             # spatials down, which would constrain the temporals due to spatial-temporal
             # crossing.
             if prev_storages and isinstance(prev_storages[0], Toll):
-                rank_variables &= set()
-
-            # Generally we want to only use rank variables that are irrelevant to the
-            # previous tensors, else we'd just lower those tensors. However, we can't
-            # lower backing TensorHolder nodes because this will add loops to
-            # compatibility.
+                rank_variables &= oset()
 
             # Optimality-preserving optimization: We can trivially lower non-backing
             # TensorHolder nodes through fully-relevant loops. Can't do this if the
-            # loops are fused because that'd add loops to the compatibility. Ctrl-F
-            # forCONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if we may put
-            # another node's spatial loops below this one, because lowering would add
-            # move the spatials down, which would constrain the temporals due to
-            # spatial-temporal crossing.
+            # loops are fused because that'd add loops to the compatibility.
+            # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if we may put another
+            # node's spatial loops below this one, because lowering would add move the
+            # spatials down, which would constrain the temporals due to spatial-temporal
+            # crossing.
             for s in prev_storages:
                 for t in s.tensors:
                     if t not in s._backing and not s._must_be_here:
@@ -203,14 +205,12 @@ def insert_temporal_loops(
             # Optimality-preserving optimization: We can trivially raise TensorHolder
             # nodes through irrelevant unfused loops. Can't do this if the loops are
             # fused because that'd increase the lifetime of the TensorHolder node. Can't
-            # do this if the irrelevant rank variables partially-relevant to the
+            # do this if the irrelevant rank variables are partially-relevant to the
             # previous tensors, since that affects the permutation. See
             # CONTIGUOUS_ITERATION_SPACE_DISCUSSION: Can't do this if we may put another
             # node's spatial loops above this one, because raising would add move the
             # temporals down, which would constrain them due to spatial-temporal
-            # crossing. TODO: CONTIGUOUS_ITERATION_SPACE_DISCUSSION: This causes all
-            # loops to be added, but really we only need to re-add the ones that may
-            # conflict with a spatial loop.
+            # crossing.
             if not is_fused_loops:
                 for s in next_storages:
                     if not s._must_be_here:
@@ -224,16 +224,16 @@ def insert_temporal_loops(
         # Determine whether to lower TensorHolder nodes through partially-relevant
         # loops.
         # =============================================================================
-        partially_relevant_to_previous = rank_variables & set.union(
-            set(), *(tensor2partially_relevant_rank_vars[t] for t in prev_tensors)
+        partially_relevant_to_previous = rank_variables & oset.union(
+            oset(), *(tensor2partially_relevant_rank_vars[t] for t in prev_tensors)
         )
-        permutable_partially_relevant = set()
+        permutable_partially_relevant = oset()
 
         # NOTE: If the lowering logic for backing TensorHolders is updated & we can
         # lower through >1 loops, then also update label_fused_loops
         for s in prev_storages:
-            partially_relevant_to_previous = set.union(
-                set(), *(tensor2partially_relevant_rank_vars[t] for t in s.tensors)
+            partially_relevant_to_previous = oset.union(
+                oset(), *(tensor2partially_relevant_rank_vars[t] for t in s.tensors)
             )
             partially_relevant_to_previous &= rank_variables
             lowerable_backing = (
@@ -275,7 +275,10 @@ def insert_temporal_loops(
         choices.append(
             list(
                 canonical_loop_orders(
-                    rank_variables, permutable_partially_relevant, can_lower
+                    rank_variables,
+                    permutable_partially_relevant,
+                    can_lower,
+                    explore_loop_orders,
                 )
             )
         )
@@ -308,21 +311,30 @@ def insert_spatial_loops(
     mapping: list[MappingNode],
     einsum: Einsum,
     flattened_arch: list[arch.Memory],
+    intermediate_tensors: set[TensorName],
 ):
     nodes_with_fanout = [n for n in flattened_arch if n.get_fanout() > 1]
     arch_node_names = [n.name for n in flattened_arch]
-    tensors = einsum.tensor_names
     tensor2fully_relevant_rank_vars = einsum.tensor2directly_indexing_rank_variables
 
     for node in nodes_with_fanout:
-        insertion_point = _idx_of_highest_tensor_holder_with_component_below_fanout(
+        # Insert spatials below the lowest storage node whose component is
+        # above the fanout in the arch, and below any temporal loops in the
+        # same block.
+        insertion_point = _idx_below_lowest_tensor_holder_with_component_above_fanout(
             node, mapping, arch_node_names
         )
+        while insertion_point < len(mapping) and isinstance(
+            mapping[insertion_point], Temporal
+        ):
+            insertion_point += 1
 
         # No recomputation: If we haven't seen a tensor yet, must only iterate over
         # fully-relevant rank variables.
         rank_variables = einsum.rank_variables
-        for t in tensors - _tensors_seen_above_point(insertion_point, mapping):
+        for t in intermediate_tensors - _tensors_seen_above_point(
+            insertion_point, mapping
+        ):
             rank_variables &= tensor2fully_relevant_rank_vars[t]
 
         for fanout_dim in node.spatial:
@@ -340,32 +352,35 @@ def insert_spatial_loops(
 
 
 def _tensors_seen_above_point(idx, mapping):
-    seen_tensors = set()
+    seen_tensors = oset()
     for i in range(idx):
         node = mapping[i]
         if not isinstance(node, TensorHolder):
             continue
-        seen_tensors |= set(node.tensors)
+        seen_tensors |= oset(node.tensors)
     return seen_tensors
 
 
-def _idx_of_highest_tensor_holder_with_component_below_fanout(
+def _idx_below_lowest_tensor_holder_with_component_above_fanout(
     fanout_node, mapping, arch_node_names
 ):
+    """Return the index right after the lowest TensorHolder whose component
+    is above the fanout in the arch. If none found, returns len(mapping)."""
+    fanout_arch_idx = arch_node_names.index(fanout_node.name)
+    result = len(mapping)
     for i in range(len(mapping)):
         if not isinstance(mapping[i], TensorHolder):
             continue
-        if arch_node_names.index(mapping[i].component) >= arch_node_names.index(
-            fanout_node.name
-        ):
-            return i
-    return len(mapping)
+        if arch_node_names.index(mapping[i].component) < fanout_arch_idx:
+            result = i + 1
+    return result
 
 
 def canonical_loop_orders(
     rank_variables: set[RankVariable],
     partially_relevant_to_previous: set[RankVariable],
     can_lower: bool,
+    explore_loop_orders: bool,
 ):
     """Generate loop orders that result in unique reuse patterns."""
     # Only the first partially-relevant rank variable matters is a meaningful
@@ -383,3 +398,5 @@ def canonical_loop_orders(
             + tuple(sorted(rest_of_partially_relevant))
             + tuple(sorted(rest_rank_vars))
         )
+        if not explore_loop_orders:
+            return

@@ -6,6 +6,7 @@ from typing import Optional, overload
 import islpy as isl
 
 from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
+from accelforge.util._frozenset import oset
 from accelforge.model._looptree.reuse.symbolic import (
     BuffetStats,
     SymbolicAnalysisOutput,
@@ -136,7 +137,7 @@ def isl_buffer_accesses_from_buffet_actions(
 
     parent_buffers = get_parent_buffers(mapping, workload, is_path)
 
-    compute_targets = set()
+    compute_targets = oset()
     for compute_node in get_leaves(mapping, is_path):
         assert isinstance(compute_node, Compute)
         compute_targets.add(compute_node.component)
@@ -265,7 +266,7 @@ def isl_buffer_accesses_from_buffet_actions(
 
     parent_buffers = get_parent_buffers(mapping, workload, is_path)
 
-    compute_targets = set()
+    compute_targets = oset()
     for compute_node in get_leaves(mapping, is_path):
         assert isinstance(compute_node, Compute)
         compute_targets.add(compute_node.component)

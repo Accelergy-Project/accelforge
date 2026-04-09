@@ -1,22 +1,34 @@
+from collections import namedtuple
 import functools
 import re
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from accelforge.util import NUMPY_FLOAT_TYPE
-from accelforge.util._frozenset import fzs
+from accelforge.util._frozenset import fzs, oset
 from accelforge.frontend.workload import Rank
 from accelforge.util._base_analysis_types import ActionKey, VerboseActionKey
+
+
+class ColName(str):
+    def __truediv__(self, other: "ColName"):
+        if not isinstance(other, ColName):
+            raise ValueError(f"{other} must be a ColName")
+        return ColName(f"{self}{SEP}{other}")
+
+
+# Keywords
+SEP = "<SEP>"
+ACTION = ColName("action")
+TOTAL = ColName("Total")
+USAGE = ColName("usage")
+MEMORY = ColName("memory")
 
 
 MAPPING_COLUMN = "mapping"
 COMPRESSED_INDEX = "compressed_index"
 TILE_SHAPE_PREFIX = "tile_shape"
 
-DICT_COLUMNS = set([MAPPING_COLUMN])
+DICT_COLUMNS = oset([MAPPING_COLUMN])
 RESERVED_COLUMNS = DICT_COLUMNS
-
-_resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
-
-_resource_name_tensor_reg = re.compile(r"RESOURCE_(.+?)_LEVEL_(.+?)")
 
 
 def dict_cached(func):
@@ -33,7 +45,7 @@ def dict_cached(func):
 
 
 def partition_col(col, prefix, expected_len=None) -> list[str] | None:
-    col = col.split("<SEP>")
+    col = col.split(SEP)
     if col[0] != prefix:
         return None
     if expected_len is not None and len(col) != expected_len:
@@ -42,6 +54,24 @@ def partition_col(col, prefix, expected_len=None) -> list[str] | None:
             f"but got {len(col)}"
         )
     return col[1:]
+
+
+@dict_cached
+def memory_usage2col(memory_level: str, tensor: str) -> str:
+    return f"usage<SEP>memory<SEP>{memory_level}<SEP>{tensor}"
+
+
+@dict_cached
+def col2memory_usage(col: str) -> tuple[str, str, str]:
+    """Returns a tuple (memory_level, tensor, einsum)."""
+    separated_names = col.split(SEP)
+    assert len(separated_names) == 5, f"invalid column {col}"
+    einsum = separated_names[0]
+    assert separated_names[1] == "usage"
+    assert separated_names[2] == "memory"
+    memory = separated_names[3]
+    tensor = separated_names[4]
+    return memory, tensor, einsum
 
 
 @dict_cached
@@ -54,7 +84,7 @@ def action2col(action: ActionKey | VerboseActionKey) -> str:
 
 @dict_cached
 def col2action(colname: str) -> ActionKey | VerboseActionKey:
-    separated_names = colname.split("<SEP>")
+    separated_names = colname.split(SEP)
     if len(separated_names) == 4:
         assert separated_names[0] == "action"
         return ActionKey(separated_names[1], separated_names[2])
@@ -80,7 +110,7 @@ def energy2col(action: ActionKey | VerboseActionKey) -> str:
 
 @dict_cached
 def col2energy(colname: str) -> ActionKey | VerboseActionKey:
-    separated_names = colname.split("<SEP>")
+    separated_names = colname.split(SEP)
     if len(separated_names) == 4:
         assert separated_names[1] == "energy", colname
         return ActionKey(separated_names[2], separated_names[3])
@@ -96,18 +126,21 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
         raise ValueError(f"bad column name: {colname}")
 
 
+ReservationKey = namedtuple("ReservationKey", ["name", "nloops"])
+
+
 @dict_cached
-def col2nameloop(x: str) -> tuple[str, int] | None:
-    """Format: reservation name level left"""
+def col2reservation(x: str) -> ReservationKey | None:
+    """Format: reservation name nloops left"""
     x = partition_col(x, "reservation", 4)
     if x is None:
         return None
-    return x[0], int(x[1])
+    return ReservationKey(x[0], int(x[1]))
 
 
 @dict_cached
-def nameloop2col(name: str, nloops: int, left: bool = False) -> str:
-    """Format: reservation name level left"""
+def reservation2col(name: str, nloops: int, left: bool = False) -> str:
+    """Format: reservation name nloops left"""
     return f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
 
 
@@ -186,7 +219,7 @@ def col2nameloopleft(x: str) -> tuple[str, int, bool] | None:
 
 
 def is_reservation_col(x: str) -> bool:
-    return col2nameloop(x) is not None
+    return col2reservation(x) is not None
 
 
 @dict_cached
@@ -249,7 +282,7 @@ def is_objective_col(c):
 
 
 def col_used_in_pareto(c):
-    return col2nameloop(c) is not None or is_objective_col(c)
+    return col2reservation(c) is not None or is_objective_col(c)
 
 
 def col_used_in_joining(c):

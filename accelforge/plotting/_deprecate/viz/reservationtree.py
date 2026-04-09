@@ -6,8 +6,8 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     TensorReservation,
     Loop,
 )
-from accelforge.util import _expfmt
-from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import col2nameloop
+from accelforge.util import _expfmt, oset
+from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import col2reservation
 
 PYDOT_NODE_DEFAULTS = {
     "shape": "box",
@@ -88,11 +88,11 @@ class Node:
         self, _entry: bool = True, start_at: int = 0
     ) -> list[TensorReservation]:
         if start_at <= 0:
-            tensors = set(
+            tensors = oset(
                 t for t in self.this_level if isinstance(t, TensorReservation)
             )
         else:
-            tensors = set()
+            tensors = oset()
         for c in self.children:
             tensors.update(c.get_all_tensors(_entry=False, start_at=start_at - 1))
         return sorted(tensors) if _entry else tensors
@@ -118,7 +118,7 @@ class Node:
     def get_shared_tensors(
         self, other: "Node", start_at: int = 0
     ) -> set[TensorReservation]:
-        return set(self.get_all_tensors(start_at=start_at)) & set(
+        return oset(self.get_all_tensors(start_at=start_at)) & oset(
             other.get_all_tensors(start_at=start_at)
         )
 
@@ -174,12 +174,12 @@ def mappings2reservationtree(
     root = Node()
     einsum_ids = list(mappings.keys())
     if stats is not None:
-        assert set(einsum_ids) == set(stats.keys())
+        assert oset(einsum_ids) == oset(stats.keys())
 
     # If a tensor appears in non-back-to-back Einsums, then we need to store it for
     # all Einsums in between
     tensors_lifetimes = {e: [] for e in einsum_ids}
-    all_tensors = set().union(*[set(t.tensors) for t in mappings.values()])
+    all_tensors = oset().union(*[oset(t.tensors) for t in mappings.values()])
     backers = TensorReservation.get_backing_tensors(all_tensors)
     for t in backers:
         first_appearance = min(
@@ -234,12 +234,12 @@ def mappings2reservationtree(
         while i < len(children) - 1:
             for j in range(len(children) - 1, i, -1):
                 shared_tensors = children[i].get_shared_tensors(children[j], start_at=1)
-                shared_tensors |= set(
+                shared_tensors |= oset(
                     c
                     for c in children[i].get_all_tensors(start_at=1)
                     if c.name in still_live_tensors or still_live_tensors == "all"
                 )
-                if shared_tensors & set(backers):
+                if shared_tensors & oset(backers):
                     while j != i:
                         # print(f'Level {level} merging {shared_tensors} between {i} and {j}')
                         children[i] = children[i].merge(children.pop(i + 1))
@@ -263,7 +263,7 @@ def mappings2reservationtree(
         merge_nodes(root)
 
     n = root
-    skip_backing_tensors_in_right_branch = set(skip_backing_tensors_in_right_branch)
+    skip_backing_tensors_in_right_branch = oset(skip_backing_tensors_in_right_branch)
     while n is not None:
         i = 0
         while i < len(n.this_level):
@@ -277,10 +277,10 @@ def mappings2reservationtree(
     if add_reservations is not None:
         for einsum, reservations in add_reservations.items():
             for resource, size in dict(reservations).items():
-                nameloop = col2nameloop(resource)
-                if nameloop is None:
+                reservation = col2reservation(resource)
+                if reservation is None:
                     continue
-                name, _ = nameloop
+                name = reservation.name
                 node = root.find_node_with(get_einsum_key(einsum))
                 node.this_level.append(TensorReservation("Reservation", -1, name, size))
 

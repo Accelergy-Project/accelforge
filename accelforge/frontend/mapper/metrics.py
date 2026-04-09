@@ -6,30 +6,36 @@ from operator import or_
 
 class Metrics(Flag):
     """
-    Metrics used to optimize mappings.
+    Metrics used to optimize mappings or reported by model.
     """
 
     LATENCY = auto()
-    """ Latency. Minimize the amount of time taken to execute the workload. """
+    """The amount of time taken to execute the workload. """
 
     ENERGY = auto()
-    """ Energy. Minimize the amount of energy consumed by the workload. """
+    """The amount of energy consumed by the workload. """
 
     DYNAMIC_ENERGY = auto()
-    """ Dynamic energy. Minimize the amount of dynamic energy consumed by the workload. """
+    """The amount of dynamic energy consumed by the workload. """
 
     LEAK_ENERGY = auto()
-    """ Leak energy. Minimize the amount of leak energy consumed by the workload. """
+    """The amount of leak energy consumed by the workload. """
 
     RESOURCE_USAGE = auto()
     """
-    Resource usage. Minimize the amount of resources used by the workload. This
-    objective is multivariate, and must consider every resource available to the
-    hardware.
+    The amount of resources used by the workload.
+
+    When used as a mapper objective, this objective is multivariate, and must
+    consider every resource available to the hardware.
     """
 
     ACTIONS = auto()
     """Action counts."""
+
+    DETAILED_MEMORY_USAGE = auto()
+    """
+    Memory usage broken down by tensor and Einsum.
+    """
 
     @classmethod
     def all_metrics(cls):

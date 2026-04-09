@@ -1,26 +1,25 @@
 import copy
 import math
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from uuid import UUID
 from collections import defaultdict
 
 import sympy
 from accelforge.frontend.mapping import Loop, Mapping, Spatial, Temporal
 from accelforge.frontend.workload import EinsumName
+from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
 )
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     MAPPING_COLUMN,
     PmappingDataframe,
-    col2nameloop,
+    col2reservation,
     col_used_in_pareto,
     is_reservation_col,
     makepareto,
     tensor2col,
-    col2nameloop,
-    is_reservation_col,
-    nameloop2col,
+    reservation2col,
 )
 
 from accelforge.frontend.mapper.metrics import Metrics
@@ -49,12 +48,14 @@ def shift_reservations_by_null_loop_indices(
     for c in mappings.columns:
         if not is_reservation_col(c):
             continue
-        name, above = col2nameloop(c)
+        reservation = col2reservation(c)
+        name = reservation.name
+        above = reservation.nloops
         new_above = above - sum(above > i for i in null_loop_indices)
-        target = nameloop2col(name, new_above)
+        target = reservation2col(name, new_above)
         if target in target2newabovename:
             if above > target2newabovename[target][1]:
-                dropcols.append(nameloop2col(*target2newabovename[target]))
+                dropcols.append(reservation2col(*target2newabovename[target]))
                 target2newabovename[target] = (name, above)
             else:
                 dropcols.append(c)
@@ -64,7 +65,7 @@ def shift_reservations_by_null_loop_indices(
     mappings.drop(columns=dropcols, inplace=True)
     renames = {}
     for target, (name, above) in target2newabovename.items():
-        renames[nameloop2col(name, above)] = target
+        renames[reservation2col(name, above)] = target
     mappings.rename(columns=renames, inplace=True)
     if len(mappings.columns) != len(mappings.columns.unique()):
         shift_reservations_by_null_loop_indices(prev, null_loop_indices)
@@ -211,7 +212,7 @@ def assert_all_jobs_have_same_symbols(
         for t in j.compatibility.tensors:
             for i, l in enumerate(t.loops):
                 if len(iteration2symbols) <= i:
-                    iteration2symbols.append(set())
+                    iteration2symbols.append(oset())
                 iteration2symbols[i].add(l.tile_pattern.calculated_n_iterations)
     assert all(
         len(s) == 1 for s in iteration2symbols
@@ -220,10 +221,11 @@ def assert_all_jobs_have_same_symbols(
 
 def make_pmappings_from_templates(
     jobs_with_similar_compatibilities: SameCompatibilityJobs,
-) -> tuple[EinsumName, list[PmappingGroup], dict[UUID, Mapping], SameCompatibilityJobs]:
+) -> tuple[EinsumName, list[PmappingGroup], dict[UUID, Mapping]]:
     jwsc = jobs_with_similar_compatibilities
 
     results = []
+    pmapping_keep_rates = []
 
     for job in jobs_with_similar_compatibilities:
         try:
@@ -231,7 +233,9 @@ def make_pmappings_from_templates(
         except Exception as e:
             e.add_note(f"Einsum {jwsc.einsum_name} compatibility {job.compatibility}")
             raise
-        job.compatibility = job.compatibility.populate_loops()
+        job.compatibility = job.compatibility.populate_loops(
+            job.ranks_with_tile_pattern
+        )
 
         # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION TODO: Turn tensor2pmapping
         # into per-tensor compatibility
@@ -262,16 +266,19 @@ def make_pmappings_from_templates(
         cols_to_drop = []
         for col in result.columns:
             if is_reservation_col(col):
-                resource = col2nameloop(col)[0]
+                resource = col2reservation(col)[0]
                 if resource in job.memories_track_pmappings_only:
                     cols_to_drop.append(col)
         result.drop(columns=cols_to_drop, inplace=True)
         results.append(result)
+        pmapping_keep_rates.append(
+            (job.job_id, dict(job.pmapping_keep_rates), job.n_total_pmappings)
+        )
 
     fusable_tensors = jwsc.fusable_tensors
     einsum_name = jwsc.einsum_name
     metrics = jwsc.metrics
-    limit_capacity_drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
+    drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     compatibility = jwsc.compatibility
 
     # Creating a PmappingDataframe fills in reservation columns since different pmappings
@@ -287,15 +294,19 @@ def make_pmappings_from_templates(
                 n_valid_pmappings=1,  # Unused for now, just making an initial Pareto
                 ignored_resources=job.ignored_resources,
                 # False because we may have lifetimes that stretch through this Einsum
-                # due to data dependencies, not loops
-                limit_capacity_drop_valid_reservations=False,
+                # due to data dependencies, not loops. For example, if we have no fused
+                # loops, we can't free our reservations because another Einsum may
+                # reserve a resource that lasts through us because it needs to propagate
+                # to another Einsum. drop_valid_reservations is turned on later at the
+                # joining stage because we have full information of live tensors then.
+                drop_valid_reservations=False,
             )
             for r in results
         ],
         skip_pareto=True,
     ).data
     if df.empty:
-        return einsum_name, [], {}, jobs_with_similar_compatibilities
+        return einsum_name, [], {}, pmapping_keep_rates
 
     tensor_cols = [tensor2col(tensor) for tensor in fusable_tensors]
     df.columns = [
@@ -311,8 +322,30 @@ def make_pmappings_from_templates(
 
     job0 = next(iter(jobs_with_similar_compatibilities))
 
+    resource_usage_tolerance = job0.resource_usage_tolerance
+    if not drop_valid_reservations:
+        resource_usage_tolerance = job0.objective_tolerance
+
+    # Absolute error can sum across Einsums, so we need to divide by it here. Relative
+    # error doesn't (x * (1 += 0.1) + y * (1 += 0.1) = (x + y) * (1 +- <= 1.1)), so no
+    # divide needed. NOTE: Pruning using tolerance happens in exactly two places that
+    # affect results (a third is when there's dirty initial joining, but that doesn't
+    # affect final results). Here and in the tile shape creation when a formula is fully
+    # evaluated. There's no transformation of the values between these steps, so error
+    # doesn't stack (it's just doing the same pruning, perhaps with a different number
+    # of objectives).
+    absolute_resource_usage_tolerance = (
+        resource_usage_tolerance / job0.workload_n_einsums
+    )
+
     # Pareto prune
-    df = makepareto(df, split_by_cols=fused_loop_cols).copy()
+    df = makepareto(
+        df,
+        split_by_cols=fused_loop_cols,
+        resource_usage_tolerance=resource_usage_tolerance,
+        absolute_resource_usage_tolerance=absolute_resource_usage_tolerance,
+        objective_tolerance=job0.objective_tolerance,
+    ).copy()
 
     jobs_passed_pareto = sorted(df[f"{einsum_name}<SEP>{MAPPING_COLUMN}"].unique())
     pmapping_objects = {
@@ -384,18 +417,33 @@ def make_pmappings_from_templates(
             next_shared_loop_index=next_shared_loop_index_this_group,
             n_total_pmappings=total_pmappings_per_group,
             n_valid_pmappings=valid_pmappings_per_group,
-            skip_pareto=next_shared_loop_index_this_group == next_shared_loop_index,
             ignored_resources=job.ignored_resources
-            | set(job.memories_track_pmappings_only),
-            # False because we may have lifetimes that stretch through this Einsum
-            # due to data dependencies, not loops
-            limit_capacity_drop_valid_reservations=False,
+            | oset(job.memories_track_pmappings_only),
+            skip_pareto=True,
+            # False because we may have lifetimes that stretch through this Einsum due
+            # to data dependencies, not loops. For example, if we have no fused loops,
+            # we can't free our reservations because another Einsum may reserve a
+            # resource that lasts through us because it needs to propagate to another
+            # Einsum. drop_valid_reservations is turned on later at the joining stage
+            # because we have full information of live tensors then.
+            drop_valid_reservations=False,
         )
+        # If we have fewer fused loops, reservations likely got freed. We can free!
+        if next_shared_loop_index_this_group != next_shared_loop_index:
+            partial_mappings.make_pareto(
+                resource_usage_tolerance=resource_usage_tolerance,
+                objective_tolerance=job0.objective_tolerance,
+                absolute_resource_usage_tolerance=absolute_resource_usage_tolerance,
+            )
         pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
+
+    # Defragment to speed up pickling
+    for pg in pmapping_groups:
+        pg.mappings._data = pg.mappings._data.copy()
 
     return (
         einsum_name,
         pmapping_groups,
         pmapping_objects,
-        jobs_with_similar_compatibilities,
+        pmapping_keep_rates,
     )

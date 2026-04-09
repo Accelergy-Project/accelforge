@@ -1,0 +1,298 @@
+{
+  "eyeriss": {
+    "MainMemory": {
+      "area": 0.0,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 8e-12,
+          "latency": 2.9802322387695313e-10
+        },
+        "write": {
+          "energy": 8e-12,
+          "latency": 2.9802322387695313e-10
+        }
+      }
+    },
+    "GlobalBuffer": {
+      "area": 6.85753842326923e-06,
+      "leak_power": 0.00025518689743667236,
+      "actions": {
+        "read": {
+          "energy": 9.056648304726114e-11,
+          "latency": 3.0885150390625e-10
+        },
+        "write": {
+          "energy": 9.122564946135314e-11,
+          "latency": 3.0885150390625e-10
+        }
+      }
+    },
+    "InputScratchpad": {
+      "area": 4.2167274519230763e-10,
+      "leak_power": 4.807610371689463e-07,
+      "actions": {
+        "read": {
+          "energy": 2.3605916811887966e-14,
+          "latency": 3.5119924999999995e-10
+        },
+        "write": {
+          "energy": 3.242682392836752e-14,
+          "latency": 3.5119924999999995e-10
+        }
+      }
+    },
+    "WeightScratchpad": {
+      "area": 3.585853961538461e-09,
+      "leak_power": 8.302724620034194e-07,
+      "actions": {
+        "read": {
+          "energy": 4.0526689360198025e-14,
+          "latency": 1.0209398214285715e-10
+        },
+        "write": {
+          "energy": 6.272942751096912e-14,
+          "latency": 1.0209398214285715e-10
+        }
+      }
+    },
+    "OutputScratchpad": {
+      "area": 4.904405576923076e-10,
+      "leak_power": 4.840417246689463e-07,
+      "actions": {
+        "read": {
+          "energy": 2.7119425256184493e-14,
+          "latency": 3.5119924999999995e-10
+        },
+        "write": {
+          "energy": 3.815933349282664e-14,
+          "latency": 3.5119924999999995e-10
+        }
+      }
+    },
+    "MAC": {
+      "area": 1.3973971153846152e-09,
+      "leak_power": 9.732325476491557e-06,
+      "actions": {
+        "compute": {
+          "energy": 1.408832599217931e-12,
+          "latency": 3.25e-09
+        }
+      }
+    }
+  },
+  "simba": {
+    "MainMemory": {
+      "area": 0.0,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 8e-12,
+          "latency": 2.9802322387695313e-10
+        },
+        "write": {
+          "energy": 8e-12,
+          "latency": 2.9802322387695313e-10
+        }
+      }
+    },
+    "GlobalBuffer": {
+      "area": 2.3952215381843155e-07,
+      "leak_power": 9.523558182536147e-06,
+      "actions": {
+        "read": {
+          "energy": 8.295549237325948e-14,
+          "latency": 2.0887473354231975e-12
+        },
+        "write": {
+          "energy": 9.035066030244479e-14,
+          "latency": 2.0887473354231975e-12
+        }
+      }
+    },
+    "InputBuffer": {
+      "area": 5.399594303496503e-09,
+      "leak_power": 1.2188733186998888e-06,
+      "actions": {
+        "read": {
+          "energy": 9.660840031396417e-15,
+          "latency": 6.12655965909091e-12
+        },
+        "write": {
+          "energy": 2.070367107287105e-14,
+          "latency": 6.12655965909091e-12
+        }
+      }
+    },
+    "WeightBuffer": {
+      "area": 1.0704373813688813e-07,
+      "leak_power": 1.2624919331968711e-05,
+      "actions": {
+        "read": {
+          "energy": 6.682829613803192e-14,
+          "latency": 2.4280635653409095e-12
+        },
+        "write": {
+          "energy": 6.873944068448839e-14,
+          "latency": 2.4280635653409095e-12
+        }
+      }
+    },
+    "AccumulationBuffer": {
+      "area": 2.208693348951049e-09,
+      "leak_power": 6.153967734550903e-07,
+      "actions": {
+        "read": {
+          "energy": 7.099636607719463e-15,
+          "latency": 9.454170237405909e-12
+        },
+        "write": {
+          "energy": 1.3851866895697208e-14,
+          "latency": 9.454170237405909e-12
+        }
+      }
+    },
+    "Register": {
+      "area": 0.0,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 0.0,
+          "latency": 0.0
+        },
+        "write": {
+          "energy": 0.0,
+          "latency": 0.0
+        }
+      }
+    },
+    "MAC": {
+      "area": 1.7436548076923076e-10,
+      "leak_power": 1.3613936377164362e-06,
+      "actions": {
+        "compute": {
+          "energy": 1.9707270804040344e-13,
+          "latency": 8.000000000000001e-10
+        }
+      }
+    }
+  },
+  "simple": {
+    "MainMemory": {
+      "area": 0.0,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 1.0,
+          "latency": 0.0
+        },
+        "write": {
+          "energy": 1.0,
+          "latency": 0.0
+        }
+      }
+    },
+    "GlobalBuffer": {
+      "area": 0.0,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 1.0,
+          "latency": 0.0
+        },
+        "write": {
+          "energy": 1.0,
+          "latency": 0.0
+        }
+      }
+    },
+    "MAC": {
+      "area": 0.0,
+      "leak_power": 0.0,
+      "actions": {
+        "compute": {
+          "energy": 1.0,
+          "latency": 1.0
+        }
+      }
+    }
+  },
+  "tpu_v4i": {
+    "MainMemory": {
+      "area": 0.0,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 7.03e-12,
+          "latency": 2.0358306188925081e-13
+        },
+        "write": {
+          "energy": 7.03e-12,
+          "latency": 2.0358306188925081e-13
+        }
+      }
+    },
+    "GlobalBuffer": {
+      "area": 0.000112,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 1.88e-12,
+          "latency": 6.103515625e-14
+        },
+        "write": {
+          "energy": 2.36e-12,
+          "latency": 1.220703125e-13
+        }
+      }
+    },
+    "LocalBuffer": {
+      "area": 5.1e-05,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 2.49e-13,
+          "latency": 0.0
+        },
+        "write": {
+          "energy": 2.93e-13,
+          "latency": 0.0
+        }
+      }
+    },
+    "ScalarUnit": {
+      "area": 8.7e-06,
+      "leak_power": 0.0,
+      "actions": {
+        "compute": {
+          "energy": 0.0,
+          "latency": 7.44047619047619e-12
+        }
+      }
+    },
+    "Register": {
+      "area": 8.5e-11,
+      "leak_power": 0.0,
+      "actions": {
+        "read": {
+          "energy": 0.0,
+          "latency": 0.0
+        },
+        "write": {
+          "energy": 0.0,
+          "latency": 0.0
+        }
+      }
+    },
+    "MAC": {
+      "area": 8.5e-10,
+      "leak_power": 0.0,
+      "actions": {
+        "compute": {
+          "energy": 8.4e-14,
+          "latency": 9.523809523809524e-10
+        }
+      }
+    }
+  }
+}

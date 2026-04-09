@@ -1,8 +1,8 @@
 Citing AccelForge
 =================
 
-**Please cite all of the following papers if you use this work.** This work is the
-combination of the following:
+**Please cite all of the following if you use this work.** This work is the combination
+of the following:
 
 - **CiMLoop**: The architecture and component specification.
 - **Fast & Fusiest**: The multi-Einsum mapper.
@@ -15,9 +15,16 @@ They are available as the following:
 
 .. code-block:: latex
 
-    \cite{cimloop, fast_fusiest, looptree, turbo_charged}
+    \cite{accelforge, cimloop, fast_fusiest, looptree, turbo_charged}
 
 .. code-block:: bibtex
+
+    @software{accelforge,
+    author={Andrulis, Tanner and Gilbert, Michael},
+    title={AccelForge},
+    url={https://github.com/Accelergy-Project/accelforge},
+    license={MIT},
+    }
 
     @INPROCEEDINGS{cimloop,
     author={Andrulis, Tanner and Emer, Joel S. and Sze, Vivienne},
@@ -27,7 +34,6 @@ They are available as the following:
     volume={},
     number={},
     pages={10-23},
-    keywords={Performance evaluation;Accuracy;Computational modeling;Computer architecture;Artificial neural networks;In-memory computing;Data models;Compute-In-Memory;Processing-In-Memory;Analog;Deep Neural Networks;Systems;Hardware;Modeling;Open-Source},
     doi={10.1109/ISPASS61541.2024.00012}}
 
     @misc{fast_fusiest,
@@ -48,7 +54,6 @@ They are available as the following:
     volume={},
     number={},
     pages={316-318},
-    keywords={Deep learning;Analytical models;Systematics;Neural networks;Bandwidth;Software;Energy efficiency;analytical modeling;layer fusion;accelerators},
     doi={10.1109/ISPASS57527.2023.00038}}
 
     @misc{turbo_charged,
@@ -61,4 +66,4 @@ They are available as the following:
     url={https://arxiv.org/abs/2602.15172},
     }
 
-TODO: Add citation for LoopForest
+.. TODO: Add citation for LoopForest

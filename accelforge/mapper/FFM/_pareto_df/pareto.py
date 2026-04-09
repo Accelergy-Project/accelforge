@@ -2,21 +2,25 @@ import functools
 from math import prod
 import time
 
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 
 from paretoset import paretoset
 from joblib import delayed
 from sympy import factorint
 
 from accelforge._accelerated_imports import np
+from accelforge.util._frozenset import oset
 from accelforge.util.parallel import parallel
 
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2reservation,
     col_used_in_pareto,
     is_fused_loop_col,
     is_n_iterations_col,
     is_objective_col,
 )
+
+from .fast_pareto import fast_pareto_mask
 
 
 def dominates(a: pd.Series, b: pd.Series) -> bool:
@@ -69,7 +73,7 @@ def makepareto_quick(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame
 
 
 def paretofy_chunk(chunk, sense: list[str]):
-    return paretoset(chunk, sense=sense)
+    return fast_pareto_mask(chunk.values if hasattr(chunk, "values") else chunk, sense)
 
 
 def makepareto_merge(
@@ -78,25 +82,12 @@ def makepareto_merge(
     parallelize: bool = False,
     split_by_cols: list[str] = (),
 ) -> pd.DataFrame:
-    chunk_size = 10000
     if len(mappings) <= 1:
         return mappings
 
     sense = ["min"] * len(columns) + ["diff"] * len(split_by_cols)
-
-    to_chunk = mappings[columns + list(split_by_cols)]
-    chunks = parallel(
-        [
-            delayed(paretofy_chunk)(chunk, sense)
-            for chunk in [
-                to_chunk[i : i + chunk_size]
-                for i in range(0, len(to_chunk), chunk_size)
-            ]
-        ],
-        n_jobs=1 if parallelize else None,
-    )
-    mappings = mappings[np.concatenate(chunks)]
-    return mappings[paretoset(mappings[columns + list(split_by_cols)], sense=sense)]
+    combined = mappings[columns + list(split_by_cols)]
+    return mappings[fast_pareto_mask(combined.values, sense)]
 
 
 def makepareto_time_compare(mappings: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -187,31 +178,51 @@ def pareto_front_cupy_blockwise_sorted_recursive(X, block_size=2000):
 #         return mappings[mask]
 
 
-TOLERANCE = 0.0
-
-
-def logify(x: pd.Series) -> pd.Series:
-    if 0 < TOLERANCE < 1:
-        pass
-    else:
-        assert (
-            TOLERANCE == 0
-        ), f"Tolerance must be between 0 and 1. Tolerance {TOLERANCE} is invalid."
+def round_to_tolerance(x: pd.Series, tolerance: float) -> pd.Series:
+    if tolerance == 0:
         return x
+    x = np.round(x / tolerance) * tolerance
+    return x
 
+
+def logscale_to_tolerance(x: pd.Series, tolerance: float) -> pd.Series:
+    if tolerance == 0 or tolerance is None:
+        return x
+    assert tolerance > 0
     if x.min() <= 0:
         return x
+    rounded = np.round(np.log(x) / np.log(1 + tolerance))
+    return np.exp(rounded * np.log(1 + tolerance))
 
-    logged = np.log(x)
 
-    return np.round(logged / TOLERANCE) * TOLERANCE
+def multi_round(
+    x: np.ndarray, tolerance: float, absolute_tolerance: float
+) -> np.ndarray:
+    tolerance = 0 if tolerance is None else tolerance
+    absolute_tolerance = 0 if absolute_tolerance is None else absolute_tolerance
+    if tolerance == 0:
+        return round_to_tolerance(x, absolute_tolerance)
+    if absolute_tolerance == 0:
+        return logscale_to_tolerance(x, tolerance)
+
+    abs_step_size = absolute_tolerance
+    log_step_size = tolerance * x
+
+    rounded = round_to_tolerance(x, abs_step_size)
+    logscale_rounded = logscale_to_tolerance(x, tolerance)
+
+    use_log_mask = log_step_size > abs_step_size
+    new = np.where(use_log_mask, logscale_rounded, rounded)
+    return new
 
 
 def makepareto(
     mappings: pd.DataFrame,
     columns: list[str] = None,
-    parallelize: bool = False,
     split_by_cols: list[str] = (),
+    resource_usage_tolerance: float = 0,
+    objective_tolerance: float = 0,
+    absolute_resource_usage_tolerance: float = 0,
 ) -> pd.DataFrame:
     # return makepareto_time_compare(mappings)
     if columns is None:
@@ -227,32 +238,42 @@ def makepareto(
 
     goals = []
     to_pareto = []
-    pareto_cols = []
     for c in mappings.columns:
         if mappings[c].nunique() <= 1:
             continue
 
-        if c in columns and is_objective_col(c):  # or col_used_in_pareto(c)):
-            to_pareto.append(logify(mappings[c]))
-            pareto_cols.append(c)
-            goals += ["min"]
+        if c in columns and is_objective_col(c):
+            to_pareto.append(logscale_to_tolerance(mappings[c], objective_tolerance))
+            goals.append("min")
         elif c in split_by_cols:
             to_pareto.append(mappings[c])
-            pareto_cols.append(c)
             goals.append("diff")
         elif c in columns:
-            to_pareto.append(mappings[c])
-            pareto_cols.append(c)
+            x = mappings[c]
+            if col2reservation(c) is not None:
+                x = multi_round(
+                    x, resource_usage_tolerance, absolute_resource_usage_tolerance
+                )
+            to_pareto.append(x)
             goals.append("min")
 
     if not to_pareto:
         return mappings.iloc[0:1]
 
-    return mappings[paretoset(pd.concat(to_pareto, axis=1), sense=goals)]
+    # import os
+    # import uuid
+    # import pickle as pkl
 
-    f = pd.concat(to_pareto, axis=1)
-    x = list(f.groupby([c for c, d in zip(pareto_cols, goals) if d == "diff"]))
-    print(x)
+    # os.makedirs("/tmp/paretos", exist_ok=True)
+    # pkl.dump(
+    #     (pd.concat(to_pareto, axis=1), goals),
+    #     open(f"/tmp/paretos/{uuid.uuid4()}.pkl", "wb")
+    # )
+
+    combined = pd.concat(
+        (pd.Series(p).reset_index(drop=True) for p in to_pareto), axis=1
+    )
+    return mappings[fast_pareto_mask(combined.values, goals)]
 
 
 @functools.lru_cache(maxsize=10000)
@@ -266,171 +287,15 @@ def prime_factor_counts(arr: np.ndarray) -> np.ndarray:
     factorizations = {x: _factorint_cached(x) for x in unique_vals}
 
     # Gather all unique primes
-    all_primes = sorted({p for f in factorizations.values() for p in f})
+    all_primes = sorted(oset(p for f in factorizations.values() for p in f))
 
     # Build result matrix
     result = np.zeros((len(arr), len(all_primes)), dtype=int)
     prime_index = {p: j for j, p in enumerate(all_primes)}
 
-    for i, x in enumerate(arr):
+    for i, x in enumerate(arr.flatten()):
         for p, exp in factorizations[x].items():
             result[i, prime_index[p]] = exp
-
-    return result
-
-
-def paretoset_grouped_dirty(df: pd.DataFrame, sense: list[str]):
-    # return paretoset(df, sense=sense)
-
-    assert all(i == c for i, c in enumerate(df.columns))
-    assert len(sense) == len(df.columns)
-
-    from paretoset.algorithms_numba import paretoset_jit
-    from paretoset.algorithms_numba import BNL
-
-    for c in df.columns:
-        if sense[c] == "max":
-            df[c] = -df[c]
-            sense[c] = "min"
-
-    GROUP_SIZE = 128
-
-    group_by = [c for c in df.columns if sense[c] == "diff"]
-    n_groups = prod(len(df[c].unique()) for c in group_by)
-
-    if len(df) / n_groups < GROUP_SIZE:
-        return paretoset(df, sense=sense)
-
-    c2unique = {c: len(df[c].unique()) for c in df.columns if c not in group_by}
-    while c2unique:
-        col, n = min(c2unique.items(), key=lambda x: x[1])
-        c2unique.pop(col)
-        n_groups *= n
-        if len(df) / n_groups < GROUP_SIZE:
-            break
-        group_by.append(col)
-
-    n_diffs = sum(x == "diff" for x in sense)
-    if len(group_by) < 2 or len(group_by) == n_diffs:
-        return paretoset(df, sense=sense)
-
-    def _row_from_group(mins, group):
-        per_col_mins = group.min(axis=0)
-        per_col_maxs = group.max(axis=0)
-        good_row = group.iloc[
-            np.argmin((group ** (1 / len(group.columns))).prod(axis=1))
-        ]
-        return [mins, per_col_mins, per_col_maxs, good_row, group]
-
-    groups = list(df.groupby(group_by))
-    groups_by_diff = {}
-    keepcols = [c for c in df.columns if c not in group_by]
-    for x, group in groups:
-        diffs, mins = x[:n_diffs], x[n_diffs:]
-        group = group[keepcols]
-        groups_by_diff.setdefault(diffs, []).append(_row_from_group(mins, group))
-
-    # print(f'Grouped into {len(groups)} groups using {len(group_by)} columns')
-    # orig_size = len(df)
-    # n_groups = len(groups)
-    # n_cols = len(keepcols)
-    # new_size = sum(len(g2) for g in groups_by_diff.values() for _, _, _, g2 in g)
-    # print(f'Grouped into {n_groups} groups, {orig_size} -> {new_size} rows, {n_cols} columns. Remaining {len(keepcols)} columns')
-
-    for groups in groups_by_diff.values():
-        for i, (
-            mins_a,
-            per_col_mins_a,
-            per_col_maxs_a,
-            good_row_a,
-            group_a,
-        ) in enumerate(groups):
-            if group_a is None:
-                continue
-
-            for j, (
-                mins_b,
-                per_col_mins_b,
-                per_col_maxs_b,
-                good_row_b,
-                group_b,
-            ) in enumerate(groups):
-                if group_b is None or i == j:
-                    continue
-
-                if all(a <= b for a, b in zip(good_row_a, per_col_mins_b)):
-                    groups[j][-1] = None
-                    continue
-
-                if all(a <= b for a, b in zip(good_row_a, good_row_b)):
-                    # The good row of a dominates the good row of b. It'll likely
-                    # dominate many b!
-                    group_b = group_b[(group_b < good_row_a).any(axis=1)]
-                    if len(group_b) == 0:
-                        groups[j][-1] = None
-                        continue
-                    groups[j].clear()
-                    groups[j].extend(_row_from_group(mins_b, group_b))
-
-                # # a can only dominate b if all of the min columns dominate
-                # if not all(a <= b for a, b in zip(mins_a, mins_b)):
-                #     continue
-
-                # # Check if any b beats all a. If so, continue.
-                # if any(a > b for a, b in zip(per_col_mins_a, per_col_maxs_b)):
-                #     continue
-
-                # # # Check if any a beats every b. If so, get rid of b.
-                # # a_doms = all(a <= b for a, b in zip(per_col_maxs_a, per_col_mins_b))
-                # # if a_doms:
-                # #     groups[j][-1] = None
-                # #     # print(f'Dropping dominated group {j}')
-                # #     continue
-
-                # row_a = group_a.iloc[np.random.randint(len(group_a))]
-                # if all(a <= b for a, b in zip(row_w_min_first_obj_b, per_col_mins_b)):
-                #     groups[j][-1] = None
-
-                # Everything below just ended up making things slower
-
-                # if any(a > b for a, b in zip(row_a, per_col_maxs_b)):
-                #     continue
-
-                # continue
-
-                # # Grab a random a. Get rid of all b that are dominated by it.
-                # a_lt_b_maxes = group_a.iloc[
-                #     np.where(np.all(group_a <= per_col_maxs_b, axis=1))[0]
-                # ]
-                # if len(a_lt_b_maxes) == 0:
-                #     continue
-
-                # row_a = a_lt_b_maxes.iloc[np.random.randint(len(a_lt_b_maxes))]
-
-                # b_idx = np.where(np.any(group_b < row_a, axis=1))[0]
-                # if len(b_idx) == 0:
-                #     groups[j][-1] = None
-                # else:
-                #     groups[j][-1] = group_b.iloc[b_idx]
-                #     groups[j][1] = group_b.iloc[b_idx].min(axis=0)
-                #     groups[j][2] = group_b.iloc[b_idx].max(axis=0)
-
-                # # Now we're in a case where a may dominate b. Update b.
-                # catted = pd.concat([group_a, group_b], axis=0)
-                # mask = np.concatenate([
-                #     np.zeros(len(group_a), dtype=bool),
-                #     np.ones(len(group_b), dtype=bool)
-                # ])
-                # catted = catted[paretoset_jit(catted.to_numpy()) & mask]
-                # groups[j][1] = catted.min(axis=0)
-                # groups[j][2] = catted.max(axis=0)
-                # groups[j][3] = catted
-
-    result = np.zeros(len(df), dtype=bool)
-    for group in groups_by_diff.values():
-        for _, _, _, _, group in group:
-            if group is not None:
-                result[group[paretoset_jit(group.to_numpy())].index] = True
 
     return result
 
@@ -438,61 +303,42 @@ def paretoset_grouped_dirty(df: pd.DataFrame, sense: list[str]):
 def makepareto_numpy(
     mappings: np.ndarray,
     goals: list[str],
-    dirty: bool = False,
+    dirty: bool = False,  # Doesn't do anything
+    tolerances: list[float] = None,
+    absolute_tolerances: list[float] = None,
 ) -> pd.DataFrame:
 
     to_pareto = []
     new_goals = []
+    if tolerances is None:
+        tolerances = [0] * len(goals)
+    if absolute_tolerances is None:
+        absolute_tolerances = [0] * len(goals)
+
     assert len(goals) == mappings.shape[1]
     for c in range(mappings.shape[1]):
         if len(np.unique(mappings[:, c])) <= 1:
             continue
 
         goal = goals[c]
-        # if goal != "diff" and dirty and len(np.unique(mappings[:, c])) < np.log2(mappings.shape[0]):
-        #     # print(f"Changed {goal} to diff because there are {len(np.unique(mappings[:, c]))} unique values for {mappings.shape[0]} rows")
-        #     goal = "diff"
+        rounded = multi_round(mappings[:, c], tolerances[c], absolute_tolerances[c])
 
         if goal in ["min", "max"]:
-            l = logify(mappings[:, c].reshape((-1, 1)))
-            to_pareto.append(l if goal == "min" else -l)
+            to_pareto.append(rounded if goal == "min" else -rounded)
             new_goals.append("min")
         elif goal == "diff":
-            to_pareto.append(mappings[:, c].reshape((-1, 1)))
+            to_pareto.append(rounded)
             new_goals.append("diff")
         elif goal == "min_per_prime_factor":
-            if not dirty:
-                # Paretoset tends to be faster with these as diffs. Tanner tried for a
-                # long time to get min_per_prime_factor to be faster, but it
-                # didn't work. What it would do is say that if one choice for an inner
-                # loop has used up fewer of every prime factor than another choice, then
-                # the latter would give a superset of options for outer loops.
-                # Intuitively, we could enable more pruning by doing this instead of
-                # "diff", which is overconservative. Likewise, we could do "min" for
-                # imperfect instead of "diff". However, this ultimately made things
-                # slower because it didn't get much Pareto pruning, but caused many more
-                # Pareto comparisons ("diff" partitioning into N partitions --> N^2
-                # improvement). I hypothesize that the reason that it doesn't improve
-                # pruning much is that when we've enumerated a loop but not the loop
-                # above it, the given loop is almost always trading off tile shape for
-                # accesses, leading to no point being dominated by another point.
-                to_pareto.append(mappings[:, c].reshape((-1, 1)))
-                new_goals.append("diff")
-            else:
-                counts = prime_factor_counts(mappings[:, c])
-                for i in range(counts.shape[1]):
-                    to_pareto.append(counts[:, i].reshape((-1, 1)))
-                    new_goals.append("min")
+            counts = prime_factor_counts(rounded)
+            for i in range(counts.shape[1]):
+                to_pareto.append(counts[:, i])
+                new_goals.append("min")
         elif goal == "max_per_prime_factor":
-            if not dirty:
-                # See above big comment.
-                to_pareto.append(mappings[:, c].reshape((-1, 1)))
-                new_goals.append("diff")
-            else:
-                counts = prime_factor_counts(mappings[:, c])
-                for i in range(counts.shape[1]):
-                    to_pareto.append(counts[:, i].reshape((-1, 1)))
-                    new_goals.append("max")
+            counts = prime_factor_counts(rounded)
+            for i in range(counts.shape[1]):
+                to_pareto.append(counts[:, i])
+                new_goals.append("max")
         else:
             raise ValueError(f"Unknown goal: {goal}")
 
@@ -501,26 +347,5 @@ def makepareto_numpy(
         n[0] = True
         return n
 
-    # Really big Paretos are slow. If we add "diff" goals, the library partitions the
-    # set and performs a smaller Pareto inside each. The following block will add more
-    # "diff" goals until the chunks are reasonably small.
-    if dirty:
-        g2unique = {i: len(np.unique(to_pareto[i])) for i in range(len(to_pareto))}
-
-        n_per_chunk = to_pareto[0].shape[0]
-        for i, goal in enumerate(new_goals):
-            if goal == "diff":
-                n_per_chunk /= g2unique[i]
-
-        non_diffs = {i for i, goal in enumerate(new_goals) if goal != "diff"}
-        while non_diffs and n_per_chunk > 1000:
-            change_to_diff = min(non_diffs, key=lambda i: g2unique[i])
-            non_diffs.remove(change_to_diff)
-            new_goals[change_to_diff] = "diff"
-            n_per_chunk /= g2unique[change_to_diff]
-
-    df = pd.DataFrame(np.concatenate(to_pareto, axis=1), columns=range(len(to_pareto)))
-
-    if dirty:
-        return paretoset_grouped_dirty(df, sense=new_goals)
-    return paretoset(df, sense=new_goals)
+    data = np.concatenate([x.reshape(-1, 1) for x in to_pareto], axis=1)
+    return fast_pareto_mask(data, new_goals)

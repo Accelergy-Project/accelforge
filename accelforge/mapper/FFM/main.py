@@ -15,14 +15,9 @@ from accelforge.frontend.workload import EinsumName
 from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
     clean_compress_and_join_pmappings,
 )
-from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
-    _check_einsum2pmappings_not_empty,
-)
 from accelforge._accelerated_imports import pd
-from tqdm import tqdm
 
-from accelforge.util import delayed, parallel
-
+from accelforge.util import delayed, _fillna_and__numeric_cast, parallel, oset
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +29,7 @@ def map_workload_to_arch(
     cache_dir: str | None = None,
     one_pbar_only: bool = False,
     print_progress: bool = True,
-    print_number_of_pmappings: bool = True,
+    print_number_of_pmappings: bool = False,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ) -> Mappings:
     """
@@ -93,12 +88,38 @@ def map_workload_to_arch(
     def eval_mapping(i, spec, mappings):
         local_spec = deepcopy(spec)
         local_spec.model.metrics = local_spec.mapper.info_metrics
-        local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"]()
-        this_mapping = evaluate_mapping(
-            local_spec,
-            flattened_arches=mappings.flattened_arches,
-            evaluated_specs=mappings.evaluated_specs,
+        local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"](
+            _for_model=True,
         )
+        try:
+            this_mapping = evaluate_mapping(
+                local_spec,
+                flattened_arches=mappings.flattened_arches,
+                evaluated_specs=mappings.evaluated_specs,
+            )
+        except:
+            # import os
+
+            # os.makedirs(f"error_{i}", exist_ok=True)
+            # for c in mappings.data.columns:
+            #     if "mapping" in c and c != "Total<SEP>mapping":
+            #         svg = mappings.data.iloc[i][c].render()
+            #         with open(
+            #             f"error_{i}/{c}_{mappings.data.iloc[i][c]._template_index}.svg",
+            #             "w",
+            #         ) as f:
+            #             f.write(svg)
+            # with open(f"error_{i}/mapping.svg", "w") as f:
+            #     f.write(mappings.data.iloc[i]["Total<SEP>mapping"].render())
+            # import accelforge
+            # import os
+            # # add to the environment variable
+            # os.environ["NO_JOIN_MAPPING_VISUALIZATION"] = "True"
+            # mapping = mappings.data.iloc[i]["Total<SEP>mapping"]()
+            # accelforge.frontend.mapping._NO_JOIN_MAPPING_VISUALIZATION = True
+            # with open(f"error_{i}/mapping_unzipped.svg", "w") as f:
+            #     f.write(mapping.render())
+            raise
         return i, this_mapping.data
 
     results = [None] * len(mappings.data)
@@ -116,7 +137,7 @@ def map_workload_to_arch(
     #         if "Total" in c or "reservation" in c:
     #             print(f'\t{c}: {r[c]}')
 
-    mappings.data = pd.concat(results).fillna(0)
+    mappings.data = _fillna_and__numeric_cast(pd.concat(results), 0)
     return mappings
 
 
@@ -126,7 +147,7 @@ def make_pmappings(
     can_combine_multiple_runs: bool = False,
     cache_dir: str | None = None,
     print_progress: bool = True,
-    print_number_of_pmappings: bool = True,
+    print_number_of_pmappings: bool = False,
     one_pbar_only: bool = False,
 ) -> MultiEinsumPmappings:
     """
@@ -189,6 +210,9 @@ def join_pmappings(
     require_all_einsums: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     print_progress: bool = True,
+    _skip_invalid: bool = True,
+    _combine_reservations: bool = True,
+    _runtime_log_file: str | None = None,
 ) -> Mappings:
     """
     Joins pmappings into a full mappings for the entire workload. Pmappings can be
@@ -209,17 +233,31 @@ def join_pmappings(
         Whether to print progress of the mapping process, including progress bars.
     metrics:
         The metrics to optimize when joining pmappings.
+    _skip_invalid:
+        If True, skip joining incompatible pmappings. If False, join all pairs.
+    _combine_reservations:
+        If True, consolidate reservations to increase pruning effectiveness.
+    _runtime_log_file:
+        If set, append per-step runtime as JSON lines to this file.
     Returns
     -------
     Mappings
         A Mappings object containing all valid, optimal mappings for the workload.
     """
+    spec = pmappings.spec
+    if _skip_invalid is not True:
+        spec.mapper._skip_invalid = _skip_invalid
+    if _combine_reservations is not True:
+        spec.mapper._combine_reservations = _combine_reservations
+    if _runtime_log_file is not None:
+        spec.mapper._runtime_log_file = _runtime_log_file
     return clean_compress_and_join_pmappings(
         pmappings=pmappings,
         metrics=metrics,
         require_all_einsums=require_all_einsums,
         _pmapping_row_filter_function=_pmapping_row_filter_function,
         print_progress=print_progress,
+        for_model=False,
     )
 
 
@@ -256,7 +294,7 @@ def _make_pmappings(
         pmapping_objects,
         einsum2jobs,
         can_combine_multiple_runs=can_combine_multiple_runs,
-        einsums_with_pmappings_generated=set(
+        einsums_with_pmappings_generated=oset(
             einsum_names if einsum_names else spec.workload.einsum_names
         ),
         flattened_arches=flattened_arches,

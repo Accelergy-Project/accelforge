@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
 
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Mapping,
     Compute,
@@ -40,8 +41,8 @@ def _trace_iterations(node, workload: Workload):
             else:
                 raise NotImplementedError()
 
-            in_child = set(child_result.keys())
-            in_last = set(last_result.keys())
+            in_child = oset(child_result.keys())
+            in_last = oset(last_result.keys())
             child_shape = None
             last_shape = None
             for rank_var in in_child & in_last:

@@ -5,9 +5,8 @@ import itertools
 from numbers import Number
 from typing import Literal, TypeVar
 
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from accelforge.frontend.mapping import (
-    Loop,
     Mapping,
     Spatial,
     TensorHolder,
@@ -17,6 +16,7 @@ from accelforge.frontend.mapping import (
     Loop as MappingLoop,
 )
 from accelforge.frontend.renames import Rank, RankVariable, TensorName
+from accelforge.frontend.workload import Einsum
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
     make_fused_loop_col,
@@ -25,7 +25,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 
-from accelforge.util import _expfmt, fzs
+from accelforge.util import _expfmt, fzs, oset
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -101,10 +101,20 @@ class Loop(Updatable):
     def clear_loop_bound(self, value=0):
         return self.update(tile_pattern=value)
 
-    def populate(self, nloop: int) -> "Loop":
+    def populate(self, nloop: int, ranks_with_tile_pattern: set[Rank]) -> "Loop":
+        initial = (
+            initial2col(self.rank_name, nloop)
+            if self.rank_name in ranks_with_tile_pattern
+            else None
+        )
+        tile_shape = (
+            stride2col(self.rank_name, nloop)
+            if self.rank_name in ranks_with_tile_pattern
+            else None
+        )
         tile_pattern = TilePattern(
-            tile_shape=stride2col(self.rank_name, nloop),
-            initial_tile_shape=initial2col(self.rank_name, nloop),
+            tile_shape=tile_shape,
+            initial_tile_shape=initial,
             calculated_n_iterations=iterations2col(nloop),
         )
         return self.update(tile_pattern=tile_pattern)
@@ -177,9 +187,12 @@ class TensorReservation(Updatable):
     def clear_loop_bounds(self) -> "Reservation":
         return self.update(loops=tuple(loop.clear_loop_bound() for loop in self.loops))
 
-    def populate_loops(self) -> "TensorReservation":
+    def populate_loops(self, ranks_with_tile_pattern: set[Rank]) -> "TensorReservation":
         return self.update(
-            loops=tuple(loop.populate(nloop) for nloop, loop in enumerate(self.loops))
+            loops=tuple(
+                loop.populate(nloop, ranks_with_tile_pattern)
+                for nloop, loop in enumerate(self.loops)
+            )
         )
 
     @staticmethod
@@ -253,7 +266,14 @@ class Compatibility(Updatable):
 
     @property
     def n_loops(self) -> int:
-        return max([len(s.loops) for s in self.tensors], default=0)
+        try:
+            return object.__getattribute__(self, "_n_loops_cached")
+        except AttributeError:
+            val = max(
+                (len(s.loops) for s in frozenset.__iter__(self.tensors)), default=0
+            )
+            object.__setattr__(self, "_n_loops_cached", val)
+            return val
 
     @property
     def loops(self) -> tuple[Loop, ...]:
@@ -266,17 +286,19 @@ class Compatibility(Updatable):
         return hash(self._get_hash_tuple())
 
     def __eq__(self, other):
+        if self is other:
+            return True
         return self._get_hash_tuple() == other._get_hash_tuple()
 
     def __post_init__(self):
-        assert isinstance(self.n_loops, int)
         assert isinstance(self.tensors, fzs)
         assert isinstance(self.splits, fzs)
         assert isinstance(self.reservation_indices, fzs)
-        assert (
-            max(self.reservation_indices, default=-1) <= self.n_loops
-        ), f"Extra reservation indices {self.reservation_indices} are greater than n_loops {self.n_loops}"
         if self.check_reservation_indices:
+            assert isinstance(self.n_loops, int)
+            assert (
+                max(self.reservation_indices, default=-1) <= self.n_loops
+            ), f"Extra reservation indices {self.reservation_indices} are greater than n_loops {self.n_loops}"
             p = f"are not in reservation indices {self.reservation_indices}"
             assert all(
                 i >= 0 for i in self.reservation_indices
@@ -297,7 +319,7 @@ class Compatibility(Updatable):
 
     @property
     def tensor_names(self) -> set[str]:
-        return {t.name for t in self.tensors}
+        return oset(t.name for t in self.tensors)
 
     @property
     def max_above_loop_index(self) -> int:
@@ -321,7 +343,7 @@ class Compatibility(Updatable):
         )
         tensors = []
         for t in self.tensors:
-            other_t = other.get_tensor_by_name(t.name)
+            other_t = other.get_reservation_of_tensor(t.name)
             t, new_renames = t._rename_to_match(other_t)
             tensors.append(t)
             _update_rename_dict(renames, new_renames)
@@ -338,6 +360,7 @@ class Compatibility(Updatable):
     def clear_dead_tensors(
         self,
         live_tensors: set[str] | Literal["All"],
+        keep_reservation_indices_and_splits: bool = False,
     ) -> "Compatibility":
         """
         Return a new compatibility with "dead" tensors removed by:
@@ -352,18 +375,22 @@ class Compatibility(Updatable):
 
         remaining_tensors = fzs(s for s in self.tensors if s.name in live_tensors)
         new_n_loops = max((len(s.loops) for s in remaining_tensors), default=0)
-        new_splits = fzs(
-            split for split in self.splits if split.above_loop_index < new_n_loops
-        )
-        reservation_indices = fzs(
-            {min(i, new_n_loops) for i in self.reservation_indices}
-        )
-        reservation_indices = fzs(x for x in reservation_indices if x >= 0)
+        splits, reservation_indices = self.splits, self.reservation_indices
+        if not keep_reservation_indices_and_splits:
+            splits = fzs(s for s in splits if s.above_loop_index < new_n_loops)
+            reservation_indices = fzs(
+                oset(min(i, new_n_loops) for i in self.reservation_indices)
+            )
+            reservation_indices = fzs(x for x in reservation_indices if x >= 0)
 
+        new_check_reservation_indices = (
+            self.check_reservation_indices and not keep_reservation_indices_and_splits
+        )
         return self.update(
             tensors=remaining_tensors,
-            splits=new_splits,
+            splits=splits,
             reservation_indices=reservation_indices,
+            check_reservation_indices=new_check_reservation_indices,
         )
 
     def __lt__(self, other):
@@ -373,7 +400,7 @@ class Compatibility(Updatable):
         return self.__repr__()
 
     def __repr__(self):
-        return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}), splits={repr(self.splits)}"
+        return f"Compatibility(n_loops={self.n_loops}, tensors={repr(self.tensors)}, splits={repr(self.splits)}, reservation_indices={repr(self.reservation_indices)})"
 
     def _and_tensors_with_names(self, names: set[str]) -> "Compatibility":
         return fzs(s for s in self.tensors if s.name in names)
@@ -382,10 +409,18 @@ class Compatibility(Updatable):
         self,
         right: "Compatibility",
         live_tensors: set[str],
+        _force_allow_invalid_only_for_runtime_test: bool = False,
     ) -> "Compatibility":
-        self_freed = self.clear_dead_tensors(live_tensors)
-        right_freed = right.clear_dead_tensors(live_tensors)
-        if self_freed.n_loops > right_freed.n_loops:
+        self_freed = self.clear_dead_tensors(
+            live_tensors, keep_reservation_indices_and_splits=True
+        )
+        right_freed = right.clear_dead_tensors(
+            live_tensors, keep_reservation_indices_and_splits=True
+        )
+        if (
+            self_freed.n_loops > right_freed.n_loops
+            and not _force_allow_invalid_only_for_runtime_test
+        ):
             # This can be relaxed if we have a way to do order-independent joining
             # and/or non-looptree mappings.
             raise ValueError(
@@ -393,16 +428,16 @@ class Compatibility(Updatable):
                 f"be carried through a LoopTree to where it's needed."
             )
 
-        live_minus_mine = live_tensors - {s.name for s in self.tensors}
+        live_minus_mine = live_tensors - oset(s.name for s in self.tensors)
         tensors_a = self._and_tensors_with_names(live_tensors)
         tensors_b = right._and_tensors_with_names(live_minus_mine)
 
         # TODO: split handling?
         joined = Compatibility(
             tensors=tensors_a | tensors_b,
-            reservation_indices=self_freed.reservation_indices
-            | right_freed.reservation_indices,
-        )
+            reservation_indices=self.reservation_indices | right.reservation_indices,
+            check_reservation_indices=False,
+        ).clear_dead_tensors(live_tensors)
 
         return joined
 
@@ -410,9 +445,9 @@ class Compatibility(Updatable):
         return all(any(s == t for s in self.tensors) for t in tensors)
 
     def _permute_stops(self):
-        stops = set(len(s.loops) for s in self.tensors)
+        stops = oset(len(s.loops) for s in self.tensors)
         stops |= self.reservation_indices
-        stops |= set(s.above_loop_index for s in self.splits)
+        stops |= oset(s.above_loop_index for s in self.splits)
         return stops
 
     def permute(
@@ -420,7 +455,7 @@ class Compatibility(Updatable):
         loop_changes: list[int],
     ) -> "Compatibility":
         assert len(loop_changes) <= self.n_loops
-        assert set(loop_changes) == set(
+        assert oset(loop_changes) == oset(
             range(len(loop_changes))
         ), f"Loop changes {loop_changes} are not a permutation of {range(len(loop_changes))}"
         if len(loop_changes) < len(self.loops):
@@ -460,7 +495,7 @@ class Compatibility(Updatable):
         ]
         return [(self.permute(p), p) for p in all_permutations]
 
-    def get_tensor_by_name(self, tensor: str) -> TensorReservation:
+    def get_reservation_of_tensor(self, tensor: str) -> TensorReservation:
         for s in self.tensors:
             if s.name == tensor:
                 return s
@@ -469,7 +504,7 @@ class Compatibility(Updatable):
     def per_tensor_compatibility(self) -> dict[str, "Compatibility"]:
         result = {}
         for s in self.tensors:
-            result[s.name] = self.clear_dead_tensors(set([s.name]))
+            result[s.name] = self.clear_dead_tensors(oset([s.name]))
         return result
 
     def clear_loop_bounds(self) -> "Compatibility":
@@ -485,9 +520,11 @@ class Compatibility(Updatable):
         #             return False
         # return True
 
-    def populate_loops(self):
+    def populate_loops(self, ranks_with_tile_pattern: set[Rank]):
         return self.update(
-            tensors=fzs(t.populate_loops() for t in self.tensors),
+            tensors=fzs(
+                t.populate_loops(ranks_with_tile_pattern) for t in self.tensors
+            ),
         )
 
     @classmethod
@@ -495,19 +532,29 @@ class Compatibility(Updatable):
         cls,
         mapping: Mapping,
         tensors: set[TensorName],
-        rank_variable_to_ranks: dict[TensorName, dict[RankVariable, Rank]],
+        einsum: Einsum,
     ) -> "Compatibility":
+        """
+        Create Compatibility from a mapping, a set of fusable tensors, and the
+        workload.
+        """
+        if not isinstance(einsum, Einsum):
+            raise TypeError(f"einsum should be an Einsum, but {type(einsum)} instead")
+        rank_variable_to_ranks = {
+            t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
+        }
+
         # TODO: update compatibility to handle spatial-for loop per-tensor update
         tensor_indices = []
         split_above_loop_indices = []
         reservation_indices = []
-        backing_remaining = set(tensors)
+        backing_remaining = oset(tensors)
         n_seen_loops = 0
         n_fused_loops = 0
         for i, n in enumerate(mapping.nodes):
             if isinstance(n, MappingReservation):
                 reservation_indices.append(n_seen_loops)
-                if not (backing := set(n.purposes) & backing_remaining):
+                if not (backing := oset(n.purposes) & backing_remaining):
                     continue
                 backing_remaining -= backing
                 assert (
@@ -530,7 +577,7 @@ class Compatibility(Updatable):
         ), f"Tensors {backing_remaining} not found in mapping"
 
         def get_rank(rank_variable, tensor):
-            rv = rank_variable_to_ranks[tensor].get(rank_variable, set())
+            rv = rank_variable_to_ranks[tensor].get(rank_variable, oset())
             assert (
                 len(rv) <= 1
             ), f"Rank variable {rank_variable} indexes into multiple ranks {rv} for tensor {tensor} "
@@ -581,7 +628,7 @@ class Compatibility(Updatable):
         return symbols
 
     def drop_loop_indices(self, loop_indices: set[int]) -> "Compatibility":
-        loop_indices = set(loop_indices)
+        loop_indices = oset(loop_indices)
         tensors = fzs(t.drop_loop_indices(loop_indices) for t in self.tensors)
         splits = fzs(s for s in self.splits if s.above_loop_index not in loop_indices)
 
@@ -635,7 +682,7 @@ class Compatibility(Updatable):
         )
 
     def clear_unrelated_columns(self, mappings: pd.DataFrame) -> "Compatibility":
-        my_symbols = set(self.symbols())
+        my_symbols = oset(self.symbols())
         for c in my_symbols:
             assert c in mappings.columns, f"Column {c} not found in mappings"
         should_drop = lambda x: is_fused_loop_col(x) and x not in my_symbols

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
-from functools import reduce
+from functools import reduce, lru_cache
 from operator import mul
 
 import sympy
@@ -16,11 +16,15 @@ from accelforge.frontend.workload import (
 from ._isl import get_rank_variable_bounds
 
 
+@lru_cache(maxsize=4096)
+def parse_expr(s: str) -> sympy.Expr:
+    return sympy.parsing.sympy_parser.parse_expr(s)
+
+
 def get_projection_expr(einsum: Einsum, tensor: TensorName) -> dict[Rank, sympy.Expr]:
     projection = einsum.tensor_accesses[tensor].projection
     return {
-        rank_name: sympy.parsing.sympy_parser.parse_expr(proj_str)
-        for rank_name, proj_str in projection.items()
+        rank_name: parse_expr(proj_str) for rank_name, proj_str in projection.items()
     }
 
 
@@ -44,7 +48,7 @@ def get_rank_variable_relevancy(einsum: Einsum, tensor: TensorName):
     for rank_variable in einsum.rank_variables:
         relevancy[rank_variable] = Irrelevant()
         for rank_name, projection_str in projection.items():
-            projection_expr = sympy.parsing.sympy_parser.parse_expr(projection_str)
+            projection_expr = parse_expr(projection_str)
             is_simple = len(sympy.Add.make_args(projection_expr)) == 1
             is_relevant = (
                 sympy.symbols(f"{rank_variable}") in projection_expr.free_symbols

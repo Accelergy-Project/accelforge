@@ -1,6 +1,7 @@
 from typing import Any, Annotated, Literal
 
 from accelforge.frontend.mapper.metrics import Metrics
+from accelforge.frontend.renames import EinsumName
 from accelforge.util._basetypes import EvalableModel
 
 
@@ -77,6 +78,14 @@ class FFM(EvalableModel):
     3 means that the number of loops can be up to (the number of ranks + 3).
     """
 
+    explore_loop_orders: bool = True
+    """
+    Whether to explore loop orders for loops where we may get partial reuse. Note that
+    loop orders that don't matter (i.e., ones that have either full or no reuse) are not
+    explored, except in joining where we may join partial mappings who have
+    different-but-equivalent loop orders.
+    """
+
     _can_lower_outermost_memory: bool = False
     """
     Whether the storage node of outermost memory can be lowered. If set to True, the
@@ -88,9 +97,12 @@ class FFM(EvalableModel):
     "save_outermost_memory_usage".
     """
 
-    _only_output_pmapping_with_index: int | None = None
+    _only_output_pmapping_with_index: (
+        int | set[int] | dict[EinsumName, int | set[int]] | None
+    ) = None
     """
-    For debugging. Only output the pmapping with this index.
+    For debugging. Only output the pmapping with this index. If a dictionary, then the
+    keys are einsum names and the values are the indices.
     """
 
     memory_limit: float | int = float("inf")
@@ -112,6 +124,16 @@ class FFM(EvalableModel):
     are so many templates being generated?).
     """
 
+    prioritize_reuse_of_unfused_tensors: bool = False
+    """
+    If set to True, then for all memory levels, the mapper will place the storage nodes
+    of unfused tensors above those of fused tensors. This is overridden if there is any
+    tensor_order_options specified for a memory level. The result of this is that the
+    mapper will avoid mappings that repeatedly fetch unfused tensors in order to allow
+    for smaller tiles of fused tensors. This may lead to better mappings,
+    but slows down the mapper.
+    """
+
     _count_option_for_mapsapce_size_evaluation: tuple[
         Literal[
             "redundant_loop_orders",
@@ -120,3 +142,53 @@ class FFM(EvalableModel):
             "redundant_dataplacements",
         ]
     ] = ()
+
+    objective_tolerance: float = 0
+    """
+    Reduces memory usage and runtime for the mapper. When set to a nonzero value, the
+    mapper may return mappings up to (1 + tolerance)× optimal. Also see
+    resource_usage_tolerance to further reduce mapper memory usage and runtime.
+    """
+
+    resource_usage_tolerance: float = 0
+    """
+    Reduces memory usage and runtime for the mapper. When set to a nonzero value, the
+    mapper may drop mappings with resource usage > (1 - tolerance)× optimal. The mapper
+    is guaranteed to return all Pareto-optimal mappings with resource usage below this,
+    and perhaps more. If Metrics.RESOURCE_USAGE is set, then this is ignored. Setting
+    this, as well as objective_tolerance, to a greater-than-zero value will reduce
+    memory usage for the mapper.
+    """
+
+    _let_non_intermediate_tensors_respawn_in_backing_storage: bool = False
+    """
+    If set to True, we can have temporal loops above the backing storage for
+    non-intermediate tensors, which effectively causes them to respawn.
+    """
+
+    _skip_invalid: bool = True
+    """
+    Whether to skip invalid joinings. This is used for a paper ablation study. Do not
+    use this unless you're ablating or want to burn CPU cycles.
+    """
+
+    _combine_reservations: bool = True
+    """
+    Whether to combine reservations to increase pruning effectiveness. This is used for
+    a paper ablation study. Do not use this unless you're ablating or want to burn CPU
+    cycles.
+    """
+
+    _runtime_log_file: str | None = None
+    """
+    If set, append per-step runtime as JSON lines to this file. Used for ablation study
+    measurements.
+    """
+
+    _metric_aggregator: Literal["sum", "prod", "any"] = "any"
+    """
+    How to aggregate metrics together to determine whether one pmapping is better than
+    another. "sum" means that the metrics are added together, "prod" means that the
+    metrics are multiplied together, and "any" means that any metric being better than
+    the other is enough to consider it non-dominated.
+    """

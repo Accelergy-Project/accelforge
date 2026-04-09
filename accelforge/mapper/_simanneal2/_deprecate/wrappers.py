@@ -13,7 +13,8 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
 )
 from accelforge.mapper.simanneal.simanneal import MapspaceGlobals, _fuse_sims
 from accelforge.mapper.simanneal.tracking import EvaluationsScoreTracker
-from accelforge.util._frozenset import fzs
+from accelforge.util import _fillna_and__numeric_cast
+from accelforge.util._frozenset import fzs, oset
 from accelforge.util.parallel import parallel, get_n_parallel_jobs
 
 
@@ -25,7 +26,9 @@ def mapping2sims(einsum_to_result: Compatibility):
 
 
 def paretofy(k, v):
-    return PmappingGroup(k, PmappingDataframe(pd.DataFrame(v).fillna(0)))
+    return PmappingGroup(
+        k, PmappingDataframe(_fillna_and__numeric_cast(pd.DataFrame(v), 0))
+    )
 
 
 def get_possible_translations(
@@ -45,13 +48,13 @@ def get_possible_translations(
     # each possible rank.
     def translate_loop(l: Loop):
         compatible_rank_variables = (
-            set.union(
+            oset.union(
                 *(full_equivalent_rank_variables[n] for n in l.rank_variable_names)
             )
             & right_rank_variables
         )
         pairwise_compatible_rank_variables = (
-            set.union(
+            oset.union(
                 *(pairwise_equivalent_rank_variables[n] for n in l.rank_variable_names)
             )
             & right_rank_variables
@@ -99,7 +102,7 @@ class PmappingsOneEinsum:
     def __init__(self, einsum_name: str, pm_group_list: list[PmappingGroup]):
         self.einsum_name: str = einsum_name
         self.pmapping_groups: list[PmappingGroup] = pm_group_list
-        self.tensor_names: set[str] = set(pm_group_list[0].tensor_names)
+        self.tensor_names: set[str] = oset(pm_group_list[0].tensor_names)
 
     def __getitem__(self, i):
         return self.pmapping_groups[i]
@@ -107,7 +110,7 @@ class PmappingsOneEinsum:
 
 def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
     full_equivalent_rank_variables = {
-        k: set(v) for k, v in pairwise_equivalent_rank_variables.items()
+        k: oset(v) for k, v in pairwise_equivalent_rank_variables.items()
     }
     changed = True
     while changed:

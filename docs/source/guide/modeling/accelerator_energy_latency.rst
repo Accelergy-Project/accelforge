@@ -11,7 +11,7 @@ by each :py:class:`~accelforge.frontend.arch.Component` in the architecture.
 Calculating Number of Actions from A Mapping
 --------------------------------------------
 
-Except for :py:class:`~accelforge.frontend.arch.Compute`\ components (whose number of
+Except for :py:class:`~accelforge.frontend.arch.Compute` components (whose number of
 compute actions, barring recomputation, depends only on workload), the number of actions
 incurred by most :py:class:`~accelforge.frontend.arch.Component`\ s depends on the
 component type, the workload, and the mapping.

@@ -1,7 +1,7 @@
 import pickle
 from pathlib import Path
 from typing import Callable, TypeVar
-
+from accelforge.util._frozenset import oset
 
 T = TypeVar("T")
 
@@ -25,7 +25,7 @@ class PickleCache:
                 pickle.dump(result, f)
             return result
 
-    def set(self, data: T) -> None:
+    def oset(self, data: T) -> None:
         """Set data at `self.fname`."""
         with open(self.fname, "wb") as f:
             pickle.dump(data, f)

@@ -1,0 +1,1456 @@
+renames:
+  einsums:
+  - name: default
+    tensor_accesses:
+    - name: input
+      source: Inputs & Intermediates
+      expected_count: 1
+    - name: output
+      source: Outputs
+      expected_count: 1
+    - name: weight
+      source: ~(input | output)
+      expected_count: 1
+
+workload:
+  bits_per_value: {All: 8}
+  rank_sizes: {N: {{BATCH_SIZE}}}
+
+  einsums:
+  - einsum: "T0[p0, q0, n, m0] = I0[n, c0, H: p0 * 16 + r0, W: q0 * 16 + s0] * W0[r0, s0, c0, m0]"
+    iteration_space_shape:
+    - 0 <= p0 < 24
+    - 0 <= q0 < 24
+    - 0 <= c0 < 3
+    - 0 <= m0 < 1024
+    - 0 <= r0 < 16
+    - 0 <= s0 < 16
+    renames: {output: T0, input: I0, weight: W0}
+  - einsum: "T1[p1, n, m1] = I1[n, c1, p1] * W1[c1, m1]"
+    iteration_space_shape:
+    - 0 <= p1 < 577
+    - 0 <= c1 < 1024
+    - 0 <= m1 < 1024
+    renames: {output: T1, input: I1, weight: W1}
+  - einsum: "T2[p2, n, m2] = I2[n, c2, p2] * W2[c2, m2]"
+    iteration_space_shape:
+    - 0 <= p2 < 577
+    - 0 <= c2 < 1024
+    - 0 <= m2 < 1024
+    renames: {output: T2, input: I2, weight: W2}
+  - einsum: "T3[p3, n, m3] = I3[n, c3, p3] * W3[c3, m3]"
+    iteration_space_shape:
+    - 0 <= p3 < 577
+    - 0 <= c3 < 1024
+    - 0 <= m3 < 1024
+    renames: {output: T3, input: I3, weight: W3}
+  - einsum: "T4[p4, n, m4] = I4[n, c4, p4] * W4[c4, m4]"
+    iteration_space_shape:
+    - 0 <= p4 < 16
+    - 0 <= c4 < 577
+    - 0 <= m4 < 64
+    renames: {output: T4, input: I4, weight: W4}
+  - einsum: "T5[p5, n, m5] = I5[n, c5, p5] * W5[c5, m5]"
+    iteration_space_shape:
+    - 0 <= p5 < 16
+    - 0 <= c5 < 577
+    - 0 <= m5 < 577
+    renames: {output: T5, input: I5, weight: W5}
+  - einsum: "T6[p6, n, m6] = I6[n, c6, p6] * W6[c6, m6]"
+    iteration_space_shape:
+    - 0 <= p6 < 577
+    - 0 <= c6 < 1024
+    - 0 <= m6 < 1024
+    renames: {output: T6, input: I6, weight: W6}
+  - einsum: "T7[p7, n, m7] = I7[n, c7, p7] * W7[c7, m7]"
+    iteration_space_shape:
+    - 0 <= p7 < 577
+    - 0 <= c7 < 1024
+    - 0 <= m7 < 4096
+    renames: {output: T7, input: I7, weight: W7}
+  - einsum: "T8[p8, n, m8] = I8[n, c8, p8] * W8[c8, m8]"
+    iteration_space_shape:
+    - 0 <= p8 < 577
+    - 0 <= c8 < 4096
+    - 0 <= m8 < 1024
+    renames: {output: T8, input: I8, weight: W8}
+  - einsum: "T9[p9, n, m9] = I9[n, c9, p9] * W9[c9, m9]"
+    iteration_space_shape:
+    - 0 <= p9 < 577
+    - 0 <= c9 < 1024
+    - 0 <= m9 < 1024
+    renames: {output: T9, input: I9, weight: W9}
+  - einsum: "T10[p10, n, m10] = I10[n, c10, p10] * W10[c10, m10]"
+    iteration_space_shape:
+    - 0 <= p10 < 577
+    - 0 <= c10 < 1024
+    - 0 <= m10 < 1024
+    renames: {output: T10, input: I10, weight: W10}
+  - einsum: "T11[p11, n, m11] = I11[n, c11, p11] * W11[c11, m11]"
+    iteration_space_shape:
+    - 0 <= p11 < 577
+    - 0 <= c11 < 1024
+    - 0 <= m11 < 1024
+    renames: {output: T11, input: I11, weight: W11}
+  - einsum: "T12[p12, n, m12] = I12[n, c12, p12] * W12[c12, m12]"
+    iteration_space_shape:
+    - 0 <= p12 < 16
+    - 0 <= c12 < 577
+    - 0 <= m12 < 64
+    renames: {output: T12, input: I12, weight: W12}
+  - einsum: "T13[p13, n, m13] = I13[n, c13, p13] * W13[c13, m13]"
+    iteration_space_shape:
+    - 0 <= p13 < 16
+    - 0 <= c13 < 577
+    - 0 <= m13 < 577
+    renames: {output: T13, input: I13, weight: W13}
+  - einsum: "T14[p14, n, m14] = I14[n, c14, p14] * W14[c14, m14]"
+    iteration_space_shape:
+    - 0 <= p14 < 577
+    - 0 <= c14 < 1024
+    - 0 <= m14 < 1024
+    renames: {output: T14, input: I14, weight: W14}
+  - einsum: "T15[p15, n, m15] = I15[n, c15, p15] * W15[c15, m15]"
+    iteration_space_shape:
+    - 0 <= p15 < 577
+    - 0 <= c15 < 1024
+    - 0 <= m15 < 4096
+    renames: {output: T15, input: I15, weight: W15}
+  - einsum: "T16[p16, n, m16] = I16[n, c16, p16] * W16[c16, m16]"
+    iteration_space_shape:
+    - 0 <= p16 < 577
+    - 0 <= c16 < 4096
+    - 0 <= m16 < 1024
+    renames: {output: T16, input: I16, weight: W16}
+  - einsum: "T17[p17, n, m17] = I17[n, c17, p17] * W17[c17, m17]"
+    iteration_space_shape:
+    - 0 <= p17 < 577
+    - 0 <= c17 < 1024
+    - 0 <= m17 < 1024
+    renames: {output: T17, input: I17, weight: W17}
+  - einsum: "T18[p18, n, m18] = I18[n, c18, p18] * W18[c18, m18]"
+    iteration_space_shape:
+    - 0 <= p18 < 577
+    - 0 <= c18 < 1024
+    - 0 <= m18 < 1024
+    renames: {output: T18, input: I18, weight: W18}
+  - einsum: "T19[p19, n, m19] = I19[n, c19, p19] * W19[c19, m19]"
+    iteration_space_shape:
+    - 0 <= p19 < 577
+    - 0 <= c19 < 1024
+    - 0 <= m19 < 1024
+    renames: {output: T19, input: I19, weight: W19}
+  - einsum: "T20[p20, n, m20] = I20[n, c20, p20] * W20[c20, m20]"
+    iteration_space_shape:
+    - 0 <= p20 < 16
+    - 0 <= c20 < 577
+    - 0 <= m20 < 64
+    renames: {output: T20, input: I20, weight: W20}
+  - einsum: "T21[p21, n, m21] = I21[n, c21, p21] * W21[c21, m21]"
+    iteration_space_shape:
+    - 0 <= p21 < 16
+    - 0 <= c21 < 577
+    - 0 <= m21 < 577
+    renames: {output: T21, input: I21, weight: W21}
+  - einsum: "T22[p22, n, m22] = I22[n, c22, p22] * W22[c22, m22]"
+    iteration_space_shape:
+    - 0 <= p22 < 577
+    - 0 <= c22 < 1024
+    - 0 <= m22 < 1024
+    renames: {output: T22, input: I22, weight: W22}
+  - einsum: "T23[p23, n, m23] = I23[n, c23, p23] * W23[c23, m23]"
+    iteration_space_shape:
+    - 0 <= p23 < 577
+    - 0 <= c23 < 1024
+    - 0 <= m23 < 4096
+    renames: {output: T23, input: I23, weight: W23}
+  - einsum: "T24[p24, n, m24] = I24[n, c24, p24] * W24[c24, m24]"
+    iteration_space_shape:
+    - 0 <= p24 < 577
+    - 0 <= c24 < 4096
+    - 0 <= m24 < 1024
+    renames: {output: T24, input: I24, weight: W24}
+  - einsum: "T25[p25, n, m25] = I25[n, c25, p25] * W25[c25, m25]"
+    iteration_space_shape:
+    - 0 <= p25 < 577
+    - 0 <= c25 < 1024
+    - 0 <= m25 < 1024
+    renames: {output: T25, input: I25, weight: W25}
+  - einsum: "T26[p26, n, m26] = I26[n, c26, p26] * W26[c26, m26]"
+    iteration_space_shape:
+    - 0 <= p26 < 577
+    - 0 <= c26 < 1024
+    - 0 <= m26 < 1024
+    renames: {output: T26, input: I26, weight: W26}
+  - einsum: "T27[p27, n, m27] = I27[n, c27, p27] * W27[c27, m27]"
+    iteration_space_shape:
+    - 0 <= p27 < 577
+    - 0 <= c27 < 1024
+    - 0 <= m27 < 1024
+    renames: {output: T27, input: I27, weight: W27}
+  - einsum: "T28[p28, n, m28] = I28[n, c28, p28] * W28[c28, m28]"
+    iteration_space_shape:
+    - 0 <= p28 < 16
+    - 0 <= c28 < 577
+    - 0 <= m28 < 64
+    renames: {output: T28, input: I28, weight: W28}
+  - einsum: "T29[p29, n, m29] = I29[n, c29, p29] * W29[c29, m29]"
+    iteration_space_shape:
+    - 0 <= p29 < 16
+    - 0 <= c29 < 577
+    - 0 <= m29 < 577
+    renames: {output: T29, input: I29, weight: W29}
+  - einsum: "T30[p30, n, m30] = I30[n, c30, p30] * W30[c30, m30]"
+    iteration_space_shape:
+    - 0 <= p30 < 577
+    - 0 <= c30 < 1024
+    - 0 <= m30 < 1024
+    renames: {output: T30, input: I30, weight: W30}
+  - einsum: "T31[p31, n, m31] = I31[n, c31, p31] * W31[c31, m31]"
+    iteration_space_shape:
+    - 0 <= p31 < 577
+    - 0 <= c31 < 1024
+    - 0 <= m31 < 4096
+    renames: {output: T31, input: I31, weight: W31}
+  - einsum: "T32[p32, n, m32] = I32[n, c32, p32] * W32[c32, m32]"
+    iteration_space_shape:
+    - 0 <= p32 < 577
+    - 0 <= c32 < 4096
+    - 0 <= m32 < 1024
+    renames: {output: T32, input: I32, weight: W32}
+  - einsum: "T33[p33, n, m33] = I33[n, c33, p33] * W33[c33, m33]"
+    iteration_space_shape:
+    - 0 <= p33 < 577
+    - 0 <= c33 < 1024
+    - 0 <= m33 < 1024
+    renames: {output: T33, input: I33, weight: W33}
+  - einsum: "T34[p34, n, m34] = I34[n, c34, p34] * W34[c34, m34]"
+    iteration_space_shape:
+    - 0 <= p34 < 577
+    - 0 <= c34 < 1024
+    - 0 <= m34 < 1024
+    renames: {output: T34, input: I34, weight: W34}
+  - einsum: "T35[p35, n, m35] = I35[n, c35, p35] * W35[c35, m35]"
+    iteration_space_shape:
+    - 0 <= p35 < 577
+    - 0 <= c35 < 1024
+    - 0 <= m35 < 1024
+    renames: {output: T35, input: I35, weight: W35}
+  - einsum: "T36[p36, n, m36] = I36[n, c36, p36] * W36[c36, m36]"
+    iteration_space_shape:
+    - 0 <= p36 < 16
+    - 0 <= c36 < 577
+    - 0 <= m36 < 64
+    renames: {output: T36, input: I36, weight: W36}
+  - einsum: "T37[p37, n, m37] = I37[n, c37, p37] * W37[c37, m37]"
+    iteration_space_shape:
+    - 0 <= p37 < 16
+    - 0 <= c37 < 577
+    - 0 <= m37 < 577
+    renames: {output: T37, input: I37, weight: W37}
+  - einsum: "T38[p38, n, m38] = I38[n, c38, p38] * W38[c38, m38]"
+    iteration_space_shape:
+    - 0 <= p38 < 577
+    - 0 <= c38 < 1024
+    - 0 <= m38 < 1024
+    renames: {output: T38, input: I38, weight: W38}
+  - einsum: "T39[p39, n, m39] = I39[n, c39, p39] * W39[c39, m39]"
+    iteration_space_shape:
+    - 0 <= p39 < 577
+    - 0 <= c39 < 1024
+    - 0 <= m39 < 4096
+    renames: {output: T39, input: I39, weight: W39}
+  - einsum: "T40[p40, n, m40] = I40[n, c40, p40] * W40[c40, m40]"
+    iteration_space_shape:
+    - 0 <= p40 < 577
+    - 0 <= c40 < 4096
+    - 0 <= m40 < 1024
+    renames: {output: T40, input: I40, weight: W40}
+  - einsum: "T41[p41, n, m41] = I41[n, c41, p41] * W41[c41, m41]"
+    iteration_space_shape:
+    - 0 <= p41 < 577
+    - 0 <= c41 < 1024
+    - 0 <= m41 < 1024
+    renames: {output: T41, input: I41, weight: W41}
+  - einsum: "T42[p42, n, m42] = I42[n, c42, p42] * W42[c42, m42]"
+    iteration_space_shape:
+    - 0 <= p42 < 577
+    - 0 <= c42 < 1024
+    - 0 <= m42 < 1024
+    renames: {output: T42, input: I42, weight: W42}
+  - einsum: "T43[p43, n, m43] = I43[n, c43, p43] * W43[c43, m43]"
+    iteration_space_shape:
+    - 0 <= p43 < 577
+    - 0 <= c43 < 1024
+    - 0 <= m43 < 1024
+    renames: {output: T43, input: I43, weight: W43}
+  - einsum: "T44[p44, n, m44] = I44[n, c44, p44] * W44[c44, m44]"
+    iteration_space_shape:
+    - 0 <= p44 < 16
+    - 0 <= c44 < 577
+    - 0 <= m44 < 64
+    renames: {output: T44, input: I44, weight: W44}
+  - einsum: "T45[p45, n, m45] = I45[n, c45, p45] * W45[c45, m45]"
+    iteration_space_shape:
+    - 0 <= p45 < 16
+    - 0 <= c45 < 577
+    - 0 <= m45 < 577
+    renames: {output: T45, input: I45, weight: W45}
+  - einsum: "T46[p46, n, m46] = I46[n, c46, p46] * W46[c46, m46]"
+    iteration_space_shape:
+    - 0 <= p46 < 577
+    - 0 <= c46 < 1024
+    - 0 <= m46 < 1024
+    renames: {output: T46, input: I46, weight: W46}
+  - einsum: "T47[p47, n, m47] = I47[n, c47, p47] * W47[c47, m47]"
+    iteration_space_shape:
+    - 0 <= p47 < 577
+    - 0 <= c47 < 1024
+    - 0 <= m47 < 4096
+    renames: {output: T47, input: I47, weight: W47}
+  - einsum: "T48[p48, n, m48] = I48[n, c48, p48] * W48[c48, m48]"
+    iteration_space_shape:
+    - 0 <= p48 < 577
+    - 0 <= c48 < 4096
+    - 0 <= m48 < 1024
+    renames: {output: T48, input: I48, weight: W48}
+  - einsum: "T49[p49, n, m49] = I49[n, c49, p49] * W49[c49, m49]"
+    iteration_space_shape:
+    - 0 <= p49 < 577
+    - 0 <= c49 < 1024
+    - 0 <= m49 < 1024
+    renames: {output: T49, input: I49, weight: W49}
+  - einsum: "T50[p50, n, m50] = I50[n, c50, p50] * W50[c50, m50]"
+    iteration_space_shape:
+    - 0 <= p50 < 577
+    - 0 <= c50 < 1024
+    - 0 <= m50 < 1024
+    renames: {output: T50, input: I50, weight: W50}
+  - einsum: "T51[p51, n, m51] = I51[n, c51, p51] * W51[c51, m51]"
+    iteration_space_shape:
+    - 0 <= p51 < 577
+    - 0 <= c51 < 1024
+    - 0 <= m51 < 1024
+    renames: {output: T51, input: I51, weight: W51}
+  - einsum: "T52[p52, n, m52] = I52[n, c52, p52] * W52[c52, m52]"
+    iteration_space_shape:
+    - 0 <= p52 < 16
+    - 0 <= c52 < 577
+    - 0 <= m52 < 64
+    renames: {output: T52, input: I52, weight: W52}
+  - einsum: "T53[p53, n, m53] = I53[n, c53, p53] * W53[c53, m53]"
+    iteration_space_shape:
+    - 0 <= p53 < 16
+    - 0 <= c53 < 577
+    - 0 <= m53 < 577
+    renames: {output: T53, input: I53, weight: W53}
+  - einsum: "T54[p54, n, m54] = I54[n, c54, p54] * W54[c54, m54]"
+    iteration_space_shape:
+    - 0 <= p54 < 577
+    - 0 <= c54 < 1024
+    - 0 <= m54 < 1024
+    renames: {output: T54, input: I54, weight: W54}
+  - einsum: "T55[p55, n, m55] = I55[n, c55, p55] * W55[c55, m55]"
+    iteration_space_shape:
+    - 0 <= p55 < 577
+    - 0 <= c55 < 1024
+    - 0 <= m55 < 4096
+    renames: {output: T55, input: I55, weight: W55}
+  - einsum: "T56[p56, n, m56] = I56[n, c56, p56] * W56[c56, m56]"
+    iteration_space_shape:
+    - 0 <= p56 < 577
+    - 0 <= c56 < 4096
+    - 0 <= m56 < 1024
+    renames: {output: T56, input: I56, weight: W56}
+  - einsum: "T57[p57, n, m57] = I57[n, c57, p57] * W57[c57, m57]"
+    iteration_space_shape:
+    - 0 <= p57 < 577
+    - 0 <= c57 < 1024
+    - 0 <= m57 < 1024
+    renames: {output: T57, input: I57, weight: W57}
+  - einsum: "T58[p58, n, m58] = I58[n, c58, p58] * W58[c58, m58]"
+    iteration_space_shape:
+    - 0 <= p58 < 577
+    - 0 <= c58 < 1024
+    - 0 <= m58 < 1024
+    renames: {output: T58, input: I58, weight: W58}
+  - einsum: "T59[p59, n, m59] = I59[n, c59, p59] * W59[c59, m59]"
+    iteration_space_shape:
+    - 0 <= p59 < 577
+    - 0 <= c59 < 1024
+    - 0 <= m59 < 1024
+    renames: {output: T59, input: I59, weight: W59}
+  - einsum: "T60[p60, n, m60] = I60[n, c60, p60] * W60[c60, m60]"
+    iteration_space_shape:
+    - 0 <= p60 < 16
+    - 0 <= c60 < 577
+    - 0 <= m60 < 64
+    renames: {output: T60, input: I60, weight: W60}
+  - einsum: "T61[p61, n, m61] = I61[n, c61, p61] * W61[c61, m61]"
+    iteration_space_shape:
+    - 0 <= p61 < 16
+    - 0 <= c61 < 577
+    - 0 <= m61 < 577
+    renames: {output: T61, input: I61, weight: W61}
+  - einsum: "T62[p62, n, m62] = I62[n, c62, p62] * W62[c62, m62]"
+    iteration_space_shape:
+    - 0 <= p62 < 577
+    - 0 <= c62 < 1024
+    - 0 <= m62 < 1024
+    renames: {output: T62, input: I62, weight: W62}
+  - einsum: "T63[p63, n, m63] = I63[n, c63, p63] * W63[c63, m63]"
+    iteration_space_shape:
+    - 0 <= p63 < 577
+    - 0 <= c63 < 1024
+    - 0 <= m63 < 4096
+    renames: {output: T63, input: I63, weight: W63}
+  - einsum: "T64[p64, n, m64] = I64[n, c64, p64] * W64[c64, m64]"
+    iteration_space_shape:
+    - 0 <= p64 < 577
+    - 0 <= c64 < 4096
+    - 0 <= m64 < 1024
+    renames: {output: T64, input: I64, weight: W64}
+  - einsum: "T65[p65, n, m65] = I65[n, c65, p65] * W65[c65, m65]"
+    iteration_space_shape:
+    - 0 <= p65 < 577
+    - 0 <= c65 < 1024
+    - 0 <= m65 < 1024
+    renames: {output: T65, input: I65, weight: W65}
+  - einsum: "T66[p66, n, m66] = I66[n, c66, p66] * W66[c66, m66]"
+    iteration_space_shape:
+    - 0 <= p66 < 577
+    - 0 <= c66 < 1024
+    - 0 <= m66 < 1024
+    renames: {output: T66, input: I66, weight: W66}
+  - einsum: "T67[p67, n, m67] = I67[n, c67, p67] * W67[c67, m67]"
+    iteration_space_shape:
+    - 0 <= p67 < 577
+    - 0 <= c67 < 1024
+    - 0 <= m67 < 1024
+    renames: {output: T67, input: I67, weight: W67}
+  - einsum: "T68[p68, n, m68] = I68[n, c68, p68] * W68[c68, m68]"
+    iteration_space_shape:
+    - 0 <= p68 < 16
+    - 0 <= c68 < 577
+    - 0 <= m68 < 64
+    renames: {output: T68, input: I68, weight: W68}
+  - einsum: "T69[p69, n, m69] = I69[n, c69, p69] * W69[c69, m69]"
+    iteration_space_shape:
+    - 0 <= p69 < 16
+    - 0 <= c69 < 577
+    - 0 <= m69 < 577
+    renames: {output: T69, input: I69, weight: W69}
+  - einsum: "T70[p70, n, m70] = I70[n, c70, p70] * W70[c70, m70]"
+    iteration_space_shape:
+    - 0 <= p70 < 577
+    - 0 <= c70 < 1024
+    - 0 <= m70 < 1024
+    renames: {output: T70, input: I70, weight: W70}
+  - einsum: "T71[p71, n, m71] = I71[n, c71, p71] * W71[c71, m71]"
+    iteration_space_shape:
+    - 0 <= p71 < 577
+    - 0 <= c71 < 1024
+    - 0 <= m71 < 4096
+    renames: {output: T71, input: I71, weight: W71}
+  - einsum: "T72[p72, n, m72] = I72[n, c72, p72] * W72[c72, m72]"
+    iteration_space_shape:
+    - 0 <= p72 < 577
+    - 0 <= c72 < 4096
+    - 0 <= m72 < 1024
+    renames: {output: T72, input: I72, weight: W72}
+  - einsum: "T73[p73, n, m73] = I73[n, c73, p73] * W73[c73, m73]"
+    iteration_space_shape:
+    - 0 <= p73 < 577
+    - 0 <= c73 < 1024
+    - 0 <= m73 < 1024
+    renames: {output: T73, input: I73, weight: W73}
+  - einsum: "T74[p74, n, m74] = I74[n, c74, p74] * W74[c74, m74]"
+    iteration_space_shape:
+    - 0 <= p74 < 577
+    - 0 <= c74 < 1024
+    - 0 <= m74 < 1024
+    renames: {output: T74, input: I74, weight: W74}
+  - einsum: "T75[p75, n, m75] = I75[n, c75, p75] * W75[c75, m75]"
+    iteration_space_shape:
+    - 0 <= p75 < 577
+    - 0 <= c75 < 1024
+    - 0 <= m75 < 1024
+    renames: {output: T75, input: I75, weight: W75}
+  - einsum: "T76[p76, n, m76] = I76[n, c76, p76] * W76[c76, m76]"
+    iteration_space_shape:
+    - 0 <= p76 < 16
+    - 0 <= c76 < 577
+    - 0 <= m76 < 64
+    renames: {output: T76, input: I76, weight: W76}
+  - einsum: "T77[p77, n, m77] = I77[n, c77, p77] * W77[c77, m77]"
+    iteration_space_shape:
+    - 0 <= p77 < 16
+    - 0 <= c77 < 577
+    - 0 <= m77 < 577
+    renames: {output: T77, input: I77, weight: W77}
+  - einsum: "T78[p78, n, m78] = I78[n, c78, p78] * W78[c78, m78]"
+    iteration_space_shape:
+    - 0 <= p78 < 577
+    - 0 <= c78 < 1024
+    - 0 <= m78 < 1024
+    renames: {output: T78, input: I78, weight: W78}
+  - einsum: "T79[p79, n, m79] = I79[n, c79, p79] * W79[c79, m79]"
+    iteration_space_shape:
+    - 0 <= p79 < 577
+    - 0 <= c79 < 1024
+    - 0 <= m79 < 4096
+    renames: {output: T79, input: I79, weight: W79}
+  - einsum: "T80[p80, n, m80] = I80[n, c80, p80] * W80[c80, m80]"
+    iteration_space_shape:
+    - 0 <= p80 < 577
+    - 0 <= c80 < 4096
+    - 0 <= m80 < 1024
+    renames: {output: T80, input: I80, weight: W80}
+  - einsum: "T81[p81, n, m81] = I81[n, c81, p81] * W81[c81, m81]"
+    iteration_space_shape:
+    - 0 <= p81 < 577
+    - 0 <= c81 < 1024
+    - 0 <= m81 < 1024
+    renames: {output: T81, input: I81, weight: W81}
+  - einsum: "T82[p82, n, m82] = I82[n, c82, p82] * W82[c82, m82]"
+    iteration_space_shape:
+    - 0 <= p82 < 577
+    - 0 <= c82 < 1024
+    - 0 <= m82 < 1024
+    renames: {output: T82, input: I82, weight: W82}
+  - einsum: "T83[p83, n, m83] = I83[n, c83, p83] * W83[c83, m83]"
+    iteration_space_shape:
+    - 0 <= p83 < 577
+    - 0 <= c83 < 1024
+    - 0 <= m83 < 1024
+    renames: {output: T83, input: I83, weight: W83}
+  - einsum: "T84[p84, n, m84] = I84[n, c84, p84] * W84[c84, m84]"
+    iteration_space_shape:
+    - 0 <= p84 < 16
+    - 0 <= c84 < 577
+    - 0 <= m84 < 64
+    renames: {output: T84, input: I84, weight: W84}
+  - einsum: "T85[p85, n, m85] = I85[n, c85, p85] * W85[c85, m85]"
+    iteration_space_shape:
+    - 0 <= p85 < 16
+    - 0 <= c85 < 577
+    - 0 <= m85 < 577
+    renames: {output: T85, input: I85, weight: W85}
+  - einsum: "T86[p86, n, m86] = I86[n, c86, p86] * W86[c86, m86]"
+    iteration_space_shape:
+    - 0 <= p86 < 577
+    - 0 <= c86 < 1024
+    - 0 <= m86 < 1024
+    renames: {output: T86, input: I86, weight: W86}
+  - einsum: "T87[p87, n, m87] = I87[n, c87, p87] * W87[c87, m87]"
+    iteration_space_shape:
+    - 0 <= p87 < 577
+    - 0 <= c87 < 1024
+    - 0 <= m87 < 4096
+    renames: {output: T87, input: I87, weight: W87}
+  - einsum: "T88[p88, n, m88] = I88[n, c88, p88] * W88[c88, m88]"
+    iteration_space_shape:
+    - 0 <= p88 < 577
+    - 0 <= c88 < 4096
+    - 0 <= m88 < 1024
+    renames: {output: T88, input: I88, weight: W88}
+  - einsum: "T89[p89, n, m89] = I89[n, c89, p89] * W89[c89, m89]"
+    iteration_space_shape:
+    - 0 <= p89 < 577
+    - 0 <= c89 < 1024
+    - 0 <= m89 < 1024
+    renames: {output: T89, input: I89, weight: W89}
+  - einsum: "T90[p90, n, m90] = I90[n, c90, p90] * W90[c90, m90]"
+    iteration_space_shape:
+    - 0 <= p90 < 577
+    - 0 <= c90 < 1024
+    - 0 <= m90 < 1024
+    renames: {output: T90, input: I90, weight: W90}
+  - einsum: "T91[p91, n, m91] = I91[n, c91, p91] * W91[c91, m91]"
+    iteration_space_shape:
+    - 0 <= p91 < 577
+    - 0 <= c91 < 1024
+    - 0 <= m91 < 1024
+    renames: {output: T91, input: I91, weight: W91}
+  - einsum: "T92[p92, n, m92] = I92[n, c92, p92] * W92[c92, m92]"
+    iteration_space_shape:
+    - 0 <= p92 < 16
+    - 0 <= c92 < 577
+    - 0 <= m92 < 64
+    renames: {output: T92, input: I92, weight: W92}
+  - einsum: "T93[p93, n, m93] = I93[n, c93, p93] * W93[c93, m93]"
+    iteration_space_shape:
+    - 0 <= p93 < 16
+    - 0 <= c93 < 577
+    - 0 <= m93 < 577
+    renames: {output: T93, input: I93, weight: W93}
+  - einsum: "T94[p94, n, m94] = I94[n, c94, p94] * W94[c94, m94]"
+    iteration_space_shape:
+    - 0 <= p94 < 577
+    - 0 <= c94 < 1024
+    - 0 <= m94 < 1024
+    renames: {output: T94, input: I94, weight: W94}
+  - einsum: "T95[p95, n, m95] = I95[n, c95, p95] * W95[c95, m95]"
+    iteration_space_shape:
+    - 0 <= p95 < 577
+    - 0 <= c95 < 1024
+    - 0 <= m95 < 4096
+    renames: {output: T95, input: I95, weight: W95}
+  - einsum: "T96[p96, n, m96] = I96[n, c96, p96] * W96[c96, m96]"
+    iteration_space_shape:
+    - 0 <= p96 < 577
+    - 0 <= c96 < 4096
+    - 0 <= m96 < 1024
+    renames: {output: T96, input: I96, weight: W96}
+  - einsum: "T97[p97, n, m97] = I97[n, c97, p97] * W97[c97, m97]"
+    iteration_space_shape:
+    - 0 <= p97 < 577
+    - 0 <= c97 < 1024
+    - 0 <= m97 < 1024
+    renames: {output: T97, input: I97, weight: W97}
+  - einsum: "T98[p98, n, m98] = I98[n, c98, p98] * W98[c98, m98]"
+    iteration_space_shape:
+    - 0 <= p98 < 577
+    - 0 <= c98 < 1024
+    - 0 <= m98 < 1024
+    renames: {output: T98, input: I98, weight: W98}
+  - einsum: "T99[p99, n, m99] = I99[n, c99, p99] * W99[c99, m99]"
+    iteration_space_shape:
+    - 0 <= p99 < 577
+    - 0 <= c99 < 1024
+    - 0 <= m99 < 1024
+    renames: {output: T99, input: I99, weight: W99}
+  - einsum: "T100[p100, n, m100] = I100[n, c100, p100] * W100[c100, m100]"
+    iteration_space_shape:
+    - 0 <= p100 < 16
+    - 0 <= c100 < 577
+    - 0 <= m100 < 64
+    renames: {output: T100, input: I100, weight: W100}
+  - einsum: "T101[p101, n, m101] = I101[n, c101, p101] * W101[c101, m101]"
+    iteration_space_shape:
+    - 0 <= p101 < 16
+    - 0 <= c101 < 577
+    - 0 <= m101 < 577
+    renames: {output: T101, input: I101, weight: W101}
+  - einsum: "T102[p102, n, m102] = I102[n, c102, p102] * W102[c102, m102]"
+    iteration_space_shape:
+    - 0 <= p102 < 577
+    - 0 <= c102 < 1024
+    - 0 <= m102 < 1024
+    renames: {output: T102, input: I102, weight: W102}
+  - einsum: "T103[p103, n, m103] = I103[n, c103, p103] * W103[c103, m103]"
+    iteration_space_shape:
+    - 0 <= p103 < 577
+    - 0 <= c103 < 1024
+    - 0 <= m103 < 4096
+    renames: {output: T103, input: I103, weight: W103}
+  - einsum: "T104[p104, n, m104] = I104[n, c104, p104] * W104[c104, m104]"
+    iteration_space_shape:
+    - 0 <= p104 < 577
+    - 0 <= c104 < 4096
+    - 0 <= m104 < 1024
+    renames: {output: T104, input: I104, weight: W104}
+  - einsum: "T105[p105, n, m105] = I105[n, c105, p105] * W105[c105, m105]"
+    iteration_space_shape:
+    - 0 <= p105 < 577
+    - 0 <= c105 < 1024
+    - 0 <= m105 < 1024
+    renames: {output: T105, input: I105, weight: W105}
+  - einsum: "T106[p106, n, m106] = I106[n, c106, p106] * W106[c106, m106]"
+    iteration_space_shape:
+    - 0 <= p106 < 577
+    - 0 <= c106 < 1024
+    - 0 <= m106 < 1024
+    renames: {output: T106, input: I106, weight: W106}
+  - einsum: "T107[p107, n, m107] = I107[n, c107, p107] * W107[c107, m107]"
+    iteration_space_shape:
+    - 0 <= p107 < 577
+    - 0 <= c107 < 1024
+    - 0 <= m107 < 1024
+    renames: {output: T107, input: I107, weight: W107}
+  - einsum: "T108[p108, n, m108] = I108[n, c108, p108] * W108[c108, m108]"
+    iteration_space_shape:
+    - 0 <= p108 < 16
+    - 0 <= c108 < 577
+    - 0 <= m108 < 64
+    renames: {output: T108, input: I108, weight: W108}
+  - einsum: "T109[p109, n, m109] = I109[n, c109, p109] * W109[c109, m109]"
+    iteration_space_shape:
+    - 0 <= p109 < 16
+    - 0 <= c109 < 577
+    - 0 <= m109 < 577
+    renames: {output: T109, input: I109, weight: W109}
+  - einsum: "T110[p110, n, m110] = I110[n, c110, p110] * W110[c110, m110]"
+    iteration_space_shape:
+    - 0 <= p110 < 577
+    - 0 <= c110 < 1024
+    - 0 <= m110 < 1024
+    renames: {output: T110, input: I110, weight: W110}
+  - einsum: "T111[p111, n, m111] = I111[n, c111, p111] * W111[c111, m111]"
+    iteration_space_shape:
+    - 0 <= p111 < 577
+    - 0 <= c111 < 1024
+    - 0 <= m111 < 4096
+    renames: {output: T111, input: I111, weight: W111}
+  - einsum: "T112[p112, n, m112] = I112[n, c112, p112] * W112[c112, m112]"
+    iteration_space_shape:
+    - 0 <= p112 < 577
+    - 0 <= c112 < 4096
+    - 0 <= m112 < 1024
+    renames: {output: T112, input: I112, weight: W112}
+  - einsum: "T113[p113, n, m113] = I113[n, c113, p113] * W113[c113, m113]"
+    iteration_space_shape:
+    - 0 <= p113 < 577
+    - 0 <= c113 < 1024
+    - 0 <= m113 < 1024
+    renames: {output: T113, input: I113, weight: W113}
+  - einsum: "T114[p114, n, m114] = I114[n, c114, p114] * W114[c114, m114]"
+    iteration_space_shape:
+    - 0 <= p114 < 577
+    - 0 <= c114 < 1024
+    - 0 <= m114 < 1024
+    renames: {output: T114, input: I114, weight: W114}
+  - einsum: "T115[p115, n, m115] = I115[n, c115, p115] * W115[c115, m115]"
+    iteration_space_shape:
+    - 0 <= p115 < 577
+    - 0 <= c115 < 1024
+    - 0 <= m115 < 1024
+    renames: {output: T115, input: I115, weight: W115}
+  - einsum: "T116[p116, n, m116] = I116[n, c116, p116] * W116[c116, m116]"
+    iteration_space_shape:
+    - 0 <= p116 < 16
+    - 0 <= c116 < 577
+    - 0 <= m116 < 64
+    renames: {output: T116, input: I116, weight: W116}
+  - einsum: "T117[p117, n, m117] = I117[n, c117, p117] * W117[c117, m117]"
+    iteration_space_shape:
+    - 0 <= p117 < 16
+    - 0 <= c117 < 577
+    - 0 <= m117 < 577
+    renames: {output: T117, input: I117, weight: W117}
+  - einsum: "T118[p118, n, m118] = I118[n, c118, p118] * W118[c118, m118]"
+    iteration_space_shape:
+    - 0 <= p118 < 577
+    - 0 <= c118 < 1024
+    - 0 <= m118 < 1024
+    renames: {output: T118, input: I118, weight: W118}
+  - einsum: "T119[p119, n, m119] = I119[n, c119, p119] * W119[c119, m119]"
+    iteration_space_shape:
+    - 0 <= p119 < 577
+    - 0 <= c119 < 1024
+    - 0 <= m119 < 4096
+    renames: {output: T119, input: I119, weight: W119}
+  - einsum: "T120[p120, n, m120] = I120[n, c120, p120] * W120[c120, m120]"
+    iteration_space_shape:
+    - 0 <= p120 < 577
+    - 0 <= c120 < 4096
+    - 0 <= m120 < 1024
+    renames: {output: T120, input: I120, weight: W120}
+  - einsum: "T121[p121, n, m121] = I121[n, c121, p121] * W121[c121, m121]"
+    iteration_space_shape:
+    - 0 <= p121 < 577
+    - 0 <= c121 < 1024
+    - 0 <= m121 < 1024
+    renames: {output: T121, input: I121, weight: W121}
+  - einsum: "T122[p122, n, m122] = I122[n, c122, p122] * W122[c122, m122]"
+    iteration_space_shape:
+    - 0 <= p122 < 577
+    - 0 <= c122 < 1024
+    - 0 <= m122 < 1024
+    renames: {output: T122, input: I122, weight: W122}
+  - einsum: "T123[p123, n, m123] = I123[n, c123, p123] * W123[c123, m123]"
+    iteration_space_shape:
+    - 0 <= p123 < 577
+    - 0 <= c123 < 1024
+    - 0 <= m123 < 1024
+    renames: {output: T123, input: I123, weight: W123}
+  - einsum: "T124[p124, n, m124] = I124[n, c124, p124] * W124[c124, m124]"
+    iteration_space_shape:
+    - 0 <= p124 < 16
+    - 0 <= c124 < 577
+    - 0 <= m124 < 64
+    renames: {output: T124, input: I124, weight: W124}
+  - einsum: "T125[p125, n, m125] = I125[n, c125, p125] * W125[c125, m125]"
+    iteration_space_shape:
+    - 0 <= p125 < 16
+    - 0 <= c125 < 577
+    - 0 <= m125 < 577
+    renames: {output: T125, input: I125, weight: W125}
+  - einsum: "T126[p126, n, m126] = I126[n, c126, p126] * W126[c126, m126]"
+    iteration_space_shape:
+    - 0 <= p126 < 577
+    - 0 <= c126 < 1024
+    - 0 <= m126 < 1024
+    renames: {output: T126, input: I126, weight: W126}
+  - einsum: "T127[p127, n, m127] = I127[n, c127, p127] * W127[c127, m127]"
+    iteration_space_shape:
+    - 0 <= p127 < 577
+    - 0 <= c127 < 1024
+    - 0 <= m127 < 4096
+    renames: {output: T127, input: I127, weight: W127}
+  - einsum: "T128[p128, n, m128] = I128[n, c128, p128] * W128[c128, m128]"
+    iteration_space_shape:
+    - 0 <= p128 < 577
+    - 0 <= c128 < 4096
+    - 0 <= m128 < 1024
+    renames: {output: T128, input: I128, weight: W128}
+  - einsum: "T129[p129, n, m129] = I129[n, c129, p129] * W129[c129, m129]"
+    iteration_space_shape:
+    - 0 <= p129 < 577
+    - 0 <= c129 < 1024
+    - 0 <= m129 < 1024
+    renames: {output: T129, input: I129, weight: W129}
+  - einsum: "T130[p130, n, m130] = I130[n, c130, p130] * W130[c130, m130]"
+    iteration_space_shape:
+    - 0 <= p130 < 577
+    - 0 <= c130 < 1024
+    - 0 <= m130 < 1024
+    renames: {output: T130, input: I130, weight: W130}
+  - einsum: "T131[p131, n, m131] = I131[n, c131, p131] * W131[c131, m131]"
+    iteration_space_shape:
+    - 0 <= p131 < 577
+    - 0 <= c131 < 1024
+    - 0 <= m131 < 1024
+    renames: {output: T131, input: I131, weight: W131}
+  - einsum: "T132[p132, n, m132] = I132[n, c132, p132] * W132[c132, m132]"
+    iteration_space_shape:
+    - 0 <= p132 < 16
+    - 0 <= c132 < 577
+    - 0 <= m132 < 64
+    renames: {output: T132, input: I132, weight: W132}
+  - einsum: "T133[p133, n, m133] = I133[n, c133, p133] * W133[c133, m133]"
+    iteration_space_shape:
+    - 0 <= p133 < 16
+    - 0 <= c133 < 577
+    - 0 <= m133 < 577
+    renames: {output: T133, input: I133, weight: W133}
+  - einsum: "T134[p134, n, m134] = I134[n, c134, p134] * W134[c134, m134]"
+    iteration_space_shape:
+    - 0 <= p134 < 577
+    - 0 <= c134 < 1024
+    - 0 <= m134 < 1024
+    renames: {output: T134, input: I134, weight: W134}
+  - einsum: "T135[p135, n, m135] = I135[n, c135, p135] * W135[c135, m135]"
+    iteration_space_shape:
+    - 0 <= p135 < 577
+    - 0 <= c135 < 1024
+    - 0 <= m135 < 4096
+    renames: {output: T135, input: I135, weight: W135}
+  - einsum: "T136[p136, n, m136] = I136[n, c136, p136] * W136[c136, m136]"
+    iteration_space_shape:
+    - 0 <= p136 < 577
+    - 0 <= c136 < 4096
+    - 0 <= m136 < 1024
+    renames: {output: T136, input: I136, weight: W136}
+  - einsum: "T137[p137, n, m137] = I137[n, c137, p137] * W137[c137, m137]"
+    iteration_space_shape:
+    - 0 <= p137 < 577
+    - 0 <= c137 < 1024
+    - 0 <= m137 < 1024
+    renames: {output: T137, input: I137, weight: W137}
+  - einsum: "T138[p138, n, m138] = I138[n, c138, p138] * W138[c138, m138]"
+    iteration_space_shape:
+    - 0 <= p138 < 577
+    - 0 <= c138 < 1024
+    - 0 <= m138 < 1024
+    renames: {output: T138, input: I138, weight: W138}
+  - einsum: "T139[p139, n, m139] = I139[n, c139, p139] * W139[c139, m139]"
+    iteration_space_shape:
+    - 0 <= p139 < 577
+    - 0 <= c139 < 1024
+    - 0 <= m139 < 1024
+    renames: {output: T139, input: I139, weight: W139}
+  - einsum: "T140[p140, n, m140] = I140[n, c140, p140] * W140[c140, m140]"
+    iteration_space_shape:
+    - 0 <= p140 < 16
+    - 0 <= c140 < 577
+    - 0 <= m140 < 64
+    renames: {output: T140, input: I140, weight: W140}
+  - einsum: "T141[p141, n, m141] = I141[n, c141, p141] * W141[c141, m141]"
+    iteration_space_shape:
+    - 0 <= p141 < 16
+    - 0 <= c141 < 577
+    - 0 <= m141 < 577
+    renames: {output: T141, input: I141, weight: W141}
+  - einsum: "T142[p142, n, m142] = I142[n, c142, p142] * W142[c142, m142]"
+    iteration_space_shape:
+    - 0 <= p142 < 577
+    - 0 <= c142 < 1024
+    - 0 <= m142 < 1024
+    renames: {output: T142, input: I142, weight: W142}
+  - einsum: "T143[p143, n, m143] = I143[n, c143, p143] * W143[c143, m143]"
+    iteration_space_shape:
+    - 0 <= p143 < 577
+    - 0 <= c143 < 1024
+    - 0 <= m143 < 4096
+    renames: {output: T143, input: I143, weight: W143}
+  - einsum: "T144[p144, n, m144] = I144[n, c144, p144] * W144[c144, m144]"
+    iteration_space_shape:
+    - 0 <= p144 < 577
+    - 0 <= c144 < 4096
+    - 0 <= m144 < 1024
+    renames: {output: T144, input: I144, weight: W144}
+  - einsum: "T145[p145, n, m145] = I145[n, c145, p145] * W145[c145, m145]"
+    iteration_space_shape:
+    - 0 <= p145 < 577
+    - 0 <= c145 < 1024
+    - 0 <= m145 < 1024
+    renames: {output: T145, input: I145, weight: W145}
+  - einsum: "T146[p146, n, m146] = I146[n, c146, p146] * W146[c146, m146]"
+    iteration_space_shape:
+    - 0 <= p146 < 577
+    - 0 <= c146 < 1024
+    - 0 <= m146 < 1024
+    renames: {output: T146, input: I146, weight: W146}
+  - einsum: "T147[p147, n, m147] = I147[n, c147, p147] * W147[c147, m147]"
+    iteration_space_shape:
+    - 0 <= p147 < 577
+    - 0 <= c147 < 1024
+    - 0 <= m147 < 1024
+    renames: {output: T147, input: I147, weight: W147}
+  - einsum: "T148[p148, n, m148] = I148[n, c148, p148] * W148[c148, m148]"
+    iteration_space_shape:
+    - 0 <= p148 < 16
+    - 0 <= c148 < 577
+    - 0 <= m148 < 64
+    renames: {output: T148, input: I148, weight: W148}
+  - einsum: "T149[p149, n, m149] = I149[n, c149, p149] * W149[c149, m149]"
+    iteration_space_shape:
+    - 0 <= p149 < 16
+    - 0 <= c149 < 577
+    - 0 <= m149 < 577
+    renames: {output: T149, input: I149, weight: W149}
+  - einsum: "T150[p150, n, m150] = I150[n, c150, p150] * W150[c150, m150]"
+    iteration_space_shape:
+    - 0 <= p150 < 577
+    - 0 <= c150 < 1024
+    - 0 <= m150 < 1024
+    renames: {output: T150, input: I150, weight: W150}
+  - einsum: "T151[p151, n, m151] = I151[n, c151, p151] * W151[c151, m151]"
+    iteration_space_shape:
+    - 0 <= p151 < 577
+    - 0 <= c151 < 1024
+    - 0 <= m151 < 4096
+    renames: {output: T151, input: I151, weight: W151}
+  - einsum: "T152[p152, n, m152] = I152[n, c152, p152] * W152[c152, m152]"
+    iteration_space_shape:
+    - 0 <= p152 < 577
+    - 0 <= c152 < 4096
+    - 0 <= m152 < 1024
+    renames: {output: T152, input: I152, weight: W152}
+  - einsum: "T153[p153, n, m153] = I153[n, c153, p153] * W153[c153, m153]"
+    iteration_space_shape:
+    - 0 <= p153 < 577
+    - 0 <= c153 < 1024
+    - 0 <= m153 < 1024
+    renames: {output: T153, input: I153, weight: W153}
+  - einsum: "T154[p154, n, m154] = I154[n, c154, p154] * W154[c154, m154]"
+    iteration_space_shape:
+    - 0 <= p154 < 577
+    - 0 <= c154 < 1024
+    - 0 <= m154 < 1024
+    renames: {output: T154, input: I154, weight: W154}
+  - einsum: "T155[p155, n, m155] = I155[n, c155, p155] * W155[c155, m155]"
+    iteration_space_shape:
+    - 0 <= p155 < 577
+    - 0 <= c155 < 1024
+    - 0 <= m155 < 1024
+    renames: {output: T155, input: I155, weight: W155}
+  - einsum: "T156[p156, n, m156] = I156[n, c156, p156] * W156[c156, m156]"
+    iteration_space_shape:
+    - 0 <= p156 < 16
+    - 0 <= c156 < 577
+    - 0 <= m156 < 64
+    renames: {output: T156, input: I156, weight: W156}
+  - einsum: "T157[p157, n, m157] = I157[n, c157, p157] * W157[c157, m157]"
+    iteration_space_shape:
+    - 0 <= p157 < 16
+    - 0 <= c157 < 577
+    - 0 <= m157 < 577
+    renames: {output: T157, input: I157, weight: W157}
+  - einsum: "T158[p158, n, m158] = I158[n, c158, p158] * W158[c158, m158]"
+    iteration_space_shape:
+    - 0 <= p158 < 577
+    - 0 <= c158 < 1024
+    - 0 <= m158 < 1024
+    renames: {output: T158, input: I158, weight: W158}
+  - einsum: "T159[p159, n, m159] = I159[n, c159, p159] * W159[c159, m159]"
+    iteration_space_shape:
+    - 0 <= p159 < 577
+    - 0 <= c159 < 1024
+    - 0 <= m159 < 4096
+    renames: {output: T159, input: I159, weight: W159}
+  - einsum: "T160[p160, n, m160] = I160[n, c160, p160] * W160[c160, m160]"
+    iteration_space_shape:
+    - 0 <= p160 < 577
+    - 0 <= c160 < 4096
+    - 0 <= m160 < 1024
+    renames: {output: T160, input: I160, weight: W160}
+  - einsum: "T161[p161, n, m161] = I161[n, c161, p161] * W161[c161, m161]"
+    iteration_space_shape:
+    - 0 <= p161 < 577
+    - 0 <= c161 < 1024
+    - 0 <= m161 < 1024
+    renames: {output: T161, input: I161, weight: W161}
+  - einsum: "T162[p162, n, m162] = I162[n, c162, p162] * W162[c162, m162]"
+    iteration_space_shape:
+    - 0 <= p162 < 577
+    - 0 <= c162 < 1024
+    - 0 <= m162 < 1024
+    renames: {output: T162, input: I162, weight: W162}
+  - einsum: "T163[p163, n, m163] = I163[n, c163, p163] * W163[c163, m163]"
+    iteration_space_shape:
+    - 0 <= p163 < 577
+    - 0 <= c163 < 1024
+    - 0 <= m163 < 1024
+    renames: {output: T163, input: I163, weight: W163}
+  - einsum: "T164[p164, n, m164] = I164[n, c164, p164] * W164[c164, m164]"
+    iteration_space_shape:
+    - 0 <= p164 < 16
+    - 0 <= c164 < 577
+    - 0 <= m164 < 64
+    renames: {output: T164, input: I164, weight: W164}
+  - einsum: "T165[p165, n, m165] = I165[n, c165, p165] * W165[c165, m165]"
+    iteration_space_shape:
+    - 0 <= p165 < 16
+    - 0 <= c165 < 577
+    - 0 <= m165 < 577
+    renames: {output: T165, input: I165, weight: W165}
+  - einsum: "T166[p166, n, m166] = I166[n, c166, p166] * W166[c166, m166]"
+    iteration_space_shape:
+    - 0 <= p166 < 577
+    - 0 <= c166 < 1024
+    - 0 <= m166 < 1024
+    renames: {output: T166, input: I166, weight: W166}
+  - einsum: "T167[p167, n, m167] = I167[n, c167, p167] * W167[c167, m167]"
+    iteration_space_shape:
+    - 0 <= p167 < 577
+    - 0 <= c167 < 1024
+    - 0 <= m167 < 4096
+    renames: {output: T167, input: I167, weight: W167}
+  - einsum: "T168[p168, n, m168] = I168[n, c168, p168] * W168[c168, m168]"
+    iteration_space_shape:
+    - 0 <= p168 < 577
+    - 0 <= c168 < 4096
+    - 0 <= m168 < 1024
+    renames: {output: T168, input: I168, weight: W168}
+  - einsum: "T169[p169, n, m169] = I169[n, c169, p169] * W169[c169, m169]"
+    iteration_space_shape:
+    - 0 <= p169 < 577
+    - 0 <= c169 < 1024
+    - 0 <= m169 < 1024
+    renames: {output: T169, input: I169, weight: W169}
+  - einsum: "T170[p170, n, m170] = I170[n, c170, p170] * W170[c170, m170]"
+    iteration_space_shape:
+    - 0 <= p170 < 577
+    - 0 <= c170 < 1024
+    - 0 <= m170 < 1024
+    renames: {output: T170, input: I170, weight: W170}
+  - einsum: "T171[p171, n, m171] = I171[n, c171, p171] * W171[c171, m171]"
+    iteration_space_shape:
+    - 0 <= p171 < 577
+    - 0 <= c171 < 1024
+    - 0 <= m171 < 1024
+    renames: {output: T171, input: I171, weight: W171}
+  - einsum: "T172[p172, n, m172] = I172[n, c172, p172] * W172[c172, m172]"
+    iteration_space_shape:
+    - 0 <= p172 < 16
+    - 0 <= c172 < 577
+    - 0 <= m172 < 64
+    renames: {output: T172, input: I172, weight: W172}
+  - einsum: "T173[p173, n, m173] = I173[n, c173, p173] * W173[c173, m173]"
+    iteration_space_shape:
+    - 0 <= p173 < 16
+    - 0 <= c173 < 577
+    - 0 <= m173 < 577
+    renames: {output: T173, input: I173, weight: W173}
+  - einsum: "T174[p174, n, m174] = I174[n, c174, p174] * W174[c174, m174]"
+    iteration_space_shape:
+    - 0 <= p174 < 577
+    - 0 <= c174 < 1024
+    - 0 <= m174 < 1024
+    renames: {output: T174, input: I174, weight: W174}
+  - einsum: "T175[p175, n, m175] = I175[n, c175, p175] * W175[c175, m175]"
+    iteration_space_shape:
+    - 0 <= p175 < 577
+    - 0 <= c175 < 1024
+    - 0 <= m175 < 4096
+    renames: {output: T175, input: I175, weight: W175}
+  - einsum: "T176[p176, n, m176] = I176[n, c176, p176] * W176[c176, m176]"
+    iteration_space_shape:
+    - 0 <= p176 < 577
+    - 0 <= c176 < 4096
+    - 0 <= m176 < 1024
+    renames: {output: T176, input: I176, weight: W176}
+  - einsum: "T177[p177, n, m177] = I177[n, c177, p177] * W177[c177, m177]"
+    iteration_space_shape:
+    - 0 <= p177 < 577
+    - 0 <= c177 < 1024
+    - 0 <= m177 < 1024
+    renames: {output: T177, input: I177, weight: W177}
+  - einsum: "T178[p178, n, m178] = I178[n, c178, p178] * W178[c178, m178]"
+    iteration_space_shape:
+    - 0 <= p178 < 577
+    - 0 <= c178 < 1024
+    - 0 <= m178 < 1024
+    renames: {output: T178, input: I178, weight: W178}
+  - einsum: "T179[p179, n, m179] = I179[n, c179, p179] * W179[c179, m179]"
+    iteration_space_shape:
+    - 0 <= p179 < 577
+    - 0 <= c179 < 1024
+    - 0 <= m179 < 1024
+    renames: {output: T179, input: I179, weight: W179}
+  - einsum: "T180[p180, n, m180] = I180[n, c180, p180] * W180[c180, m180]"
+    iteration_space_shape:
+    - 0 <= p180 < 16
+    - 0 <= c180 < 577
+    - 0 <= m180 < 64
+    renames: {output: T180, input: I180, weight: W180}
+  - einsum: "T181[p181, n, m181] = I181[n, c181, p181] * W181[c181, m181]"
+    iteration_space_shape:
+    - 0 <= p181 < 16
+    - 0 <= c181 < 577
+    - 0 <= m181 < 577
+    renames: {output: T181, input: I181, weight: W181}
+  - einsum: "T182[p182, n, m182] = I182[n, c182, p182] * W182[c182, m182]"
+    iteration_space_shape:
+    - 0 <= p182 < 577
+    - 0 <= c182 < 1024
+    - 0 <= m182 < 1024
+    renames: {output: T182, input: I182, weight: W182}
+  - einsum: "T183[p183, n, m183] = I183[n, c183, p183] * W183[c183, m183]"
+    iteration_space_shape:
+    - 0 <= p183 < 577
+    - 0 <= c183 < 1024
+    - 0 <= m183 < 4096
+    renames: {output: T183, input: I183, weight: W183}
+  - einsum: "T184[p184, n, m184] = I184[n, c184, p184] * W184[c184, m184]"
+    iteration_space_shape:
+    - 0 <= p184 < 577
+    - 0 <= c184 < 4096
+    - 0 <= m184 < 1024
+    renames: {output: T184, input: I184, weight: W184}
+  - einsum: "T185[p185, n, m185] = I185[n, c185, p185] * W185[c185, m185]"
+    iteration_space_shape:
+    - 0 <= p185 < 577
+    - 0 <= c185 < 1024
+    - 0 <= m185 < 1024
+    renames: {output: T185, input: I185, weight: W185}
+  - einsum: "T186[p186, n, m186] = I186[n, c186, p186] * W186[c186, m186]"
+    iteration_space_shape:
+    - 0 <= p186 < 577
+    - 0 <= c186 < 1024
+    - 0 <= m186 < 1024
+    renames: {output: T186, input: I186, weight: W186}
+  - einsum: "T187[p187, n, m187] = I187[n, c187, p187] * W187[c187, m187]"
+    iteration_space_shape:
+    - 0 <= p187 < 577
+    - 0 <= c187 < 1024
+    - 0 <= m187 < 1024
+    renames: {output: T187, input: I187, weight: W187}
+  - einsum: "T188[p188, n, m188] = I188[n, c188, p188] * W188[c188, m188]"
+    iteration_space_shape:
+    - 0 <= p188 < 16
+    - 0 <= c188 < 577
+    - 0 <= m188 < 64
+    renames: {output: T188, input: I188, weight: W188}
+  - einsum: "T189[p189, n, m189] = I189[n, c189, p189] * W189[c189, m189]"
+    iteration_space_shape:
+    - 0 <= p189 < 16
+    - 0 <= c189 < 577
+    - 0 <= m189 < 577
+    renames: {output: T189, input: I189, weight: W189}
+  - einsum: "T190[p190, n, m190] = I190[n, c190, p190] * W190[c190, m190]"
+    iteration_space_shape:
+    - 0 <= p190 < 577
+    - 0 <= c190 < 1024
+    - 0 <= m190 < 1024
+    renames: {output: T190, input: I190, weight: W190}
+  - einsum: "T191[p191, n, m191] = I191[n, c191, p191] * W191[c191, m191]"
+    iteration_space_shape:
+    - 0 <= p191 < 577
+    - 0 <= c191 < 1024
+    - 0 <= m191 < 4096
+    renames: {output: T191, input: I191, weight: W191}
+  - einsum: "T192[p192, n, m192] = I192[n, c192, p192] * W192[c192, m192]"
+    iteration_space_shape:
+    - 0 <= p192 < 577
+    - 0 <= c192 < 4096
+    - 0 <= m192 < 1024
+    renames: {output: T192, input: I192, weight: W192}
+  - einsum: "T193[p193, n, m193] = I193[n, c193, p193] * W193[c193, m193]"
+    iteration_space_shape:
+    - 0 <= p193 < 576
+    - 0 <= c193 < 2048
+    - 0 <= m193 < 1024
+    renames: {output: T193, input: I193, weight: W193}
+  - einsum: "T194[p194, q194, n, m194] = I194[n, c194, p194, q194] * W194[c194, m194]"
+    iteration_space_shape:
+    - 0 <= p194 < 24
+    - 0 <= q194 < 24
+    - 0 <= c194 < 1024
+    - 0 <= m194 < 256
+    renames: {output: T194, input: I194, weight: W194}
+  - einsum: "T195[p195, n, m195] = I195[n, c195, p195] * W195[c195, m195]"
+    iteration_space_shape:
+    - 0 <= p195 < 576
+    - 0 <= c195 < 2048
+    - 0 <= m195 < 1024
+    renames: {output: T195, input: I195, weight: W195}
+  - einsum: "T196[p196, q196, n, m196] = I196[n, c196, p196, q196] * W196[c196, m196]"
+    iteration_space_shape:
+    - 0 <= p196 < 24
+    - 0 <= q196 < 24
+    - 0 <= c196 < 1024
+    - 0 <= m196 < 512
+    renames: {output: T196, input: I196, weight: W196}
+  - einsum: "T197[p197, n, m197] = I197[n, c197, p197] * W197[c197, m197]"
+    iteration_space_shape:
+    - 0 <= p197 < 576
+    - 0 <= c197 < 2048
+    - 0 <= m197 < 1024
+    renames: {output: T197, input: I197, weight: W197}
+  - einsum: "T198[p198, q198, n, m198] = I198[n, c198, p198, q198] * W198[c198, m198]"
+    iteration_space_shape:
+    - 0 <= p198 < 24
+    - 0 <= q198 < 24
+    - 0 <= c198 < 1024
+    - 0 <= m198 < 1024
+    renames: {output: T198, input: I198, weight: W198}
+  - einsum: "T199[p199, n, m199] = I199[n, c199, p199] * W199[c199, m199]"
+    iteration_space_shape:
+    - 0 <= p199 < 576
+    - 0 <= c199 < 2048
+    - 0 <= m199 < 1024
+    renames: {output: T199, input: I199, weight: W199}
+  - einsum: "T200[p200, q200, n, m200] = I200[n, c200, p200, q200] * W200[c200, m200]"
+    iteration_space_shape:
+    - 0 <= p200 < 24
+    - 0 <= q200 < 24
+    - 0 <= c200 < 1024
+    - 0 <= m200 < 1024
+    renames: {output: T200, input: I200, weight: W200}
+  - einsum: "T201[p201, q201, n, m201] = I201[n, c201, H: p201 * 2 + r201, W: q201 * 2 + s201] * W201[r201, s201, c201, m201]"
+    iteration_space_shape:
+    - 0 <= p201 < 12
+    - 0 <= q201 < 12
+    - 0 <= c201 < 1024
+    - 0 <= m201 < 1024
+    - 0 <= r201 < 3
+    - 0 <= s201 < 3
+    renames: {output: T201, input: I201, weight: W201}
+  - einsum: "T202[p202, q202, n, m202] = I202[n, c202, H: p202 + r202, W: q202 + s202] * W202[r202, s202, c202, m202]"
+    iteration_space_shape:
+    - 0 <= p202 < 96
+    - 0 <= q202 < 96
+    - 0 <= c202 < 256
+    - 0 <= m202 < 256
+    - 0 <= r202 < 3
+    - 0 <= s202 < 3
+    renames: {output: T202, input: I202, weight: W202}
+  - einsum: "T203[p203, q203, n, m203] = I203[n, c203, H: p203 + r203, W: q203 + s203] * W203[r203, s203, c203, m203]"
+    iteration_space_shape:
+    - 0 <= p203 < 48
+    - 0 <= q203 < 48
+    - 0 <= c203 < 512
+    - 0 <= m203 < 256
+    - 0 <= r203 < 3
+    - 0 <= s203 < 3
+    renames: {output: T203, input: I203, weight: W203}
+  - einsum: "T204[p204, q204, n, m204] = I204[n, c204, H: p204 + r204, W: q204 + s204] * W204[r204, s204, c204, m204]"
+    iteration_space_shape:
+    - 0 <= p204 < 24
+    - 0 <= q204 < 24
+    - 0 <= c204 < 1024
+    - 0 <= m204 < 256
+    - 0 <= r204 < 3
+    - 0 <= s204 < 3
+    renames: {output: T204, input: I204, weight: W204}
+  - einsum: "T205[p205, q205, n, m205] = I205[n, c205, H: p205 + r205, W: q205 + s205] * W205[r205, s205, c205, m205]"
+    iteration_space_shape:
+    - 0 <= p205 < 12
+    - 0 <= q205 < 12
+    - 0 <= c205 < 1024
+    - 0 <= m205 < 256
+    - 0 <= r205 < 3
+    - 0 <= s205 < 3
+    renames: {output: T205, input: I205, weight: W205}
+  - einsum: "T206[p206, q206, n, m206] = I206[n, c206, H: p206 + r206, W: q206 + s206] * W206[r206, s206, c206, m206]"
+    iteration_space_shape:
+    - 0 <= p206 < 12
+    - 0 <= q206 < 12
+    - 0 <= c206 < 256
+    - 0 <= m206 < 256
+    - 0 <= r206 < 3
+    - 0 <= s206 < 3
+    renames: {output: T206, input: I206, weight: W206}
+  - einsum: "T207[p207, q207, n, m207] = I207[n, c207, H: p207 + r207, W: q207 + s207] * W207[r207, s207, c207, m207]"
+    iteration_space_shape:
+    - 0 <= p207 < 12
+    - 0 <= q207 < 12
+    - 0 <= c207 < 256
+    - 0 <= m207 < 256
+    - 0 <= r207 < 3
+    - 0 <= s207 < 3
+    renames: {output: T207, input: I207, weight: W207}
+  - einsum: "T208[p208, q208, n, m208] = I208[n, c208, p208, q208] * W208[c208, m208]"
+    iteration_space_shape:
+    - 0 <= p208 < 24
+    - 0 <= q208 < 24
+    - 0 <= c208 < 256
+    - 0 <= m208 < 256
+    renames: {output: T208, input: I208, weight: W208}
+  - einsum: "T209[p209, q209, n, m209] = I209[n, c209, H: p209 + r209, W: q209 + s209] * W209[r209, s209, c209, m209]"
+    iteration_space_shape:
+    - 0 <= p209 < 24
+    - 0 <= q209 < 24
+    - 0 <= c209 < 256
+    - 0 <= m209 < 256
+    - 0 <= r209 < 3
+    - 0 <= s209 < 3
+    renames: {output: T209, input: I209, weight: W209}
+  - einsum: "T210[p210, q210, n, m210] = I210[n, c210, H: p210 + r210, W: q210 + s210] * W210[r210, s210, c210, m210]"
+    iteration_space_shape:
+    - 0 <= p210 < 24
+    - 0 <= q210 < 24
+    - 0 <= c210 < 256
+    - 0 <= m210 < 256
+    - 0 <= r210 < 3
+    - 0 <= s210 < 3
+    renames: {output: T210, input: I210, weight: W210}
+  - einsum: "T211[p211, q211, n, m211] = I211[n, c211, H: p211 + r211, W: q211 + s211] * W211[r211, s211, c211, m211]"
+    iteration_space_shape:
+    - 0 <= p211 < 24
+    - 0 <= q211 < 24
+    - 0 <= c211 < 256
+    - 0 <= m211 < 256
+    - 0 <= r211 < 3
+    - 0 <= s211 < 3
+    renames: {output: T211, input: I211, weight: W211}
+  - einsum: "T212[p212, q212, n, m212] = I212[n, c212, H: p212 + r212, W: q212 + s212] * W212[r212, s212, c212, m212]"
+    iteration_space_shape:
+    - 0 <= p212 < 24
+    - 0 <= q212 < 24
+    - 0 <= c212 < 256
+    - 0 <= m212 < 256
+    - 0 <= r212 < 3
+    - 0 <= s212 < 3
+    renames: {output: T212, input: I212, weight: W212}
+  - einsum: "T213[p213, q213, n, m213] = I213[n, c213, p213, q213] * W213[c213, m213]"
+    iteration_space_shape:
+    - 0 <= p213 < 48
+    - 0 <= q213 < 48
+    - 0 <= c213 < 256
+    - 0 <= m213 < 256
+    renames: {output: T213, input: I213, weight: W213}
+  - einsum: "T214[p214, q214, n, m214] = I214[n, c214, H: p214 + r214, W: q214 + s214] * W214[r214, s214, c214, m214]"
+    iteration_space_shape:
+    - 0 <= p214 < 48
+    - 0 <= q214 < 48
+    - 0 <= c214 < 256
+    - 0 <= m214 < 256
+    - 0 <= r214 < 3
+    - 0 <= s214 < 3
+    renames: {output: T214, input: I214, weight: W214}
+  - einsum: "T215[p215, q215, n, m215] = I215[n, c215, H: p215 + r215, W: q215 + s215] * W215[r215, s215, c215, m215]"
+    iteration_space_shape:
+    - 0 <= p215 < 48
+    - 0 <= q215 < 48
+    - 0 <= c215 < 256
+    - 0 <= m215 < 256
+    - 0 <= r215 < 3
+    - 0 <= s215 < 3
+    renames: {output: T215, input: I215, weight: W215}
+  - einsum: "T216[p216, q216, n, m216] = I216[n, c216, H: p216 + r216, W: q216 + s216] * W216[r216, s216, c216, m216]"
+    iteration_space_shape:
+    - 0 <= p216 < 48
+    - 0 <= q216 < 48
+    - 0 <= c216 < 256
+    - 0 <= m216 < 256
+    - 0 <= r216 < 3
+    - 0 <= s216 < 3
+    renames: {output: T216, input: I216, weight: W216}
+  - einsum: "T217[p217, q217, n, m217] = I217[n, c217, H: p217 + r217, W: q217 + s217] * W217[r217, s217, c217, m217]"
+    iteration_space_shape:
+    - 0 <= p217 < 48
+    - 0 <= q217 < 48
+    - 0 <= c217 < 256
+    - 0 <= m217 < 256
+    - 0 <= r217 < 3
+    - 0 <= s217 < 3
+    renames: {output: T217, input: I217, weight: W217}
+  - einsum: "T218[p218, q218, n, m218] = I218[n, c218, p218, q218] * W218[c218, m218]"
+    iteration_space_shape:
+    - 0 <= p218 < 96
+    - 0 <= q218 < 96
+    - 0 <= c218 < 256
+    - 0 <= m218 < 256
+    renames: {output: T218, input: I218, weight: W218}
+  - einsum: "T219[p219, q219, n, m219] = I219[n, c219, H: p219 + r219, W: q219 + s219] * W219[r219, s219, c219, m219]"
+    iteration_space_shape:
+    - 0 <= p219 < 96
+    - 0 <= q219 < 96
+    - 0 <= c219 < 256
+    - 0 <= m219 < 256
+    - 0 <= r219 < 3
+    - 0 <= s219 < 3
+    renames: {output: T219, input: I219, weight: W219}
+  - einsum: "T220[p220, q220, n, m220] = I220[n, c220, H: p220 + r220, W: q220 + s220] * W220[r220, s220, c220, m220]"
+    iteration_space_shape:
+    - 0 <= p220 < 96
+    - 0 <= q220 < 96
+    - 0 <= c220 < 256
+    - 0 <= m220 < 256
+    - 0 <= r220 < 3
+    - 0 <= s220 < 3
+    renames: {output: T220, input: I220, weight: W220}
+  - einsum: "T221[p221, q221, n, m221] = I221[n, c221, H: p221 + r221, W: q221 + s221] * W221[r221, s221, c221, m221]"
+    iteration_space_shape:
+    - 0 <= p221 < 96
+    - 0 <= q221 < 96
+    - 0 <= c221 < 256
+    - 0 <= m221 < 256
+    - 0 <= r221 < 3
+    - 0 <= s221 < 3
+    renames: {output: T221, input: I221, weight: W221}
+  - einsum: "T222[p222, q222, n, m222] = I222[n, c222, H: p222 + r222, W: q222 + s222] * W222[r222, s222, c222, m222]"
+    iteration_space_shape:
+    - 0 <= p222 < 96
+    - 0 <= q222 < 96
+    - 0 <= c222 < 256
+    - 0 <= m222 < 256
+    - 0 <= r222 < 3
+    - 0 <= s222 < 3
+    renames: {output: T222, input: I222, weight: W222}
+  - einsum: "T223[p223, q223, n, m223] = I223[n, c223, p223, q223] * W223[c223, m223]"
+    iteration_space_shape:
+    - 0 <= p223 < 192
+    - 0 <= q223 < 192
+    - 0 <= c223 < 256
+    - 0 <= m223 < 256
+    renames: {output: T223, input: I223, weight: W223}
+  - einsum: "T224[p224, q224, n, m224] = I224[n, c224, H: p224 + r224, W: q224 + s224] * W224[r224, s224, c224, m224]"
+    iteration_space_shape:
+    - 0 <= p224 < 192
+    - 0 <= q224 < 192
+    - 0 <= c224 < 256
+    - 0 <= m224 < 128
+    - 0 <= r224 < 3
+    - 0 <= s224 < 3
+    renames: {output: T224, input: I224, weight: W224}
+  - einsum: "T225[p225, q225, n, m225] = I225[n, c225, H: p225 + r225, W: q225 + s225] * W225[r225, s225, c225, m225]"
+    iteration_space_shape:
+    - 0 <= p225 < 384
+    - 0 <= q225 < 384
+    - 0 <= c225 < 128
+    - 0 <= m225 < 32
+    - 0 <= r225 < 3
+    - 0 <= s225 < 3
+    renames: {output: T225, input: I225, weight: W225}
+  - einsum: "T226[p226, q226, n, m226] = I226[n, c226, p226, q226] * W226[c226, m226]"
+    iteration_space_shape:
+    - 0 <= p226 < 384
+    - 0 <= q226 < 384
+    - 0 <= c226 < 32
+    - 0 <= m226 < 1
+    renames: {output: T226, input: I226, weight: W226}

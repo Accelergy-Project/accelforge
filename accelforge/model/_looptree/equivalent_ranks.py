@@ -1,4 +1,5 @@
 # from bindings._looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
+from accelforge.util._frozenset import oset, fzs
 
 
 class EquivalentGroups:
@@ -14,11 +15,11 @@ class EquivalentGroups:
 
         groups = EquivalentGroups()
 
-        seen_ranks = set()
+        seen_ranks = oset()
         for einsum_id in einsum_id_to_name:
             for rank_id in workload.einsum_ospace_dimensions(einsum_id):
                 equiv_ranks = analyzer.equivalent_dimensions(einsum_id, rank_id)
-                equiv_ranks = frozenset(equiv_ranks)
+                equiv_ranks = fzs(equiv_ranks)
                 if equiv_ranks not in seen_ranks:
                     seen_ranks.add(equiv_ranks)
                     group_id = len(groups.group_id_to_ranks)

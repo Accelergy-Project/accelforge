@@ -1,5 +1,6 @@
 from typing import Generator, List, Tuple
 
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Compute,
     Mapping,
@@ -58,7 +59,7 @@ def get_leaves(mapping: Mapping, is_path):
 
 
 def get_intermediate_tensors(workload: Workload):
-    result = set()
+    result = oset()
     for einsum in workload.einsum_id_to_name():
         written_tensors = workload.einsums[einsum].output_tensor_names
         for tensor in written_tensors:

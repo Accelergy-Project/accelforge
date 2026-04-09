@@ -1,0 +1,83 @@
+cff-version: 1.2.0
+message: "Please cite all of the works listed in the documentation page. Do not just cite the repository."
+title: "AccelForge"
+type: software
+authors:
+  - given-names: Tanner
+    family-names: Andrulis
+    email: tannerandrulis@gmail.com
+  - given-names: Michael
+    family-names: Gilbert
+    email: gilbertm@mit.edu
+repository-code: "https://github.com/Accelergy-Project/accelforge"
+url: "https://accelergy-project.github.io/accelforge/"
+license: MIT
+
+references:
+  - type: conference-paper
+    title: "CiMLoop: A Flexible, Accurate, and Fast Compute-In-Memory Modeling Tool"
+    authors:
+      - given-names: Tanner
+        family-names: Andrulis
+      - given-names: Joel S.
+        family-names: Emer
+      - given-names: Vivienne
+        family-names: Sze
+    year: 2024
+    collection-title: "2024 IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)"
+    start: 10
+    end: 23
+    doi: "10.1109/ISPASS61541.2024.00012"
+
+  - type: article
+    title: "Fast and Fusiest: An Optimal Fusion-Aware Mapper for Accelerator Modeling and Evaluation"
+    authors:
+      - given-names: Tanner
+        family-names: Andrulis
+      - given-names: Michael
+        family-names: Gilbert
+      - given-names: Vivienne
+        family-names: Sze
+      - given-names: Joel S.
+        family-names: Emer
+    year: 2026
+    url: "https://arxiv.org/abs/2602.15166"
+    identifiers:
+      - type: other
+        value: "arXiv:2602.15166"
+
+  - type: conference-paper
+    title: "LoopTree: Enabling Exploration of Fused-layer Dataflow Accelerators"
+    authors:
+      - given-names: Michael
+        family-names: Gilbert
+      - given-names: Yannan Nellie
+        family-names: Wu
+      - given-names: Angshuman
+        family-names: Parashar
+      - given-names: Vivienne
+        family-names: Sze
+      - given-names: Joel S.
+        family-names: Emer
+    year: 2023
+    collection-title: "2023 IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)"
+    start: 316
+    end: 318
+    doi: "10.1109/ISPASS57527.2023.00038"
+
+  - type: article
+    title: "The Turbo-Charged Mapper: Fast and Optimal Mapping for Accelerator Modeling and Evaluation"
+    authors:
+      - given-names: Michael
+        family-names: Gilbert
+      - given-names: Tanner
+        family-names: Andrulis
+      - given-names: Vivienne
+        family-names: Sze
+      - given-names: Joel S.
+        family-names: Emer
+    year: 2026
+    url: "https://arxiv.org/abs/2602.15172"
+    identifiers:
+      - type: other
+        value: "arXiv:2602.15172"

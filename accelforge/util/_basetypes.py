@@ -36,7 +36,7 @@ from typing import (
     Self,
 )
 
-from accelforge.util import _yaml
+from accelforge.util import _yaml, oset
 from accelforge.util._eval_expressions import (
     eval_expression,
     EvaluationError,
@@ -95,7 +95,7 @@ def _uninstantiable(cls):
     prev_init = cls.__init__
 
     def _get_all_subclasses(cls):
-        subclasses = set()
+        subclasses = oset()
         for subclass in cls.__subclasses__():
             subclasses.add(subclass.__name__)
             subclasses.update(_get_all_subclasses(subclass))
@@ -303,6 +303,8 @@ class Evalable(Generic[M]):
     method, which is used to evaluate the object from a string.
     """
 
+    _validator: type = None
+
     def _eval_expressions(
         self, symbol_table: dict[str, Any] = None, **kwargs
     ) -> tuple[M, dict[str, Any]]:
@@ -321,6 +323,7 @@ class Evalable(Generic[M]):
         post_calls: tuple[_PostCall[T], ...],
         use_setattr: bool = True,
         already_evaluated: dict[str, Any] | None = None,
+        validator_from_parent: type | None = None,
         **kwargs,
     ) -> tuple["Evalable", dict[str, Any]]:
         self._evaluated = True
@@ -360,7 +363,12 @@ class Evalable(Generic[M]):
 
         for field in field_order:
             value = getattr(self, field) if use_setattr else self[field]
-            validator = self.get_validator(field)
+            if validator_from_parent is None:
+                validator = self.get_validator(field)
+            else:
+                validator = validator_from_parent
+            if validator == T:
+                raise EvaluationError(f"Validator is {validator} for field {field}")
             evaluated = eval_field(
                 field, value, validator, symbol_table, self, **kwargs
             )
@@ -598,10 +606,30 @@ def eval_field(
             evaluated = value
 
         if isinstance(evaluated, Evalable) and origin is not NoParse:
+            child_validator = None
+            if isinstance(evaluated, EvalableList):
+                validator_args = get_args(validator)
+                if len(validator_args) == 1:
+                    child_validator = validator_args[0]
+                else:
+                    raise EvaluationError(
+                        f"Expected exactly one type argument for EvalableList, got "
+                        f"{len(validator_args)}"
+                    )
+            if isinstance(evaluated, EvalableDict):
+                validator_args = get_args(validator)
+                if len(validator_args) == 2:
+                    child_validator = validator_args[1]
+                else:
+                    raise EvaluationError(
+                        f"Expected exactly two type arguments for EvalableDict, got "
+                        f"{len(validator_args)}"
+                    )
             evaluated, _ = evaluated._eval_expressions(
                 symbol_table=symbol_table,
                 must_copy=must_copy,
                 musteval_tryeval_to=musteval_tryeval_to,
+                validator_from_parent=child_validator,
                 **kwargs,
             )
             return evaluated
@@ -642,7 +670,7 @@ def _get_parsable_field_order(
 
     field2validator = {f: v for f, v, _ in field_value_validator_triples}
 
-    dependencies = {field: set() for field, _ in to_sort}
+    dependencies = {field: oset() for field, _ in to_sort}
     for other_field, other_value in to_sort:
         # Can't have any dependencies if you're not going to be evaluated
         if not isinstance(other_value, str) or is_literal_string(other_value):
@@ -671,6 +699,18 @@ def _get_parsable_field_order(
             order.append(can_add[0][0])
             to_sort.remove(can_add[0])
     return order
+
+
+_object_setattr = object.__setattr__
+
+
+def _reconstruct_pydantic_model(cls, d, extra, fs, priv):
+    obj = cls.__new__(cls)
+    _object_setattr(obj, "__dict__", d)
+    _object_setattr(obj, "__pydantic_extra__", extra)
+    _object_setattr(obj, "__pydantic_fields_set__", fs)
+    _object_setattr(obj, "__pydantic_private__", priv)
+    return obj
 
 
 class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):
@@ -755,6 +795,18 @@ class _OurBaseModel(BaseModel, _FromYAMLAble, Mapping):
     def __len__(self) -> int:
         return len(self.get_fields())
 
+    def __reduce__(self):
+        return (
+            _reconstruct_pydantic_model,
+            (
+                self.__class__,
+                self.__dict__,
+                self.__pydantic_extra__,
+                self.__pydantic_fields_set__,
+                self.__pydantic_private__,
+            ),
+        )
+
 
 @_uninstantiable
 class EvalableModel(_OurBaseModel, Evalable["EvalableModel"]):
@@ -771,7 +823,7 @@ class EvalableModel(_OurBaseModel, Evalable["EvalableModel"]):
         required_type = kwargs.pop("type", None)
 
         if self.model_config["extra"] == "forbid":
-            supported_fields = set(self.__class__.model_fields.keys())
+            supported_fields = oset(self.__class__.model_fields.keys())
             for k in kwargs.keys():
                 if k not in supported_fields:
                     raise ValueError(
@@ -803,7 +855,7 @@ class EvalableModel(_OurBaseModel, Evalable["EvalableModel"]):
         return EvalsTo[Any]
 
     def get_fields(self) -> list[str]:
-        fields = set(self.__class__.model_fields.keys())
+        fields = oset(self.__class__.model_fields.keys())
         if getattr(self, "__pydantic_extra__", None) is not None:
             fields.update(self.__pydantic_extra__.keys())
         return sorted(fields)
@@ -846,7 +898,7 @@ class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
     """
 
     def get_validator(self, field: str) -> Type:
-        return T
+        return T if self._validator is None else self._validator
 
     def _eval_expressions(
         self,
@@ -894,7 +946,7 @@ class EvalableList(list[T], Evalable["EvalableList[T]"], Generic[T]):
             ]
         )
 
-    def __getitem__(self, key: str | int | slice, _pretty_error: bool = False) -> T:
+    def __getitem__(self, key: str | int | slice, _pretty_error: bool = True) -> T:
         if isinstance(key, int):
             return super().__getitem__(key)  # type: ignore
 
@@ -952,7 +1004,7 @@ class EvalableDict(
     """
 
     def get_validator(self, field: str) -> type:
-        return V
+        return V if self._validator is None else self._validator
 
     def get_fields(self) -> list[str]:
         return sorted(self.keys())

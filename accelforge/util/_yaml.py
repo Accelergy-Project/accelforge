@@ -12,7 +12,7 @@ from ruamel.yaml.error import ReusedAnchorWarning
 from jinja2 import StrictUndefined, Environment, FileSystemLoader
 import threading
 import time
-
+from accelforge.util._frozenset import oset
 
 PARSING_LOCK = threading.Lock()
 THREAD_ID = 0
@@ -43,7 +43,7 @@ class LockAcquirer:
 
 def recursive_mutator_stop(func):
     return func
-    cache = set()
+    cache = oset()
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -66,7 +66,7 @@ def recursive_mutator_stop(func):
 
 def recursive_mutator_eq_stop(func):
     return func
-    cache = set()
+    cache = oset()
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -123,7 +123,7 @@ def find_paths(p: str, cur_path: str, include_dirs: List[str]):
             )
 
     unique_paths = []
-    uniques = set()
+    uniques = oset()
     while paths:
         p = os.path.realpath(os.path.abspath(paths.pop(0)))
         if p not in uniques:
@@ -424,7 +424,7 @@ def get_base_yaml() -> ruamel.yaml.YAML:
     yaml.preserve_quotes = True
 
     def recursive_mutator_stop(func):
-        cache = set()
+        cache = oset()
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):

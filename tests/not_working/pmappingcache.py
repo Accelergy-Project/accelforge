@@ -3,7 +3,6 @@ from pathlib import Path
 
 from accelforge.util._picklecache import PickleCache
 
-
 TEST_PmappingGroup_DIR = Path(__file__).parent / "tmp" / "pmapping_cache"
 
 

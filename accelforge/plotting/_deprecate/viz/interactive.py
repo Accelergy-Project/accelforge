@@ -7,6 +7,7 @@ from ipywidgets import Output, VBox, HBox
 from accelforge._accelerated_imports import pd
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import row2pmappings
 from accelforge.frontend.mapping import Mapping
+from accelforge.util._frozenset import oset
 
 
 def make_mapping(row, einsum_names, rank_variable_bounds):
@@ -51,7 +52,7 @@ def diplay_mappings_on_fig(
         d = data[trace.name]
         index = points.point_inds[0]
         display(mapping2svg(d.iloc[index], einsum_names, rank_variable_bounds))
-        # backing_tensors = set(
+        # backing_tensors = oset(
         #     t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.tensors
         # )
         # backing_tensors = TensorReservation.get_backing_tensors(backing_tensors)
@@ -75,7 +76,7 @@ def diplay_mappings_on_fig(
             svg = mapping2svg(d.iloc[index])
             with open(f"plots/{trace.name}.svg", "w") as f:
                 f.write(svg.data)
-        # backing_tensors = set(
+        # backing_tensors = oset(
         #     t for tn in d.iloc[index][MAPPING_COLUMN].values() for t in tn.tensors
         # )
         # backing_tensors = TensorReservation.get_backing_tensors(backing_tensors)

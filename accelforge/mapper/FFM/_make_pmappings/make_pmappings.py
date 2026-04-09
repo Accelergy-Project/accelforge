@@ -14,6 +14,7 @@ from accelforge.frontend._workload_isl._symbolic import get_stride_and_halo
 from accelforge.frontend.renames import Rank, RankVariable
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.mapping import Loop, Mapping, TensorHolder
+from accelforge.util._frozenset import oset
 from accelforge.frontend._workload_isl._isl import (
     get_rank_variable_bounds,
     get_tensor_size,
@@ -30,7 +31,9 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates import 
 )
 from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
-from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import get_initial_delta_choices
+from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
+    get_initial_delta_choices,
+)
 from accelforge.util.parallel import (
     parallel,
     _memmap_read,
@@ -52,7 +55,7 @@ def get_rank_variable_bounds_for_all_einsums(spec: Spec):
     for e1, rv1 in rank_variable_bounds.items():
         result.update(rv1)
         for e2, rv2 in rank_variable_bounds.items():
-            for r in set(rv1.keys()) & set(rv2.keys()):
+            for r in oset(rv1.keys()) & oset(rv2.keys()):
                 if rv1[r] != rv2[r]:
                     raise ValueError(
                         f"Rank variable {r} has different bounds for "
@@ -61,7 +64,7 @@ def get_rank_variable_bounds_for_all_einsums(spec: Spec):
     return result
 
 
-def get_num_computes(spec: Spec, einsum_name: EinsumName | None = None) -> int:
+def get_n_computes(spec: Spec, einsum_name: EinsumName | None = None) -> int:
     einsums = spec.workload.einsums
     einsums = [einsum_name] if einsum_name is not None else spec.workload.einsum_names
     return sum(get_operation_space_size(spec.workload, e) for e in einsums)
@@ -94,12 +97,10 @@ def get_jobs(
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     einsum2spec: dict[EinsumName, Spec] = {}
-    s = f"Getting energy, latency, and leak power for components running "
-    pbar = tqdm(einsum_names, desc=s) if print_progress else einsum_names
-    for einsum_name in pbar:
-        if print_progress:
-            pbar.set_description(s + einsum_name)
-        einsum2spec[einsum_name] = (
+    s = "Getting energy, latency, and leak power for components running each Einsum. "
+
+    def _get_per_einsum_spec(spec, einsum_name):
+        result = (
             spec._spec_eval_expressions(
                 einsum_name=einsum_name,
                 eval_arch=True,
@@ -110,8 +111,18 @@ def get_jobs(
                 area=False,
             )
             ._for_einsum(einsum_name)
+            ._clear_component_models()
         )
-        einsum2spec[einsum_name] = _memmap_read(einsum2spec[einsum_name])
+        return einsum_name, _memmap_read(result)
+
+    for einsum_name, result in parallel(
+        [
+            delayed(_get_per_einsum_spec)(spec, einsum_name)
+            for einsum_name in einsum_names
+        ],
+        pbar=s if print_progress else None,
+    ):
+        einsum2spec[einsum_name] = result
 
     def make_jobs_for_einsum(
         einsum_name: EinsumName,
@@ -121,6 +132,8 @@ def get_jobs(
             dict[TensorName, dict[tuple[Rank, RankVariable], tuple[int, int]]],
         ],
         initial_delta_choices_for_einsum: dict[RankVariable, frozenset[int]],
+        n_einsums: int,
+        intermediate_tensors: set[TensorName],
     ):
         jobs = {}
         workload_einsum = spec.workload.einsums[einsum_name]
@@ -136,6 +149,11 @@ def get_jobs(
                 fusable_tensors=fusable_tensors & workload_einsum.tensor_names,
                 stride_and_halo=stride_and_halo,
                 initial_delta_choices=initial_delta_choices_for_einsum,
+                objective_tolerance=spec.mapper.objective_tolerance,
+                resource_usage_tolerance=spec.mapper.resource_usage_tolerance,
+                workload_n_einsums=n_einsums,
+                intermediate_tensors=intermediate_tensors
+                & workload_einsum.tensor_names,
             )
             for j in make_pmapping_templates(job, print_progress):
                 jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
@@ -148,6 +166,11 @@ def get_jobs(
         for e in spec.workload.einsum_names
     }
 
+    input_tensors = oset.union(*[e.input_tensor_names for e in spec.workload.einsums])
+    output_tensors = oset.union(*[e.output_tensor_names for e in spec.workload.einsums])
+    intermediate_tensors = input_tensors & output_tensors
+
+    n_einsums = len(spec.workload.einsum_names)
     for einsum_name, jobs in parallel(
         [
             delayed(make_jobs_for_einsum)(
@@ -155,6 +178,8 @@ def get_jobs(
                 spec._for_einsum(einsum_name),
                 stride_and_halo,
                 initial_delta_chocies[einsum_name],
+                n_einsums,
+                intermediate_tensors,
             )
             for einsum_name, spec in einsum2spec.items()
         ],
@@ -182,10 +207,13 @@ def get_jobs(
         spec.mapper.time_limit * n_procs / max(total_jobs, 1),
         spec.mapper.time_limit_per_pmapping_template,
     )
+    total_templates = 0
     for einsum_name, compatibility_jobs in einsum2jobs.items():
-        total_jobs = sum(len(j) for j in compatibility_jobs.values())
+        n_compatibility_jobs = sum(len(j) for j in compatibility_jobs.values())
+        total_templates += n_compatibility_jobs
         if print_progress:
-            print(f"Einsum {einsum_name} has {total_jobs} pmapping templates:")
+            s = "jobs" if n_compatibility_jobs > 1 else "job"
+            print(f"Einsum {einsum_name} has {n_compatibility_jobs} pmapping {s}:")
         i = 0
         for job_list in compatibility_jobs.values():
             for job in job_list:
@@ -194,6 +222,10 @@ def get_jobs(
                     i += 1
                 job.memory_limit = memory_limit
                 job.time_limit = time_limit
+
+    if print_progress:
+        s = "templates" if total_templates > 1 else "template"
+        print(f"Total number of pmapping {s}: {total_templates}")
 
     return einsum2jobs
 
@@ -206,7 +238,7 @@ def get_memories_to_track(
     print_progress: bool = True,
 ) -> tuple[list[str], list[str]]:
 
-    memories_track_all = set()
+    memories_track_all = oset()
     for einsum, jobs in einsum2jobs.items():
         for job in jobs:
             memories_track_all.update(
@@ -214,12 +246,12 @@ def get_memories_to_track(
             )
 
     memories_track_pmappings_only = []
-    ignored_resources = set()
+    ignored_resources = oset()
 
     # If we're combining the pmappings from multiple runs, we can't conclude anything
     # about the metrics to track
     if can_combine_multiple_runs or metrics.RESOURCE_USAGE in metrics:
-        ignored_resources = set()
+        ignored_resources = oset()
         return (
             memories_track_all,
             memories_track_pmappings_only,
@@ -265,17 +297,18 @@ def get_memories_to_track(
     # pmapping exploration but can drop it immediately
     for m in list(memories_track_all):
         must_track = False
-        for job in jobs:
-            seen = False
-            for node in job.mapping.nodes:
-                if isinstance(node, TensorHolder) and node.component == m:
-                    seen = True
-                    if node.persistent:
-                        ignored_resources.add(m)
-                    if node._backing:
+        for _, jobs in einsum2jobs.items():
+            for job in jobs:
+                seen = False
+                for node in job.mapping.nodes:
+                    if isinstance(node, TensorHolder) and node.component == m:
+                        seen = True
+                        if node.persistent:
+                            ignored_resources.add(m)
+                        if node._backing:
+                            must_track = True
+                    if isinstance(node, Loop) and node._fused and seen:
                         must_track = True
-                if isinstance(node, Loop) and node._fused and seen:
-                    must_track = True
 
         if not must_track:
             memories_track_all.remove(m)
@@ -351,18 +384,15 @@ def make_pmappings(
         return max([len(j2.mapping.nodes) for j2 in j])
 
     calls = sorted(calls, key=get_longest_mapping_length, reverse=True)
-    # # Randomly permute the calls
-    # import random
-    # random.shuffle(calls)
 
     pmapping_objects = {}
     pmapping_groups = {einsum_name: [] for einsum_name in spec.workload.einsum_names}
-    return_jobs = {}
+    keep_rates = []
     for (
         einsum_name,
         new_pmapping_groups,
         pmappings,
-        jobs_with_similar_compatibilities,
+        cur_keep_rates,
     ) in parallel(
         calls,
         pbar=f"Generating pmappings" if print_progress or one_pbar_only else None,
@@ -370,9 +400,7 @@ def make_pmappings(
     ):
         pmapping_groups[einsum_name].extend(new_pmapping_groups)
         pmapping_objects.setdefault(einsum_name, {}).update(pmappings)
-        return_jobs.setdefault(einsum_name, []).extend(
-            jobs_with_similar_compatibilities
-        )
+        keep_rates.extend(cur_keep_rates)
 
     for einsum_name in list(pmapping_groups.keys()):
         pmapping_groups[einsum_name] = PmappingGroup.combine_combineable(
@@ -381,6 +409,18 @@ def make_pmappings(
             pbar_postfix=f" for {einsum_name}",
             print_progress=print_progress,
         )
+
+    return_jobs = {
+        e: [j for jobs in v.values() for j in jobs] for e, v in einsum2jobs.items()
+    }
+
+    # Propagate keep_rates from worker-side job copies back to original jobs
+    id2keep_rates = {jid: (keep_rates, n) for jid, keep_rates, n in keep_rates}
+    for jobs in return_jobs.values():
+        for job in jobs:
+            assert job.job_id in id2keep_rates, f"Job {job.job_id} not found"
+            job.pmapping_keep_rates.update(id2keep_rates[job.job_id][0])
+            job.n_total_pmappings = id2keep_rates[job.job_id][1]
 
     return pmapping_groups, pmapping_objects, return_jobs
 
@@ -403,18 +443,7 @@ def _allocate_jobs(einsum2jobs, print_progress: bool = True):
             for job_list in jobs.values()
         )
 
-    split = False
-    if (
-        not split
-        and is_using_parallel_processing()
-        and len(calls) < get_n_parallel_jobs() * 4
-    ):
-        if print_progress:
-            print(
-                f"Insufficient jobs available to utilize available threads. "
-                f"Splitting jobs into smaller chunks."
-            )
-        split = True
+    split = True
 
     if split:
         calls = []

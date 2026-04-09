@@ -1,5 +1,6 @@
 import functools
 from accelforge.util.exceptions import EvaluationError
+from accelforge.util._frozenset import _sorted_iter, oset
 from pydantic import BaseModel, ConfigDict, model_serializer
 from typing import Iterator, Optional, TypeVar, Generic, Any, Union
 from accelforge.util._eval_expressions import MATH_FUNCS
@@ -7,10 +8,13 @@ from accelforge.util._eval_expressions import MATH_FUNCS
 T = TypeVar("T")
 
 
-def _reconstruct_invertible_set(state):
+def _reconstruct_invertible_set(dict_state, pydantic_private):
     """Helper function to reconstruct InvertibleSet during unpickling."""
     obj = object.__new__(InvertibleSet)
-    obj.__dict__.update(state)
+    obj.__dict__.update(dict_state)
+    object.__setattr__(obj, "__pydantic_fields_set__", set())
+    object.__setattr__(obj, "__pydantic_extra__", {})
+    object.__setattr__(obj, "__pydantic_private__", pydantic_private or {})
     return obj
 
 
@@ -52,13 +56,23 @@ class InvertibleSet(BaseModel, Generic[T]):
         self._bits_per_value = value
 
     def __reduce__(self):
-        return (_reconstruct_invertible_set, (self.__dict__,))
+        return (
+            _reconstruct_invertible_set,
+            (
+                self.__dict__,
+                getattr(self, "__pydantic_private__", {}),
+            ),
+        )
 
     def __getstate__(self):
-        return self.__dict__
+        return self.__dict__, getattr(self, "__pydantic_private__", {})
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        dict_state, pydantic_private = state
+        self.__dict__.update(dict_state)
+        object.__setattr__(self, "__pydantic_fields_set__", set())
+        object.__setattr__(self, "__pydantic_extra__", {})
+        object.__setattr__(self, "__pydantic_private__", pydantic_private or {})
 
     def __deepcopy__(self, memo):
         """Custom deepcopy implementation to avoid pydantic deepcopy issues."""
@@ -147,7 +161,9 @@ class InvertibleSet(BaseModel, Generic[T]):
             iter(self.element_to_child_space.values())
         )
         return first_child_space_item.to_my_space(
-            set.union(*(set(self.element_to_child_space[item]) for item in self), set())
+            oset.union(
+                oset(), *(oset(self.element_to_child_space[item]) for item in self)
+            )
         )
 
     def __bool__(self):
@@ -160,15 +176,15 @@ class InvertibleSet(BaseModel, Generic[T]):
         return item in self.instance
 
     def __iter__(self):
-        return iter(self.instance)
+        return _sorted_iter(self.instance)
 
     def __getitem__(self, item):
         return self.instance[item]
 
     def iter_one_element_sets(self) -> Iterator["InvertibleSet[T]"]:
-        for item in self.instance:
+        for item in _sorted_iter(self.instance):
             yield InvertibleSet(
-                instance=set((item,)),
+                instance=oset((item,)),
                 full_space=self.full_space,
                 space_type=self.space_type,
                 # child_access_name=self.child_access_name,

@@ -67,7 +67,7 @@ class DataMovementConnections:
 
 def get_tensor_to_backer_id(mapping: Mapping):
     tensor_to_ids: dict[TensorName, set[int]] = {}
-    for node in mapping:
+    for node in mapping.nodes:
         if isinstance(node, TensorHolder):
             for tensor in node.tensors:
                 if tensor in tensor_to_ids:

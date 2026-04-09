@@ -151,7 +151,7 @@ intersphinx_mapping = {
     'numpy': ('https://numpy.org/doc/stable/', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
     # 'matplotlib': ('https://matplotlib.org/stable/contents.html', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
+    # 'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'scikit-learn': ('https://scikit-learn.org/stable/', None),
     'sympy': ('https://docs.sympy.org/latest/', None),
     'hwcomponents': ('https://accelergy-project.github.io/hwcomponents/', None),

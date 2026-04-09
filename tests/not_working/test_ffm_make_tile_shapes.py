@@ -38,6 +38,9 @@ class TestTileShapeExploration(unittest.TestCase):
             rank_variable_bounds={},
             memories_track_all=memories_track_all,
             memories_track_pmappings_only=memories_track_pmappings_only,
+            resource_usage_tolerance=0,
+            objective_tolerance=0,
+            workload_n_einsums=len(spec.workload.einsum_names),
         )
 
         result, _ = make_tile_shapes(job)

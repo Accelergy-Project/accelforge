@@ -20,7 +20,7 @@ arch:
     - {name: hops, energy: 1, latency: 0}
 
   - !Array
-    name: PeArray
+    name: Array
     spatial:
     - {name: X, fanout: 4}
     - {name: Y, fanout: 4}

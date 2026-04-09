@@ -1,6 +1,7 @@
 import copy
 from dataclasses import dataclass, field
 from accelforge.frontend.arch import Network as NetworkSpec
+from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Compute,
     Mapping,
@@ -158,14 +159,14 @@ class BuffetStats:
 
     def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
         new = copy.copy(self)
-        for attr in self.__dict__:
-            if not attr.startswith(("total_", "max_", "min_")):
+        for k, v in new.__dict__.items():
+            if not k.startswith(("total_", "max_", "min_")):
                 continue
-            if "skipped_first" in attr and not is_fully_relevant:
+            if "skipped_first" in k and not is_fully_relevant:
                 continue  # First actions occur once per relevant iteration.
-            if attr == "max_occupancy":
+            if k == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
-            setattr(new, attr, getattr(new, attr) * factor)
+            new.__dict__[k] = v * factor
         return new
 
     def repeat_spatial(self, factor: int, reuse_parent_accesses: bool) -> "BuffetStats":
@@ -181,16 +182,16 @@ class BuffetStats:
             and accesses to parents are not duplicated).
         """
         new = copy.copy(self)
-        for attr in self.__dict__:
-            if not attr.startswith(("total_", "max_", "min_")):
+        for k, v in new.__dict__.items():
+            if not k.startswith(("total_", "max_", "min_")):
                 continue
-            if "parent" in attr and reuse_parent_accesses:
+            if "parent" in k and reuse_parent_accesses:
                 continue  # If parent accesses are reused, no need to multiply
-            if "per_unit" in attr:
+            if "per_unit" in k:
                 continue  # Spatial fanout doesn't affect per-unit stats
-            if attr == "max_occupancy":
+            if k == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
-            setattr(new, attr, getattr(new, attr) * factor)
+            new.__dict__[k] = v * factor
         return new
 
     def max(self, **kwargs: Any):
@@ -203,25 +204,20 @@ class BuffetStats:
 
     def __add__(self, other: "BuffetStats") -> "BuffetStats":
         new = copy.copy(self)
-        for attr in self.__dict__:
-            if attr.startswith("min_"):
-                setattr(
-                    new, attr, min_nonzero(getattr(self, attr), getattr(other, attr))
-                )
-            elif attr.startswith("max_"):
-                setattr(
-                    new, attr, MaxGeqZero(getattr(self, attr), getattr(other, attr))
-                )
-            elif attr.startswith("total_"):
-                setattr(new, attr, getattr(self, attr) + getattr(other, attr))
-            elif getattr(self, attr) is None:
-                setattr(new, attr, getattr(other, attr))
-            elif getattr(other, attr) is None:
-                setattr(new, attr, getattr(self, attr))
+        for k, v in self.__dict__.items():
+            other_v = other.__dict__[k]
+            if k.startswith("min_"):
+                new.__dict__[k] = min_nonzero(v, other_v)
+            elif k.startswith("max_"):
+                new.__dict__[k] = MaxGeqZero(v, other_v)
+            elif k.startswith("total_"):
+                new.__dict__[k] = v + other_v
+            elif v is None:
+                new.__dict__[k] = other_v
             else:
-                assert getattr(self, attr) == getattr(
-                    other, attr
-                ), f"BUG: {attr} is different. self: {getattr(self, attr)} other: {getattr(other, attr)}"
+                assert (
+                    v == other_v
+                ), f"BUG: {k} is different. self: {v} other: {other_v}"
         return new
 
     def __iadd__(self, other: "BuffetStats") -> "BuffetStats":
@@ -374,7 +370,7 @@ class SymbolicAnalysisOutput:
         return result
 
     def add_buffet_stats_and_symbols(self, other: "SymbolicAnalysisOutput"):
-        assert not (set(self.buffet_stats) & set(other.buffet_stats)), "BUG"
+        assert not (oset(self.buffet_stats) & oset(other.buffet_stats)), "BUG"
         self.buffet_stats.update(other.buffet_stats)
         # if self.temporal_steps != other.temporal_steps:
         #     print(f'Temporal steps are different.')
@@ -383,11 +379,15 @@ class SymbolicAnalysisOutput:
         # assert self.temporal_steps == other.temporal_steps, "BUG"
         self.temporal_steps.update(other.temporal_steps)
         self.symbols.extend([s for s in other.symbols if s not in self.symbols])
-        # Assert compute stats are the same
-        # assert self.compute_stats == other.compute_stats, "BUG"
+        for key in self.compute_stats:
+            if key in other.compute_stats:
+                assert (
+                    self.compute_stats[key].total_ops
+                    == other.compute_stats[key].total_ops
+                )
 
     def add_network_stats(self, other: "SymbolicAnalysisOutput"):
-        assert not (set(self.network_stats) & set(other.network_stats)), "BUG"
+        assert not (oset(self.network_stats) & oset(other.network_stats)), "BUG"
         self.network_stats.update(other.network_stats)
 
 
@@ -414,6 +414,16 @@ class AnalysisInfo:
 
     data_movement_connections: DataMovementConnections = None
 
+    # For a given tensor, we may rearrange irrelevant loops, which nominally would
+    # affect the iteration count and tile shapes. However, they're irrelevant, so we can
+    # just track the iteration count for the canonical order and that's sufficient.
+    precomputed_iterations: dict[int, Any] = field(default_factory=dict)
+
+    # True during the initial pass that records loop iteration counts.
+    is_recording_iterations: bool = False
+
+    tensor_rank_variables: set = field(default_factory=set)
+
     # We track first latency for these nodes (should be Temporal)
     last_temporal_node_idx: int = None
     """
@@ -425,8 +435,13 @@ class AnalysisInfo:
     """
 
 
-def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
-    mapping = list(job.mapping.nodes)
+def quick_insert_reservation_nodes(
+    job: Job, mapping: Mapping | None = None, tensors: oset[TensorName] | None = None
+) -> Mapping:
+    if mapping is None:
+        mapping = list(job.mapping.nodes)
+    else:
+        mapping = list(mapping.nodes)
     workload = job.spec_one_einsum.workload
 
     # TODO: Subclass reservation with TensorReservation or something so that we can
@@ -443,20 +458,28 @@ def quick_insert_reservation_nodes(job: Job) -> list[MappingNode]:
         is_copy_operation=None,
         job=None,
     )
-    insert_reservation_nodes(mapping, info, job.fusable_tensors)
+
+    fusable_tensors = job.fusable_tensors
+    if tensors is not None:
+        fusable_tensors = fusable_tensors & tensors
+
+    insert_reservation_nodes(mapping, info, fusable_tensors)
     m = Mapping(nodes=mapping)
     m._n_loop_orders = job.mapping._n_loop_orders
+    m._template_index = job.mapping._template_index
     return m
 
 
 def convert_to_copy(
-    mapping: list[MappingNode], workload: Workload
-) -> tuple[list[MappingNode], dict[TensorName, int]]:
-    mapping = copy.deepcopy(mapping)
-
-    # Calculate this BEFORE we modify the mapping. We're going to have the copy source
-    # tensor moving upward sometimes, and we don't want the backing tensor holder
+    mapping: Mapping, workload: Workload
+) -> tuple[Mapping, dict[TensorName, int]]:
+    # Calculate backer IDs from the ORIGINAL mapping (before deepcopy) so that
+    # the id() values match the node objects used in subsequent analysis.
+    # get_tensor_to_backer_id is read-only, so this is safe.
     tensor_to_backer_id = get_tensor_to_backer_id(mapping)
+    mapping = list(mapping.nodes)
+
+    mapping = copy.deepcopy(mapping)
 
     first_input_tensor = workload.einsums[mapping[-1].einsum].copy_source_tensor()
 
@@ -465,6 +488,9 @@ def convert_to_copy(
             if node.tensors:
                 node.tensors = [first_input_tensor]
                 node._lower = False
+        if isinstance(node, Reservation):
+            if node.purposes:
+                node.purposes = [first_input_tensor]
 
     to_remove = []
     i = 0
@@ -481,45 +507,62 @@ def convert_to_copy(
                     mapping.pop(j)
                 else:
                     j += 1
+        if isinstance(node, Reservation):
+            j = i + 1
+            while j < len(mapping):
+                node2 = mapping[j]
+                if isinstance(node2, Reservation) and node.resource == node2.resource:
+                    mapping.pop(j)
+                else:
+                    j += 1
         i += 1
     mapping = [node for node in mapping if node not in to_remove]
 
-    return mapping, tensor_to_backer_id
+    return Mapping(nodes=mapping), tensor_to_backer_id
 
 
 def analyze_reuse_and_add_reservations_to_mapping(
     job: Job,
     add_reservations: bool = True,
 ) -> SymbolicAnalysisOutput:
-    mapping = job.mapping.nodes
+    mapping = job.mapping
     workload = job.spec_one_einsum.workload
-    einsum_name = mapping[-1].einsum
+    einsum_name = mapping.nodes[-1].einsum
+    einsum = workload.einsums[einsum_name]
 
     is_copy_operation = workload.einsums[einsum_name].is_copy_operation
     symbols = insert_sympy_symbols(job.mapping.nodes, job)
 
+    tensors = oset(einsum.tensor_names)
+
     if is_copy_operation:
         mapping, tensor_to_backer_id = convert_to_copy(mapping, workload)
+        tensors &= oset.union(
+            *[oset(t.tensors) for t in mapping.nodes if isinstance(t, TensorHolder)]
+        )
     else:
         tensor_to_backer_id = get_tensor_to_backer_id(mapping)
 
     if add_reservations:
-        job.mapping = quick_insert_reservation_nodes(job)
-    # print(f'Job mapping: {job.mapping.compact_str()}')
-    # for n in job.mapping.nodes:
-    #     print(f'\t{n.compact_str()}')
+        mapping = quick_insert_reservation_nodes(
+            job,
+            mapping,
+            tensors,
+        )
+        # If it's a copy operation, then we've changed the mapping, so add the
+        # reservations to the job separately because we don't want the copy
+        # transformations to get applied to the original job's mapping.
+        if is_copy_operation:
+            job.mapping = quick_insert_reservation_nodes(job)
+        # If it's not a copy, then use the reservations that we just made
+        else:
+            job.mapping = mapping
 
     einsum_tensor_to_projection = {}
-    einsum = workload.einsums[einsum_name]
-    all_tensors = einsum.tensor_names
-    for tensor in all_tensors:
-        einsum_tensor_to_projection[(einsum_name, tensor)] = get_projection_expr(
-            einsum, tensor
-        )
-    tensor_to_relevancy = {
-        tensor: get_rank_variable_relevancy(einsum, tensor) for tensor in all_tensors
-    }
-    assert all_tensors, f"Einsum {einsum_name} has no tensors"
+    for t in tensors:
+        einsum_tensor_to_projection[(einsum_name, t)] = get_projection_expr(einsum, t)
+    tensor_to_relevancy = {t: job.tensor_to_relevancy[t] for t in tensors}
+    assert tensors, f"Einsum {einsum_name} has no tensors"
 
     """
     Note for how this works.
@@ -553,21 +596,32 @@ def analyze_reuse_and_add_reservations_to_mapping(
        performing such analysis until the outermost storage node for a particular memory
        has been analyzed.
     """
+
+    # The first iteration (tensor=None) runs on the original mapping to record the
+    # correct iteration count for every loop.  Per-tensor mappings may reorder
+    # spatial/temporal loops for rank variables irrelevant to the tensor. This changes
+    # the iteration counts and tile shapes for the loops, so we use the precomputed
+    # iteration counts from the original mapping order. The tile shapes don't matter
+    # because we only do it for irrelevant loops.
+
     result = None
+    precomputed_iterations = {}
 
     tensor2mapping = {}
-    index_expressions = set(einsum.indexing_expressions)
-    for k, v in job.rank_variable_bounds.items():
-        index_expressions.add(f"0 < {k} <= {v}")
-    for tensor in all_tensors:
-        cur_mapping = job.mapping._get_single_tensor_mapping(
-            tensor, job.flattened_arch, index_expressions
+    for tensor in [None] + sorted(tensors):
+        rvs = einsum.tensor2rank_variables.get(
+            tensor, oset.union(*einsum.tensor2rank_variables.values())
+        )
+        cur_mapping = mapping._get_single_tensor_mapping(
+            tensor,
+            job.flattened_arch,
+            tensor_rank_variables=rvs,
         )
         info = AnalysisInfo(
             mapping=cur_mapping.nodes,
             workload=workload,
             full_rank_variable_shapes=job.rank_variable_bounds,
-            all_tensors=set([tensor]),
+            all_tensors=oset([tensor]) if tensor is not None else oset[Any](),
             einsum_tensor_to_projection=einsum_tensor_to_projection,
             tensor_to_relevancy=tensor_to_relevancy,
             tensor_to_backer_id=tensor_to_backer_id,
@@ -576,14 +630,30 @@ def analyze_reuse_and_add_reservations_to_mapping(
             data_movement_connections=DataMovementConnections.from_pmapping(
                 cur_mapping.nodes
             ),
+            precomputed_iterations=precomputed_iterations,
+            tensor_rank_variables=einsum.tensor2rank_variables.get(tensor, oset()),
+            is_recording_iterations=tensor is None,
         )
         cur_result = analyze_node(0, job.rank_variable_bounds, info)
+        if tensor is None:
+            continue  # Recording pass only; don't merge results.
+
         if result is None:
             result = cur_result
         else:
             result.add_buffet_stats_and_symbols(cur_result)
             result.add_network_stats(cur_result)
         tensor2mapping[tensor] = cur_mapping
+
+    # For copy operations, we mutate the original mapping before doing analysis, so we
+    # need to update tensor2mapping using the original mapping.
+    if is_copy_operation:
+        for t in workload.einsums[einsum_name].tensor_names:
+            tensor2mapping[t] = job.mapping._get_single_tensor_mapping(
+                t,
+                job.flattened_arch,
+                tensor_rank_variables=einsum.tensor2rank_variables[t],
+            )
 
     result.symbols = symbols
     result.tensor2mapping = tensor2mapping
@@ -592,6 +662,12 @@ def analyze_reuse_and_add_reservations_to_mapping(
         print(f"Mapping:")
         for node in mapping:
             print(f"\t{node.compact_str()}")
+
+        print("Per-tensor mapping:")
+        for tensor, tensor_mapping in result.tensor2mapping.items():
+            print(f"\t{tensor}")
+            for node in tensor_mapping.nodes:
+                print(f"\t\t{node.compact_str()}")
 
         for buffet, stats in result.buffet_stats.items():
             print(f"Einsum {buffet.einsum} tensor {buffet.tensor} level {buffet.level}")
@@ -607,6 +683,8 @@ def analyze_reuse_and_add_reservations_to_mapping(
             print(f"\tTotal writes to peer: {stats.total_writes_to_peer}")
             print(f"\tMax per unit reads to peer: {stats.max_per_unit_reads_to_peer}")
             print(f"\tMax per unit writes to peer: {stats.max_per_unit_writes_to_peer}")
+            print(f"\tMax occupancy: {stats.max_occupancy}")
+            print(f"\tN loops above: {stats.n_loops_above}")
 
     return result
 
@@ -673,7 +751,7 @@ def insert_reservation_nodes(
 ):
     trackers: list[ReservationAnalysisTracker] = []
     einsum = info.workload.einsums[mapping[-1].einsum]
-    seen_tensors = set()  # reservation for top-level buffets cannot be lowered
+    seen_tensors = oset()  # reservation for top-level buffets cannot be lowered
 
     n_nodes = len(mapping)
     i = 0
@@ -791,12 +869,42 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SymbolicAnalysi
     return class2analysis_function[type(node)](node_idx, current_shape, info)
 
 
+def _loop_stride_and_shape(node, current_shape, node_idx, info):
+    """Get the stride-and-shape for a loop node.
+
+    During the initial analysis pass (is_recording_iterations), records each
+    loop's iteration count into info.precomputed_iterations.
+
+    During per-tensor passes, loops whose rank variable is irrelevant to the
+    tensor may have been reordered relative to other loops on the same rank
+    variable, giving them a wrong current_shape. For those loops, the
+    iteration count is replaced with the value recorded during the initial
+    pass.
+    """
+    # For irrelevant loops that may have been reordered, use the precomputed
+    # iteration count from the original mapping order.
+    if (
+        not info.is_recording_iterations
+        and node.rank_variable not in info.tensor_rank_variables  # True -> irrelevant
+    ):
+        n_iters = info.precomputed_iterations[id(node)]
+        stride = node.tile_shape
+        return StrideAndShape(stride, RepeatedValue(stride, n_iters))
+
+    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
+
+    if info.is_recording_iterations:
+        info.precomputed_iterations[id(node)] = stride_and_shape.shape.repeats
+
+    return stride_and_shape
+
+
 def analyze_temporal(
     node_idx, current_shape, info: AnalysisInfo
 ) -> SymbolicAnalysisOutput:
     mapping = info.mapping
     node = mapping[node_idx]
-    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
+    stride_and_shape = _loop_stride_and_shape(node, current_shape, node_idx, info)
 
     result_accumulator = SymbolicAnalysisOutput()
 
@@ -877,7 +985,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     arch_spec = info.job.spec.arch
     spatial_component = find_component_object(node.component, flattened_arch)
     component_spatial_dim = spatial_component.spatial[node_dim]
-    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
+    stride_and_shape = _loop_stride_and_shape(node, current_shape, node_idx, info)
 
     result_accumulator = SymbolicAnalysisOutput()
 
@@ -1101,7 +1209,29 @@ def analyze_storage(
     einsum_name = mapping[-1].einsum
     node: TensorHolder = mapping[node_idx]
 
+    if not isinstance(count_upward_movement, dict):
+        count_upward_movement = {
+            TensorName(t): count_upward_movement for t in node.tensors
+        }
+    if not isinstance(count_downward_movement, dict):
+        count_downward_movement = {
+            TensorName(t): count_downward_movement for t in node.tensors
+        }
+
     child_result = analyze_node(node_idx + 1, current_shape, info)
+    component_object = find_component_object(node.component, info.job.flattened_arch)
+
+    # Toll -> No initial output write because things just pass through. Keep
+    # skip_initial True so that it inherits the value from the child.
+    if isinstance(component_object, arch.Toll):
+        skip_initial = True
+    # Memory -> Skip initial output write is a setting
+    elif isinstance(component_object, arch.Memory):
+        skip_initial = component_object.skip_initial_output_write
+    else:
+        raise ValueError(f"Unknown component object: {component_object}")
+
+    skip_initial = skip_initial and not info.is_copy_operation
 
     for tensor in node.tensors:
         tensor = TensorName(tensor)
@@ -1153,8 +1283,14 @@ def analyze_storage(
                 inherit_add("max_per_parent_writes_to_parent")
 
             # For read+write tensors, we skip the first fill because the data will be
-            # initialized with a zero value.
-            if tensor in info.workload.einsums[einsum_name].output_tensor_names:
+            # initialized with a zero value. This only applies where reads from
+            # parent actually occur (below the backing store).
+            if (
+                tensor in info.workload.einsums[einsum_name].output_tensor_names
+                and not is_backing
+                and below_backing
+                and skip_initial
+            ):
                 inherit_add("total_skipped_first_reads_to_parent")
                 inherit_add("min_per_parent_skipped_first_reads_to_parent")
 
@@ -1162,9 +1298,6 @@ def analyze_storage(
         # Convert to actions. These are not used used upward; they are used to get
         # energy and latency.
         # ==============================================================================
-        component_object = find_component_object(
-            node.component, info.job.flattened_arch
-        )
         bits_per_value_scale = component_object.bits_per_value_scale[tensor]
         bits_per_value = (
             bits_per_value_scale
@@ -1180,7 +1313,7 @@ def analyze_storage(
 
         # ==========================
         # Data exchanges with parent
-        if count_downward_movement:  # Parent -> Me
+        if count_downward_movement[tensor]:  # Parent -> Me
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
             stats.max_per_unit_write_actions += (
                 stats.total_reads_to_parent * write_scale
@@ -1192,7 +1325,7 @@ def analyze_storage(
                 stats.min_per_parent_skipped_first_reads_to_parent * write_scale
             )
 
-        if count_upward_movement:  # Me -> Parent
+        if count_upward_movement[tensor]:  # Me -> Parent
             # Comment this to have the final writeback to a buffer hit both that buffer and
             # go directly to the parent without incurring another read from the buffer.
             stats.total_read_actions += stats.total_writes_to_parent * read_scale
@@ -1206,20 +1339,21 @@ def analyze_storage(
         # =========================
         # Data exchanges with child
         if child is not None:
-            if count_downward_movement:  # Me -> Child
+            if count_downward_movement[tensor]:  # Me -> Child
                 stats.total_read_actions += child.total_reads_to_parent * read_scale
                 stats.max_per_unit_read_actions += (
                     child.max_per_parent_reads_to_parent * read_scale
                 )
                 # Skip first read
-                stats.total_skipped_first_read_actions += (
-                    child.total_skipped_first_reads_to_parent * read_scale
-                )
-                stats.min_per_unit_skipped_first_read_actions += (
-                    child.min_per_parent_skipped_first_reads_to_parent * read_scale
-                )
+                if skip_initial:
+                    stats.total_skipped_first_read_actions += (
+                        child.total_skipped_first_reads_to_parent * read_scale
+                    )
+                    stats.min_per_unit_skipped_first_read_actions += (
+                        child.min_per_parent_skipped_first_reads_to_parent * read_scale
+                    )
 
-            if count_upward_movement:  # Child -> Me
+            if count_upward_movement[tensor]:  # Child -> Me
                 stats.total_write_actions += child.total_writes_to_parent * write_scale
                 stats.max_per_unit_write_actions += (
                     child.max_per_parent_writes_to_parent * write_scale
@@ -1233,13 +1367,16 @@ def analyze_toll(node_idx, current_shape, info: AnalysisInfo):
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
     component_object = find_component_object(node.component, info.job.flattened_arch)
+    direction = component_object.direction
+    count_up = {TensorName(t): direction[t] != "down" for t in node.tensors}
+    count_down = {TensorName(t): direction[t] != "up" for t in node.tensors}
     storage_result = analyze_storage(
         node_idx,
         current_shape,
         info,
         propagate_child_results=True,
-        count_upward_movement=component_object.direction != "down",
-        count_downward_movement=component_object.direction != "up",
+        count_upward_movement=count_up,
+        count_downward_movement=count_down,
         count_writes=False,
     )
     for tensor in node.tensors:
@@ -1310,6 +1447,11 @@ def analyze_compute(
 
     computes = 0 if info.is_copy_operation else 1
 
+    component_object = find_component_object(node.component, info.job.flattened_arch)
+    skip_initial = (
+        component_object.skip_initial_output_write and not info.is_copy_operation
+    )
+
     result_accumulator = SymbolicAnalysisOutput()
 
     compute_key = Compute(einsum, node.component)
@@ -1331,8 +1473,9 @@ def analyze_compute(
         if tensor in info.workload.einsums[einsum].output_tensor_names:
             stats.total_writes_to_parent = 1
             stats.max_per_parent_writes_to_parent = 1
-            stats.total_skipped_first_reads_to_parent = 1
-            stats.min_per_parent_skipped_first_reads_to_parent = 1
+            if skip_initial:
+                stats.total_skipped_first_reads_to_parent = 1
+                stats.min_per_parent_skipped_first_reads_to_parent = 1
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 
@@ -1361,6 +1504,10 @@ class RepeatedValue[T]:
 @dataclass
 class SequenceOfRepatedvalues[T]:
     sequence: list[RepeatedValue[T]]
+
+    @property
+    def repeats(self):
+        return sum(rv.repeats for rv in self.sequence)
 
 
 @dataclass
@@ -1469,12 +1616,12 @@ def make_possibly_different_last(common_tile_shape, factor, full_shape):
 def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
     loop_idx = 0
     symbols = []
-    rank_var_with_initial = set()
+    rank_var_with_initial = oset()
     for i, node in enumerate(mapping):
         if not isinstance(node, Loop):
             continue
 
-        stride_halos = set()
+        stride_halos = oset()
         for t in job.spec_one_einsum.workload.einsums[job.einsum_name].tensor_names:
             cur_stride_halo = job.stride_and_halo[job.einsum_name, t]
             for (rank, rank_variable), (stride, halo) in cur_stride_halo.items():

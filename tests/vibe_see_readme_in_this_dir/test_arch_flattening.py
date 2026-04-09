@@ -14,6 +14,7 @@ from pathlib import Path
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.arch import (
     Arch,
+    Array,
     Hierarchical,
     Fork,
     Memory,
@@ -448,6 +449,258 @@ class TestDuplicateNameDetection(unittest.TestCase):
                     ),
                 ]
             )
+
+
+# ============================================================================
+# Arch.__getitem__
+# ============================================================================
+
+
+class TestArchGetItem(unittest.TestCase):
+    def test_getitem_memory(self):
+        arch = _simple_arch()
+        node = arch["MainMemory"]
+        self.assertIsInstance(node, Memory)
+        self.assertEqual(node.name, "MainMemory")
+
+    def test_getitem_compute(self):
+        arch = _simple_arch()
+        node = arch["MAC"]
+        self.assertIsInstance(node, Compute)
+        self.assertEqual(node.name, "MAC")
+
+    def test_getitem_globalbuffer(self):
+        arch = _simple_arch()
+        node = arch["GlobalBuffer"]
+        self.assertIsInstance(node, Memory)
+        self.assertEqual(node.name, "GlobalBuffer")
+
+    def test_getitem_nonexistent_raises_keyerror(self):
+        arch = _simple_arch()
+        with self.assertRaises(KeyError):
+            arch["NonexistentNode"]
+
+    def test_getitem_in_fork(self):
+        arch = _fork_arch()
+        node = arch["ScalarUnit"]
+        self.assertIsInstance(node, Compute)
+        self.assertEqual(node.name, "ScalarUnit")
+
+    def test_getitem_after_fork(self):
+        arch = _fork_arch()
+        node = arch["Register"]
+        self.assertIsInstance(node, Memory)
+        self.assertEqual(node.name, "Register")
+
+    def test_getitem_container(self):
+        arch = _fork_arch()
+        node = arch["ProcessingElement"]
+        self.assertIsInstance(node, Container)
+        self.assertEqual(node.name, "ProcessingElement")
+
+    def test_getitem_returns_same_as_find(self):
+        arch = _fork_arch()
+        for name in ["MainMemory", "GlobalBuffer", "ScalarUnit", "Register", "MAC"]:
+            self.assertIs(arch[name], arch.find(name))
+
+
+# ============================================================================
+# Arch.find_spatial
+# ============================================================================
+
+
+def _spatial_arch():
+    """Arch with a spatial container: MainMemory -> PE [4x X] -> Register -> MAC."""
+    return Arch(
+        nodes=[
+            Memory(
+                name="MainMemory",
+                size=1_000_000,
+                actions=[
+                    {"name": "read", "energy": 1, "latency": 0},
+                    {"name": "write", "energy": 1, "latency": 0},
+                ],
+                leak_power=0,
+                area=0,
+            ),
+            Container(
+                name="PE",
+                spatial=[{"name": "X", "fanout": 4}],
+            ),
+            Memory(
+                name="Register",
+                size=8,
+                actions=[
+                    {"name": "read", "energy": 0, "latency": 0},
+                    {"name": "write", "energy": 0, "latency": 0},
+                ],
+                leak_power=0,
+                area=0,
+            ),
+            Compute(
+                name="MAC",
+                actions=[{"name": "compute", "energy": 1, "latency": 1}],
+                leak_power=0,
+                area=0,
+            ),
+        ]
+    )
+
+
+def _multi_spatial_arch():
+    """Arch with spatials on different nodes."""
+    return Arch(
+        nodes=[
+            Memory(
+                name="MainMemory",
+                size=1_000_000,
+                actions=[
+                    {"name": "read", "energy": 1, "latency": 0},
+                    {"name": "write", "energy": 1, "latency": 0},
+                ],
+                leak_power=0,
+                area=0,
+            ),
+            Container(
+                name="PE",
+                spatial=[{"name": "X", "fanout": 4}],
+            ),
+            Memory(
+                name="Register",
+                size=8,
+                actions=[
+                    {"name": "read", "energy": 0, "latency": 0},
+                    {"name": "write", "energy": 0, "latency": 0},
+                ],
+                spatial=[{"name": "Y", "fanout": 8}],
+                leak_power=0,
+                area=0,
+            ),
+            Compute(
+                name="MAC",
+                actions=[{"name": "compute", "energy": 1, "latency": 1}],
+                leak_power=0,
+                area=0,
+            ),
+        ]
+    )
+
+
+def _duplicate_spatial_arch():
+    """Arch where two different nodes both have a spatial named 'X'."""
+    return Arch(
+        nodes=[
+            Memory(
+                name="MainMemory",
+                size=1_000_000,
+                actions=[
+                    {"name": "read", "energy": 1, "latency": 0},
+                    {"name": "write", "energy": 1, "latency": 0},
+                ],
+                leak_power=0,
+                area=0,
+            ),
+            Container(
+                name="PE_Outer",
+                spatial=[{"name": "X", "fanout": 4}],
+            ),
+            Container(
+                name="PE_Inner",
+                spatial=[{"name": "X", "fanout": 2}],
+            ),
+            Compute(
+                name="MAC",
+                actions=[{"name": "compute", "energy": 1, "latency": 1}],
+                leak_power=0,
+                area=0,
+            ),
+        ]
+    )
+
+
+def _array_spatial_arch():
+    """Arch with an Array node that has a spatial."""
+    return Arch(
+        nodes=[
+            Memory(
+                name="MainMemory",
+                size=1_000_000,
+                actions=[
+                    {"name": "read", "energy": 1, "latency": 0},
+                    {"name": "write", "energy": 1, "latency": 0},
+                ],
+                leak_power=0,
+                area=0,
+            ),
+            Array(
+                name="PEArray",
+                spatial=[{"name": "Rows", "fanout": 16}],
+                nodes=[
+                    Memory(
+                        name="Register",
+                        size=8,
+                        actions=[
+                            {"name": "read", "energy": 0, "latency": 0},
+                            {"name": "write", "energy": 0, "latency": 0},
+                        ],
+                        leak_power=0,
+                        area=0,
+                    ),
+                    Compute(
+                        name="MAC",
+                        actions=[{"name": "compute", "energy": 1, "latency": 1}],
+                        leak_power=0,
+                        area=0,
+                    ),
+                ],
+            ),
+        ]
+    )
+
+
+class TestFindSpatial(unittest.TestCase):
+    def test_find_spatial_basic(self):
+        arch = _spatial_arch()
+        spatial = arch.find_spatial("X")
+        self.assertEqual(spatial.name, "X")
+        self.assertEqual(spatial.fanout, 4)
+
+    def test_find_spatial_not_found(self):
+        arch = _spatial_arch()
+        with self.assertRaises(ValueError) as ctx:
+            arch.find_spatial("NonexistentDim")
+        self.assertIn("No spatial", str(ctx.exception))
+
+    def test_find_spatial_multiple_different_names(self):
+        arch = _multi_spatial_arch()
+        self.assertEqual(arch.find_spatial("X").fanout, 4)
+        self.assertEqual(arch.find_spatial("Y").fanout, 8)
+
+    def test_find_spatial_duplicate_raises(self):
+        arch = _duplicate_spatial_arch()
+        with self.assertRaises(ValueError) as ctx:
+            arch.find_spatial("X")
+        self.assertIn("Multiple", str(ctx.exception))
+
+    def test_find_spatial_no_spatials_at_all(self):
+        arch = _simple_arch()
+        with self.assertRaises(ValueError):
+            arch.find_spatial("X")
+
+    def test_find_spatial_in_array(self):
+        arch = _array_spatial_arch()
+        self.assertEqual(arch.find_spatial("Rows").fanout, 16)
+
+    def test_find_spatial_in_fork_arch(self):
+        arch = _fork_arch()
+        # The fork arch has a Container "ProcessingElement" with spatial "reuse_input" fanout 4
+        self.assertEqual(arch.find_spatial("reuse_input").fanout, 4)
+
+    def test_find_spatial_return_spatialable(self):
+        arch = _spatial_arch()
+        node, spatial = arch.find_spatial("X", return_spatialable=True)
+        self.assertEqual(node.name, "PE")
+        self.assertEqual(spatial.fanout, 4)
 
 
 if __name__ == "__main__":

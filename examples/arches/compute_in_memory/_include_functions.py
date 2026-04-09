@@ -2,23 +2,25 @@ import accelforge as af
 
 
 def get_array_fanout_reuse_input(spec: af.Spec) -> int:
-    n_rows = 1
+    """Get total fanout of array spatial dims that reuse input (= columns)."""
+    n = 1
     for leaf in spec.arch.get_nodes_of_type(af.arch.Leaf):
-        if "array_reuse_input" in leaf.spatial:
-            fanout = leaf.spatial["array_reuse_input"]["fanout"]
-            assert isinstance(fanout, (int, float)), f"fanout {leaf.name}.spatial.array_reuse_input.fanout is not a number"
-            n_rows *= fanout
-    return n_rows
+        for sp in leaf.spatial:
+            if sp.name.endswith("ARRAY_COLUMNS") or sp.name.endswith("ARRAY_ROWS"):
+                if str(sp.may_reuse) == "input" or str(sp.reuse) == "input":
+                    n *= sp.fanout
+    return n
 
 
 def get_array_fanout_reuse_output(spec: af.Spec) -> int:
-    n_cols = 1
+    """Get total fanout of array spatial dims that reuse output (= rows)."""
+    n = 1
     for leaf in spec.arch.get_nodes_of_type(af.arch.Leaf):
-        if "array_reuse_output" in leaf.spatial:
-            fanout = leaf.spatial["array_reuse_output"]["fanout"]
-            assert isinstance(fanout, (int, float)), f"fanout {leaf.name}.spatial.array_reuse_output.fanout is not a number"
-            n_cols *= fanout
-    return n_cols
+        for sp in leaf.spatial:
+            if sp.name.endswith("ARRAY_COLUMNS") or sp.name.endswith("ARRAY_ROWS"):
+                if str(sp.may_reuse) == "output" or str(sp.reuse) == "output":
+                    n *= sp.fanout
+    return n
 
 
 def get_array_fanout_total(spec: af.Spec) -> int:
@@ -33,9 +35,11 @@ def get_array_fanout_total(spec: af.Spec) -> int:
 from math import log2
 from typing import List, NamedTuple, Union
 
+
 class ProbableBits(NamedTuple):
     bits: list
     probability: float
+
 
 # ==============================================================================
 # Encoding functions
@@ -47,13 +51,14 @@ def magnitude_encode_hist(weights) -> List[ProbableBits]:
     A signed value is encoded as a positive or negative magnitude of that value.
     Signed hardware is requireed.
     """
-    nbits = get_num_bits(weights)
+    nbits = get_n_bits(weights)
     encoded = []
     halfwidth = len(weights) / 2
     for i, w in enumerate(weights):
         normed = norm(i, len(weights), -halfwidth + 0.5, halfwidth + 0.5)
         encoded.append(ProbableBits(to_bits_unsigned(abs(normed), nbits)[1:], w))
     return norm_encoded_hist(encoded)
+
 
 def two_part_magnitude_encode_hist(weights):
     """
@@ -69,13 +74,14 @@ def two_part_magnitude_encode_hist(weights):
         m2.append(ProbableBits([0] * len(e.bits), e.probability / 2))
     return m2
 
+
 def offset_encode_hist(weights):
     """
     A signed value is encoded as the the value minus the negative minimum value.
     This maps a range of [-min, max] to [0, max - min]. The bias must be added
     back after computation.
     """
-    nbits = get_num_bits(weights)
+    nbits = get_n_bits(weights)
     encoded = []
     for i, w in enumerate(weights):
         normed = norm(i, len(weights), 0, len(weights))
@@ -107,7 +113,7 @@ def xnor_encode_hist(weights):
     """
     XNOR encoding based on Jia JSSCC 2020.
     """
-    nbits = get_num_bits(weights)
+    nbits = get_n_bits(weights)
     encoded = []
     halfwidth = len(weights) / 2
     for i, w in enumerate(weights):
@@ -132,9 +138,11 @@ def zero_gated_xnor_encode_hist(weights):
     )
     return encoded
 
+
 # ==============================================================================
 # Helper functions
 # ==============================================================================
+
 
 def assert_hist_pow2_minus1(hist):
     x = 1
@@ -150,7 +158,7 @@ def norm_encoded_hist(encoded_hist: List[ProbableBits]):
     return [ProbableBits(e.bits, e.probability / sum_probs) for e in encoded_hist]
 
 
-def get_num_bits(hist):
+def get_n_bits(hist):
     n_bits = 0
     while 2**n_bits < len(hist) + 1:
         n_bits += 1

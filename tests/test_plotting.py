@@ -30,7 +30,7 @@ class TestEnergyPlotting(unittest.TestCase):
 
         fig, ax = plot_energy_comparison([result])
         fig.tight_layout()
-        fig.savefig("total.png", dpi=400, bbox_inches="tight")
+        # fig.savefig("total.png", dpi=400, bbox_inches="tight")
 
     def test_breakdown(self):
         spec = Spec.from_yaml(

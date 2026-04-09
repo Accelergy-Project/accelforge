@@ -20,7 +20,6 @@ from accelforge.model._looptree.reuse.symbolic import (
     Compute,
 )
 
-
 PARENT_DIR = Path(__file__).parent
 
 
@@ -29,6 +28,9 @@ def make_job(mapping: Mapping, workload: Workload) -> Job:
         spec=None,
         mapping=mapping,
         workload=workload,
+        resource_usage_tolerance=0,
+        objective_tolerance=0,
+        workload_n_einsums=len(workload.einsum_names),
     )
 
 

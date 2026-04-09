@@ -5,7 +5,6 @@ from accelforge._accelerated_imports import pd
 
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 
-
 DATAFLOW_COLUMN = "dataflow"
 
 
@@ -14,7 +13,7 @@ def plot_ski_slope(
     categorize_by_dataflow: bool = False,
     split_by_dataflow: bool = False,
     ax: mpax.Axes = None,
-    **kwargs
+    **kwargs,
 ):
     if ax is None:
         fig, ax = plt.subplots()
@@ -43,7 +42,7 @@ def plot_ski_slope(
                 sub_df["Occupancy"].to_numpy(), sub_df["Offchip Accesses"].to_numpy()
             ),
             label=label,
-            **kwargs
+            **kwargs,
         )
 
     ax.set_xlabel("Capacity")

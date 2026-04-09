@@ -4,12 +4,13 @@ from accelforge.frontend import arch
 from accelforge.frontend.spec import Spec
 from accelforge.frontend.workload import EinsumName
 from accelforge._accelerated_imports import pd
+from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
-    get_num_computes,
+    get_n_computes,
     get_per_tensor_size,
 )
 from typing import Union
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
 from numbers import Integral
 
 
@@ -80,15 +81,15 @@ class Mappings:
         )
         self.evaluated_specs: dict[EinsumName, Spec] = evaluated_specs
 
-    def num_computes(self, einsum_name: EinsumName | None = None) -> int:
+    def n_computes(self, einsum_name: EinsumName | None = None) -> int:
         """
         Returns the number of computes for the given Einsum name, or total computes if
         ``einsum_name`` is ``None``.
         """
         # TODO: this is not correct if there are recomputations.
         if einsum_name is None:
-            return sum(get_num_computes(self.spec, e) for e in self.einsum_names)
-        return get_num_computes(self.spec, einsum_name)
+            return sum(get_n_computes(self.spec, e) for e in self.einsum_names)
+        return get_n_computes(self.spec, einsum_name)
 
     def per_tensor_size(self, return_n_elements: bool = False) -> dict[TensorName, int]:
         """
@@ -167,12 +168,14 @@ class Mappings:
             found.append("<SEP>".join(col))
         return found, found_index
 
-    def access(self, *keys: str, col_idx: int | None = None) -> "Mappings":
+    def access(
+        self, *keys: str, col_idx: int | None = None, keep_key_index: bool = False
+    ) -> "Mappings":
         """
         Returns a new Mappings object with only the columns that contain the given keys.
         Column names are strings separated by "<SEP>", and this method will return
         columns with one <SEP>-separated string matching the given key. Then, for all
-        remaining columns, the key will be removed.
+        remaining columns, the key will be removed if keep_key_index is False.
 
         For example, if the columns are "Compute<SEP>Energy", and "DRAM<SEP>Energy", and
         "DRAM<SEP>Latency", then access("Energy") will return a Mappings object with
@@ -184,6 +187,9 @@ class Mappings:
         col_idx:
             The index of the key in the column name. This can be used if the given key
             is found at multiple indexes in different columns.
+        keep_key_index:
+            If True, then the key index will be kept in the column names. Otherwise, it
+            will be removed.
 
         Parameters
         ----------
@@ -195,7 +201,7 @@ class Mappings:
         Mappings
             A new Mappings object with only the given keys.
         """
-        assert len(set(self.data.columns)) == len(
+        assert len(oset(self.data.columns)) == len(
             self.data.columns
         ), "Columns must be unique"
 
@@ -209,7 +215,9 @@ class Mappings:
         cols, col_idx = self._get_cols(key, col_idx=col_idx)
         for col in cols:
             split = col.split("<SEP>")
-            new = "<SEP>".join(c for i, c in enumerate(split) if i != col_idx)
+            new = "<SEP>".join(
+                c for i, c in enumerate(split) if (i != col_idx) or keep_key_index
+            )
             if new in col_renames:
                 raise ValueError(
                     f"Removing {key} from {col} results in duplicate column name {new}"
@@ -249,7 +257,7 @@ class Mappings:
         Mappings
             A new Mappings object with the given keys dropped from all columns.
         """
-        assert len(set(self.data.columns)) == len(
+        assert len(oset(self.data.columns)) == len(
             self.data.columns
         ), "Columns must be unique"
 
@@ -321,7 +329,7 @@ class Mappings:
             that are either a single value or a list of values.
         """
         new = self.data.to_dict(orient="list")
-        if list_if_one_mapping and len(self) == 1:
+        if len(self) == 1 and not list_if_one_mapping:
             new = {k: v[0] for k, v in new.items()}
         return new
 
@@ -366,19 +374,29 @@ class Mappings:
             A new Mappings object with the per-compute evaluation results.
         """
         new_df = self.data.copy()
-        total_computes = self.num_computes()
+        total_computes = self.n_computes()
+        einsum2computes = {
+            einsum: self.n_computes(einsum) for einsum in self.einsum_names
+        }
         for col in new_df.columns:
             n_computes = total_computes
             if per_einsum:
                 einsum_name = col.split("<SEP>")[0]
-                if einsum_name not in self.einsum_names and einsum_name != "Total":
+                if einsum_name not in self.einsum_names and einsum_name not in [
+                    "Total",
+                    "reservation",
+                ]:
                     raise ValueError(
                         f"Einsum name {einsum_name} not found. Ensure that all "
                         f"columns are prefixed with the Einsum name if per_einsum "
                         f"is True."
                     )
-                if einsum_name != "Total":
-                    n_computes = self.num_computes(einsum_name)
+                if einsum_name == "Total":
+                    n_computes = total_computes
+                elif einsum_name == "reservation":
+                    n_computes = 1
+                else:
+                    n_computes = einsum2computes[einsum_name]
             # Check if the column can be converted to numeric
             try:
                 new_df[col] /= n_computes
@@ -393,6 +411,69 @@ class Mappings:
         """
         new_df = self.data.copy()
         new_df = new_df[(c for c in new_df.columns if (new_df[c] != 0).any())]
+        return self._update(data=new_df)
+
+    def drop_components_with_zero_energy_and_latency(self) -> "Mappings":
+        """
+        Returns a new Mappings object with all columns removed for components that have
+        zero energy AND zero latency across all einsums.
+        """
+        keep = set(
+            {k for k, v in self.energy(per_component=True).items() if v != 0}
+        ) | set({k for k, v in self.latency(per_component=True).items() if v != 0})
+
+        # Drop columns for components not in keep
+        def should_keep(col):
+            parts = col.split("<SEP>")
+            if len(parts) >= 3 and (parts[1] == "energy" or parts[1] == "action"):
+                comp = parts[2]
+                return comp in keep
+            if len(parts) == 3 and parts[1] == "latency":
+                comp = parts[2]
+                return comp in keep
+            return True  # Keep non-component columns (Total, mapping, etc.)
+
+        new_df = self.data[[c for c in self.data.columns if should_keep(c)]]
+        return self._update(data=new_df)
+
+    def drop_components(
+        self,
+        keep: list[str] | set[str] = None,
+        drop: list[str] | set[str] = None,
+    ) -> "Mappings":
+        """
+        Returns a new Mappings object with columns filtered by component name.
+        Specify either ``keep`` (whitelist) or ``drop`` (blacklist), not both.
+
+        Parameters
+        ----------
+        keep:
+            If provided, only columns for these components are kept.
+        drop:
+            If provided, columns for these components are removed.
+        """
+        if keep is not None and drop is not None:
+            raise ValueError("Specify either keep or drop, not both.")
+        if keep is None and drop is None:
+            return self
+
+        keep = set(keep) if keep is not None else None
+        drop = set(drop) if drop is not None else None
+
+        def should_keep(col):
+            parts = col.split("<SEP>")
+            comp = None
+            if len(parts) >= 3 and parts[1] in ("energy", "action"):
+                comp = parts[2]
+            elif len(parts) == 3 and parts[1] == "latency":
+                comp = parts[2]
+            if comp is None:
+                return True  # Non-component columns always kept
+            if keep is not None:
+                return comp in keep
+            return comp not in drop
+
+        new_df = self.data[[c for c in self.data.columns if should_keep(c)]]
         return self._update(data=new_df)
 
     def _repr_svg_(self) -> str:
@@ -591,7 +672,10 @@ class Mappings:
 
             # Not per-Einsum and not per-component: sum into a single value
             else:
-                result = np.sum(list(result.values()))
+                summed = None
+                for v in result.values():
+                    summed = v if summed is None else summed + v
+                result = summed
 
         return _series2list(result, list_if_one_mapping)
 

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from functools import cached_property
 from typing import Any, Callable, Iterable
-import pandas as pd
+from accelforge._accelerated_imports import pandas as pd
 from joblib import delayed
 
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
@@ -11,7 +11,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
     make_fused_loop_col,
 )
-from accelforge.util import parallel
+from accelforge.util import parallel, oset
 
 
 class PmappingGroup:
@@ -24,7 +24,7 @@ class PmappingGroup:
         self.n_pre_prune_mappings = 0
 
         if isinstance(self.mappings, PmappingDataframe):
-            checked = set()
+            checked = oset()
             for s in self.compatibility.symbols():
                 checked.add(s)
                 assert (
@@ -42,7 +42,7 @@ class PmappingGroup:
 
     @cached_property
     def tensor_names(self) -> set[str]:
-        return set(self.tensors)
+        return oset(self.tensors)
 
     def copy(self) -> "PmappingGroup":
         return PmappingGroup(self.compatibility, self.mappings.copy())
@@ -53,31 +53,44 @@ class PmappingGroup:
     def merge_next(
         self,
         right: "PmappingGroup",
-        live_tensors: set[str],
+        live_tensors_post_join: set[str],
         live_tensors_with_right: set[str],
         aliased_tensors: dict[str, set[str]],
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
         permuted_compatibility_left: Compatibility,
         permuted_compatibility_right: Compatibility,
-        drop_valid_reservations: bool = True,
         delay: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
+        _force_allow_invalid_only_for_runtime_test: bool = False,
+        _is_invalid: bool = False,
     ) -> "PmappingGroup":
         shared_loop_index = self.compatibility.shared_loop_index(
-            right.compatibility.tensor_names | live_tensors
+            right.compatibility.tensor_names | live_tensors_post_join
         )
-        next_shared_loop_index = compatibility_joined.shared_loop_index(live_tensors)
+        assert (
+            shared_loop_index == self.compatibility.n_loops - 1
+        ), "shared loop index not equal to left pmapping n_loops - 1"
+        next_shared_loop_index = compatibility_joined.shared_loop_index(
+            live_tensors_post_join
+        )
+        assert (
+            next_shared_loop_index == compatibility_joined.n_loops - 1
+        ), "next shared loop index not equal to joined pmapping n_loops - 1"
+        assert compatibility_joined.tensor_names.issubset(
+            live_tensors_post_join
+        ), "joined compatibility includes tensors not live after joining"
 
         still_live_reservations = [
             r
             for r in self.compatibility.tensors
-            if r.name in live_tensors and r.name not in right.compatibility.tensor_names
+            if r.name in live_tensors_post_join
+            and r.name not in right.compatibility.tensor_names
         ]
 
-        duplicated_aliased_tensors = set()
+        duplicated_aliased_tensors = oset()
         for name, my_tensor in self.tensors.items():
-            for aliased_tensor in aliased_tensors.get(name, set()):
+            for aliased_tensor in aliased_tensors.get(name, oset()):
                 if (aliased_tensor := right.tensors.get(aliased_tensor, None)) is None:
                     continue
                 if my_tensor.resource_name == aliased_tensor.resource_name:
@@ -85,17 +98,14 @@ class PmappingGroup:
 
         mapping = delayed(self.mappings.merge_next)(
             right.mappings,
-            shared_loop_index,
-            next_shared_loop_index,
-            live_tensors_with_right,
-            still_live_reservations,
             duplicated_aliased_tensors,
             compatibility_left=permuted_compatibility_left,
             compatibility_right=permuted_compatibility_right,
             compatibility_joined=compatibility_joined,
-            drop_valid_reservations=drop_valid_reservations,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
             ignored_resources=ignored_resources,
+            _force_allow_invalid_only_for_runtime_test=_force_allow_invalid_only_for_runtime_test,
+            _is_invalid=_is_invalid,
         )
 
         if not delay:
@@ -119,21 +129,19 @@ class PmappingGroup:
         live_tensors: set[str] = None,
         shared_tensors: set[str] = None,
     ):
-        dead_tensors = set(self.tensors) - (live_tensors or set())
-        check_tensors = (shared_tensors or set()) | (live_tensors or set())
+        dead_tensors = oset(self.tensors) - (live_tensors or oset())
+        check_tensors = (shared_tensors or oset()) | (live_tensors or oset())
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.tensors.pop(t)
-        if self.mappings.free_to_loop_index(
-            shared_loop_index, live_tensors=live_tensors
-        ):
+        if self.mappings.free_to_loop_index(shared_loop_index):
             self.mappings.make_pareto()
         return self
 
     def _left_consolidate(self, live_tensors: set[str] = None):
-        check_tensors = live_tensors or set()
+        check_tensors = live_tensors or oset()
         shared_loop_index = self.compatibility.shared_loop_index(check_tensors)
-        self.mappings.free_to_loop_index(shared_loop_index, live_tensors=live_tensors)
+        self.mappings.free_to_loop_index(shared_loop_index)
         if live_tensors is None:
             self.mappings.clear_fused_loop_symbols()
         return self
@@ -183,7 +191,7 @@ class PmappingGroup:
         pmapping_groups = list(pmapping_groups)
         assert len(pmapping_groups) > 0, "Cannot concat empty list of PmappingGroups"
         if not allow_different_compatibilies:
-            s = set(
+            s = oset(
                 s.compatibility.clear_symbolic_tile_patterns() for s in pmapping_groups
             )
             if len(s) > 1:
@@ -191,7 +199,6 @@ class PmappingGroup:
                 for b in pmapping_groups[1:]:
                     if a.compatibility != b.compatibility:
                         break
-                PmappingGroup.combine_combineable((a, b), "All")
                 assert (
                     a == b
                 ), f"Cannot concat PmappingGroups with different compatibilies:\n\t{a}\n\t{b}"
@@ -204,9 +211,8 @@ class PmappingGroup:
         to_concat = [pmapping_groups[0]] + [
             s.rename_compatibility(c0) for s in pmapping_groups[1:]
         ]
-        return PmappingGroup(
-            c0, PmappingDataframe.concat([s.mappings for s in to_concat])
-        )
+        catted = PmappingDataframe.concat([s.mappings for s in to_concat])
+        return PmappingGroup(c0, catted)
 
     def rename_compatibility(self, new_c: Compatibility) -> Compatibility:
         c, renamed = self.compatibility._rename_to_match(new_c)
@@ -266,7 +272,7 @@ class PmappingGroup:
         if try_permute_into_equivalent:
             assert not include_permutations
             new_grouped = {}
-            pmgroups_remaining = {id(s) for s in pmapping_groups}
+            pmgroups_remaining = oset(id(s) for s in pmapping_groups)
             for c, g in sorted(grouped.items(), key=lambda x: len(x[1]), reverse=True):
                 if not pmgroups_remaining:
                     break
@@ -276,7 +282,7 @@ class PmappingGroup:
                     if id(s) in pmgroups_remaining
                 ]
                 if g:
-                    pmgroups_remaining -= {id(s) for s, _ in g}
+                    pmgroups_remaining -= oset(id(s) for s, _ in g)
                     permuted = [
                         PmappingGroup(
                             s.compatibility.permute(lc),
@@ -294,13 +300,13 @@ class PmappingGroup:
         pmapping_groups: list["PmappingGroup"],
         live_tensors: set[str] | Literal["All"],
         allow_different_compatibilies: bool = False,
-        combine_reservations: bool = True,
+        _combine_reservations: bool = True,
         print_progress: bool = True,
         pbar_postfix: str = "",
     ) -> list["PmappingGroup"]:
         pmapping_groups = [s for s in pmapping_groups if len(s.mappings.data) > 0]
         no_combine = []
-        if not combine_reservations:
+        if not _combine_reservations:
             has_reservations = [s.mappings.has_reservations() for s in pmapping_groups]
             no_combine = [s for s, h in zip(pmapping_groups, has_reservations) if h]
             pmapping_groups = [
@@ -340,7 +346,7 @@ class PmappingGroup:
                         return False
             return True
 
-        tensors = set(tensors)
+        tensors = oset(tensors)
         if isinstance(pmapping_groups, list):
             return [s for s in pmapping_groups if check(s.compatibility.tensors)]
         if isinstance(pmapping_groups, dict):

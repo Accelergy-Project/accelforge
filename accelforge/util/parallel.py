@@ -1,3 +1,4 @@
+import copy
 import itertools
 from numbers import Number
 import tempfile
@@ -11,7 +12,9 @@ import joblib
 import sys
 import os
 from tqdm import tqdm
-import numpy as np
+from accelforge._accelerated_imports import numpy as np
+
+from accelforge.util._mathfuncs import NUMPY_FLOAT_TYPE
 
 __all__ = [
     "set_n_parallel_jobs",
@@ -24,10 +27,20 @@ __all__ = [
 PARALLELIZE = True
 N_PARALLEL_PROCESSES = os.cpu_count()
 
-NUMPY_FLOAT_TYPE = np.float32
+
+_lambdify_cache = {}
 
 
 def _lambdify_type_check(*args, **kwargs):
+    cache_key = None
+    if not kwargs and len(args) == 2:
+        cache_args = tuple(tuple(a) if isinstance(a, list) else a for a in args)
+        cache_kwargs = tuple(kwargs.items())
+        cache_key = (cache_args, cache_kwargs)
+        cached = _lambdify_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     f = sympy.lambdify(*args, **kwargs)
 
     def f_type_checked(*args, **kwargs):
@@ -44,6 +57,9 @@ def _lambdify_type_check(*args, **kwargs):
             elif not isinstance(v, Number):
                 raise ValueError(f"Expected {NUMPY_FLOAT_TYPE}, got {type(v)}")
         return f(*args, **kwargs)
+
+    if cache_key is not None:
+        _lambdify_cache[cache_key] = f_type_checked
 
     return f_type_checked
 
