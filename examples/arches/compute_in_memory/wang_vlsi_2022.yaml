@@ -183,10 +183,7 @@ arch:
     # Each time a weight slice is written to the array, consume 0.5 "bits". 0.5 because
     # the digital clock (writing weights) runs at 2x the speed of the analog clock. Each
     # time a sliced psum is read from the array, consume 1 "bit"
-    bits_per_value_scale:
-      weight: 1 / average_weight_bits_per_slice / 2
-      output: 1 / average_output_bits_per_sliced_psum
-      All - (weight | output): 0 # Don't care
+    bits_per_value: {weight: 0.5, output: 1}
     # One cycle period per "bit"
     actions: [{name: read, latency: cycle_period}]
 

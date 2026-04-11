@@ -560,14 +560,14 @@ class TestLatencyScale(unittest.TestCase):
 
 
 # ============================================================================
-# 7. TensorHolder.bits_per_value_scale, bits_per_action
+# 7. TensorHolder.bits_per_value, bits_per_action
 # ============================================================================
 
 
 class TestTensorHolderFields(unittest.TestCase):
     """Test TensorHolder-specific fields."""
 
-    def test_bits_per_value_scale_default(self):
+    def test_bits_per_value_default(self):
         m = Memory(
             name="Mem",
             size=1024,
@@ -578,21 +578,21 @@ class TestTensorHolderFields(unittest.TestCase):
                 {"name": "write", "energy": 1, "latency": 0},
             ],
         )
-        self.assertEqual(m.bits_per_value_scale, {"All": 1})
+        self.assertEqual(m.bits_per_value, {})
 
-    def test_bits_per_value_scale_custom(self):
+    def test_bits_per_value_custom(self):
         m = Memory(
             name="Mem",
             size=1024,
             leak_power=0,
             area=0,
-            bits_per_value_scale={"All": 2},
+            bits_per_value={"All": 16},
             actions=[
                 {"name": "read", "energy": 1, "latency": 0},
                 {"name": "write", "energy": 1, "latency": 0},
             ],
         )
-        self.assertEqual(m.bits_per_value_scale, {"All": 2})
+        self.assertEqual(m.bits_per_value, {"All": 16})
 
     def test_bits_per_action_default_none(self):
         """TensorHolder-level bits_per_action defaults to None."""
@@ -631,15 +631,15 @@ class TestTensorHolderFields(unittest.TestCase):
         a = TensorHolderAction(name="read", energy=1, latency=0, bits_per_action=64)
         self.assertEqual(a.bits_per_action, 64)
 
-    def test_toll_bits_per_value_scale(self):
+    def test_toll_bits_per_value(self):
         t = Toll(
             name="Q",
             direction="down",
             leak_power=0,
             area=0,
-            bits_per_value_scale={"All": 0.5},
+            bits_per_value={"All": 4},
         )
-        self.assertEqual(t.bits_per_value_scale, {"All": 0.5})
+        self.assertEqual(t.bits_per_value, {"All": 4})
 
 
 # ============================================================================

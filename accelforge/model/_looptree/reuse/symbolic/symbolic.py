@@ -1045,10 +1045,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             component_object = find_component_object(
                 network.component, info.job.flattened_arch
             )
-            bits_per_value_scale = component_object.bits_per_value_scale[network.tensor]
-            bits_per_value = (
-                bits_per_value_scale
-                * info.job.einsum.tensor_accesses[network.tensor].bits_per_value
+            workload_bpv = info.job.einsum.tensor_accesses[network.tensor].bits_per_value
+            bits_per_value = component_object.bits_per_value.get(
+                network.tensor, workload_bpv
             )
             bits_per_action = component_object.bits_per_action
             if bits_per_action is not None:
@@ -1279,11 +1278,8 @@ def analyze_storage(
         # Convert to actions. These are not used used upward; they are used to get
         # energy and latency.
         # ==============================================================================
-        bits_per_value_scale = component_object.bits_per_value_scale[tensor]
-        bits_per_value = (
-            bits_per_value_scale
-            * info.job.einsum.tensor_accesses[tensor].bits_per_value
-        )
+        workload_bpv = info.job.einsum.tensor_accesses[tensor].bits_per_value
+        bits_per_value = component_object.bits_per_value.get(tensor, workload_bpv)
         read_bits_per_action = component_object.actions["read"].bits_per_action
         read_scale = bits_per_value / read_bits_per_action
         if count_writes:
@@ -1389,10 +1385,8 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     stats = BuffetStats()
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
     component_object = find_component_object(node.resource, info.job.flattened_arch)
-    bits_per_value_scale = component_object.bits_per_value_scale[tensor]
-    bits_per_value = (
-        bits_per_value_scale * info.job.einsum.tensor_accesses[tensor].bits_per_value
-    )
+    workload_bpv = info.job.einsum.tensor_accesses[tensor].bits_per_value
+    bits_per_value = component_object.bits_per_value.get(tensor, workload_bpv)
     stats.max_occupancy = (
         compute_dense_tile_occupancy(projection, current_shape) * bits_per_value
     )
