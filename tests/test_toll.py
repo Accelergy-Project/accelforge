@@ -48,7 +48,6 @@ class TestToll(unittest.TestCase):
         # in a typical dataflow. We only assert that energy is in a plausible range.
         self.assertAlmostEqual(energy, 100 * (128 * 64 * 2 + 128 * 128) * 8)
 
-
     def test_toll_not_outermost_holder_of_intermediate(self):
         """A Toll's keep must be intersected with Above so that it never
         becomes the outermost level holding a fusable tensor.  When

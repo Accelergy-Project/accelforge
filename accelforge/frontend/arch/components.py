@@ -788,9 +788,7 @@ def _eval_direction(toeval, symbol_table: dict[str, Any]) -> dict[str, str]:
         all_tensors -= k
 
     if all_tensors:
-        raise EvaluationError(
-            f"Missing direction for {all_tensors}. Have {result}."
-        )
+        raise EvaluationError(f"Missing direction for {all_tensors}. Have {result}.")
 
     return {t: v for k, v in result.items() for t in k}
 
@@ -1088,7 +1086,6 @@ class Compute(Component, Leaf):
     If False, the initial value of output tensors will be fetched from above and used to
     initalize outputs. If True, this initial fetch and fill is skipped.
     """
-
 
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
