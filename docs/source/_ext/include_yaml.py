@@ -69,17 +69,17 @@ class IncludeYaml(Directive):
     required_arguments = 1  # The YAML file path
     optional_arguments = 0
     option_spec = {
-        'startfrom': directives.unchanged,
-        'same-indent': directives.flag,
-        'include-lines-before': directives.nonnegative_int,
+        "startfrom": directives.unchanged,
+        "same-indent": directives.flag,
+        "include-lines-before": directives.nonnegative_int,
     }
     has_content = False
 
     def run(self):
         yaml_file = os.path.join(PROJECT_ROOT, self.arguments[0])
-        startfrom = self.options.get('startfrom', None)
-        same_indent = 'same-indent' in self.options
-        include_lines_before = self.options.get('include-lines-before', 0)
+        startfrom = self.options.get("startfrom", None)
+        same_indent = "same-indent" in self.options
+        include_lines_before = self.options.get("include-lines-before", 0)
 
         try:
             content = grab_from_yaml_file(
@@ -91,14 +91,14 @@ class IncludeYaml(Directive):
         except Exception as e:
             error = self.state_machine.reporter.error(
                 f'Error reading YAML file "{yaml_file}": {str(e)}',
-                nodes.literal_block('', ''),
-                line=self.lineno
+                nodes.literal_block("", ""),
+                line=self.lineno,
             )
             return [error]
 
         # Create a literal block with YAML syntax highlighting
         literal = nodes.literal_block(content, content)
-        literal['language'] = 'yaml'
+        literal["language"] = "yaml"
 
         return [literal]
 
@@ -110,10 +110,10 @@ def setup(app):
     Add this to your conf.py:
         extensions = ['path.to.this.module']
     """
-    app.add_directive('include-yaml', IncludeYaml)
+    app.add_directive("include-yaml", IncludeYaml)
 
     return {
-        'version': '0.1',
-        'parallel_read_safe': True,
-        'parallel_write_safe': True,
+        "version": "0.1",
+        "parallel_read_safe": True,
+        "parallel_write_safe": True,
     }
