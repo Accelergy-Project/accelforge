@@ -468,6 +468,10 @@ class Einsum(EvalableModel):
     value, but non-persistent reservations are not, as they are assumed to be freed
     between each instance.
     """
+    map: str = "multiply"
+    """The map operation of the Einsum."""
+    reduce: str = "add"
+    """The reduce operation of the Einsum."""
 
     def model_post_init(self, __context__=None) -> None:
         if self.name == "Total":

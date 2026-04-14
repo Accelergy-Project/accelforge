@@ -41,8 +41,7 @@ def get_tensor_choices(
     #     break
     nodes = list(filter(lambda n: isinstance(n, arch.TensorHolder), nodes))
 
-    tensors = spec.workload.einsums[einsum_name].tensor_names
-    is_copy_op = spec.workload.einsums[einsum_name].is_copy_operation
+    einsum = spec.workload.einsums[einsum_name]
     persistent_tensors = oset(
         t.name
         for t in spec.workload.einsums[einsum_name].tensor_accesses
@@ -52,7 +51,7 @@ def get_tensor_choices(
     for choice, symbol_table in make_storage_choices_all_levels(
         nodes=nodes,
         symbol_table=symbol_table,
-        is_copy_op=is_copy_op,
+        is_copy_op=einsum.is_copy_op,
         persistent_tensors=persistent_tensors,
         seen_tensors=oset(),
         einsum_name=einsum_name,
@@ -80,7 +79,7 @@ def get_tensor_choices(
 
         # Get the dataflow constraints for the mapping
         required_order = get_tensor_order_constraint(
-            parsed_nodes_in_mapping, symbol_table, tensors
+            parsed_nodes_in_mapping, symbol_table, einsum.tensors
         )
 
         symbol_table["arch_attributes"] = {}
@@ -93,16 +92,17 @@ def get_tensor_choices(
         assert isinstance(cur_compute.enabled, bool)
         if not cur_compute.enabled:
             continue
+        # TODO: check if compute supports the Einsum operations
 
         for mapping in recursive_order_tensor_choices(
             einsum_name,
-            tensors,
+            einsum.tensors,
             base_mapping,
             nodes,
             storage_holders,
             required_order,
             spec,
-            is_copy_op,
+            einsum.is_copy_op,
             first_memory,
             fusable_tensors,
             fanouts,
@@ -211,17 +211,17 @@ def insert_tolls(
 
 def recursive_order_tensor_choices(
     einsum_name: EinsumName,
-    tensors: set[TensorName],
     mapping: Sequence[MappingNode],
     nodes: list[arch.Memory],
     remaining_choices: list,
     required_order: list[list[TensorHolder]],
     spec: Spec,
-    is_copy_op: bool,
     first_memory: arch.Memory,
     fusable_tensors: set[TensorName],
     fanouts: dict[str, int],
 ) -> Generator[list[MappingNode], None, None]:
+    einsum = spec.workload.einsums[einsum_name]
+
     def check_has_tensors(mapping: list[MappingNode]):
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
         tensors_in_mapping = oset(
@@ -229,11 +229,11 @@ def recursive_order_tensor_choices(
             for tensor_holder in tensor_holders
             for tensor in tensor_holder.tensors
         )
-        if tensors_in_mapping != tensors:
+        if tensors_in_mapping != einsum.tensors:
             raise ValueError(
                 f"Einsum {einsum_name} has a pmapping template that is missing tensors. Ensure "
                 f"that there is a storage node storing each tensor in the Einsum. Missing "
-                f"tensors: {tensors - tensors_in_mapping}. Pmapping template:\n\t"
+                f"tensors: {einsum.tensors - tensors_in_mapping}. Pmapping template:\n\t"
                 + "\n\t".join(m.compact_str() for m in mapping)
             )
 
@@ -245,9 +245,9 @@ def recursive_order_tensor_choices(
 
     # If it's a copy op and we have the backing storage for every tensor, return
     # immediately
-    if is_copy_op:
+    if einsum.is_copy_op:
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
-        if oset().union(*[t._backing for t in tensor_holders]) == tensors:
+        if oset().union(*[t._backing for t in tensor_holders]) == einsum.tensors:
             check_has_tensors(mapping)
             yield mapping
             return
@@ -268,13 +268,11 @@ def recursive_order_tensor_choices(
         if valid:
             yield from recursive_order_tensor_choices(
                 einsum_name,
-                tensors,
                 mapping,
                 nodes,
                 new_remaining,
                 required_order,
                 spec,
-                is_copy_op,
                 first_memory,
                 fusable_tensors,
                 fanouts,
