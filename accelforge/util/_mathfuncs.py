@@ -75,7 +75,8 @@ def _fillna_and__numeric_cast(df: pd.DataFrame, value: float) -> pd.DataFrame:
             and (math.isnan(x) or int(x) == x)
         )
 
-    for col in [c for c in df.columns if df.dtypes[c] == object]:
+    dtypes = df.dtypes  # avoid rebuilding the Series per-column access
+    for col in [c for c in df.columns if dtypes[c] == object]:
         # If it's an object col and all of them are integers, convert to int. nans count
         # as True
         if all(_is_int(x) for x in df[col]):
@@ -105,7 +106,8 @@ def _numeric_cast(df: pd.DataFrame) -> pd.DataFrame:
             and int(x) == x
         )
 
-    for col in [c for c in df.columns if df.dtypes[c] == object]:
+    dtypes = df.dtypes
+    for col in [c for c in df.columns if dtypes[c] == object]:
         series = df[col]
         if all(_is_int(x) for x in series):
             df[col] = series.astype(int)

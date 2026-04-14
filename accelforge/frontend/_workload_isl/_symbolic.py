@@ -69,22 +69,24 @@ def get_rank_variable_relevancy(einsum: Einsum, tensor: TensorName):
 def compute_dense_tile_occupancy(
     projection_expr: dict[str, sympy.Expr], rank_variable_shapes: dict
 ):
-    substitutions = [
-        (rank_variable, rank_variable_shape - 1)
-        for rank_variable, rank_variable_shape in rank_variable_shapes.items()
-    ]
-    return reduce(
-        mul,
-        [index_expr.subs(substitutions) + 1 for index_expr in projection_expr.values()],
-    )
+    result = 1
+    for index_expr in projection_expr.values():
+        subs = {
+            s: rank_variable_shapes[s.name] - 1
+            for s in index_expr.free_symbols
+            if s.name in rank_variable_shapes
+        }
+        result = result * ((index_expr.xreplace(subs) if subs else index_expr) + 1)
+    return result
 
 
 def compute_rank_occupancy(projection_expr: sympy.Expr, rank_variable_shapes: dict):
-    substitutions = [
-        (rank_variable, rank_variable_shape - 1)
-        for rank_variable, rank_variable_shape in rank_variable_shapes.items()
-    ]
-    return projection_expr.subs(substitutions) + 1
+    subs = {
+        s: rank_variable_shapes[s.name] - 1
+        for s in projection_expr.free_symbols
+        if s.name in rank_variable_shapes
+    }
+    return (projection_expr.xreplace(subs) if subs else projection_expr) + 1
 
 
 def get_stride_and_halo_of_einsum(
