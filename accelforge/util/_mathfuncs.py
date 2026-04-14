@@ -3,9 +3,26 @@ from math import ceil, comb
 import functools
 import math
 import numbers
+import symengine as se
 from accelforge._accelerated_imports import pandas as pd
 from accelforge._accelerated_imports import numpy as np
 from accelforge.util._frozenset import oset
+
+
+def _is_numeric(x) -> bool:
+    # symengine scalars (RealDouble, Integer, ...) don't register as
+    # numbers.Real even though they have a working __float__.
+    return isinstance(x, (numbers.Real, se.Basic))
+
+
+def _is_intlike(x) -> bool:
+    if isinstance(x, numbers.Integral):
+        return True
+    if isinstance(x, (numbers.Real, se.Basic)):
+        f = float(x)
+        return math.isnan(f) or int(f) == f
+    return False
+
 
 NUMPY_FLOAT_TYPE = np.float32
 
@@ -65,52 +82,37 @@ def _count_factorizations(n, into_n_parts, imperfect=False):
 
 
 def _fillna_and__numeric_cast(df: pd.DataFrame, value: float) -> pd.DataFrame:
-    def _is_float(x) -> bool:
-        return isinstance(x, numbers.Real)
-
-    def _is_int(x) -> bool:
-        return (
-            isinstance(x, numbers.Integral)
-            or isinstance(x, numbers.Real)
-            and (math.isnan(x) or int(x) == x)
-        )
-
-    dtypes = df.dtypes  # avoid rebuilding the Series per-column access
+    dtypes = df.dtypes
     for col in [c for c in df.columns if dtypes[c] == object]:
-        # If it's an object col and all of them are integers, convert to int. nans count
-        # as True
-        if all(_is_int(x) for x in df[col]):
-            df[col] = df[col].replace(float("nan"), value).astype(int)
-        elif all(_is_float(x) for x in df[col]):
-            df[col] = df[col].replace(float("nan"), value).astype(float)
+        vals = df[col]
+        if all(_is_intlike(x) for x in vals):
+            df[col] = vals.map(
+                lambda x: (
+                    value if (isinstance(x, float) and math.isnan(x)) else float(x)
+                )
+            ).astype(int)
+        elif all(_is_numeric(x) for x in vals):
+            df[col] = vals.map(
+                lambda x: (
+                    value if (isinstance(x, float) and math.isnan(x)) else float(x)
+                )
+            ).astype(float)
 
     cols = df.select_dtypes(include=[np.floating, float, np.integer, int]).columns
     df[cols] = df[cols].fillna(value)
     for col in df.columns:
         assert (
             not df[col].isna().any()
-        ), f"df has nans in column {col} with dtype {df[col].dtype}. " + "\n".join(
-            f"{x} {type(x)=} {_is_int(x)=} {_is_float(x)=} " for x in df[col]
-        )
+        ), f"df has nans in column {col} with dtype {df[col].dtype}"
     return df
 
 
 def _numeric_cast(df: pd.DataFrame) -> pd.DataFrame:
-    def _is_float(x) -> bool:
-        return isinstance(x, numbers.Real)
-
-    def _is_int(x) -> bool:
-        return (
-            isinstance(x, numbers.Integral)
-            or isinstance(x, numbers.Real)
-            and int(x) == x
-        )
-
     dtypes = df.dtypes
     for col in [c for c in df.columns if dtypes[c] == object]:
         series = df[col]
-        if all(_is_int(x) for x in series):
-            df[col] = series.astype(int)
-        elif all(_is_float(x) for x in series):
-            df[col] = series.astype(NUMPY_FLOAT_TYPE)
+        if all(_is_intlike(x) for x in series):
+            df[col] = series.map(float).astype(int)
+        elif all(_is_numeric(x) for x in series):
+            df[col] = series.map(float).astype(NUMPY_FLOAT_TYPE)
     return df
