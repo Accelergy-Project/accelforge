@@ -14,7 +14,7 @@ from accelforge.model._looptree.types import Buffet
 from accelforge.model._looptree.reuse.symbolic import BuffetStats
 from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
 from accelforge.util._sympy.broadcast_max import Max, Min
-import sympy as sp
+import symengine as se
 
 
 def isl_to_summarized(
@@ -97,7 +97,7 @@ def component_latency(
         "variables": spec.variables,
         "max": Max,
         "min": Min,
-        "sum": sp.Add,
+        "sum": se.Add,
     }
 
     for component, actions in component_to_actions.items():

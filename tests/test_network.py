@@ -5,11 +5,13 @@ import accelforge as af
 
 INPUT_FILES_DIR = Path(__file__).parent / "input_files" / "networked"
 
+
 class TestParsing(TestCase):
     def test_hierarchical(self):
         spec = af.Spec.from_yaml(
             # af.examples.arches.networked.hierarchical,
-            INPUT_FILES_DIR / "hierarchical.yaml",
+            INPUT_FILES_DIR
+            / "hierarchical.yaml",
         )
         self.assertIn("PeArray", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["PeArray"].get_fanout(), 1)
@@ -26,7 +28,8 @@ class TestParsing(TestCase):
     def test_flat(self):
         spec = af.Spec.from_yaml(
             # af.examples.arches.networked.flat,
-            INPUT_FILES_DIR / "flat.yaml",
+            INPUT_FILES_DIR
+            / "flat.yaml",
         )
         self.assertIn("NoC", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)

@@ -50,6 +50,7 @@ from accelforge.util._sympy.broadcast_max import Min, Max, MaxGeqZero, MinGeqZer
 from accelforge.mapper.FFM._pareto_df.df_convention import iterations2col
 
 import sympy
+import symengine as se
 
 SYMBOL = "symbol"
 IMPERFECT = False
@@ -105,7 +106,11 @@ class NetworkStats:
 
     def repeat(self, n_repeats):
         new = copy.copy(self)
-        new.total_hops *= n_repeats
+        if n_repeats == 1:
+            return new
+        if type(n_repeats) is float and n_repeats == int(n_repeats):
+            n_repeats = int(n_repeats)
+        new.total_hops = new.total_hops * n_repeats
         return new
 
     def combine(self, other: "NetworkStats"):
@@ -159,6 +164,10 @@ class BuffetStats:
 
     def repeat_temporal(self, factor: int, is_fully_relevant: bool) -> "BuffetStats":
         new = copy.copy(self)
+        if factor == 1:
+            return new
+        if type(factor) is float and factor == int(factor):
+            factor = int(factor)  # sympy Symbol * int is 4× faster than * float
         for k, v in new.__dict__.items():
             if not k.startswith(("total_", "max_", "min_")):
                 continue
@@ -170,18 +179,11 @@ class BuffetStats:
         return new
 
     def repeat_spatial(self, factor: int, reuse_parent_accesses: bool) -> "BuffetStats":
-        """
-        Duplicate attributes to account for spatial fanout.
-
-        Paramters
-        ---------
-        factor:
-            duplication factor
-        reuse_parent_access:
-            whether to reuse accesses to parent (if True, multicast is assumed
-            and accesses to parents are not duplicated).
-        """
         new = copy.copy(self)
+        if factor == 1:
+            return new
+        if type(factor) is float and factor == int(factor):
+            factor = int(factor)
         for k, v in new.__dict__.items():
             if not k.startswith(("total_", "max_", "min_")):
                 continue
@@ -264,15 +266,23 @@ class ComputeStats:
 
     def repeat_temporal(self, factor: int) -> "ComputeStats":
         new = copy.copy(self)
-        new.total_ops *= factor
-        new.max_per_unit_ops *= factor
-        new.max_latency *= factor
+        if factor == 1:
+            return new
+        if type(factor) is float and factor == int(factor):
+            factor = int(factor)
+        new.total_ops = new.total_ops * factor
+        new.max_per_unit_ops = new.max_per_unit_ops * factor
+        new.max_latency = new.max_latency * factor
         # NOTE: max_first_latency does not change
         return new
 
     def repeat_spatial(self, factor: int) -> "ComputeStats":
         new = copy.copy(self)
-        new.total_ops *= factor
+        if factor == 1:
+            return new
+        if type(factor) is float and factor == int(factor):
+            factor = int(factor)
+        new.total_ops = new.total_ops * factor
         return new
 
     def __add__(self, other: "ComputeStats") -> "ComputeStats":
@@ -1045,7 +1055,9 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             component_object = find_component_object(
                 network.component, info.job.flattened_arch
             )
-            workload_bpv = info.job.einsum.tensor_accesses[network.tensor].bits_per_value
+            workload_bpv = info.job.einsum.tensor_accesses[
+                network.tensor
+            ].bits_per_value
             bits_per_value = component_object.bits_per_value.get(
                 network.tensor, workload_bpv
             )
@@ -1505,19 +1517,21 @@ def get_stride_and_tile_shape(node: Loop, full_shape, n: int, info: AnalysisInfo
     # - Node shape = stride
     # - # Iterations = ceil(total shape / stride)
     if IMPERFECT and initial_tile_shape is None:
-        factor = sympy.ceiling(rank_shape / stride)
-        stride_avg = stride / sympy.ceiling(rank_shape / stride)
+        factor = se.ceiling(rank_shape / stride)
+        stride_avg = stride / se.ceiling(rank_shape / stride)
         return StrideAndShape(stride_avg, RepeatedValue(stride, factor))
 
     if initial_tile_shape is None:
         if node._assume_perfect_factor or known_perfect_factor(stride, rank_shape):
             factor = rank_shape / stride
+            if type(factor) is float and factor == int(factor):
+                factor = int(factor)
             return StrideAndShape(stride, RepeatedValue(stride, factor))
         else:
-            factor = sympy.ceiling(rank_shape / sympy.MinGeqZero(stride, rank_shape))
+            factor = se.ceiling(rank_shape / MinGeqZero(stride, rank_shape))
             return make_possibly_different_last(stride, factor, rank_shape)
 
-    middle_shape_factor = sympy.ceiling((rank_shape - initial_tile_shape) / stride)
+    middle_shape_factor = se.ceiling((rank_shape - initial_tile_shape) / stride)
     # TODO: sometimes last_shape is 0, causing numerical instability
     # Currently, we are sometimes rounding up last shape.
     # last_shape = rank_shape - initial_tile_shape - stride*middle_shape_factor

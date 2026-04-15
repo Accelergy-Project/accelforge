@@ -1441,25 +1441,27 @@ class Nested(MappingNodeWithChildren):
         groups = [sorted(g, key=lambda x: id2idx[id(x)]) for g in groups]
         mapping = [x for g in groups for x in g]
 
-        # Check that all storage-temporal relations are held from before
+        # Check that all storage-temporal relations are held from before.
+        # Precomputed id-sets avoid pydantic __instancecheck__ in the O(N²)
+        # combinations loops.
         node2idx = {id(node): i for i, node in enumerate(mapping)}
         prev_node2idx = {id(node): i for i, node in enumerate(self.nodes)}
-        for node, node2 in itertools.combinations(mapping, 2):
-            idx1 = node2idx[id(node)]
-            idx2 = node2idx[id(node2)]
-            prev_idx1 = prev_node2idx[id(node)]
-            prev_idx2 = prev_node2idx[id(node2)]
-            if isinstance(node, TensorHolder) and isinstance(node2, TensorHolder):
-                assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
-            elif isinstance(node, Spatial) and isinstance(node2, Spatial):
-                assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
+        th_ids = {id(n) for n in mapping if isinstance(n, TensorHolder)}
+        sp_ids = {id(n) for n in mapping if isinstance(n, Spatial)}
+        loop_ids = {id(n) for n in mapping if isinstance(n, Loop)}
+        for n1, n2 in itertools.combinations(mapping, 2):
+            i1, i2 = id(n1), id(n2)
+            if (i1 in th_ids and i2 in th_ids) or (i1 in sp_ids and i2 in sp_ids):
+                assert (node2idx[i1] > node2idx[i2]) == (
+                    prev_node2idx[i1] > prev_node2idx[i2]
+                ), "BUG"
 
         # Check for spatial/temporal loops that have been reordered for the
         # same rank variable. These can't co-exist because the tiling is
         # inconsistent. OK for irrelevant loops.
         node2idx = {id(node): i for i, node in enumerate(self.nodes)}
         for node1, node2 in itertools.combinations(mapping, 2):
-            if not isinstance(node1, Loop) or not isinstance(node2, Loop):
+            if id(node1) not in loop_ids or id(node2) not in loop_ids:
                 continue
             if node2idx[id(node1)] <= node2idx[id(node2)]:
                 continue

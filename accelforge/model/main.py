@@ -295,7 +295,8 @@ def _assert_valid_pmapping(pmapping: Mapping, workload: Workload):
     """Assert that pmapping has loops with shape 1."""
     einsum_name = pmapping.nodes[-1].einsum
     rank_variables = {
-        rv for rv, bound in get_rank_variable_bounds(workload, einsum_name).items()
+        rv
+        for rv, bound in get_rank_variable_bounds(workload, einsum_name).items()
         if bound > 1
     }
     for node in pmapping.nodes:
