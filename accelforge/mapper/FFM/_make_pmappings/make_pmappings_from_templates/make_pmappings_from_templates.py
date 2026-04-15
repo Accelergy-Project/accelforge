@@ -42,7 +42,6 @@ from accelforge.util._mathfuncs import _count_factorizations
 def shift_reservations_by_null_loop_indices(
     mappings: pd.DataFrame, null_loop_indices: set[int]
 ):
-    prev = copy.deepcopy(mappings)  # TODO: Is this needed?
     target2newabovename = {}
     dropcols = []
     for c in mappings.columns:
@@ -62,13 +61,14 @@ def shift_reservations_by_null_loop_indices(
         else:
             target2newabovename[target] = (name, above)
 
-    mappings.drop(columns=dropcols, inplace=True)
+    if dropcols:
+        drop_set = set(dropcols)
+        mappings = mappings[[c for c in mappings.columns if c not in drop_set]]
     renames = {}
     for target, (name, above) in target2newabovename.items():
         renames[reservation2col(name, above)] = target
-    mappings.rename(columns=renames, inplace=True)
+    mappings = mappings.rename(columns=renames)
     if len(mappings.columns) != len(mappings.columns.unique()):
-        shift_reservations_by_null_loop_indices(prev, null_loop_indices)
         raise ValueError(f"Duplicate columns: {mappings.columns}")
     return mappings
 
@@ -263,13 +263,14 @@ def make_pmappings_from_templates(
         )
 
         result[MAPPING_COLUMN] = job.job_id
-        cols_to_drop = []
+        drop_set = set()
         for col in result.columns:
             if is_reservation_col(col):
                 resource = col2reservation(col)[0]
                 if resource in job.memories_track_pmappings_only:
-                    cols_to_drop.append(col)
-        result.drop(columns=cols_to_drop, inplace=True)
+                    drop_set.add(col)
+        if drop_set:
+            result = result[[c for c in result.columns if c not in drop_set]]
         results.append(result)
         pmapping_keep_rates.append(
             (job.job_id, dict(job.pmapping_keep_rates), job.n_total_pmappings)
@@ -395,7 +396,7 @@ def make_pmappings_from_templates(
         )
         for k, v in symbol_renames.items():
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
-        shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
+        mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
 
         energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
         if (mappings[energy_cols] < 0).any(axis=None):

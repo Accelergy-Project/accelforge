@@ -280,8 +280,15 @@ def get_memories_to_track(
                 if mem.size == 0:
                     usage = 2  # FAIL
                 else:
-                    scale = mem.bits_per_value_scale[tensor] / mem.size
-                    usage += tensor_sizes[tensor] * scale
+                    workload_bpv = (
+                        spec.workload.einsums[einsum]
+                        .tensor_accesses[tensor]
+                        .bits_per_value
+                    )
+                    effective_bpv = mem.bits_per_value.get(tensor, workload_bpv)
+                    usage += (
+                        tensor_sizes[tensor] * effective_bpv / (workload_bpv * mem.size)
+                    )
 
         if usage <= 1:
             ignored_resources.add(memory)

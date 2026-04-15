@@ -12,6 +12,16 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
 from typing import Union
 from accelforge._accelerated_imports import numpy as np
 from numbers import Integral
+import sympy
+import symengine as se
+
+
+def _coerce_numeric(x):
+    # symengine (and sympy) numerics don't always implement __format__, so
+    # downstream users can't `f"{x:.2f}"` them. Coerce to Python float.
+    if isinstance(x, (se.Basic, sympy.Basic)):
+        return float(x)
+    return x
 
 
 def _series2list(
@@ -19,15 +29,17 @@ def _series2list(
     list_if_one: bool,
 ) -> list[float | int]:
     if isinstance(v, dict):
-        return {k: _series2list(v, list_if_one) for k, v in v.items()}
+        return {k: _series2list(val, list_if_one) for k, val in v.items()}
 
     if isinstance(v, pd.Series):
         v = list(v)
     if isinstance(v, list):
+        v = [_coerce_numeric(x) for x in v]
         if len(v) == 1 and not list_if_one:
             return v[0]
         return v
 
+    v = _coerce_numeric(v)
     return [v] if list_if_one else v
 
 

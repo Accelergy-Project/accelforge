@@ -727,7 +727,9 @@ COMPUTE_ACTIONS = EvalableList(
 
 
 def _eval_tensor2bits(
-    toeval: dict[str, Any], location: str, symbol_table: dict[str, Any]
+    toeval: dict[str, Any],
+    location: str,
+    symbol_table: dict[str, Any],
 ) -> dict[str, Any]:
     result = {}
     for key, value in toeval.items():
@@ -744,16 +746,9 @@ def _eval_tensor2bits(
             location=location,
         )
 
-    all = symbol_table["All"].instance
-    for k in result:
-        all -= k
-
-    if all:
-        raise EvaluationError(f"Missing bits_per_value_scale for {all}. Have {result}.")
-
     for a, b in itertools.combinations(result.keys(), 2):
         if a & b:
-            raise EvaluationError(f"bits_per_value_scale for {a} and {b} overlap")
+            raise EvaluationError(f"{location} for {a} and {b} overlap")
 
     return {k2: v for k, v in result.items() for k2 in k}
 
@@ -793,9 +788,7 @@ def _eval_direction(toeval, symbol_table: dict[str, Any]) -> dict[str, str]:
         all_tensors -= k
 
     if all_tensors:
-        raise EvaluationError(
-            f"Missing direction for {all_tensors}. Have {result}."
-        )
+        raise EvaluationError(f"Missing direction for {all_tensors}. Have {result}.")
 
     return {t: v for k, v in result.items() for t in k}
 
@@ -931,11 +924,11 @@ class TensorHolder(Component, Leaf):
     order their nodes may appear in the mapping.
     """
 
-    bits_per_value_scale: EvalsTo[dict] = {"All": 1}
+    bits_per_value: EvalsTo[dict] = {}
     """
-    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
-    this is a dictionary, keys in the dictionary are evaluated as expressions and may
-    reference one or more tensors.
+    Sets the bits per value for tensors in this `TensorHolder`. Keys are evaluated as
+    expressions and may reference one or more tensors. Tensors not listed use the
+    workload's bits_per_value.
     """
 
     bits_per_action: EvalsTo[int | float | None] = None
@@ -956,10 +949,10 @@ class TensorHolder(Component, Leaf):
 
         class MyPostCall(_PostCall):
             def __call__(self, field, value, evaluated, symbol_table):
-                if field == "bits_per_value_scale":
+                if field == "bits_per_value":
                     evaluated = _eval_tensor2bits(
                         evaluated,
-                        location="bits_per_value_scale",
+                        location="bits_per_value",
                         symbol_table=symbol_table,
                     )
                 return evaluated
@@ -1058,10 +1051,10 @@ class Toll(TensorHolder):
         # Override TensorHolder's _PostCall to also handle direction
         class MyPostCall(_PostCall):
             def __call__(self_pc, field, value, evaluated, symbol_table):
-                if field == "bits_per_value_scale":
+                if field == "bits_per_value":
                     evaluated = _eval_tensor2bits(
                         evaluated,
-                        location="bits_per_value_scale",
+                        location="bits_per_value",
                         symbol_table=symbol_table,
                     )
                 if field == "direction":
@@ -1072,7 +1065,7 @@ class Toll(TensorHolder):
                 return evaluated
 
         # Skip TensorHolder's _eval_expressions (which adds its own post_calls
-        # for bits_per_value_scale) since we handle it here too
+        # for bits_per_value) since we handle it here too
         return Component._eval_expressions(
             self, *args, **kwargs, post_calls=(MyPostCall(),)
         )
@@ -1094,7 +1087,6 @@ class Compute(Component, Leaf):
     initalize outputs. If True, this initial fetch and fill is skipped.
     """
 
-
     def model_post_init(self, __context__=None) -> None:
         self._update_actions(COMPUTE_ACTIONS)
 
@@ -1113,11 +1105,11 @@ class Network(Component, Leaf):
     of the spatial nodes from top to bottom.
     """
 
-    bits_per_value_scale: EvalsTo[dict] = {"All": 1}
+    bits_per_value: EvalsTo[dict] = {}
     """
-    A scaling factor for the bits per value of the tensors in this `TensorHolder`. If
-    this is a dictionary, keys in the dictionary are evaluated as expressions and may
-    reference one or more tensors.
+    Sets the bits per value for tensors in this `TensorHolder`. Keys are evaluated as
+    expressions and may reference one or more tensors. Tensors not listed use the
+    workload's bits_per_value.
     """
 
     bits_per_action: EvalsTo[int | float | None] = None
@@ -1141,10 +1133,10 @@ class Network(Component, Leaf):
 
         class MyPostCall(_PostCall):
             def __call__(self, field, value, evaluated, symbol_table):
-                if field == "bits_per_value_scale":
+                if field == "bits_per_value":
                     evaluated = _eval_tensor2bits(
                         evaluated,
-                        location="bits_per_value_scale",
+                        location="bits_per_value",
                         symbol_table=symbol_table,
                     )
                 return evaluated

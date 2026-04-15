@@ -66,6 +66,12 @@ def make_tensor_choices_one_level(
     may_keep = tensors.to_my_space(node.tensors.may_keep)
     may_keep -= must_keep
 
+    # Tolls are passthrough and cannot be the outermost level storing a tensor.
+    if isinstance(node, arch.Toll):
+        above = tensors.to_my_space(symbol_table.get("Above", oset()))
+        must_keep &= above
+        may_keep &= above
+
     if seen_tensors & oset(node.tensors.back):
         return
 

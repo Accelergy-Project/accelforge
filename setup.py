@@ -18,6 +18,7 @@ if pythonpath:
             sys.path.insert(0, path)
 
 import importlib.util
+
 _version_scheme_path = current_dir / "accelforge" / "_version_scheme.py"
 spec = importlib.util.spec_from_file_location("_version_scheme", _version_scheme_path)
 _version_scheme = importlib.util.module_from_spec(spec)

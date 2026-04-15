@@ -219,11 +219,19 @@ def _projection_factory(projection: dict | list):
         for i, x in enumerate(projection):
             if not isinstance(x, str):
                 raise TypeError(f"Element at index {i} must be a string, got {type(x)}")
+            if not x:
+                raise ValueError(f"Empty string in projection list at index {i}.")
             if not _ISL_REGEX.match(x):
                 raise ValueError(
                     f"Element '{x}' at index {i} is not a valid ISL identifier"
                     f"In a projection list, all elements must be valid ISL identifiers."
                     f"For expressions, use a dictionary projection."
+                )
+            if x[0].isupper():
+                raise ValueError(
+                    f"Rank variable '{x}' at index {i} in projection list must start "
+                    f"with a lowercase letter. Rank variables are lowercase; rank "
+                    f"names are uppercase. Did you mean to use a dictionary projection?"
                 )
         projection = ImpliedProjection({x.upper(): x for x in projection})
     elif not isinstance(projection, dict):
@@ -238,6 +246,14 @@ def _projection_factory(projection: dict | list):
             raise ValueError(
                 f"Invalid projection key: {key}. Must be a valid identifier. Check with "
                 f"the Python isidentifier() function."
+            )
+        if not key:
+            raise ValueError(f"Empty rank name in projection at index {i}.")
+        if key[0].islower():
+            raise ValueError(
+                f"Rank name '{key}' in projection must start with an uppercase letter. "
+                f"Rank names are uppercase (e.g., 'M'); rank variables are lowercase "
+                f"(e.g., 'm')."
             )
     return projection
 
@@ -361,12 +377,25 @@ def _parse_projection(proj_str: str) -> dict | list:
                 raise ValueError(
                     f"Invalid projection key: {k}. Must be a valid ISL identifier. {s}"
                 )
+            if k[0].islower():
+                raise ValueError(
+                    f"Rank name '{k}' must start with an uppercase letter. "
+                    f"Rank names are uppercase (e.g., 'M'); rank variables are  "
+                    f"lowercase(e.g., 'm'). {s}"
+                )
             if k in result:
                 raise ValueError(f"Duplicate rank entry: {k}. Must be unique. {s}")
             result[k] = v
         else:
             if not part:
                 raise ValueError(f"Empty projection entry. {s}")
+            if part[0].isupper():
+                raise ValueError(
+                    f"Rank variable '{part}' in shorthand projection must start with a "
+                    f"lowercase letter. Rank variables are lowercase (e.g., 'm'); rank "
+                    f"names are uppercase (e.g., 'M'). Use 'RankName:expression' "
+                    f"syntax for explicit rank names. {s}"
+                )
             if not re.fullmatch(_ISL_REGEX, part.upper()):
                 raise ValueError(
                     f"Invalid projection value: {part.upper()}. The uppercased form of "
@@ -446,6 +475,13 @@ class Einsum(EvalableModel):
                 f'Einsum name "Total" is reserved for totaling across Einsums.'
                 f"Use a different name for the Einsum."
             )
+        for rank in self.rank_sizes:
+            if rank[0].islower():
+                raise ValueError(
+                    f"Rank name '{rank}' in Einsum '{self.name}' rank_sizes must start "
+                    f"with an uppercase letter. Rank names are uppercase (e.g., 'M'); "
+                    f"rank variables are lowercase (e.g., 'm')."
+                )
 
     def __init__(self, *args, **kwargs):
         if "renames" in kwargs:
@@ -850,6 +886,20 @@ class Workload(EvalableModel):
         self._validate()
 
     def _validate(self):
+        for rank_var in self.iteration_space_shape:
+            if rank_var[0].isupper():
+                raise ValueError(
+                    f"Rank variable '{rank_var}' in workload iteration_space_shape must "
+                    f"start with a lowercase letter. Rank variables are lowercase "
+                    f"(e.g., 'm'); rank names are uppercase (e.g., 'M')."
+                )
+        for rank in self.rank_sizes:
+            if rank[0].islower():
+                raise ValueError(
+                    f"Rank name '{rank}' in workload rank_sizes must start with an "
+                    f"uppercase letter. Rank names are uppercase (e.g., 'M'); rank "
+                    f"variables are lowercase (e.g., 'm')."
+                )
         tensor2ranks = {}
         einsum_names = oset()
         for einsum in self.einsums:
