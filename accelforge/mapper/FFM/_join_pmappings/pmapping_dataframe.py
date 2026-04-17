@@ -801,7 +801,7 @@ class PmappingDataframe:
                         print(f"{col2}: {list[Any](self.data[col2])}")
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
-                    l == 0
+                    l <= 0
                     and next_shared_loop_index == -1
                     # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
                     # tensors may get saved later and would live at the same time as
@@ -832,7 +832,7 @@ class PmappingDataframe:
                         print(f"{col2}: {list[Any](self.data[col2])}")
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
-                    l == 0
+                    l <= 0
                     # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
                     # tensors may get saved later.
                     and finished
