@@ -18,7 +18,7 @@ workload:
   persistent_tensors: weight - Intermediates
 
   einsums:
-  - {einsum: "I[b, m, d] = I_in[b, m, d]", is_copy_operation: True}
+  - {einsum: "I[b, m, d] = copy(I_in[b, m, d])"}
 
   # V and K containing the new tokens only. Note that these two tensors aren't used
   # later. We assume that N_TOKENS >> N_NEW_TOKENS, making the full K and V much larger

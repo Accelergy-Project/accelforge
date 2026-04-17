@@ -32,8 +32,7 @@ workload:
   persistent_tensors: weight - Intermediates
 
   einsums:
-  - einsum: "I[b, m, d] = I_in[b, m, d]"
-    is_copy_operation: True
+  - einsum: "I[b, m, d] = copy(I_in[b, m, d])"
 
   - "V[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
   - "K[b, m, h, e] = I[b, m, d] * WK[h, e, d]"

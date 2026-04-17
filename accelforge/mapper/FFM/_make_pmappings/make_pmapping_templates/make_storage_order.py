@@ -51,7 +51,7 @@ def get_tensor_choices(
     for choice, symbol_table in make_storage_choices_all_levels(
         nodes=nodes,
         symbol_table=symbol_table,
-        is_copy_op=einsum.is_copy_op,
+        is_copy_op=einsum.is_copy_operation,
         persistent_tensors=persistent_tensors,
         seen_tensors=oset(),
         einsum_name=einsum_name,
@@ -79,7 +79,7 @@ def get_tensor_choices(
 
         # Get the dataflow constraints for the mapping
         required_order = get_tensor_order_constraint(
-            parsed_nodes_in_mapping, symbol_table, einsum.tensors
+            parsed_nodes_in_mapping, symbol_table, einsum.tensor_names
         )
 
         symbol_table["arch_attributes"] = {}
@@ -96,13 +96,11 @@ def get_tensor_choices(
 
         for mapping in recursive_order_tensor_choices(
             einsum_name,
-            einsum.tensors,
             base_mapping,
             nodes,
             storage_holders,
             required_order,
             spec,
-            einsum.is_copy_op,
             first_memory,
             fusable_tensors,
             fanouts,
@@ -229,11 +227,11 @@ def recursive_order_tensor_choices(
             for tensor_holder in tensor_holders
             for tensor in tensor_holder.tensors
         )
-        if tensors_in_mapping != einsum.tensors:
+        if tensors_in_mapping != einsum.tensor_names:
             raise ValueError(
                 f"Einsum {einsum_name} has a pmapping template that is missing tensors. Ensure "
                 f"that there is a storage node storing each tensor in the Einsum. Missing "
-                f"tensors: {einsum.tensors - tensors_in_mapping}. Pmapping template:\n\t"
+                f"tensors: {einsum.tensor_names - tensors_in_mapping}. Pmapping template:\n\t"
                 + "\n\t".join(m.compact_str() for m in mapping)
             )
 
@@ -245,9 +243,9 @@ def recursive_order_tensor_choices(
 
     # If it's a copy op and we have the backing storage for every tensor, return
     # immediately
-    if einsum.is_copy_op:
+    if einsum.is_copy_operation:
         tensor_holders = [node for node in mapping if isinstance(node, TensorHolder)]
-        if oset().union(*[t._backing for t in tensor_holders]) == einsum.tensors:
+        if oset().union(*[t._backing for t in tensor_holders]) == einsum.tensor_names:
             check_has_tensors(mapping)
             yield mapping
             return

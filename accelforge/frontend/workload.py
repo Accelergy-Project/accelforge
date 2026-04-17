@@ -9,6 +9,7 @@ import logging
 import re
 from typing import Annotated, Any, TypeAlias
 
+from lark import Lark
 import pydot
 
 from accelforge.util.parallel import _SVGJupyterRender
@@ -301,56 +302,129 @@ def _parse_einsum_entry(einsum_entry: dict) -> dict:
             name2access[name][k] = v
 
     einsum_entry["name"] = parsed["name"]
+    einsum_entry["map"] = parsed["map"]
+    einsum_entry["is_copy_operation"] = parsed["is_copy_operation"]
     einsum_entry["tensor_accesses"] = list(name2access.values())
     einsum_entry["renames"] = rename_list_factory(einsum_entry.get("renames", {}))
 
     return einsum_entry
 
 
+# def _parse_einsum_string(einsum_str: str) -> dict:
+#     original = einsum_str
+#     einsum_str = re.sub(r"\s+", "", einsum_str.strip())
+
+#     if not einsum_str:
+#         raise ValueError("Einsum string cannot be empty")
+#     n = einsum_str.count("=")
+#     if n != 1:
+#         raise ValueError(
+#             f"Invalid einsum format. Einsum string {original} has {n} equals signs. "
+#             f"Each Einsum string must have exactly one equals sign."
+#         )
+
+#     tensor_pattern = r"(?P<tensor_name>[A-Za-z_]\w*)\[(?P<index_expr>[^\]]*)\]"
+#     full_pattern = rf"^{tensor_pattern}=(.+)$"
+
+#     match = re.match(full_pattern, einsum_str)
+#     if not match:
+#         raise ValueError(f"Invalid einsum format: {original}")
+
+#     tensor_accesses = []
+
+#     def update(match: tuple, is_output: bool):
+#         name, proj = match
+#         try:
+#             proj = _parse_projection(proj)
+#         except ValueError as e:
+#             e.add_note(f"Problem Einsum string: {original}")
+#             raise
+#         tensor_accesses.append({"name": name, "projection": proj, "output": is_output})
+
+#     output_name = match.group("tensor_name")
+#     rhs = match.group(3)
+#     input_matches = re.findall(tensor_pattern, rhs)
+#     if not input_matches:
+#         raise ValueError(f"No input tensors: {original}, {rhs}")
+
+#     for m in input_matches:
+#         update(m, False)
+
+#     update((output_name, match.group("index_expr")), True)
+
+#     result = {"name": output_name, "tensor_accesses": tensor_accesses}
+#     return result
+
+grammar = r"""
+?start: equation
+
+equation: tensor "=" expr
+
+?expr: binary_expr
+     | unary_expr
+
+binary_expr: tensor OP tensor
+unary_expr: OP "(" tensor ")"
+
+tensor: TENSOR_NAME "[" PROJECTION_STR "]"
+
+// --- TOKENS ---
+
+TENSOR_NAME: /[A-Za-z_][A-Za-z0-9]*/
+OP: /[+\-*\=!<>|&^%]+/
+  | /[a-z]+(?=\s*\()/
+PROJECTION_STR: /[A-Za-z0-9\+\-*%\:,]+/
+
+%import common.WS
+%ignore WS
+"""
+EINSUM_STRING_PARSER = Lark(grammar, parser="lalr", lexer="contextual")
+
+
 def _parse_einsum_string(einsum_str: str) -> dict:
-    original = einsum_str
-    einsum_str = re.sub(r"\s+", "", einsum_str.strip())
-
-    if not einsum_str:
-        raise ValueError("Einsum string cannot be empty")
-    n = einsum_str.count("=")
-    if n != 1:
-        raise ValueError(
-            f"Invalid einsum format. Einsum string {original} has {n} equals signs. "
-            f"Each Einsum string must have exactly one equals sign."
-        )
-
-    tensor_pattern = r"([A-Za-z_]\w*)\[([^\]]*)\]"
-    full_pattern = rf"^{tensor_pattern}=(.+)$"
-
-    match = re.match(full_pattern, einsum_str)
-    if not match:
-        raise ValueError(f"Invalid einsum format: {original}")
-
     tensor_accesses = []
-
-    def update(match: tuple, is_output: bool):
-        name, proj = match
+    def update(tensor_name, proj_str, is_output: bool):
         try:
-            proj = _parse_projection(proj)
+            proj = _parse_projection(proj_str)
         except ValueError as e:
-            e.add_note(f"Problem Einsum string: {original}")
+            e.add_note(f"Problem Einsum string: {einsum_str}")
             raise
-        tensor_accesses.append({"name": name, "projection": proj, "output": is_output})
+        tensor_accesses.append({"name": tensor_name, "projection": proj, "output": is_output})
 
-    output_name = match.group(1)
-    rhs = match.group(3)
-    input_matches = re.findall(tensor_pattern, rhs)
-    if not input_matches:
-        raise ValueError(f"No input tensors: {original}, {rhs}")
+    try:
+        parse_result = EINSUM_STRING_PARSER.parse(einsum_str)
+    except:
+        raise ValueError(f"Invalid Einsum {einsum_str}")
+    if parse_result.data != "equation" and len(parse_result.children) == 2:
+        raise ValueError(f"Invalid Einsum {einsum_str}")
 
-    for m in input_matches:
-        update(m, False)
+    lhs = parse_result.children[0]
+    if lhs.data != "tensor":
+        raise ValueError(f"Invalid Einsum {einsum_str}")
 
-    update((output_name, match.group(2)), True)
+    output_name = lhs.children[0].value
+    output_proj_str = lhs.children[1].value
+    update(output_name, output_proj_str, True)
 
-    result = {"name": output_name, "tensor_accesses": tensor_accesses}
-    return result
+    is_copy_operation = False
+    rhs = parse_result.children[1]
+    if rhs.data == "binary_expr" and len(rhs.children) == 3:
+        tensor_1, map_op, tensor_2 = rhs.children
+        tensor_1_name, tensor_1_proj_str = tensor_1.children
+        update(tensor_1_name.value, tensor_1_proj_str.value, False)
+        tensor_2_name, tensor_2_proj_str = tensor_2.children
+        update(tensor_2_name.value, tensor_2_proj_str.value, False)
+    elif rhs.data == "unary_expr" and len(rhs.children) == 2:
+        map_op, tensor_1 = rhs.children
+        tensor_1_name, tensor_1_proj_str = tensor_1.children
+        update(tensor_1_name.value, tensor_1_proj_str.value, False)
+    else:
+        raise ValueError(f"Invalid Einsum {einsum_str}")
+    map_op = map_op.value
+    if map_op == "copy":
+        is_copy_operation = True
+
+    return {"name": output_name, "tensor_accesses": tensor_accesses, "map": map_op, "is_copy_operation": is_copy_operation}
 
 
 def _parse_projection(proj_str: str) -> dict | list:
