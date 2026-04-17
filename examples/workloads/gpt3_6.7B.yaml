@@ -32,15 +32,14 @@ workload:
   persistent_tensors: weight - Intermediates
 
   einsums:
-  - einsum: "I[b, m, d] = copy(I_in[b, m, d])"
-
+  - "I[b, m, d] = identity(I_in[b, m, d])"
   - "V[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
   - "K[b, m, h, e] = I[b, m, d] * WK[h, e, d]"
   - "Q[b, m, h, e] = I[b, m, d] * WQ[h, e, d]"
 
   - einsum: "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M: p, h, e]"
     renames: {input: Q}
-  - "QK_softmax[b, m, p, h] = QK[b, m, p, h]"
+  - "QK_softmax[b, m, p, h] = softmax(QK[b, m, p, h])"
 
   - einsum: "AV[b, m, h, f] = QK_softmax[b, m, p, h] * V[b, M: p, h, E: f]"
     renames: {input: QK_softmax}

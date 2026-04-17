@@ -25,6 +25,16 @@ class TestEinsumParsingValid(unittest.TestCase):
         self.assertEqual(r["map"], "exp")
         self.assertEqual(r["name"], "X")
 
+    def test_unary_multiple_rank_var(self):
+        r = _parse_einsum_string("I[b, m, d] = copy(I_in[b, m, d])")
+        self.assertEqual(r["map"], "copy")
+        self.assertEqual(r["name"], "I")
+
+    def test_unary_multiple_rank_var(self):
+        r = _parse_einsum_string("I[b, m, d] = copy(I_in[b, m, d])")
+        self.assertEqual(r["map"], "copy")
+        self.assertEqual(r["name"], "I")
+
     def test_unary_affine(self):
         r = _parse_einsum_string("_Einsum[a] = exp(Y[B:2*a+3])")
         self.assertEqual(r["map"], "exp")

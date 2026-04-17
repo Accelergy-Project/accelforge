@@ -370,10 +370,10 @@ tensor: TENSOR_NAME "[" PROJECTION_STR "]"
 
 // --- TOKENS ---
 
-TENSOR_NAME: /[A-Za-z_][A-Za-z0-9]*/
+TENSOR_NAME: /[A-Za-z_][A-Za-z0-9_]*/
 OP: /[+\-*\=!<>|&^%]+/
-  | /[a-z]+(?=\s*\()/
-PROJECTION_STR: /[A-Za-z0-9\+\-*%\:,]+/
+  | /[a-z]+/
+PROJECTION_STR: /[A-Za-z0-9\+\-*%\:,\s]+/
 
 %import common.WS
 %ignore WS
@@ -393,8 +393,8 @@ def _parse_einsum_string(einsum_str: str) -> dict:
 
     try:
         parse_result = EINSUM_STRING_PARSER.parse(einsum_str)
-    except:
-        raise ValueError(f"Invalid Einsum {einsum_str}")
+    except Exception as e:
+        raise ValueError(f"Invalid Einsum {einsum_str}") from e
     if parse_result.data != "equation" and len(parse_result.children) == 2:
         raise ValueError(f"Invalid Einsum {einsum_str}")
 
@@ -421,7 +421,7 @@ def _parse_einsum_string(einsum_str: str) -> dict:
     else:
         raise ValueError(f"Invalid Einsum {einsum_str}")
     map_op = map_op.value
-    if map_op == "copy":
+    if map_op == "identity":
         is_copy_operation = True
 
     return {"name": output_name, "tensor_accesses": tensor_accesses, "map": map_op, "is_copy_operation": is_copy_operation}
