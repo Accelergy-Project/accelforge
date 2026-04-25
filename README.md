@@ -28,7 +28,7 @@ Learn more at the [website](https://accelergy-project.github.io/accelforge/) or 
 
 ## ⚡ Features
 
-- **Flexible Full-Stack Modeling** of a wide variety of devices, circuits, architectures, workloads, and mappings. We integrate with [HWComponents](https://github.com/accelergy-project/hwcomponents), with easily-to-modify models for component area, energy, latency, and leak power.
+- **Flexible Full-Stack Modeling** of a wide variety of devices, circuits, architectures, workloads, and mappings. We integrate with [HWComponents](https://github.com/accelergy-project/hwcomponents), with easily-modifiable models for component area, energy, latency, and leak power.
 - **Fast and optimal mapping** of workloads onto architectures, yielding the best-possible performance and energy efficiency.
 - **Fusion-aware mapping** that optimizes fusion for cascades of Einsums, enabling end-to-end optimization of entire workloads.
 - **Heterogenous Architectures** that can include multiple types of compute units.
