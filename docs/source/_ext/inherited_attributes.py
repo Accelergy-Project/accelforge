@@ -57,6 +57,10 @@ DEFAULT_IGNORE = [
     "model_dump_non_none",
 ] + list(BaseModel.__dict__.keys())
 
+# Methods that should appear on every documented subclass even when their
+# defining class is in DEFAULT_IGNORE. These are part of the public API.
+ALWAYS_INHERIT = ["to_yaml", "from_yaml"]
+
 
 class InheritedAttributesClassDocumenter(ClassDocumenter):
     """Enhanced ClassDocumenter that includes inherited attributes."""
@@ -127,12 +131,19 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
         inherited = []
 
         for parent_class in mro[1:]:  # Skip self
-            # Check if we should stop FIRST, before processing any members
+            # Stop at the first ignored ancestor — we don't want to surface the
+            # internals (get_fields, get_validator, etc.) of EvalableModel and
+            # friends. Specific must-have methods are added separately below
+            # via ALWAYS_INHERIT.
             if self._should_ignore_class(parent_class, ignore):
                 break
 
-            # Get members from parent
-            for name in dir(parent_class):
+            # Get members defined directly on this parent. Using vars() instead
+            # of dir() means we attribute each method to the class that actually
+            # defines it, so the break above correctly excludes everything from
+            # ignored ancestors (e.g. _OurBaseModel.shallow_model_dump won't
+            # leak in via Spatialable, which inherits but does not redefine it).
+            for name in vars(parent_class):
                 # Skip underscore-prefixed
                 if name.startswith("_"):
                     continue
@@ -186,6 +197,22 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
                     inherited.append(ObjectMember(field_name, INSTANCEATTR))
                     seen_names.add(field_name)
 
+        # Force-include public API methods that live on ignored ancestors.
+        # Use vars() to find the class that actually defines the method, so the
+        # source link points at the original definition rather than a re-export.
+        for method_name in ALWAYS_INHERIT:
+            if method_name in seen_names:
+                continue
+            for parent_class in mro[1:]:
+                if method_name in vars(parent_class):
+                    try:
+                        obj = safe_getattr(parent_class, method_name)
+                    except (AttributeError, TypeError):
+                        break
+                    inherited.append(ObjectMember(method_name, obj))
+                    seen_names.add(method_name)
+                    break
+
         # Combine
         all_members = list(members) + inherited
 
@@ -214,7 +241,14 @@ def setup(app):
     if not hasattr(app.config, "inherited_attributes_ignore"):
         app.add_config_value("inherited_attributes_ignore", [], "env")
 
-    app.add_autodocumenter(InheritedAttributesClassDocumenter, override=True)
+    # Sphinx 9 re-registers the default ClassDocumenter at the config-inited
+    # event (see sphinx.ext.autodoc._register_directives), which clobbers any
+    # autodocumenter we register here in setup(). Hook the same event with a
+    # later priority to re-install our subclass after sphinx has settled.
+    def _install(app, config):
+        app.add_autodocumenter(InheritedAttributesClassDocumenter, override=True)
+
+    app.connect("config-inited", _install, priority=1000)
 
     return {
         "version": "0.1",

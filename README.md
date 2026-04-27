@@ -2,8 +2,11 @@
 
 <img src="https://capsule-render.vercel.app/api?type=rect&color=0:004CFF,100:00CFFF&height=100&section=header&text=AccelForge&fontSize=52&fontColor=ffffff&fontAlignY=55" alt="AccelForge" />
 
-***A framework to model and design tensor algebra accelerators.***
+<h3 align="center"><em>Model, design, and explore tensor algebra accelerators.</em></h3>
 
+<img src="docs/source/_static/logo.svg" alt="AccelForge logo" height="120" />
+
+<br>
 <br>
 
 [![PyPI](https://img.shields.io/pypi/v/accelforge?style=for-the-badge&logo=pypi&logoColor=white&labelColor=3775A9&color=0B4F6C)](https://pypi.org/project/accelforge/)
@@ -19,13 +22,13 @@
 
 ---
 
-AccelForge models and designs tensor algebra accelerators. It uses [HWComponents](https://github.com/accelergy-project/hwcomponents) as a backend for area, energy, latency, and leak power estimates.
+AccelForge is a framework for modeling, designing, and exploring tensor algebra accelerators. It uses [HWComponents](https://github.com/accelergy-project/hwcomponents) as a backend for area, energy, latency, and leak power estimates.
 
 Learn more at the [website](https://accelergy-project.github.io/accelforge/) or on [GitHub](https://github.com/Accelergy-Project/accelforge).
 
 ## ⚡ Features
 
-- **Flexible Full-Stack Modeling** of a wide variety of devices, circuits, architectures, workloads, and mappings. We integrate with [HWComponents](https://github.com/accelergy-project/hwcomponents), with easily-to-modify models for component area, energy, latency, and leak power.
+- **Flexible Full-Stack Modeling** of a wide variety of devices, circuits, architectures, workloads, and mappings. We integrate with [HWComponents](https://github.com/accelergy-project/hwcomponents), with easily-modifiable models for component area, energy, latency, and leak power.
 - **Fast and optimal mapping** of workloads onto architectures, yielding the best-possible performance and energy efficiency.
 - **Fusion-aware mapping** that optimizes fusion for cascades of Einsums, enabling end-to-end optimization of entire workloads.
 - **Heterogenous Architectures** that can include multiple types of compute units.

@@ -81,6 +81,11 @@ _NO_JOIN_MAPPING_VISUALIZATION = False
 # =============================================================================
 
 
+def _as_oset(x):
+    """Wrap a single rank variable as a singleton oset; pass an oset through."""
+    return oset(x) if isinstance(x, (set, frozenset)) else oset([x])
+
+
 @_uninstantiable
 class MappingNode(EvalableModel):
     """
@@ -361,10 +366,11 @@ class Loop(MappingNode):
     tile_shape for details.
     """
 
-    _einsum_to_rank_variables: dict[EinsumName, set[RankVariable]] = {}
+    _einsum_to_rank_variable: dict[EinsumName, RankVariable] = {}
     """
-    If there are multiple rank variables in this loop, this dictionary says which rank
-    variables belong to which Einsum.
+    If this loop has multiple rank variables (because it was merged from loops
+    of different Einsums), this dictionary records which rank variable each
+    Einsum originally used for this loop.
     """
 
     _calculated_n_iterations: (
@@ -1137,18 +1143,13 @@ class Nested(MappingNodeWithChildren):
                 # variables and assume that rank variable translation would fix it.
                 assert len(my_loop_group) == 1 or len(other_loop_group) == 1
                 has_one, may_not_have_one = my_loop_group, other_loop_group
-
-                switched = False
+                has_one_side, may_not_side = self, other
                 if len(has_one) != 1:
-                    has_one, may_not_have_one = other_loop_group, my_loop_group
-                    switched = True
+                    has_one, may_not_have_one = may_not_have_one, has_one
+                    has_one_side, may_not_side = may_not_side, has_one_side
 
                 l = copy.deepcopy(has_one.pop(0))
-                l.rank_variable = (
-                    l.rank_variable
-                    if isinstance(l.rank_variable, set)
-                    else oset([l.rank_variable])
-                )
+                l.rank_variable = _as_oset(l.rank_variable)
                 for l2 in may_not_have_one:
                     if l2.calculated_n_iterations == l.calculated_n_iterations:
                         break
@@ -1160,29 +1161,24 @@ class Nested(MappingNodeWithChildren):
                     f"Warning. Matching loops {l} and {l2}. Need rank variable translation here."
                 )
 
-                my_rv = (
-                    l.rank_variable
-                    if isinstance(l.rank_variable, set)
-                    else oset([l.rank_variable])
-                )
-                other_rv = (
-                    l2.rank_variable
-                    if isinstance(l2.rank_variable, set)
-                    else oset([l2.rank_variable])
-                )
-                if switched:
-                    my_rv, other_rv = other_rv, my_rv
+                # For each einsum, record which rank variable it used for this
+                # loop.
+                for src_loop, src_side in [(l, has_one_side), (l2, may_not_side)]:
+                    src_rv = _as_oset(src_loop.rank_variable)
+                    for compute in src_side.get_nodes_of_type(Compute):
+                        rv = src_loop._einsum_to_rank_variable.get(compute.einsum)
+                        if rv is None:
+                            assert len(src_rv) == 1, (
+                                f"Loop {src_loop} has no mapping for einsum "
+                                f"{compute.einsum} and has multiple rank "
+                                f"variables {src_rv}. A prior merge should have "
+                                f"populated _einsum_to_rank_variable."
+                            )
+                            rv = next(iter(src_rv))
+                        l._einsum_to_rank_variable[compute.einsum] = rv
 
                 may_not_have_one.remove(l2)
-                rv = l2.rank_variable
-                for compute in self.get_nodes_of_type(Compute):
-                    for r in my_rv:
-                        l._einsum_to_rank_variables[compute.einsum] = r
-                rv = rv if isinstance(rv, set) else oset([rv])
-                l.rank_variable = l.rank_variable | rv
-                for compute in other.get_nodes_of_type(Compute):
-                    for r in other_rv:
-                        l._einsum_to_rank_variables[compute.einsum] = r
+                l.rank_variable = l.rank_variable | _as_oset(l2.rank_variable)
                 to_add = [l]
 
             zipped_groups.append(to_add)
@@ -1618,13 +1614,13 @@ class Mapping(Nested):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Loop) and isinstance(node.rank_variable, set):
-                if einsum_name not in node._einsum_to_rank_variables:
+                if einsum_name not in node._einsum_to_rank_variable:
                     raise ValueError(
                         f"Loop {node.compact_str()} has multiple rank variables. Make "
-                        f"sure to populate _einsum_to_rank_variables for this loop."
+                        f"sure to populate _einsum_to_rank_variable for this loop."
                     )
                 new_node = copy.copy(node)
-                new_node.rank_variable = node._einsum_to_rank_variables[einsum_name]
+                new_node.rank_variable = node._einsum_to_rank_variable[einsum_name]
                 new_nodes.append(new_node)
             else:
                 new_nodes.append(node)
