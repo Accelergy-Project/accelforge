@@ -43,13 +43,11 @@ def _trace_iterations(node, workload: Workload):
 
             in_child = oset(child_result.keys())
             in_last = oset(last_result.keys())
-            child_shape = None
-            last_shape = None
+            child_shape = next(iter(child_result.values())).shape
+            last_shape = next(iter(last_result.values())).shape if last_result else (0,)
             for rank_var in in_child & in_last:
                 child_trace = child_result[rank_var]
-                child_shape = child_trace.shape
                 last_trace = last_result[rank_var]
-                last_shape = last_trace.shape
                 if rank_var in last_result:
                     last_result[rank_var] = np.concatenate([last_trace, child_trace])
                 else:

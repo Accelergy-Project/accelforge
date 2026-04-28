@@ -908,10 +908,12 @@ class Workload(EvalableModel):
             einsum_names.add(einsum.name)
             for tensor_accesses in einsum.tensor_accesses:
                 tensor2ranks.setdefault(tensor_accesses.name, tensor_accesses.ranks)
-                if tensor2ranks[tensor_accesses.name] != tensor_accesses.ranks:
+                a = sorted(tensor2ranks[tensor_accesses.name])
+                b = sorted(tensor_accesses.ranks)
+                if a != b:
                     raise ValueError(
-                        f"TensorName {tensor_accesses.name} has inconsistent ranks. Found "
-                        f"{tensor2ranks[tensor_accesses.name]} and {tensor_accesses.ranks}. "
+                        f"TensorName {tensor_accesses.name} has inconsistent ranks. "
+                        f"Found {a} and {b}. "
                         "TensorName is in Einsums "
                         f"{', '.join(
                             e.name for e in self.einsums_with_tensor(tensor_accesses.name)

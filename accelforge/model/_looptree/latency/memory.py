@@ -92,9 +92,12 @@ def component_latency(
 
     component_latency = {}
 
-    symbol_table_base = {
+    arch_vars = dict(spec.arch.variables) if spec.arch.variables else {}
+    symbol_table_base = {  # TODO: Make a global symbol table initialization function
+        **arch_vars,
         **dict(spec.variables),
         "variables": spec.variables,
+        "arch_variables": spec.arch.variables,
         "max": Max,
         "min": Min,
         "sum": se.Add,

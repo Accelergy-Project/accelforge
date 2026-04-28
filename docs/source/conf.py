@@ -35,6 +35,7 @@ extensions = [
     "include_attrs",  # Include attributes & their docstrings
     "include_functions",  # Include functions & their docstrings
     "inherited_attributes",  # Inherit docstrings from parent classes
+    "pydantic_defaults",  # Show default values for Pydantic fields
     "include_yaml",  # Include subsets of YAML files
     "sphinx_copybutton",  # Add copy button to code blocks
 ]
@@ -45,6 +46,11 @@ autodoc_default_options = {
     "undoc-members": False,
     "exclude-members": "model_config,model_fields,__pydantic_fields__,model_post_init",
 }
+
+# Sphinx 9 introduced a new non-class-based autodoc directive that is the
+# default. The custom InheritedAttributesClassDocumenter in _ext/ subclasses
+# the legacy ClassDocumenter, so we keep the legacy path active so it runs.
+autodoc_use_legacy_class_based = True
 
 # ---------- Autodoc settings ----------
 # Show type hints inline in signatures

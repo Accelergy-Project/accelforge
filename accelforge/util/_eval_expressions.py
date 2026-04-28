@@ -311,7 +311,8 @@ def load_functions_from_file(path: str):
     path = path.strip()
     if not os.path.exists(path):
         raise FileNotFoundError(f"Could not find math function file {path}.")
-    python_module = SourceFileLoader("python_plug_in", path).load_module()
+    module_name = f"python_functions_{abs(hash(path))}"
+    python_module = SourceFileLoader(module_name, path).load_module()
     funcs = {}
     defined_funcs = [
         f for f in dir(python_module) if isinstance(getattr(python_module, f), Callable)
