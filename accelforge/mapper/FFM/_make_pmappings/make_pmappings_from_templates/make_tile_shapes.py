@@ -498,6 +498,7 @@ def _partition_formula(
     tolerance: float,
     absolute_tolerance: float | None = None,
     terms_do_not_cross_zero: bool = False,
+    outer_goal: str = "min",
 ) -> dict[Symbol, Goal]:
     goals: dict[Symbol, Goal] = {}
 
@@ -514,7 +515,9 @@ def _partition_formula(
 
     if f.free_symbols.issubset(symbols_enumerated):
         return {
-            f: Goal("min", tolerance=tolerance, absolute_tolerance=absolute_tolerance)
+            f: Goal(
+                outer_goal, tolerance=tolerance, absolute_tolerance=absolute_tolerance
+            )
         }
 
     # Formula isn't done -> don't do any rounding so errors don't stack
@@ -638,7 +641,12 @@ def _partition_formula(
                 update_goal(symbol, Goal("diff"))
         else:
             for subterm, subgoal in partition_formula(
-                term, symbols_enumerated, bounds, tolerance, absolute_tolerance
+                term,
+                symbols_enumerated,
+                bounds,
+                tolerance,
+                absolute_tolerance,
+                outer_goal="min",
             ).items():
                 if subterm in goals:
                     goals[subterm] |= subgoal
@@ -646,10 +654,13 @@ def _partition_formula(
                     goals[subterm] = subgoal
 
     for k, v in goals.items():
-        if negate:
-            goals[k] = ~v
-        if negate is None:
+        if negate is None or outer_goal == "diff":
             v.goal = "diff"
+            continue
+        # Flip min<->max if exactly one of {outer wants max, Mul has odd
+        # number of always-negative factors} is true.
+        if (outer_goal == "max") ^ bool(negate):
+            goals[k] = ~v
 
     return goals
 
@@ -666,6 +677,7 @@ def partition_formula(
     tolerance: float,
     absolute_tolerance: float | None = None,
     terms_do_not_cross_zero: bool = False,
+    outer_goal: str = "min",
 ) -> dict[Symbol, Goal]:
     return _partition_formula(
         f,
@@ -674,6 +686,7 @@ def partition_formula(
         tolerance,
         absolute_tolerance,
         terms_do_not_cross_zero,
+        outer_goal,
     )
 
 
@@ -1719,6 +1732,7 @@ def get_tile_shape_choices(
                     f"{objective.name} {objective.tolerance=} {objective.absolute_tolerance=}: {objective.formula}",
                 )
 
+                outer_goal = "max" if objective.min_value is not None else "min"
                 goals = partition_formula(
                     objective.formula,
                     sym_enumerated_set,
@@ -1726,6 +1740,7 @@ def get_tile_shape_choices(
                     objective.tolerance,
                     objective.absolute_tolerance,
                     objective.terms_do_not_cross_zero,
+                    outer_goal=outer_goal,
                 )
 
                 DEBUG and log_message(f"formula", f"{objective.formula}")
