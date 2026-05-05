@@ -367,7 +367,7 @@ def _idx_below_lowest_tensor_holder_with_component_above_fanout(
     """Return the index right after the lowest TensorHolder whose component
     is above the fanout in the arch. If none found, returns len(mapping)."""
     fanout_arch_idx = arch_node_names.index(fanout_node.name)
-    result = len(mapping)
+    result = 0
     for i in range(len(mapping)):
         if not isinstance(mapping[i], TensorHolder):
             continue

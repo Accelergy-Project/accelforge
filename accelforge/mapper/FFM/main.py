@@ -30,6 +30,7 @@ def map_workload_to_arch(
     one_pbar_only: bool = False,
     print_progress: bool = True,
     print_number_of_pmappings: bool = False,
+    eval_in_detail: bool = True,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
 ) -> Mappings:
     """
@@ -56,6 +57,8 @@ def map_workload_to_arch(
         Whether to print progress of the mapping process, including progress bars.
     print_number_of_pmappings:
         Whether to print the number of pmappings for each einsum.
+    eval_in_detail:
+        Whether to run model for each resulting mapping to get more details.
     _pmapping_row_filter_function:
         A function that takes in a row of the pmapping dataframe and returns True if the
         row should be included in the final mappings, and False otherwise. If None, all
@@ -84,6 +87,9 @@ def map_workload_to_arch(
         print_progress=print_progress,
         metrics=spec.mapper.metrics,
     )
+
+    if not eval_in_detail:
+        return mappings
 
     def eval_mapping(i, spec, mappings):
         local_spec = deepcopy(spec)
