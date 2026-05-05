@@ -54,6 +54,82 @@ class TestParsing(TestCase):
 
 
 class TestModel(TestCase):
+    def test_hierarchical_1d(self):
+        M = 8
+        KN = 8
+        MAC_TILE = 4
+        M_TILE = 4
+        BITS_PER_VALUE = 8
+
+        spec = af.Spec.from_yaml(
+            af.examples.workloads.matmuls,
+            # af.examples.arches.networked.hierarchical,
+            INPUT_FILES_DIR / "hierarchical_1d.yaml",
+            # af.examples.mappings.one_matmul_to_networked_hierarchical,
+            INPUT_FILES_DIR / "one_matmul_to_networked_hierarchical_1d.yaml",
+            jinja_parse_data={
+                "N_EINSUMS": 1,
+                "M": 8,
+                "KN": 8,
+                "MAC_TILE": MAC_TILE,
+                "M_TILE": M_TILE,
+            },
+        )
+        result = spec.evaluate_mapping()
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T0<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * (KN / MAC_TILE)  # number of used Scratchpad
+            * M_TILE
+            * KN  # temporal for n1 in mapping
+            * sum(i for i in range(MAC_TILE))  # unicast along X-axis of MacArray
+            * BITS_PER_VALUE,
+        )
+        # NOTE: assuming XY routing (as defined in mapping)
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T1<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * (KN / MAC_TILE)
+            * M_TILE
+            * KN  # temporal for n1 in mapping
+            * (MAC_TILE-1)  # multicast along X-axis of MacArray
+            * BITS_PER_VALUE,
+        )
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>W0<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * (KN / MAC_TILE) ** 2
+            * M_TILE
+            * (MAC_TILE * (MAC_TILE - 1) + MAC_TILE * (MAC_TILE - 1))
+            * BITS_PER_VALUE,
+        )
+
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * sum(i for i in range(KN // MAC_TILE))  # unicast along X-axis of PeArray
+            * M_TILE
+            * MAC_TILE
+            * BITS_PER_VALUE,
+        )
+        # NOTE: assuming XY routing (as defined in mapping)
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * (KN // MAC_TILE - 1)  # multicast along X-axis of PeArray
+            * M_TILE
+            * KN
+            * BITS_PER_VALUE,
+        )
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * sum(i for i in range(KN // MAC_TILE))  # unicast along PeArray
+            * MAC_TILE
+            * KN
+            * BITS_PER_VALUE,
+        )
+
     def test_hierarchical(self):
         M = 8
         KN = 8
