@@ -29,6 +29,7 @@ dependencies = [
     "pydot>=4.0.0",
     "platformdirs>=4.3.0",
     "joblib>=1.5.1",
+    "requests>=2.33.1",
     "hwcomponents",
     "hwcomponents-adc",
     "hwcomponents-cacti",
