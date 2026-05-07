@@ -6,6 +6,10 @@
 
 # See the memory_size_vs_access_tradeoff.ipynb notebook for more details.
 
+# Use this to add additional constraints to MainMemory and GlobalBuffer (GLB)
+{% set ADDITIONAL_MAINMEMORY_CONSTRAINTS = ADDITIONAL_MAINMEMORY_CONSTRAINTS | default(dict()) %}
+{% set ADDITIONAL_GLB_CONSTRAINTS = ADDITIONAL_GLB_CONSTRAINTS | default(dict()) %}
+
 arch:
   nodes:
   # Set main memory read and write energy to 1J/bit. Then, when we set the mapper to
@@ -16,7 +20,16 @@ arch:
     size: inf
     actions: [{name: read, energy: 1}, {name: write, energy: 1}]
     # Keep only intermediates -> allow fusion
-    tensors: {keep: ~Intermediates, may_keep: All}
+    tensors:
+      {% if "keep" not in ADDITIONAL_MAINMEMORY_CONSTRAINTS %}
+      keep: ~Intermediates
+      {% endif %}
+      {% if "may_keep" not in ADDITIONAL_MAINMEMORY_CONSTRAINTS %}
+      may_keep: All
+      {% endif %}
+      {% for key, value in ADDITIONAL_MAINMEMORY_CONSTRAINTS.items() %}
+      {{key}}: {{value}}
+      {% endfor %}
 
   # We'll set up the mapper to also optimize for global buffer usage. We make it large
   # enough that it'll never reasonably be oversubscribed, then count the usage as the
@@ -26,7 +39,13 @@ arch:
     name: GlobalBuffer
     component_class: Dummy
     size: 1e15
-    tensors: {keep: All}
+    tensors:
+      {% if "keep" not in ADDITIONAL_GLB_CONSTRAINTS %}
+      keep: All
+      {% endif %}
+      {% for key, value in ADDITIONAL_GLB_CONSTRAINTS.items() %}
+      {{key}}: {{value}}
+      {% endfor %}
 
   - !Compute
     name: MAC
