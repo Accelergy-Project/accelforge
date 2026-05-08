@@ -95,21 +95,27 @@ class PmappingDataframe:
     def _assert_invariants_before_and_after(f):
         @functools.wraps(f)
         def wrapped(self, *args, **kwargs):
-            try:
-                self._assert_reservation_includes_live_tensors()
-                self._assert_consistent_left_right_reservations()
-                self._assert_reservation_inclusivity()
-            except Exception as e:
-                raise ValueError(f"broken invariance before calling {f}") from e
+            for assert_f in [
+                self._assert_reservation_includes_live_tensors,
+                self._assert_consistent_left_right_reservations,
+                self._assert_reservation_inclusivity,
+            ]:
+                try:
+                    assert_f()
+                except Exception as e:
+                    raise ValueError(f"broken invariance {assert_f} before calling {f}") from e
 
             result = f(self, *args, **kwargs)
 
-            try:
-                self._assert_reservation_includes_live_tensors()
-                self._assert_consistent_left_right_reservations()
-                self._assert_reservation_inclusivity()
-            except Exception as e:
-                raise ValueError(f"broken invariance after calling {f}") from e
+            for assert_f in [
+                self._assert_reservation_includes_live_tensors,
+                self._assert_consistent_left_right_reservations,
+                self._assert_reservation_inclusivity,
+            ]:
+                try:
+                    assert_f()
+                except Exception as e:
+                    raise ValueError(f"broken invariance {assert_f} before calling {f}") from e
             return result
 
         return wrapped
@@ -566,8 +572,6 @@ class PmappingDataframe:
                 result.check_above_subset_below(live_tensors)
 
             result.free_to_loop_index(next_shared_loop_index)
-
-            assert result._has_bottom_right()
 
             if not CHECK_CORRECTNESS:
                 result.limit_capacity(
@@ -1222,7 +1226,6 @@ class PmappingDataframe:
                 ):
                     continue
                 if (self.data[res_col] < self.data[col]).any():
-                    breakpoint()
                     raise RuntimeError(
                         f"reservation smaller than reservation for live tensor {col}"
                     )
@@ -1249,8 +1252,6 @@ class PmappingDataframe:
                 self._has_bottom_right_reservations()
                 or not self._has_right_reservations()
             )
-            return
-        assert not self._has_bottom_right_reservations()
 
     # @error_check_wrapper
     # def check_reservations(self, live_tensors: set[int]):

@@ -219,6 +219,7 @@ def join_strategy_2(
             objective_tolerance=threshold,
             resource_usage_tolerance=resource_usage_tolerance,
             print_progress=print_progress,
+            is_last=i == len(thresholds) - 1,
         )
 
         if cur_compressed is None:
