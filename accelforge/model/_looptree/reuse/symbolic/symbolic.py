@@ -153,7 +153,9 @@ class BuffetStats:
     total_skipped_first_read_actions: Any = field(default=0)
     min_per_unit_skipped_first_read_actions: Any = field(default=0)
 
-    persistent: bool = field(default=False)
+    # NOTE: anything other than min_, max_, or total_ must default to
+    # None. There are asserts that check this.
+    persistent: bool = field(default=None)
 
     @property
     def n_loops_above(self) -> int:
@@ -220,9 +222,12 @@ class BuffetStats:
             elif v is None:
                 new.__dict__[k] = other_v
             else:
-                assert (
-                    v == other_v
-                ), f"BUG: {k} is different. self: {v} other: {other_v}"
+                if v is None:
+                    new.__dict__[k] = other_v
+                else:
+                    assert (
+                        v == other_v
+                    ), f"BUG: {k} is different. self: {v} other: {other_v}"
         return new
 
     def __iadd__(self, other: "BuffetStats") -> "BuffetStats":
