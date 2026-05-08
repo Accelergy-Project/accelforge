@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from sympy import Symbol
 
 import accelforge.frontend.arch as arch
-from accelforge.frontend.mapping import TensorHolder
+from accelforge.frontend.mapping import TensorHolder, Toll
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.model._looptree.reuse import symbolic
 from accelforge.util._frozenset import oset
@@ -42,8 +42,7 @@ def _max_latencies(latencies: Iterable):
 
         raise ValueError(
             f"Could not calculate a symbolic max of the following latencies:\n\t"
-            +
-            "\n\t".join(
+            + "\n\t".join(
                 [f"{k}: {type(v)} {str(v).strip()}" for k, v in latencies.items()]
             )
         )
@@ -73,11 +72,16 @@ def run_model(
     nodes_always_in_one_thread = []
     for node in reversed(job.flattened_arch):
         nodes_always_in_one_thread.append(node.name)
-        if isinstance(node, arch.ConcurrentlyBoundable) and node.support_concurrent_binding:
+        if (
+            isinstance(node, arch.ConcurrentlyBoundable)
+            and node.support_concurrent_binding
+        ):
             concurrently_boundable_units.append(node.name)
             break
     try:
-        thread_latency = _max_latencies(latency[c] for c in latency if c in nodes_always_in_one_thread)
+        thread_latency = _max_latencies(
+            latency[c] for c in latency if c in nodes_always_in_one_thread
+        )
     except Exception as e:
         raise modeling_error from e
 
@@ -85,7 +89,6 @@ def run_model(
         overall_latency = _max_latencies(latency.values())
     except Exception as e:
         raise modeling_error from e
-
 
     used_fanout = {
         (component, dim): n
@@ -135,6 +138,22 @@ def run_model(
             for tensor in node.tensors:
                 if tensor not in tensor_to_backing and tensor in job.fusable_tensors:
                     tensor_to_backing[tensor] = node.component
+
+    # A Toll is a pass-through and must never be the outermost level backing
+    # a fusable tensor — that would leave no real Memory holding it.
+    for node in pmapping.nodes:
+        if isinstance(node, Toll):
+            for tensor in node.tensors:
+                if (
+                    tensor in tensor_to_backing
+                    and tensor_to_backing[tensor] == node.component
+                ):
+                    raise ValueError(
+                        f"Toll '{node.component}' is the outermost level holding "
+                        f"fusable tensor '{tensor}' in einsum '{job.einsum_name}'. "
+                        f"A Toll cannot be the outermost holder of a tensor — a "
+                        f"Memory above the Toll must also keep it."
+                    )
 
     total_occupancy = {}
     compute_unit = pmapping.nodes[-1].component

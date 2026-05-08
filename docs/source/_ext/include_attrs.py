@@ -61,25 +61,35 @@ class IncludeAttrs(Directive):
                                     continue
 
                                 if attr_name not in attrs:
-                                    attrs[attr_name] = {'type': None, 'default': None, 'doc': None}
+                                    attrs[attr_name] = {
+                                        "type": None,
+                                        "default": None,
+                                        "doc": None,
+                                    }
 
                                 # Get type annotation
                                 if attr_name in annotations:
-                                    attrs[attr_name]['type'] = annotations[attr_name]
+                                    attrs[attr_name]["type"] = annotations[attr_name]
 
                                 # Get default value
                                 if item.value is not None:
                                     try:
-                                        attrs[attr_name]['default'] = ast.unparse(item.value)
+                                        attrs[attr_name]["default"] = ast.unparse(
+                                            item.value
+                                        )
                                     except:
-                                        attrs[attr_name]['default'] = repr(item.value)
+                                        attrs[attr_name]["default"] = repr(item.value)
 
                                 # Check if next item is a string (docstring)
                                 if i + 1 < len(node.body):
                                     next_item = node.body[i + 1]
-                                    if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                    if isinstance(next_item, ast.Expr) and isinstance(
+                                        next_item.value, ast.Constant
+                                    ):
                                         if isinstance(next_item.value.value, str):
-                                            attrs[attr_name]['doc'] = next_item.value.value.strip()
+                                            attrs[attr_name][
+                                                "doc"
+                                            ] = next_item.value.value.strip()
         except (OSError, TypeError, SyntaxError):
             pass
 
@@ -91,29 +101,34 @@ class IncludeAttrs(Directive):
                     continue
 
                 if field_name not in attrs:
-                    attrs[field_name] = {'type': None, 'default': None, 'doc': None}
+                    attrs[field_name] = {"type": None, "default": None, "doc": None}
 
                 # Get type
                 if hasattr(field, "annotation"):
-                    attrs[field_name]['type'] = field.annotation
+                    attrs[field_name]["type"] = field.annotation
 
                 # Get default
                 if hasattr(field, "default") and field.default is not None:
-                    attrs[field_name]['default'] = repr(field.default)
-                elif hasattr(field, "default_factory") and field.default_factory is not None:
-                    attrs[field_name]['default'] = f"{field.default_factory.__name__}()"
+                    attrs[field_name]["default"] = repr(field.default)
+                elif (
+                    hasattr(field, "default_factory")
+                    and field.default_factory is not None
+                ):
+                    attrs[field_name]["default"] = f"{field.default_factory.__name__}()"
 
                 # Get docstring
-                doc = field.description or (field.json_schema_extra or {}).get("description")
+                doc = field.description or (field.json_schema_extra or {}).get(
+                    "description"
+                )
                 if doc:
-                    attrs[field_name]['doc'] = doc
+                    attrs[field_name]["doc"] = doc
 
         # --- Look up inheritance chain for missing docstrings ---
         for attr_name in list(attrs.keys()):
-            if attrs[attr_name]['doc'] is None:
+            if attrs[attr_name]["doc"] is None:
                 doc = self._find_docstring_in_mro(obj, attr_name)
                 if doc:
-                    attrs[attr_name]['doc'] = doc
+                    attrs[attr_name]["doc"] = doc
 
         # --- Pydantic v1 fields ---
         if hasattr(obj, "__fields__"):
@@ -123,23 +138,26 @@ class IncludeAttrs(Directive):
                     continue
 
                 if field_name not in attrs:
-                    attrs[field_name] = {'type': None, 'default': None, 'doc': None}
+                    attrs[field_name] = {"type": None, "default": None, "doc": None}
 
                 # Get type
                 if hasattr(field, "outer_type_"):
-                    attrs[field_name]['type'] = field.outer_type_
+                    attrs[field_name]["type"] = field.outer_type_
 
                 # Get default
                 if hasattr(field, "default") and field.default is not None:
-                    attrs[field_name]['default'] = repr(field.default)
-                elif hasattr(field, "default_factory") and field.default_factory is not None:
-                    attrs[field_name]['default'] = f"{field.default_factory.__name__}()"
+                    attrs[field_name]["default"] = repr(field.default)
+                elif (
+                    hasattr(field, "default_factory")
+                    and field.default_factory is not None
+                ):
+                    attrs[field_name]["default"] = f"{field.default_factory.__name__}()"
 
                 # Get docstring - field is already a FieldInfo object
                 if hasattr(field, "description"):
                     doc = field.description
                     if doc:
-                        attrs[field_name]['doc'] = doc
+                        attrs[field_name]["doc"] = doc
 
         # --- Look up inheritance chain for missing docstrings and track defining class ---
         attr_defining_class = {}  # Maps attr_name to the class that defines it
@@ -148,10 +166,10 @@ class IncludeAttrs(Directive):
             defining_class = self._find_defining_class(obj, attr_name)
             attr_defining_class[attr_name] = defining_class
 
-            if attrs[attr_name]['doc'] is None:
+            if attrs[attr_name]["doc"] is None:
                 doc = self._find_docstring_in_mro(obj, attr_name)
                 if doc:
-                    attrs[attr_name]['doc'] = doc
+                    attrs[attr_name]["doc"] = doc
 
         # --- Build bullet list ---
         if not attrs:
@@ -169,19 +187,17 @@ class IncludeAttrs(Directive):
             # Use the defining class for the link target
             defining_class = attr_defining_class.get(attr_name)
             if defining_class:
-                defining_class_name = f"{defining_class.__module__}.{defining_class.__qualname__}"
+                defining_class_name = (
+                    f"{defining_class.__module__}.{defining_class.__qualname__}"
+                )
                 link_target = f"{defining_class_name}.{attr_name}"
             else:
                 link_target = f"{fqname}.{attr_name}"
 
             refnode = pending_xref(
-                '',
-                refdomain='py',
-                reftype='obj',
-                reftarget=link_target,
-                refwarn=True
+                "", refdomain="py", reftype="obj", reftarget=link_target, refwarn=True
             )
-            refnode += nodes.literal('', attr_name, classes=['xref', 'py', 'py-attr'])
+            refnode += nodes.literal("", attr_name, classes=["xref", "py", "py-attr"])
             para += refnode
 
             # # Type
@@ -194,7 +210,7 @@ class IncludeAttrs(Directive):
             #     para += nodes.Text(f", default: {attr_info['default']}")
 
             # Docstring
-            if attr_info['doc']:
+            if attr_info["doc"]:
                 para += nodes.Text(f": {attr_info['doc']}")
 
             list_item += para
@@ -209,8 +225,8 @@ class IncludeAttrs(Directive):
         # Walk MRO backwards to find first class that defines this in its own __annotations__
         for i in range(len(mro_list) - 1, -1, -1):
             base_class = mro_list[i]
-            if '__annotations__' in base_class.__dict__:
-                if attr_name in base_class.__dict__['__annotations__']:
+            if "__annotations__" in base_class.__dict__:
+                if attr_name in base_class.__dict__["__annotations__"]:
                     return base_class
 
         return None
@@ -222,7 +238,9 @@ class IncludeAttrs(Directive):
             if hasattr(base_class, "model_fields"):
                 if attr_name in base_class.model_fields:
                     field = base_class.model_fields[attr_name]
-                    doc = field.description or (field.json_schema_extra or {}).get("description")
+                    doc = field.description or (field.json_schema_extra or {}).get(
+                        "description"
+                    )
                     if doc:
                         return doc
 
@@ -242,11 +260,16 @@ class IncludeAttrs(Directive):
                     if isinstance(node, ast.ClassDef):
                         for i, item in enumerate(node.body):
                             if isinstance(item, ast.AnnAssign):
-                                if isinstance(item.target, ast.Name) and item.target.id == attr_name:
+                                if (
+                                    isinstance(item.target, ast.Name)
+                                    and item.target.id == attr_name
+                                ):
                                     # Check if next item is a docstring
                                     if i + 1 < len(node.body):
                                         next_item = node.body[i + 1]
-                                        if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                        if isinstance(
+                                            next_item, ast.Expr
+                                        ) and isinstance(next_item.value, ast.Constant):
                                             if isinstance(next_item.value.value, str):
                                                 return next_item.value.value.strip()
             except (OSError, TypeError, SyntaxError):
@@ -256,10 +279,7 @@ class IncludeAttrs(Directive):
 
     def _should_skip_attr(self, attr_name):
         """Check if an attribute should be skipped."""
-        return (
-            attr_name.startswith('_') or
-            attr_name in ('type', 'version')
-        )
+        return attr_name.startswith("_") or attr_name in ("type", "version")
 
     def _format_type(self, type_hint):
         """Format a type hint into a readable string."""
@@ -291,6 +311,7 @@ class IncludeAttrs(Directive):
 
 class IncludeAttrsExcept(Directive):
     """Include attributes for all fields except those from specified base classes."""
+
     required_arguments = 2  # main class and classes to exclude
 
     def run(self):
@@ -337,23 +358,21 @@ class IncludeAttrsExcept(Directive):
             # Find which class actually defines this attribute
             defining_class = self._find_defining_class(main_class, attr_name)
             if defining_class:
-                defining_class_name = f"{defining_class.__module__}.{defining_class.__qualname__}"
+                defining_class_name = (
+                    f"{defining_class.__module__}.{defining_class.__qualname__}"
+                )
                 link_target = f"{defining_class_name}.{attr_name}"
             else:
                 link_target = f"{main_class_name}.{attr_name}"
 
             refnode = pending_xref(
-                '',
-                refdomain='py',
-                reftype='attr',
-                reftarget=link_target,
-                refwarn=True
+                "", refdomain="py", reftype="attr", reftarget=link_target, refwarn=True
             )
-            refnode += nodes.literal('', attr_name, classes=['xref', 'py', 'py-attr'])
+            refnode += nodes.literal("", attr_name, classes=["xref", "py", "py-attr"])
             para += refnode
 
             # Docstring
-            if attr_info['doc']:
+            if attr_info["doc"]:
                 para += nodes.Text(f": {attr_info['doc']}")
 
             list_item += para
@@ -413,23 +432,33 @@ class IncludeAttrsExcept(Directive):
                                     continue
 
                                 if attr_name not in attrs:
-                                    attrs[attr_name] = {'type': None, 'default': None, 'doc': None}
+                                    attrs[attr_name] = {
+                                        "type": None,
+                                        "default": None,
+                                        "doc": None,
+                                    }
 
                                 if attr_name in annotations:
-                                    attrs[attr_name]['type'] = annotations[attr_name]
+                                    attrs[attr_name]["type"] = annotations[attr_name]
 
                                 if item.value is not None:
                                     try:
-                                        attrs[attr_name]['default'] = ast.unparse(item.value)
+                                        attrs[attr_name]["default"] = ast.unparse(
+                                            item.value
+                                        )
                                     except:
-                                        attrs[attr_name]['default'] = repr(item.value)
+                                        attrs[attr_name]["default"] = repr(item.value)
 
                                 # Check for inline docstring
                                 if i + 1 < len(node.body):
                                     next_item = node.body[i + 1]
-                                    if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                    if isinstance(next_item, ast.Expr) and isinstance(
+                                        next_item.value, ast.Constant
+                                    ):
                                         if isinstance(next_item.value.value, str):
-                                            attrs[attr_name]['doc'] = next_item.value.value.strip()
+                                            attrs[attr_name][
+                                                "doc"
+                                            ] = next_item.value.value.strip()
         except (OSError, TypeError, SyntaxError):
             pass
 
@@ -440,19 +469,24 @@ class IncludeAttrsExcept(Directive):
                     continue
 
                 if field_name not in attrs:
-                    attrs[field_name] = {'type': None, 'default': None, 'doc': None}
+                    attrs[field_name] = {"type": None, "default": None, "doc": None}
 
                 if hasattr(field, "annotation"):
-                    attrs[field_name]['type'] = field.annotation
+                    attrs[field_name]["type"] = field.annotation
 
                 if hasattr(field, "default") and field.default is not None:
-                    attrs[field_name]['default'] = repr(field.default)
-                elif hasattr(field, "default_factory") and field.default_factory is not None:
-                    attrs[field_name]['default'] = f"{field.default_factory.__name__}()"
+                    attrs[field_name]["default"] = repr(field.default)
+                elif (
+                    hasattr(field, "default_factory")
+                    and field.default_factory is not None
+                ):
+                    attrs[field_name]["default"] = f"{field.default_factory.__name__}()"
 
-                doc = field.description or (field.json_schema_extra or {}).get("description")
+                doc = field.description or (field.json_schema_extra or {}).get(
+                    "description"
+                )
                 if doc:
-                    attrs[field_name]['doc'] = doc
+                    attrs[field_name]["doc"] = doc
 
         # Pydantic v1 fields
         if hasattr(obj, "__fields__"):
@@ -461,27 +495,30 @@ class IncludeAttrsExcept(Directive):
                     continue
 
                 if field_name not in attrs:
-                    attrs[field_name] = {'type': None, 'default': None, 'doc': None}
+                    attrs[field_name] = {"type": None, "default": None, "doc": None}
 
                 if hasattr(field, "outer_type_"):
-                    attrs[field_name]['type'] = field.outer_type_
+                    attrs[field_name]["type"] = field.outer_type_
 
                 if hasattr(field, "default") and field.default is not None:
-                    attrs[field_name]['default'] = repr(field.default)
-                elif hasattr(field, "default_factory") and field.default_factory is not None:
-                    attrs[field_name]['default'] = f"{field.default_factory.__name__}()"
+                    attrs[field_name]["default"] = repr(field.default)
+                elif (
+                    hasattr(field, "default_factory")
+                    and field.default_factory is not None
+                ):
+                    attrs[field_name]["default"] = f"{field.default_factory.__name__}()"
 
                 if hasattr(field, "description"):
                     doc = field.description
                     if doc:
-                        attrs[field_name]['doc'] = doc
+                        attrs[field_name]["doc"] = doc
 
         # Look up inheritance chain for missing docstrings
         for attr_name in list(attrs.keys()):
-            if attrs[attr_name]['doc'] is None:
+            if attrs[attr_name]["doc"] is None:
                 doc = self._find_docstring_in_mro(obj, attr_name)
                 if doc:
-                    attrs[attr_name]['doc'] = doc
+                    attrs[attr_name]["doc"] = doc
 
         return attrs
 
@@ -492,8 +529,8 @@ class IncludeAttrsExcept(Directive):
         # Walk MRO backwards to find first class that defines this in its own __annotations__
         for i in range(len(mro_list) - 1, -1, -1):
             base_class = mro_list[i]
-            if '__annotations__' in base_class.__dict__:
-                if attr_name in base_class.__dict__['__annotations__']:
+            if "__annotations__" in base_class.__dict__:
+                if attr_name in base_class.__dict__["__annotations__"]:
                     return base_class
 
         return None
@@ -505,7 +542,9 @@ class IncludeAttrsExcept(Directive):
             if hasattr(base_class, "model_fields"):
                 if attr_name in base_class.model_fields:
                     field = base_class.model_fields[attr_name]
-                    doc = field.description or (field.json_schema_extra or {}).get("description")
+                    doc = field.description or (field.json_schema_extra or {}).get(
+                        "description"
+                    )
                     if doc:
                         return doc
 
@@ -525,11 +564,16 @@ class IncludeAttrsExcept(Directive):
                     if isinstance(node, ast.ClassDef):
                         for i, item in enumerate(node.body):
                             if isinstance(item, ast.AnnAssign):
-                                if isinstance(item.target, ast.Name) and item.target.id == attr_name:
+                                if (
+                                    isinstance(item.target, ast.Name)
+                                    and item.target.id == attr_name
+                                ):
                                     # Check if next item is a docstring
                                     if i + 1 < len(node.body):
                                         next_item = node.body[i + 1]
-                                        if isinstance(next_item, ast.Expr) and isinstance(next_item.value, ast.Constant):
+                                        if isinstance(
+                                            next_item, ast.Expr
+                                        ) and isinstance(next_item.value, ast.Constant):
                                             if isinstance(next_item.value.value, str):
                                                 return next_item.value.value.strip()
             except (OSError, TypeError, SyntaxError):
@@ -539,10 +583,7 @@ class IncludeAttrsExcept(Directive):
 
     def _should_skip_attr(self, attr_name):
         """Check if an attribute should be skipped."""
-        return (
-            attr_name.startswith('_') or
-            attr_name in ('type', 'version')
-        )
+        return attr_name.startswith("_") or attr_name in ("type", "version")
 
 
 def setup(app):

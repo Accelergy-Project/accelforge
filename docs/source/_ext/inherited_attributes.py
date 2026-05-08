@@ -3,60 +3,64 @@ from sphinx.util.inspect import safe_getattr
 import inspect
 from pydantic import BaseModel
 
-
 # Default ignore lists
 DEFAULT_IGNORE = [
-    'object',
-    'ABC',
-    'BaseModel',
-    'Enum',
-    'Flag',
-    'IntEnum',
-    'IntFlag',
-    'Generic',
-    'object',
-    'ABC',
-    'BaseModel',
-    'EvalableModel',
-    'EvalableList',
-    'EvalableDict',
-    'EvalExtras',
-    'NonEvalableModel',
-    '_FromYAMLAble',
-    'EvalsTo',
-    'Enum',
-    'Flag',
-    'IntEnum',
-    'IntFlag',
-    'Generic',
-    'model_validate',
-    'model_validate_json',
-    'model_validate_strings',
-    'parse_file',
-    'parse_obj',
-    'parse_raw',
-    'schema',
-    'schema_json',
-    'model_dump',
-    'model_dump_json',
-    'model_copy',
-    'construct',
-    'copy',
-    'dict',
-    'json',
-    'update_forward_refs',
-    'model_post_init',
-    'model_config',
-    'model_fields',
-    'model_fields_set',
-    'model_extra',
-    'model_private',
-    'model_rebuild',
-    'get_fields',
-    'get_validator',
-    'all_fields_default',
-    'model_dump_non_none',
+    "object",
+    "ABC",
+    "BaseModel",
+    "Enum",
+    "Flag",
+    "IntEnum",
+    "IntFlag",
+    "Generic",
+    "object",
+    "ABC",
+    "BaseModel",
+    "EvalableModel",
+    "EvalableList",
+    "EvalableDict",
+    "EvalExtras",
+    "NonEvalableModel",
+    "_FromYAMLAble",
+    "EvalsTo",
+    "Enum",
+    "Flag",
+    "IntEnum",
+    "IntFlag",
+    "Generic",
+    "model_validate",
+    "model_validate_json",
+    "model_validate_strings",
+    "parse_file",
+    "parse_obj",
+    "parse_raw",
+    "schema",
+    "schema_json",
+    "model_dump",
+    "model_dump_json",
+    "model_copy",
+    "construct",
+    "copy",
+    "dict",
+    "json",
+    "update_forward_refs",
+    "model_post_init",
+    "model_config",
+    "model_fields",
+    "model_fields_set",
+    "model_extra",
+    "model_private",
+    "model_rebuild",
+    "get_fields",
+    "get_validator",
+    "all_fields_default",
+    "model_dump_non_none",
 ] + list(BaseModel.__dict__.keys())
+
+# Methods that should appear on every documented subclass even when their
+# defining class is in DEFAULT_IGNORE. These are part of the public API.
+ALWAYS_INHERIT = ["to_yaml", "from_yaml"]
+
 
 class InheritedAttributesClassDocumenter(ClassDocumenter):
     """Enhanced ClassDocumenter that includes inherited attributes."""
@@ -70,22 +74,22 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
 
         # Get configuration
         config = self.env.config
-        ignore = getattr(config, 'inherited_attributes_ignore', []) + DEFAULT_IGNORE
+        ignore = getattr(config, "inherited_attributes_ignore", []) + DEFAULT_IGNORE
 
         # Collect ALL attributes defined directly on this class (not inherited)
         own_members = set()
-        if hasattr(self.object, '__dict__'):
+        if hasattr(self.object, "__dict__"):
             own_members.update(self.object.__dict__.keys())
-        if hasattr(self.object, 'model_fields'):
+        if hasattr(self.object, "model_fields"):
             own_members.update(self.object.model_fields.keys())
-        if hasattr(self.object, '__fields__'):
+        if hasattr(self.object, "__fields__"):
             own_members.update(self.object.__fields__.keys())
 
         # Filter out members from ignored classes that were already included
         # BUT keep them if they're overridden in the current class
         filtered_members = []
         for member in members:
-            if hasattr(member, '__getitem__') and len(member) >= 4:
+            if hasattr(member, "__getitem__") and len(member) >= 4:
                 name = member[0]
                 member_class = member[3] if len(member) > 3 else None
 
@@ -118,7 +122,7 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
         # ObjectMember is a namedtuple, access by index
         seen_names = set()
         for member in members:
-            if hasattr(member, '__getitem__'):
+            if hasattr(member, "__getitem__"):
                 seen_names.add(member[0])
         # Add all own members to seen_names to prevent inheritance
         seen_names.update(own_members)
@@ -127,14 +131,21 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
         inherited = []
 
         for parent_class in mro[1:]:  # Skip self
-            # Check if we should stop FIRST, before processing any members
+            # Stop at the first ignored ancestor — we don't want to surface the
+            # internals (get_fields, get_validator, etc.) of EvalableModel and
+            # friends. Specific must-have methods are added separately below
+            # via ALWAYS_INHERIT.
             if self._should_ignore_class(parent_class, ignore):
                 break
 
-            # Get members from parent
-            for name in dir(parent_class):
+            # Get members defined directly on this parent. Using vars() instead
+            # of dir() means we attribute each method to the class that actually
+            # defines it, so the break above correctly excludes everything from
+            # ignored ancestors (e.g. _OurBaseModel.shallow_model_dump won't
+            # leak in via Spatialable, which inherits but does not redefine it).
+            for name in vars(parent_class):
                 # Skip underscore-prefixed
-                if name.startswith('_'):
+                if name.startswith("_"):
                     continue
 
                 # Skip if already seen (including own_members)
@@ -160,9 +171,9 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
                     continue
 
             # Check Pydantic fields
-            if hasattr(parent_class, 'model_fields'):
+            if hasattr(parent_class, "model_fields"):
                 for field_name in parent_class.model_fields:
-                    if field_name.startswith('_'):
+                    if field_name.startswith("_"):
                         continue
                     # Skip if already seen (including own_members)
                     if field_name in seen_names:
@@ -173,9 +184,9 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
                     inherited.append(ObjectMember(field_name, INSTANCEATTR))
                     seen_names.add(field_name)
 
-            elif hasattr(parent_class, '__fields__'):
+            elif hasattr(parent_class, "__fields__"):
                 for field_name in parent_class.__fields__:
-                    if field_name.startswith('_'):
+                    if field_name.startswith("_"):
                         continue
                     # Skip if already seen (including own_members)
                     if field_name in seen_names:
@@ -185,6 +196,22 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
 
                     inherited.append(ObjectMember(field_name, INSTANCEATTR))
                     seen_names.add(field_name)
+
+        # Force-include public API methods that live on ignored ancestors.
+        # Use vars() to find the class that actually defines the method, so the
+        # source link points at the original definition rather than a re-export.
+        for method_name in ALWAYS_INHERIT:
+            if method_name in seen_names:
+                continue
+            for parent_class in mro[1:]:
+                if method_name in vars(parent_class):
+                    try:
+                        obj = safe_getattr(parent_class, method_name)
+                    except (AttributeError, TypeError):
+                        break
+                    inherited.append(ObjectMember(method_name, obj))
+                    seen_names.add(method_name)
+                    break
 
         # Combine
         all_members = list(members) + inherited
@@ -193,11 +220,11 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
 
     def _should_ignore_class(self, cls, ignore_classes):
         """Check if a class should be ignored."""
-        name = getattr(cls, '__name__', '')
-        module = getattr(cls, '__module__', '')
+        name = getattr(cls, "__name__", "")
+        module = getattr(cls, "__module__", "")
 
         # Ignore if not part of accelforge package
-        if module and not module.startswith('accelforge'):
+        if module and not module.startswith("accelforge"):
             return True
 
         # Check against ignore list using just the class name
@@ -207,16 +234,24 @@ class InheritedAttributesClassDocumenter(ClassDocumenter):
 
         return False
 
+
 def setup(app):
     """Setup the extension."""
     # Only add config value if it doesn't exist
-    if not hasattr(app.config, 'inherited_attributes_ignore'):
-        app.add_config_value('inherited_attributes_ignore', [], 'env')
+    if not hasattr(app.config, "inherited_attributes_ignore"):
+        app.add_config_value("inherited_attributes_ignore", [], "env")
 
-    app.add_autodocumenter(InheritedAttributesClassDocumenter, override=True)
+    # Sphinx 9 re-registers the default ClassDocumenter at the config-inited
+    # event (see sphinx.ext.autodoc._register_directives), which clobbers any
+    # autodocumenter we register here in setup(). Hook the same event with a
+    # later priority to re-install our subclass after sphinx has settled.
+    def _install(app, config):
+        app.add_autodocumenter(InheritedAttributesClassDocumenter, override=True)
+
+    app.connect("config-inited", _install, priority=1000)
 
     return {
-        'version': '0.1',
-        'parallel_read_safe': True,
-        'parallel_write_safe': True,
+        "version": "0.1",
+        "parallel_read_safe": True,
+        "parallel_write_safe": True,
     }

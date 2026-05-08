@@ -1,0 +1,47 @@
+# Adapted from https://arxiv.org/pdf/2604.03829v1
+
+# Some Einsums are work-in-progress, but the core SSM
+# computations are included.
+
+# Rank I has been removed so that we only look at one iteration
+
+workload:
+  rank_sizes:
+    {% set BATCH_SIZE = BATCH_SIZE | default(1) %}
+    {% set N_TOKENS = N_TOKENS | default(8192) %}
+    B: {{BATCH_SIZE}}
+    D: 128*32  # Token embedding dims
+    N: 128  # 64 to 128 in Mamba-2; 16 in Mamba-1
+    R: 128  # TODO: confirm this
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  # Some normalization and projection to get X
+  # - "LEX[b, i, ed] = I[b, i, v] * ET[v, ed]"
+  # - "PX[b, i, ed] = "
+  # - "TX[b, i, d] = WTX[ed, d] * NEX[b, i, ed]"
+  # - "TTX[b, i, d] = WTTX[d, f] * TX[b, i, d]"
+  # ...
+
+  # Generating B, C
+  - "B[b, n] = WB[d, n] * X[b, d]"
+  - "C[b, n] = WC[d, n] * X[b, d]"
+
+  # SSM internals for updating state H
+  - "TTD[b, r] = WTTD[d, r] * X[b, d]"
+  - "TD[b, d] = WTD[d, r] * TTD[b, r]"
+  - "DELTA[b, d] = TD[b, d]"
+
+  - "AD[b, d, n] = A[d, n] * DELTA[b, d]"
+  - "HH[b, d, n] = H_prev[b, d, n] * AD[b, d, n]"
+
+  - "HX[b, d, n] = BD[b, d, n] * X[b, d]"
+  - "H[b, d, n] = HX[b, d, n] + HH[b, d, n]"
+
+  # Computing output
+  - "S[b, d] = C[b, n] * H[b, d, n]"
+  - "DX[b, d] = D[d] * X[b, d]"
+  - "L[b, d] = DX[b, d] + DX[b, d]"
+
+  # TODO: missing Einsums to compute final Y

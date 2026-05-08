@@ -64,6 +64,20 @@ class Spatial(EvalableModel):
     will be power gated if not used by a particular Einsum.
     """
 
+    allow_imperfect_spatial_loops: EvalsTo[bool] = False
+    """
+    If True, spatial loops over this fanout are allowed to not-perfectly divide the full
+    rank shape, which may let us find mappings with better utilization. For example, if
+    the full rank shape is 7, then allow_imperfect_spatial_loops=False would only permit
+    a spatial loop of size 7, while allow_imperfect_spatial_loops=True would allow
+    spatial loops of size 1, 2, 3, 4, and 7. If our spatial fanout is of size 4, then we
+    could do one tile of size 4 and another tile of size 3, with one unit of padding
+    that is skipped.
+
+    Only "simple" rank variables-- those that appear alone and not as part of an
+    expression-- may have imperfect loops.
+    """
+
 
 class Spatialable(EvalableModel):
     """Something that can be duplicated to create an array of."""

@@ -29,9 +29,6 @@ Pre-built Docker images are available for AccelForge. TODO: Docker instructions
 Getting Started
 ---------------
 
-Quick Start
-~~~~~~~~~~~
-
 AccelForge models the energy, area, and latency of accelerator architectures running
 tensor algebra workloads. The basic workflow is:
 
@@ -42,29 +39,6 @@ tensor algebra workloads. The basic workflow is:
    ways to execute your workload on the architecture
 4. **Analyze results** - Examine the energy, area, and latency of the resulting
    mapping(s)
-
-Basic Example
-~~~~~~~~~~~~~
-
-Here's a minimal example of using AccelForge:
-
-.. code-block:: python
-
-   from accelforge import Spec
-
-   # Load architecture and workload specifications
-   spec = Spec.from_yaml_files(
-       arch="examples/arches/simple.yaml",
-       workload="examples/workloads/three_matmuls_annotated.yaml"
-   )
-
-   # Map the workload to the architecture
-   results = spec.map_workload_to_arch()
-
-   # Analyze the results
-   print(f"Energy: {results.energy()} J")
-   print(f"Latency: {results.latency()} seconds")
-
 
 Examples
 --------

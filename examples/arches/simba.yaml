@@ -37,7 +37,7 @@ arch:
     name: AccumulationBuffer
     component_class: SmartBufferSRAM
     size: 24576 # 3kB
-    bits_per_value_scale: {All: 3}
+    bits_per_value: {output: 3 * output.bits_per_value}
     tensors: {keep: output}
 
   - !Container

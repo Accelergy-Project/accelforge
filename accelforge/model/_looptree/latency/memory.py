@@ -14,7 +14,7 @@ from accelforge.model._looptree.types import Buffet
 from accelforge.model._looptree.reuse.symbolic import BuffetStats
 from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
 from accelforge.util._sympy.broadcast_max import Max, Min
-import sympy as sp
+import symengine as se
 
 
 def isl_to_summarized(
@@ -25,8 +25,12 @@ def isl_to_summarized(
     )
     buffet_stats = {
         Buffet(level=component, tensor=tensor, einsum=einsum): BuffetStats(
-            max_per_unit_read_actions=accesses.max_per_unit_reads,
-            max_per_unit_write_actions=accesses.max_per_unit_writes,
+            total_writes_to_parent=accesses.max_per_unit_reads,
+            total_reads_to_parent=accesses.max_per_unit_writes,
+            read_scale=1,
+            write_scale=1,
+            count_upward=True,
+            count_downward=True,
         )
         for (component, tensor, einsum), accesses in accesses_stats.items()
     }
@@ -92,12 +96,15 @@ def component_latency(
 
     component_latency = {}
 
-    symbol_table_base = {
+    arch_vars = dict(spec.arch.variables) if spec.arch.variables else {}
+    symbol_table_base = {  # TODO: Make a global symbol table initialization function
+        **arch_vars,
         **dict(spec.variables),
         "variables": spec.variables,
+        "arch_variables": spec.arch.variables,
         "max": Max,
         "min": Min,
-        "sum": sp.Add,
+        "sum": se.Add,
     }
 
     for component, actions in component_to_actions.items():

@@ -4,6 +4,7 @@ from accelforge.util._basetypes import (
     _uninstantiable,
 )
 
+
 @_uninstantiable
 class ConcurrentlyBoundable(EvalableModel):
     """

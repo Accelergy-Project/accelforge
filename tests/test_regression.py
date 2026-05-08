@@ -325,9 +325,7 @@ def generate_hwcomponents():
             af.examples.workloads.matmuls,
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
-        spec = spec.calculate_component_area_energy_latency_leak(
-            einsum_name="Matmul0"
-        )
+        spec = spec.calculate_component_area_energy_latency_leak(einsum_name="Matmul0")
         components = {}
         for node in spec.arch.nodes:
             if not isinstance(node, (af.arch.Memory, af.arch.Compute)):

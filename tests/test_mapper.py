@@ -57,6 +57,7 @@ class TestTransformer(unittest.TestCase):
             pmappings = pickle.load(f)
         mappings = af.mapper.FFM.join_pmappings(pmappings, spec.mapper.metrics)
 
+
 class ActionChecker(unittest.TestCase):
     def _check_memory_actions_exist(self, spec, memory_names, result):
         for einsum_name in spec.workload.einsum_names:
@@ -94,7 +95,7 @@ class TestMapperComprehensiveness(unittest.TestCase):
             self.assertGreaterEqual(
                 unfused_n_accesses,
                 relaxed_n_accesses,
-                "more relaxed constraint led to worse ski-slope."
+                "more relaxed constraint led to worse ski-slope.",
             )
 
 
@@ -211,9 +212,14 @@ class TestMinUsageIncompleteFormula(unittest.TestCase):
         search space. The unconstrained mapper must find a mapping at least
         as good as the constrained one."""
         import sys
+
         cim_dir = os.path.join(
-            os.path.dirname(__file__), "..", "..",
-            "accelforge-examples", "arches", "compute_in_memory"
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "accelforge-examples",
+            "arches",
+            "compute_in_memory",
         )
         cim_dir = os.path.abspath(cim_dir)
         if not os.path.exists(cim_dir):
@@ -276,9 +282,7 @@ class TestUntrackedSpatialNotPrunedByPareto(unittest.TestCase):
         spec.arch.find_spatial("reuse_output").min_usage = 1
         spec.mapper._metric_aggregator = "prod"
         result_constrained = map_workload_to_arch(spec, einsum_names=["QK"])
-        latency_constrained = min(
-            result_constrained.latency(list_if_one_mapping=True)
-        )
+        latency_constrained = min(result_constrained.latency(list_if_one_mapping=True))
 
         # min_usage=0: superset of search space
         spec.arch.find_spatial("Z").min_usage = 0

@@ -144,6 +144,7 @@ def plot_energy_breakdown(
     axes[0].set_ylabel("Energy (J)")
     return fig, axes
 
+
 @first_arg_maybe_iterable
 def plot_energy_comparison(mappings: Iterable[Mappings] | Mappings, labels=None):
     """
@@ -202,7 +203,6 @@ def plot_latency_breakdown(
     )
     axes[0].set_ylabel("Latency (s)")
     return fig, axes
-
 
 
 @first_arg_maybe_iterable

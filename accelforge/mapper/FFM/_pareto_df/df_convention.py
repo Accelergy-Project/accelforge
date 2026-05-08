@@ -166,20 +166,29 @@ class LiveReservationKey(NamedTuple):
     nloops: int
     thread: int
 
+
 @dict_cached
-def live_reservation2col(name: str, tensor: str, nloops: int, thread: int = DEFAULT_THREAD) -> str:
+def live_reservation2col(
+    name: str, tensor: str, nloops: int, thread: int = DEFAULT_THREAD
+) -> str:
     return str(LIVE / name / tensor / str(nloops) / str(thread))
+
 
 def get_live_reservation_cols_with(df, **kwargs):
     yield from _filter(df, col2live_reservation, kwargs)
 
+
 def is_live_reservation_col(col):
     return LIVE in col
+
 
 @dict_cached
 def col2live_reservation(col: str) -> LiveReservationKey:
     split_col = partition_col(col, LIVE, 4)
-    return LiveReservationKey(split_col[0], split_col[1], int(split_col[2]), int(split_col[3]))
+    return LiveReservationKey(
+        split_col[0], split_col[1], int(split_col[2]), int(split_col[3])
+    )
+
 
 def contains_live_reservation(df, **kwargs) -> bool:
     return len(list(get_live_reservation_cols_with(df, **kwargs))) > 0
@@ -195,10 +204,14 @@ class ReservationKey(NamedTuple):
     def is_right(self):
         return not self.is_left
 
+
 @dict_cached
-def reservation2col(name: str, nloops: int, left: bool = False, thread: int = DEFAULT_THREAD) -> str:
+def reservation2col(
+    name: str, nloops: int, left: bool = False, thread: int = DEFAULT_THREAD
+) -> str:
     left = LEFT if left else RIGHT
     return RESERVATION / MEMORY / name / str(nloops) / left / str(thread)
+
 
 @dict_cached
 def col2reservation(x: str) -> ReservationKey | None:
@@ -207,12 +220,13 @@ def col2reservation(x: str) -> ReservationKey | None:
         return None
     return ReservationKey(x[0], int(x[1]), x[2] == LEFT, int(x[3]))
 
+
 def get_reservation_cols_with(
     df,
-    name: str=None,
-    nloops: int=None,
-    is_left: bool=None,
-    thread: int=None,
+    name: str = None,
+    nloops: int = None,
+    is_left: bool = None,
+    thread: int = None,
     filter=None,
 ):
     if filter is None:
@@ -238,14 +252,16 @@ class SpatialReservationKey(NamedTuple):
     is_left: bool
     thread: int
 
+
 def spatial_reservation2col(
     name: str,
-    dimension: str=DEFAULT_SPATIAL_DIMENSION,
-    is_left: bool=False,
-    thread: int=DEFAULT_THREAD
+    dimension: str = DEFAULT_SPATIAL_DIMENSION,
+    is_left: bool = False,
+    thread: int = DEFAULT_THREAD,
 ):
     left = LEFT if is_left else RIGHT
     return RESERVATION / SPATIAL / name / dimension / left / str(thread)
+
 
 def col2spatial_reservation(col: str):
     split_col = partition_col(col, RESERVATION / SPATIAL, 4)
@@ -369,7 +385,12 @@ def is_objective_col(c):
 
 
 def col_used_in_pareto(c):
-    return col2reservation(c) is not None or col2memorylatency(c) is not None or is_objective_col(c) or is_live_reservation_col(c)
+    return (
+        col2reservation(c) is not None
+        or col2memorylatency(c) is not None
+        or is_objective_col(c)
+        or is_live_reservation_col(c)
+    )
 
 
 def col_used_in_joining(c):
@@ -395,4 +416,5 @@ def _filter(df, from_col_f, ref_key: MappingABC[str, Any]):
             if getattr(key, k) != v:
                 return False
         return True
+
     return filter(should_include, df.columns)

@@ -125,7 +125,7 @@ arch:
   # #   extra_attributes_for_component_model: {width: 256}
   # #   n_instances: MacroGroup.get_fanout()
   # #   tensors: {keep: input | output, tensor_order_options: [[output, input]]}
-  # #   bits_per_value_scale: {output: 2, ~output: 1} # Accumulate outputs in 2x precision
+  # #   bits_per_value: {output: 2 * output.bits_per_value} # Accumulate in 2x precision
 
   # # - !Container # Macro
   # #   name: MacroGroup
@@ -147,7 +147,7 @@ arch:
     # among weight slices) * output precision (doubled for accumulation)
     size: Macro.get_fanout() * array_parallel_outputs // min_weight_slices * supported_output_bits * 2
     component_class: SmartBufferSRAM
-    bits_per_value_scale: {output: 2, ~output: 1} # Accumulate outputs in 2x precision
+    bits_per_value: {output: 2 * output.bits_per_value} # Accumulate in 2x precision
     extra_attributes_for_component_model: {width: 64}
 
   - !Toll # Shift+add sums outputs from multiple slices
