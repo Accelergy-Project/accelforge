@@ -6,7 +6,6 @@ __all__ = [
     "BuffetStats",
     "Compute",
     "ComputeStats",
-    "IMPERFECT",
     "label_fused_loops",
     "PRINT_FORMULAS",
     "quick_insert_reservation_nodes",

@@ -307,7 +307,7 @@ class PmappingDataframe:
                 for c in max_columns:
                     max_to_col(self.data, target, c)
                 drop_columns += [m for m in max_columns if m != target]
-        self.data.drop(columns=drop_columns, inplace=True)
+        self._data = self.data.drop(columns=drop_columns)
 
         return len(drop_columns) != 0
 

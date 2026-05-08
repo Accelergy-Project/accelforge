@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import accelforge as af
 from accelforge.frontend.workload import EinsumName
 
-
 # Keys in result.data
 GLB_USAGE = "reservation<SEP>GlobalBuffer<SEP>-1<SEP>right"
 ACCESSES = "Total<SEP>energy"
@@ -16,7 +15,7 @@ def generate_ski_slope(
     workload_fname,
     einsum_names: Iterable[EinsumName] = None,
     jinja_parse_data: dict[str, Any] = None,
-    ax = None,
+    ax=None,
     **plot_kwargs,
 ):
     spec = af.Spec.from_yaml(
@@ -29,7 +28,7 @@ def generate_ski_slope(
     result = result.data[[GLB_USAGE, ACCESSES]]
     result.sort_values(GLB_USAGE, inplace=True)
     snowcat_capacity = spec.arch.nodes["GlobalBuffer"].size
-    usage = result[GLB_USAGE]*snowcat_capacity
+    usage = result[GLB_USAGE] * snowcat_capacity
     return plot_step(usage.tolist(), result[ACCESSES].tolist(), ax, **plot_kwargs)
 
 

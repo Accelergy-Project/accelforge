@@ -30,7 +30,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 from accelforge.mapper.FFM._pareto_df.pareto import makepareto_numpy
-from accelforge.model._looptree.reuse.symbolic import IMPERFECT, PRINT_FORMULAS
+from accelforge.model._looptree.reuse.symbolic import PRINT_FORMULAS
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.util._frozenset import fzs, oset
 import math
@@ -119,11 +119,11 @@ def diff(f: Expr, s: Symbol):
 def diff_geq_leq_zero(f: Expr, s: Symbol, bounds: tuple[tuple[Symbol, int, int], ...]):
     # Assume ceiling won't affect the sign of the derivative. Changing from positive to
     # zero or negative to zero is OK and does not count as changing the sign.
-    if isinstance(f, sympy.Expr):
-        f = f.replace(
-            lambda expr: expr.is_Function and expr.func == sympy.ceiling,
-            lambda expr: expr.args[0],
-        )
+    # if isinstance(f, sympy.Expr):
+    #     f = f.replace(
+    #         lambda expr: expr.is_Function and expr.func == sympy.ceiling,
+    #         lambda expr: expr.args[0],
+    #     )
     if isinstance(f, sympy.Eq):
         return ComparisonResult.UNKNOWN
 
@@ -203,6 +203,8 @@ def _compare_to_zero(
 
     If we can't tell, then conservatively return True.
     """
+    f = f.doit()
+
     if isinstance(f, sympy.Expr):
         f = f.replace(
             lambda expr: expr.is_Function and expr.func == sympy.ceiling,
@@ -690,14 +692,40 @@ def partition_formula(
     )
 
 
-def get_possible_factor_sizes(n: int, imperfect: bool = False) -> list[int]:
+@lru_cache(maxsize=10000)
+def _factorize(n: int) -> np.ndarray:
     factors = []
     for i in range(1, math.ceil(n**0.5) + 1):
-        if not imperfect and n % i != 0:
-            continue
+        if n % i == 0:
+            factors.append(i)
+            factors.append(math.ceil(n / i))
+    return np.array(sorted(oset(factors)))
+
+
+@lru_cache(maxsize=10000)
+def _factorize_imperfect(n: int) -> np.ndarray:
+    factors = []
+    for i in range(1, math.ceil(n**0.5) + 1):
         factors.append(i)
         factors.append(math.ceil(n / i))
-    return sorted(oset(factors))
+    return np.array(sorted(oset(factors)))
+
+
+def get_possible_factor_sizes(n: int, imperfect: bool, inner_size: int) -> list[int]:
+    # Int to protect from numpy overflows
+    n = int(n)
+    inner_size = int(inner_size)
+    if not imperfect:
+        factors = _factorize(math.ceil(n / inner_size))
+        return factors * inner_size
+
+    factors = _factorize_imperfect(n)
+    if n % inner_size == 0:
+        perfects = _factorize(math.ceil(n / inner_size)) * inner_size
+        assert all(
+            f in factors for f in perfects
+        ), f"perfects: {perfects} not in factors: {factors}"
+    return factors[factors >= inner_size]
 
 
 def append_vector(matrix: np.ndarray, vector: np.ndarray):
@@ -744,11 +772,11 @@ def affects_comparison(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
     if not isinstance(f, sympy.Expr):
         return False
     delta = f_minus_other_f(f, symbols_enumerated)
-    if not isinstance(delta, sympy.Expr) or s not in delta.free_symbols:
+    if s not in getattr(delta, "free_symbols", set()):
         return False
 
     delta = simplify(delta)
-    if s not in delta.free_symbols:
+    if s not in getattr(delta, "free_symbols", set()):
         return False
     return True
 
@@ -1097,6 +1125,12 @@ def grab_symbol(
             if s in remaining:
                 score += 1 / len(remaining)
 
+        # Score for tiling or being tiled by an unknown
+        if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
+            score -= 1
+        if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
+            score -= 1
+
         score /= len(objectives) + len(max_loop_check_groups)
 
         return (
@@ -1250,14 +1284,17 @@ def get_tile_shape_choices(
 
     symbols_remaining = list(symbols)
 
-    imperfect = IMPERFECT
+    symbol_to_loop = {}
+    for n in job.mapping.nodes:
+        if isinstance(n, Loop):
+            if isinstance(n.tile_shape, Symbol):
+                symbol_to_loop[n.tile_shape] = n
 
-    # For imperfect, we make inner tile shapes, then create outer tile shapes that are
-    # multiples of the non-residual part of the inner tile shape. This way, the very
-    # last iteration of the outer tile shape fully contains the reisudal part of the
-    # inner tile shape, and we don't have any cases where there are residuals stacking
-    # across multiple loop levels.
-    if IMPERFECT:
+    def _symbol_is_imperfect(symbol):
+        loop = symbol_to_loop.get(symbol)
+        return bool(loop is not None and loop._may_cause_imperfect)
+
+    if any(_symbol_is_imperfect(s) for s in symbol_to_loop):
         assert "inner_to_outer" in _TILE_SHAPE_ORDER
 
     paretoed_by = []
@@ -1313,6 +1350,7 @@ def get_tile_shape_choices(
 
     last_stride_symbol = None  # track the last stride symbol to select next symbol
     symbol = None
+
     while symbols_remaining:
         for _ in range(5):
             DEBUG and log_message("")
@@ -1365,6 +1403,7 @@ def get_tile_shape_choices(
             if inner_tiles_type == "unknown" and outer_tiles_type == "unknown":
                 raise RuntimeError("BUG: both inner and outer tiles are unknown")
 
+            symbol_imperfect = _symbol_is_imperfect(symbol)
             # Use inner size and outer size to generate choices
             if inner_tiles_type in oset(
                 ["set", "unknown"]
@@ -1374,10 +1413,10 @@ def get_tile_shape_choices(
                     "unknown",
                 ]
             ):
-                factorize = math.ceil(outer_size / inner_size)
-                factors = list(get_possible_factor_sizes(factorize, imperfect))
-                scaled = np.array(factors) * inner_size
-                choices.append(append_vector(choices_enumerated, scaled))
+                factors = get_possible_factor_sizes(
+                    outer_size, symbol_imperfect, inner_size
+                )
+                choices.append(append_vector(choices_enumerated, factors))
             elif inner_tiles_type == "enumerated":
                 assert isinstance(outer_size, int)
                 i = symbols_enumerated.index(inner_tiles)
@@ -1385,10 +1424,10 @@ def get_tile_shape_choices(
                     partition = choices_enumerated[
                         np.where(choices_enumerated[:, i] == inner_choice)
                     ]
-                    factorize = math.ceil(outer_size / inner_choice)
-                    factors = list(get_possible_factor_sizes(factorize, imperfect))
-                    scaled = np.array(factors) * inner_choice
-                    choices.append(append_vector(partition, scaled))
+                    factors = get_possible_factor_sizes(
+                        outer_size, symbol_imperfect, inner_choice
+                    )
+                    choices.append(append_vector(partition, factors))
             else:
                 assert outer_tiles_type == "enumerated"
                 assert isinstance(inner_size, int)
@@ -1397,10 +1436,10 @@ def get_tile_shape_choices(
                     partition = choices_enumerated[
                         np.where(choices_enumerated[:, i] == outer_choice)
                     ]
-                    factorize = math.ceil(outer_choice / inner_size)
-                    factors = list(get_possible_factor_sizes(factorize, imperfect))
-                    scaled = np.array(factors) * inner_size
-                    choices.append(append_vector(partition, scaled))
+                    factors = get_possible_factor_sizes(
+                        outer_choice, symbol_imperfect, inner_size
+                    )
+                    choices.append(append_vector(partition, factors))
         elif what_tiles_symbol.is_initial_tile_shape(symbol):
             stride = what_tiles_symbol.get_stride(symbol)
             delta_choices = np.array(list(what_tiles_symbol.get_delta_choices(symbol)))
@@ -1521,7 +1560,7 @@ def get_tile_shape_choices(
 
             for s in symbols_enumerated:
                 direct_min_max = (
-                    IMPERFECT
+                    False
                     or _get_n_prime_factors(what_tiles_symbol.get_max_size(s)) == 1
                 )
                 tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
@@ -1534,6 +1573,12 @@ def get_tile_shape_choices(
                     # faster. Doing "diff" no matter what may lead to less
                     # pruning BUT it's much faster to prune using "diff"s than
                     # "min"s.
+
+                    # NOTE: If we turn off the following line, we need to make an
+                    # additional update. If imperfect is enabled for some loops and not
+                    # others, and we have a perfectly-factorized loop above one that
+                    # introduces a residual, we'd need to minimize some ceiling formula
+                    # (maybe ceil(outer_shape / current_shape)?) instead.
                     update_symbol2goal(s, Goal("diff"))
                 if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
                     update_symbol2goal(s, Goal("max" + append))
@@ -1541,6 +1586,12 @@ def get_tile_shape_choices(
                     # faster. Doing "diff" no matter what may lead to less
                     # pruning BUT it's much faster to prune using "diff"s than
                     # "min"s.
+
+                    # NOTE: If we turn off the following line, we need to make an
+                    # additional update. If imperfect is enabled for some loops and not
+                    # others, and we have a perfectly-factorized loop above one that
+                    # introduces a residual, we'd need to minimize some ceiling formula
+                    # (maybe ceil(outer_shape / current_shape)?) instead.
                     update_symbol2goal(s, Goal("diff"))
 
                 for g in check:
@@ -1732,7 +1783,12 @@ def get_tile_shape_choices(
                     f"{objective.name} {objective.tolerance=} {objective.absolute_tolerance=}: {objective.formula}",
                 )
 
-                outer_goal = "max" if objective.min_value is not None else "min"
+                if objective.min_value is not None and objective.max_value is not None:
+                    outer_goal = "diff"
+                elif objective.min_value is not None:
+                    outer_goal = "max"
+                else:
+                    outer_goal = "min"
                 goals = partition_formula(
                     objective.formula,
                     sym_enumerated_set,
@@ -1804,6 +1860,7 @@ def get_tile_shape_choices(
                 )
                 for obj in cur_objectives:
                     DEBUG and log_message(f"\t{obj.name}: {obj.formula}")
+                DEBUG and log_message(f"Enumerated symbols: {symbols_enumerated}")
                 DEBUG and log_message("Formulas:")
                 for formula, goal in symbol2goal.items():
                     DEBUG and log_message(

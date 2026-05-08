@@ -7,6 +7,7 @@ import copy
 from dataclasses import dataclass
 import inspect
 import itertools
+from math import ceil
 import pydot
 
 from accelforge.util._frozenset import oset
@@ -377,12 +378,10 @@ class Loop(MappingNode):
         Literal["symbol"] | sympy.Symbol | sympy.Expr | int | str | None
     ) = None
 
-    _assume_perfect_factor: bool = True
-    """ Whether the Mapper assumes that tile shapes perfectly divide tensor shapes and
-    parent tile shapes. """
-
     _fused: bool = None
     """ Whether this Loop is shared with another Einsum. """
+
+    _may_cause_imperfect: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -427,7 +426,6 @@ class Loop(MappingNode):
         return type(self)(
             rank_variable=my_rv | other_rv,
             tile_pattern=self.tile_pattern,
-            _assume_perfect_factor=self._assume_perfect_factor,
             **kwargs,
         )
 
@@ -1243,7 +1241,7 @@ class Nested(MappingNodeWithChildren):
                     continue
                 elif node.tile_shape is not None and prev_tile_shape is not None:
                     node.tile_pattern = node.tile_pattern.update(
-                        calculated_n_iterations=prev_tile_shape / node.tile_shape,
+                        calculated_n_iterations=ceil(prev_tile_shape / node.tile_shape),
                     )
 
         def safe_int_cast(x: int | float | None) -> int | float | None:

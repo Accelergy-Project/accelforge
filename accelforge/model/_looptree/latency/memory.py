@@ -25,8 +25,12 @@ def isl_to_summarized(
     )
     buffet_stats = {
         Buffet(level=component, tensor=tensor, einsum=einsum): BuffetStats(
-            max_per_unit_read_actions=accesses.max_per_unit_reads,
-            max_per_unit_write_actions=accesses.max_per_unit_writes,
+            total_writes_to_parent=accesses.max_per_unit_reads,
+            total_reads_to_parent=accesses.max_per_unit_writes,
+            read_scale=1,
+            write_scale=1,
+            count_upward=True,
+            count_downward=True,
         )
         for (component, tensor, einsum), accesses in accesses_stats.items()
     }

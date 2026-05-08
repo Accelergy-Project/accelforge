@@ -553,6 +553,17 @@ class Einsum(EvalableModel):
         }
 
     @property
+    def _simple_rank_variables(self) -> set[RankVariable]:
+        """
+        Rank variables that only ever appear alone (never inside an expression) across
+        every tensor access in this Einsum.
+        """
+        expression_rank_vars = oset()
+        for vs in self.tensor2expression_indexing_rank_variables.values():
+            expression_rank_vars |= vs
+        return self.rank_variables - expression_rank_vars
+
+    @property
     def tensor2irrelevant_rank_variables(
         self,
     ) -> dict[TensorName, set[RankVariable]]:

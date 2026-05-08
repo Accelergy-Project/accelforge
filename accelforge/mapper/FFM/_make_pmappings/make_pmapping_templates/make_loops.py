@@ -316,6 +316,7 @@ def insert_spatial_loops(
     nodes_with_fanout = [n for n in flattened_arch if n.get_fanout() > 1]
     arch_node_names = [n.name for n in flattened_arch]
     tensor2fully_relevant_rank_vars = einsum.tensor2directly_indexing_rank_variables
+    simple_rank_variables = einsum._simple_rank_variables
 
     for node in nodes_with_fanout:
         # Insert spatials below the lowest storage node whose component is
@@ -344,6 +345,10 @@ def insert_spatial_loops(
                     name=fanout_dim.name,
                     component_object=node,
                     component=node.name,
+                )
+                s._may_cause_imperfect = bool(
+                    fanout_dim.allow_imperfect_spatial_loops
+                    and r in simple_rank_variables
                 )
                 if insertion_point == len(mapping):
                     mapping.append(s)

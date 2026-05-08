@@ -1,5 +1,9 @@
+from numbers import Number
+from accelforge.util._basetypes import EvalsTo
 import copy
 from dataclasses import dataclass, field
+from sympy.core.symbol import Symbol
+from sympy.core.expr import Expr
 from accelforge.frontend.arch import Network as NetworkSpec
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
@@ -53,7 +57,6 @@ import sympy
 import symengine as se
 
 SYMBOL = "symbol"
-IMPERFECT = False
 
 PRINT_FORMULAS = False
 
@@ -389,12 +392,6 @@ class SymbolicAnalysisOutput:
         # assert self.temporal_steps == other.temporal_steps, "BUG"
         self.temporal_steps.update(other.temporal_steps)
         self.symbols.extend([s for s in other.symbols if s not in self.symbols])
-        for key in self.compute_stats:
-            if key in other.compute_stats:
-                assert (
-                    self.compute_stats[key].total_ops
-                    == other.compute_stats[key].total_ops
-                )
 
     def add_network_stats(self, other: "SymbolicAnalysisOutput"):
         assert not (oset(self.network_stats) & oset(other.network_stats)), "BUG"
@@ -411,6 +408,7 @@ class AnalysisInfo:
     workload: Workload
     full_rank_variable_shapes: dict
     all_tensors: set
+    current_tensor: TensorName | None
 
     einsum_tensor_to_projection: dict
     tensor_to_relevancy: dict
@@ -419,6 +417,11 @@ class AnalysisInfo:
     is_copy_operation: TensorName | None
 
     job: Job
+
+    # Rank variables that appear standalone (not inside a projection
+    # expression) in every tensor access. Loops on these are eligible for
+    # imperfect tile shapes when paired with `_may_cause_imperfect`.
+    simple_rank_variables: set = field(default_factory=set)
 
     tensor_to_reservation_backer_id: dict[TensorName, int] = field(default_factory=dict)
 
@@ -467,6 +470,7 @@ def quick_insert_reservation_nodes(
         tensor_to_backer_id=None,
         is_copy_operation=None,
         job=None,
+        current_tensor=None,
     )
 
     fusable_tensors = job.fusable_tensors
@@ -632,6 +636,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             workload=workload,
             full_rank_variable_shapes=job.rank_variable_bounds,
             all_tensors=oset([tensor]) if tensor is not None else oset[Any](),
+            current_tensor=tensor,
             einsum_tensor_to_projection=einsum_tensor_to_projection,
             tensor_to_relevancy=tensor_to_relevancy,
             tensor_to_backer_id=tensor_to_backer_id,
@@ -642,14 +647,18 @@ def analyze_reuse_and_add_reservations_to_mapping(
             ),
             precomputed_iterations=precomputed_iterations,
             tensor_rank_variables=einsum.tensor2rank_variables.get(tensor, oset()),
+            simple_rank_variables=einsum._simple_rank_variables,
             is_recording_iterations=tensor is None,
         )
         cur_result = analyze_node(0, job.rank_variable_bounds, info)
-        if tensor is None:
-            continue  # Recording pass only; don't merge results.
 
         if result is None:
             result = cur_result
+            # cur_tensor None is used to initialize compute stats. Compute stats is NOT
+            # updated by add_buffet_stats_and_symbols so it needs to come from the first
+            # result. Also the first result needs to be from cur_tensor None because we
+            # populate precomputed iterations in it.
+            assert tensor is None
         else:
             result.add_buffet_stats_and_symbols(cur_result)
             result.add_network_stats(cur_result)
@@ -670,7 +679,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
 
     if PRINT_FORMULAS:
         print(f"Mapping:")
-        for node in mapping:
+        for node in mapping.nodes:
             print(f"\t{node.compact_str()}")
 
         print("Per-tensor mapping:")
@@ -891,20 +900,59 @@ def _loop_stride_and_shape(node, current_shape, node_idx, info):
     iteration count is replaced with the value recorded during the initial
     pass.
     """
-    # For irrelevant loops that may have been reordered, use the precomputed
-    # iteration count from the original mapping order.
-    if (
-        not info.is_recording_iterations
-        and node.rank_variable not in info.tensor_rank_variables  # True -> irrelevant
-    ):
-        n_iters = info.precomputed_iterations[id(node)]
-        stride = node.tile_shape
-        return StrideAndShape(stride, RepeatedValue(stride, n_iters))
+    tensor = info.current_tensor
 
-    stride_and_shape = get_stride_and_tile_shape(node, current_shape, node_idx, info)
+    if not info.is_recording_iterations:
+        relevancy = info.tensor_to_relevancy[tensor][node.rank_variable]
+        if isinstance(relevancy, Irrelevant):
+            n_iters = info.precomputed_iterations[id(node)]
+            stride = node.tile_shape
+            return StrideAndShape(stride, RepeatedValue(stride, n_iters))
+
+    is_simple = node.rank_variable in info.simple_rank_variables
+
+    # For a rank variable with any `_may_cause_imperfect` loop, only the outermost loop
+    # is allowed to imperfectly factorize. Only simple rank variables can be imperfectly
+    # factorized because the average-tile-shape assumptions break down otherwise.
+    def _mine(l):
+        return isinstance(l, Loop) and l.rank_variable == node.rank_variable
+
+    loops_before = [n for n in info.mapping[:node_idx] if _mine(n)]
+    loops_after = [n for n in info.mapping[node_idx:] if _mine(n)]
+    outermost = not loops_before
+    imperfect = any(l._may_cause_imperfect for l in loops_after) and outermost
+    if imperfect:
+        assert is_simple, "Only simple rank variables can have padding"
+
+    stride_and_shape = get_stride_and_tile_shape(
+        node,
+        current_shape,
+        node_idx,
+        info,
+        assume_perfect_factor=not imperfect,
+        is_simple=is_simple,
+        use_average_tiles=imperfect,
+    )
 
     if info.is_recording_iterations:
-        info.precomputed_iterations[id(node)] = stride_and_shape.shape.repeats
+        iterations = stride_and_shape.shape.repeats
+
+        # If imperfect, the residuals net out to ceil(rank_shape / tile_shape) /
+        # outer_iters. This only holds because (a) the rank variable is simple, and (b)
+        # only the outermost loop on this rankq variable is imperfect.
+        if imperfect:
+            assert is_simple
+            rank_shape = info.full_rank_variable_shapes[node.rank_variable]
+            outer_iters = 1
+            for prev_node in loops_before:
+                outer_iters *= info.precomputed_iterations[id(prev_node)]
+            iterations = se.ceiling(rank_shape / node.tile_shape) / outer_iters
+
+        assert id(node) not in info.precomputed_iterations, (
+            f"Duplicate node id {id(node)}. Are we branching in the "
+            f"recursive analysis?"
+        )
+        info.precomputed_iterations[id(node)] = iterations
 
     return stride_and_shape
 
@@ -1452,7 +1500,8 @@ def analyze_compute(
     if info.is_copy_operation:
         return result_accumulator
 
-    for tensor in info.all_tensors:
+    tensors = info.all_tensors if info.current_tensor is None else [info.current_tensor]
+    for tensor in tensors:
         buffet = Buffet(tensor, einsum, node.component)
         stats = BuffetStats()
         stats.total_reads_to_parent = 1
@@ -1503,7 +1552,15 @@ class StrideAndShape:
     shape: any
 
 
-def get_stride_and_tile_shape(node: Loop, full_shape, n: int, info: AnalysisInfo):
+def get_stride_and_tile_shape(
+    node: Loop,
+    full_shape,
+    n: int,
+    info: AnalysisInfo,
+    assume_perfect_factor: bool,
+    is_simple: bool,
+    use_average_tiles: bool = False,
+) -> StrideAndShape:
     rank = node.rank_variable
     rank_shape = full_shape[rank]
 
@@ -1516,20 +1573,23 @@ def get_stride_and_tile_shape(node: Loop, full_shape, n: int, info: AnalysisInfo
     # IMPERFECT:
     # - Node shape = stride
     # - # Iterations = ceil(total shape / stride)
-    if IMPERFECT and initial_tile_shape is None:
-        factor = se.ceiling(rank_shape / stride)
-        stride_avg = stride / se.ceiling(rank_shape / stride)
-        return StrideAndShape(stride_avg, RepeatedValue(stride, factor))
 
-    if initial_tile_shape is None:
-        if node._assume_perfect_factor or known_perfect_factor(stride, rank_shape):
+    if is_simple:
+        assert initial_tile_shape is None
+
+        perfect = assume_perfect_factor or known_perfect_factor(stride, rank_shape)
+        if perfect or use_average_tiles:
             factor = rank_shape / stride
             if type(factor) is float and factor == int(factor):
                 factor = int(factor)
             return StrideAndShape(stride, RepeatedValue(stride, factor))
         else:
-            factor = se.ceiling(rank_shape / MinGeqZero(stride, rank_shape))
+            raise NotImplementedError("BUG")
+            factor = se.ceiling(rank_shape / stride)
             return make_possibly_different_last(stride, factor, rank_shape)
+
+    assert assume_perfect_factor
+    assert initial_tile_shape is not None
 
     middle_shape_factor = se.ceiling((rank_shape - initial_tile_shape) / stride)
     # TODO: sometimes last_shape is 0, causing numerical instability
