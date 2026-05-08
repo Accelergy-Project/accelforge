@@ -6,7 +6,7 @@ for contributing to the project.
 
 - **Formatting**: All Python code should be formatted using `Black
   <https://black.readthedocs.io/>`_ with a line length of 88 characters (Black's
-  default).
+  default). For convenience, you can run `make format`.
 - **Type Hints**: All functions and methods should include type hints for parameters and
   return values.
 - **Documentation**: All public functions, classes, and modules should include
