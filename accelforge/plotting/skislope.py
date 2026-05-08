@@ -15,7 +15,8 @@ def generate_ski_slope(
     workload_fname,
     einsum_names: Iterable[EinsumName] = None,
     jinja_parse_data: dict[str, Any] = None,
-    ax=None,
+    ax = None,
+    y_normalizer: float = 1.0,
     **plot_kwargs,
 ):
     spec = af.Spec.from_yaml(
@@ -28,8 +29,9 @@ def generate_ski_slope(
     result = result.data[[GLB_USAGE, ACCESSES]]
     result.sort_values(GLB_USAGE, inplace=True)
     snowcat_capacity = spec.arch.nodes["GlobalBuffer"].size
-    usage = result[GLB_USAGE] * snowcat_capacity
-    return plot_step(usage.tolist(), result[ACCESSES].tolist(), ax, **plot_kwargs)
+    usage = result[GLB_USAGE]*snowcat_capacity
+    normalized_accesses = (result[ACCESSES] / y_normalizer).tolist()
+    return plot_step(usage.tolist(), normalized_accesses, ax, **plot_kwargs)
 
 
 def plot_step(xs, ys, ax=None, **plot_kwargs):
@@ -68,7 +70,7 @@ def plot_step(xs, ys, ax=None, **plot_kwargs):
     xmax = ax.get_xlim()[1]
     last_x = stair_x[-1]
     last_y = stair_y[-1]
-    ax.plot([last_x, xmax], [last_y, last_y], color=line[0].get_color(), **plot_kwargs)
+    ax.plot([last_x, xmax], [last_y, last_y], color=line[0].get_color())
 
     ax.set_xlim(left=None, right=xmax)
 
