@@ -12,6 +12,7 @@ from accelforge.frontend.mapping import (
     Temporal,
     Spatial,
     TensorHolder,
+    Loop,
 )
 from accelforge.frontend.workload import (
     Einsum,
@@ -346,10 +347,6 @@ def insert_spatial_loops(
                     component_object=node,
                     component=node.name,
                 )
-                s._may_cause_imperfect = bool(
-                    fanout_dim.allow_imperfect_spatial_loops
-                    and r in simple_rank_variables
-                )
                 if insertion_point == len(mapping):
                     mapping.append(s)
                 else:
@@ -379,6 +376,37 @@ def _idx_below_lowest_tensor_holder_with_component_above_fanout(
         if arch_node_names.index(mapping[i].component) < fanout_arch_idx:
             result = i + 1
     return result
+
+
+def label_imperfect_tile_shapes(mapping, einsum: Einsum, job):
+    allow_all = job.allow_imperfect_all
+    imperfect_spatial = allow_all or job.explore_imperfect_spatial_loops
+    imperfect_temporal = allow_all or job.explore_imperfect_temporal_loops
+    simple_ranks = einsum._simple_rank_variables
+
+    rv2nodes = {}
+    for node in mapping:
+        if isinstance(node, Loop) and node.rank_variable in simple_ranks:
+            rv2nodes.setdefault(node.rank_variable, []).append(node)
+
+    for _, nodes in rv2nodes.items():
+        for i, node in enumerate(nodes):
+            # (A) We can get full expressiveness by unlocking options for the PREVIOUS
+            # loop, (B) which is also much faster to search. However, if we're the
+            # outermost loop for this rank variable, then unlock options for this loop.
+
+            # (A) reasoning: Loop bound = ceil(outer size / this size). Imperfect can
+            # relax options, so we choose outer size.
+            #
+            # (B) reasoning: For spatial loops, we know the fanout once we pick outer
+            # size AND inner size. We enumerate inner to outer, so this effectively
+            # defers imperfect factorization until we know the exact fanout, and can
+            # immediately use it to prune too-large fanouts.
+            target = max(i - 1, 0)
+            if isinstance(node, Spatial) and imperfect_spatial:
+                nodes[target]._may_cause_imperfect = True
+            if isinstance(node, Temporal) and imperfect_temporal:
+                nodes[target]._may_cause_imperfect = True
 
 
 def canonical_loop_orders(

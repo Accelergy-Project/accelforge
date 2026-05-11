@@ -733,8 +733,8 @@ def append_vector(matrix: np.ndarray, vector: np.ndarray):
         return vector.reshape(-1, 1)
     a = np.repeat(matrix, vector.shape[0], axis=0)
     b = np.tile(vector.reshape(-1, 1), (matrix.shape[0], 1))
-    max_val = max(np.max(a), np.max(b))
-    min_val = min(np.min(a), np.min(b))
+    max_val = max(np.max(a, initial=0), np.max(b, initial=0))
+    min_val = min(np.min(a, initial=0), np.min(b, initial=0))
     assert min_val >= 0, f"min_val is {min_val}"
     assert max_val <= 2**64, f"max_val is {max_val}"
     if max_val >= 2**32:
@@ -789,38 +789,80 @@ def get_padded_choices(
     minimize_formula: Expr = None,
     maximize_formula: Expr = None,
 ):
-    choices_padded = {}
+    # Choice padding rules (assuming minimizing formula; flip for maximizing):
+    # - Iterate through not-yet-enumerated tile shapes in outer-to-inner ourder.
+    # - If the formula doesn't depend on the tile shape, just use 1
+    # - If minimizing the tile shape -> minimizing the formula, set it as small as
+    #   possible, meaning equal to the next-innermost tile shape after it for the same
+    #   rank variable (this requires that we do outer-to-inner because the
+    #   next-innermost may be unknown).
+    # - If minimizing the tile shape -> maximizing the formula, set it as large as
+    #   possible, meaning the full rank shape.
+    #   - NOTE: There may be some optimization opportunities if we set it to the
+    #     next-outermost instead of the full shape, but that makes it difficult to just
+    #     do outer to inner.
+    # - If we can't tell, give up
+    # - NOTE: This assumes that if we go outer-to-inner we'll hit known shapes, so we
+    #   assert inner-to-outer enumeration order to make the innermost known.
+    assert "inner_to_outer" in _TILE_SHAPE_ORDER, (
+        f"get_padded_choices assumes inner-to-outer enumeration order; got "
+        f"{_TILE_SHAPE_ORDER}"
+    )
+
+    if minimize_formula is not None and maximize_formula is not None:
+        raise ValueError("Both minimize_formula and maximize_formula are not None")
+
+    replace_order = what_tiles_symbol.tiling_order_outer_to_inner
+
+    if minimize_formula is None and maximize_formula is None:
+        replace_order = []
+
+    formula = minimize_formula
+    if formula is None and maximize_formula is not None:
+        formula = -maximize_formula
+
+    replace_order = [s for s in replace_order if s in symbols_non_enumerated_set]
+
+    enum_index = {s: i for i, s in enumerate(symbols_enumerated)}
+    choices_padded = {s: choices_enumerated[:, i] for s, i in enum_index.items()}
+
+    substitutions = {}
+    for s in replace_order:
+        if s not in formula.free_symbols:
+            continue
+        # Need to find another symbol to substitute here
+        diff = diff_geq_leq_zero(formula, s, what_tiles_symbol.bounds)
+        # Smaller value -> smaller formula, so minimize
+        if diff == ComparisonResult.ALWAYS_GEQ_THAN_ZERO:
+            new_s = what_tiles_symbol.get_inner_tiles(s, value_if_fail=1)
+        # Larger value -> smaller formula, so maximize
+        elif diff == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
+            new_s = what_tiles_symbol.get_max_size(s)
+        # idk bro
+        elif diff == ComparisonResult.UNKNOWN:
+            raise ValueError(f"Can't tell if {s} is increasing or decreasing")
+        else:
+            new_s = 1
+        formula = formula.xreplace({s: new_s})
+        substitutions[s] = new_s
+        for k, v in substitutions.items():
+            if v == s:
+                substitutions[k] = new_s
+
     ones = np.ones(choices_enumerated.shape[0], choices_enumerated.dtype)
-    for symbol in symbols_enumerated:
-        choices_padded[symbol] = choices_enumerated[:, symbols_enumerated.index(symbol)]
-    for symbol in symbols_non_enumerated_set:
-        choices_padded[symbol] = ones
-        if minimize_formula is not None or maximize_formula is not None:
-            if minimize_formula is None:
-                formula = maximize_formula
-                sign = -1
-            elif maximize_formula is None:
-                formula = minimize_formula
-                sign = 1
-            else:
-                raise ValueError(
-                    "Both minimize_formula and maximize_formula are not None"
-                )
-            diff_result = diff_geq_leq_zero(
-                sign * formula, symbol, what_tiles_symbol.bounds
-            )
-            if diff_result == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
-                choices_padded[symbol] = ones * what_tiles_symbol.get_max_size(symbol)
-            elif diff_result == ComparisonResult.ALWAYS_GEQ_THAN_ZERO:
-                pass
-            elif diff_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
-                pass
-            elif diff_result == ComparisonResult.UNKNOWN:
-                raise ValueError(f"Can't tell if {symbol} is increasing or decreasing")
-            else:
-                raise ValueError(
-                    f"Comparison result {diff_result} is not a valid comparison result"
-                )
+    choices_padded = {}
+
+    for s in symbols_enumerated:
+        choices_padded[s] = choices_enumerated[:, enum_index[s]]
+    for s in symbols_non_enumerated_set:
+        subs = substitutions.get(s, 1)
+        if subs in choices_padded:
+            choices_padded[s] = choices_padded[subs]
+        else:
+            choices_padded[s] = ones * subs
+
+    for k, v in choices_padded.items():
+        assert isinstance(v, np.ndarray), f"{k} is not a numeric array: {v}"
 
     return choices_padded
 
@@ -1291,8 +1333,7 @@ def get_tile_shape_choices(
                 symbol_to_loop[n.tile_shape] = n
 
     def _symbol_is_imperfect(symbol):
-        loop = symbol_to_loop.get(symbol)
-        return bool(loop is not None and loop._may_cause_imperfect)
+        return bool(symbol_to_loop[symbol]._may_cause_imperfect)
 
     if any(_symbol_is_imperfect(s) for s in symbol_to_loop):
         assert "inner_to_outer" in _TILE_SHAPE_ORDER
@@ -1482,9 +1523,12 @@ def get_tile_shape_choices(
         choices = None  # Let it be freed by the garbage collector
         job.n_total_pmappings *= choices_enumerated.shape[0] / max(1, prev_size)
         symbols_enumerated.append(symbol)
-        DEBUG and log_message(
-            "enumerate", f"{symbol}", f"size={choices_enumerated.shape[0]}"
-        )
+        if DEBUG:
+            loop = symbol_to_loop.get(symbol)
+            ls = loop.compact_str() if loop is not None else ""
+            DEBUG and log_message(
+                "enumerate", f"{symbol}", f"size={choices_enumerated.shape[0]} {ls}"
+            )
 
         # ==============================================================================
         # Max fused loops per rank check

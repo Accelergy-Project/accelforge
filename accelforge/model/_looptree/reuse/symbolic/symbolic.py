@@ -423,9 +423,8 @@ class AnalysisInfo:
 
     job: Job
 
-    # Rank variables that appear standalone (not inside a projection
-    # expression) in every tensor access. Loops on these are eligible for
-    # imperfect tile shapes when paired with `_may_cause_imperfect`.
+    # Rank variables that appear alone (not in an expression) in every tensor access.
+    # Eligible for imperfect tile shapes when paired with `_may_cause_imperfect`.
     simple_rank_variables: set = field(default_factory=set)
 
     tensor_to_reservation_backer_id: dict[TensorName, int] = field(default_factory=dict)

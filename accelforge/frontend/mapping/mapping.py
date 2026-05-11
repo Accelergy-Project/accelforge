@@ -382,6 +382,10 @@ class Loop(MappingNode):
     """ Whether this Loop is shared with another Einsum. """
 
     _may_cause_imperfect: bool = False
+    """
+    This means that the tile shape of this loop may not perfectly factorize the rank
+    shape.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
