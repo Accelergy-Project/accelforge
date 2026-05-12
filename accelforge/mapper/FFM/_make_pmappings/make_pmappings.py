@@ -154,6 +154,12 @@ def get_jobs(
                 workload_n_einsums=n_einsums,
                 intermediate_tensors=intermediate_tensors
                 & workload_einsum.tensor_names,
+                explore_imperfect_spatial_loops=bool(
+                    spec.mapper.explore_imperfect_spatial_loops
+                ),
+                explore_imperfect_temporal_loops=bool(
+                    spec.mapper.explore_imperfect_temporal_loops
+                ),
             )
             for j in make_pmapping_templates(job, print_progress):
                 jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)

@@ -25,8 +25,18 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
     make_tile_shapes,
-    IMPERFECT,
 )
+from accelforge.frontend.mapping import Loop as _Loop
+
+
+def _imperfect_per_loop(rank_var, mapping) -> tuple[bool, ...]:
+    return tuple(
+        bool(n._may_cause_imperfect)
+        for n in mapping.nodes
+        if isinstance(n, _Loop) and n.rank_variable == rank_var
+    )
+
+
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
@@ -183,9 +193,8 @@ def multiply_n_pmappings_by_permutations(n_pmappings: int, job: Job) -> int:
             temporal_n_loops[i] = len(rv)
 
     # Count number of tile shapes
-    rv2loops = {r: rv_spatial_count[r] + rv_temporal_count[r] for r in rv}
     n_factorizations = math.prod(
-        _count_factorizations(b, rv2loops[r], imperfect=IMPERFECT)
+        _count_factorizations(b, _imperfect_per_loop(r, job.mapping))
         for r, b in rv.items()
     )
     n_temporal_loop_orders = math.prod(math.factorial(n) for n in temporal_n_loops)
@@ -233,6 +242,7 @@ def make_pmappings_from_templates(
         except Exception as e:
             e.add_note(f"Einsum {jwsc.einsum_name} compatibility {job.compatibility}")
             raise
+
         job.compatibility = job.compatibility.populate_loops(
             job.ranks_with_tile_pattern
         )

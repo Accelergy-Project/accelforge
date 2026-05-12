@@ -228,12 +228,10 @@ def get_constraints(
                 constraint = _TileShapeConstraintLambda(c, new_nodes, exp)
                 constraints.tile_shape_constraints.append(constraint)
 
-        no_resend_refetch_constraint = _loop_bound_constraint_from_no_refetch_and_resend(
-            mapping,
-            index,
-            m,
-            symbol_table,
-            tensor_to_relevancy
+        no_resend_refetch_constraint = (
+            _loop_bound_constraint_from_no_refetch_and_resend(
+                mapping, index, m, symbol_table, tensor_to_relevancy
+            )
         )
         if no_resend_refetch_constraint is not None:
             constraints.loop_bounds_constraints.append(no_resend_refetch_constraint)
@@ -310,7 +308,9 @@ def get_constraints(
     return mapping, constraints
 
 
-def _loop_bound_constraint_from_no_refetch_and_resend(mapping, index, arch_node, symbol_table, tensor_to_relevancy):
+def _loop_bound_constraint_from_no_refetch_and_resend(
+    mapping, index, arch_node, symbol_table, tensor_to_relevancy
+):
     """Create a loop bound constraint representing no refetch and no resend."""
     no_refetch = mapping[index].component_object.tensors.no_refetch_from_above
     exp = symbol_table[arch_node.name] & no_refetch

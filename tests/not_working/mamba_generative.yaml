@@ -1,0 +1,37 @@
+# Adapted from https://arxiv.org/pdf/2604.03829v1
+
+# Some Einsums are work-in-progress, but the core SSM
+# computations are included.
+
+workload:
+  einsums:
+  # Some normalization and projection to get X
+  # - "LEX[b, i, ed] = I[b, i, v] * ET[v, ed]"
+  # - "PX[b, i, ed] = "
+  # - "TX[b, i, d] = WTX[ed, d] * NEX[b, i, ed]"
+  # - "TTX[b, i, d] = WTTX[d, f] * TX[b, i, d]"
+  # ...
+
+  # Generating B, C
+  - "B[b, i, n] = WB[d, n] * X[b, i, d]"
+  - "C[b, i, n] = WC[d, n] * X[b, i, d]"
+
+  # SSM internals for updating state H
+  - "TTD[b, i, r] = WTTD[d, r] * X[b, i, d]"
+  - "TD[b, i, d] = WTD[d, r] * TTD[b, i, r]"
+  - "D[b, i, d] = TD[b, i, d]"
+
+  - "AD[b, i, d, n] = A[d, n] * D[b, i, d]"
+  - "HH[b, i, d, n] = H[b, i-1, d, n] * A[b, i, d, n]"
+
+  - "BD[b, i, d, n] = B[b, i, n] * D[b, i, d]"
+  - "HX[b, i, d, n] = BD[b, i, d, n] * X[b, i, d]"
+
+  - "H[b, i, d, n] = HX[b, i, d, n] + HH[b, i, d, n]"
+
+  # Computing output
+  - "S[b, i, d] = C[b, i, n] * H[b, i, d, n]"
+  - "DX[b, i, d] = D[d] * X[b, i, d]"
+  - "L[b, i, d] = DX[b, i, d] + DX[b, i, d]"
+
+  # TODO: missing Einsums to compute final Y

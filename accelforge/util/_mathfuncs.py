@@ -27,31 +27,6 @@ def _is_intlike(x) -> bool:
 NUMPY_FLOAT_TYPE = np.float32
 
 
-@functools.lru_cache(maxsize=None)
-def _count_factorizations_imperfect(n, into_n_parts):
-    # Factorize n into into_n_parts parts
-    RUBY_STYLE_IMPERFECT = True
-    # RUBY_STYLE_IMPERFECT = True
-    if n <= 1:
-        return 1
-    if into_n_parts <= 0:
-        return 1
-
-    shapes = list(range(1, ceil(n**0.5) + 1))
-    shapes = shapes + [ceil(n / s) for s in shapes]
-    shapes = sorted(oset(shapes))
-
-    if RUBY_STYLE_IMPERFECT:
-        shapes = list(range(1, n + 1))
-
-    total = 0
-    for s in shapes:
-        n = _count_factorizations_imperfect(ceil(n / s), into_n_parts - 1)
-        total += _count_factorizations_imperfect(ceil(n / s), into_n_parts - 1)
-
-    return total
-
-
 def _prime_factorization(n):
     f = []
     i = 2
@@ -64,21 +39,20 @@ def _prime_factorization(n):
     return f
 
 
-def _count_factorizations(n, into_n_parts, imperfect=False):
-    if into_n_parts <= 1:
+@functools.lru_cache(maxsize=None)
+def _divisors(n):
+    return tuple(d for d in range(1, n + 1) if n % d == 0)
+
+
+@functools.lru_cache(maxsize=None)
+def _count_factorizations(n, imperfect_per_loop: tuple[bool, ...]):
+    if len(imperfect_per_loop) <= 1:
         return 1
-    f = _prime_factorization(n)
-    factors = {f2: f.count(f2) for f2 in oset(f)}
-    total = 1
-    for exp in factors.values():
-        total *= comb(exp + into_n_parts - 1, into_n_parts - 1)  # n choose k
 
-    if imperfect:
-        n = _count_factorizations_imperfect(n, into_n_parts)
-        assert n >= total, f"n: {n} < total: {total}"
-        return n
-
-    return total
+    others = imperfect_per_loop[1:]
+    if imperfect_per_loop[0]:
+        return sum(_count_factorizations(ceil(n / s), others) for s in range(1, n + 1))
+    return sum(_count_factorizations(n // d, others) for d in _divisors(n))
 
 
 def _fillna_and__numeric_cast(df: pd.DataFrame, value: float) -> pd.DataFrame:
