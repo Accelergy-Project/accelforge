@@ -944,19 +944,16 @@ def _loop_stride_and_shape(node, current_shape, node_idx, info):
         # If imperfect, the residuals net out to ceil(rank_shape / tile_shape) /
         # outer_iters. This only holds because (a) the rank variable is simple, and (b)
         # only the outermost loop on this rankq variable is imperfect.
+        pc_iterations = info.precomputed_iterations
+        k = id(node)
         if imperfect:
             assert is_simple
             rank_shape = info.full_rank_variable_shapes[node.rank_variable]
             outer_iters = 1
             for prev_node in loops_before:
-                outer_iters *= info.precomputed_iterations[id(prev_node)]
+                outer_iters *= pc_iterations[id(prev_node)]
             iterations = se.ceiling(rank_shape / node.tile_shape) / outer_iters
-
-        assert id(node) not in info.precomputed_iterations, (
-            f"Duplicate node id {id(node)}. Are we branching in the "
-            f"recursive analysis?"
-        )
-        info.precomputed_iterations[id(node)] = iterations
+        pc_iterations[k] = pc_iterations.get(k, 0) + iterations
 
     return stride_and_shape
 
@@ -986,13 +983,11 @@ def analyze_temporal(
         for buffet, stats in child_result.buffet_stats.items():
             relevancy = info.tensor_to_relevancy[buffet.tensor][node.rank_variable]
             is_fully_relevant = isinstance(relevancy, Relevant)
+            stats.n_loops_above = stats.n_loops_above + 1
             accumulated_stats = accumulated_buffet_stats.setdefault(
                 buffet, BuffetStats.blank()
             )
-            accumulated_stats += stats.repeat_temporal(
-                shape_repeats, is_fully_relevant=is_fully_relevant
-            )
-            accumulated_stats.n_loops_above = stats.n_loops_above + 1
+            accumulated_stats += stats.repeat_temporal(shape_repeats, is_fully_relevant)
 
         for network, network_stats in child_result.network_stats.items():
             result_accumulator.network_stats[network] = network_stats.repeat(
@@ -1086,10 +1081,10 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 and buffet.tensor in component_spatial_dim.may_reuse
             )
 
+            stats.n_loops_above = stats.n_loops_above + 1
             accumulated_stats += stats.repeat_spatial(
-                shape_repeats, reuse_parent_accesses=reuse_parent_accesses
+                shape_repeats, reuse_parent_accesses
             )
-            accumulated_stats.n_loops_above = stats.n_loops_above + 1
 
         for network, child_network_stats in child_result.network_stats.items():
             if network not in result_accumulator.network_stats:
@@ -1593,7 +1588,12 @@ def get_stride_and_tile_shape(
             return make_possibly_different_last(stride, factor, rank_shape)
 
     assert assume_perfect_factor
-    assert initial_tile_shape is not None
+
+    if initial_tile_shape is None:
+        factor = rank_shape / stride
+        if type(factor) is float and factor == int(factor):
+            factor = int(factor)
+        return StrideAndShape(stride, RepeatedValue(stride, factor))
 
     middle_shape_factor = se.ceiling((rank_shape - initial_tile_shape) / stride)
     # TODO: sometimes last_shape is 0, causing numerical instability
@@ -1610,44 +1610,6 @@ def get_stride_and_tile_shape(
             ]
         ),
     )
-    # if node.tile_shape is not None:
-    #     tile_shape = node.tile_shape
-
-    #     if node._assume_perfect_factor or known_perfect_factor(tile_shape, rank_shape):
-    #         factor = rank_shape / tile_shape
-    #         return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
-    #     else:
-    #         factor = sympy.ceiling(rank_shape / sympy.Min(tile_shape, rank_shape))
-    #         return make_possibly_different_last(tile_shape, factor, rank_shape)
-    # elif node.loop_bound is not None:
-    #     factor = node.loop_bound
-
-    #     if node._assume_perfect_factor or known_perfect_factor(factor, rank_shape):
-    #         tile_shape = rank_shape / factor
-    #         return StrideAndShape(tile_shape, RepeatedValue(tile_shape, factor))
-    #     else:
-    #         tile_shape = sympy.ceiling(rank_shape / sympy.Min(rank_shape, factor))
-    #         return make_possibly_different_last(tile_shape, factor, rank_shape)
-
-    # elif node.tile_pattern is not None:
-    #     stride = node.tile_pattern.tile_shape
-    #     initial_tile_shape = node.tile_pattern.initial_tile_shape
-    #     tile_shape = node.tile_pattern.tile_shape
-
-    #     if initial_tile_shape is not None:
-    #         middle_shape_factor = sympy.ceiling((rank_shape - initial_tile_shape)/stride)
-    #         # TODO: sometimes last_shape is 0, causing numerical instability
-    #         # Currently, we are sometimes rounding up last shape.
-    #         # last_shape = rank_shape - initial_tile_shape - stride*middle_shape_factor
-    #         # has_last_shape = sympy.ceiling(last_shape/(last_shape+1))
-    #         return StrideAndShape(
-    #             stride,
-    #             SequenceOfRepatedvalues([
-    #                 RepeatedValue(initial_tile_shape, 1),
-    #                 RepeatedValue(stride, middle_shape_factor),
-    #                 # RepeatedValue(last_shape+0.01, has_last_shape)
-    #             ])
-    #         )
 
 
 def known_perfect_factor(divisor, full_shape):
