@@ -1,18 +1,16 @@
 from enum import Enum
 from functools import lru_cache
-from math import ceil, log2, prod
+from math import ceil,prod
 import copy
 import re
 import resource
 from sympy.core.symbol import Symbol
 import time
-from typing import Callable, Iterator, Optional
+from typing import Callable, Counter, Optional
 from sympy import Expr, Symbol, factorint, lambdify
 from accelforge import util
 from accelforge._accelerated_imports import np
 from accelforge._accelerated_imports import pd
-import accelforge.frontend.arch as arch
-from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import get_projection_expr
 from accelforge.frontend.mapping.mapping import MappingNode
 from accelforge.frontend.workload import Einsum
@@ -493,7 +491,7 @@ def try_replace_single_term(
 
 
 @lru_cache(maxsize=10000)
-def _partition_formula(
+def _make_evalable_objectives_from_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
@@ -501,7 +499,7 @@ def _partition_formula(
     absolute_tolerance: float | None = None,
     terms_do_not_cross_zero: bool = False,
     outer_goal: str = "min",
-) -> dict[Symbol, Goal]:
+) -> tuple[dict[Symbol, Goal], Counter[Symbol]]:
     goals: dict[Symbol, Goal] = {}
 
     def update_goal(symbol: Symbol, goal: Goal, **kwargs):
@@ -511,16 +509,17 @@ def _partition_formula(
             goals[symbol] = goal
 
     negate = False
+    meddling_symbols = Counter()
 
     if not f.free_symbols & symbols_enumerated:
-        return goals
+        return goals, meddling_symbols
 
     if f.free_symbols.issubset(symbols_enumerated):
         return {
             f: Goal(
                 outer_goal, tolerance=tolerance, absolute_tolerance=absolute_tolerance
             )
-        }
+        }, meddling_symbols
 
     # Formula isn't done -> don't do any rounding so errors don't stack
     tolerance = 0
@@ -536,7 +535,6 @@ def _partition_formula(
         return t
 
     def _recombine_terms(terms: list[Expr], transform_terms: bool = True):
-        can_evaluate = []
         no_relation = []
         others = {}
         for t in terms:
@@ -547,22 +545,34 @@ def _partition_formula(
                     continue
             except (TypeError, ValueError):
                 pass
-            if t.free_symbols.issubset(symbols_enumerated):
-                can_evaluate.append(t)
-            elif t.free_symbols.isdisjoint(symbols_enumerated):
+            if t.free_symbols.isdisjoint(symbols_enumerated):
                 no_relation.append(t)
             else:
                 others.setdefault(fzs(t.free_symbols - symbols_enumerated), []).append(
                     t
                 )
 
-        # Grab the terms that we can evaluate directly first
-        chosen = []
-        if can_evaluate:
-            chosen.append(type(f)(*can_evaluate))
+        # Charge for symbols that differ between the terms, because getting rid of those
+        # would let us do fewer partitions.
+        for ot in others:
+            for ot2 in others:
+                meddlers = ot - ot2
+                for s in meddlers:
+                    meddling_symbols[s] += 1 / len(others) / len(meddlers)
+
+        # If a symbol is in a term we don't currently care about AND enumerating the
+        # symbol would bring that term in AND that term wouldn't be able to be merged
+        # into another term, then this symbol is actively not meddling right now but
+        # adding it in would result in meddling.
+        for n in no_relation:
+            for s in n.free_symbols:
+                without_s = fzs(set(n.free_symbols) - {s})
+                if without_s not in others:
+                    meddling_symbols[s] -= 10
 
         # Try to re-join any others if we can to reduce the number of terms. However, if
         # this is going to lead us right back to where we started, then don't do it.
+        chosen = []
         for ot in others.values():
             joined = type(f)(*ot)
             if joined != f:
@@ -642,14 +652,17 @@ def _partition_formula(
             for symbol in sorted(term.free_symbols, key=str):
                 update_goal(symbol, Goal("diff"))
         else:
-            for subterm, subgoal in partition_formula(
+            subgoals, sub_meddling_symbols = make_evalable_objectives_from_formula(
                 term,
                 symbols_enumerated,
                 bounds,
                 tolerance,
                 absolute_tolerance,
                 outer_goal="min",
-            ).items():
+            )
+            meddling_symbols.update(sub_meddling_symbols)
+
+            for subterm, subgoal in subgoals.items():
                 if subterm in goals:
                     goals[subterm] |= subgoal
                 else:
@@ -664,7 +677,7 @@ def _partition_formula(
         if (outer_goal == "max") ^ bool(negate):
             goals[k] = ~v
 
-    return goals
+    return goals, meddling_symbols
 
 
 @lru_cache(maxsize=10000)
@@ -672,7 +685,7 @@ def _get_n_prime_factors(n: int) -> int:
     return len(factorint(n))
 
 
-def partition_formula(
+def make_evalable_objectives_from_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
@@ -681,7 +694,7 @@ def partition_formula(
     terms_do_not_cross_zero: bool = False,
     outer_goal: str = "min",
 ) -> dict[Symbol, Goal]:
-    return _partition_formula(
+    return _make_evalable_objectives_from_formula(
         f,
         fzs(symbols_enumerated & f.free_symbols),
         bounds,
@@ -768,15 +781,23 @@ def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
 
 
 @lru_cache(maxsize=10000)
+def f_slash_other_f(f: Expr, symbols_enumerated: set[Symbol]):
+    fs = {
+        s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
+        for s in sorted(f.free_symbols & symbols_enumerated, key=str)
+    }
+    return f.xreplace(fs) / f > 1
+
+
+@lru_cache(maxsize=10000)
 def affects_comparison(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
     if not isinstance(f, sympy.Expr):
         return False
-    delta = f_minus_other_f(f, symbols_enumerated)
+    delta = simplify(f_minus_other_f(f, symbols_enumerated))
     if s not in getattr(delta, "free_symbols", set()):
         return False
-
-    delta = simplify(delta)
-    if s not in getattr(delta, "free_symbols", set()):
+    delta2 = simplify(f_slash_other_f(f, symbols_enumerated))
+    if s not in getattr(delta2, "free_symbols", set()):
         return False
     return True
 
@@ -1107,6 +1128,7 @@ def grab_symbol(
     keep_symbols: list[Symbol],
     max_loop_check_groups: list[tuple[Number, list[Symbol]]],
     log_message: Callable,
+    meddling_symbols: Counter[Symbol],
 ):
     strides = [s for s in symbols_remaining if what_tiles_symbol.is_stride(s)]
     if not strides:
@@ -1141,14 +1163,11 @@ def grab_symbol(
     def hybrid(s):
         keep = s in keep_symbols
 
-        # Score for the % of symbols in objectives that are this symbol
-        score = 0
         all_symbols = enumerated_set
-        for o in objectives:
-            n_symbols = sum(
-                c for s2, c in o._symbol_counts.items() if s2 not in enumerated_set
-            )
-            score += o._symbol_counts.get(s, 0) / max(1, n_symbols)
+        # Score for "meddling", which measures how many extra terms must be considered
+        # because we have not yet enumerated this symbol. We'd like to enumerate (get
+        # rid of unknowns for) symbols that are more meddling.
+        score = meddling_symbols.get(s, 0)
 
         # Score for max_loop_check_groups partially resolved by this symbol
         tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
@@ -1168,16 +1187,21 @@ def grab_symbol(
                 score += 1 / len(remaining)
 
         # Score for tiling or being tiled by an unknown
-        if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
-            score -= 1
-        if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
-            score -= 1
+        score_unknown = 0
+        if isinstance(tiles, Symbol) and tiles not in enumerated_set:
+            score_unknown -= 1
+        if isinstance(tiled_by, Symbol) and tiled_by not in enumerated_set:
+            score_unknown -= 1
 
-        score /= len(objectives) + len(max_loop_check_groups)
+        # Score for bringing in an entirely-new formula
+        for o in objectives:
+            if s in o._free_symbols and not o._free_symbols & enumerated_set:
+                score_unknown -= 10
 
         return (
-            -keep,
-            score,
+            -keep,  # Punish enumerating keep symbols because they're always diff
+            score_unknown,  # Punish bringing in new formulas or unknowns
+            score,  # Reward stopping-of-meddling
             _min_size(s),
         )
 
@@ -1188,8 +1212,7 @@ def grab_symbol(
         )
         return (
             # Sum number of times it appears in all objectives
-            sum(o._symbol_counts.get(s, 0) for o in objectives)
-            + 4**constrains_following,
+            sum(o._symbol_counts[s] for o in objectives) + 4**constrains_following,
             # Number of objectives that have this symbol
             len([o for o in objectives if s in o._free_symbols])
             + 4**constrains_following,
@@ -1323,8 +1346,8 @@ def get_tile_shape_choices(
 
     symbols_enumerated: list[Symbol] = []
     choices_enumerated: np.ndarray = None
-
     symbols_remaining = list(symbols)
+    meddling_symbols = Counter()
 
     symbol_to_loop = {}
     for n in job.mapping.nodes:
@@ -1407,7 +1430,9 @@ def get_tile_shape_choices(
             keep_symbols,
             max_loop_check_groups,
             log_message,
+            meddling_symbols,
         )
+        meddling_symbols = Counter()  # Reset meddling symbols. It's updated later.
 
         choices = []
         if what_tiles_symbol.is_stride(symbol):
@@ -1694,13 +1719,6 @@ def get_tile_shape_choices(
 
             choices_enumerated_float = choices_enumerated.astype(util.NUMPY_FLOAT_TYPE)
 
-            # as_strings = {str(s): choices_enumerated_float[:, i] for i, s in enumerate(symbols_enumerated)}
-            # matched = list(range(choices_enumerated.shape[0]))
-            # for s_idx in [0, 1, 6, 5]:
-            #     if f"stride{s_idx}" in as_strings:
-            #         matched = [i for i in matched if as_strings[f"stride{s_idx}"][i] == 1]
-            #         assert matched, f"FAIL after {s_idx}"
-
             # ==========================================================================
             # Create functions to Pareto using objectives
             # ==========================================================================
@@ -1833,7 +1851,7 @@ def get_tile_shape_choices(
                     outer_goal = "max"
                 else:
                     outer_goal = "min"
-                goals = partition_formula(
+                goals, ms = make_evalable_objectives_from_formula(
                     objective.formula,
                     sym_enumerated_set,
                     what_tiles_symbol.bounds,
@@ -1842,6 +1860,7 @@ def get_tile_shape_choices(
                     objective.terms_do_not_cross_zero,
                     outer_goal=outer_goal,
                 )
+                meddling_symbols.update(ms)
 
                 DEBUG and log_message(f"formula", f"{objective.formula}")
                 for k, v in goals.items():
