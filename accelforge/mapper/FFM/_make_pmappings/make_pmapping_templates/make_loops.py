@@ -56,22 +56,48 @@ def insert_temporal_loops(
     # outermost memory are together at the beginning of the split mapping. After that,
     # each entries in the split mapping has a single TensorHolder.
     split_mapping: list[list[TensorHolder]] = []
+    inserted = oset()  # for tracking which element of `mapping` is handled
+
+    # The first group is for persistent tensors
+    storage_nodes_above_any_loop = []
     for m in mapping:
+        if id(m) in inserted:
+            continue
+        if m.persistent:
+            storage_nodes_above_any_loop.append(m)
+            inserted.add(id(m))
+
+    # TODO: we have a misnomer: what we call `first_memory` in code is the one that
+    # `_can_lower_outermost_memory` refers to.
+    if not _can_lower_outermost_memory:
+        for m in mapping:
+            if id(m) in inserted:
+                continue
+            if m.component == first_memory.name:
+                storage_nodes_above_any_loop.append(m)
+                inserted.add(id(m))
+    split_mapping.append(storage_nodes_above_any_loop)
+
+    # All other storage nodes may have loops between them
+    for m in mapping:
+        if id(m) in inserted:
+            continue
         split_mapping.append([m])
-        if len(split_mapping) > 1 and m.component == first_memory.name:
-            split_mapping[-2].extend(split_mapping.pop(-1))
-    for i, s in enumerate[list[TensorHolder | Spatial]](split_mapping):
-        for m in s:
-            if i > 0 and m.component == first_memory.name:
-                raise ValueError(
-                    "First memory isn't at the top of the hierarchy. This isn't known"
-                    "to be invalid, but the code may not handle it."
-                )
-            elif i == 0 and isinstance(m, Spatial):
-                raise ValueError(
-                    "Found Spatial node before any TensorHolder. This isn't known to "
-                    "be invalid, but the code may not handle it."
-                )
+
+    if sum(map(len, split_mapping)) != len(mapping):
+        raise RuntimeError("BUG: number of storage nodes post-split != original")
+
+    for i in range(len(split_mapping)-1):
+        for j in range(i+1, len(split_mapping)):
+            for m_i in split_mapping[i]:
+                for m_j in split_mapping[j]:
+                    if mapping.index(m_i) > mapping.index(m_j):
+                        raise RuntimeError(
+                            f"BUG: node {m_i.compact_str()} and "
+                            f"{m_j.compact_str()} inverted post-splitting\n"
+                            f"Original mapping: {[m.compact_str() for m in mapping]}\n"
+                            f"Split mapping: {[[m.compact_str() for m in s] for s in split_mapping]}\n"
+                        )
 
     # These Einsum properties are recalculated since Einsum is mutable
     # We're pre-computing and reusing for efficiency
@@ -91,25 +117,12 @@ def insert_temporal_loops(
 
     def _get_next_storages(i: int, toll_allowed: bool = False) -> list[TensorHolder]:
         for j in range(i + 1, len(split_mapping)):
-            assert len(split_mapping[j]) <= 1
+            assert len(split_mapping[j]) <= 1, f"Mapping: {[m.compact_str() for m in mapping]}"
             # We don't add loops before tolls since they don't reuse things
             if isinstance(split_mapping[j][0], Toll) and not toll_allowed:
                 continue
             return split_mapping[j]
         return []
-
-    # If we want to lower the first storage node beneath loops, we put an empty list at
-    # the beginning of the split mapping & put loops between it and the first storage
-    # node. Do this if we can lower the outermost memory OR if the first storage node
-    # does not belong to the outermost memory (i.e., we completely bypass the outermost
-    # memory).
-    outermost_storage_name = None
-    for s in split_mapping:
-        if s and isinstance(s[0], TensorHolder):
-            outermost_storage_name = s[0].component
-            break
-    if _can_lower_outermost_memory or outermost_storage_name != first_memory.name:
-        split_mapping.insert(0, [])
 
     for i, prev_storages in enumerate(split_mapping):
         # =============================================================================
