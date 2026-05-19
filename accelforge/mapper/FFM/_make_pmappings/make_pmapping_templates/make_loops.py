@@ -47,6 +47,7 @@ def insert_temporal_loops(
     let_non_intermediate_tensors_respawn_in_backing_storage: bool,
     explore_loop_orders: bool,
 ):
+    arch_node_names = [n.name for n in flattened_arch]
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
     # - Between any two TensorHolder nodes
@@ -83,6 +84,11 @@ def insert_temporal_loops(
         if id(m) in inserted:
             continue
         split_mapping.append([m])
+
+    for s in split_mapping:
+        # Within each split mapping group, sort by arch levels.
+        # This can help create places to put spatial loops
+        s.sort(key=lambda tensor_holder: arch_node_names.index(tensor_holder.component))
 
     if sum(map(len, split_mapping)) != len(mapping):
         raise RuntimeError("BUG: number of storage nodes post-split != original")
@@ -160,12 +166,13 @@ def insert_temporal_loops(
             cur_fanout.add(1)
         if len(next_fanout) == 0:  # Happens if we're inserting below all storage nodes
             next_fanout.add(float("inf"))
-        # Either it's main memory or we have one entry in the list, so there should only
-        # be one
-        assert len(cur_fanout) == 1
-        assert len(next_fanout) == 1
-        cur_fanout = next(iter(cur_fanout))
-        next_fanout = next(iter(next_fanout))
+
+        # These are used to check if fanouts increased and therefore spatial loops
+        # may be placed, so we use the maximum.
+        assert len(cur_fanout) > 0
+        assert len(next_fanout) > 0
+        cur_fanout = max(cur_fanout)
+        next_fanout = max(next_fanout)
 
         # Can't have loops above persistent tensor holders
         if next_persistent:
