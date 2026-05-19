@@ -1,6 +1,7 @@
 import copy
 import itertools
 import logging
+from numbers import Number
 from accelforge.util._frozenset import oset
 from typing import (
     Any,
@@ -89,8 +90,35 @@ class TensorHolderAction(Action):
     bits_per_action: EvalsTo[int | float] = (
         "1 if bits_per_action is None else bits_per_action"
     )
-    """ The number of bits accessed in this action. For example, setting bits_per_action
-    to 16 means that each call to this action yields 16 bits. """
+    """ 
+    The number of bits accessed in this action. For example, setting bits_per_action to
+    16 means that each call to this action yields 16 bits. Overridden by
+    values_per_action in this action or by the parent component's values per action.
+    """
+
+    values_per_action: EvalsTo[dict] = {}
+    """
+    Sets the number of tensor values that are accessed by each call of this action. Keys
+    are evaluated as expressions and may reference one or more tensors. Overrides
+    bits_per_action, and sets bits_per_action to values_per_action[tensor] *
+    bits_per_value[tensor].
+    """
+
+    def _eval_expressions(self, *args, **kwargs):
+        if getattr(self, "_evaluated", False):
+            return super()._eval_expressions(*args, **kwargs)
+
+        class MyPostCall(_PostCall):
+            def __call__(self, field, value, evaluated, symbol_table):
+                if field == "values_per_action":
+                    evaluated = _eval_tensor2number(
+                        evaluated,
+                        location="values_per_action",
+                        symbol_table=symbol_table,
+                    )
+                return evaluated
+
+        return super()._eval_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
 
 
 _COMPONENT_MODEL_CACHE: dict[tuple, "Component"] = {}
@@ -197,6 +225,13 @@ class Component(Spatialable):
     this action's energy. Multiplies the calculated energy of each action.
     """
 
+    actions_scale: EvalsTo[int | float] = 1
+    """
+    Scales the number of actions performed by this component. Multiplies the action
+    count for each action of this component, which proportionally increases this
+    component's energy and latency.
+    """
+
     total_latency: str | int | float = "sum(*action2latency.values())"
     """
     An expression representing the total latency of this component in seconds. This is
@@ -231,8 +266,8 @@ class Component(Spatialable):
     n_parallel_instances: EvalsTo[int | float] = 1
     """
     The number of parallel instances of this component. Increasing parallel instances
-    will proportionally increase area and leakage, while reducing latency (unless
-    latency calculation is overridden).
+    will proportionally increase area and leakage while reducing latency (unless latency
+    calculation is overridden).
     """
 
     extra_attributes_for_component_model: _ExtraAttrs = _ExtraAttrs()
@@ -726,7 +761,7 @@ COMPUTE_ACTIONS = EvalableList(
 )
 
 
-def _eval_tensor2bits(
+def _eval_tensor2number(
     toeval: dict[str, Any],
     location: str,
     symbol_table: dict[str, Any],
@@ -935,7 +970,17 @@ class TensorHolder(Component, Leaf):
     """
     The number of bits accessed in each of this component's actions. Overridden by
     bits_per_action in any action of this component. If set here, acts as a default
-    value for the bits_per_action of all actions of this component.
+    value for the bits_per_action of all actions of this component. Overridden by
+    values_per_action or by values in each action.
+    """
+
+    values_per_action: EvalsTo[dict] = {}
+    """
+    Sets the number of tensor values that are accessed by each action of this
+    `TensorHolder`. Keys are evaluated as expressions and may reference one or more
+    tensors. Overrides bits_per_action, and sets bits_per_action to
+    values_per_action[tensor] * bits_per_value[tensor]. Overridden by values_per_action
+    in any action of this component.
     """
 
     def model_post_init(self, __context__=None) -> None:
@@ -950,14 +995,38 @@ class TensorHolder(Component, Leaf):
         class MyPostCall(_PostCall):
             def __call__(self, field, value, evaluated, symbol_table):
                 if field == "bits_per_value":
-                    evaluated = _eval_tensor2bits(
+                    evaluated = _eval_tensor2number(
                         evaluated,
                         location="bits_per_value",
+                        symbol_table=symbol_table,
+                    )
+                if field == "values_per_action":
+                    evaluated = _eval_tensor2number(
+                        evaluated,
+                        location="values_per_action",
                         symbol_table=symbol_table,
                     )
                 return evaluated
 
         return super()._eval_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
+    
+    def _get_values_per_action(
+        self,
+        action_name: str,
+        tensor_name: TensorName,
+        bits_per_value_default: Number
+    ):
+        action = self.actions[action_name]
+
+        if tensor_name in action.values_per_action:
+            return action.values_per_action[tensor_name]
+        if tensor_name in self.values_per_action:
+            return self.values_per_action[tensor_name]
+
+        tensor_bpv = self.bits_per_value.get(tensor_name, bits_per_value_default)
+        action_bpa = action.bits_per_action
+
+        return action_bpa / tensor_bpv
 
 
 class Container(Leaf, Spatialable):
@@ -1048,13 +1117,18 @@ class Toll(TensorHolder):
         if getattr(self, "_evaluated", False):
             return super()._eval_expressions(*args, **kwargs)
 
-        # Override TensorHolder's _PostCall to also handle direction
         class MyPostCall(_PostCall):
             def __call__(self_pc, field, value, evaluated, symbol_table):
                 if field == "bits_per_value":
-                    evaluated = _eval_tensor2bits(
+                    evaluated = _eval_tensor2number(
                         evaluated,
                         location="bits_per_value",
+                        symbol_table=symbol_table,
+                    )
+                if field == "values_per_action":
+                    evaluated = _eval_tensor2number(
+                        evaluated,
+                        location="values_per_action",
                         symbol_table=symbol_table,
                     )
                 if field == "direction":
@@ -1064,8 +1138,6 @@ class Toll(TensorHolder):
                     )
                 return evaluated
 
-        # Skip TensorHolder's _eval_expressions (which adds its own post_calls
-        # for bits_per_value) since we handle it here too
         return Component._eval_expressions(
             self, *args, **kwargs, post_calls=(MyPostCall(),)
         )
@@ -1134,7 +1206,7 @@ class Network(Component, Leaf):
         class MyPostCall(_PostCall):
             def __call__(self, field, value, evaluated, symbol_table):
                 if field == "bits_per_value":
-                    evaluated = _eval_tensor2bits(
+                    evaluated = _eval_tensor2number(
                         evaluated,
                         location="bits_per_value",
                         symbol_table=symbol_table,

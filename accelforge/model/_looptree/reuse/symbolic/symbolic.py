@@ -1339,11 +1339,15 @@ def analyze_storage(
         # ==============================================================================
         workload_bpv = info.job.einsum.tensor_accesses[tensor].bits_per_value
         bits_per_value = component_object.bits_per_value.get(tensor, workload_bpv)
-        read_bits_per_action = component_object.actions["read"].bits_per_action
-        read_scale = bits_per_value / read_bits_per_action
+        read_values_per_action = component_object._get_values_per_action(
+            "read", tensor, workload_bpv
+        )
+        read_scale = 1 / read_values_per_action
         if count_writes:
-            write_bits_per_action = component_object.actions["write"].bits_per_action
-            write_scale = bits_per_value / write_bits_per_action
+            write_values_per_action = component_object._get_values_per_action(
+                "write", tensor, workload_bpv
+            )
+            write_scale = 1 / write_values_per_action
         else:
             write_scale = 0
 
