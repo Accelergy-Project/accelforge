@@ -1009,12 +1009,9 @@ class TensorHolder(Component, Leaf):
                 return evaluated
 
         return super()._eval_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
-    
+
     def _get_values_per_action(
-        self,
-        action_name: str,
-        tensor_name: TensorName,
-        bits_per_value_default: Number
+        self, action_name: str, tensor_name: TensorName, bits_per_value_default: Number
     ):
         action = self.actions[action_name]
 

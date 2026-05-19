@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import lru_cache
-from math import ceil,prod
+from math import ceil, prod
 import copy
 import re
 import resource

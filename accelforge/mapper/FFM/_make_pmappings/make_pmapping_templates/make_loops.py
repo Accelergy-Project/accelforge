@@ -87,8 +87,8 @@ def insert_temporal_loops(
     if sum(map(len, split_mapping)) != len(mapping):
         raise RuntimeError("BUG: number of storage nodes post-split != original")
 
-    for i in range(len(split_mapping)-1):
-        for j in range(i+1, len(split_mapping)):
+    for i in range(len(split_mapping) - 1):
+        for j in range(i + 1, len(split_mapping)):
             for m_i in split_mapping[i]:
                 for m_j in split_mapping[j]:
                     if mapping.index(m_i) > mapping.index(m_j):
@@ -117,7 +117,9 @@ def insert_temporal_loops(
 
     def _get_next_storages(i: int, toll_allowed: bool = False) -> list[TensorHolder]:
         for j in range(i + 1, len(split_mapping)):
-            assert len(split_mapping[j]) <= 1, f"Mapping: {[m.compact_str() for m in mapping]}"
+            assert (
+                len(split_mapping[j]) <= 1
+            ), f"Mapping: {[m.compact_str() for m in mapping]}"
             # We don't add loops before tolls since they don't reuse things
             if isinstance(split_mapping[j][0], Toll) and not toll_allowed:
                 continue
