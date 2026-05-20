@@ -27,6 +27,9 @@ from accelforge.frontend._workload_isl._symbolic import (
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
     get_initial_delta_choices,
 )
+from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_loops import (
+    label_imperfect_tile_shapes,
+)
 from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
 
 
@@ -89,6 +92,7 @@ def evaluate_mapping(
         resource_usage_tolerance=0,  # spec.model.resource_usage_tolerance,
         objective_tolerance=0,  # spec.model.objective_tolerance,
         workload_n_einsums=len(spec.workload.einsum_names),
+        allow_imperfect_all=True,
     )
 
     einsum2pmappings = {}
@@ -149,6 +153,12 @@ def evaluate_mapping(
             ].tensor_names
         }
         pmapping.clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
+
+        label_imperfect_tile_shapes(
+            pmapping.nodes,
+            job.spec_one_einsum.workload.einsums[job.einsum_name],
+            job,
+        )
 
         einsum2jobs[job.einsum_name] = job
 

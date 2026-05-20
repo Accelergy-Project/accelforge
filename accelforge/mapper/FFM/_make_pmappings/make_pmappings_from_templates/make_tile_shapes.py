@@ -1,18 +1,16 @@
 from enum import Enum
 from functools import lru_cache
-from math import ceil, log2, prod
+from math import ceil, prod
 import copy
 import re
 import resource
 from sympy.core.symbol import Symbol
 import time
-from typing import Callable, Iterator, Optional
+from typing import Callable, Counter, Optional
 from sympy import Expr, Symbol, factorint, lambdify
 from accelforge import util
 from accelforge._accelerated_imports import np
 from accelforge._accelerated_imports import pd
-import accelforge.frontend.arch as arch
-from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import get_projection_expr
 from accelforge.frontend.mapping.mapping import MappingNode
 from accelforge.frontend.workload import Einsum
@@ -499,7 +497,7 @@ def try_replace_single_term(
 
 
 @lru_cache(maxsize=10000)
-def _partition_formula(
+def _make_evalable_objectives_from_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
@@ -507,7 +505,7 @@ def _partition_formula(
     absolute_tolerance: float | None = None,
     terms_do_not_cross_zero: bool = False,
     outer_goal: str = "min",
-) -> dict[Symbol, Goal]:
+) -> tuple[dict[Symbol, Goal], Counter[Symbol]]:
     goals: dict[Symbol, Goal] = {}
 
     def update_goal(symbol: Symbol, goal: Goal, **kwargs):
@@ -517,16 +515,17 @@ def _partition_formula(
             goals[symbol] = goal
 
     negate = False
+    meddling_symbols = Counter()
 
     if not f.free_symbols & symbols_enumerated:
-        return goals
+        return goals, meddling_symbols
 
     if f.free_symbols.issubset(symbols_enumerated):
         return {
             f: Goal(
                 outer_goal, tolerance=tolerance, absolute_tolerance=absolute_tolerance
             )
-        }
+        }, meddling_symbols
 
     # Formula isn't done -> don't do any rounding so errors don't stack
     tolerance = 0
@@ -542,7 +541,6 @@ def _partition_formula(
         return t
 
     def _recombine_terms(terms: list[Expr], transform_terms: bool = True):
-        can_evaluate = []
         no_relation = []
         others = {}
         for t in terms:
@@ -553,22 +551,34 @@ def _partition_formula(
                     continue
             except (TypeError, ValueError):
                 pass
-            if t.free_symbols.issubset(symbols_enumerated):
-                can_evaluate.append(t)
-            elif t.free_symbols.isdisjoint(symbols_enumerated):
+            if t.free_symbols.isdisjoint(symbols_enumerated):
                 no_relation.append(t)
             else:
                 others.setdefault(fzs(t.free_symbols - symbols_enumerated), []).append(
                     t
                 )
 
-        # Grab the terms that we can evaluate directly first
-        chosen = []
-        if can_evaluate:
-            chosen.append(type(f)(*can_evaluate))
+        # Charge for symbols that differ between the terms, because getting rid of those
+        # would let us do fewer partitions.
+        for ot in others:
+            for ot2 in others:
+                meddlers = ot - ot2
+                for s in meddlers:
+                    meddling_symbols[s] += 1 / len(others) / len(meddlers)
+
+        # If a symbol is in a term we don't currently care about AND enumerating the
+        # symbol would bring that term in AND that term wouldn't be able to be merged
+        # into another term, then this symbol is actively not meddling right now but
+        # adding it in would result in meddling.
+        for n in no_relation:
+            for s in n.free_symbols:
+                without_s = fzs(set(n.free_symbols) - {s})
+                if without_s not in others:
+                    meddling_symbols[s] -= 10
 
         # Try to re-join any others if we can to reduce the number of terms. However, if
         # this is going to lead us right back to where we started, then don't do it.
+        chosen = []
         for ot in others.values():
             joined = type(f)(*ot)
             if joined != f:
@@ -648,14 +658,17 @@ def _partition_formula(
             for symbol in sorted(term.free_symbols, key=str):
                 update_goal(symbol, Goal("diff"))
         else:
-            for subterm, subgoal in partition_formula(
+            subgoals, sub_meddling_symbols = make_evalable_objectives_from_formula(
                 term,
                 symbols_enumerated,
                 bounds,
                 tolerance,
                 absolute_tolerance,
                 outer_goal="min",
-            ).items():
+            )
+            meddling_symbols.update(sub_meddling_symbols)
+
+            for subterm, subgoal in subgoals.items():
                 if subterm in goals:
                     goals[subterm] |= subgoal
                 else:
@@ -670,7 +683,7 @@ def _partition_formula(
         if (outer_goal == "max") ^ bool(negate):
             goals[k] = ~v
 
-    return goals
+    return goals, meddling_symbols
 
 
 @lru_cache(maxsize=10000)
@@ -678,7 +691,7 @@ def _get_n_prime_factors(n: int) -> int:
     return len(factorint(n))
 
 
-def partition_formula(
+def make_evalable_objectives_from_formula(
     f: Expr,
     symbols_enumerated: set[Symbol],
     bounds: tuple[tuple[Symbol, int, int], ...],
@@ -687,7 +700,7 @@ def partition_formula(
     terms_do_not_cross_zero: bool = False,
     outer_goal: str = "min",
 ) -> dict[Symbol, Goal]:
-    return _partition_formula(
+    return _make_evalable_objectives_from_formula(
         f,
         fzs(symbols_enumerated & f.free_symbols),
         bounds,
@@ -739,8 +752,8 @@ def append_vector(matrix: np.ndarray, vector: np.ndarray):
         return vector.reshape(-1, 1)
     a = np.repeat(matrix, vector.shape[0], axis=0)
     b = np.tile(vector.reshape(-1, 1), (matrix.shape[0], 1))
-    max_val = max(np.max(a), np.max(b))
-    min_val = min(np.min(a), np.min(b))
+    max_val = max(np.max(a, initial=0), np.max(b, initial=0))
+    min_val = min(np.min(a, initial=0), np.min(b, initial=0))
     assert min_val >= 0, f"min_val is {min_val}"
     assert max_val <= 2**64, f"max_val is {max_val}"
     if max_val >= 2**32:
@@ -774,15 +787,23 @@ def f_minus_other_f(f: Expr, symbols_enumerated: set[Symbol]):
 
 
 @lru_cache(maxsize=10000)
+def f_slash_other_f(f: Expr, symbols_enumerated: set[Symbol]):
+    fs = {
+        s: sympy.Symbol(f"{s}_2", integer=True, positive=True)
+        for s in sorted(f.free_symbols & symbols_enumerated, key=str)
+    }
+    return f.xreplace(fs) / f > 1
+
+
+@lru_cache(maxsize=10000)
 def affects_comparison(f: Expr, s: Symbol, symbols_enumerated: set[Symbol]):
     if not isinstance(f, sympy.Expr):
         return False
-    delta = f_minus_other_f(f, symbols_enumerated)
+    delta = simplify(f_minus_other_f(f, symbols_enumerated))
     if s not in getattr(delta, "free_symbols", set()):
         return False
-
-    delta = simplify(delta)
-    if s not in getattr(delta, "free_symbols", set()):
+    delta2 = simplify(f_slash_other_f(f, symbols_enumerated))
+    if s not in getattr(delta2, "free_symbols", set()):
         return False
     return True
 
@@ -795,38 +816,80 @@ def get_padded_choices(
     minimize_formula: Expr = None,
     maximize_formula: Expr = None,
 ):
-    choices_padded = {}
+    # Choice padding rules (assuming minimizing formula; flip for maximizing):
+    # - Iterate through not-yet-enumerated tile shapes in outer-to-inner ourder.
+    # - If the formula doesn't depend on the tile shape, just use 1
+    # - If minimizing the tile shape -> minimizing the formula, set it as small as
+    #   possible, meaning equal to the next-innermost tile shape after it for the same
+    #   rank variable (this requires that we do outer-to-inner because the
+    #   next-innermost may be unknown).
+    # - If minimizing the tile shape -> maximizing the formula, set it as large as
+    #   possible, meaning the full rank shape.
+    #   - NOTE: There may be some optimization opportunities if we set it to the
+    #     next-outermost instead of the full shape, but that makes it difficult to just
+    #     do outer to inner.
+    # - If we can't tell, give up
+    # - NOTE: This assumes that if we go outer-to-inner we'll hit known shapes, so we
+    #   assert inner-to-outer enumeration order to make the innermost known.
+    assert "inner_to_outer" in _TILE_SHAPE_ORDER, (
+        f"get_padded_choices assumes inner-to-outer enumeration order; got "
+        f"{_TILE_SHAPE_ORDER}"
+    )
+
+    if minimize_formula is not None and maximize_formula is not None:
+        raise ValueError("Both minimize_formula and maximize_formula are not None")
+
+    replace_order = what_tiles_symbol.tiling_order_outer_to_inner
+
+    if minimize_formula is None and maximize_formula is None:
+        replace_order = []
+
+    formula = minimize_formula
+    if formula is None and maximize_formula is not None:
+        formula = -maximize_formula
+
+    replace_order = [s for s in replace_order if s in symbols_non_enumerated_set]
+
+    enum_index = {s: i for i, s in enumerate(symbols_enumerated)}
+    choices_padded = {s: choices_enumerated[:, i] for s, i in enum_index.items()}
+
+    substitutions = {}
+    for s in replace_order:
+        if s not in formula.free_symbols:
+            continue
+        # Need to find another symbol to substitute here
+        diff = diff_geq_leq_zero(formula, s, what_tiles_symbol.bounds)
+        # Smaller value -> smaller formula, so minimize
+        if diff == ComparisonResult.ALWAYS_GEQ_THAN_ZERO:
+            new_s = what_tiles_symbol.get_inner_tiles(s, value_if_fail=1)
+        # Larger value -> smaller formula, so maximize
+        elif diff == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
+            new_s = what_tiles_symbol.get_max_size(s)
+        # idk bro
+        elif diff == ComparisonResult.UNKNOWN:
+            raise ValueError(f"Can't tell if {s} is increasing or decreasing")
+        else:
+            new_s = 1
+        formula = formula.xreplace({s: new_s})
+        substitutions[s] = new_s
+        for k, v in substitutions.items():
+            if v == s:
+                substitutions[k] = new_s
+
     ones = np.ones(choices_enumerated.shape[0], choices_enumerated.dtype)
-    for symbol in symbols_enumerated:
-        choices_padded[symbol] = choices_enumerated[:, symbols_enumerated.index(symbol)]
-    for symbol in symbols_non_enumerated_set:
-        choices_padded[symbol] = ones
-        if minimize_formula is not None or maximize_formula is not None:
-            if minimize_formula is None:
-                formula = maximize_formula
-                sign = -1
-            elif maximize_formula is None:
-                formula = minimize_formula
-                sign = 1
-            else:
-                raise ValueError(
-                    "Both minimize_formula and maximize_formula are not None"
-                )
-            diff_result = diff_geq_leq_zero(
-                sign * formula, symbol, what_tiles_symbol.bounds
-            )
-            if diff_result == ComparisonResult.ALWAYS_LEQ_THAN_ZERO:
-                choices_padded[symbol] = ones * what_tiles_symbol.get_max_size(symbol)
-            elif diff_result == ComparisonResult.ALWAYS_GEQ_THAN_ZERO:
-                pass
-            elif diff_result == ComparisonResult.ALWAYS_EQUAL_TO_ZERO:
-                pass
-            elif diff_result == ComparisonResult.UNKNOWN:
-                raise ValueError(f"Can't tell if {symbol} is increasing or decreasing")
-            else:
-                raise ValueError(
-                    f"Comparison result {diff_result} is not a valid comparison result"
-                )
+    choices_padded = {}
+
+    for s in symbols_enumerated:
+        choices_padded[s] = choices_enumerated[:, enum_index[s]]
+    for s in symbols_non_enumerated_set:
+        subs = substitutions.get(s, 1)
+        if subs in choices_padded:
+            choices_padded[s] = choices_padded[subs]
+        else:
+            choices_padded[s] = ones * subs
+
+    for k, v in choices_padded.items():
+        assert isinstance(v, np.ndarray), f"{k} is not a numeric array: {v}"
 
     return choices_padded
 
@@ -1071,6 +1134,7 @@ def grab_symbol(
     keep_symbols: list[Symbol],
     max_loop_check_groups: list[tuple[Number, list[Symbol]]],
     log_message: Callable,
+    meddling_symbols: Counter[Symbol],
 ):
     strides = [s for s in symbols_remaining if what_tiles_symbol.is_stride(s)]
     if not strides:
@@ -1105,14 +1169,11 @@ def grab_symbol(
     def hybrid(s):
         keep = s in keep_symbols
 
-        # Score for the % of symbols in objectives that are this symbol
-        score = 0
         all_symbols = enumerated_set
-        for o in objectives:
-            n_symbols = sum(
-                c for s2, c in o._symbol_counts.items() if s2 not in enumerated_set
-            )
-            score += o._symbol_counts.get(s, 0) / max(1, n_symbols)
+        # Score for "meddling", which measures how many extra terms must be considered
+        # because we have not yet enumerated this symbol. We'd like to enumerate (get
+        # rid of unknowns for) symbols that are more meddling.
+        score = meddling_symbols.get(s, 0)
 
         # Score for max_loop_check_groups partially resolved by this symbol
         tiles = what_tiles_symbol.get_outer_tiles(s, none_if_fail=True)
@@ -1132,16 +1193,21 @@ def grab_symbol(
                 score += 1 / len(remaining)
 
         # Score for tiling or being tiled by an unknown
-        if isinstance(tiles, Symbol) and tiles not in symbols_enumerated:
-            score -= 1
-        if isinstance(tiled_by, Symbol) and tiled_by not in symbols_enumerated:
-            score -= 1
+        score_unknown = 0
+        if isinstance(tiles, Symbol) and tiles not in enumerated_set:
+            score_unknown -= 1
+        if isinstance(tiled_by, Symbol) and tiled_by not in enumerated_set:
+            score_unknown -= 1
 
-        score /= len(objectives) + len(max_loop_check_groups)
+        # Score for bringing in an entirely-new formula
+        for o in objectives:
+            if s in o._free_symbols and not o._free_symbols & enumerated_set:
+                score_unknown -= 10
 
         return (
-            -keep,
-            score,
+            -keep,  # Punish enumerating keep symbols because they're always diff
+            score_unknown,  # Punish bringing in new formulas or unknowns
+            score,  # Reward stopping-of-meddling
             _min_size(s),
         )
 
@@ -1152,8 +1218,7 @@ def grab_symbol(
         )
         return (
             # Sum number of times it appears in all objectives
-            sum(o._symbol_counts.get(s, 0) for o in objectives)
-            + 4**constrains_following,
+            sum(o._symbol_counts[s] for o in objectives) + 4**constrains_following,
             # Number of objectives that have this symbol
             len([o for o in objectives if s in o._free_symbols])
             + 4**constrains_following,
@@ -1287,8 +1352,8 @@ def get_tile_shape_choices(
 
     symbols_enumerated: list[Symbol] = []
     choices_enumerated: np.ndarray = None
-
     symbols_remaining = list(symbols)
+    meddling_symbols = Counter()
 
     symbol_to_loop = {}
     for n in job.mapping.nodes:
@@ -1297,8 +1362,7 @@ def get_tile_shape_choices(
                 symbol_to_loop[n.tile_shape] = n
 
     def _symbol_is_imperfect(symbol):
-        loop = symbol_to_loop.get(symbol)
-        return bool(loop is not None and loop._may_cause_imperfect)
+        return bool(symbol_to_loop[symbol]._may_cause_imperfect)
 
     if any(_symbol_is_imperfect(s) for s in symbol_to_loop):
         assert "inner_to_outer" in _TILE_SHAPE_ORDER
@@ -1372,7 +1436,9 @@ def get_tile_shape_choices(
             keep_symbols,
             max_loop_check_groups,
             log_message,
+            meddling_symbols,
         )
+        meddling_symbols = Counter()  # Reset meddling symbols. It's updated later.
 
         choices = []
         if what_tiles_symbol.is_stride(symbol):
@@ -1488,9 +1554,12 @@ def get_tile_shape_choices(
         choices = None  # Let it be freed by the garbage collector
         job.n_total_pmappings *= choices_enumerated.shape[0] / max(1, prev_size)
         symbols_enumerated.append(symbol)
-        DEBUG and log_message(
-            "enumerate", f"{symbol}", f"size={choices_enumerated.shape[0]}"
-        )
+        if DEBUG:
+            loop = symbol_to_loop.get(symbol)
+            ls = loop.compact_str() if loop is not None else ""
+            DEBUG and log_message(
+                "enumerate", f"{symbol}", f"size={choices_enumerated.shape[0]} {ls}"
+            )
 
         # ==============================================================================
         # Max fused loops per rank check
@@ -1656,13 +1725,6 @@ def get_tile_shape_choices(
 
             choices_enumerated_float = choices_enumerated.astype(util.NUMPY_FLOAT_TYPE)
 
-            # as_strings = {str(s): choices_enumerated_float[:, i] for i, s in enumerate(symbols_enumerated)}
-            # matched = list(range(choices_enumerated.shape[0]))
-            # for s_idx in [0, 1, 6, 5]:
-            #     if f"stride{s_idx}" in as_strings:
-            #         matched = [i for i in matched if as_strings[f"stride{s_idx}"][i] == 1]
-            #         assert matched, f"FAIL after {s_idx}"
-
             # ==========================================================================
             # Create functions to Pareto using objectives
             # ==========================================================================
@@ -1795,7 +1857,7 @@ def get_tile_shape_choices(
                     outer_goal = "max"
                 else:
                     outer_goal = "min"
-                goals = partition_formula(
+                goals, ms = make_evalable_objectives_from_formula(
                     objective.formula,
                     sym_enumerated_set,
                     what_tiles_symbol.bounds,
@@ -1804,6 +1866,7 @@ def get_tile_shape_choices(
                     objective.terms_do_not_cross_zero,
                     outer_goal=outer_goal,
                 )
+                meddling_symbols.update(ms)
 
                 DEBUG and log_message(f"formula", f"{objective.formula}")
                 for k, v in goals.items():

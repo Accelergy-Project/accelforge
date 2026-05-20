@@ -1,0 +1,31 @@
+# action.bits_per_action=8 overrides component.bits_per_action=32.
+# Component bits_per_value={All:4} overrides workload bpv=8.
+# Derived vpa = 8 / 4 = 2.
+arch:
+  nodes:
+  - !Memory
+    name: main_memory
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: All}
+
+  - !Toll
+    name: Toll
+    direction: up_and_down
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    bits_per_value: {All: 4}
+    bits_per_action: 32
+    actions:
+    - {name: read, energy: 100, latency: 0, bits_per_action: 8}
+
+  - !Memory
+    name: LocalBuffer
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: All}
+
+  - !Compute
+    name: mac
+    component_class: Dummy

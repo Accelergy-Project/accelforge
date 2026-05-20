@@ -52,6 +52,7 @@ from accelforge.mapper.FFM._make_pmappings.contraints.constraints import (
 from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_loops import (
     insert_temporal_loops,
     insert_spatial_loops,
+    label_imperfect_tile_shapes,
 )
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
@@ -386,6 +387,9 @@ def iterate_mappings_constraints(
 
                 # MAPPING MUST NOT BE MODIFIED AFTER constraints.set_loop_indices
                 constraints.set_loop_indices(mapping)
+                label_imperfect_tile_shapes(
+                    mapping, spec.workload.einsums[einsum_name], job
+                )
 
                 mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
                 mapping._n_loop_orders = n_orders

@@ -86,6 +86,10 @@ class Job:
 
     intermediate_tensors: set[TensorName] | None = None
 
+    explore_imperfect_spatial_loops: bool = False
+    explore_imperfect_temporal_loops: bool = False
+    allow_imperfect_all: bool = False
+
     @property
     def einsum(self) -> Einsum:
         return self.spec_one_einsum.workload.einsums[self.einsum_name]

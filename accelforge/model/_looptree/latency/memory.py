@@ -83,6 +83,13 @@ def component_latency(
     )
     component_to_actions[compute_obj.name]["compute_actions"] = longest_compute_latency
 
+    for component, actions in component_to_actions.items():
+        scale = getattr(name2component[component], "actions_scale", 1)
+        if scale == 1:
+            continue
+        for action in actions:
+            actions[action] = actions[action] * scale
+
     # TODO: Unhardcode "compute" name"
     component_to_action_latency = defaultdict(dict)
     for component, actions in component_to_actions.items():
@@ -112,7 +119,7 @@ def component_latency(
         symbol_table = {
             "action2latency": component_to_action_latency[component],
             **symbol_table_base,
-            **dict(name2component[component]),
+            **name2component[component].shallow_model_dump(include_None=True),
             **actions,
             **component_to_action_latency[component],
         }

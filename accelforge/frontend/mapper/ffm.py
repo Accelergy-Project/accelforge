@@ -124,6 +124,38 @@ class FFM(EvalableModel):
     are so many templates being generated?).
     """
 
+    explore_imperfect_spatial_loops: bool = False
+    """
+    If True, spatial loop bounds may not perfectly divide the full rank shape. This
+    takes longer to explore and requires more RAM, but mappings found may have better
+    spatial utilization. This is especially helpful when the rank shapes have few prime
+    factors.
+
+    For example, if the rank shape is 7, then explore_imperfect_spatial_loops=False
+    would explore loop bounds of 1, 7 and explore_imperfect_spatial_loops=True would
+    explore loop bounds of 1, 2, 3, 4, 7. This would be helfpul for a size-4 PE array,
+    where we could get full utilization using 4 PEs in one timestep and 3 PEs in another
+    timestep.
+
+    Only "simple" rank variables (those appearing alone and not inside an expression in
+    any tensor access) may have imperfect loop bounds.
+    """
+
+    explore_imperfect_temporal_loops: bool = False
+    """
+    If True, temporal loop bounds may not perfectly divide the full rank shape. This
+    takes longer to explore and requires more RAM, but mappings found may have lower
+    memory usage. This is especially helpful when the rank shapes have few prime
+    factors.
+
+    For example, if the rank shape is 7, then explore_imperfect_temporal_loops=False
+    would explore loop bounds of 1, 7 and explore_imperfect_temporal_loops=True would
+    explore loop bounds of 1, 2, 3, 4, 7.
+
+    Only "simple" rank variables (those appearing alone and not inside an expression in
+    any tensor access) may have imperfect loop bounds.
+    """
+
     prioritize_reuse_of_unfused_tensors: bool = False
     """
     If set to True, then for all memory levels, the mapper will place the storage nodes
