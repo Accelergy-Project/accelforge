@@ -691,14 +691,19 @@ class TestTPUArchParsed(unittest.TestCase):
         ri = af.spatial[0]
         self.assertEqual(ri.name, "reuse_input")
         self.assertEqual(ri.fanout, 128)
-        self.assertEqual(ri.may_reuse, "input")
+        self.assertEqual(ri.reuse, "input")
+        # may_reuse defaults to reuse when reuse is defined
+        evaluated, _ = ri._eval_expressions()
+        self.assertEqual(evaluated.may_reuse, "input")
 
     def test_array_fanout_reuse_output(self):
         af = self.arch.find("ProcessingElement")
         ro = af.spatial[1]
         self.assertEqual(ro.name, "reuse_output")
         self.assertEqual(ro.fanout, 128)
-        self.assertEqual(ro.may_reuse, "output")
+        self.assertEqual(ro.reuse, "output")
+        evaluated, _ = ro._eval_expressions()
+        self.assertEqual(evaluated.may_reuse, "output")
 
     def test_register_size_expression(self):
         reg = self.arch.find("Register")

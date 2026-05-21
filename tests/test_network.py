@@ -3,17 +3,13 @@ from unittest import TestCase
 
 import accelforge as af
 
-af.set_n_parallel_jobs(1)
-
 INPUT_FILES_DIR = Path(__file__).parent / "input_files" / "networked"
 
 
 class TestParsing(TestCase):
     def test_hierarchical(self):
         spec = af.Spec.from_yaml(
-            # af.examples.arches.networked.hierarchical,
-            INPUT_FILES_DIR
-            / "hierarchical.yaml",
+            INPUT_FILES_DIR / "hierarchical.yaml",
         )
         self.assertIn("PeNoc", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["PeNoc"].get_fanout(), 1)
@@ -29,9 +25,7 @@ class TestParsing(TestCase):
 
     def test_flat(self):
         spec = af.Spec.from_yaml(
-            # af.examples.arches.networked.flat,
-            INPUT_FILES_DIR
-            / "flat.yaml",
+            INPUT_FILES_DIR / "flat.yaml",
         )
         self.assertIn("NoC", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)
@@ -59,7 +53,7 @@ class TestModel(TestCase):
     def test_hierarchical_1d(self):
         M = 8
         KN = 8
-        MAC_TILE = 4
+        MAC_TILE = 2
         M_TILE = 4
         BITS_PER_VALUE = 8
 
@@ -84,7 +78,7 @@ class TestModel(TestCase):
             * (KN / MAC_TILE)  # number of used Scratchpad
             * M_TILE
             * KN  # temporal for n1 in mapping
-            * sum(i for i in range(MAC_TILE))  # unicast along X-axis of MacArray
+            * sum(i+1 for i in range(MAC_TILE))  # unicast along X-axis of MacArray
             * BITS_PER_VALUE,
         )
         # NOTE: assuming XY routing (as defined in mapping)
@@ -94,22 +88,23 @@ class TestModel(TestCase):
             * (KN / MAC_TILE)
             * M_TILE
             * KN  # temporal for n1 in mapping
-            * (MAC_TILE-1)  # multicast along X-axis of MacArray
+            * MAC_TILE   # multicast along X-axis of MacArray
             * BITS_PER_VALUE,
         )
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>MacArray<SEP>W0<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * (KN / MAC_TILE) ** 2
+            * (KN / MAC_TILE)
             * M_TILE
-            * (MAC_TILE * (MAC_TILE - 1) + MAC_TILE * (MAC_TILE - 1))
+            * KN
+            * sum(i+1 for i in range(MAC_TILE))
             * BITS_PER_VALUE,
         )
 
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * sum(i for i in range(KN // MAC_TILE))  # unicast along X-axis of PeArray
+            * sum(i+1 for i in range(KN // MAC_TILE))  # unicast along X-axis of PeArray
             * M_TILE
             * MAC_TILE
             * BITS_PER_VALUE,
@@ -118,7 +113,7 @@ class TestModel(TestCase):
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * (KN // MAC_TILE - 1)  # multicast along X-axis of PeArray
+            * KN // MAC_TILE  # multicast along X-axis of PeArray
             * M_TILE
             * KN
             * BITS_PER_VALUE,
@@ -126,7 +121,7 @@ class TestModel(TestCase):
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * sum(i for i in range(KN // MAC_TILE))  # unicast along PeArray
+            * sum(i+1 for i in range(KN // MAC_TILE))  # unicast along PeArray
             * MAC_TILE
             * KN
             * BITS_PER_VALUE,
@@ -160,7 +155,11 @@ class TestModel(TestCase):
             (M / M_TILE)
             * (KN / MAC_TILE) ** 2
             * M_TILE
-            * (0.5 * MAC_TILE * (MAC_TILE - 1) + MAC_TILE * (MAC_TILE - 1))
+            * (
+                sum(i+1 for i in range(MAC_TILE))  # unicasting along X
+                +
+                MAC_TILE * MAC_TILE  # multicast along Y for each column
+            )
             * BITS_PER_VALUE,
         )
         # NOTE: assuming XY routing (as defined in mapping)
@@ -169,7 +168,11 @@ class TestModel(TestCase):
             (M / M_TILE)
             * (KN / MAC_TILE) ** 2
             * M_TILE
-            * (MAC_TILE * (MAC_TILE - 1) + MAC_TILE * (MAC_TILE - 1))
+            * (
+                MAC_TILE * MAC_TILE  # multicast along X (the tile is shape N1, which is MAC_TILE here)
+                +
+                MAC_TILE * sum(i+1 for i in range(MAC_TILE))  # unicasting along Y for each row
+            )
             * BITS_PER_VALUE,
         )
         self.assertEqual(
@@ -177,14 +180,23 @@ class TestModel(TestCase):
             (M / M_TILE)
             * (KN / MAC_TILE) ** 2
             * M_TILE
-            * (MAC_TILE * (MAC_TILE - 1) + MAC_TILE * (MAC_TILE - 1))
+            * (
+                MAC_TILE * sum(i+1 for i in range(MAC_TILE))  # unicast along X (the tile is shape N1, which is MAC_TILE here)
+                +
+                MAC_TILE * sum(i+1 for i in range(MAC_TILE))  # unicasting along Y for each row
+            )
             * BITS_PER_VALUE,
         )
 
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * (0.5 * PE_TILE * (PE_TILE - 1) + PE_TILE * (PE_TILE - 1))
+            * (
+                sum(i+1 for i in range(PE_TILE))
+                +
+                PE_TILE * PE_TILE
+            )
+            # tile shape
             * M_TILE
             * MAC_TILE
             * BITS_PER_VALUE,
@@ -193,7 +205,11 @@ class TestModel(TestCase):
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * (PE_TILE * (PE_TILE - 1) + PE_TILE * 0.5 * PE_TILE * (PE_TILE - 1))
+            * (
+                PE_TILE * PE_TILE
+                +
+                PE_TILE * sum(i+1 for i in range(PE_TILE))
+            )
             * M_TILE
             * MAC_TILE
             * BITS_PER_VALUE,
@@ -202,8 +218,9 @@ class TestModel(TestCase):
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
             (M / M_TILE)
             * (
-                PE_TILE * 0.5 * PE_TILE * (PE_TILE - 1)
-                + PE_TILE * 0.5 * PE_TILE * (PE_TILE - 1)
+                PE_TILE * sum(i+1 for i in range(PE_TILE))
+                +
+                PE_TILE * sum(i+1 for i in range(PE_TILE))
             )
             * MAC_TILE**2
             * BITS_PER_VALUE,
@@ -217,7 +234,7 @@ class TestMapper(TestCase):
 
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
-            af.examples.arches.networked.hierarchical,
+            INPUT_FILES_DIR / "hierarchical.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN}
         )
         result = spec.map_workload_to_arch()
@@ -228,7 +245,7 @@ class TestMapper(TestCase):
 
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
-            af.examples.arches.networked.flat,
+            INPUT_FILES_DIR / "flat.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN}
         )
         result = spec.map_workload_to_arch()
@@ -239,7 +256,7 @@ class TestMapper(TestCase):
 
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
-            af.examples.arches.networked.flat,
+            INPUT_FILES_DIR / "flat.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN, "N_ROW_BUFFER": 1}
         )
         result = spec.map_workload_to_arch()

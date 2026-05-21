@@ -64,6 +64,10 @@ Definitions
     :term:`Einsums<Einsum>`. A tensor's shape is parameterized by its
     :term:`ranks<Rank>`.
 
+  Partition
+    A rank of a tensor can be partitioned into multiple partitions. The shape of the
+    partitions is referred to as the partition shape.
+
   Tile
     A subset of a tensor or operation space that is accessed by a set of
     :term:`loops<Loop>` in the mapping. If the loops are paratmeterized by variables for

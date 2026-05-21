@@ -541,11 +541,13 @@ class TestSpatialReuse(unittest.TestCase):
 
     def test_reuse_default_nothing(self):
         s = ArchSpatial(name="X", fanout=4)
-        self.assertEqual(s.reuse, "Nothing")
+        evaluated, _ = s._eval_expressions()
+        self.assertEqual(evaluated.reuse, "Nothing")
 
     def test_may_reuse_default_all(self):
         s = ArchSpatial(name="X", fanout=4)
-        self.assertEqual(s.may_reuse, "All")
+        evaluated, _ = s._eval_expressions()
+        self.assertEqual(evaluated.may_reuse, "All")
 
     def test_reuse_custom(self):
         s = ArchSpatial(name="X", fanout=4, reuse="input")

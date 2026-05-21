@@ -97,7 +97,7 @@ def run_model(
     if metrics & Metrics.ACTIONS:
         df.update(spatial_usage_df)
 
-    actions = gather_actions(reuse, None, use_name=True)
+    actions = gather_actions(reuse, None, use_name=True, spec=spec)
     energy = compute_energy_from_actions(
         spec, actions, overall_latency, component_to_non_power_gated_porp
     )
@@ -172,7 +172,9 @@ def run_model(
             occupancy = stats.max_occupancy
 
     if metrics & Metrics.ACTIONS:
-        detailed_actions = gather_actions(reuse, None, verbose=True, use_name=True)
+        detailed_actions = gather_actions(
+            reuse, None, verbose=True, use_name=True, spec=spec
+        )
         for key, count in detailed_actions.items():
             df[action2col(key)] = count.total * n_instances
         detailed_energy = compute_energy_from_actions(
@@ -184,11 +186,13 @@ def run_model(
             df[f"latency<SEP>{component}"] = cur_latency * n_instances
 
     actions_df = {}
-    simple_actions = gather_actions(reuse, None, verbose=False, use_name=True)
+    simple_actions = gather_actions(
+        reuse, None, verbose=False, use_name=True, spec=spec
+    )
     for key, count in simple_actions.items():
         actions_df[action2col(key)] = count.total * n_instances
 
-    if metrics & Metrics.LATENCY:
+    if metrics.includes_latency():
         df["Total<SEP>latency"] = overall_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute

@@ -183,23 +183,23 @@ def multiply_n_pmappings_by_permutations(n_pmappings: int, job: Job) -> int:
         _count_loops(job)
     )
 
-    rv = {k: v for k, v in job.rank_variable_bounds.items()}
+    rv = {r: job.rank_variable_bounds[r] for r in job.einsum.rank_variables}
 
-    if "non_helpful_tile_shapes" in option:
-        rv_temporal_count = {r: len(temporal_n_loops) for r in rv.keys()}
+    n = 1
+    for r, b in rv.items():
+        imperfects = _imperfect_per_loop(r, job.mapping)
+        if "non_helpful_tile_shapes" in option:
+            assert not any(imperfects)
+            nloops = len(temporal_n_loops) + rv_spatial_count[r]
+            n *= _count_factorizations(b, (False,) * nloops)
+        else:
+            n *= _count_factorizations(b, imperfects)
 
     if "non_helpful_loops_for_loop_orders" in option:
         for i in range(len(temporal_n_loops)):
             temporal_n_loops[i] = len(rv)
 
-    # Count number of tile shapes
-    n_factorizations = math.prod(
-        _count_factorizations(b, _imperfect_per_loop(r, job.mapping))
-        for r, b in rv.items()
-    )
     n_temporal_loop_orders = math.prod(math.factorial(n) for n in temporal_n_loops)
-
-    n = n_factorizations
 
     # assert n >= n_pmappings, f"n_pmappings: {n_pmappings} > n: {n}"
 

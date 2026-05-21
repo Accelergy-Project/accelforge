@@ -237,7 +237,6 @@ class TestUntrackedSpatialNotPrunedByPareto(unittest.TestCase):
         spec.arch.find_spatial("Z").min_usage = 1
         spec.arch.find_spatial("reuse_input").min_usage = 1
         spec.arch.find_spatial("reuse_output").min_usage = 1
-        spec.mapper._metric_aggregator = "prod"
         result_constrained = map_workload_to_arch(spec, einsum_names=["QK"])
         latency_constrained = min(result_constrained.latency(list_if_one_mapping=True))
 

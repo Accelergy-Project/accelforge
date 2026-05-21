@@ -20,7 +20,7 @@ from accelforge.util._basetypes import (
 
 from accelforge.util.exceptions import EvaluationError
 
-from accelforge.frontend.arch.spatialable import Spatialable
+from accelforge.frontend.arch.spatialable import Spatialable, PhysicalSpatial
 
 from pydantic import Discriminator
 from accelforge.util._basetypes import _uninstantiable
@@ -341,7 +341,14 @@ class Array(Branch, Spatialable):
                     if isinstance(node, Spatialable):
                         fanout *= node.get_fanout()
                         node = deepcopy(node)
-                        node._physical_spatial = node.spatial
+                        node._physical_spatial = [
+                            PhysicalSpatial(
+                                name=s.name,
+                                fanout=s.fanout,
+                                stride=self.get_fanout_along(s.name)/s.fanout
+                            )
+                            for s in node.spatial
+                        ]
                         node.spatial = EvalableList()
                     nodes.append(node)
                 else:

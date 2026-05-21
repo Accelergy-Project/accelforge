@@ -334,7 +334,7 @@ def _loop_bound_constraint_from_no_refetch_and_resend(
             if (
                 isinstance(mapping[end_index], TensorHolder)
                 and n in mapping[end_index].tensors
-                and mapping[end_index].component == m.name
+                and mapping[end_index].component == arch_node.name
             ):
                 break
             end_index += 1
@@ -363,7 +363,7 @@ def _loop_bound_constraint_from_no_refetch_and_resend(
             if (
                 isinstance(mapping[start_index], TensorHolder)
                 and n in mapping[start_index].tensors
-                and mapping[start_index].component == m.name
+                and mapping[start_index].component == arch_node.name
             ):
                 break
             start_index += 1
@@ -375,7 +375,7 @@ def _loop_bound_constraint_from_no_refetch_and_resend(
                 and n in mapping[end_index].tensors
             ):
                 # Can't have two tensor holders for the same tensor + component
-                assert mapping[end_index].component != m.name
+                assert mapping[end_index].component != arch_node.name
                 break
             end_index += 1
 

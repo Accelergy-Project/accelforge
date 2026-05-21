@@ -714,6 +714,8 @@ def _make_mapspace_globals(
         objective_function = lambda x: x["Total<SEP>latency"]
     elif objective == (Metrics.ENERGY | Metrics.LATENCY):
         objective_function = lambda x: x["Total<SEP>energy"] * x["Total<SEP>latency"]
+    elif objective == Metrics.ENERGY_DELAY_PRODUCT:
+        objective_function = lambda x: x["Total<SEP>energy"] * x["Total<SEP>latency"]
     else:
         raise ValueError(f"Unknown objective {objective}")
     mg = MapspaceGlobals(

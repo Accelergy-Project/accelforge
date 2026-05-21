@@ -21,7 +21,7 @@ arch:
     - {name: write, energy: 10, latency: 1e-9/4}
 
   - !Network
-    name: PeNoc
+    name: PeArray
     area: 0
     leak_power: 0
     actions:
@@ -41,7 +41,7 @@ arch:
     - {name: Y, fanout: 2}
 
   - !Network
-    name: MacNoc
+    name: MacArray
     area: 0
     leak_power: 0
     actions:
