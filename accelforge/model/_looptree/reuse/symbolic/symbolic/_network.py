@@ -79,7 +79,7 @@ class NetworkAnalyzer:
             last_fanout = last_fanout.get(node.name, 1)
             if isinstance(relevancy, Irrelevant):
                 # Cost of multicasting is the cost of delivering along the dimension
-                multicast_hops = (shape_repeats - 1) * last_fanout
+                multicast_hops = shape_repeats * last_fanout
                 multicast_cost = multicast_hops * volume
                 self.overall_max_hops += multicast_hops
 
@@ -93,9 +93,9 @@ class NetworkAnalyzer:
                 # the dimension with shape as stride
                 # TODO: we should use the actual stride
                 total_unicast_cost = (
-                    0.5 * (shape_repeats - 1) * shape_repeats * last_fanout * volume
+                    0.5 * (shape_repeats + 1) * shape_repeats * last_fanout * volume
                 )
-                max_unicast_hops = (shape_repeats - 1) * last_fanout
+                max_unicast_hops = shape_repeats * last_fanout
                 self.overall_max_hops += max_unicast_hops
 
                 accumulated_network_stats.total_hops += total_unicast_cost
