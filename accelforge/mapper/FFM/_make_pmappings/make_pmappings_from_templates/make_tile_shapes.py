@@ -2055,7 +2055,7 @@ def _clean_energy_columns(df: dict, metrics: Metrics):
     # The model outputs separated dynamic energy and leak energy because it's easier for
     # tile shape exploration. Combine them if needed and generate the total energy
     # column.
-    if metrics & Metrics.ENERGY:
+    if metrics.includes_energy():
         leak = df.pop("Total<SEP>leak_energy")
         dynamic = df.pop("Total<SEP>dynamic_energy")
         df["Total<SEP>energy"] = leak + dynamic

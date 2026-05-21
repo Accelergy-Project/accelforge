@@ -29,11 +29,7 @@ class ZeroComparator(ComponentModel):
     priority = 0.5
 
     def __init__(
-        self,
-        n_comparators: int,
-        n_bits: int,
-        tech_node: str,
-        voltage: float = 0.85
+        self, n_comparators: int, n_bits: int, tech_node: str, voltage: float = 0.85
     ):
         self.n_comparators = n_comparators
         self.n_bits = n_bits
@@ -81,7 +77,6 @@ class ZeroComparator(ComponentModel):
                 energy_scale_function=quadratic,
                 latency_scale_function=reciprocal,
                 leak_power_scale_function=linear,
-
             )
             subcomponent.leak_power_scale *= 0.02  # Low-leakage technology
 

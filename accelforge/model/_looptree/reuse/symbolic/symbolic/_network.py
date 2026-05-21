@@ -52,7 +52,9 @@ class NetworkAnalyzer:
             component_object = find_component_object(
                 network.component, info.job.flattened_arch
             )
-            workload_bpv = info.job.einsum.tensor_accesses[network.tensor].bits_per_value
+            workload_bpv = info.job.einsum.tensor_accesses[
+                network.tensor
+            ].bits_per_value
             bits_per_value = component_object.bits_per_value.get(
                 network.tensor, workload_bpv
             )
@@ -62,10 +64,13 @@ class NetworkAnalyzer:
             else:
                 actions_per_value = bits_per_value
             volume = (
-                compute_dense_tile_occupancy(projection, child_shape) * actions_per_value
+                compute_dense_tile_occupancy(projection, child_shape)
+                * actions_per_value
             )
 
-            if info.job.spec_one_einsum.arch.is_above(node.component, network.component):
+            if info.job.spec_one_einsum.arch.is_above(
+                node.component, network.component
+            ):
                 continue
 
             relevancy = info.tensor_to_relevancy[network.tensor][node.rank_variable]

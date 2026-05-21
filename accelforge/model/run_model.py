@@ -192,7 +192,7 @@ def run_model(
     for key, count in simple_actions.items():
         actions_df[action2col(key)] = count.total * n_instances
 
-    if metrics & Metrics.LATENCY:
+    if metrics.includes_latency():
         df["Total<SEP>latency"] = overall_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute

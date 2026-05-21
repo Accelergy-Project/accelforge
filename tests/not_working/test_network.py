@@ -92,7 +92,7 @@ class TestModel(TestCase):
             * (KN / MAC_TILE)
             * M_TILE
             * KN  # temporal for n1 in mapping
-            * (MAC_TILE-1)  # multicast along X-axis of MacArray
+            * (MAC_TILE - 1)  # multicast along X-axis of MacArray
             * BITS_PER_VALUE,
         )
         self.assertEqual(

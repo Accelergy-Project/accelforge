@@ -634,12 +634,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
             )
 
             network_analyzer.accumulate_child_result(
-                child_result,
-                info,
-                shape_repeats,
-                einsum_name,
-                child_shape,
-                node
+                child_result, info, shape_repeats, einsum_name, child_shape, node
             )
 
         for einsum, child_steps in child_result.temporal_steps.items():

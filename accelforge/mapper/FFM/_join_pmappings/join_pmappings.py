@@ -62,81 +62,65 @@ class JoiningTimer:
         logger.info(f"============================\n")
 
 
+def _apply_edp_columns(df: pd.DataFrame, metrics: Metrics) -> pd.DataFrame:
+    if not (metrics & Metrics.ENERGY_DELAY_PRODUCT):
+        return df
+    if not (metrics & Metrics.ENERGY):
+        del df["Total<SEP>energy"]
+    if not (metrics & Metrics.LATENCY):
+        del df["Total<SEP>latency"]
+    return df
+
+
 class OptimalityThresholder:
     def __init__(
         self,
         prev_solutions: Mappings,
         _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray],
-        aggregator: str,
         print_progress: bool,
+        metrics: Metrics,
     ):
-        compare_to = prev_solutions.data
+        self.metrics = metrics
+        compare_to = _apply_edp_columns(prev_solutions.data.copy(), metrics)
         compare_cols = [c for c in compare_to.columns if col_used_in_pareto(c)]
         self._pmapping_row_filter_function = _pmapping_row_filter_function
-        self.aggregator = aggregator
 
-        if self.aggregator in ("prod", "sum"):
-            objective_cols = [c for c in compare_cols if is_objective_col(c)]
-            self._agg_cols = objective_cols
-            if objective_cols:
-                values = np.column_stack([compare_to[c].values for c in objective_cols])
-                if self.aggregator == "prod":
-                    agg = np.prod(values, axis=1)
-                else:
-                    agg = np.sum(values, axis=1)
-                self._agg_threshold = agg.min()
-            else:
-                self._agg_threshold = float("inf")
+        compare_to = compare_to.sort_values(by=compare_cols, ascending=False)
+
+        if len(compare_to) > 10:
+            chosen_indices = np.round(np.linspace(0, len(compare_to) - 1, 10))
+        else:
+            chosen_indices = np.round(np.arange(len(compare_to)))
+
+        self.compare_to: list[dict[str, float]] = []
+        if print_progress:
+            print(f"Filtering out pmappings worse than the following:")
+
+        for i in chosen_indices.astype(int):
+            self.compare_to.append({c: compare_to[c].iloc[i] for c in compare_cols})
             if print_progress:
-                label = "product" if self.aggregator == "prod" else "sum"
                 print(
-                    f"Filtering out pmappings with {label} > "
-                    f"{self._agg_threshold:.2e}"
-                )
-        else:  # "any"
-            compare_to = compare_to.sort_values(by=compare_cols, ascending=False)
-
-            if len(compare_to) > 10:
-                chosen_indices = np.round(np.linspace(0, len(compare_to) - 1, 10))
-            else:
-                chosen_indices = np.round(np.arange(len(compare_to)))
-
-            self.compare_to: list[dict[str, float]] = []
-            if print_progress:
-                print(f"Filtering out pmappings worse than the following:")
-
-            for i in chosen_indices.astype(int):
-                self.compare_to.append({c: compare_to[c].iloc[i] for c in compare_cols})
-                if print_progress:
-                    print(
-                        "\t"
-                        + "    ".join(
-                            f"{k}={float(v):.2e}"
-                            for k, v in self.compare_to[-1].items()
-                        )
+                    "\t"
+                    + "    ".join(
+                        f"{k}={float(v):.2e}" for k, v in self.compare_to[-1].items()
                     )
+                )
 
     def __call__(self, mapping: pd.DataFrame) -> bool:
         nondominated_by_all = np.ones(len(mapping), dtype=bool)
 
-        if self.aggregator in ("prod", "sum"):
-            cols_present = [c for c in self._agg_cols if c in mapping.columns]
-            if cols_present:
-                values = np.column_stack([mapping[c].values for c in cols_present])
-                if self.aggregator == "prod":
-                    agg = np.prod(values, axis=1)
+        edp_mapping = _apply_edp_columns(
+            mapping.copy(), self.metrics, return_only_objectives=True
+        )
+
+        for c in self.compare_to:
+            nondominated = np.zeros(len(edp_mapping), dtype=bool)
+            for k, v in c.items():
+                if k not in edp_mapping.columns:
+                    nondominated |= True
                 else:
-                    agg = np.sum(values, axis=1)
-                nondominated_by_all = agg <= self._agg_threshold
-        else:  # "any"
-            for c in self.compare_to:
-                nondominated = np.zeros(len(mapping), dtype=bool)
-                for k, v in c.items():
-                    if k not in mapping.columns:
-                        nondominated |= True
-                    else:
-                        nondominated |= mapping[k] <= v
-                nondominated_by_all &= nondominated
+                    nondominated |= edp_mapping[k] <= v
+            nondominated_by_all &= nondominated
 
         if self._pmapping_row_filter_function is not None:
             nondominated_by_all &= self._pmapping_row_filter_function(mapping)
@@ -235,8 +219,8 @@ def join_strategy_2(
                 filter_func = OptimalityThresholder(
                     joined,
                     _pmapping_row_filter_function,
-                    spec.mapper._metric_aggregator,
                     print_progress,
+                    metrics,
                 )
         except Exception as e:
             if i == len(thresholds) - 1:
@@ -355,6 +339,8 @@ def clean_compress_and_join_pmappings(
     )
 
     joined = decompress_pmappings(joined, decompress_data)
+
+    _apply_edp_columns(joined.data, metrics)
 
     for einsum_name in einsum2pmappings:
         col = f"{einsum_name}<SEP>{MAPPING_COLUMN}"
