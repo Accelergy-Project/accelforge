@@ -212,7 +212,6 @@ arch:
       usage_scale: n_weight_slices
     - name: rows_ARRAY_ROWS # Special name that determines array size
       fanout: 128
-      may_reuse: output
       reuse: output
       min_usage: 1
 

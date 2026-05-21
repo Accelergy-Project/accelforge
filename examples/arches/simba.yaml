@@ -43,8 +43,8 @@ arch:
   - !Container
     name: VectorMAC
     spatial:
-    - {name: reuse_output, fanout: 8, min_usage: 1, may_reuse: output, reuse: output}
-    - {name: reuse_input, fanout: 8, min_usage: 1, may_reuse: input, reuse: input}
+    - {name: reuse_output, fanout: 8, min_usage: 1, reuse: output}
+    - {name: reuse_input, fanout: 8, min_usage: 1, reuse: input}
 
   - !Memory
     name: Register

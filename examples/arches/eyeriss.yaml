@@ -28,8 +28,8 @@ arch:
   - !Container
     name: ProcessingElement
     spatial:
-    - {name: reuse_weight, fanout: 14, may_reuse: weight, reuse: weight, min_usage: 1}
-    - {name: reuse_output, fanout: 12, may_reuse: output, reuse: output, min_usage: 1}
+    - {name: reuse_weight, fanout: 14, reuse: weight, min_usage: 1}
+    - {name: reuse_output, fanout: 12, reuse: output, min_usage: 1}
 
   - !Memory # Input scratchpad
     name: InputScratchpad

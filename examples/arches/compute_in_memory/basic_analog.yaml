@@ -107,7 +107,6 @@ arch:
     spatial:
     - name: row_ARRAY_ROWS
       fanout: 32
-      may_reuse: output
       reuse: output
       min_usage: 1
 
