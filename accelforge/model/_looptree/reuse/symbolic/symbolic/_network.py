@@ -34,6 +34,8 @@ class NetworkAnalyzer:
         child_shape,
         node,
     ):
+        flattened_arch = info.job.flattened_arch
+
         for network, child_network_stats in child_result.network_stats.items():
             if network not in self.network_stats:
                 self.network_stats[network] = NetworkStats()
@@ -48,7 +50,7 @@ class NetworkAnalyzer:
             )
             projection = info.einsum_tensor_to_projection[(einsum_name, network.tensor)]
             component_object = find_component_object(
-                network.component, info.job.flattened_arch
+                network.component, flattened_arch
             )
             workload_bpv = info.job.einsum.tensor_accesses[
                 network.tensor
@@ -66,9 +68,7 @@ class NetworkAnalyzer:
                 * actions_per_value
             )
 
-            if info.job.spec_one_einsum.arch.is_above(
-                node.component, network.component
-            ):
+            if is_component_a_above_b(node.component, network.component, flattened_arch):
                 continue
 
             relevancy = info.tensor_to_relevancy[network.tensor][node.rank_variable]
