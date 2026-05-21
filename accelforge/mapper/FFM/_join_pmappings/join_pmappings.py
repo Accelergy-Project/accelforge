@@ -109,9 +109,7 @@ class OptimalityThresholder:
     def __call__(self, mapping: pd.DataFrame) -> bool:
         nondominated_by_all = np.ones(len(mapping), dtype=bool)
 
-        edp_mapping = _apply_edp_columns(
-            mapping.copy(), self.metrics, return_only_objectives=True
-        )
+        edp_mapping = _apply_edp_columns(mapping.copy(), self.metrics)
 
         for c in self.compare_to:
             nondominated = np.zeros(len(edp_mapping), dtype=bool)
