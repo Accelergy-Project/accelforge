@@ -23,7 +23,7 @@ arch:
       leak_power: 0
       tensors: {keep: input, may_keep: input}
       actions:
-      - {name: read, energy: 5, latency: 0}
+      - {name: read, energy: 5, latency: 1}
       - {name: write, energy: 5, latency: 0}
       spatial:
       - {name: X, fanout: 4}
@@ -47,7 +47,7 @@ arch:
       leak_power: 0
       tensors: {keep: weight, may_keep: weight}
       actions:
-      - {name: read, energy: 5, latency: 0}
+      - {name: read, energy: 5, latency: 1}
       - {name: write, energy: 5, latency: 0}
       spatial:
       - {name: X, fanout: 2}

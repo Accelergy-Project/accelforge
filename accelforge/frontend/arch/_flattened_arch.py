@@ -1,4 +1,4 @@
-from typing import TypeVar
+from typing import TypeVar, Callable
 
 
 _FIND_SENTINEL = object()
@@ -62,7 +62,12 @@ class FlattenedArch:
         return idx_a < idx_b
 
     def find_first_of_type_between(
-        self, node_type: T, name_lower: str, name_upper: str, default: D = _FIND_SENTINEL
+        self,
+        node_type: T,
+        name_lower: str,
+        name_upper: str,
+        default: D = _FIND_SENTINEL,
+        top_bottom: bool = True,
     ) -> T | D:
         """
         Returns the first node with type `node_type` above `name_lower` and under `name_upper`.
@@ -75,7 +80,10 @@ class FlattenedArch:
         upper_idx = self.index(name_upper)
         lower_idx = self.index(name_lower)
 
-        for i, node in enumerate(self.nodes):
+        iterator = self.nodes
+        if not top_bottom:
+            iterator = reversed(top_bottom)
+        for i, node in enumerate(iterator):
             if not isinstance(node, node_type) or i <= upper_idx or i >= lower_idx:
                 continue
             else:
@@ -84,3 +92,92 @@ class FlattenedArch:
             return default
         else:
             raise ValueError(f"node with type {node_type} between {name_upper} and {name_lower} not found")
+
+    def find_first_of_type_above(
+        self,
+        node_type: T,
+        name_lower: str,
+        default: D = _FIND_SENTINEL,
+        top_bottom: bool = True,
+    ) -> T | D:
+        """
+        Returns the first node with type `node_type` above `name_lower` and under `name_upper`.
+
+        If `name` does not exist, raises an error.
+
+        If no node of `node_type` is found, either `default` is
+        returned (if provided) or raises an error.
+        """
+        lower_idx = self.index(name_lower)
+
+        iterator = self.nodes
+        if not top_bottom:
+            iterator = reversed(top_bottom)
+        for i, node in enumerate(iterator):
+            if not isinstance(node, node_type) or i >= lower_idx:
+                continue
+            else:
+                return node
+        if default is not _FIND_SENTINEL:
+            return default
+        else:
+            raise ValueError(f"node with type {node_type} above {name_lower} not found")
+
+    def find_first_of_type_below(
+        self,
+        node_type: T,
+        name_upper: str,
+        default: D = _FIND_SENTINEL,
+        top_bottom: bool = True,
+    ) -> T | D:
+        """
+        Returns the first node with type `node_type` above `name_lower` and under `name_upper`.
+
+        If `name` does not exist, raises an error.
+
+        If no node of `node_type` is found, either `default` is
+        returned (if provided) or raises an error.
+        """
+        upper_idx = self.index(name_upper)
+
+        iterator = self.nodes
+        if not top_bottom:
+            iterator = reversed(top_bottom)
+        for i, node in enumerate(iterator):
+            if not isinstance(node, node_type) or i <= upper_idx:
+                continue
+            else:
+                return node
+        if default is not _FIND_SENTINEL:
+            return default
+        else:
+            raise ValueError(f"node with type {node_type} below {name_upper} not found")
+
+    def first_below(
+        self,
+        name: str,
+        filter: Callable = None,
+        default: D = _FIND_SENTINEL,
+    ) -> T | D:
+        """
+        Returns the first node with type `node_type` above `name_lower` and under `name_upper`.
+
+        If `name` does not exist, raises an error.
+
+        If no node of `node_type` is found, either `default` is
+        returned (if provided) or raises an error.
+        """
+        idx = self.index(name)
+
+        if filter is None:
+            filter = lambda x: True
+
+        for i, node in enumerate(self.nodes):
+            if not filter(node) or i <= idx:
+                continue
+            else:
+                return node
+        if default is not _FIND_SENTINEL:
+            return default
+        else:
+            raise ValueError(f"node below {name} not found")

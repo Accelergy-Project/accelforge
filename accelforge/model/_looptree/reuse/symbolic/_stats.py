@@ -100,6 +100,12 @@ class BuffetStats:
         return new
 
     def repeat_spatial(self, factor: int, reuse_parent_accesses: bool) -> "BuffetStats":
+        """
+        Repeat buffet stats due to spatial loop `factor` number of times.
+
+        For accesses to parent, the amount of repetition is `factor` if `reuse_parent_access`
+        is False; otherwise, there is no repetition.
+        """
         new = copy.copy(self)
         if factor == 1:
             return new

@@ -289,6 +289,48 @@ class TestModel(TestCase):
                 BITS_PER_VALUE
             )
         )
+        self.assertEqual(
+            result.data['Matmul0<SEP>action<SEP>RowBuffer<SEP>T0<SEP>read'].iloc[0],
+            (
+                M / M_TILE
+                *
+                KN // MAC_TILE
+                *
+                M_TILE * MAC_TILE
+                *
+                BITS_PER_VALUE
+            )
+        )
+        self.assertEqual(
+            result.data['Matmul0<SEP>latency<SEP>RowBuffer'].iloc[0],
+            (
+                M / M_TILE
+                *
+                KN // MAC_TILE
+                *
+                M_TILE * MAC_TILE
+                *
+                BITS_PER_VALUE
+                /
+                4    # num of physical RowBuffer
+            )
+        )
+        self.assertEqual(
+            result.data['Matmul0<SEP>latency<SEP>DistributedBuffer'].iloc[0],
+            (
+                M / M_TILE
+                *
+                KN // MAC_TILE
+                *
+                KN // MAC_TILE
+                *
+                MAC_TILE * MAC_TILE  # tile shape
+                *
+                BITS_PER_VALUE
+                /
+                4    # num of physical DistributedBuffer
+            )
+        )
 
 
 class TestMapper(TestCase):

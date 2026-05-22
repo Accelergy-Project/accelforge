@@ -136,6 +136,12 @@ class Spatialable(EvalableModel):
                 return s.fanout
         return default
 
+    def _has_physical_dim(self, dim_name: str) -> bool:
+        for s in self._physical_spatial:
+            if s.name == dim_name:
+                return True
+        return False
+
     def _get_physical_fanout_along(self, dim_name: str, default: int = 1) -> int:
         for s in self._physical_spatial:
             if s.name == dim_name:
@@ -153,3 +159,6 @@ class Spatialable(EvalableModel):
             return ""
         result = ", ".join(f"{s.fanout}× {s.name}" for s in self.spatial)
         return f"\n[{result}]" if include_newline else result
+
+    def _is_distributed(self):
+        return any(s.fanout > 1 for s in self._physical_spatial)

@@ -606,7 +606,6 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         accumulated_buffet_stats = result_accumulator.buffet_stats
         child_stats = list(child_result.buffet_stats.items())
         for i, (buffet, buffet_stats) in enumerate(child_stats):
-            stats = buffet_stats
             accumulated_stats = accumulated_buffet_stats.setdefault(
                 buffet, BuffetStats.blank()
             )
@@ -628,8 +627,8 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 and buffet.tensor in component_spatial_dim.may_reuse
             )
 
-            stats.n_loops_above = stats.n_loops_above + 1
-            accumulated_stats += stats.repeat_spatial(
+            buffet_stats.n_loops_above = buffet_stats.n_loops_above + 1
+            accumulated_stats += buffet_stats.repeat_spatial(
                 shape_repeats, reuse_parent_accesses
             )
 
@@ -692,6 +691,7 @@ def analyze_storage(
     count_writes: bool = True,
 ):
     mapping = info.mapping
+    flattened_arch = info.job.flattened_arch
     einsum_name = mapping[-1].einsum
     node: TensorHolder = mapping[node_idx]
 
@@ -798,25 +798,45 @@ def analyze_storage(
         else:
             write_scale = 0
 
+        # =======================
+        # For distributed buffers
+        n_active_physical_units = 1
+        if child is not None:
+            next_spatial = flattened_arch.first_below(
+                node.component,
+                lambda n: isinstance(n, arch.Spatialable) and len(n.spatial) > 0,
+                default=None,
+            )
+            if component_object._is_distributed() and next_spatial is not None:
+                for (b, e), dim_fanout in child_result.fanout.items():
+                    if b != next_spatial.name:
+                        continue
+                    for d in dim_fanout:
+                        if not component_object._has_physical_dim(d):
+                            continue
+                        n_active_physical_units *= (
+                            dim_fanout[d] / component_object._get_physical_stride_along(d)
+                        )
+
         # ==========================
         # Data exchanges with parent
         if count_downward_movement[tensor]:  # Parent -> Me
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
             stats.max_per_unit_write_actions += (
-                stats.total_reads_to_parent * write_scale
+                stats.total_reads_to_parent * write_scale / n_active_physical_units
             )
             stats.total_skipped_first_write_actions += (
                 stats.total_skipped_first_reads_to_parent * write_scale
             )
             stats.min_per_unit_skipped_first_write_actions += (
-                stats.min_per_parent_skipped_first_reads_to_parent * write_scale
+                stats.min_per_parent_skipped_first_reads_to_parent * write_scale / n_active_physical_units
             )
 
         if count_upward_movement[tensor]:  # Me -> Parent
             # Comment this to have the final writeback to a buffer hit both that buffer and
             # go directly to the parent without incurring another read from the buffer.
             stats.total_read_actions += stats.total_writes_to_parent * read_scale
-            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
+            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale / n_active_physical_units
 
         # ========================
         # Data exchanges with peer
@@ -829,7 +849,7 @@ def analyze_storage(
             if count_downward_movement[tensor]:  # Me -> Child
                 stats.total_read_actions += child.total_reads_to_parent * read_scale
                 stats.max_per_unit_read_actions += (
-                    child.max_per_parent_reads_to_parent * read_scale
+                    child.max_per_parent_reads_to_parent * read_scale / n_active_physical_units
                 )
                 # Skip first read
                 if skip_initial:
@@ -837,13 +857,13 @@ def analyze_storage(
                         child.total_skipped_first_reads_to_parent * read_scale
                     )
                     stats.min_per_unit_skipped_first_read_actions += (
-                        child.min_per_parent_skipped_first_reads_to_parent * read_scale
+                        child.min_per_parent_skipped_first_reads_to_parent * read_scale / n_active_physical_units
                     )
 
             if count_upward_movement[tensor]:  # Child -> Me
                 stats.total_write_actions += child.total_writes_to_parent * write_scale
                 stats.max_per_unit_write_actions += (
-                    child.max_per_parent_writes_to_parent * write_scale
+                    child.max_per_parent_writes_to_parent * write_scale / n_active_physical_units
                 )
 
     return child_result
