@@ -142,11 +142,11 @@ class Spatialable(EvalableModel):
                 return s.fanout
         return default
 
-    def _get_physical_stride_along(self, dim_name: str, default: int = 1) -> int:
+    def _get_physical_stride_along(self, dim_name: str) -> int:
         for s in self._physical_spatial:
             if s.name == dim_name:
                 return s.stride
-        return default
+        raise ValueError(f"dimension {dim_name} not found")
 
     def _spatial_str(self, include_newline=True) -> str:
         if not self.spatial:
