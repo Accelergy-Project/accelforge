@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from accelforge.frontend import arch
 from accelforge.frontend.arch import Leaf, Memory, TensorHolder, Component
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.mapping import Compute, Mapping
 from accelforge.frontend.spec import Spec
 
@@ -39,7 +40,7 @@ def isl_to_summarized(
 
 def component_latency(
     looptree_results: SymbolicAnalysisOutput,
-    flattened_arch: list[Leaf],
+    flattened_arch: FlattenedArch,
     mapping: Mapping,
     spec: Spec,
 ):

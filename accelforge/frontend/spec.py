@@ -12,6 +12,7 @@ from accelforge.frontend.arch import (
     Container,
     Spatialable,
 )
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 
 from accelforge.frontend.workload import Workload
 from accelforge.frontend.variables import Variables
@@ -276,7 +277,7 @@ class Spec(EvalableModel):
         self,
         compute_node: str | Compute | None = None,
         einsum_name: EinsumName | None = None,
-    ) -> list[list[Leaf]] | list[Leaf]:
+    ) -> list[FlattenedArch] | FlattenedArch:
         """
         Return the architecture as paths of ``Leaf`` instances from the highest-level
         node to each ``Compute`` node. Parses arithmetic expressions in the

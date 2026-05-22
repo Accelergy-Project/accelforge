@@ -3,6 +3,7 @@ from accelforge.frontend import arch
 from accelforge.frontend.mapping import Mapping, TensorHolder, Loop
 from typing import Any
 
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.workload import (
     Workload,
     TensorName,
@@ -89,15 +90,6 @@ def has_parent_tensor_holder(
         if isinstance(node, TensorHolder) and tensor in node.tensors:
             return True
     return False
-
-
-def find_component_object(
-    component: str, flattened_arch: list[arch.Leaf]
-) -> arch.TensorHolder:
-    for node in flattened_arch:
-        if node.name == component:
-            return node
-    raise ValueError(f"Component {component} not found in flattened arch")
 
 
 def loop_stride_and_shape(node, current_shape, node_idx, info):

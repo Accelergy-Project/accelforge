@@ -33,6 +33,7 @@ from collections.abc import Set
 from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
@@ -1285,7 +1286,7 @@ class Nested(MappingNodeWithChildren):
     def _get_single_tensor_mapping(
         self,
         tensor_name: TensorName,
-        flattened_arch: list[arch.Leaf],
+        flattened_arch: FlattenedArch,
         tensor_rank_variables: set[str],
     ) -> Self:
         """

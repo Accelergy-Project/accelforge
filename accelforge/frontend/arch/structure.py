@@ -21,6 +21,7 @@ from accelforge.util._basetypes import (
 from accelforge.util.exceptions import EvaluationError
 
 from accelforge.frontend.arch.spatialable import Spatialable, PhysicalSpatial
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 
 from pydantic import Discriminator
 from accelforge.util._basetypes import _uninstantiable
@@ -328,7 +329,7 @@ class Array(Branch, Spatialable):
         compute_node: str,
         fanout: int = 1,
         return_fanout: bool = False,
-    ):
+    ) -> FlattenedArch:
         from accelforge.frontend.arch.components import Compute
 
         nodes = []
@@ -361,6 +362,7 @@ class Array(Branch, Spatialable):
                 e.add_field(node)
                 raise e
 
+        nodes = FlattenedArch(nodes)
         if return_fanout:
             return nodes, fanout
         return nodes
@@ -429,7 +431,7 @@ class Hierarchical(Branch):
         compute_node: str,
         fanout: int = 1,
         return_fanout: bool = False,
-    ):
+    ) -> FlattenedArch:
         from accelforge.frontend.arch.components import Compute
 
         nodes = []
@@ -477,6 +479,7 @@ class Hierarchical(Branch):
                 e.add_field(node)
                 raise e
 
+        nodes = FlattenedArch(nodes)
         if return_fanout:
             return nodes, fanout
         return nodes

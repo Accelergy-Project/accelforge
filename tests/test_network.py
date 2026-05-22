@@ -11,12 +11,12 @@ class TestParsing(TestCase):
         spec = af.Spec.from_yaml(
             INPUT_FILES_DIR / "hierarchical.yaml",
         )
-        self.assertIn("PeNoc", spec.arch.nodes)
-        self.assertEqual(spec.arch.nodes["PeNoc"].get_fanout(), 1)
+        self.assertIn("PeArray", spec.arch.nodes)
+        self.assertEqual(spec.arch.nodes["PeArray"].get_fanout(), 1)
         self.assertIn("Scratchpad", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["Scratchpad"].get_fanout(), 4)
-        self.assertIn("MacNoc", spec.arch.nodes)
-        self.assertEqual(spec.arch.nodes["MacNoc"].get_fanout(), 1)
+        self.assertIn("MacArray", spec.arch.nodes)
+        self.assertEqual(spec.arch.nodes["MacArray"].get_fanout(), 1)
 
         try:
             spec = spec.calculate_component_area_energy_latency_leak()

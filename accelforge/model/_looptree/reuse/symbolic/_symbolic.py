@@ -54,7 +54,6 @@ from ._common import (
     AnalysisInfo,
     loop_stride_and_shape,
     has_parent_tensor_holder,
-    find_component_object,
     SequenceOfRepatedvalues,
     RepeatedValue,
 )
@@ -587,7 +586,7 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     rank_var = node.rank_variable
     node_dim = node.name
     flattened_arch = info.job.flattened_arch
-    spatial_component = find_component_object(node.component, flattened_arch)
+    spatial_component = flattened_arch[node.component]
     component_spatial_dim = spatial_component.spatial[node_dim]
     stride_and_shape = loop_stride_and_shape(node, current_shape, node_idx, info)
 
@@ -706,7 +705,7 @@ def analyze_storage(
         }
 
     child_result = analyze_node(node_idx + 1, current_shape, info)
-    component_object = find_component_object(node.component, info.job.flattened_arch)
+    component_object = info.job.flattened_arch[node.component]
 
     # Toll -> No initial output write because things just pass through. Keep
     # skip_initial True so that it inherits the value from the child.
@@ -854,7 +853,7 @@ def analyze_toll(node_idx, current_shape, info: AnalysisInfo):
     mapping = info.mapping
     einsum_name = mapping[-1].einsum
     node = mapping[node_idx]
-    component_object = find_component_object(node.component, info.job.flattened_arch)
+    component_object = info.job.flattened_arch[node.component]
     direction = component_object.direction
     count_up = {TensorName(t): direction[t] != "down" for t in node.tensors}
     count_down = {TensorName(t): direction[t] != "up" for t in node.tensors}
@@ -895,7 +894,7 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
 
     stats = BuffetStats()
     projection = info.einsum_tensor_to_projection[(einsum_name, tensor)]
-    component_object = find_component_object(node.resource, info.job.flattened_arch)
+    component_object = info.job.flattened_arch[node.resource]
     workload_bpv = info.job.einsum.tensor_accesses[tensor].bits_per_value
     bits_per_value = component_object.bits_per_value.get(tensor, workload_bpv)
     stats.max_occupancy = (
@@ -933,7 +932,7 @@ def analyze_compute(
 
     computes = 0 if info.is_copy_operation else 1
 
-    component_object = find_component_object(node.component, info.job.flattened_arch)
+    component_object = info.job.flattened_arch[node.component]
     skip_initial = (
         component_object.skip_initial_output_write and not info.is_copy_operation
     )
