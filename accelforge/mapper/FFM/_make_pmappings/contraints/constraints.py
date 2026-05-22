@@ -2,6 +2,7 @@ from collections import defaultdict
 import logging
 from typing import List
 from accelforge._accelerated_imports import np
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend._workload_isl._symbolic import PartiallyRelevant, Relevant
 import accelforge.frontend.arch as arch
 from accelforge.frontend.arch import (
@@ -196,7 +197,7 @@ def constrained_loops(
 
 
 def get_constraints(
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     mapping: List[MappingNode],
     symbol_table: dict[str, InvertibleSet],
     einsum_name: EinsumName,

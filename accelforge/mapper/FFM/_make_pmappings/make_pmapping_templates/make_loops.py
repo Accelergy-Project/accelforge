@@ -5,6 +5,7 @@ import itertools
 from enum import Enum
 
 import accelforge.frontend.arch as arch
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     MappingNode,
@@ -39,7 +40,7 @@ def insert_temporal_loops(
     ranks_with_tile_pattern: set,
     workload: Workload,
     _can_lower_outermost_memory: bool,
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     max_fused_loops: int,
     fanouts: dict[str, int],
     fusable_tensors: set[TensorName],
@@ -47,7 +48,6 @@ def insert_temporal_loops(
     let_non_intermediate_tensors_respawn_in_backing_storage: bool,
     explore_loop_orders: bool,
 ):
-    arch_node_names = [n.name for n in flattened_arch]
     # First establish insertion points. Insertion points are:
     # - Below the last instance of the first memory
     # - Between any two TensorHolder nodes
@@ -88,7 +88,7 @@ def insert_temporal_loops(
     for s in split_mapping:
         # Within each split mapping group, sort by arch levels.
         # This can help create places to put spatial loops
-        s.sort(key=lambda tensor_holder: arch_node_names.index(tensor_holder.component))
+        s.sort(key=lambda tensor_holder: flattened_arch.index(tensor_holder.component))
 
     if sum(map(len, split_mapping)) != len(mapping):
         raise RuntimeError("BUG: number of storage nodes post-split != original")
@@ -333,11 +333,10 @@ def insert_temporal_loops(
 def insert_spatial_loops(
     mapping: list[MappingNode],
     einsum: Einsum,
-    flattened_arch: list[arch.Memory],
+    flattened_arch: FlattenedArch,
     intermediate_tensors: set[TensorName],
 ):
     nodes_with_fanout = [n for n in flattened_arch if n.get_fanout() > 1]
-    arch_node_names = [n.name for n in flattened_arch]
     tensor2fully_relevant_rank_vars = einsum.tensor2directly_indexing_rank_variables
     simple_rank_variables = einsum._simple_rank_variables
 
@@ -346,7 +345,7 @@ def insert_spatial_loops(
         # above the fanout in the arch, and below any temporal loops in the
         # same block.
         insertion_point = _idx_below_lowest_tensor_holder_with_component_above_fanout(
-            node, mapping, arch_node_names
+            node, mapping, flattened_arch
         )
         while insertion_point < len(mapping) and isinstance(
             mapping[insertion_point], Temporal
@@ -386,16 +385,16 @@ def _tensors_seen_above_point(idx, mapping):
 
 
 def _idx_below_lowest_tensor_holder_with_component_above_fanout(
-    fanout_node, mapping, arch_node_names
+    fanout_node, mapping, flattened_arch: FlattenedArch
 ):
     """Return the index right after the lowest TensorHolder whose component
     is above the fanout in the arch. If none found, returns len(mapping)."""
-    fanout_arch_idx = arch_node_names.index(fanout_node.name)
+    fanout_arch_idx = flattened_arch.index(fanout_node.name)
     result = 0
     for i in range(len(mapping)):
         if not isinstance(mapping[i], TensorHolder):
             continue
-        if arch_node_names.index(mapping[i].component) < fanout_arch_idx:
+        if flattened_arch.index(mapping[i].component) < fanout_arch_idx:
             result = i + 1
     return result
 

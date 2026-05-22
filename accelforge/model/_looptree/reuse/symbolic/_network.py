@@ -16,9 +16,7 @@ from accelforge.frontend._workload_isl._symbolic import (
 
 from accelforge.util._sympy.broadcast_max import Min, Max, MaxGeqZero
 
-from ._common import (
-    find_component_object,
-)
+from ._common import AnalysisInfo
 from ._stats import NetworkStats
 
 
@@ -30,7 +28,7 @@ class NetworkAnalyzer:
     def accumulate_child_result(
         self,
         child_result,
-        info,
+        info: AnalysisInfo,
         shape_repeats,
         einsum_name,
         child_shape,
@@ -49,9 +47,7 @@ class NetworkAnalyzer:
                 child_network_stats.max_hops,
             )
             projection = info.einsum_tensor_to_projection[(einsum_name, network.tensor)]
-            component_object = find_component_object(
-                network.component, info.job.flattened_arch
-            )
+            component_object = info.job.flattened_arch[network.component]
             workload_bpv = info.job.einsum.tensor_accesses[
                 network.tensor
             ].bits_per_value
