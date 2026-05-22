@@ -333,6 +333,10 @@ class Array(Branch, Spatialable):
 
         nodes = []
 
+        # Nodes inside an array are flattened to fit into a hierarchical
+        # model in order to map.
+        # However, we will keep information about how these nodes are
+        # arranged for modeling.
         for node in self.nodes:
             try:
                 if isinstance(node, Branch):
