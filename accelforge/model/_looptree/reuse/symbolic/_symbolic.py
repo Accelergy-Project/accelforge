@@ -903,19 +903,21 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     child_result.buffet_stats[buffet] = stats
 
     # Reservation nodes are the first to produce stats for a network
-    network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(
-        NetworkSpec, buffet.level, default=None
-    )
-    if network_node is not None:
-        network = Network(
-            tensor,
-            einsum_name,
-            info.data_movement_connections.get_src(buffet),
-            buffet,
-            component=network_node.name if network_node else network_node,
+    src = info.data_movement_connections.get_src(buffet)
+    if src is not None:
+        network_node = info.job.flattened_arch.find_first_of_type_between(
+            NetworkSpec, buffet.level, src.level, default=None
         )
-        assert network not in child_result.network_stats
-        child_result.network_stats[network] = NetworkStats()
+        if network_node is not None:
+            network = Network(
+                tensor,
+                einsum_name,
+                src,
+                buffet,
+                component=network_node.name if network_node else network_node,
+            )
+            assert network not in child_result.network_stats
+            child_result.network_stats[network] = NetworkStats()
 
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
@@ -965,18 +967,20 @@ def analyze_compute(
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 
-        network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(
-            NetworkSpec, node.component, default=None
-        )
-        if network_node is not None:
-            network = Network(
-                tensor,
-                info.job.einsum_name,
-                info.data_movement_connections.get_src(buffet),
-                buffet,
-                component=network_node.name if network_node else network_node,
+        src = info.data_movement_connections.get_src(buffet)
+        if src is not None:
+            network_node = info.job.flattened_arch.find_first_of_type_between(
+                NetworkSpec, node.component, src.level, default=None
             )
-            result_accumulator.network_stats[network] = NetworkStats()
+            if network_node is not None:
+                network = Network(
+                    tensor,
+                    info.job.einsum_name,
+                    src,
+                    buffet,
+                    component=network_node.name if network_node else network_node,
+                )
+                result_accumulator.network_stats[network] = NetworkStats()
 
     return result_accumulator
 

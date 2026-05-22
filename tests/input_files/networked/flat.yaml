@@ -1,5 +1,3 @@
-{% set N_ROW_BUFFER = N_ROW_BUFFER | default(4) %}
-{% set N_COL_BUFFER = N_COL_BUFFER | default(4) %}
 arch:
   nodes:
   - !Memory
@@ -12,29 +10,12 @@ arch:
     - {name: read, energy: 100, latency: 0}
     - {name: write, energy: 100, latency: 0}
 
-  - !Network
-    name: NoC
-    area: 0
-    leak_power: 0
-    actions:
-    - {name: hops, energy: 1, latency: 0}
-
   - !Array
     name: Array
     spatial:
     - {name: X, fanout: 4}
     - {name: Y, fanout: 4}
     nodes:
-    - !Memory
-      name: GlobalBuffer
-      size: inf
-      area: 0
-      leak_power: 0
-      tensors: {keep: ~MainMemory, may_keep: All}
-      actions:
-      - {name: read, energy: 10, latency: 0}
-      - {name: write, energy: 10, latency: 0}
-
     - !Memory
       name: RowBuffer
       size: inf
@@ -45,7 +26,7 @@ arch:
       - {name: read, energy: 5, latency: 0}
       - {name: write, energy: 5, latency: 0}
       spatial:
-      - {name: X, fanout: {{N_ROW_BUFFER}}}
+      - {name: X, fanout: 4}
 
     - !Memory
       name: ColumnBuffer
@@ -57,7 +38,7 @@ arch:
       - {name: read, energy: 5, latency: 0}
       - {name: write, energy: 5, latency: 0}
       spatial:
-      - {name: Y, fanout: {{N_COL_BUFFER}}}
+      - {name: Y, fanout: 4}
 
     - !Memory
       name: DistributedBuffer
@@ -71,6 +52,14 @@ arch:
       spatial:
       - {name: X, fanout: 2}
       - {name: Y, fanout: 2}
+
+    - !Network
+      name: NoC
+      area: 0
+      leak_power: 0
+      actions:
+      - {name: hops, energy: 1, latency: 0}
+
 
   - !Memory
     name: Scratchpad

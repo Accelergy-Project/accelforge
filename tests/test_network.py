@@ -33,7 +33,6 @@ class TestParsing(TestCase):
             {n.name for n in spec.arch.get_nodes_of_type(af.spec.Leaf)},
             {
                 "MainMemory",
-                "GlobalBuffer",
                 "NoC",
                 "RowBuffer",
                 "ColumnBuffer",
@@ -224,6 +223,71 @@ class TestModel(TestCase):
             )
             * MAC_TILE**2
             * BITS_PER_VALUE,
+        )
+
+    def test_flat(self):
+        M = 8
+        KN = 8
+        MAC_TILE = 2
+        M_TILE = 4
+        BITS_PER_VALUE = 8
+
+        spec = af.Spec.from_yaml(
+            af.examples.workloads.matmuls,
+            INPUT_FILES_DIR / "flat.yaml",
+            INPUT_FILES_DIR / "one_matmul_to_flat.yaml",
+            jinja_parse_data={
+                "N_EINSUMS": 1,
+                "M": 8,
+                "KN": 8,
+                "MAC_TILE": MAC_TILE,
+                "M_TILE": M_TILE,
+            },
+        )
+        result = spec.evaluate_mapping()
+        self.assertEqual(
+            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T0<SEP>hops'].iloc[0],
+            (
+                M / M_TILE
+                *
+                (KN / MAC_TILE) * (KN / MAC_TILE - 1)   # num rows * multicast_hops
+                *
+                M_TILE * MAC_TILE  # tile shape
+                *
+                BITS_PER_VALUE
+            )
+        )
+        self.assertEqual(
+            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T1<SEP>hops'].iloc[0],
+            (
+                M / M_TILE
+                *
+                (KN / MAC_TILE) * (KN / MAC_TILE - 1)   # num rows * multicast_hops
+                *
+                M_TILE * MAC_TILE  # tile shape
+                *
+                BITS_PER_VALUE
+            )
+        )
+        self.assertEqual(
+            result.data['Matmul0<SEP>action<SEP>NoC<SEP>W0<SEP>hops'].iloc[0],
+            (
+                M / M_TILE
+                *
+                (
+                    4   # a 2x2 grid of physical buffers
+                    *
+                    (
+                        sum(i for i in range(2)) * MAC_TILE  # unicast along row * tile shape
+                        +
+                        2 * sum(i for i in range(2))  # num cols * unicast down col
+                    )
+                )
+                *
+                MAC_TILE * MAC_TILE  # tile shape
+                *
+                BITS_PER_VALUE
+            )
         )
 
 
