@@ -7,7 +7,7 @@ from accelforge._accelerated_imports import pd
 from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
     get_n_computes,
-    get_per_tensor_size,
+    get_per_tensor_n_elements,
 )
 from typing import Union
 from accelforge._accelerated_imports import numpy as np
@@ -123,10 +123,15 @@ class Mappings:
         assert (
             self.evaluated_specs is not None
         ), "Can't get per-tensor size if no Einsums have been mapped."
-        return get_per_tensor_size(
-            next(iter(self.evaluated_specs.values())).workload,
-            return_n_elements=return_n_elements,
-        )
+        workload = next(iter(self.evaluated_specs.values())).workload
+        sizes = get_per_tensor_n_elements(workload)
+        if not return_n_elements:
+            for einsum in workload.einsums:
+                for tensor in einsum.tensor_names:
+                    sizes[tensor] = (
+                        sizes[tensor] * einsum.tensor_accesses[tensor].bits_per_value
+                    )
+        return sizes
 
     def _update(self, **kwargs):
         data = dict(

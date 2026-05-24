@@ -82,7 +82,7 @@ class TestModel(TestCase):
             * (KN / MAC_TILE)  # number of used Scratchpad
             * M_TILE
             * KN  # temporal for n1 in mapping
-            * sum(i+1 for i in range(MAC_TILE))  # unicast along X-axis of MacArray
+            * sum(i + 1 for i in range(MAC_TILE))  # unicast along X-axis of MacArray
             * BITS_PER_VALUE,
         )
         # NOTE: assuming XY routing (as defined in mapping)
@@ -92,7 +92,7 @@ class TestModel(TestCase):
             * (KN / MAC_TILE)
             * M_TILE
             * KN  # temporal for n1 in mapping
-            * MAC_TILE   # multicast along X-axis of MacArray
+            * MAC_TILE  # multicast along X-axis of MacArray
             * BITS_PER_VALUE,
         )
         self.assertEqual(
@@ -101,14 +101,16 @@ class TestModel(TestCase):
             * (KN / MAC_TILE)
             * M_TILE
             * KN
-            * sum(i+1 for i in range(MAC_TILE))
+            * sum(i + 1 for i in range(MAC_TILE))
             * BITS_PER_VALUE,
         )
 
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * sum(i+1 for i in range(KN // MAC_TILE))  # unicast along X-axis of PeArray
+            * sum(
+                i + 1 for i in range(KN // MAC_TILE)
+            )  # unicast along X-axis of PeArray
             * M_TILE
             * MAC_TILE
             * BITS_PER_VALUE,
@@ -117,7 +119,8 @@ class TestModel(TestCase):
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * KN // MAC_TILE  # multicast along X-axis of PeArray
+            * KN
+            // MAC_TILE  # multicast along X-axis of PeArray
             * M_TILE
             * KN
             * BITS_PER_VALUE,
@@ -125,7 +128,7 @@ class TestModel(TestCase):
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * sum(i+1 for i in range(KN // MAC_TILE))  # unicast along PeArray
+            * sum(i + 1 for i in range(KN // MAC_TILE))  # unicast along PeArray
             * MAC_TILE
             * KN
             * BITS_PER_VALUE,
@@ -160,9 +163,8 @@ class TestModel(TestCase):
             * (KN / MAC_TILE) ** 2
             * M_TILE
             * (
-                sum(i+1 for i in range(MAC_TILE))  # unicasting along X
-                +
-                MAC_TILE * MAC_TILE  # multicast along Y for each column
+                sum(i + 1 for i in range(MAC_TILE))  # unicasting along X
+                + MAC_TILE * MAC_TILE  # multicast along Y for each column
             )
             * BITS_PER_VALUE,
         )
@@ -173,9 +175,10 @@ class TestModel(TestCase):
             * (KN / MAC_TILE) ** 2
             * M_TILE
             * (
-                MAC_TILE * MAC_TILE  # multicast along X (the tile is shape N1, which is MAC_TILE here)
-                +
-                MAC_TILE * sum(i+1 for i in range(MAC_TILE))  # unicasting along Y for each row
+                MAC_TILE
+                * MAC_TILE  # multicast along X (the tile is shape N1, which is MAC_TILE here)
+                + MAC_TILE
+                * sum(i + 1 for i in range(MAC_TILE))  # unicasting along Y for each row
             )
             * BITS_PER_VALUE,
         )
@@ -185,35 +188,27 @@ class TestModel(TestCase):
             * (KN / MAC_TILE) ** 2
             * M_TILE
             * (
-                MAC_TILE * sum(i+1 for i in range(MAC_TILE))  # unicast along X (the tile is shape N1, which is MAC_TILE here)
-                +
-                MAC_TILE * sum(i+1 for i in range(MAC_TILE))  # unicasting along Y for each row
+                MAC_TILE
+                * sum(
+                    i + 1 for i in range(MAC_TILE)
+                )  # unicast along X (the tile is shape N1, which is MAC_TILE here)
+                + MAC_TILE
+                * sum(i + 1 for i in range(MAC_TILE))  # unicasting along Y for each row
             )
             * BITS_PER_VALUE,
         )
 
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
-            (M / M_TILE)
-            * (
-                sum(i+1 for i in range(PE_TILE))
-                +
-                PE_TILE * PE_TILE
-            )
+            (M / M_TILE) * (sum(i + 1 for i in range(PE_TILE)) + PE_TILE * PE_TILE)
             # tile shape
-            * M_TILE
-            * MAC_TILE
-            * BITS_PER_VALUE,
+            * M_TILE * MAC_TILE * BITS_PER_VALUE,
         )
         # NOTE: assuming XY routing (as defined in mapping)
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
             (M / M_TILE)
-            * (
-                PE_TILE * PE_TILE
-                +
-                PE_TILE * sum(i+1 for i in range(PE_TILE))
-            )
+            * (PE_TILE * PE_TILE + PE_TILE * sum(i + 1 for i in range(PE_TILE)))
             * M_TILE
             * MAC_TILE
             * BITS_PER_VALUE,
@@ -222,9 +217,8 @@ class TestModel(TestCase):
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
             (M / M_TILE)
             * (
-                PE_TILE * sum(i+1 for i in range(PE_TILE))
-                +
-                PE_TILE * sum(i+1 for i in range(PE_TILE))
+                PE_TILE * sum(i + 1 for i in range(PE_TILE))
+                + PE_TILE * sum(i + 1 for i in range(PE_TILE))
             )
             * MAC_TILE**2
             * BITS_PER_VALUE,

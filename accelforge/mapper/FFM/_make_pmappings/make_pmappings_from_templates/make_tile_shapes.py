@@ -723,6 +723,7 @@ def _factorize_imperfect(n: int) -> np.ndarray:
         factors.append(math.ceil(n / i))
     return np.array(sorted(oset(factors)))
 
+
 @lru_cache(maxsize=10000)
 def get_possible_factor_sizes(
     outer_size: int, imperfect: bool, inner_size: int, coarseness: float = 1

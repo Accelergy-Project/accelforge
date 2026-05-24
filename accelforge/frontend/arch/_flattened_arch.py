@@ -20,6 +20,7 @@ class FlattenedArch:
     `frontend`, this one is intentionally *not* an
     `EvalableModel`.
     """
+
     def __init__(self, nodes: list["Leaf"]):
         self.nodes = nodes
 
