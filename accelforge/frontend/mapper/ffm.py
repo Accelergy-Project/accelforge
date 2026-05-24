@@ -66,6 +66,16 @@ class FFM(EvalableModel):
     max_fused_loops_per_rank_variable: int = 1
     """ The maximum number of fused loops in a pmapping for a given rank variable. """
 
+    tiling_coarseness: float = 1
+    """
+    When enumerating tile shapes, a tile shape is omitted if it is less than
+    tiling_coarseness times the next-inner tile shape. Set to 1 to disable. For example,
+    tiling_coarseness=2 means each enumerated tile shape must be at least 2x the
+    next-inner tile shape. Recommended to use 1<=tiling_coarseness<=2
+    explore_imperfect_temporal_loops=True and/or explore_imperfect_spatial_loops=True,
+    to get good mappings without exploring too many tile shapes.
+    """
+
     max_fused_loops: float | int = float("inf")
     """ The maximum total number of fused loops in a pmapping. """
 
@@ -139,6 +149,9 @@ class FFM(EvalableModel):
 
     Only "simple" rank variables (those appearing alone and not inside an expression in
     any tensor access) may have imperfect loop bounds.
+    
+    See tiling_coarseness for how to reduce the number of tile shapes explored when this
+    is set.
     """
 
     explore_imperfect_temporal_loops: bool = False
@@ -154,6 +167,9 @@ class FFM(EvalableModel):
 
     Only "simple" rank variables (those appearing alone and not inside an expression in
     any tensor access) may have imperfect loop bounds.
+    
+    See tiling_coarseness for how to reduce the number of tile shapes explored when this
+    is set.
     """
 
     prioritize_reuse_of_unfused_tensors: bool = False

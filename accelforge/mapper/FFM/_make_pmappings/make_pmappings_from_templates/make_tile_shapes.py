@@ -723,22 +723,47 @@ def _factorize_imperfect(n: int) -> np.ndarray:
         factors.append(math.ceil(n / i))
     return np.array(sorted(oset(factors)))
 
-
-def get_possible_factor_sizes(n: int, imperfect: bool, inner_size: int) -> list[int]:
+@lru_cache(maxsize=10000)
+def get_possible_factor_sizes(
+    outer_size: int, imperfect: bool, inner_size: int, coarseness: float = 1
+) -> list[int]:
     # Int to protect from numpy overflows
-    n = int(n)
-    inner_size = int(inner_size)
-    if not imperfect:
-        factors = _factorize(math.ceil(n / inner_size))
-        return factors * inner_size
+    outer_size, inner_size = int(outer_size), int(inner_size)
 
-    factors = _factorize_imperfect(n)
-    if n % inner_size == 0:
-        perfects = _factorize(math.ceil(n / inner_size)) * inner_size
-        assert all(
-            f in factors for f in perfects
-        ), f"perfects: {perfects} not in factors: {factors}"
-    return factors[factors >= inner_size]
+    factors = set()
+    n_tiles = set()
+
+    def _try_admit(n: int) -> bool:
+        if not imperfect and outer_size % n != 0:
+            return False
+        if n > outer_size:
+            return False
+
+        # This check: Avoid redundant tile shapes that lead to the same number of tiles,
+        # which causes the same accesses (from same average shape) but worse latency &
+        # memory usage (from worse long pole shape).
+        cur_n_tiles = math.ceil(outer_size / n)
+        if cur_n_tiles not in n_tiles:
+            n_tiles.add(cur_n_tiles)
+            # new_n calculation: Grab the smallest-possible tile shape that would get us
+            # this number of tiles, which is the best (see above comment).
+            new_n = math.ceil(outer_size / cur_n_tiles)
+            factors.add(new_n)
+        return True
+
+    n = inner_size
+    while n <= outer_size:
+        # If we successfully admit an n, don't try another n until we hit our coarseness
+        # target.
+        if _try_admit(n):
+            n = max(n + 1, math.ceil(n * coarseness))
+        else:
+            n += 1
+
+    # One more in case coarseness jumped the max value
+    _try_admit(outer_size)
+
+    return np.array(sorted(factors))
 
 
 def append_vector(matrix: np.ndarray, vector: np.ndarray):
@@ -1470,6 +1495,7 @@ def get_tile_shape_choices(
                 raise RuntimeError("BUG: both inner and outer tiles are unknown")
 
             symbol_imperfect = _symbol_is_imperfect(symbol)
+            coarseness = job.spec_one_einsum.mapper.tiling_coarseness
             # Use inner size and outer size to generate choices
             if inner_tiles_type in oset(
                 ["set", "unknown"]
@@ -1480,7 +1506,7 @@ def get_tile_shape_choices(
                 ]
             ):
                 factors = get_possible_factor_sizes(
-                    outer_size, symbol_imperfect, inner_size
+                    outer_size, symbol_imperfect, inner_size, coarseness
                 )
                 choices.append(append_vector(choices_enumerated, factors))
             elif inner_tiles_type == "enumerated":
@@ -1491,7 +1517,7 @@ def get_tile_shape_choices(
                         np.where(choices_enumerated[:, i] == inner_choice)
                     ]
                     factors = get_possible_factor_sizes(
-                        outer_size, symbol_imperfect, inner_choice
+                        outer_size, symbol_imperfect, inner_choice, coarseness
                     )
                     choices.append(append_vector(partition, factors))
             else:
@@ -1503,7 +1529,7 @@ def get_tile_shape_choices(
                         np.where(choices_enumerated[:, i] == outer_choice)
                     ]
                     factors = get_possible_factor_sizes(
-                        outer_choice, symbol_imperfect, inner_size
+                        outer_choice, symbol_imperfect, inner_size, coarseness
                     )
                     choices.append(append_vector(partition, factors))
         elif what_tiles_symbol.is_initial_tile_shape(symbol):
