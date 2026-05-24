@@ -1,4 +1,4 @@
-from .symbolic import *
+from ._symbolic import *
 
 __all__ = [
     "SymbolicAnalysisOutput",

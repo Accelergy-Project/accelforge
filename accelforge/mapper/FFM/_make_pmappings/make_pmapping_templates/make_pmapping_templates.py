@@ -11,6 +11,7 @@ import uuid
 from tqdm import tqdm
 
 import accelforge.frontend.arch as arch
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Compute,
@@ -86,7 +87,7 @@ def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
 # Iterate over mappings
 # =================================================================================================
 def place_missing_temporal_loops(
-    mapping: List[MappingNode], einsum: Einsum, flattened_arch: list[arch.Leaf]
+    mapping: List[MappingNode], einsum: Einsum, flattened_arch: FlattenedArch
 ):
     """
     Adds temporal loops to the mapping to fill in any rank variables that are missing.
@@ -132,7 +133,7 @@ def place_missing_temporal_loops(
 
 def remove_unordered_spatial_temporal_loops(
     mapping: list[MappingNode],
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     einsum: Einsum,
     explore_unordered_spatial_loops: bool = True,
 ):
@@ -258,7 +259,7 @@ def assert_proper_fusion_labeling(
 def iterate_mappings_no_constraints(
     spec: Spec,
     einsum_name: str,
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     rank_variable_bounds: dict[RankVariable, int],
     job: Job,
 ) -> Iterator[tuple[Mapping, SymbolTable, arch.Compute, int]]:
@@ -331,7 +332,7 @@ def iterate_mappings_no_constraints(
 def iterate_mappings_constraints(
     spec: Spec,
     einsum_names: list[str] | str,
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     rank_variable_bounds: dict[RankVariable, int],
     tensor_to_relevancy: dict[
         TensorName, dict[RankVariable, Relevant | PartiallyRelevant]
