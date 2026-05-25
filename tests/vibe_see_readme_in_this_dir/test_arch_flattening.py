@@ -23,6 +23,7 @@ from accelforge.frontend.arch import (
     Toll,
     Leaf,
     Branch,
+    FlattenedArch,
 )
 from accelforge.frontend.workload import Workload
 
@@ -321,7 +322,7 @@ class TestSpecGetFlattenedArchitecture(unittest.TestCase):
         spec = self._make_spec()
         result = spec._get_flattened_architecture(compute_node="MAC")
         # Returns a single path (flat list of Leaf nodes), not list of lists
-        self.assertIsInstance(result, list)
+        self.assertIsInstance(result, FlattenedArch)
         self.assertIsInstance(result[-1], Leaf)
         self.assertEqual(result[-1].name, "MAC")
 
@@ -346,7 +347,7 @@ class TestSpecGetFlattenedArchitecture(unittest.TestCase):
         spec = self._make_spec(arch=_fork_arch())
         result = spec._get_flattened_architecture(compute_node="MAC")
         # Returns a single path, not list of lists
-        self.assertIsInstance(result, list)
+        self.assertIsInstance(result, FlattenedArch)
         self.assertIsInstance(result[-1], Leaf)
         self.assertEqual(result[-1].name, "MAC")
 
