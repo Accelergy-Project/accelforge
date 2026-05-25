@@ -44,6 +44,15 @@ The following are features **suppported by AccelForge, not Timeloop**:
   <https://github.com/Accelergy-Project/accelergy>`_. Hwcomponents is a successor to
   Accelergy, and makes it significantly easier to write custom component models.
 - **Easy Installation**: AccelForge and dependencies are pip installable.
+- **Mapper for imperfectly-factorized loop levels**: The mapper can explore imperfect
+  mappings for all loop levels. We note two differences between our implementations and
+  Timeloop's. **(1)** We permit the outermost loop for each rank variable to have a
+  residual, while Timeloop permits a residual on every loop. **(2)** We only run
+  imperfect mapping for simple rank variables which do not participate in indexing
+  expressions, while Timeloop allows every rank variable to be imperfect. Our
+  constraints allow us to find good mappings while keeping the search space tractable,
+  while Timeloop may only search the imperfect space with additional user-written
+  constraints.
 
 The following are features **supported by Timeloop, work-in-progress in AccelForge**:
 
@@ -53,10 +62,6 @@ The following are features **supported by Timeloop, work-in-progress in AccelFor
 - **Layout Support**: Support for the costs of how data is laid out in memory.
 - **Skew in Model**: User-defined spatial skews that can split data between multiple
   multiple spatial instances.
-- **Mapper for $\sim 1-2$ imperfectly-factorized loop levels**: The mapper can explore
-  imperfect mappings for a handful of loop levels, but becomes intractible for more loop
-  levels. This, as well as full imperfect mapping, is present in AccelForge, but the API
-  is not yet implemented.
 - **ISL-Based Model**: Timeloop supports high-fidelity modeling with ISL to generate the
   accesses for every spatial instance, while AccelForge uses a simpler and faster
   analytical model.
@@ -66,8 +71,6 @@ Timeloop**:
 
 - **Skew in Mapping**: Automatically deriving the best skew for a given workload and
   architecture.
-- **Mapper for all imperfectly-factorized loop levels**: The mapper can explore
-  imperfect mappings for all loop levels.
 - **Einsum-Level Spatial Parallelism**: The mapper can parallelize Einsums across
   spatial instances, rather than executing them sequentially.
 
