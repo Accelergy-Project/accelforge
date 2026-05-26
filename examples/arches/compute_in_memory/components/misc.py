@@ -183,11 +183,7 @@ class Wire(Capacitor):
     """
 
     def __init__(
-        self,
-        length: Number,
-        capacitance_per_m: Number = 2e-10,
-        voltage: Number = 0.7,
-        **kwargs,
+        self, length: Number, capacitance_per_m: Number = 2e-10, voltage: Number = 0.7
     ):
         super().__init__(
             capacitance=length * capacitance_per_m,
