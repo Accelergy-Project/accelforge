@@ -69,7 +69,7 @@ class JoiningTimer:
 
 
 def _apply_edp_columns(df: pd.DataFrame, metrics: Metrics) -> pd.DataFrame:
-    if not Metrics & Metrics.ENERGY_DELAY_PRODUCT:
+    if not metrics & Metrics.ENERGY_DELAY_PRODUCT:
         return df
 
     energy = df["Total<SEP>energy"]
