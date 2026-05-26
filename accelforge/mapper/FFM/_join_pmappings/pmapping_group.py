@@ -47,6 +47,13 @@ class PmappingGroup:
     def copy(self) -> "PmappingGroup":
         return PmappingGroup(self.compatibility, self.mappings.copy())
 
+    def split_in_half(self) -> tuple["PmappingGroup", "PmappingGroup"]:
+        first_mappings, second_mappings = self.mappings.split_in_half()
+        return (
+            PmappingGroup(self.compatibility, first_mappings),
+            PmappingGroup(self.compatibility, second_mappings),
+        )
+
     def __len__(self) -> int:
         return len(self.mappings)
 

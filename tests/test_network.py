@@ -196,9 +196,7 @@ class TestModel(TestCase):
                 PE_TILE * (PE_TILE - 1)
             )
             # tile shape
-            * M_TILE
-            * MAC_TILE
-            * BITS_PER_VALUE,
+            * M_TILE * MAC_TILE * BITS_PER_VALUE,
         )
         # NOTE: assuming XY routing (as defined in mapping)
         self.assertEqual(

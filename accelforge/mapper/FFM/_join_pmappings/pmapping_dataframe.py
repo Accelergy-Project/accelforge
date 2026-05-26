@@ -772,6 +772,24 @@ class PmappingDataframe:
             check_above_subset_below=False,
         )
 
+    def split_in_half(self) -> tuple["PmappingDataframe", "PmappingDataframe"]:
+        mid = len(self.data) // 2
+        half_total = self.n_total_pmappings / 2
+        half_valid = self.n_valid_pmappings / 2
+        first = self.update(
+            data=self.data.iloc[:mid].copy(),
+            skip_pareto=True,
+            n_total_pmappings=half_total,
+            n_valid_pmappings=half_valid,
+        )
+        second = self.update(
+            data=self.data.iloc[mid:].copy(),
+            skip_pareto=True,
+            n_total_pmappings=half_total,
+            n_valid_pmappings=half_valid,
+        )
+        return first, second
+
     def limit_capacity(
         self,
         next_shared_loop_index: int = None,

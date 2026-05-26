@@ -70,15 +70,11 @@ def get_n_computes(spec: Spec, einsum_name: EinsumName | None = None) -> int:
     return sum(get_operation_space_size(spec.workload, e) for e in einsums)
 
 
-def get_per_tensor_size(
-    workload: Workload, return_n_elements: bool = False
-) -> dict[TensorName, int]:
+def get_per_tensor_n_elements(workload: Workload) -> dict[TensorName, int]:
     sizes = {}
     for einsum in workload.einsums:
         for tensor in einsum.tensor_names:
             sizes[tensor] = get_tensor_size(workload, tensor)
-            if not return_n_elements:
-                sizes[tensor] *= einsum.tensor_accesses[tensor].bits_per_value
     return sizes
 
 
@@ -265,7 +261,7 @@ def get_memories_to_track(
         )
 
     tensor_sizes = {}
-    for tensor, size in get_per_tensor_size(spec.workload).items():
+    for tensor, size in get_per_tensor_n_elements(spec.workload).items():
         scale = 1
         for einsum in spec.workload.einsums_with_tensor(tensor):
             if einsum.tensor_accesses[tensor].persistent:
@@ -292,9 +288,7 @@ def get_memories_to_track(
                         .bits_per_value
                     )
                     effective_bpv = mem.bits_per_value.get(tensor, workload_bpv)
-                    usage += (
-                        tensor_sizes[tensor] * effective_bpv / (workload_bpv * mem.size)
-                    )
+                    usage += tensor_sizes[tensor] * effective_bpv / mem.size
 
         if usage <= 1:
             ignored_resources.add(memory)

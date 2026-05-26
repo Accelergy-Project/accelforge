@@ -34,7 +34,13 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     Compatibility,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
-from accelforge.util import _fillna_and__numeric_cast, parallel, delayed, oset
+from accelforge.util import (
+    _fillna_and__numeric_cast,
+    delayed,
+    get_n_parallel_jobs,
+    oset,
+    parallel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +68,16 @@ class JoiningTimer:
         logger.info(f"============================\n")
 
 
-def _apply_edp_columns(df: pd.DataFrame, metrics: Metrics) -> pd.DataFrame:
-    if not (metrics & Metrics.ENERGY_DELAY_PRODUCT):
-        return df
-    if not (metrics & Metrics.ENERGY):
-        del df["Total<SEP>energy"]
-    if not (metrics & Metrics.LATENCY):
-        del df["Total<SEP>latency"]
+def _apply_edp_columns(
+    df: pd.DataFrame, metrics: Metrics, return_only_objectives: bool = False
+) -> pd.DataFrame:
+    if metrics & Metrics.ENERGY_DELAY_PRODUCT:
+        if not (metrics & Metrics.ENERGY):
+            del df["Total<SEP>energy"]
+        if not (metrics & Metrics.LATENCY):
+            del df["Total<SEP>latency"]
+    if return_only_objectives:
+        df = df[[c for c in df.columns if col_used_in_pareto(c)]]
     return df
 
 
@@ -87,8 +96,8 @@ class OptimalityThresholder:
 
         compare_to = compare_to.sort_values(by=compare_cols, ascending=False)
 
-        if len(compare_to) > 10:
-            chosen_indices = np.round(np.linspace(0, len(compare_to) - 1, 10))
+        if len(compare_to) > 100:
+            chosen_indices = np.round(np.linspace(0, len(compare_to) - 1, 100))
         else:
             chosen_indices = np.round(np.arange(len(compare_to)))
 
@@ -712,6 +721,28 @@ def join_pmappings(
         # Group left and right into buckets
         left = PmappingGroup.group(left, right_tensors)
         # print_time("Grouping")
+
+        # =============================================================================
+        # If we're multiprocessing and the left side has fewer groups than the number of
+        # processes, repeatedly split the largest group in half so that the merge work
+        # below can fan out across all workers.
+        # =============================================================================
+        n_procs = get_n_parallel_jobs()
+        n_groups = sum(len(v) for v in left.values())
+        for _ in range(n_procs - n_groups):
+            best_k, best_i, best_len = None, None, -1
+            for k, vs in left.items():
+                for i, (pg, _perm) in enumerate(vs):
+                    length = len(pg.mappings.data) if pg.mappings is not None else 0
+                    if length > best_len:
+                        best_len = length
+                        best_k, best_i = k, i
+            if best_k is None or best_len < 2:
+                break  # nothing left worth splitting
+            pg, perm = left[best_k][best_i]
+            first, second = pg.split_in_half()
+            left[best_k][best_i] = (first, perm)
+            left[best_k].append((second, perm))
 
         # ======================================================================
         # Remove dead tensors from left and right. This happens after grouping because
