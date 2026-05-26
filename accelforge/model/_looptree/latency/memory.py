@@ -79,6 +79,17 @@ def component_latency(
                 f"Component {component} is not a TensorHolder or Compute"
             )
 
+    for network, network_stats in looptree_results.network_stats.items():
+        component = network.component
+        actions = component_to_actions[component]
+        if component not in name2component:
+            raise ValueError(f"Component {component} found in mapping but not arch")
+
+        for action in name2component[component].actions:
+            actions[f"{action.name}_actions"] += 0
+
+        actions["hops_actions"] += network_stats.max_hops
+
     longest_compute_latency = Max(
         0, *[s.max_latency for s in looptree_results.compute_stats.values()]
     )

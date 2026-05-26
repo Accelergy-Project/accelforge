@@ -819,6 +819,10 @@ def analyze_storage(
                         )
 
         # ==========================
+        # Recalculate usage of distributed buffers
+        stats.max_occupancy /= n_active_physical_units
+
+        # ==========================
         # Data exchanges with parent
         if count_downward_movement[tensor]:  # Parent -> Me
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
