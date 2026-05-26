@@ -238,7 +238,7 @@ class TilePattern:
         ):
             s.append(f"initial={self.initial_tile_shape}")
         if with_tile_shape and (self.tile_shape not in (None, "symbol")):
-            s.append(f"tile_shape={self.tile_shape}")
+            s.append(f"shape={self.tile_shape}")
         return " ".join(s)
 
     def update(self, **kwargs) -> "TilePattern":
