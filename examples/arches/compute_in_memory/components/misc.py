@@ -154,6 +154,10 @@ class Capacitor(ComponentModel):
                 expected_energy += (e1 - e0) * p0 * p1
         return expected_energy, 0
 
+    @action
+    def read(self) -> tuple:
+        return self.raise_voltage_to(self.voltage)
+
 
 class Wire(Capacitor):
     """

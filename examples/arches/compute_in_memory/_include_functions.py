@@ -1,6 +1,29 @@
 import accelforge as af
 
 
+def _eval_fanout(fanout, spec: af.Spec) -> int:
+    if isinstance(fanout, (int, float)):
+        return int(fanout)
+    if isinstance(fanout, str):
+        symbol_table = {}
+        try:
+            symbol_table.update(dict(spec.variables))
+        except Exception:
+            pass
+        try:
+            symbol_table.update(dict(spec.arch.variables))
+        except Exception:
+            pass
+        try:
+            return int(eval(fanout, {}, symbol_table))
+        except Exception:
+            raise ValueError(
+                f"Could not evaluate fanout expression '{fanout}' "
+                f"with symbol table {symbol_table}."
+            )
+    return int(fanout)
+
+
 def get_array_fanout_reuse_input(spec: af.Spec) -> int:
     """Get total fanout of array spatial dims that reuse input (= columns)."""
     n = 1
@@ -8,7 +31,7 @@ def get_array_fanout_reuse_input(spec: af.Spec) -> int:
         for sp in leaf.spatial:
             if sp.name.endswith("ARRAY_COLUMNS") or sp.name.endswith("ARRAY_ROWS"):
                 if str(sp.may_reuse) == "input" or str(sp.reuse) == "input":
-                    n *= sp.fanout
+                    n *= _eval_fanout(sp.fanout, spec)
     return n
 
 
@@ -19,7 +42,7 @@ def get_array_fanout_reuse_output(spec: af.Spec) -> int:
         for sp in leaf.spatial:
             if sp.name.endswith("ARRAY_COLUMNS") or sp.name.endswith("ARRAY_ROWS"):
                 if str(sp.may_reuse) == "output" or str(sp.reuse) == "output":
-                    n *= sp.fanout
+                    n *= _eval_fanout(sp.fanout, spec)
     return n
 
 
@@ -200,7 +223,7 @@ def encoded_hist_to_avg_slice(
     return_per_slice: bool = False,
 ):
     if isinstance(bits_per_slice, int):
-        bits_per_slice = [bits_per_slice] * (total_bits // bits_per_slice)
+        bits_per_slice = [bits_per_slice] * round(total_bits // bits_per_slice)
         if sum(bits_per_slice) != total_bits:
             bits_per_slice.append(total_bits - sum(bits_per_slice))
 

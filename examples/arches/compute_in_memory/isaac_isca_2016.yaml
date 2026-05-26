@@ -19,11 +19,14 @@
 {{add_to_path('./memory_cells')}}
 
 arch:
+  # ===================================================================================
+  # Architecture-specific variables.
+  # ===================================================================================
   variables:
+    # Inherit these from _include.yaml. Many definitions are included there.
     <<: *variables_global
-    # ===========================================================================
-    # Encoding-dependent parameters
-    # ===========================================================================
+
+    # Encoding-dependent parameters ---------------------------------------------------
     encoded_input_bits:  input_bits
     encoded_weight_bits: weight_bits
     encoded_output_bits: output_bits
@@ -31,21 +34,19 @@ arch:
     input_encoding_func: offset_encode_hist
     weight_encoding_func: offset_encode_hist
 
-    # For accuracy model. Can in-array accumulation include signed values?
-    # Signed accumulation not compatible with offset encoding (since offset
-    # encoding makes values non-negative).
+    # For accuracy model. Can in-array accumulation include signed values? Signed
+    # accumulation not compatible with offset encoding (since offset encoding makes
+    # values non-negative)
     signed_sum_across_inputs: False
     signed_sum_across_weights: False
 
-    # ===========================================================================
-    # Architecture & CiM Array Structure
-    # ===========================================================================
+    # Architecture & CiM Array Structure ----------------------------------------------
     # DEFINITIONS:
     # - Cell: Smallest structure capable of storing memory. Note that a cell may
     #         store more than one bit. For example, a cell consisting of a RRAM
     #         device may store >1 bits, while a cell consisting of an SRAM
     #         bitcell may store only 1 bit.
-    # - CiM Unit: Smallest structure capable of computing an analog MAC.
+    # - CiM Unit: Smallest structure capable of computing an analog MAC
     # - CiM Unit Width Cells:
     #     Number of CiM unit cells that are accessed as one. These cells receive
     #     one analog input and compute one analog MAC per timestep.
@@ -57,18 +58,14 @@ arch:
     cim_unit_depth_cells:  1
     bits_per_cell:         2
 
-    # ===========================================================================
-    # Data Converters
-    # ===========================================================================
+    # Data Converters -----------------------------------------------------------------
     adc_resolution: 8
     voltage_dac_resolution: 1
     temporal_dac_resolution: 1
 
     n_adc_per_bank: 1
 
-    # ===========================================================================
-    # Hardware
-    # ===========================================================================
+    # Hardware ------------------------------------------------------------------------
     cycle_period: 1e-9
     read_pulse_width: 1e-9
 
@@ -77,6 +74,9 @@ arch:
     tech_node: tech_node
     cycle_period: cycle_period
 
+  # ===================================================================================
+  # Architecture
+  # ===================================================================================
   nodes:
 
   # NOTE: THE BELOW IS NOT TESTED.
@@ -133,43 +133,48 @@ arch:
 
   #   {% endif %}
 
-  - !Memory # Input buffer
+  # Input buffer
+  - !Memory
     name: InputBuffer
     tensors: {keep: input}
     size: Macro.get_fanout() * array_parallel_inputs * supported_input_bits
     component_class: SmartBufferSRAM
     extra_attributes_for_component_model: {width: 64}
 
-  - !Memory # Output buffer
+  # Output buffer
+  - !Memory
     name: OutputBuffer
     tensors: {keep: output}
     # Max size: Number of arrays * outputs/array / (weight slices, since outputs shared
     # among weight slices) * output precision (doubled for accumulation)
     size: Macro.get_fanout() * array_parallel_outputs // min_weight_slices * supported_output_bits * 2
     component_class: SmartBufferSRAM
-    bits_per_value: {output: 2 * output.bits_per_value} # Accumulate in 2x precision
+    bits_per_value: {output: 2 * output.bits_per_value} # Accumulate in 2x precision.
     extra_attributes_for_component_model: {width: 64}
 
-  - !Toll # Shift+add sums outputs from multiple slices
+  # Shift+add sums outputs from multiple slices.
+  - !Toll
     name: ShiftAdd
+    <<: [*both_sliced, *one_action_per_value]
     tensors: {keep: output}
     direction: up
-    n_parallel_instances: Macro.get_fanout() # Match throughput with arrays
-    bits_per_action: average_output_bits_per_sliced_psum
+    n_parallel_instances: Macro.get_fanout() # Match throughput with arrays.
     component_class: ISAACShiftAdd
     extra_attributes_for_component_model:
       n_bits: supported_output_bits
       shift_register_n_bits: supported_output_bits * 2
 
-  - !Container # Independent array with memory elements and peripherals
+  # Independent array with memory elements and peripherals
+  - !Container
     name: Macro
     spatial: [{name: array, fanout: 8}]
 
-  - !Toll # ADC
+  # ADCs read analog outputs from the array and convert to digital.
+  - !Toll
     name: ADC
+    <<: [*both_sliced, *one_action_per_value]
     tensors: {keep: output}
     direction: up
-    bits_per_action: average_output_bits_per_sliced_psum
     component_class: ADC
     energy_scale: adc_energy_scale
     area_scale: adc_area_scale
@@ -179,101 +184,113 @@ arch:
       n_bits: adc_resolution
 
   # This memory catches sliding windows that may be sent spatially in the array. E.g.,
-  # convolution steps spatially unrolled onto columns with overlapping windows. Size =
-  # one input value per row. no_resend_to_below prevents reuse across temporal
-  # iterations because it's not really a memory.
+  # convolution steps spatially unrolled onto columns with overlapping windows.
   - !Memory
     name: DummyRowDriverMemory
     component_class: Dummy
+    # Size = one input value per row (max number of inputs we can do in parallel)
     size: input.bits_per_value * array_parallel_inputs
+    # no_resend_to_below prevents reuse across temporal iterations because this isn't
+    # really a memory.
     tensors: {keep: input, no_resend_to_below: input}
 
-  - !Toll # Row drivers feed inputs onto the rows of the array
+  # Row drivers feed inputs onto the rows of the array.
+  - !Toll
     name: RowDrivers
+    <<: [*input_sliced, *one_action_per_value]
     tensors: {keep: input}
     direction: down
-    bits_per_action: average_input_bits_per_slice
     component_class: ArrayRowDrivers
 
-  - !Toll # Column drivers precharge the array columns
+  # Column drivers precharge the array columns.
+  - !Toll
     name: ColumnDrivers
+    <<: [*both_sliced, *one_action_per_value]
     tensors: {keep: output}
     direction: up
-    bits_per_action: average_output_bits_per_sliced_psum
     component_class: ArrayColumnDrivers
 
   - !Container
     name: MemoryCell
     spatial:
-    - name: columns_ARRAY_COLUMNS # Special name that determines array size
+    # ARRAY_COLUMNS suffix used for used for counting the array size
+    - name: columns_ARRAY_COLUMNS
       fanout: 128
+      # Note: may_reuse here and not reuse because we may have columns that reuse some,
+      # but not all, input values, so we want reuse to be optional and only for inputs.
       may_reuse: input
       min_usage: 1
       usage_scale: n_weight_slices
-    - name: rows_ARRAY_ROWS # Special name that determines array size
+    # ARRAY_ROWS suffix used for used for counting the array size
+    - name: rows_ARRAY_ROWS
       fanout: 128
       reuse: output
       min_usage: 1
 
-  # This is the CiM unit that stores weights and computes MACs. Each CiM unit stores a
-  # different weight slice of up to cim_unit_width_cells bits. It may also store up to
-  # cim_unit_depth_cells independently-addressable weight slices, but may only compute
-  # MACs on one slice at a time. One of these components represents a collection of CiM
-  # units, that together hold one weight.
+  # CiM units stores weights and computes MACs. Each CiM unit stores up to
+  # cim_unit_depth_cells indepedently-addressable weight slices, with up to
+  # cim_unit_width_cells * cim_unit_depth_cells in a weight slice. Only one weight slice
+  # can be used at a time.
   - !Memory
     name: CimUnit
-    tensors: {keep: weight, no_refetch_from_above: weight, force_memory_hierarchy_order: False}
-    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell * n_weight_slices
-    bits_per_action: average_weight_bits_per_sliced_psum
-    # Bind together n_weight_slices instances to hold one weight
-    n_parallel_instances: n_weight_slices
+    # Computes with one input slice * weight slice at a time. Computations are
+    # parallelized across weight slices, and input slices are processed sequentially.
+    <<: [*both_sliced_weight_slices_parallelized, *one_action_per_value]
+    tensors:
+      keep: weight
+      # Write weights at most once
+      no_refetch_from_above: weight
+      # Can store values at this level longer than levels above, which lets the mapping
+      # be maximally-weight-stationary (CimUnit weight storage node as high as
+      # possible).
+      force_memory_hierarchy_order: False
+    # Each instance of this component represents n_weight_slices weight slices, meaning
+    # that it holds a full weight
+    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell
     component_class: MemoryCell
-    actions: [{name: read, latency: cycle_period}]
+    # CimUnits represent cim_unit_width_cells * cim_unit_depth_cells memory cells tied
+    # together into one weight
     extra_attributes_for_component_model:
       n_instances: cim_unit_width_cells * cim_unit_depth_cells
 
-  # We account for compute energy in the CimUnit reads
+  # We account for compute energy and latency in other components, so just use a dummy
+  # compute here.
   - !Compute
     name: FreeCompute
     component_class: Dummy
     enabled: len(All) == 3
 
-# These variables pertain to the workload, microarch, and circuits. They should
-# be matched between architectures when comparing for a fair comparison.
-# Furthermore, this file should follow the same format for all architectures
-# such that we can mix and match architectures with different iso files.
+# These variables pertain to the workload, microarch, and circuits. They should be
+# matched between architectures when comparing for a fair comparison.
 variables:
-  # ===========================================================================
-  # Workload, microarch, circuits. Things that should be matched
-  # between architectures when comparing.
-  # ===========================================================================
-  # Set by CiM processor if these values are available in the workload.
-  # Otherwise, use the defaults here.
   inputs_hist: [0, 0, 0, 3, 1, 0, 0]
   weights_hist: [0, 1, 3, 4, 3, 1, 0]
   outputs_hist: inputs_hist
 
-  ## Microarch ----------------------------------------------------------------
-  supported_input_bits: 8        # Maximum input bits supported by the arch.
-  supported_weight_bits: 8       # Maximum weight bits supported by the arch.
-  supported_output_bits: 8       # Maximum output bits supported by the arch.
-  min_supported_input_bits: 1    # Minimum input bits supported by the arch.
-  min_supported_weight_bits: 2   # Minimum weight bits supported by the arch.
-  min_supported_output_bits: 1   # Minimum output bits supported by the arch.
+  ## Microarch ------------------------------------------------------------------------
+  supported_input_bits: 8        # Maximum input bits supported by the arch
+  supported_weight_bits: 8       # Maximum weight bits supported by the arch
+  supported_output_bits: 8       # Maximum output bits supported by the arch
+  min_supported_input_bits: 1    # Minimum input bits supported by the arch
+  min_supported_weight_bits: 2   # Minimum weight bits supported by the arch
+  min_supported_output_bits: 1   # Minimum output bits supported by the arch
 
-  # Circuits ------------------------------------------------------------------
+  # Circuits --------------------------------------------------------------------------
   voltage: 1
   tech_node: 32e-9 # nm
   cell_config: "{{find_path('rram_isaac_isca_2016.yaml')}}"
   voltage_energy_scale: voltage ** 2
   voltage_latency_scale: voltage
 
-  # Calibration ---------------------------------------------------------------
+  # Calibration -----------------------------------------------------------------------
   adc_energy_scale: 1
   adc_area_scale: 1
   row_col_drivers_area_scale: 1
 
 
+# =====================================================================================
+# Default Workload
+# =====================================================================================
 # This workload is sized to get peak throughput & energy efficiency.
 workload:
   rank_sizes:
