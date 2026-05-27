@@ -1,5 +1,39 @@
+input_sliced: &input_sliced
+  bits_per_value: {input: average_input_bits_per_slice}
+  actions_scale: n_input_slices
+
+weight_sliced: &weight_sliced
+  # Weights now operating sliced; each slice is a subset of the bits of the full weight.
+  bits_per_value: {weight: average_weight_bits_per_slice}
+  # Each weight slice is a different action
+  actions_scale: n_weight_slices
+
+both_sliced: &both_sliced
+  # Weights and inputs are both sliced; each slice is a subset of the bits of the full
+  # value.
+  bits_per_value: {input: average_input_bits_per_slice, weight: average_weight_bits_per_slice}
+  # Each weight & input slice combo is a different action.
+  actions_scale: n_input_slices * n_weight_slices
+
+both_sliced_weight_slices_parallelized: &both_sliced_weight_slices_parallelized
+  # Weights and inputs are both sliced; each slice is a subset of the bits of the full
+  # value.
+  bits_per_value: {input: average_input_bits_per_slice, weight: average_weight_bits_per_slice}
+
+  # Each weight & input slice combo is a different action.
+  actions_scale: n_input_slices * n_weight_slices
+
+  # Hopefully the architecture already has all of its hardware instances defined and
+  # already uses usage_scale to account for weight slices consuming more array
+  # utilization. So they should process the weight slices in parallel, scaling the
+  # latency by 1 / n_weight_slices. 
+  latency_scale: 1 / n_weight_slices
+
+one_action_per_value: &one_action_per_value
+  values_per_action: {All: 1}
+
 cim_component_attributes: &cim_component_attributes
-  # These are for NeuroSim
+  # These are for NeuroSim.
   rows:                 array_wordlines
   cols:                 array_bitlines
   cols_active_at_once:  array_parallel_outputs
@@ -17,7 +51,7 @@ cim_component_attributes: &cim_component_attributes
   n_adcs:           n_adc_per_bank
   width:            encoded_output_bits
 
-# These will be applied to the weight drivers
+# These will be applied to the weight drivers.
 weight_drivers_attributes: &weight_drivers_attributes
   <<: *cim_component_attributes
   rows:                 array_wordlines
@@ -33,19 +67,19 @@ weight_drivers_attributes: &weight_drivers_attributes
   read_pulse_width:     0 # Irrelevant for weight programming
 
 variables_global: &variables_global
-  weight_bits: weight.bits_per_value
-  input_bits:  input.bits_per_value
-  output_bits: output.bits_per_value
+  weight_bits: round(weight.bits_per_value)
+  input_bits:  round(input.bits_per_value)
+  output_bits: round(output.bits_per_value)
   array_parallel_inputs:  get_array_fanout_reuse_output(spec)
   array_parallel_outputs: get_array_fanout_reuse_input(spec)
   array_parallel_weights: get_array_fanout_total(spec)
-  array_wordlines: array_parallel_inputs * cim_unit_width_cells
-  array_bitlines: array_parallel_outputs * cim_unit_depth_cells
+  array_wordlines: array_parallel_inputs * cim_unit_depth_cells
+  array_bitlines: array_parallel_outputs * cim_unit_width_cells
   dac_resolution: max(voltage_dac_resolution, temporal_dac_resolution)
   cols_active_at_once:  array_parallel_outputs
 
   # Calculate the number of slices needed to store the input and weight bits and
-  # the number of bits in each slice
+  # the number of bits in each slice.
   in_b: encoded_input_bits # Shorthands so the following lines aren't super long
   w_b: encoded_weight_bits
   max_input_bits_per_slice: min(dac_resolution, in_b)
@@ -57,10 +91,10 @@ variables_global: &variables_global
   average_weight_bits_per_sliced_psum: encoded_weight_bits / n_sliced_psums
   average_output_bits_per_sliced_psum: encoded_output_bits / n_sliced_psums
 
-  # This is for the bitwise-multiplication of the input and weight slices
+  # This is for the bitwise-multiplication of the input and weight slices.
   n_virtual_macs: max_input_bits_per_slice * max_weight_bits_per_slice * encoded_output_bits
 
-  # Calculate statistics for input and weight values and bits after encoding
+  # Calculate statistics for input and weight values and bits after encoding.
   ehtas: encoded_hist_to_avg_slice # Shorthands so the following lines aren't super long
   in_enc_fn: input_encoding_func
   w_enc_fn: weight_encoding_func

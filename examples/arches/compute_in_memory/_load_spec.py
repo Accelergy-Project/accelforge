@@ -43,6 +43,19 @@ def get_spec(
     workload = af.Workload.from_yaml(arch_name, top_key="workload")
     spec = af.Spec(arch=arch, variables=variables, workload=workload)
 
+    # Helpful to increase spatial utilization. Especially helpful for CiM accelerators,
+    # which are often running conv workloads & have weird hardware and/or workload
+    # shapes that are difficult to perfectly tile.
+    spec.mapper.explore_imperfect_spatial_loops = True
+
+    # It's OK to explore loop orders, but will make the search take longer, and is not
+    # very helpful for CiM accelerators. It's not very helpful because loop orders help
+    # us capture sliding window reuse, and the CiM macros consume very big tiles at
+    # once, giving limited benefit from the small overlap between each tile.
+    spec.mapper.explore_loop_orders = False
+
+    spec.mapper.metrics = af.Metrics.ENERGY_DELAY_PRODUCT
+
     spec.config.expression_custom_functions.append(
         os.path.join(THIS_SCRIPT_DIR, "_include_functions.py")
     )

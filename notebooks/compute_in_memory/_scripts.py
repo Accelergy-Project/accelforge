@@ -225,7 +225,8 @@ def bar_stacked(
     ax.set_title(title)
     ax.set_xticks(x_pos)
     ax.set_xticklabels(x_categories, rotation=45, ha="right")
-    ax.legend()
+    if ax.get_legend_handles_labels()[1]:
+        ax.legend()
     ax.grid(axis="y", alpha=0.3)
 
 
@@ -268,7 +269,8 @@ def bar_comparison(
     ax.set_title(title)
     ax.set_xticks(x)
     ax.set_xticklabels(categories, rotation=45, ha="right")
-    ax.legend()
+    if ax.get_legend_handles_labels()[1]:
+        ax.legend()
     ax.grid(axis="y", alpha=0.3)
 
 

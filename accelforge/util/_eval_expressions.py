@@ -5,6 +5,7 @@ import logging
 import math
 import re
 import threading
+import traceback
 from typing import Any, Callable
 from ._yaml import load_yaml, SCRIPTS_FROM
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString, SingleQuotedScalarString
@@ -231,6 +232,7 @@ def eval_expression(
         elif location:
             extra = f" while parsing {location}"
         errstr += f"Problem encountered{extra}: {e.__class__.__name__}: {e}\n"
+        errstr += f"Stack trace:\n{''.join(traceback.format_tb(e.__traceback__))}\n"
         err = errstr
         errstr += f"Symbol table: "
         bindings = {}

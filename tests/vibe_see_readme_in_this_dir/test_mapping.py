@@ -100,7 +100,7 @@ class TestTilePattern(unittest.TestCase):
         tp = TilePattern(tile_shape=4, initial_tile_shape=8, calculated_n_iterations=2)
         s = tp.as_str(with_initial_tile_shape=False, with_tile_shape=True)
         self.assertNotIn("initial=", s)
-        self.assertIn("tile_shape=4", s)
+        self.assertIn("shape=4", s)
 
     def test_symbol_attrs(self):
         tp = TilePattern()

@@ -68,16 +68,17 @@ class JoiningTimer:
         logger.info(f"============================\n")
 
 
-def _apply_edp_columns(
-    df: pd.DataFrame, metrics: Metrics, return_only_objectives: bool = False
-) -> pd.DataFrame:
-    if metrics & Metrics.ENERGY_DELAY_PRODUCT:
-        if not (metrics & Metrics.ENERGY):
-            del df["Total<SEP>energy"]
-        if not (metrics & Metrics.LATENCY):
-            del df["Total<SEP>latency"]
-    if return_only_objectives:
-        df = df[[c for c in df.columns if col_used_in_pareto(c)]]
+def _apply_edp_columns(df: pd.DataFrame, metrics: Metrics) -> pd.DataFrame:
+    if not metrics & Metrics.ENERGY_DELAY_PRODUCT:
+        return df
+
+    energy = df["Total<SEP>energy"]
+    latency = df["Total<SEP>latency"]
+    df["Total<SEP>energy_delay_product"] = energy * latency
+    if not (metrics & Metrics.ENERGY):
+        del df["Total<SEP>energy"]
+    if not (metrics & Metrics.LATENCY):
+        del df["Total<SEP>latency"]
     return df
 
 

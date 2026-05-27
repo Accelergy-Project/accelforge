@@ -154,6 +154,10 @@ class Capacitor(ComponentModel):
                 expected_energy += (e1 - e0) * p0 * p1
         return expected_energy, 0
 
+    @action
+    def read(self) -> tuple:
+        return self.raise_voltage_to(self.voltage)
+
 
 class Wire(Capacitor):
     """
@@ -179,11 +183,7 @@ class Wire(Capacitor):
     """
 
     def __init__(
-        self,
-        length: Number,
-        capacitance_per_m: Number = 2e-10,
-        voltage: Number = 0.7,
-        **kwargs,
+        self, length: Number, capacitance_per_m: Number = 2e-10, voltage: Number = 0.7
     ):
         super().__init__(
             capacitance=length * capacitance_per_m,

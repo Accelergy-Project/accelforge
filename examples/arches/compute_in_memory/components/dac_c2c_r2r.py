@@ -35,6 +35,9 @@ class _X2XLadderDAC(ComponentModel):
         load_capacitance: float = 0,
         cycle_period: float = 1e-9,
     ):
+        assert self.__class__ != _X2XLadderDAC, (
+            "This class is not intended to be instantiated directly. Use a subclass."
+        )
         self.resolution = resolution
         self.voltage = voltage
         self._unit_x = unit_x
@@ -265,11 +268,6 @@ class _X2XLadderDAC(ComponentModel):
             assert latency is not None
             energy *= latency
 
-        # Output cap energy
-        cap_e, _ = self._output_cap.switch(newhist, zero_between_values=False)
-        self.logger.info(f"Output capacitance consumed {cap_e}J")
-        assert cap_e >= 0
-
         # Flip flop energy
         flip_flops_e, _ = self._flip_flops.read()
         probabilities = [0] * self.resolution
@@ -282,11 +280,11 @@ class _X2XLadderDAC(ComponentModel):
         assert flip_flops_e >= 0
 
         self.logger.info(f"Flip-flops consumed {flip_flops_e}J")
-        return energy + self._get_controller_energy() + cap_e + flip_flops_e
+        return energy + self._get_controller_energy() + flip_flops_e
 
     def _get_controller_energy(self):
-        # 0.08pJ/bit at 22nm 1.0V
-        return (self.voltage * self.tech_node) ** 2 * self.resolution * 8e-8
+        # 0.04fJ/bit at 22nm 1.0V
+        return (self.voltage * self.tech_node) ** 2 * self.resolution * 0.08
 
     @action
     def convert(self):
@@ -395,6 +393,8 @@ class C2CLadderDAC(_X2XLadderDAC):
         load_resistance: float = 0,
     ):
         self.unit_capacitance = unit_capacitance
+        
+        self.voltage = voltage
 
         self._unit_cap = Capacitor(
             voltage=self.voltage, capacitance=unit_capacitance, tech_node=tech_node
