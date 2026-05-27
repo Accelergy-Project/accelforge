@@ -1174,6 +1174,20 @@ class Network(Component, Leaf):
     of the spatial nodes from top to bottom.
     """
 
+    total_latency: str | int | float = "max(max_hops*actions['hops'].latency, max_link_traffic/actions['hops'].latency)"
+    """
+    Models latency as either:
+    - *Latency-bound*, which means that the latency of the route with the most number of
+      hops dominate the overall communication latency.
+    - *Bandwidth-bound*, which means that the traffic over the most congested link
+      dominates the overall communication latency.
+
+    Keywords:
+    - `max_hops` returns the number of hops in the longest route.
+    - `max_link_traffic` returns the amount of traffic (in bits) over the most congested
+      link.
+    """
+
     bits_per_value: EvalsTo[dict] = {}
     """
     Sets the bits per value for tensors in this `TensorHolder`. Keys are evaluated as

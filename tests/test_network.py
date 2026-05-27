@@ -125,6 +125,10 @@ class TestModel(TestCase):
             * KN
             * BITS_PER_VALUE,
         )
+        self.assertEqual(
+            result.data["Total<SEP>latency"].iloc[0],
+            4
+        )
 
     def test_hierarchical(self):
         M = 8

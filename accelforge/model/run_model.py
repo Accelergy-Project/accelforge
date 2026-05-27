@@ -43,6 +43,7 @@ def run_model(
     )
 
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
+    print(latency)
     try:
         overall_latency = MaxGeqZero(*latency.values())
     except Exception as e:

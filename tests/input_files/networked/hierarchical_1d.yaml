@@ -24,8 +24,9 @@ arch:
     name: PeArray
     area: 0
     leak_power: 0
+    total_latency: "max_hops"
     actions:
-    - {name: hops, energy: 1, latency: 0}
+    - {name: hops, energy: 1, latency: 1}
 
   - !Memory
     name: Scratchpad
