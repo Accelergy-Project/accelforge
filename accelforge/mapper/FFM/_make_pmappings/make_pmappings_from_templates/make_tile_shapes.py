@@ -906,8 +906,9 @@ def get_padded_choices(
         if subs in choices_padded:
             choices_padded[s] = choices_padded[subs]
         else:
-            choices_padded[s] = ones * subs
-
+            choices_padded[s] = np.full(
+                choices_enumerated.shape[0], subs, dtype=choices_enumerated.dtype
+            )
     for k, v in choices_padded.items():
         assert isinstance(v, np.ndarray), f"{k} is not a numeric array: {v}"
 
@@ -1781,10 +1782,10 @@ def get_tile_shape_choices(
                         # Haven't done any pruning, so valid is the # of total choices
                         valid = [choices_enumerated.shape[0]]
 
-                    porp = sum(valid) / max(1, choices_enumerated.shape[0])
+                    porp = int(np.sum(valid)) / max(1, choices_enumerated.shape[0])
                     job.log_porp_pmappings_kept(
                         f"{objective.name}",
-                        sum(valid) / max(1, prev_size),
+                        int(np.sum(valid)) / max(1, prev_size),
                     )
                     DEBUG and log_message(
                         f"Valid check", f"{objective.name}", f"porp={porp:.2%}"
@@ -1832,10 +1833,10 @@ def get_tile_shape_choices(
                         # Everyone valid (for counting purposes)
                         valid = [choices_enumerated.shape[0]]
 
-                    porp = sum(valid) / max(1, choices_enumerated.shape[0])
+                    porp = int(np.sum(valid)) / max(1, choices_enumerated.shape[0])
                     job.log_porp_pmappings_kept(
                         f"{objective.name}",
-                        sum(valid) / max(1, prev_size),
+                        int(np.sum(valid)) / max(1, prev_size),
                     )
                     DEBUG and log_message(
                         f"Valid check", f"{objective.name}", f"porp={porp:.2%}"
@@ -1980,7 +1981,7 @@ def get_tile_shape_choices(
                 prev_size = choices_enumerated.shape[0]
                 choices_enumerated = choices_enumerated[keep]
                 job.log_porp_pmappings_kept(
-                    f"Pareto", sum(keep) / choices_enumerated.shape[0]
+                    f"Pareto", int(np.sum(keep)) / choices_enumerated.shape[0]
                 )
                 DEBUG and log_message(
                     "pareto", f"size {prev_size} -> {choices_enumerated.shape[0]}"
