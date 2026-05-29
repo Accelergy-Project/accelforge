@@ -3,13 +3,11 @@ All the objects used for a Workload description in AccelForge.
 """
 
 import copy
-from itertools import product
-import itertools
-import logging
 import re
-from typing import Annotated, Any, TypeAlias
+from typing import Annotated, Any, TypeAlias, Union
 
 import pydot
+from pydantic import Discriminator, Tag
 
 from accelforge.util.parallel import _SVGJupyterRender
 
@@ -19,6 +17,7 @@ from accelforge.util._basetypes import (
     EvalableList,
     EvalableModel,
     EvalsTo,
+    _get_tag,
 )
 from accelforge.util._visualization import _pydot_graph
 from accelforge.frontend.renames import (
@@ -833,14 +832,18 @@ class Adapter(EvalableModel):
     """
     name: EvalsTo[str]
 
-    adapter_class: EvalsTo[str]
-    """
-    The class of the adapter. Supported classes are:
-    - copy
-    - collective
-    """
 
+class CopyAdapter(Adapter):
     tensor: EvalsTo[str]
+
+
+EinsumOrAdapter = Annotated[
+    Union[
+        Annotated["Einsum", Tag("Einsum")],
+        Annotated["CopyAdapter", Tag("Copy")],
+    ],
+    Discriminator(lambda v: _get_tag(v, default="Einsum")),
+]
 
 
 class Workload(EvalableModel):
@@ -848,6 +851,9 @@ class Workload(EvalableModel):
     The workload specification as a cascade of Einsums, with each Einsum being a
     computation step in the workload.
     """
+
+    einsums_and_adapters: EvalableList[EinsumOrAdapter] = EvalableList()
+    """Einsums and adapters in the workload."""
 
     einsums: EvalableList[Einsum] = EvalableList()
     """ The Einsums in the workload. """
@@ -891,11 +897,6 @@ class Workload(EvalableModel):
     matching tensors as persistent. Example: "weight" or "~(Outputs | Intermediates)".
     """
 
-    adapters: EvalableList[Adapter] = EvalableList()
-    """
-    Adapters for shared tensors.
-    """
-
     def _for_einsum(self, einsum_name: EinsumName) -> "Workload":
         """Return a copy of the workload with only the Einsum with the given name."""
         new = self.model_copy(deep=False)
@@ -912,6 +913,8 @@ class Workload(EvalableModel):
                     einsum_entry = einsum_entry.model_dump()
                 processed_einsums.append(_parse_einsum_entry(einsum_entry))
             data["einsums"] = processed_einsums
+
+        self._canonicalize_einsums_and_adapters(data)
 
         super().__init__(**data)
 
@@ -952,6 +955,26 @@ class Workload(EvalableModel):
                             e.name for e in self.einsums_with_tensor(tensor_accesses.name)
                         )}"
                     )
+
+    def _canonicalize_einsums_and_adapters(self, data):
+        """
+        Checks that only one of einsums or einsums_and_adapters is specified
+        and fills in the other.
+        """
+        has_einsums = "einsums" in data and len(data["einsums"]) > 0
+        has_einsums_and_adapters = "einsums_and_adapters" in data and len(data["einsums_and_adapters"]) > 0
+
+        if has_einsums and has_einsums_and_adapters:
+            raise EvaluationError("Please use only one of keywords einsums or einsums_and_adapters")
+
+        def is_einsum(d):
+            return not hasattr(d, "tag") or d.tag == "!Einsum"
+
+        if has_einsums:
+            data["einsums_and_adapters"] = data["einsums"]
+            data["einsums"] = [e for e in data["einsums_and_adapters"] if is_einsum(e)]
+        elif has_einsums_and_adapters:
+            data["einsums"] = [e for e in data["einsums_and_adapters"] if is_einsum(e)]
 
     @property
     def einsum_names(self) -> list[EinsumName]:
@@ -1334,9 +1357,3 @@ class Workload(EvalableModel):
             self.get_tensor_size(tensor)
             for tensor in self.einsums[einsum_name].tensor_names
         )
-
-    def get_adapter_for(self, tensor_name: TensorName) -> Adapter:
-        for adapter in self.adapters:
-            if adapter.tensor == tensor_name:
-                return adapter
-        return ValueError(f"No adapter found for tensor {tensor_name}")

@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import ruamel.yaml
 from pydantic import BaseModel, ConfigDict, Tag, ValidationError
 from pydantic.main import IncEx
 from pydantic_core.core_schema import (
@@ -59,7 +60,7 @@ PL = TypeVar("PL", bound="EvalableList[Any]")
 Ts = TypeVarTuple("Ts")
 
 
-def _get_tag(value: Any) -> str:
+def _get_tag(value: Any, default: str=None) -> str:
     if not isinstance(value, dict):
         return value.__class__.__name__
     tag = None
@@ -81,14 +82,22 @@ def _get_tag(value: Any) -> str:
             break
         if tag := try_index(attr):
             break
+
+    def is_yaml_tag_none(tag):
+        return isinstance(tag, ruamel.yaml.tag.Tag) and tag.value is None
+
+    if (tag is None or is_yaml_tag_none(tag)) and not default is None:
+        tag = default
+
     if tag is None:
         raise ValueError(
             f"No tag found for {value}. Either set the type field " "or use a YAML tag."
         )
-    tag = str(tag)
-    if tag.startswith("!"):
-        tag = tag[1:]
-    return tag
+    else:
+        tag = str(tag)
+        if tag.startswith("!"):
+            tag = tag[1:]
+        return tag
 
 
 def _uninstantiable(cls):
