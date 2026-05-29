@@ -826,6 +826,23 @@ class Einsum(EvalableModel):
         return evaluated, symbol_table
 
 
+class Adapter(EvalableModel):
+    """
+    An adapter between or before (in the case of shared inputs) two or more
+    Einsums.
+    """
+    name: EvalsTo[str]
+
+    adapter_class: EvalsTo[str]
+    """
+    The class of the adapter. Supported classes are:
+    - copy
+    - collective
+    """
+
+    tensor: EvalsTo[str]
+
+
 class Workload(EvalableModel):
     """
     The workload specification as a cascade of Einsums, with each Einsum being a
@@ -872,6 +889,11 @@ class Workload(EvalableModel):
     """
     Set expression for identifying persistent tensors. Evaluated per-Einsum to mark
     matching tensors as persistent. Example: "weight" or "~(Outputs | Intermediates)".
+    """
+
+    adapters: EvalableList[Adapter] = EvalableList()
+    """
+    Adapters for shared tensors.
     """
 
     def _for_einsum(self, einsum_name: EinsumName) -> "Workload":
@@ -1312,3 +1334,9 @@ class Workload(EvalableModel):
             self.get_tensor_size(tensor)
             for tensor in self.einsums[einsum_name].tensor_names
         )
+
+    def get_adapter_for(self, tensor_name: TensorName) -> Adapter:
+        for adapter in self.adapters:
+            if adapter.tensor == tensor_name:
+                return adapter
+        return ValueError(f"No adapter found for tensor {tensor_name}")
