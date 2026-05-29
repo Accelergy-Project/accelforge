@@ -60,7 +60,7 @@ PL = TypeVar("PL", bound="EvalableList[Any]")
 Ts = TypeVarTuple("Ts")
 
 
-def _get_tag(value: Any, default: str=None) -> str:
+def _get_tag(value: Any, default: str = None) -> str:
     if not isinstance(value, dict):
         return value.__class__.__name__
     tag = None
