@@ -830,6 +830,7 @@ class Adapter(EvalableModel):
     An adapter between or before (in the case of shared inputs) two or more
     Einsums.
     """
+
     name: EvalsTo[str]
 
 
@@ -962,10 +963,14 @@ class Workload(EvalableModel):
         and fills in the other.
         """
         has_einsums = "einsums" in data and len(data["einsums"]) > 0
-        has_einsums_and_adapters = "einsums_and_adapters" in data and len(data["einsums_and_adapters"]) > 0
+        has_einsums_and_adapters = (
+            "einsums_and_adapters" in data and len(data["einsums_and_adapters"]) > 0
+        )
 
         if has_einsums and has_einsums_and_adapters:
-            raise EvaluationError("Please use only one of keywords einsums or einsums_and_adapters")
+            raise EvaluationError(
+                "Please use only one of keywords einsums or einsums_and_adapters"
+            )
 
         def is_einsum(d):
             return not hasattr(d, "tag") or d.tag == "!Einsum"
