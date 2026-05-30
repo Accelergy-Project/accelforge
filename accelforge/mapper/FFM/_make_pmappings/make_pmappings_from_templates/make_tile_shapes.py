@@ -761,6 +761,11 @@ def get_possible_factor_sizes(
         else:
             n += 1
 
+        # Force n to be a multiple of the inner size. ctrl-f for
+        # IMPERFECT_OUTER_ONLY_ASSUMPTION. Note we also require that the enumeration
+        # order is inner -> outer if we're doing imperfect.
+        n = math.ceil(n / inner_size) * inner_size
+
     # One more in case coarseness jumped the max value
     _try_admit(outer_size)
 
@@ -1220,10 +1225,11 @@ def grab_symbol(
         if isinstance(tiled_by, Symbol) and tiled_by not in enumerated_set:
             score_unknown -= 1
 
-        # Score for bringing in an entirely-new formula
+        # Score for bringing in an entirely-new formula. NOTE: This caused memory to
+        # blow up for some workloads when the punishment was set higher.
         for o in objectives:
             if s in o._free_symbols and not o._free_symbols & enumerated_set:
-                score_unknown -= 10
+                score_unknown -= .1
 
         return (
             -keep,  # Punish enumerating keep symbols because they're always diff
