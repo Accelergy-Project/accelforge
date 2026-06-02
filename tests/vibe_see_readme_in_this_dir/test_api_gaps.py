@@ -5,7 +5,7 @@ Tests covering previously-untested API surface areas:
   2. Workload.n_instances / Einsum.n_instances
   3. Tensors.back, tile_shape, no_refetch_from_above, tensor_order_options
   4. Arch.total_area, total_leak_power, per_component_total_area/leak
-  5. Spec.calculate_component_area_energy_latency_leak()
+  5. Spec.calculate_component_costs()
   6. Action.latency_scale, Component.latency_scale
   7. TensorHolder.bits_per_value_scale, bits_per_action
   8. Spec.to_yaml() round-trip serialization
@@ -339,7 +339,7 @@ workload:
     - {name: B, projection: [m], output: true}
 """
         )
-        return spec.calculate_component_area_energy_latency_leak()
+        return spec.calculate_component_costs()
 
     def test_per_component_total_area(self):
         spec = self._make_arch_with_totals()
@@ -388,18 +388,18 @@ arch:
 """
         )
         # total_area depends on total_area being set per-component
-        # which requires calculate_component_area_energy_latency_leak
+        # which requires calculate_component_costs
         with self.assertRaises((ValueError, TypeError)):
             _ = spec.arch.total_area
 
 
 # ============================================================================
-# 5. Spec.calculate_component_area_energy_latency_leak
+# 5. Spec.calculate_component_costs
 # ============================================================================
 
 
 class TestCalculateComponentAreaEnergyLatencyLeak(unittest.TestCase):
-    """Test the full calculate_component_area_energy_latency_leak method."""
+    """Test the full calculate_component_costs method."""
 
     def _make_spec(self):
         return _yaml_spec(
@@ -435,39 +435,39 @@ workload:
 
     def test_returns_spec(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         self.assertIsInstance(result, Spec)
 
     def test_area_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         self.assertEqual(mm.area, 100)
         self.assertIsNotNone(mm.total_area)
 
     def test_energy_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         read_action = [a for a in mm.actions if a.name == "read"][0]
         self.assertEqual(read_action.energy, 2.0)
 
     def test_latency_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         read_action = [a for a in mm.actions if a.name == "read"][0]
         self.assertEqual(read_action.latency, 10)
 
     def test_leak_power_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         self.assertEqual(mm.leak_power, 0.5)
 
     def test_selective_area_only(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak(
+        result = spec.calculate_component_costs(
             area=True, energy=False, latency=False, leak=False
         )
         mm = result.arch.find("MainMemory")
@@ -475,7 +475,7 @@ workload:
 
     def test_noop_if_all_false(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak(
+        result = spec.calculate_component_costs(
             area=False, energy=False, latency=False, leak=False
         )
         self.assertIsInstance(result, Spec)
@@ -516,7 +516,7 @@ workload:
     - {name: B, projection: [m], output: true}
 """
         )
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mac = result.arch.find("MAC")
         # total_area should be area * fanout = 10 * 4
         self.assertEqual(mac.total_area, 40)

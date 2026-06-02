@@ -93,7 +93,7 @@ def get_jobs(
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     einsum2spec: dict[EinsumName, Spec] = {}
-    s = "Getting energy, latency, and leak power for components running each Einsum. "
+    s = "Getting energy, leak power, latency, and throughput for components running each Einsum. "
 
     def _get_per_einsum_spec(spec, einsum_name):
         result = (
@@ -102,7 +102,7 @@ def get_jobs(
                 eval_arch=True,
                 eval_non_arch=False,
             )
-            .calculate_component_area_energy_latency_leak(
+            .calculate_component_costs(
                 einsum_name=einsum_name,
                 area=False,
             )

@@ -1,4 +1,5 @@
 from hwcomponents.model import ComponentModel, action
+from hwcomponents import ActionCost
 from hwcomponents_neurosim.main import (
     Adder as _NeuroSimAdder,
     FlipFlop as _NeuroSimFlipFlop,
@@ -46,7 +47,8 @@ class ColonnadeCimLogic(ComponentModel):
         self.scale_tech_node(tech_node, 65e-9)
         self.adder.area_scale *= 0.9  # Calibrate to Colonnade
         self.adder.energy_scale *= voltage_energy_scale * 0.0285 * switching_activity
-        self.adder.latency_scale = 0
+        self.adder.latency_scale = 0  # Ignore adder latency
+        self.adder.throughput_scale = float("inf")
         self.adder.leak_power_scale *= 15
         self.cycle_period = cycle_period
         self.width = width
@@ -54,7 +56,7 @@ class ColonnadeCimLogic(ComponentModel):
     @action()
     def read(self) -> tuple:
         self.adder.read()
-        return 0, 0  # self.cycle_period / self.width
+        return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
 class ColonnadeCimLogicInputPort(ComponentModel):
@@ -110,6 +112,7 @@ class ColonnadeCimLogicInputPort(ComponentModel):
             n_instances * voltage_energy_scale * switching_activity * switching_activity
         )
         self.adder.latency_scale = 0  # Ignore adder latency
+        self.adder.throughput_scale = float("inf")
 
         self.area_scale *= 0  # Account for area in ColonnadeCimLogic
         self.leak_power_scale *= 0
@@ -129,7 +132,7 @@ class ColonnadeCimLogicInputPort(ComponentModel):
             * self.voltage_energy_scale
             * p_switch
         )
-        return wire_energy, 0
+        return ActionCost(energy=wire_energy, throughput=float("inf"), latency=0)
 
 
 class ColonnadeRegister(ComponentModel):
