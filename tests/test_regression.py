@@ -93,7 +93,7 @@ def _run(arch, workload, fused, print_progress: bool = True):
         workload["workload"],
         jinja_parse_data=workload.get("jinja_parse_data"),
     )
-    spec.mapper.metrics = Metrics.ENERGY
+    spec.mapper.metrics = Metrics.ENERGY_DELAY_PRODUCT
     spec.mapper.max_fused_loops = 1
     if not fused:
         for node in spec.arch.nodes:

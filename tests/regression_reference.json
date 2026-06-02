@@ -2124,7 +2124,7 @@
       "('FFB', 'MAC', 'leak')": 0.00023795281595084816
     },
     "latency_per_component": {
-      "('I', 'GlobalBuffer')": 8e-08,
+      "('I', 'GlobalBuffer')": 7.999999951380232e-08,
       "('I', 'MainMemory')": 9.765624781721272e-06,
       "('I', 'MAC')": 5.119999968883349e-06,
       "('V_new', 'MAC')": 0.010485759936273098,
@@ -2149,11 +2149,11 @@
       "('QK', 'WeightScratchpad')": 0.0019473554566502571,
       "('QK', 'MainMemory')": 0.07999999821186066,
       "('QK', 'OutputScratchpad')": 0.0068157440982759,
-      "('QK', 'GlobalBuffer')": 5.2e-06,
+      "('QK', 'GlobalBuffer')": 5.200000032345997e-06,
       "('QK', 'InputScratchpad')": 0.0034082878846675158,
       "('QK_softmax', 'MAC')": 0.00016383999900426716,
       "('QK_softmax', 'InputScratchpad')": 5.324800076778047e-05,
-      "('QK_softmax', 'GlobalBuffer')": 1.024e-05,
+      "('QK_softmax', 'GlobalBuffer')": 1.0239999937766697e-05,
       "('QK_softmax', 'OutputScratchpad')": 5.324800076778047e-05,
       "('AV', 'MAC')": 0.020971519872546196,
       "('AV', 'OutputScratchpad')": 0.007235072087496519,
@@ -5204,7 +5204,7 @@
   },
   "tpu_v4i|gpt3_175B||fused": {
     "energy": 3.298996317562981,
-    "latency": 0.2524072229862213,
+    "latency": 0.25184547901153564,
     "energy_per_component": {
       "('I', 'GlobalBuffer', 'read')": 0.00151397597184,
       "('I', 'MainMemory', 'write')": 0.00566130376704,
@@ -5347,7 +5347,7 @@
     "latency_per_component": {
       "('I', 'GlobalBuffer')": 4.915200042887591e-05,
       "('I', 'MainMemory')": 0.00016394673730246723,
-      "('I', 'ScalarUnit')": 0.0007489828858524561,
+      "('I', 'ScalarUnit')": 0.00018724572146311402,
       "('V', 'MAC')": 0.017975589260458946,
       "('V', 'LocalBuffer')": 0.0,
       "('V', 'GlobalBuffer')": 0.0006881279987283051,
@@ -5534,7 +5534,7 @@
   },
   "tpu_v4i|gpt3_175B||unfused": {
     "energy": 4.3112841368941845,
-    "latency": 0.2614086866378784,
+    "latency": 0.26084694266319275,
     "energy_per_component": {
       "('I', 'MainMemory', 'leak')": 0.0,
       "('I', 'GlobalBuffer', 'leak')": 0.0,
@@ -5672,7 +5672,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'ScalarUnit')": 0.0007489828858524561,
+      "('I', 'ScalarUnit')": 0.00018724572146311402,
       "('V', 'MAC')": 0.017975589260458946,
       "('V', 'LocalBuffer')": 0.0,
       "('V', 'GlobalBuffer')": 0.0006881279987283051,
@@ -5861,7 +5861,7 @@
   },
   "tpu_v4i|gpt3_175B_kv_cache||fused": {
     "energy": 0.11356737119656994,
-    "latency": 0.003280548844486475,
+    "latency": 0.0032804803922772408,
     "energy_per_component": {
       "('I', 'GlobalBuffer', 'read')": 1.8481152e-07,
       "('I', 'MainMemory', 'write')": 6.9107712e-07,
@@ -5999,7 +5999,7 @@
     "latency_per_component": {
       "('I', 'GlobalBuffer')": 6.000000052353016e-09,
       "('I', 'MainMemory')": 2.001302945586758e-08,
-      "('I', 'ScalarUnit')": 9.142857493316114e-08,
+      "('I', 'ScalarUnit')": 2.2857143733290286e-08,
       "('V_new', 'MAC')": 2.1942857983958675e-06,
       "('V_new', 'LocalBuffer')": 0.0,
       "('V_new', 'GlobalBuffer')": 2.4000000209412065e-08,
@@ -6170,7 +6170,7 @@
   },
   "tpu_v4i|gpt3_175B_kv_cache||unfused": {
     "energy": 0.113700810225849,
-    "latency": 0.003284549806267023,
+    "latency": 0.003284481121227145,
     "energy_per_component": {
       "('I', 'MainMemory', 'leak')": 0.0,
       "('I', 'GlobalBuffer', 'leak')": 0.0,
@@ -6308,7 +6308,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'ScalarUnit')": 9.142857493316114e-08,
+      "('I', 'ScalarUnit')": 2.2857143733290286e-08,
       "('V_new', 'MAC')": 2.1942857983958675e-06,
       "('V_new', 'LocalBuffer')": 0.0,
       "('V_new', 'GlobalBuffer')": 2.4000000209412065e-08,
