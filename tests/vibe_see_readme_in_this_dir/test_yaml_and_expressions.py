@@ -639,14 +639,16 @@ class TestMemoryTotalLatency(unittest.TestCase):
     """Test that total_latency expression is stored on Memory."""
 
     def test_total_latency_expression(self):
-        """The TPU GlobalBuffer uses total_latency: max(read_latency, write_latency)."""
+        """The TPU GlobalBuffer uses a throughput-based total_latency expression."""
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
         wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML not found")
         spec = Spec.from_yaml(arch_path, wl_path)
         gb = spec.arch.find("GlobalBuffer")
-        self.assertEqual(gb.total_latency, "max(read_latency, write_latency)")
+        self.assertEqual(
+            gb.total_latency, "max(a.n_calls / a.throughput for a in actions)"
+        )
 
 
 class TestEnabledField(unittest.TestCase):

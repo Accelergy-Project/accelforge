@@ -452,12 +452,12 @@ workload:
         read_action = [a for a in mm.actions if a.name == "read"][0]
         self.assertEqual(read_action.energy, 2.0)
 
-    def test_latency_populated(self):
+    def test_throughput_populated(self):
         spec = self._make_spec()
         result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         read_action = [a for a in mm.actions if a.name == "read"][0]
-        self.assertEqual(read_action.latency, 10)
+        self.assertAlmostEqual(read_action.throughput, 1 / 10)
 
     def test_leak_power_populated(self):
         spec = self._make_spec()
@@ -534,9 +534,9 @@ class TestLatencyScale(unittest.TestCase):
         a = Action(name="read", energy=1, latency=5)
         self.assertEqual(a.latency_scale, 1)
 
-    def test_action_latency_scale_custom(self):
-        a = Action(name="read", energy=1, latency=5, latency_scale=2.0)
-        self.assertEqual(a.latency_scale, 2.0)
+    def test_action_throughput_scale_custom(self):
+        a = Action(name="read", energy=1, throughput=1 / 5, throughput_scale=2.0)
+        self.assertEqual(a.throughput_scale, 2.0)
 
     def test_component_latency_scale_default(self):
         c = Compute(
@@ -547,15 +547,15 @@ class TestLatencyScale(unittest.TestCase):
         )
         self.assertEqual(c.latency_scale, 1)
 
-    def test_component_latency_scale_custom(self):
+    def test_component_throughput_scale_custom(self):
         c = Compute(
             name="MAC",
             leak_power=0,
             area=0,
-            latency_scale=0.5,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            throughput_scale=0.5,
+            actions=[{"name": "compute", "energy": 1, "throughput": 1}],
         )
-        self.assertEqual(c.latency_scale, 0.5)
+        self.assertEqual(c.throughput_scale, 0.5)
 
     def test_component_total_latency_default(self):
         c = Compute(
