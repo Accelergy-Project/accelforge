@@ -1227,9 +1227,10 @@ def grab_symbol(
 
         # Score for bringing in an entirely-new formula. NOTE: This caused memory to
         # blow up for some workloads when the punishment was set higher.
-        for o in objectives:
-            if s in o._free_symbols and not o._free_symbols & enumerated_set:
-                score_unknown -= .1
+        # NOTE: Disabled because it was causing memory blow-ups on some arches.
+        # for o in objectives:
+        #     if s in o._free_symbols and not o._free_symbols & enumerated_set:
+        #         score_unknown -= .1
 
         return (
             -keep,  # Punish enumerating keep symbols because they're always diff
