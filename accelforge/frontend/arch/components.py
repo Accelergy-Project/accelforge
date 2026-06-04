@@ -1,4 +1,5 @@
 import copy
+import enum
 import itertools
 import logging
 from numbers import Number
@@ -1303,6 +1304,10 @@ class Compute(Component, Leaf):
         return "#E0EEFF"
 
 
+class TopologySpec(str, enum.Enum):
+    MESH = "mesh"
+
+
 class Network(Component, Leaf):
     """
     Defines a network component.
@@ -1323,6 +1328,11 @@ class Network(Component, Leaf):
     The number of bits accessed in each of this component's actions. Overridden by
     bits_per_action in any action of this component. If set here, acts as a default
     value for the bits_per_action of all actions of this component.
+    """
+
+    topology: TopologySpec = TopologySpec.MESH
+    """
+    The topology of the network.
     """
 
     def _render_node_shape(self) -> str:
