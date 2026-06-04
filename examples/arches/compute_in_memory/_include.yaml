@@ -26,8 +26,8 @@ both_sliced_weight_slices_parallelized: &both_sliced_weight_slices_parallelized
   # Hopefully the architecture already has all of its hardware instances defined and
   # already uses usage_scale to account for weight slices consuming more array
   # utilization. So they should process the weight slices in parallel, scaling the
-  # latency by 1 / n_weight_slices. 
-  latency_scale: 1 / n_weight_slices
+  # throughput by n_weight_slices.
+  throughput_scale: n_weight_slices
 
 one_action_per_value: &one_action_per_value
   values_per_action: {All: 1}

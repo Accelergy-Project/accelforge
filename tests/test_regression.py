@@ -93,7 +93,7 @@ def _run(arch, workload, fused, print_progress: bool = True):
         workload["workload"],
         jinja_parse_data=workload.get("jinja_parse_data"),
     )
-    spec.mapper.metrics = Metrics.ENERGY
+    spec.mapper.metrics = Metrics.ENERGY_DELAY_PRODUCT
     spec.mapper.max_fused_loops = 1
     if not fused:
         for node in spec.arch.nodes:
@@ -205,7 +205,7 @@ for _k, _a, _w, _f in _cases():
 class TestHWComponentsConsistency(unittest.TestCase):
     """
     Checks that hwcomponents models produce expected per-component area, energy, leak
-    power, and latency.
+    power, and throughput.
 
     If these fail, then the other regression tests will likely fail as well.
     """
@@ -233,9 +233,7 @@ class TestHWComponentsConsistency(unittest.TestCase):
                 af.examples.workloads.matmuls,
                 jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
             )
-            spec = spec.calculate_component_area_energy_latency_leak(
-                einsum_name="Matmul0"
-            )
+            spec = spec.calculate_component_costs(einsum_name="Matmul0")
             components = {}
             for node in spec.arch.nodes:
                 if not isinstance(node, (af.arch.Memory, af.arch.Compute)):
@@ -252,6 +250,8 @@ class TestHWComponentsConsistency(unittest.TestCase):
                         act["energy"] = float(a.energy)
                     if a.latency is not None:
                         act["latency"] = float(a.latency)
+                    if a.throughput is not None:
+                        act["throughput"] = float(a.throughput)
                     if act:
                         actions[a.name] = act
                 if actions:
@@ -271,7 +271,7 @@ class TestHWComponentsConsistency(unittest.TestCase):
                     exp_val = exp_comp[field]
                     act_val = act_comp.get(field)
                     self.assertIsNotNone(act_val, f"{name}.{comp_name}.{field} missing")
-                    delta = max(abs(exp_val) * 1e-6, 1e-15)
+                    delta = max(abs(exp_val) * 1e-9, 1e-18)
                     self.assertAlmostEqual(
                         act_val,
                         exp_val,
@@ -290,7 +290,14 @@ class TestHWComponentsConsistency(unittest.TestCase):
                     self.assertIsNotNone(
                         act_val, f"{name}.{comp_name}.{act_name}.{field} missing"
                     )
-                    delta = max(abs(exp_val) * 1e-6, 1e-15)
+                    if math.isinf(exp_val) or math.isinf(act_val):
+                        self.assertEqual(
+                            act_val,
+                            exp_val,
+                            msg=f"{name}.{comp_name}.{act_name}.{field}: {act_val} != {exp_val}",
+                        )
+                        continue
+                    delta = max(abs(exp_val) * 1e-9, 1e-18)
                     self.assertAlmostEqual(
                         act_val,
                         exp_val,
@@ -325,7 +332,7 @@ def generate_hwcomponents():
             af.examples.workloads.matmuls,
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
-        spec = spec.calculate_component_area_energy_latency_leak(einsum_name="Matmul0")
+        spec = spec.calculate_component_costs(einsum_name="Matmul0")
         components = {}
         for node in spec.arch.nodes:
             if not isinstance(node, (af.arch.Memory, af.arch.Compute)):
@@ -342,6 +349,8 @@ def generate_hwcomponents():
                     act["energy"] = float(a.energy)
                 if a.latency is not None:
                     act["latency"] = float(a.latency)
+                if a.throughput is not None:
+                    act["throughput"] = float(a.throughput)
                 if act:
                     actions[a.name] = act
             if actions:

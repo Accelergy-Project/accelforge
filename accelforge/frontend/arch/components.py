@@ -10,12 +10,32 @@ from typing import (
     Self,
     TypeVar,
 )
-from pydantic import ConfigDict
+import warnings
+from pydantic import ConfigDict, PrivateAttr, field_validator, model_validator
 from hwcomponents import (
     ComponentModel,
     get_models,
     get_model,
 )
+
+from accelforge.util._migration import LATENCY_TO_THROUGHPUT_MIGRATION
+
+
+# Verify the installed `hwcomponents` exposes the new `get_action_cost` API. If it
+# can't be imported, the user is on an old hwcomponents that pre-dates the latency ->
+# throughput migration; raise with the full migration notice.
+def _check_hwcomponents_compatibility():
+    try:
+        from hwcomponents import get_action_cost  # noqa: F401
+    except ImportError as e:
+        raise ImportError(
+            f"AccelForge requires `hwcomponents.get_action_cost` but it could not "
+            f"be imported. Please upgrade hwcomponents."
+        ) from e
+
+
+_check_hwcomponents_compatibility()
+
 
 from accelforge.util._basetypes import (
     EvalableModel,
@@ -62,14 +82,26 @@ class Action(EvalableModel):
 
     latency: EvalsTo[int | float | None] = None
     """
-    Latency of this action. Per-action latency is multiplied by the component's
-    latency_scale and the action's latency_scale.
+    Deprecated; use `throughput` instead. Setting this emits a deprecation warning and
+    auto-converts to `throughput = 1 / latency`.
     """
 
     latency_scale: EvalsTo[int | float] = 1
     """
-    The scale factor for dynamic latency of this action. Multiplies this action's
-    latency by this value.
+    Deprecated; use `throughput_scale` instead. Setting this to a non-default value
+    emits a deprecation warning and auto-converts to `throughput_scale = 1 / latency_scale`.
+    """
+
+    throughput: EvalsTo[int | float | None] = None
+    """
+    Throughput of this action in actions/second. Per-action throughput is multiplied by
+    the component's throughput_scale and the action's throughput_scale.
+    """
+
+    throughput_scale: EvalsTo[int | float] = 1
+    """
+    The scale factor for throughput of this action. Multiplies this action's throughput
+    by this value.
     """
 
     extra_attributes_for_component_model: EvalExtras = EvalExtras()
@@ -78,6 +110,79 @@ class Action(EvalableModel):
     arguments to the component model's action. This can be used to define attributes
     that are known to the component model, but not accelforge, such as clock
     frequency."""
+
+    _n_calls: int | float = PrivateAttr(default=0)
+    """
+    How many times this action is performed in the current Einsum. DO NOT SET THIS
+    VALUE. Used by the model.
+    """
+
+    _model_running: bool = PrivateAttr(default=False)
+    """ Guard: True only while the model is actively populating ``_n_calls``. Reading
+    ``n_calls`` outside of that window raises. Set via ``_set_n_calls``. """
+
+    @property
+    def n_calls(self) -> int | float:
+        """
+        The number of times this action is performed in the current Einsum. When
+        accessed through the total_latency expression, returns the number of calls of
+        this action in the current Einsum.
+        """
+        if not self._model_running:
+            raise RuntimeError(
+                f"Action {self.name!r}.n_calls is only valid while the model is "
+                f"running; access it from a Component.total_latency expression rather "
+                f"than directly."
+            )
+        return self._n_calls
+
+    def _set_n_calls(self, value: int | float) -> None:
+        self._n_calls = value
+        self._model_running = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def _deprecate_latency_fields(cls, data):
+        if isinstance(data, dict):
+            if "latency" in data:
+                l = data.pop("latency")
+                warnings.warn(
+                    f"Setting `latency` on `{cls.__name__}` is deprecated; use "
+                    f"`throughput` instead. Auto-converting `latency={l!r}` to "
+                    f"`throughput`. Please update your input.\n\n"
+                    f"{LATENCY_TO_THROUGHPUT_MIGRATION}",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                if "throughput" in data:
+                    raise ValueError(
+                        f"Cannot specify both `latency` and `throughput` on "
+                        f"`{cls.__name__}`. Drop the deprecated `latency` field."
+                    )
+                l = str(l).strip()
+                data["throughput"] = (
+                    f"1 / ({l}) if ({l}) != 0 else float('inf')"
+                )
+            if "latency_scale" in data:
+                ls = data.pop("latency_scale")
+                warnings.warn(
+                    f"Setting `latency_scale` on `{cls.__name__}` is deprecated; use "
+                    f"`throughput_scale` instead (with the reciprocal). Auto-converting "
+                    f"`latency_scale={ls!r}` to `throughput_scale`. Please update your "
+                    f"input.\n\n{LATENCY_TO_THROUGHPUT_MIGRATION}",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                if "throughput_scale" in data:
+                    raise ValueError(
+                        f"Cannot specify both `latency_scale` and `throughput_scale` "
+                        f"on `{cls.__name__}`. Drop the deprecated `latency_scale`."
+                    )
+                ls = str(ls).strip()
+                data["throughput_scale"] = (
+                    f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
+                )
+        return data
 
     def _attributes_for_component_model(self) -> dict[str, Any]:
         return {
@@ -232,7 +337,9 @@ class Component(Spatialable):
     component's energy and latency.
     """
 
-    total_latency: str | int | float = "sum(*action2latency.values())"
+    total_latency: str | int | float = (
+        "sum(a.n_calls / a.throughput for a in actions)"
+    )
     """
     An expression representing the total latency of this component in seconds. This is
     used to calculate the latency of a given Einsum. Special variables available are the
@@ -241,27 +348,53 @@ class Component(Spatialable):
     - `min`: The minimum value of all arguments to the expression.
     - `max`: The maximum value of all arguments to the expression.
     - `sum`: The sum of all arguments to the expression.
-    - `X_actions`: The number of times action `X` is performed. For example,
-      `read_actions` is the number of times the read action is performed.
-    - `X_latency`: The total latency of all actions of type `X`. For example,
-      `read_latency` is the total latency of all read actions. It is equal to the
-      per-read latency multiplied by the number of read actions.
-    - `action2latency`: A dictionary of action names to their latency.
+    - `actions`: The list of ``Action`` objects for this component. Action attributes
+      include n_calls as well as all generally-available action attributes.
 
     Additionally, all component attributes are availble as variables, and all other
-    functions generally available in parsing. Note this expression is evaluated after other
-    component attributes are evaluated.
+    functions generally available in parsing. Note this expression is evaluated after
+    other component attributes are evaluated.
 
-    For example, the following expression calculates latency assuming that each read or
-    write action takes 1ns: ``1e-9 * (read_actions + write_actions)``.
+    For example, the following expression takes the max bound across separate ports:
+    ``max(a.n_calls / a.throughput for a in actions)``.
     """
 
     latency_scale: EvalsTo[int | float] = 1
     """
-    The scale factor for the latency of this component. This is used to scale the
-    latency of this component. For example, if the latency is 1 ns and the scale factor
-    is 2, then the latency is 2 ns. Multiplies the calculated latency of each action.
+    Deprecated; use `throughput_scale` instead. Setting this to a non-default value
+    emits a deprecation warning and auto-converts to `throughput_scale = 1 / latency_scale`.
     """
+
+    throughput_scale: EvalsTo[int | float] = 1
+    """
+    The scale factor for the throughput of this component. Multiplies the calculated
+    throughput of each action. For example, if the throughput attribute is 1M actions/second and
+    the scale factor is 2, then the final throughput is 2M actions/second.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _deprecate_latency_scale_on_component(cls, data):
+        if isinstance(data, dict) and "latency_scale" in data:
+            ls = data.pop("latency_scale")
+            warnings.warn(
+                f"Setting `latency_scale` on `{cls.__name__}` is deprecated; use "
+                f"`throughput_scale` instead (with the reciprocal). Auto-converting "
+                f"`latency_scale={ls!r}` to `throughput_scale`. Please update your "
+                f"input.\n\n{LATENCY_TO_THROUGHPUT_MIGRATION}",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if "throughput_scale" in data:
+                raise ValueError(
+                    f"Cannot specify both `latency_scale` and `throughput_scale` "
+                    f"on `{cls.__name__}`. Drop the deprecated `latency_scale`."
+                )
+            ls = str(ls).strip()
+            data["throughput_scale"] = (
+                f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
+            )
+        return data
 
     n_parallel_instances: EvalsTo[int | float] = 1
     """
@@ -309,7 +442,7 @@ class Component(Spatialable):
                 "talk to hwcomponents, but was missing necessary attributes. If you do "
                 "not want to use hwcomponents component_models, ensure that area and "
                 "leak_power are set, as well as, for each action, "
-                f"energy and latency are set.{extra_info}",
+                f"energy and throughput are set.{extra_info}",
                 source_field=f"{self.name}.component_class",
             )
         return self.component_class
@@ -391,7 +524,7 @@ class Component(Spatialable):
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
         directly. Otherwise, you can call the
-        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components
+        ``Spec.calculate_component_costs`` and then grab components
         from the returned ``Spec``.
 
         Parameters
@@ -436,7 +569,7 @@ class Component(Spatialable):
                     },
                 )
                 messages.extend(energy.messages)
-                energy = energy.value[0]
+                energy = energy.value.energy
             if self.energy_scale != 1:
                 energy *= self.energy_scale
                 messages.append(f"Scaling {self.name} energy by {self.energy_scale=}")
@@ -470,7 +603,7 @@ class Component(Spatialable):
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
         directly. Otherwise, you can call the
-        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components
+        ``Spec.calculate_component_costs`` and then grab components
         from the returned ``Spec``.
 
         Parameters
@@ -536,7 +669,7 @@ class Component(Spatialable):
         because they need the Spec's global scope. If you are sure that all necessary
         values are present and not a result of an expression, you can call these
         directly. Otherwise, you can call the
-        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components
+        ``Spec.calculate_component_costs`` and then grab components
         from the returned ``Spec``.
 
         Parameters
@@ -581,21 +714,21 @@ class Component(Spatialable):
             logging.warning(f"Component {self.name} has negative area: {self.area}")
         return self
 
-    def calculate_action_latency(
+    def calculate_action_throughput(
         self,
         component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
     ) -> Self:
         """
-        Calculates the latency for each action by this component. Populates the
-        ``<action>.latency`` field. Extends the ``component_modeling_log`` field with
+        Calculates the throughput for each action by this component. Populates the
+        ``<action>.throughput`` field. Extends the ``component_modeling_log`` field with
         log messages.
 
         Parameters
         ----------
         component_models : list[hwcomponents.ComponentModel] | None
-            The models to use for latency calculation. If not provided, the models will be
-            found with `hwcomponents.get_models()`.
+            The models to use for throughput calculation. If not provided, the models
+            will be found with `hwcomponents.get_models()`.
         in_place : bool
             If True, the component will be modified in place. Otherwise, a copy will be
             returned.
@@ -603,7 +736,7 @@ class Component(Spatialable):
         Returns
         -------
         Self
-            A copy of the component with the calculated latency for each action.
+            A copy of the component with the calculated throughput for each action.
         """
         if not in_place:
             self: Self = self._copy_for_component_modeling()
@@ -612,21 +745,23 @@ class Component(Spatialable):
 
         for action in self.actions:
             messages.append(
-                f"Calculating latency for {self.name} action {action.name}."
+                f"Calculating throughput for {self.name} action {action.name}."
             )
-            if action.latency is not None:
-                latency = action.latency
-                messages.append(f"Setting {self.name} latency to {action.latency=}")
+            if action.throughput is not None:
+                throughput = action.throughput
+                messages.append(
+                    f"Setting {self.name} throughput to {action.throughput=}"
+                )
             elif self._is_dummy():
-                latency = 0
-                messages.append("Component is dummy. Setting latency to 0.")
+                throughput = float("inf")
+                messages.append("Component is dummy. Setting throughput to inf.")
             else:
                 self.populate_component_model(
                     component_models,
                     in_place=True,
-                    trying_to_calculate=f"latency for action {action.name}",
+                    trying_to_calculate=f"throughput for action {action.name}",
                 )
-                latency = self.component_model.try_call_arbitrary_action(
+                throughput = self.component_model.try_call_arbitrary_action(
                     action_name=action.name,
                     _return_estimation_object=True,
                     **{
@@ -634,50 +769,51 @@ class Component(Spatialable):
                         **action._attributes_for_component_model(),
                     },
                 )
-                messages.extend(latency.messages)
-                latency = latency.value[1]
-            if self.latency_scale != 1:
-                latency *= self.latency_scale
-                messages.append(f"Scaling {self.name} latency by {self.latency_scale=}")
-            if action.latency_scale != 1:
-                latency *= action.latency_scale
+                messages.extend(throughput.messages)
+                throughput = throughput.value.throughput
+            if self.throughput_scale != 1:
+                throughput *= self.throughput_scale
                 messages.append(
-                    f"Scaling {self.name} latency by {action.latency_scale=}"
+                    f"Scaling {self.name} throughput by {self.throughput_scale=}"
+                )
+            if action.throughput_scale != 1:
+                throughput *= action.throughput_scale
+                messages.append(
+                    f"Scaling {self.name} throughput by {action.throughput_scale=}"
                 )
             if self.n_parallel_instances != 1:
-                latency /= self.n_parallel_instances
+                throughput *= self.n_parallel_instances
                 messages.append(
-                    f"Dividing {self.name} latency by {self.n_parallel_instances=}"
+                    f"Multiplying {self.name} throughput by {self.n_parallel_instances=}"
                 )
-            action.latency = latency
-            if action.latency < 0:
+            action.throughput = throughput
+            if action.throughput < 0:
                 logging.warning(
-                    f"Component {self.name} action {action.name} has negative latency: "
-                    f"{action.latency}"
+                    f"Component {self.name} action {action.name} has negative throughput: "
+                    f"{action.throughput}"
                 )
         return self
 
-    def calculate_area_energy_latency_leak(
+    def calculate_component_costs(
         self,
         component_models: list[ComponentModel] | None = None,
         in_place: bool = False,
         _use_cache: bool = False,
     ) -> Self:
         """
-        Calculates the area, energy, latency, and leak power for this component.
+        Calculates the area, energy, leak power, and throughput for this component.
         Populates the ``area``, ``total_area``, ``leak_power``, ``total_leak_power``,
         ``total_latency``, and ``component_modeling_log`` fields of this component.
         Additionally, for each action, populates the ``<action>.area``,
-        ``<action>.energy``, ``<action>.latency``, and ``<action>.leak_power`` fields.
-        Extends the ``component_modeling_log`` field with log messages.
+        ``<action>.energy``, ``<action>.throughput``, and ``<action>.leak_power``
+        fields. Extends the ``component_modeling_log`` field with log messages.
 
         Note that these methods will be called by the Spec when calculating energy and
-        area. If you call them yourself, note that string expressions may not be evaluated
-        because they need the Spec's global scope. If you are sure that all necessary
-        values are present and not a result of an expression, you can call these
-        directly. Otherwise, you can call the
-        ``Spec.calculate_component_area_energy_latency_leak`` and then grab components
-        from the returned ``Spec``.
+        area. If you call them yourself, note that string expressions may not be
+        evaluated because they need the Spec's global scope. If you are sure that all
+        necessary values are present and not a result of an expression, you can call
+        these directly. Otherwise, you can call the ``Spec.calculate_component_costs``
+        and then grab components from the returned ``Spec``.
 
         Parameters
         ----------
@@ -713,9 +849,10 @@ class Component(Spatialable):
                 self.actions = component.actions
                 return self
 
+        self.component_modeling_log = []
         self.calculate_area(component_models, in_place=True)
         self.calculate_action_energy(component_models, in_place=True)
-        self.calculate_action_latency(component_models, in_place=True)
+        self.calculate_action_throughput(component_models, in_place=True)
         self.calculate_leak_power(component_models, in_place=True)
         if _use_cache:
             _set_component_model_cache(cachekey, self)

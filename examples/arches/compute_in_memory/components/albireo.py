@@ -28,7 +28,7 @@ The 'scaling' parameter selects between three technology projections:
   - 'aggressive': optimistic scaling
 """
 
-from hwcomponents import ComponentModel, action
+from hwcomponents import ComponentModel, action, ActionCost
 from hwcomponents.scaling import tech_node_area
 
 
@@ -70,8 +70,12 @@ class AlbireoTIA(ComponentModel):
         super().__init__(area=2769e-12 * area_scale, leak_power=0)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return self._energy, self.cycle_period
+    def read(self) -> ActionCost:
+        return ActionCost(
+            energy=self._energy,
+            throughput=1 / self.cycle_period,
+            latency=self.cycle_period,
+        )
 
 
 class AlbireoDAC(ComponentModel):
@@ -97,8 +101,8 @@ class AlbireoDAC(ComponentModel):
         super().__init__(area=153e-12 * area_scale, leak_power=0)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return self._energy, 0
+    def read(self) -> ActionCost:
+        return ActionCost(energy=self._energy, throughput=float("inf"), latency=0)
 
 
 class AlbireoMachZehnderModulator(ComponentModel):
@@ -124,8 +128,8 @@ class AlbireoMachZehnderModulator(ComponentModel):
         super().__init__(area=15066e-12 * area_scale, leak_power=leak)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return 0, 0
+    def read(self) -> ActionCost:
+        return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
 class AlbireoMicroRingResonator(ComponentModel):
@@ -151,8 +155,8 @@ class AlbireoMicroRingResonator(ComponentModel):
         super().__init__(area=410e-12 * area_scale, leak_power=leak)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return 0, 0
+    def read(self) -> ActionCost:
+        return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
 class AlbireoDoubleMicroRingResonator(ComponentModel):
@@ -178,8 +182,8 @@ class AlbireoDoubleMicroRingResonator(ComponentModel):
         super().__init__(area=820e-12 * area_scale, leak_power=leak)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return 0, 0
+    def read(self) -> ActionCost:
+        return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
 class AlbireoPhotodiode(ComponentModel):
@@ -211,8 +215,10 @@ class AlbireoPhotodiode(ComponentModel):
         super().__init__(area=1.846e-9 * area_scale, leak_power=0)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return 0, self.cycle_period
+    def read(self) -> ActionCost:
+        return ActionCost(
+            energy=0, throughput=1 / self.cycle_period, latency=self.cycle_period
+        )
 
 
 class AlbireoArrayedWaveguideGrating(ComponentModel):
@@ -240,8 +246,8 @@ class AlbireoArrayedWaveguideGrating(ComponentModel):
         super().__init__(area=1108089e-12 * area_scale, leak_power=0)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return 0, 0
+    def read(self) -> ActionCost:
+        return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
 class AlbireoStarCoupler(ComponentModel):
@@ -269,8 +275,8 @@ class AlbireoStarCoupler(ComponentModel):
         super().__init__(area=262500e-12 * area_scale, leak_power=0)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return 0, 0
+    def read(self) -> ActionCost:
+        return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
 class AlbireoLaser(ComponentModel):
@@ -303,5 +309,5 @@ class AlbireoLaser(ComponentModel):
         super().__init__(area=6153e-12 * area_scale, leak_power=leak)
 
     @action
-    def read(self) -> tuple[float, float]:
-        return 0, 0
+    def read(self) -> ActionCost:
+        return ActionCost(energy=0, throughput=float("inf"), latency=0)

@@ -6,11 +6,11 @@
       "actions": {
         "read": {
           "energy": 8e-12,
-          "latency": 2.9802322387695313e-10
+          "throughput": 3355443200.0
         },
         "write": {
           "energy": 8e-12,
-          "latency": 2.9802322387695313e-10
+          "throughput": 3355443200.0
         }
       }
     },
@@ -20,11 +20,11 @@
       "actions": {
         "read": {
           "energy": 9.056430298994264e-11,
-          "latency": 1.0572650390625e-10
+          "throughput": 9846153846.153845
         },
         "write": {
           "energy": 9.122346940403464e-11,
-          "latency": 2.0728900390625002e-10
+          "throughput": 9846153846.153845
         }
       }
     },
@@ -34,11 +34,11 @@
       "actions": {
         "read": {
           "energy": 2.2733893884485344e-14,
-          "latency": 1.4807425e-10
+          "throughput": 9846153846.153845
         },
         "write": {
           "energy": 3.1554801000964905e-14,
-          "latency": 2.4963675e-10
+          "throughput": 9846153846.153845
         }
       }
     },
@@ -48,11 +48,11 @@
       "actions": {
         "read": {
           "energy": 4.0152965248454046e-14,
-          "latency": 4.4058267857142854e-11
+          "throughput": 34461538461.53846
         },
         "write": {
           "energy": 6.235570339922515e-14,
-          "latency": 7.307612500000001e-11
+          "throughput": 34461538461.53846
         }
       }
     },
@@ -62,11 +62,11 @@
       "actions": {
         "read": {
           "energy": 2.6247402328781873e-14,
-          "latency": 1.4807425e-10
+          "throughput": 9846153846.153845
         },
         "write": {
           "energy": 3.728731056542402e-14,
-          "latency": 2.4963675e-10
+          "throughput": 9846153846.153845
         }
       }
     },
@@ -76,7 +76,7 @@
       "actions": {
         "compute": {
           "energy": 1.2813796807700769e-12,
-          "latency": 3.25e-09
+          "throughput": 615384615.3846153
         }
       }
     }
@@ -88,11 +88,11 @@
       "actions": {
         "read": {
           "energy": 8e-12,
-          "latency": 2.9802322387695313e-10
+          "throughput": 3355443200.0
         },
         "write": {
           "energy": 8e-12,
-          "latency": 2.9802322387695313e-10
+          "throughput": 3355443200.0
         }
       }
     },
@@ -102,11 +102,11 @@
       "actions": {
         "read": {
           "energy": 8.294876234356374e-14,
-          "latency": 9.852990595611286e-13
+          "throughput": 1812499999999.9998
         },
         "write": {
           "energy": 9.034393027274906e-14,
-          "latency": 1.537023197492163e-12
+          "throughput": 1812499999999.9998
         }
       }
     },
@@ -116,11 +116,11 @@
       "actions": {
         "read": {
           "energy": 9.645592307867024e-15,
-          "latency": 3.0015596590909094e-12
+          "throughput": 639999999999.9999
         },
         "write": {
           "energy": 2.0688423349341654e-14,
-          "latency": 4.56405965909091e-12
+          "throughput": 639999999999.9999
         }
       }
     },
@@ -130,11 +130,11 @@
       "actions": {
         "read": {
           "energy": 6.681971929354662e-14,
-          "latency": 8.655635653409092e-13
+          "throughput": 1279999999999.9998
         },
         "write": {
           "energy": 6.873086384000309e-14,
-          "latency": 1.6468135653409094e-12
+          "throughput": 1279999999999.9998
         }
       }
     },
@@ -144,11 +144,11 @@
       "actions": {
         "read": {
           "energy": 7.074774077633321e-15,
-          "latency": 4.3586288361320215e-12
+          "throughput": 392499999999.9999
         },
         "write": {
           "energy": 1.3827004365611064e-14,
-          "latency": 6.906399536768965e-12
+          "throughput": 392499999999.9999
         }
       }
     },
@@ -158,11 +158,11 @@
       "actions": {
         "read": {
           "energy": 0.0,
-          "latency": 0.0
+          "throughput": Infinity
         },
         "write": {
           "energy": 0.0,
-          "latency": 0.0
+          "throughput": Infinity
         }
       }
     },
@@ -172,7 +172,7 @@
       "actions": {
         "compute": {
           "energy": 1.7924412301183831e-13,
-          "latency": 8.000000000000001e-10
+          "throughput": 2499999999.9999995
         }
       }
     }
@@ -184,11 +184,11 @@
       "actions": {
         "read": {
           "energy": 1.0,
-          "latency": 0.0
+          "throughput": Infinity
         },
         "write": {
           "energy": 1.0,
-          "latency": 0.0
+          "throughput": Infinity
         }
       }
     },
@@ -198,11 +198,11 @@
       "actions": {
         "read": {
           "energy": 1.0,
-          "latency": 0.0
+          "throughput": Infinity
         },
         "write": {
           "energy": 1.0,
-          "latency": 0.0
+          "throughput": Infinity
         }
       }
     },
@@ -212,7 +212,7 @@
       "actions": {
         "compute": {
           "energy": 1.0,
-          "latency": 1.0
+          "throughput": 1.0
         }
       }
     }
@@ -224,11 +224,11 @@
       "actions": {
         "read": {
           "energy": 7.03e-12,
-          "latency": 2.0358306188925081e-13
+          "throughput": 4912000000000.0
         },
         "write": {
           "energy": 7.03e-12,
-          "latency": 2.0358306188925081e-13
+          "throughput": 4912000000000.0
         }
       }
     },
@@ -238,11 +238,11 @@
       "actions": {
         "read": {
           "energy": 1.88e-12,
-          "latency": 6.103515625e-14
+          "throughput": 16384000000000.0
         },
         "write": {
           "energy": 2.36e-12,
-          "latency": 1.220703125e-13
+          "throughput": 8192000000000.0
         }
       }
     },
@@ -252,11 +252,11 @@
       "actions": {
         "read": {
           "energy": 2.49e-13,
-          "latency": 0.0
+          "throughput": Infinity
         },
         "write": {
           "energy": 2.93e-13,
-          "latency": 0.0
+          "throughput": Infinity
         }
       }
     },
@@ -266,7 +266,7 @@
       "actions": {
         "compute": {
           "energy": 0.0,
-          "latency": 7.44047619047619e-12
+          "throughput": 134400000000.0
         }
       }
     },
@@ -276,11 +276,11 @@
       "actions": {
         "read": {
           "energy": 0.0,
-          "latency": 0.0
+          "throughput": Infinity
         },
         "write": {
           "energy": 0.0,
-          "latency": 0.0
+          "throughput": Infinity
         }
       }
     },
@@ -290,7 +290,7 @@
       "actions": {
         "compute": {
           "energy": 8.4e-14,
-          "latency": 9.523809523809524e-10
+          "throughput": 1050000000.0
         }
       }
     }

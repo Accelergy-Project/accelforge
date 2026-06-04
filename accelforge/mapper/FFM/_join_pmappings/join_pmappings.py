@@ -349,6 +349,9 @@ def clean_compress_and_join_pmappings(
     joined = decompress_pmappings(joined, decompress_data)
 
     _apply_edp_columns(joined.data, metrics)
+    # Pareto prune again in case the EDP column application reduced number of
+    # objectives.
+    joined.make_pareto()
 
     for einsum_name in einsum2pmappings:
         col = f"{einsum_name}<SEP>{MAPPING_COLUMN}"

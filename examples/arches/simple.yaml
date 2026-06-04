@@ -1,5 +1,5 @@
 {% set MainMemoryEnergy=MainMemoryEnergy | default(1) %}
-{% set GlobalBufferLatency=GlobalBufferLatency | default(0) %}
+{% set GlobalBufferThroughput=GlobalBufferThroughput | default("inf") %}
 {% set GlobalBufferSize=GlobalBufferSize | default("inf") %}
 
 arch:
@@ -11,8 +11,8 @@ arch:
     area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: {{MainMemoryEnergy}}, latency: 0}
-    - {name: write, energy: {{MainMemoryEnergy}}, latency: 0}
+    - {name: read, energy: {{MainMemoryEnergy}}, throughput: inf}
+    - {name: write, energy: {{MainMemoryEnergy}}, throughput: inf}
 
   - !Memory
     name: GlobalBuffer
@@ -21,12 +21,12 @@ arch:
     area: 0
     tensors: {keep: ~MainMemory, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: {{GlobalBufferLatency}}}
-    - {name: write, energy: 1, latency: {{GlobalBufferLatency}}}
+    - {name: read, energy: 1, throughput: {{GlobalBufferThroughput}}}
+    - {name: write, energy: 1, throughput: {{GlobalBufferThroughput}}}
 
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1}

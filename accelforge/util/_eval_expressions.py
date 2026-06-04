@@ -208,7 +208,7 @@ def eval_expression(
     FUNCTION_BINDINGS.update(MATH_FUNCS)
 
     try:
-        v = eval(expression, FUNCTION_BINDINGS, symbol_table)
+        v = eval(expression, {**FUNCTION_BINDINGS, **symbol_table}, {})
         infostr = f'Calculated "{expression}" = {v}.'
         if isinstance(v, str):
             v = LiteralString(v)
