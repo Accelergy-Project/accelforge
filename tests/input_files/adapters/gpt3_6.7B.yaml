@@ -35,9 +35,12 @@ workload:
   - !Copy
     name: copy_I
     tensor: I
-  - "V[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
-  - "K[b, m, h, e] = I[b, m, d] * WK[h, e, d]"
-  - "Q[b, m, h, e] = I[b, m, d] * WQ[h, e, d]"
+  - einsum: "V[b, m, h, e] = I[b, m, d] * WV[h, e, d]"
+    renames: {input: I}
+  - einsum: "K[b, m, h, e] = I[b, m, d] * WK[h, e, d]"
+    renames: {input: I}
+  - einsum: "Q[b, m, h, e] = I[b, m, d] * WQ[h, e, d]"
+    renames: {input: I}
 
   - einsum: "QK[b, m, p, h] = Q[b, m, h, e] * K[b, M: p, h, e]"
     renames: {input: Q}

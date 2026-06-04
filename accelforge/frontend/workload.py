@@ -973,7 +973,7 @@ class Workload(EvalableModel):
             )
 
         def is_einsum(d):
-            return not hasattr(d, "tag") or d.tag == "!Einsum"
+            return _get_tag(d, default="Einsum") == "Einsum"
 
         if has_einsums:
             data["einsums_and_adapters"] = data["einsums"]
@@ -1361,4 +1361,80 @@ class Workload(EvalableModel):
         return self.n_computes(einsum_name) / sum(
             self.get_tensor_size(tensor)
             for tensor in self.einsums[einsum_name].tensor_names
+        )
+
+    def get_adapted_workload(self) -> "Workload":
+        """
+        Return a (deep) copy of the workload that has tensor names mangled
+        via the adapter.
+
+        In general, a tensor will be renamed <name of adapter>__<tensor name>.
+
+        Each adapter is turned into a copy Einsum that reads the original tensor
+        and writes the mangled tensor. Every Einsum that comes after the adapter
+        and accesses the original tensor is rewired to use the mangled name, so
+        the copy sits logically between the tensor's producer (or workload input)
+        and its downstream consumers.
+
+        Returns
+        -------
+        Workload
+            A new workload with adapters lowered into copy Einsums and the
+            affected tensor names mangled.
+        """
+
+        def _projection_for(tensor: TensorName) -> dict[Rank, str]:
+            """Find how `tensor` is accessed so the copy Einsum can mirror it."""
+            for item in self.einsums_and_adapters:
+                if not isinstance(item, Einsum):
+                    continue
+                for ta in item.tensor_accesses:
+                    if ta.name == tensor:
+                        return dict(ta.projection)
+            raise ValueError(
+                f"Adapter references tensor {tensor}, but no Einsum accesses it."
+            )
+
+        new_einsums: list[Einsum] = []
+        # Maps an original tensor name to its mangled name, for every adapter seen
+        # so far. Einsums after an adapter use the mangled name.
+        mangled: dict[TensorName, TensorName] = {}
+
+        for item in self.einsums_and_adapters:
+            if isinstance(item, Einsum):
+                einsum = item.model_copy(deep=True)
+                for ta in einsum.tensor_accesses:
+                    if ta.name in mangled:
+                        ta.name = mangled[ta.name]
+                new_einsums.append(einsum)
+            elif isinstance(item, CopyAdapter):
+                tensor = TensorName(item.tensor)
+                new_name = f"{item.name}__{tensor}"
+                # The copy reads whatever name the tensor currently has (it may
+                # itself have been mangled by an earlier adapter) and writes the
+                # newly mangled name.
+                source = mangled.get(tensor, tensor)
+                projection = _projection_for(tensor)
+                copy_einsum = Einsum(
+                    name=item.name,
+                    tensor_accesses=[
+                        {"name": source, "projection": projection, "output": False},
+                        {"name": new_name, "projection": projection, "output": True},
+                    ],
+                    is_copy_operation=True,
+                )
+                new_einsums.append(copy_einsum)
+                mangled[tensor] = new_name
+            else:
+                raise ValueError(
+                    f"Unsupported adapter type {type(item).__name__} in workload."
+                )
+
+        return Workload(
+            einsums=new_einsums,
+            iteration_space_shape=self.iteration_space_shape,
+            rank_sizes=self.rank_sizes,
+            n_instances=self.n_instances,
+            bits_per_value=self.bits_per_value,
+            persistent_tensors=self.persistent_tensors,
         )

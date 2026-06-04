@@ -50,7 +50,8 @@ class Rename(EvalableModel):
             )
             raise EvaluationError(
                 f"Expected count is {evaluated.expected_count}, but got "
-                f"{len(evaluated.source)}: {evaluated.source}",
+                f"{len(evaluated.source)}: {evaluated.source}\n"
+                f"Symbol table: {symbol_table}",
                 source_field="source",
             )
         return evaluated, symbol_table
