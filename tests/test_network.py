@@ -27,6 +27,7 @@ class TestParsing(TestCase):
         spec = af.Spec.from_yaml(
             INPUT_FILES_DIR / "flat.yaml",
         )
+        print(spec.arch.nodes["NoC"])
         self.assertIn("NoC", spec.arch.nodes)
         self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)
         self.assertEqual(

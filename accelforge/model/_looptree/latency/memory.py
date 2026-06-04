@@ -14,12 +14,8 @@ from accelforge.model._looptree.types import Buffet
 
 from accelforge.model._looptree.reuse.symbolic import BuffetStats
 from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
-<<<<<<< HEAD
 from accelforge.util._sympy.broadcast_max import Max, Min, MaxGeqZero
-=======
-from accelforge.util._sympy.broadcast_max import Max, Min
 from accelforge.util._basetypes import EvalableList
->>>>>>> main
 import symengine as se
 
 
