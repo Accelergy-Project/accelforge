@@ -75,7 +75,7 @@ class Arch(Hierarchical):
             if v is None:
                 raise ValueError(
                     f"Area of {k} is not set. Please call the Spec's "
-                    "`calculate_component_area_energy_latency_leak` method before accessing this "
+                    "`calculate_component_costs` method before accessing this "
                     "property."
                 )
         return area
@@ -98,7 +98,7 @@ class Arch(Hierarchical):
             if v is None:
                 raise ValueError(
                     f"Leak power of {k} is not set. Please call the Spec's "
-                    "`calculate_component_area_energy_latency_leak` method before accessing this "
+                    "`calculate_component_costs` method before accessing this "
                     "property."
                 )
         return leak_power

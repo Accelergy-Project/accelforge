@@ -116,7 +116,7 @@ arch:
     energy_scale: sram_energy_leak_power_scale
     leak_power_scale: sram_energy_leak_power_scale
     area_scale: sram_area_scale
-    latency_scale: 0
+    throughput_scale: inf
 
   # Output registers hold the outputs from each PLCG.
   - !Memory

@@ -367,8 +367,8 @@ class TestArchExpressionEvaluation(unittest.TestCase):
         # 1024*1024*128*8 = 1073741824
         self.assertEqual(glb.size, 1024 * 1024 * 128 * 8)
 
-    def test_arch_latency_expression(self):
-        """Arch action latency expressions like 1/(8*614e9) get evaluated."""
+    def test_arch_throughput_expression(self):
+        """Arch action throughput expressions like 8*614e9 get evaluated."""
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
         wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
@@ -378,8 +378,8 @@ class TestArchExpressionEvaluation(unittest.TestCase):
         evaluated = spec._spec_eval_expressions(einsum_name="Matmul1")
         mm = evaluated.arch.find("MainMemory")
         read_action = [a for a in mm.actions if a.name == "read"][0]
-        self.assertIsNotNone(read_action.latency)
-        self.assertAlmostEqual(read_action.latency, 1 / (8 * 614e9), places=20)
+        self.assertIsNotNone(read_action.throughput)
+        self.assertAlmostEqual(read_action.throughput, 8 * 614e9)
 
 
 # ============================================================================

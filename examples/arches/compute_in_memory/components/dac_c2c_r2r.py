@@ -5,7 +5,7 @@ from hwcomponents_neurosim import FlipFlop
 from misc import Capacitor
 from typing import List
 
-from hwcomponents import ComponentModel, action
+from hwcomponents import ComponentModel, action, ActionCost
 
 
 def value2bits(value: int, resolution: int) -> List[int]:
@@ -35,9 +35,9 @@ class _X2XLadderDAC(ComponentModel):
         load_capacitance: float = 0,
         cycle_period: float = 1e-9,
     ):
-        assert self.__class__ != _X2XLadderDAC, (
-            "This class is not intended to be instantiated directly. Use a subclass."
-        )
+        assert (
+            self.__class__ != _X2XLadderDAC
+        ), "This class is not intended to be instantiated directly. Use a subclass."
         self.resolution = resolution
         self.voltage = voltage
         self._unit_x = unit_x
@@ -269,7 +269,7 @@ class _X2XLadderDAC(ComponentModel):
             energy *= latency
 
         # Flip flop energy
-        flip_flops_e, _ = self._flip_flops.read()
+        flip_flops_e = self._flip_flops.read().energy
         probabilities = [0] * self.resolution
         for value, probability in enumerate(newhist):
             bits = value2bits(value, self.resolution)
@@ -305,7 +305,11 @@ class _X2XLadderDAC(ComponentModel):
             f"Resistors consume {energy - controller_energy}J, "
             f"Controller energy: {controller_energy}J"
         )
-        return energy, min_latency
+        return ActionCost(
+            energy=energy,
+            throughput=1 / min_latency,
+            latency=min_latency,
+        )
 
     @action
     def read(self):
@@ -393,7 +397,7 @@ class C2CLadderDAC(_X2XLadderDAC):
         load_resistance: float = 0,
     ):
         self.unit_capacitance = unit_capacitance
-        
+
         self.voltage = voltage
 
         self._unit_cap = Capacitor(

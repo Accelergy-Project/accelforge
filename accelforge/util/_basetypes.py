@@ -576,6 +576,10 @@ def eval_field(
                     assert len(type_args) == 1, "Expected exactly one type argument"
                     expected_element_type = type_args[0]
 
+                    # When this is a TryEvalTo we know we'll silently fall back on
+                    # failure, so use the fast_error path that skips the expensive
+                    # symbol-table dump in the error message.
+                    will_catch = origin is TryEvalTo and not musteval_tryeval_to
                     try:
                         # eval_set_expression does the type checking for us
                         return eval_set_expression(
@@ -583,9 +587,10 @@ def eval_field(
                             symbol_table,
                             expected_space=expected_element_type,
                             location=field,
+                            fast_error=will_catch,
                         )
                     except EvaluationError as e:
-                        if origin is TryEvalTo and not musteval_tryeval_to:
+                        if will_catch:
                             return LiteralString(value)
                         raise
                 elif is_literal_string(value):

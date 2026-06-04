@@ -238,6 +238,7 @@ def eval_set_expression(
     expected_space: type[T],
     location: str,
     expected_count: int | None = None,
+    fast_error: bool = False,
 ) -> InvertibleSet[T]:
     try:
         err = None
@@ -267,15 +268,17 @@ def eval_set_expression(
         set_expression_type_check(result, expected_space, expected_count, location)
 
     except Exception as e:
+        if fast_error:
+            err = EvaluationError(f'{e}. Set expression: "{expression}".')
+        else:
+            def strformat(v):
+                v = str(v)
+                return v if len(v) <= 100 else v[:100] + "..."
 
-        def strformat(v):
-            v = str(v)
-            return v if len(v) <= 100 else v[:100] + "..."
-
-        err = EvaluationError(
-            f'{e}. Set expression: "{expression}". Symbol table:\n\t'
-            + "\n\t".join(f"{k}: {strformat(v)}" for k, v in symbol_table.items())
-        )
+            err = EvaluationError(
+                f'{e}. Set expression: "{expression}". Symbol table:\n\t'
+                + "\n\t".join(f"{k}: {strformat(v)}" for k, v in symbol_table.items())
+            )
         if location is not None:
             err.add_field(location)
     if err:

@@ -42,9 +42,7 @@ def display_important_variables(name: str):
         result.append(f"- *{key}*: {value} {note if note else ''}")
 
     s: af.Spec = get_spec(name)
-    s.calculate_component_area_energy_latency_leak(
-        einsum_name=s.workload.einsums[0].name
-    )
+    s.calculate_component_costs(einsum_name=s.workload.einsums[0].name)
 
     def getvalue(key):
         return s.variables.get(key, s.arch.variables.get(key, None))
@@ -148,7 +146,7 @@ def get_area_breakdown(arch_name: str, variable_overrides: dict = None) -> dict:
                 and k in spec.arch.variables
             ):
                 spec.arch.variables[k] = v
-    evaluated = spec.calculate_component_area_energy_latency_leak()
+    evaluated = spec.calculate_component_costs()
     return {k: float(v) for k, v in evaluated.arch.per_component_total_area.items()}
 
 

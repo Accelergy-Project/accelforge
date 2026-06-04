@@ -1,6 +1,6 @@
 from hwcomponents.scaling import linear
 from hwcomponents_neurosim import NOTGate
-from hwcomponents import ComponentModel, action
+from hwcomponents import ComponentModel, action, ActionCost
 from misc import Capacitor
 
 
@@ -119,26 +119,34 @@ class C2CMultiplier(ComponentModel):
         """
         # Count energy by just charging one of the capacitors and multiplying by the
         # number of bits.
-        energy_latency = self.unit_cap.switch(self.a_hist)
-        energy_latency += self.unit2_cap.switch(self.a_hist)
+        sub_a = self.unit_cap.switch(self.a_hist)
+        sub_b = self.unit2_cap.switch(self.a_hist)
 
         # The reference node sees a cap of unit_capacitance * 1.67 / resolution per bit
         # on average assuming a uniform-ish distribution of bits
-        energy, latency = energy_latency
-        energy *= 1.67 / self.resolution
+        energy = (sub_a.energy + sub_b.energy) * 1.67 / self.resolution
+        latency = sub_a.latency + sub_b.latency
 
-        return energy, latency
+        return ActionCost(
+            energy=energy,
+            throughput=float("inf") if latency == 0 else 1 / latency,
+            latency=latency,
+        )
 
     @action
     def switch_b(self):
         """
         Connect capacitors to A with probability b_lo2hi_probability.
         """
-        energy_latency = self.unit_cap.raise_voltage_to(self.a_rms)
-        energy_latency += self.unit2_cap.raise_voltage_to(self.a_rms)
-        energy, latency = energy_latency
-        energy *= self.b_lo2hi_probability
-        return energy, latency
+        sub_a = self.unit_cap.raise_voltage_to(self.a_rms)
+        sub_b = self.unit2_cap.raise_voltage_to(self.a_rms)
+        energy = (sub_a.energy + sub_b.energy) * self.b_lo2hi_probability
+        latency = sub_a.latency + sub_b.latency
+        return ActionCost(
+            energy=energy,
+            throughput=float("inf") if latency == 0 else 1 / latency,
+            latency=latency,
+        )
 
     @action
     def read(self):
@@ -196,6 +204,7 @@ class C2CMultiplierPortB(C2CMultiplier):
     tech_node: str
         The tech node of the multiplier in meters.
     """
+
     def __init__(
         self,
         resolution: int,

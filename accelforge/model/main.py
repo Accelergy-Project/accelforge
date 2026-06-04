@@ -100,7 +100,7 @@ def evaluate_mapping(
     einsum2jobs = {}
     s = (
         "Spec must not be evaluated before evaluating a mapping. Was "
-        "this spec returned by spec.calculate_component_area_energy_latency_leak()?"
+        "this spec returned by spec.calculate_component_costs()?"
     )
 
     needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
@@ -122,7 +122,7 @@ def evaluate_mapping(
             cur_spec = evaluated_specs[einsum_name]
 
         else:
-            cur_spec = spec.calculate_component_area_energy_latency_leak(
+            cur_spec = spec.calculate_component_costs(
                 einsum_name=einsum_name,
                 area=False,
             )

@@ -55,10 +55,10 @@ class TestActionFields(unittest.TestCase):
     """Test Action model fields."""
 
     def test_action_name_and_energy(self):
-        a = Action(name="read", energy=1.5, latency=0)
+        a = Action(name="read", energy=1.5, throughput=float("inf"))
         self.assertEqual(a.name, "read")
         self.assertEqual(a.energy, 1.5)
-        self.assertEqual(a.latency, 0)
+        self.assertEqual(a.throughput, float("inf"))
 
     def test_action_energy_scale_default(self):
         a = Action(name="read", energy=1.0, latency=0)
@@ -401,7 +401,7 @@ class TestSimpleArchComponentFields(unittest.TestCase):
         write = [a for a in mm.actions if a.name == "write"][0]
         self.assertEqual(read.energy, 1)
         self.assertEqual(write.energy, 1)
-        self.assertEqual(read.latency, 0)
+        self.assertEqual(read.throughput, "inf")
 
     def test_global_buffer_actions(self):
         buf = self.spec.arch.find("GlobalBuffer")
@@ -412,7 +412,7 @@ class TestSimpleArchComponentFields(unittest.TestCase):
         mac = self.spec.arch.find("MAC")
         compute = [a for a in mac.actions if a.name == "compute"][0]
         self.assertEqual(compute.energy, 1)
-        self.assertEqual(compute.latency, 1)
+        self.assertEqual(compute.throughput, 1)
 
 
 # ============================================================================

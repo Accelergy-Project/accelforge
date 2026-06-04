@@ -34,7 +34,7 @@ Additionally, the following fields will affect the energy and area calculations:
   :docstring:`accelforge.frontend.arch.Action.energy_scale`
 
 The energy and area of a all components in the architecture can be calculated by calling
-:py:meth:`~accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak`.
+:py:meth:`~accelforge.frontend.spec.Spec.calculate_component_costs`.
 Note that an Einsum name can be provided to populate symbols with the Einsum's symbols
 from the workload; otherwise, if the architecture depends on something in the workload,
 an error will be raised.
@@ -44,7 +44,7 @@ an error will be raised.
    :language: python
 
 We can also calculate the energy and area of individual components by calling
-:py:meth:`~accelforge.frontend.arch.Component.calculate_area_energy_latency_leak` on
+:py:meth:`~accelforge.frontend.arch.Component.calculate_component_costs` on
 them.
 
 .. include-notebook:: notebooks/tutorials/component_energy_area.ipynb
@@ -60,7 +60,7 @@ the energy and area calculations, which can be set in the
 Specifying Area, Energy, Latency, and Leak Power
 ------------------------------------------------
 
-One way to specify the area, energy, latency, and leak power of each component is to
+One way to specify the area, energy, leak power, and throughput of each component is to
 directly set the ``area``, ``leak_power``, ``actions[<action name>].energy``, and
 ``actions[<action name>].latency`` fields. The following example from the TPU v4i
 example architecture shows uses this approach:
@@ -70,19 +70,19 @@ example architecture shows uses this approach:
    :same-indent:
 
 If any value is omitted, it will raise an appropriate error when
-:py:meth:`~accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak`
-is called, so you may call this function to check whether you've missed anything.
-``hwcomponents`` is invoked automatically if any of the fields are missing. If you don't
-want it to be called, then you can do one of the following:
+:py:meth:`~accelforge.frontend.spec.Spec.calculate_component_costs` is called, so you
+may call this function to check whether you've missed anything. ``hwcomponents`` is
+invoked automatically if any of the fields are missing. If you don't want it to be
+called, then you can do one of the following:
 
 - If calling
-  :py:meth:`~accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak`,
+  :py:meth:`~accelforge.frontend.spec.Spec.calculate_component_costs`,
   then you can set ``spec.config.component_models`` and
   ``spec.config.use_installed_component_models`` to an empty list and ``False``,
   respectively.
 - If calling
-  :py:meth:`~accelforge.frontend.arch.Component.calculate_area_energy_latency_leak`,
-  then you can set ``models`` to an empty list.
+  :py:meth:`~accelforge.frontend.arch.Component.calculate_component_costs`,
+  then you can set ``models`` argument to an empty list.
 
 
 Using the ``hwcomponents`` Library

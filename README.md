@@ -22,17 +22,27 @@
 
 ---
 
-AccelForge is a framework for modeling, designing, and exploring tensor algebra accelerators. It uses [HWComponents](https://github.com/accelergy-project/hwcomponents) as a backend for area, energy, latency, and leak power estimates.
+AccelForge is a framework for modeling, designing, and exploring tensor algebra
+accelerators. It uses [HWComponents](https://github.com/accelergy-project/hwcomponents)
+as a backend for component cost modeling.
 
-Learn more at the [website](https://accelergy-project.github.io/accelforge/) or on [GitHub](https://github.com/Accelergy-Project/accelforge).
+Learn more at the [website](https://accelergy-project.github.io/accelforge/) or on
+[GitHub](https://github.com/Accelergy-Project/accelforge).
 
 ## ⚡ Features
 
-- **Flexible Full-Stack Modeling** of a wide variety of devices, circuits, architectures, workloads, and mappings. We integrate with [HWComponents](https://github.com/accelergy-project/hwcomponents), with easily-modifiable models for component area, energy, latency, and leak power.
-- **Fast and optimal mapping** of workloads onto architectures, yielding the best-possible performance and energy efficiency.
-- **Fusion-aware mapping** that optimizes fusion for cascades of Einsums, enabling end-to-end optimization of entire workloads.
+- **Flexible Full-Stack Modeling** of a wide variety of devices, circuits,
+  architectures, workloads, and mappings. We integrate with
+  [HWComponents](https://github.com/accelergy-project/hwcomponents), with
+  easily-modifiable models for component costs (area, energy, leak power, and
+  throughput).
+- **Fast and optimal mapping** of workloads onto architectures, yielding the
+  best-possible performance and energy efficiency.
+- **Fusion-aware mapping** that optimizes fusion for cascades of Einsums, enabling
+  end-to-end optimization of entire workloads.
 - **Heterogenous Architectures** that can include multiple types of compute units.
-- **Strong input validation** via Pydantic, with clear error reports for invalid specifications.
+- **Strong input validation** via Pydantic, with clear error reports for invalid
+  specifications.
 - **Pythonic Interfaces** that enable easy automation and integration with other tools.
 
 ## 📦 Install

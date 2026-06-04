@@ -16,19 +16,19 @@ arch:
     actions:
       # Upper end of the range from the TPU paper. The lower end came from their
       # reference, and they said it left out some things.
-    - {name: read, energy: 7.03e-12, latency: 1 / (8 * 614e9)}
-    - {name: write, energy: 7.03e-12, latency: 1 / (8 * 614e9)}
+    - {name: read, energy: 7.03e-12, throughput: 8 * 614e9}
+    - {name: write, energy: 7.03e-12, throughput: 8 * 614e9}
     tensors: {keep: ~Intermediates, may_keep: All}
 
   - !Memory
     name: GlobalBuffer
     size: 1024*1024*128*8 # 128MB
-    total_latency: max(read_latency, write_latency) # Separate ports
+    total_latency: max(a.n_calls / a.throughput for a in actions) # Separate ports
     leak_power: 0
     area: 112e-6 # From paper fig. 6
     actions:
-    - {name: read, energy: 1.88e-12, latency: 1 / (8 * 2048e9)}
-    - {name: write, energy: 2.36e-12, latency: 1 / (8 * 1024e9)}
+    - {name: read, energy: 1.88e-12, throughput: 8 * 2048e9}
+    - {name: write, energy: 2.36e-12, throughput: 8 * 1024e9}
     tensors: {keep: ~MainMemory.tensors, may_keep: All}
 
   - !Memory
@@ -38,8 +38,8 @@ arch:
     leak_power: 0
     area: 51e-6 # From paper fig. 6
     actions:
-    - {name: read, energy: 0.249e-12, latency: 0}
-    - {name: write, energy: 0.293e-12, latency: 0}
+    - {name: read, energy: 0.249e-12, throughput: inf}
+    - {name: write, energy: 0.293e-12, throughput: inf}
     tensors: {keep: input | output}
 
   - !Compute
@@ -47,7 +47,7 @@ arch:
     area: 8.7e-6 # From die photo.
     leak_power: 0
     actions:
-    - {name: compute, energy: 0, latency: 1 / 1.05e9 / 128}
+    - {name: compute, energy: 0, throughput: 1.05e9 * 128}
     enabled: len(All) == 2
 
   - !Container
@@ -62,8 +62,8 @@ arch:
     area: 8.5e-11 # Fig. 6 has 14mm^2 for a 128x128. Assume regs are 10%.
     leak_power: 0
     actions:
-    - {name: read, energy: 0, latency: 0}
-    - {name: write, energy: 0, latency: 0}
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
     tensors: {keep: weight}
 
   - !Compute
@@ -71,5 +71,5 @@ arch:
     leak_power: 0
     area: 8.5e-10 # Fig. 6 has 14mm^2 for a 128x128. Assume MAC is 90%.
     actions:
-    - {name: compute, energy: 0.084e-12, latency: 1 / 1.05e9}
+    - {name: compute, energy: 0.084e-12, throughput: 1.05e9}
     enabled: len(All) == 3

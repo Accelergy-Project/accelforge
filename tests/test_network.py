@@ -21,7 +21,7 @@ class TestParsing(TestCase):
         self.assertEqual(spec.arch.nodes["MacArray"].get_fanout(), 1)
 
         try:
-            spec = spec.calculate_component_area_energy_latency_leak()
+            spec = spec.calculate_component_costs()
         except af.EvaluationError as e:
             self.fail(e.message)
 
@@ -48,7 +48,7 @@ class TestParsing(TestCase):
         )
 
         try:
-            spec = spec.calculate_component_area_energy_latency_leak()
+            spec = spec.calculate_component_costs()
         except af.EvaluationError as e:
             self.fail(e.message)
 
