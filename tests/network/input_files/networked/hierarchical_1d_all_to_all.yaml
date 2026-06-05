@@ -26,7 +26,7 @@ arch:
     leak_power: 0
     total_latency: "max_hops"
     actions:
-    - {name: hops, energy: 1, latency: 0, throughput: 1}
+    - {name: hops, energy: 1, latency: 1, throughput: inf}
 
   - !Memory
     name: Scratchpad
@@ -40,9 +40,7 @@ arch:
     spatial:
     - {name: X, fanout: 4}
 
-  # All-to-all switch (NVLink-like): every node is one switch hop from every
-  # other, so unicast and multicast cost the same total hops and max_hops is
-  # constant. Fanout is 4 so this differs observably from a mesh.
+  # All-to-all switch (NVLink-like): every node is one hop from every other
   - !Network
     name: MacArray
     topology: all_to_all

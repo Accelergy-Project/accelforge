@@ -334,9 +334,7 @@ class TestModelMesh(TestCase):
 
 
 class TestModelAllToAll(TestCase):
-    """Full-model evaluation of the 1D hierarchy where MacArray is an all-to-all
-    switch (NVLink-like) instead of a mesh. PeArray remains a mesh, so the two
-    networks can be contrasted within a single run."""
+    """MacArray is an all-to-all switch (NVLink-like). PeArray is a mesh."""
 
     def test_hierarchical_1d_all_to_all(self):
         M = 8
@@ -360,16 +358,13 @@ class TestModelAllToAll(TestCase):
         result = spec.evaluate_mapping()
 
         # --- MacArray: all-to-all switch ---------------------------------
-        # On a switch every node is one hop away, so unicast (T0, W0) collapses
-        # to the same (MAC_TILE - 1) linear cost as multicast (T1): all equal.
-        # Contrast test_hierarchical_1d, where the mesh makes T0/W0 quadratic
-        # (sum(range(MAC_TILE))).
+        # Every node is one hop away 
         all_to_all = (
             (M / M_TILE)
             * (KN / MAC_TILE)  # number of used Scratchpad
             * M_TILE
             * KN  # temporal for n1 in mapping
-            * (MAC_TILE - 1)  # one switch hop per destination, for every tensor
+            * (MAC_TILE - 1)  # one hop per destination, for every tensor
             * BITS_PER_VALUE
         )
         for tensor in ("T0", "T1", "W0"):
@@ -380,17 +375,6 @@ class TestModelAllToAll(TestCase):
                 all_to_all,
                 msg=f"unexpected MacArray hops for {tensor}",
             )
-
-        # Guard: a mesh would make the unicast tensors strictly more expensive.
-        mesh_unicast = (
-            (M / M_TILE)
-            * (KN / MAC_TILE)
-            * M_TILE
-            * KN
-            * sum(range(MAC_TILE))  # quadratic on a mesh
-            * BITS_PER_VALUE
-        )
-        self.assertGreater(mesh_unicast, all_to_all)
 
         # --- PeArray: still a mesh ---------------------------------------
         # Unchanged from test_hierarchical_1d, so the mesh formulas hold (now
@@ -422,7 +406,7 @@ class TestModelAllToAll(TestCase):
 
         # --- Latency ------------------------------------------------------
         # The switch's uniform single-hop routing gives MacArray a constant
-        # latency of 1, versus the mesh PeArray's distance-dependent 2.
+        # latency of 1, versus the mesh PeArray's 2.
         self.assertEqual(
             result.data["Matmul0<SEP>latency<SEP>MacArray"].iloc[0], 1
         )

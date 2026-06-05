@@ -94,10 +94,10 @@ class TopologyModel(ABC):
 class MeshTopologyModel(TopologyModel):
     """Cost model for a mesh network.
 
-    Data travels link-by-link along one axis of the mesh. Multicast delivers a
-    value to every point along the dimension; unicast delivers a distinct value
-    to each point. When the source is physically distributed, data is bound as
-    locally as possible across the physical buffers.
+    Data travels along one axis of the mesh. Multicast delivers a value to every
+    point along the dimension; unicast delivers a distinct value to each point.
+    When the source is physically distributed, data is bound as locally as
+    possible across the physical buffers.
     """
 
     def per_loop_transfer_cost(
@@ -153,23 +153,13 @@ class MeshTopologyModel(TopologyModel):
 
 
 class AllToAllTopologyModel(TopologyModel):
-    """Cost model for an all-to-all network built around a switch (e.g. NVLink /
-    NVSwitch).
+    """Cost model for an all-to-all network using a switch (e.g. NVLink).
 
-    Every node connects to every other node through a central switch, so any
-    source reaches any destination in a constant number of hops regardless of
-    how far apart they are in the logical fanout. This differs from a mesh in
-    two ways:
+    Every node connects to every other node through a switch, so any
+    source reaches any destination in one hop regardless of
 
-    - **Uniform latency.** The longest route is a single switch traversal, so
-      ``max_hops`` is constant rather than growing with the distance
-      (``shape_repeats * stride``) between source and destination.
-    - **No store-and-forward accumulation.** Each destination is reached
-      directly, so the total (energy) cost is linear in the number of
-      destinations rather than quadratic as in a mesh unicast.
-
-    The physical stride is irrelevant here (all nodes are equidistant from the
-    switch), so ``last_fanout`` and physical distribution are not consulted.
+    Physical stride is irrelevant, so ``last_fanout`` and physical distribution
+    are not used.
     """
 
     HOPS_PER_TRANSFER = 1
@@ -219,9 +209,7 @@ class AllToAllTopologyModel(TopologyModel):
         )
 
 
-# Registry mapping each topology to the model class that costs its data
-# movement. Classes (not instances) are stored because models are stateful and
-# each NetworkAnalyzer needs its own.
+# Registry of topology models
 TOPOLOGY_MODELS: dict[TopologySpec, type[TopologyModel]] = {
     TopologySpec.MESH: MeshTopologyModel,
     TopologySpec.ALL_TO_ALL: AllToAllTopologyModel,
