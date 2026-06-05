@@ -109,6 +109,7 @@ def component_latency(
 
     network_to_max_link_traffic = defaultdict(lambda: defaultdict(lambda: 0))
     network_to_max_hops = defaultdict(lambda: [])
+    # Aggregates across tensors
     for network, network_stats in looptree_results.network_stats.items():
         component = network.component
         if component not in name2component:

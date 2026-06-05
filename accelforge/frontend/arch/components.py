@@ -1294,7 +1294,7 @@ class Compute(Component, Leaf):
         return "#E0EEFF"
 
 
-class TopologySpec(str, enum.Enum):
+class TopologySpec(enum.StrEnum):
     MESH = "mesh"
 
 
