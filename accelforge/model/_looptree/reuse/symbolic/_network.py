@@ -152,11 +152,79 @@ class MeshTopologyModel(TopologyModel):
         return PerLoopTransferCost(total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic)
 
 
+class AllToAllTopologyModel(TopologyModel):
+    """Cost model for an all-to-all network built around a switch (e.g. NVLink /
+    NVSwitch).
+
+    Every node connects to every other node through a central switch, so any
+    source reaches any destination in a constant number of hops regardless of
+    how far apart they are in the logical fanout. This differs from a mesh in
+    two ways:
+
+    - **Uniform latency.** The longest route is a single switch traversal, so
+      ``max_hops`` is constant rather than growing with the distance
+      (``shape_repeats * stride``) between source and destination.
+    - **No store-and-forward accumulation.** Each destination is reached
+      directly, so the total (energy) cost is linear in the number of
+      destinations rather than quadratic as in a mesh unicast.
+
+    The physical stride is irrelevant here (all nodes are equidistant from the
+    switch), so ``last_fanout`` and physical distribution are not consulted.
+    """
+
+    HOPS_PER_TRANSFER = 1
+    """Hops charged for one source-to-destination transfer across the switch.
+    One switch traversal is treated as a single hop; the per-hop energy and
+    latency come from the network component's ``hops`` action."""
+
+    def per_loop_transfer_cost(
+        self,
+        relevancy,
+        *,
+        shape_repeats,
+        last_fanout,
+        volume,
+        src_component,
+        dim_name,
+    ) -> PerLoopTransferCost:
+        hops = self.HOPS_PER_TRANSFER
+
+        # n - 1 other instances each receive the data across the switch. The
+        # source already holds it (the set of destinations overlaps the set of
+        # sources), so it needs no transfer to itself.
+        n_dsts = shape_repeats - 1
+
+        if isinstance(relevancy, (Irrelevant, Relevant)):
+            # Same delivery count (and hence energy) whether the data is shared
+            # (multicast) or distinct per instance (unicast): each of the n - 1
+            # destinations is one switch traversal away.
+            total_cost = n_dsts * hops * volume
+            # Every route is a single switch traversal, independent of distance.
+            max_hops = hops
+            if isinstance(relevancy, Irrelevant):
+                # Multicast: the switch replicates, so each link carries the
+                # value at most once.
+                max_traffic = volume
+            else:
+                # Unicast: the source's uplink to the switch carries all n - 1
+                # distinct messages, making it the most congested link.
+                max_traffic = n_dsts * volume
+        elif isinstance(relevancy, PartiallyRelevant):
+            raise NotImplementedError()
+        else:
+            raise RuntimeError(f"unhandled relevancy type {relevancy}")
+
+        return PerLoopTransferCost(
+            total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic
+        )
+
+
 # Registry mapping each topology to the model class that costs its data
 # movement. Classes (not instances) are stored because models are stateful and
 # each NetworkAnalyzer needs its own.
 TOPOLOGY_MODELS: dict[TopologySpec, type[TopologyModel]] = {
     TopologySpec.MESH: MeshTopologyModel,
+    TopologySpec.ALL_TO_ALL: AllToAllTopologyModel,
 }
 
 

@@ -1296,6 +1296,7 @@ class Compute(Component, Leaf):
 
 class TopologySpec(enum.StrEnum):
     MESH = "mesh"
+    ALL_TO_ALL = "all_to_all"
 
 
 class Network(Component, Leaf):

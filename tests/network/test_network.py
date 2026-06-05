@@ -34,7 +34,7 @@ class TestParsing(TestCase):
             self.fail(e.message)
 
 
-class TestModel(TestCase):
+class TestModelMesh(TestCase):
     def test_hierarchical_1d(self):
         M = 8
         KN = 8
@@ -331,6 +331,105 @@ class TestModel(TestCase):
                 4    # num of physical DistributedBuffer
             )
         )
+
+
+class TestModelAllToAll(TestCase):
+    """Full-model evaluation of the 1D hierarchy where MacArray is an all-to-all
+    switch (NVLink-like) instead of a mesh. PeArray remains a mesh, so the two
+    networks can be contrasted within a single run."""
+
+    def test_hierarchical_1d_all_to_all(self):
+        M = 8
+        KN = 8
+        MAC_TILE = 4
+        M_TILE = 4
+        BITS_PER_VALUE = 8
+
+        spec = af.Spec.from_yaml(
+            af.examples.workloads.matmuls,
+            INPUT_FILES_DIR / "hierarchical_1d_all_to_all.yaml",
+            INPUT_FILES_DIR / "one_matmul_to_networked_hierarchical_1d.yaml",
+            jinja_parse_data={
+                "N_EINSUMS": 1,
+                "M": M,
+                "KN": KN,
+                "MAC_TILE": MAC_TILE,
+                "M_TILE": M_TILE,
+            },
+        )
+        result = spec.evaluate_mapping()
+
+        # --- MacArray: all-to-all switch ---------------------------------
+        # On a switch every node is one hop away, so unicast (T0, W0) collapses
+        # to the same (MAC_TILE - 1) linear cost as multicast (T1): all equal.
+        # Contrast test_hierarchical_1d, where the mesh makes T0/W0 quadratic
+        # (sum(range(MAC_TILE))).
+        all_to_all = (
+            (M / M_TILE)
+            * (KN / MAC_TILE)  # number of used Scratchpad
+            * M_TILE
+            * KN  # temporal for n1 in mapping
+            * (MAC_TILE - 1)  # one switch hop per destination, for every tensor
+            * BITS_PER_VALUE
+        )
+        for tensor in ("T0", "T1", "W0"):
+            self.assertEqual(
+                result.data[
+                    f"Matmul0<SEP>action<SEP>MacArray<SEP>{tensor}<SEP>hops"
+                ].iloc[0],
+                all_to_all,
+                msg=f"unexpected MacArray hops for {tensor}",
+            )
+
+        # Guard: a mesh would make the unicast tensors strictly more expensive.
+        mesh_unicast = (
+            (M / M_TILE)
+            * (KN / MAC_TILE)
+            * M_TILE
+            * KN
+            * sum(range(MAC_TILE))  # quadratic on a mesh
+            * BITS_PER_VALUE
+        )
+        self.assertGreater(mesh_unicast, all_to_all)
+
+        # --- PeArray: still a mesh ---------------------------------------
+        # Unchanged from test_hierarchical_1d, so the mesh formulas hold (now
+        # with MAC_TILE = 4, i.e. KN // MAC_TILE = 2).
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * sum(i for i in range(KN // MAC_TILE))  # unicast along X of PeArray
+            * M_TILE
+            * MAC_TILE
+            * BITS_PER_VALUE,
+        )
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * (KN // MAC_TILE - 1)  # multicast along X of PeArray
+            * M_TILE
+            * KN
+            * BITS_PER_VALUE,
+        )
+        self.assertEqual(
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
+            (M / M_TILE)
+            * sum(i for i in range(KN // MAC_TILE))  # unicast along PeArray
+            * MAC_TILE
+            * KN
+            * BITS_PER_VALUE,
+        )
+
+        # --- Latency ------------------------------------------------------
+        # The switch's uniform single-hop routing gives MacArray a constant
+        # latency of 1, versus the mesh PeArray's distance-dependent 2.
+        self.assertEqual(
+            result.data["Matmul0<SEP>latency<SEP>MacArray"].iloc[0], 1
+        )
+        self.assertEqual(
+            result.data["Matmul0<SEP>latency<SEP>PeArray"].iloc[0], 2
+        )
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 2)
 
 
 class TestMapper(TestCase):
