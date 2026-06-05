@@ -165,13 +165,18 @@ def component_latency(
         "sum": _sum,
     }
 
-    for component in component_to_actions:
+    for component in name2component:
+        if component not in component_to_actions and component not in component_to_keywords:
+            continue
         component_obj = name2component[component]
         dump = component_obj.shallow_model_dump(include_None=True)
         # Replace serialized `actions` dump with local Action copies that carry
         # the correct n_calls for this job, so formulas can access `a.n_calls`,
         # `a.throughput`, etc. without mutating the shared spec state.
-        dump["actions"] = component_to_actions[component]
+        if component in component_to_actions:
+            dump["actions"] = component_to_actions[component]
+        if component in component_to_keywords:
+            dump |= component_to_keywords[component]
         symbol_table = {**symbol_table_base, **dump}
         if component_obj.total_latency is not None:
             component_latency[component] = eval_expression(

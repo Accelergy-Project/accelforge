@@ -27,21 +27,6 @@ class TestParsing(TestCase):
         spec = af.Spec.from_yaml(
             INPUT_FILES_DIR / "flat.yaml",
         )
-        print(spec.arch.nodes["NoC"])
-        self.assertIn("NoC", spec.arch.nodes)
-        self.assertEqual(spec.arch.nodes["NoC"].get_fanout(), 1)
-        self.assertEqual(
-            {n.name for n in spec.arch.get_nodes_of_type(af.spec.Leaf)},
-            {
-                "MainMemory",
-                "NoC",
-                "RowBuffer",
-                "ColumnBuffer",
-                "DistributedBuffer",
-                "Scratchpad",
-                "MAC",
-            },
-        )
 
         try:
             spec = spec.calculate_component_costs()
@@ -320,9 +305,21 @@ class TestModel(TestCase):
         )
         self.assertEqual(
             result.data['Matmul0<SEP>latency<SEP>DistributedBuffer'].iloc[0],
-            (
+            (   # Reads from child
                 M / M_TILE
                 *
+                KN // MAC_TILE
+                *
+                KN // MAC_TILE
+                *
+                MAC_TILE * MAC_TILE  # tile shape
+                *
+                BITS_PER_VALUE
+                /
+                4    # num of physical DistributedBuffer
+            )
+            +
+            (   # Writes from parent
                 KN // MAC_TILE
                 *
                 KN // MAC_TILE

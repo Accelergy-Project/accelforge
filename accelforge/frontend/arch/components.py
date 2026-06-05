@@ -145,7 +145,7 @@ class Action(EvalableModel):
     @classmethod
     def _deprecate_latency_fields(cls, data):
         if isinstance(data, dict):
-            if "latency" in data:
+            if "latency" in data and not "throughput" in data:
                 l = data.pop("latency")
                 warnings.warn(
                     f"Setting `latency` on `{cls.__name__}` is deprecated; use "
@@ -155,16 +155,11 @@ class Action(EvalableModel):
                     DeprecationWarning,
                     stacklevel=2,
                 )
-                if "throughput" in data:
-                    raise ValueError(
-                        f"Cannot specify both `latency` and `throughput` on "
-                        f"`{cls.__name__}`. Drop the deprecated `latency` field."
-                    )
                 l = str(l).strip()
                 data["throughput"] = (
                     f"1 / ({l}) if ({l}) != 0 else float('inf')"
                 )
-            if "latency_scale" in data:
+            if "latency_scale" in data and not "throughput_scale" in data:
                 ls = data.pop("latency_scale")
                 warnings.warn(
                     f"Setting `latency_scale` on `{cls.__name__}` is deprecated; use "
@@ -174,11 +169,6 @@ class Action(EvalableModel):
                     DeprecationWarning,
                     stacklevel=2,
                 )
-                if "throughput_scale" in data:
-                    raise ValueError(
-                        f"Cannot specify both `latency_scale` and `throughput_scale` "
-                        f"on `{cls.__name__}`. Drop the deprecated `latency_scale`."
-                    )
                 ls = str(ls).strip()
                 data["throughput_scale"] = (
                     f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
@@ -1316,7 +1306,7 @@ class Network(Component, Leaf):
     of the spatial nodes from top to bottom.
     """
 
-    total_latency: str | int | float = "max(max_hops*actions['hops'].latency, max_link_traffic/actions['hops'].latency)"
+    total_latency: str | int | float = "max(max_hops*actions['hops'].latency, max_link_traffic/actions['hops'].throughput)"
     """
     Models latency as either:
     - *Latency-bound*, which means that the latency of the route with the most number of

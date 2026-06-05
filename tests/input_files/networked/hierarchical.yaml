@@ -25,7 +25,7 @@ arch:
     area: 0
     leak_power: 0
     actions:
-    - {name: hops, energy: 1, throughput: 4e9}
+    - {name: hops, energy: 1, latency: 0, throughput: 4e9}
 
   - !Memory
     name: Scratchpad
@@ -45,7 +45,7 @@ arch:
     area: 0
     leak_power: 0
     actions:
-    - {name: hops, energy: 1, throughput: 16e9}
+    - {name: hops, energy: 1, latency: 0, throughput: 16e9}
 
   - !Compute
     name: MAC

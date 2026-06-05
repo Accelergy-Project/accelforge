@@ -57,8 +57,8 @@ arch:
       leak_power: 0
       tensors: {keep: weight, may_keep: weight}
       actions:
-      - {name: read, energy: 5, throughput: inf}
-      - {name: write, energy: 5, throughput: inf}
+      - {name: read, energy: 5, throughput: 1}
+      - {name: write, energy: 5, throughput: 1}
       spatial:
       - {name: X, fanout: 2}
       - {name: Y, fanout: 2}
@@ -68,7 +68,7 @@ arch:
       area: 0
       leak_power: 0
       actions:
-      - {name: hops, energy: 1, throughput: inf}
+      - {name: hops, energy: 1, latency: 0, throughput: inf}
 
   - !Memory
     name: Scratchpad
