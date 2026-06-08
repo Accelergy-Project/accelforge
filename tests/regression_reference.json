@@ -257,7 +257,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'MAC')": 100663296.0,
+      "('I', 'MAC')": 0.0,
       "('V', 'MAC')": 1236950581248.0,
       "('V', 'MainMemory')": 0.0,
       "('K', 'MAC')": 1236950581248.0,
@@ -409,7 +409,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'MAC')": 100663296.0,
+      "('I', 'MAC')": 0.0,
       "('V', 'MAC')": 1236950581248.0,
       "('V', 'MainMemory')": 0.0,
       "('K', 'MAC')": 1236950581248.0,
@@ -561,7 +561,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'MAC')": 12288.0,
+      "('I', 'MAC')": 0.0,
       "('V_new', 'MAC')": 150994944.0,
       "('V_new', 'MainMemory')": 0.0,
       "('K_new', 'MAC')": 150994944.0,
@@ -713,7 +713,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'MAC')": 12288.0,
+      "('I', 'MAC')": 0.0,
       "('V_new', 'MAC')": 150994944.0,
       "('V_new', 'MainMemory')": 0.0,
       "('K_new', 'MAC')": 150994944.0,
@@ -5347,7 +5347,7 @@
     "latency_per_component": {
       "('I', 'GlobalBuffer')": 4.915200042887591e-05,
       "('I', 'MainMemory')": 0.00016394673730246723,
-      "('I', 'ScalarUnit')": 0.00018724572146311402,
+      "('I', 'ScalarUnit')": 0.0,
       "('V', 'MAC')": 0.017975589260458946,
       "('V', 'LocalBuffer')": 0.0,
       "('V', 'GlobalBuffer')": 0.0006881279987283051,
@@ -5672,7 +5672,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'ScalarUnit')": 0.00018724572146311402,
+      "('I', 'ScalarUnit')": 0.0,
       "('V', 'MAC')": 0.017975589260458946,
       "('V', 'LocalBuffer')": 0.0,
       "('V', 'GlobalBuffer')": 0.0006881279987283051,
@@ -5999,7 +5999,7 @@
     "latency_per_component": {
       "('I', 'GlobalBuffer')": 6.000000052353016e-09,
       "('I', 'MainMemory')": 2.001302945586758e-08,
-      "('I', 'ScalarUnit')": 2.2857143733290286e-08,
+      "('I', 'ScalarUnit')": 0.0,
       "('V_new', 'MAC')": 2.1942857983958675e-06,
       "('V_new', 'LocalBuffer')": 0.0,
       "('V_new', 'GlobalBuffer')": 2.4000000209412065e-08,
@@ -6308,7 +6308,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 0.0,
-      "('I', 'ScalarUnit')": 2.2857143733290286e-08,
+      "('I', 'ScalarUnit')": 0.0,
       "('V_new', 'MAC')": 2.1942857983958675e-06,
       "('V_new', 'LocalBuffer')": 0.0,
       "('V_new', 'GlobalBuffer')": 2.4000000209412065e-08,

@@ -972,7 +972,7 @@ def analyze_compute(
     result_accumulator.compute_stats[compute_key] = ComputeStats(
         computes,
         computes,
-        1,
+        computes,
     )
 
     if info.is_copy_operation:
