@@ -24,8 +24,9 @@ arch:
     name: PeArray
     area: 0
     leak_power: 0
+    total_latency: "max_hops"
     actions:
-    - {name: hops, energy: 1, throughput: inf}
+    - {name: hops, energy: 1, latency: 0, throughput: 1}
 
   - !Memory
     name: Scratchpad
@@ -37,15 +38,14 @@ arch:
     - {name: read, energy: 0, throughput: inf}
     - {name: write, energy: 0, throughput: inf}
     spatial:
-    - {name: X, fanout: 2}
-    - {name: Y, fanout: 2}
+    - {name: X, fanout: 4}
 
   - !Network
     name: MacArray
     area: 0
     leak_power: 0
     actions:
-    - {name: hops, energy: 1, throughput: inf}
+    - {name: hops, energy: 1, latency: 1, throughput: inf}
 
   - !Compute
     name: MAC
@@ -55,4 +55,3 @@ arch:
     - {name: compute, energy: 0, throughput: inf}
     spatial:
     - {name: X, fanout: 2}
-    - {name: Y, fanout: 2}

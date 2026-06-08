@@ -93,6 +93,19 @@ class Spatial(EvalableModel):
         return super(self.__class__, self)._eval_expressions(*args, **kwargs)
 
 
+class PhysicalSpatial(EvalableModel):
+    name: str
+    """
+    The name of the dimension over which this spatial fanout is occurring (e.g., X or Y).
+    """
+
+    fanout: EvalsTo[int]
+    """ The size of this fanout. """
+
+    stride: EvalsTo[int]
+    """ The number of array coordinates between each spatial fanout coordinate."""
+
+
 class Spatialable(EvalableModel):
     """Something that can be duplicated to create an array of."""
 
@@ -107,7 +120,7 @@ class Spatialable(EvalableModel):
     specified at this level also apply to lower-level `Leaf` nodes in the architecture.
     """
 
-    _physical_spatial: NoParse[Spatial] = EvalableList()
+    _physical_spatial: NoParse[PhysicalSpatial] = EvalableList()
     """
     The physical spatial fanout of this node. Should only have a value for a
     flattened arch. Otherwise, the `spatial` attribute is authoritative.
@@ -123,14 +136,29 @@ class Spatialable(EvalableModel):
                 return s.fanout
         return default
 
+    def _has_physical_dim(self, dim_name: str) -> bool:
+        for s in self._physical_spatial:
+            if s.name == dim_name:
+                return True
+        return False
+
     def _get_physical_fanout_along(self, dim_name: str, default: int = 1) -> int:
         for s in self._physical_spatial:
             if s.name == dim_name:
                 return s.fanout
         return default
 
+    def _get_physical_stride_along(self, dim_name: str) -> int:
+        for s in self._physical_spatial:
+            if s.name == dim_name:
+                return s.stride
+        raise ValueError(f"dimension {dim_name} not found")
+
     def _spatial_str(self, include_newline=True) -> str:
         if not self.spatial:
             return ""
         result = ", ".join(f"{s.fanout}× {s.name}" for s in self.spatial)
         return f"\n[{result}]" if include_newline else result
+
+    def _is_distributed(self):
+        return any(s.fanout > 1 for s in self._physical_spatial)
