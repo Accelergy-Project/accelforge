@@ -7,6 +7,7 @@ import copy
 from dataclasses import dataclass
 import inspect
 import itertools
+from math import ceil
 import pydot
 
 from accelforge.util._frozenset import oset
@@ -32,6 +33,7 @@ from collections.abc import Set
 from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
@@ -79,6 +81,11 @@ _NO_JOIN_MAPPING_VISUALIZATION = False
 # =============================================================================
 # LoopTree Mapping Nodes
 # =============================================================================
+
+
+def _as_oset(x):
+    """Wrap a single rank variable as a singleton oset; pass an oset through."""
+    return oset(x) if isinstance(x, (set, frozenset)) else oset([x])
 
 
 @_uninstantiable
@@ -231,7 +238,7 @@ class TilePattern:
         ):
             s.append(f"initial={self.initial_tile_shape}")
         if with_tile_shape and (self.tile_shape not in (None, "symbol")):
-            s.append(f"tile_shape={self.tile_shape}")
+            s.append(f"shape={self.tile_shape}")
         return " ".join(s)
 
     def update(self, **kwargs) -> "TilePattern":
@@ -361,22 +368,25 @@ class Loop(MappingNode):
     tile_shape for details.
     """
 
-    _einsum_to_rank_variables: dict[EinsumName, set[RankVariable]] = {}
+    _einsum_to_rank_variable: dict[EinsumName, RankVariable] = {}
     """
-    If there are multiple rank variables in this loop, this dictionary says which rank
-    variables belong to which Einsum.
+    If this loop has multiple rank variables (because it was merged from loops
+    of different Einsums), this dictionary records which rank variable each
+    Einsum originally used for this loop.
     """
 
     _calculated_n_iterations: (
         Literal["symbol"] | sympy.Symbol | sympy.Expr | int | str | None
     ) = None
 
-    _assume_perfect_factor: bool = True
-    """ Whether the Mapper assumes that tile shapes perfectly divide tensor shapes and
-    parent tile shapes. """
-
     _fused: bool = None
     """ Whether this Loop is shared with another Einsum. """
+
+    _may_cause_imperfect: bool = False
+    """
+    This means that the tile shape of this loop may not perfectly factorize the rank
+    shape.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -421,7 +431,6 @@ class Loop(MappingNode):
         return type(self)(
             rank_variable=my_rv | other_rv,
             tile_pattern=self.tile_pattern,
-            _assume_perfect_factor=self._assume_perfect_factor,
             **kwargs,
         )
 
@@ -1137,18 +1146,13 @@ class Nested(MappingNodeWithChildren):
                 # variables and assume that rank variable translation would fix it.
                 assert len(my_loop_group) == 1 or len(other_loop_group) == 1
                 has_one, may_not_have_one = my_loop_group, other_loop_group
-
-                switched = False
+                has_one_side, may_not_side = self, other
                 if len(has_one) != 1:
-                    has_one, may_not_have_one = other_loop_group, my_loop_group
-                    switched = True
+                    has_one, may_not_have_one = may_not_have_one, has_one
+                    has_one_side, may_not_side = may_not_side, has_one_side
 
                 l = copy.deepcopy(has_one.pop(0))
-                l.rank_variable = (
-                    l.rank_variable
-                    if isinstance(l.rank_variable, set)
-                    else oset([l.rank_variable])
-                )
+                l.rank_variable = _as_oset(l.rank_variable)
                 for l2 in may_not_have_one:
                     if l2.calculated_n_iterations == l.calculated_n_iterations:
                         break
@@ -1160,29 +1164,24 @@ class Nested(MappingNodeWithChildren):
                     f"Warning. Matching loops {l} and {l2}. Need rank variable translation here."
                 )
 
-                my_rv = (
-                    l.rank_variable
-                    if isinstance(l.rank_variable, set)
-                    else oset([l.rank_variable])
-                )
-                other_rv = (
-                    l2.rank_variable
-                    if isinstance(l2.rank_variable, set)
-                    else oset([l2.rank_variable])
-                )
-                if switched:
-                    my_rv, other_rv = other_rv, my_rv
+                # For each einsum, record which rank variable it used for this
+                # loop.
+                for src_loop, src_side in [(l, has_one_side), (l2, may_not_side)]:
+                    src_rv = _as_oset(src_loop.rank_variable)
+                    for compute in src_side.get_nodes_of_type(Compute):
+                        rv = src_loop._einsum_to_rank_variable.get(compute.einsum)
+                        if rv is None:
+                            assert len(src_rv) == 1, (
+                                f"Loop {src_loop} has no mapping for einsum "
+                                f"{compute.einsum} and has multiple rank "
+                                f"variables {src_rv}. A prior merge should have "
+                                f"populated _einsum_to_rank_variable."
+                            )
+                            rv = next(iter(src_rv))
+                        l._einsum_to_rank_variable[compute.einsum] = rv
 
                 may_not_have_one.remove(l2)
-                rv = l2.rank_variable
-                for compute in self.get_nodes_of_type(Compute):
-                    for r in my_rv:
-                        l._einsum_to_rank_variables[compute.einsum] = r
-                rv = rv if isinstance(rv, set) else oset([rv])
-                l.rank_variable = l.rank_variable | rv
-                for compute in other.get_nodes_of_type(Compute):
-                    for r in other_rv:
-                        l._einsum_to_rank_variables[compute.einsum] = r
+                l.rank_variable = l.rank_variable | _as_oset(l2.rank_variable)
                 to_add = [l]
 
             zipped_groups.append(to_add)
@@ -1247,7 +1246,7 @@ class Nested(MappingNodeWithChildren):
                     continue
                 elif node.tile_shape is not None and prev_tile_shape is not None:
                     node.tile_pattern = node.tile_pattern.update(
-                        calculated_n_iterations=prev_tile_shape / node.tile_shape,
+                        calculated_n_iterations=ceil(prev_tile_shape / node.tile_shape),
                     )
 
         def safe_int_cast(x: int | float | None) -> int | float | None:
@@ -1287,7 +1286,7 @@ class Nested(MappingNodeWithChildren):
     def _get_single_tensor_mapping(
         self,
         tensor_name: TensorName,
-        flattened_arch: list[arch.Leaf],
+        flattened_arch: FlattenedArch,
         tensor_rank_variables: set[str],
     ) -> Self:
         """
@@ -1441,25 +1440,27 @@ class Nested(MappingNodeWithChildren):
         groups = [sorted(g, key=lambda x: id2idx[id(x)]) for g in groups]
         mapping = [x for g in groups for x in g]
 
-        # Check that all storage-temporal relations are held from before
+        # Check that all storage-temporal relations are held from before.
+        # Precomputed id-sets avoid pydantic __instancecheck__ in the O(N²)
+        # combinations loops.
         node2idx = {id(node): i for i, node in enumerate(mapping)}
         prev_node2idx = {id(node): i for i, node in enumerate(self.nodes)}
-        for node, node2 in itertools.combinations(mapping, 2):
-            idx1 = node2idx[id(node)]
-            idx2 = node2idx[id(node2)]
-            prev_idx1 = prev_node2idx[id(node)]
-            prev_idx2 = prev_node2idx[id(node2)]
-            if isinstance(node, TensorHolder) and isinstance(node2, TensorHolder):
-                assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
-            elif isinstance(node, Spatial) and isinstance(node2, Spatial):
-                assert (idx1 > idx2) == (prev_idx1 > prev_idx2), "BUG"
+        th_ids = {id(n) for n in mapping if isinstance(n, TensorHolder)}
+        sp_ids = {id(n) for n in mapping if isinstance(n, Spatial)}
+        loop_ids = {id(n) for n in mapping if isinstance(n, Loop)}
+        for n1, n2 in itertools.combinations(mapping, 2):
+            i1, i2 = id(n1), id(n2)
+            if (i1 in th_ids and i2 in th_ids) or (i1 in sp_ids and i2 in sp_ids):
+                assert (node2idx[i1] > node2idx[i2]) == (
+                    prev_node2idx[i1] > prev_node2idx[i2]
+                ), "BUG"
 
         # Check for spatial/temporal loops that have been reordered for the
         # same rank variable. These can't co-exist because the tiling is
         # inconsistent. OK for irrelevant loops.
         node2idx = {id(node): i for i, node in enumerate(self.nodes)}
         for node1, node2 in itertools.combinations(mapping, 2):
-            if not isinstance(node1, Loop) or not isinstance(node2, Loop):
+            if id(node1) not in loop_ids or id(node2) not in loop_ids:
                 continue
             if node2idx[id(node1)] <= node2idx[id(node2)]:
                 continue
@@ -1616,13 +1617,13 @@ class Mapping(Nested):
         new_nodes = []
         for node in self.nodes:
             if isinstance(node, Loop) and isinstance(node.rank_variable, set):
-                if einsum_name not in node._einsum_to_rank_variables:
+                if einsum_name not in node._einsum_to_rank_variable:
                     raise ValueError(
                         f"Loop {node.compact_str()} has multiple rank variables. Make "
-                        f"sure to populate _einsum_to_rank_variables for this loop."
+                        f"sure to populate _einsum_to_rank_variable for this loop."
                     )
                 new_node = copy.copy(node)
-                new_node.rank_variable = node._einsum_to_rank_variables[einsum_name]
+                new_node.rank_variable = node._einsum_to_rank_variable[einsum_name]
                 new_nodes.append(new_node)
             else:
                 new_nodes.append(node)

@@ -37,6 +37,9 @@ class Metrics(Flag):
     Memory usage broken down by tensor and Einsum.
     """
 
+    ENERGY_DELAY_PRODUCT = auto()
+    """The product of energy and latency. """
+
     @classmethod
     def all_metrics(cls):
         return reduce(or_, iter(cls), cls.LATENCY)
@@ -44,9 +47,23 @@ class Metrics(Flag):
     def includes_leak_energy(self) -> bool:
         """Returns True if the metrics include leak energy, either alone or as part of
         total energy. False otherwise."""
-        return self & (Metrics.ENERGY | Metrics.LEAK_ENERGY)
+        return self & (
+            Metrics.ENERGY | Metrics.LEAK_ENERGY | Metrics.ENERGY_DELAY_PRODUCT
+        )
 
     def includes_dynamic_energy(self) -> bool:
         """Returns True if the metrics include dynamic energy, either alone or as part
         of total energy. False otherwise."""
-        return self & (Metrics.ENERGY | Metrics.DYNAMIC_ENERGY)
+        return self & (
+            Metrics.ENERGY | Metrics.DYNAMIC_ENERGY | Metrics.ENERGY_DELAY_PRODUCT
+        )
+
+    def includes_latency(self) -> bool:
+        """Returns True if the metrics include latency, either alone or as part of
+        energy-delay product. False otherwise."""
+        return self & (Metrics.LATENCY | Metrics.ENERGY_DELAY_PRODUCT)
+
+    def includes_energy(self) -> bool:
+        """Returns True if the metrics include total energy, either alone or as part of
+        energy-delay product. False otherwise."""
+        return self & (Metrics.ENERGY | Metrics.ENERGY_DELAY_PRODUCT)

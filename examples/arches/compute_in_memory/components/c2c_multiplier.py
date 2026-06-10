@@ -1,6 +1,6 @@
 from hwcomponents.scaling import linear
 from hwcomponents_neurosim import NOTGate
-from hwcomponents import ComponentModel, action
+from hwcomponents import ComponentModel, action, ActionCost
 from misc import Capacitor
 
 
@@ -29,8 +29,8 @@ class C2CMultiplier(ComponentModel):
     C2CMultiplierPortB. Have the "a" port process the analog operand and have the "b"
     port process the digital operand.
 
-    The C2CMultiplier component has area accounted for. The C2CMultiplierPortB component
-    does not have any area!
+    The C2CMultiplier component has area and leak power accounted for. The
+    C2CMultiplierPortB component does not have any area or leak power!
 
     Parameters
     ----------
@@ -119,26 +119,34 @@ class C2CMultiplier(ComponentModel):
         """
         # Count energy by just charging one of the capacitors and multiplying by the
         # number of bits.
-        energy_latency = self.unit_cap.switch(self.a_hist)
-        energy_latency += self.unit2_cap.switch(self.a_hist)
+        sub_a = self.unit_cap.switch(self.a_hist)
+        sub_b = self.unit2_cap.switch(self.a_hist)
 
         # The reference node sees a cap of unit_capacitance * 1.67 / resolution per bit
         # on average assuming a uniform-ish distribution of bits
-        energy, latency = energy_latency
-        energy *= 1.67 / self.resolution
+        energy = (sub_a.energy + sub_b.energy) * 1.67 / self.resolution
+        latency = sub_a.latency + sub_b.latency
 
-        return energy, latency
+        return ActionCost(
+            energy=energy,
+            throughput=float("inf") if latency == 0 else 1 / latency,
+            latency=latency,
+        )
 
     @action
     def switch_b(self):
         """
         Connect capacitors to A with probability b_lo2hi_probability.
         """
-        energy_latency = self.unit_cap.raise_voltage_to(self.a_rms)
-        energy_latency += self.unit2_cap.raise_voltage_to(self.a_rms)
-        energy, latency = energy_latency
-        energy *= self.b_lo2hi_probability
-        return energy, latency
+        sub_a = self.unit_cap.raise_voltage_to(self.a_rms)
+        sub_b = self.unit2_cap.raise_voltage_to(self.a_rms)
+        energy = (sub_a.energy + sub_b.energy) * self.b_lo2hi_probability
+        latency = sub_a.latency + sub_b.latency
+        return ActionCost(
+            energy=energy,
+            throughput=float("inf") if latency == 0 else 1 / latency,
+            latency=latency,
+        )
 
     @action
     def read(self):
@@ -152,6 +160,51 @@ class C2CMultiplier(ComponentModel):
 
 
 class C2CMultiplierPortB(C2CMultiplier):
+    """
+    The C2C multiplier looks like the following:
+
+    - For operand A as an analog voltage
+    - Operand B is a binary digital value with bits B0, B1, B2... from least to most
+      significant
+
+    The circuit looks like:
+
+         2C      2C         2C         2C         2C         2C
+      G──||───┰──||──────┰──||──────┰──||──────┰──||──────┰──||──── -> OUT
+              = C        = C        = C        = C        = C
+              │          │          │          │          │
+               ╲─── B0    ╲─── B1    ╲─── B2    ╲─── B3    ╲─── B4
+             │  G       │  G       │  G       │  G       │  G
+      A──────┴──────────┴──────────┴──────────┴──────────┴─────────
+
+    Energy is consumed when: 1. A increases, and all the B capacitors are charged 2. Any
+    B bit goes 0->1, and the corresponding capacitor is charged
+
+    USAGE: In your architecture, initialize a both a C2CMultiplier and a
+    C2CMultiplierPortB. Have the "a" port process the analog operand and have the "b"
+    port process the digital operand.
+
+    The C2CMultiplier component has area and leak power accounted for. The
+    C2CMultiplierPortB component does not have any area or leak power!
+
+    Parameters
+    ----------
+    resolution: int
+        The resolution of the multiplier.
+    voltage: float
+        The voltage of the multiplier in volts.
+    unit_capacitance: float
+        The unit capacitance of the multiplier in Farads.
+    a_hist: list[float]
+        The histogram of the analog operand's values. This is a histogram of the values,
+        assumed to be spaced between 0 and voltage, inclusive.
+    b_bit_distribution: list[float]
+        The distribution of the binary operand's bits. Each is a probability of a given
+        bit being 1.
+    tech_node: str
+        The tech node of the multiplier in meters.
+    """
+
     def __init__(
         self,
         resolution: int,
@@ -169,7 +222,9 @@ class C2CMultiplierPortB(C2CMultiplier):
             b_bit_distribution=b_bit_distribution,
             tech_node=tech_node,
         )
+        # Area and leak power counted in the C2CMultiplier
         self.area_scale = 0
+        self.leak_power_scale = 0
 
     @action
     def read(self):

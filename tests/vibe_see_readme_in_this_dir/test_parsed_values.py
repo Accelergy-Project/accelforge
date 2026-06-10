@@ -558,7 +558,7 @@ class TestSimpleArchParsed(unittest.TestCase):
         self.assertEqual(len(mac.actions), 1)
         self.assertEqual(mac.actions[0].name, "compute")
         self.assertEqual(mac.actions[0].energy, 1)
-        self.assertEqual(mac.actions[0].latency, 1)
+        self.assertEqual(mac.actions[0].throughput, 1)
 
     def test_mac_no_spatial(self):
         mac = self.arch.find("MAC")
@@ -650,11 +650,11 @@ class TestTPUArchParsed(unittest.TestCase):
         read = [a for a in mm.actions if a.name == "read"][0]
         self.assertEqual(read.energy, 7.03e-12)
 
-    def test_main_memory_read_latency_expression(self):
+    def test_main_memory_read_throughput_expression(self):
         mm = self.arch.find("MainMemory")
         read = [a for a in mm.actions if a.name == "read"][0]
-        # Before evaluation, latency is a string expression
-        self.assertEqual(read.latency, "1 / (8 * 614e9)")
+        # Before evaluation, throughput is a string expression
+        self.assertEqual(read.throughput, "8 * 614e9")
 
     def test_local_buffer_spatial(self):
         lb = self.arch.find("LocalBuffer")
@@ -691,14 +691,19 @@ class TestTPUArchParsed(unittest.TestCase):
         ri = af.spatial[0]
         self.assertEqual(ri.name, "reuse_input")
         self.assertEqual(ri.fanout, 128)
-        self.assertEqual(ri.may_reuse, "input")
+        self.assertEqual(ri.reuse, "input")
+        # may_reuse defaults to reuse when reuse is defined
+        evaluated, _ = ri._eval_expressions()
+        self.assertEqual(evaluated.may_reuse, "input")
 
     def test_array_fanout_reuse_output(self):
         af = self.arch.find("ProcessingElement")
         ro = af.spatial[1]
         self.assertEqual(ro.name, "reuse_output")
         self.assertEqual(ro.fanout, 128)
-        self.assertEqual(ro.may_reuse, "output")
+        self.assertEqual(ro.reuse, "output")
+        evaluated, _ = ro._eval_expressions()
+        self.assertEqual(evaluated.may_reuse, "output")
 
     def test_register_size_expression(self):
         reg = self.arch.find("Register")
@@ -708,10 +713,10 @@ class TestTPUArchParsed(unittest.TestCase):
         reg = self.arch.find("Register")
         self.assertEqual(reg.tensors.keep, "weight")
 
-    def test_mac_latency_expression(self):
+    def test_mac_throughput_expression(self):
         mac = self.arch.find("MAC")
         compute_action = [a for a in mac.actions if a.name == "compute"][0]
-        self.assertEqual(compute_action.latency, "1 / 1.05e9")
+        self.assertEqual(compute_action.throughput, 1.05e9)
 
     def test_mac_energy(self):
         mac = self.arch.find("MAC")
@@ -741,20 +746,20 @@ class TestTPUArchEvaluated(unittest.TestCase):
         lb = self.arch.find("LocalBuffer")
         self.assertEqual(lb.size, 1024 * 1024 * 4 * 8)
 
-    def test_main_memory_read_latency_evaluated(self):
+    def test_main_memory_read_throughput_evaluated(self):
         mm = self.arch.find("MainMemory")
         read = [a for a in mm.actions if a.name == "read"][0]
-        self.assertAlmostEqual(read.latency, 1 / (8 * 614e9), places=20)
+        self.assertAlmostEqual(read.throughput, 8 * 614e9)
 
-    def test_mac_latency_evaluated(self):
+    def test_mac_throughput_evaluated(self):
         mac = self.arch.find("MAC")
         compute_action = [a for a in mac.actions if a.name == "compute"][0]
-        self.assertAlmostEqual(compute_action.latency, 1 / 1.05e9, places=20)
+        self.assertAlmostEqual(compute_action.throughput, 1.05e9)
 
-    def test_scalar_unit_latency_evaluated(self):
+    def test_scalar_unit_throughput_evaluated(self):
         su = self.arch.find("ScalarUnit")
         compute_action = [a for a in su.actions if a.name == "compute"][0]
-        self.assertAlmostEqual(compute_action.latency, 1 / 1.05e9 / 128, places=20)
+        self.assertAlmostEqual(compute_action.throughput, 1.05e9 * 128)
 
 
 # ============================================================================

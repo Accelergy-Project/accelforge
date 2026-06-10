@@ -16,8 +16,10 @@ from accelforge.frontend.mapping import (
     Nested,
     NodeList,
     TensorHolder,
+    Loop,
 )
 from accelforge.frontend.workload import Workload
+from accelforge.frontend._workload_isl._symbolic import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import (
     get_stride_and_halo,
     get_rank_variable_relevancy,
@@ -25,7 +27,15 @@ from accelforge.frontend._workload_isl._symbolic import (
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.symbol_relations import (
     get_initial_delta_choices,
 )
+from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_loops import (
+    label_imperfect_tile_shapes,
+)
 from accelforge.mapper.FFM._pareto_df.df_convention import col_used_in_joining
+
+
+class InvalidMappingError(Exception):
+    def __init__(self, *args):
+        super().__init__(*args)
 
 
 def evaluate_mapping(
@@ -82,6 +92,7 @@ def evaluate_mapping(
         resource_usage_tolerance=0,  # spec.model.resource_usage_tolerance,
         objective_tolerance=0,  # spec.model.objective_tolerance,
         workload_n_einsums=len(spec.workload.einsum_names),
+        allow_imperfect_all=True,
     )
 
     einsum2pmappings = {}
@@ -89,7 +100,7 @@ def evaluate_mapping(
     einsum2jobs = {}
     s = (
         "Spec must not be evaluated before evaluating a mapping. Was "
-        "this spec returned by spec.calculate_component_area_energy_latency_leak()?"
+        "this spec returned by spec.calculate_component_costs()?"
     )
 
     needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
@@ -99,6 +110,8 @@ def evaluate_mapping(
 
     assert not getattr(spec, "_evaluated", False), s
     for pmapping in _split_mapping_to_pmappings(spec.mapping, spec.workload):
+        _assert_valid_pmapping(pmapping, spec.workload)
+
         einsum_name = pmapping.nodes[-1].einsum
         compute_name = pmapping.nodes[-1].component
         pmapping_id = uuid4()
@@ -109,7 +122,7 @@ def evaluate_mapping(
             cur_spec = evaluated_specs[einsum_name]
 
         else:
-            cur_spec = spec.calculate_component_area_energy_latency_leak(
+            cur_spec = spec.calculate_component_costs(
                 einsum_name=einsum_name,
                 area=False,
             )
@@ -140,6 +153,12 @@ def evaluate_mapping(
             ].tensor_names
         }
         pmapping.clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
+
+        label_imperfect_tile_shapes(
+            pmapping.nodes,
+            job.spec_one_einsum.workload.einsums[job.einsum_name],
+            job,
+        )
 
         einsum2jobs[job.einsum_name] = job
 
@@ -280,3 +299,23 @@ def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload)
             new_nodes.append(node)
 
     pmapping.nodes = new_nodes
+
+
+def _assert_valid_pmapping(pmapping: Mapping, workload: Workload):
+    """Assert that pmapping has loops with shape 1."""
+    einsum_name = pmapping.nodes[-1].einsum
+    rank_variables = {
+        rv
+        for rv, bound in get_rank_variable_bounds(workload, einsum_name).items()
+        if bound > 1
+    }
+    for node in pmapping.nodes:
+        if isinstance(node, Loop) and node.tile_shape == 1:
+            if isinstance(node.rank_variable, set):
+                rank_variables.difference_update(node.rank_variable)
+            else:
+                rank_variables.remove(node.rank_variable)
+    if len(rank_variables) > 0:
+        raise InvalidMappingError(
+            f"Missing loop with shape 1 for rank variables {rank_variables} in Einsum {einsum_name}"
+        )

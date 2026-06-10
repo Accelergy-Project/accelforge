@@ -685,6 +685,9 @@ class Compatibility(Updatable):
         my_symbols = oset(self.symbols())
         for c in my_symbols:
             assert c in mappings.columns, f"Column {c} not found in mappings"
-        should_drop = lambda x: is_fused_loop_col(x) and x not in my_symbols
-        drop = [c for c in mappings.columns if should_drop(c)]
-        return mappings.drop(columns=drop)
+        keep = [
+            c
+            for c in mappings.columns
+            if not (is_fused_loop_col(c) and c not in my_symbols)
+        ]
+        return mappings if len(keep) == len(mappings.columns) else mappings[keep]

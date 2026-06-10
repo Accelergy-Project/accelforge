@@ -1,6 +1,6 @@
 from sympy import Symbol
 import accelforge.frontend.arch as arch
-from accelforge.frontend.mapping import TensorHolder
+from accelforge.frontend.mapping import TensorHolder, Toll
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.model._looptree.reuse import symbolic
 from accelforge.util._frozenset import oset
@@ -97,7 +97,7 @@ def run_model(
     if metrics & Metrics.ACTIONS:
         df.update(spatial_usage_df)
 
-    actions = gather_actions(reuse, None, use_name=True)
+    actions = gather_actions(reuse, None, use_name=True, spec=spec)
     energy = compute_energy_from_actions(
         spec, actions, overall_latency, component_to_non_power_gated_porp
     )
@@ -108,6 +108,22 @@ def run_model(
             for tensor in node.tensors:
                 if tensor not in tensor_to_backing and tensor in job.fusable_tensors:
                     tensor_to_backing[tensor] = node.component
+
+    # A Toll is a pass-through and must never be the outermost level backing
+    # a fusable tensor — that would leave no real Memory holding it.
+    for node in pmapping.nodes:
+        if isinstance(node, Toll):
+            for tensor in node.tensors:
+                if (
+                    tensor in tensor_to_backing
+                    and tensor_to_backing[tensor] == node.component
+                ):
+                    raise ValueError(
+                        f"Toll '{node.component}' is the outermost level holding "
+                        f"fusable tensor '{tensor}' in einsum '{job.einsum_name}'. "
+                        f"A Toll cannot be the outermost holder of a tensor — a "
+                        f"Memory above the Toll must also keep it."
+                    )
 
     total_occupancy = {}
     compute_unit = pmapping.nodes[-1].component
@@ -156,7 +172,9 @@ def run_model(
             occupancy = stats.max_occupancy
 
     if metrics & Metrics.ACTIONS:
-        detailed_actions = gather_actions(reuse, None, verbose=True, use_name=True)
+        detailed_actions = gather_actions(
+            reuse, None, verbose=True, use_name=True, spec=spec
+        )
         for key, count in detailed_actions.items():
             df[action2col(key)] = count.total * n_instances
         detailed_energy = compute_energy_from_actions(
@@ -168,11 +186,13 @@ def run_model(
             df[f"latency<SEP>{component}"] = cur_latency * n_instances
 
     actions_df = {}
-    simple_actions = gather_actions(reuse, None, verbose=False, use_name=True)
+    simple_actions = gather_actions(
+        reuse, None, verbose=False, use_name=True, spec=spec
+    )
     for key, count in simple_actions.items():
         actions_df[action2col(key)] = count.total * n_instances
 
-    if metrics & Metrics.LATENCY:
+    if metrics.includes_latency():
         df["Total<SEP>latency"] = overall_latency * n_instances
         # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute

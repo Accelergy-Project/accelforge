@@ -6,6 +6,7 @@ import os
 import sys
 from paths import PROJECT_ROOT
 
+
 class IncludeNotebook(Directive):
     """
     Directive to include marked sections from Jupyter notebooks.
@@ -28,9 +29,7 @@ class IncludeNotebook(Directive):
         marker_name = self.options.get("name")
         language = self.options.get("language", "python")
 
-        notebook_path = os.path.normpath(
-            os.path.join(PROJECT_ROOT, notebook_path)
-        )
+        notebook_path = os.path.normpath(os.path.join(PROJECT_ROOT, notebook_path))
 
         # Resolve relative paths
         if not os.path.isabs(notebook_path):

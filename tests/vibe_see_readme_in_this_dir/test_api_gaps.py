@@ -5,7 +5,7 @@ Tests covering previously-untested API surface areas:
   2. Workload.n_instances / Einsum.n_instances
   3. Tensors.back, tile_shape, no_refetch_from_above, tensor_order_options
   4. Arch.total_area, total_leak_power, per_component_total_area/leak
-  5. Spec.calculate_component_area_energy_latency_leak()
+  5. Spec.calculate_component_costs()
   6. Action.latency_scale, Component.latency_scale
   7. TensorHolder.bits_per_value_scale, bits_per_action
   8. Spec.to_yaml() round-trip serialization
@@ -265,7 +265,8 @@ class TestTensorsAdvancedFields(unittest.TestCase):
 
     def test_on_memory_from_yaml(self):
         """Test advanced Tensors fields survive YAML parsing."""
-        spec = _yaml_spec("""\
+        spec = _yaml_spec(
+            """\
 arch:
   nodes:
   - !Memory
@@ -288,7 +289,8 @@ arch:
     area: 0
     actions:
     - {name: compute, energy: 1, latency: 1}
-""")
+"""
+        )
         mem = spec.arch.find("Mem")
         self.assertEqual(mem.tensors.keep, "All")
         self.assertEqual(mem.tensors.back, "Inputs")
@@ -307,7 +309,8 @@ class TestArchTotalAreaLeakPower(unittest.TestCase):
 
     def _make_arch_with_totals(self):
         """Build a Spec, calculate area/leak, and return it."""
-        spec = _yaml_spec("""\
+        spec = _yaml_spec(
+            """\
 arch:
   nodes:
   - !Memory
@@ -334,8 +337,9 @@ workload:
     tensor_accesses:
     - {name: A, projection: [m]}
     - {name: B, projection: [m], output: true}
-""")
-        return spec.calculate_component_area_energy_latency_leak()
+"""
+        )
+        return spec.calculate_component_costs()
 
     def test_per_component_total_area(self):
         spec = self._make_arch_with_totals()
@@ -363,7 +367,8 @@ workload:
 
     def test_raises_without_calculation(self):
         """Accessing total_area before calculate raises ValueError."""
-        spec = _yaml_spec("""\
+        spec = _yaml_spec(
+            """\
 arch:
   nodes:
   - !Memory
@@ -380,23 +385,25 @@ arch:
     area: 0
     actions:
     - {name: compute, energy: 1, latency: 1}
-""")
+"""
+        )
         # total_area depends on total_area being set per-component
-        # which requires calculate_component_area_energy_latency_leak
+        # which requires calculate_component_costs
         with self.assertRaises((ValueError, TypeError)):
             _ = spec.arch.total_area
 
 
 # ============================================================================
-# 5. Spec.calculate_component_area_energy_latency_leak
+# 5. Spec.calculate_component_costs
 # ============================================================================
 
 
 class TestCalculateComponentAreaEnergyLatencyLeak(unittest.TestCase):
-    """Test the full calculate_component_area_energy_latency_leak method."""
+    """Test the full calculate_component_costs method."""
 
     def _make_spec(self):
-        return _yaml_spec("""\
+        return _yaml_spec(
+            """\
 arch:
   nodes:
   - !Memory
@@ -423,43 +430,44 @@ workload:
     tensor_accesses:
     - {name: A, projection: [m]}
     - {name: B, projection: [m], output: true}
-""")
+"""
+        )
 
     def test_returns_spec(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         self.assertIsInstance(result, Spec)
 
     def test_area_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         self.assertEqual(mm.area, 100)
         self.assertIsNotNone(mm.total_area)
 
     def test_energy_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         read_action = [a for a in mm.actions if a.name == "read"][0]
         self.assertEqual(read_action.energy, 2.0)
 
-    def test_latency_populated(self):
+    def test_throughput_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         read_action = [a for a in mm.actions if a.name == "read"][0]
-        self.assertEqual(read_action.latency, 10)
+        self.assertAlmostEqual(read_action.throughput, 1 / 10)
 
     def test_leak_power_populated(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak()
+        result = spec.calculate_component_costs()
         mm = result.arch.find("MainMemory")
         self.assertEqual(mm.leak_power, 0.5)
 
     def test_selective_area_only(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak(
+        result = spec.calculate_component_costs(
             area=True, energy=False, latency=False, leak=False
         )
         mm = result.arch.find("MainMemory")
@@ -467,14 +475,15 @@ workload:
 
     def test_noop_if_all_false(self):
         spec = self._make_spec()
-        result = spec.calculate_component_area_energy_latency_leak(
+        result = spec.calculate_component_costs(
             area=False, energy=False, latency=False, leak=False
         )
         self.assertIsInstance(result, Spec)
 
     def test_with_fanout_multiplies_area(self):
         """A spatial fanout should multiply area."""
-        spec = _yaml_spec("""\
+        spec = _yaml_spec(
+            """\
 arch:
   nodes:
   - !Memory
@@ -505,8 +514,9 @@ workload:
     tensor_accesses:
     - {name: A, projection: [m]}
     - {name: B, projection: [m], output: true}
-""")
-        result = spec.calculate_component_area_energy_latency_leak()
+"""
+        )
+        result = spec.calculate_component_costs()
         mac = result.arch.find("MAC")
         # total_area should be area * fanout = 10 * 4
         self.assertEqual(mac.total_area, 40)
@@ -524,9 +534,9 @@ class TestLatencyScale(unittest.TestCase):
         a = Action(name="read", energy=1, latency=5)
         self.assertEqual(a.latency_scale, 1)
 
-    def test_action_latency_scale_custom(self):
-        a = Action(name="read", energy=1, latency=5, latency_scale=2.0)
-        self.assertEqual(a.latency_scale, 2.0)
+    def test_action_throughput_scale_custom(self):
+        a = Action(name="read", energy=1, throughput=1 / 5, throughput_scale=2.0)
+        self.assertEqual(a.throughput_scale, 2.0)
 
     def test_component_latency_scale_default(self):
         c = Compute(
@@ -537,15 +547,15 @@ class TestLatencyScale(unittest.TestCase):
         )
         self.assertEqual(c.latency_scale, 1)
 
-    def test_component_latency_scale_custom(self):
+    def test_component_throughput_scale_custom(self):
         c = Compute(
             name="MAC",
             leak_power=0,
             area=0,
-            latency_scale=0.5,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            throughput_scale=0.5,
+            actions=[{"name": "compute", "energy": 1, "throughput": 1}],
         )
-        self.assertEqual(c.latency_scale, 0.5)
+        self.assertEqual(c.throughput_scale, 0.5)
 
     def test_component_total_latency_default(self):
         c = Compute(
@@ -560,14 +570,14 @@ class TestLatencyScale(unittest.TestCase):
 
 
 # ============================================================================
-# 7. TensorHolder.bits_per_value_scale, bits_per_action
+# 7. TensorHolder.bits_per_value, bits_per_action
 # ============================================================================
 
 
 class TestTensorHolderFields(unittest.TestCase):
     """Test TensorHolder-specific fields."""
 
-    def test_bits_per_value_scale_default(self):
+    def test_bits_per_value_default(self):
         m = Memory(
             name="Mem",
             size=1024,
@@ -578,21 +588,21 @@ class TestTensorHolderFields(unittest.TestCase):
                 {"name": "write", "energy": 1, "latency": 0},
             ],
         )
-        self.assertEqual(m.bits_per_value_scale, {"All": 1})
+        self.assertEqual(m.bits_per_value, {})
 
-    def test_bits_per_value_scale_custom(self):
+    def test_bits_per_value_custom(self):
         m = Memory(
             name="Mem",
             size=1024,
             leak_power=0,
             area=0,
-            bits_per_value_scale={"All": 2},
+            bits_per_value={"All": 16},
             actions=[
                 {"name": "read", "energy": 1, "latency": 0},
                 {"name": "write", "energy": 1, "latency": 0},
             ],
         )
-        self.assertEqual(m.bits_per_value_scale, {"All": 2})
+        self.assertEqual(m.bits_per_value, {"All": 16})
 
     def test_bits_per_action_default_none(self):
         """TensorHolder-level bits_per_action defaults to None."""
@@ -631,15 +641,15 @@ class TestTensorHolderFields(unittest.TestCase):
         a = TensorHolderAction(name="read", energy=1, latency=0, bits_per_action=64)
         self.assertEqual(a.bits_per_action, 64)
 
-    def test_toll_bits_per_value_scale(self):
+    def test_toll_bits_per_value(self):
         t = Toll(
             name="Q",
             direction="down",
             leak_power=0,
             area=0,
-            bits_per_value_scale={"All": 0.5},
+            bits_per_value={"All": 4},
         )
-        self.assertEqual(t.bits_per_value_scale, {"All": 0.5})
+        self.assertEqual(t.bits_per_value, {"All": 4})
 
 
 # ============================================================================
@@ -1084,12 +1094,14 @@ class TestConfigExpressionCustomFunctions(unittest.TestCase):
         self.assertEqual(len(c.expression_custom_functions), 0)
 
     def test_from_yaml_with_paths(self):
-        spec = _yaml_spec("""\
+        spec = _yaml_spec(
+            """\
 config:
   expression_custom_functions: []
   use_installed_component_models: false
   component_models: []
-""")
+"""
+        )
         self.assertEqual(len(spec.config.expression_custom_functions), 0)
         self.assertFalse(spec.config.use_installed_component_models)
 

@@ -66,6 +66,16 @@ class FFM(EvalableModel):
     max_fused_loops_per_rank_variable: int = 1
     """ The maximum number of fused loops in a pmapping for a given rank variable. """
 
+    tiling_coarseness: float = 1
+    """
+    When enumerating tile shapes, a tile shape is omitted if it is less than
+    tiling_coarseness times the next-inner tile shape. Set to 1 to disable. For example,
+    tiling_coarseness=2 means each enumerated tile shape must be at least 2x the
+    next-inner tile shape. Recommended to use 1<=tiling_coarseness<=2
+    explore_imperfect_temporal_loops=True and/or explore_imperfect_spatial_loops=True,
+    to get good mappings without exploring too many tile shapes.
+    """
+
     max_fused_loops: float | int = float("inf")
     """ The maximum total number of fused loops in a pmapping. """
 
@@ -122,6 +132,44 @@ class FFM(EvalableModel):
     The maximum number of pmapping templates per Einsum. Once this many templates are
     generated, the mapper will stop generating more. This is useful for debugging (why
     are so many templates being generated?).
+    """
+
+    explore_imperfect_spatial_loops: bool = False
+    """
+    If True, spatial loop bounds may not perfectly divide the full rank shape. This
+    takes longer to explore and requires more RAM, but mappings found may have better
+    spatial utilization. This is especially helpful when the rank shapes have few prime
+    factors.
+
+    For example, if the rank shape is 7, then explore_imperfect_spatial_loops=False
+    would explore loop bounds of 1, 7 and explore_imperfect_spatial_loops=True would
+    explore loop bounds of 1, 2, 3, 4, 7. This would be helfpul for a size-4 PE array,
+    where we could get full utilization using 4 PEs in one timestep and 3 PEs in another
+    timestep.
+
+    Only "simple" rank variables (those appearing alone and not inside an expression in
+    any tensor access) may have imperfect loop bounds.
+    
+    See tiling_coarseness for how to reduce the number of tile shapes explored when this
+    is set.
+    """
+
+    explore_imperfect_temporal_loops: bool = False
+    """
+    If True, temporal loop bounds may not perfectly divide the full rank shape. This
+    takes longer to explore and requires more RAM, but mappings found may have lower
+    memory usage. This is especially helpful when the rank shapes have few prime
+    factors.
+
+    For example, if the rank shape is 7, then explore_imperfect_temporal_loops=False
+    would explore loop bounds of 1, 7 and explore_imperfect_temporal_loops=True would
+    explore loop bounds of 1, 2, 3, 4, 7.
+
+    Only "simple" rank variables (those appearing alone and not inside an expression in
+    any tensor access) may have imperfect loop bounds.
+    
+    See tiling_coarseness for how to reduce the number of tile shapes explored when this
+    is set.
     """
 
     prioritize_reuse_of_unfused_tensors: bool = False
@@ -183,12 +231,4 @@ class FFM(EvalableModel):
     """
     If set, append per-step runtime as JSON lines to this file. Used for ablation study
     measurements.
-    """
-
-    _metric_aggregator: Literal["sum", "prod", "any"] = "any"
-    """
-    How to aggregate metrics together to determine whether one pmapping is better than
-    another. "sum" means that the metrics are added together, "prod" means that the
-    metrics are multiplied together, and "any" means that any metric being better than
-    the other is enough to consider it non-dominated.
     """

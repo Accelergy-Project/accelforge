@@ -25,8 +25,18 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
     make_tile_shapes,
-    IMPERFECT,
 )
+from accelforge.frontend.mapping import Loop as _Loop
+
+
+def _imperfect_per_loop(rank_var, mapping) -> tuple[bool, ...]:
+    return tuple(
+        bool(n._may_cause_imperfect)
+        for n in mapping.nodes
+        if isinstance(n, _Loop) and n.rank_variable == rank_var
+    )
+
+
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
@@ -42,7 +52,6 @@ from accelforge.util._mathfuncs import _count_factorizations
 def shift_reservations_by_null_loop_indices(
     mappings: pd.DataFrame, null_loop_indices: set[int]
 ):
-    prev = copy.deepcopy(mappings)  # TODO: Is this needed?
     target2newabovename = {}
     dropcols = []
     for c in mappings.columns:
@@ -62,13 +71,14 @@ def shift_reservations_by_null_loop_indices(
         else:
             target2newabovename[target] = (name, above)
 
-    mappings.drop(columns=dropcols, inplace=True)
+    if dropcols:
+        drop_set = set(dropcols)
+        mappings = mappings[[c for c in mappings.columns if c not in drop_set]]
     renames = {}
     for target, (name, above) in target2newabovename.items():
         renames[reservation2col(name, above)] = target
-    mappings.rename(columns=renames, inplace=True)
+    mappings = mappings.rename(columns=renames)
     if len(mappings.columns) != len(mappings.columns.unique()):
-        shift_reservations_by_null_loop_indices(prev, null_loop_indices)
         raise ValueError(f"Duplicate columns: {mappings.columns}")
     return mappings
 
@@ -173,24 +183,23 @@ def multiply_n_pmappings_by_permutations(n_pmappings: int, job: Job) -> int:
         _count_loops(job)
     )
 
-    rv = {k: v for k, v in job.rank_variable_bounds.items()}
+    rv = {r: job.rank_variable_bounds[r] for r in job.einsum.rank_variables}
 
-    if "non_helpful_tile_shapes" in option:
-        rv_temporal_count = {r: len(temporal_n_loops) for r in rv.keys()}
+    n = 1
+    for r, b in rv.items():
+        imperfects = _imperfect_per_loop(r, job.mapping)
+        if "non_helpful_tile_shapes" in option:
+            assert not any(imperfects)
+            nloops = len(temporal_n_loops) + rv_spatial_count[r]
+            n *= _count_factorizations(b, (False,) * nloops)
+        else:
+            n *= _count_factorizations(b, imperfects)
 
     if "non_helpful_loops_for_loop_orders" in option:
         for i in range(len(temporal_n_loops)):
             temporal_n_loops[i] = len(rv)
 
-    # Count number of tile shapes
-    rv2loops = {r: rv_spatial_count[r] + rv_temporal_count[r] for r in rv}
-    n_factorizations = math.prod(
-        _count_factorizations(b, rv2loops[r], imperfect=IMPERFECT)
-        for r, b in rv.items()
-    )
     n_temporal_loop_orders = math.prod(math.factorial(n) for n in temporal_n_loops)
-
-    n = n_factorizations
 
     # assert n >= n_pmappings, f"n_pmappings: {n_pmappings} > n: {n}"
 
@@ -233,6 +242,7 @@ def make_pmappings_from_templates(
         except Exception as e:
             e.add_note(f"Einsum {jwsc.einsum_name} compatibility {job.compatibility}")
             raise
+
         job.compatibility = job.compatibility.populate_loops(
             job.ranks_with_tile_pattern
         )
@@ -263,13 +273,14 @@ def make_pmappings_from_templates(
         )
 
         result[MAPPING_COLUMN] = job.job_id
-        cols_to_drop = []
+        drop_set = set()
         for col in result.columns:
             if is_reservation_col(col):
                 resource = col2reservation(col)[0]
                 if resource in job.memories_track_pmappings_only:
-                    cols_to_drop.append(col)
-        result.drop(columns=cols_to_drop, inplace=True)
+                    drop_set.add(col)
+        if drop_set:
+            result = result[[c for c in result.columns if c not in drop_set]]
         results.append(result)
         pmapping_keep_rates.append(
             (job.job_id, dict(job.pmapping_keep_rates), job.n_total_pmappings)
@@ -395,7 +406,7 @@ def make_pmappings_from_templates(
         )
         for k, v in symbol_renames.items():
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
-        shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
+        mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
 
         energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
         if (mappings[energy_cols] < 0).any(axis=None):

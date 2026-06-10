@@ -16,9 +16,9 @@ arch:
     size: 1024 * 1024 # 1Mb
     # 32 reads and writes per cycle, 200MHz. Note that the bits per read/write is the
     # bits per action set below. This is optional, and if it is omitted, then the total
-    # latency is the sum of the latencies of all actions, and action latency is taken
-    # from the component models.
-    total_latency: (read_actions + write_actions) / 32 / 200e6
+    # latency sum(a.n_calls / a.throughput for a in actions) will be used instead, with
+    # the throughput gotten from component models.
+    total_latency: sum(a.n_calls for a in actions) / 32 / 200e6
     extra_attributes_for_component_model: {n_banks: 32}
     actions:
     - {name: read, bits_per_action: 64}
@@ -28,8 +28,8 @@ arch:
   - !Container
     name: ProcessingElement
     spatial:
-    - {name: reuse_weight, fanout: 14, may_reuse: weight, reuse: weight, min_usage: 1}
-    - {name: reuse_output, fanout: 12, may_reuse: output, reuse: output, min_usage: 1}
+    - {name: reuse_weight, fanout: 14, reuse: weight, min_usage: 1}
+    - {name: reuse_output, fanout: 12, reuse: output, min_usage: 1}
 
   - !Memory # Input scratchpad
     name: InputScratchpad
@@ -52,5 +52,5 @@ arch:
   - !Compute # MAC unit
     name: MAC
     component_class: IntMAC
-    total_latency: compute_actions / 200e6
+    total_latency: sum(a.n_calls for a in actions) / 200e6
     extra_attributes_for_component_model: {multiplier_width: 8, adder_width: 16}

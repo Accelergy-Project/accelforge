@@ -1,0 +1,29 @@
+# Arch where MainMemory does NOT keep intermediates and a Toll below has
+# keep: All.  Without the fix, the Toll would be the outermost holder of
+# intermediate tensors and the mapper would crash with a missing tensor column.
+arch:
+  nodes:
+  - !Memory
+    name: main_memory
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: ~Intermediates, may_keep: All}
+
+  - !Toll
+    name: Toll
+    direction: up_and_down
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 100, latency: 0}
+
+  - !Memory
+    name: LocalBuffer
+    component_class: Dummy
+    size: 1e9
+    tensors: {keep: All}
+
+  - !Compute
+    name: mac
+    component_class: Dummy

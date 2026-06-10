@@ -2,6 +2,7 @@ from collections.abc import Generator
 from typing import Any
 
 import accelforge.frontend.arch as arch
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.mapping import MappingNode, Reservation, Storage, TensorHolder
 
 
@@ -22,7 +23,7 @@ def _recursive_iter_fence_positions(
 
 def get_reservation_choices(
     mapping: list[TensorHolder],
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
 ) -> Generator[tuple[list[TensorHolder], Any], None, None]:
     # Rules:
     # - In general, reservations go right under their storage node

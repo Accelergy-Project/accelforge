@@ -5,12 +5,11 @@ Objects can include expressions that are evaluated when the
 :py:class:`~accelforge.frontend.spec.Spec` is evaluated. Evaluation occurs when the
 :py:func:`~accelforge.frontend.spec.Spec` is going to be used to model the energy, area,
 or latency of an accelerator, such as when the
-:py:func:`~accelforge.frontend.spec.Spec.calculate_component_area_energy_latency_leak`
-method is called.
+:py:func:`~accelforge.frontend.spec.Spec.calculate_component_costs` method is called.
 
-To-be-evaluated expressions can include Python code, and supported
-operations include many standard library functions (*e.g.,* ``range``, ``min``) and
-functions from the ``math`` standard library (*e.g.,* ``log2``, ``ceil``).
+To-be-evaluated expressions can include Python code, and supported operations include
+many standard library functions (*e.g.,* ``range``, ``min``) and functions from the
+``math`` standard library (*e.g.,* ``log2``, ``ceil``).
 
 The scope available for evaluation includes the following in order of increasing
 precedence:

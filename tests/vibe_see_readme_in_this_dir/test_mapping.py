@@ -100,7 +100,7 @@ class TestTilePattern(unittest.TestCase):
         tp = TilePattern(tile_shape=4, initial_tile_shape=8, calculated_n_iterations=2)
         s = tp.as_str(with_initial_tile_shape=False, with_tile_shape=True)
         self.assertNotIn("initial=", s)
-        self.assertIn("tile_shape=4", s)
+        self.assertIn("shape=4", s)
 
     def test_symbol_attrs(self):
         tp = TilePattern()
@@ -540,11 +540,11 @@ class TestMapping(unittest.TestCase):
                 Compute(einsum="E", component="MAC"),
             ]
         )
-        m.nodes[0]._einsum_to_rank_variables["E"] = {"m"}
+        m.nodes[0]._einsum_to_rank_variable["E"] = "m"
         m.split_loop_with_multiple_rank_variables(einsum_name="E")
         temporals = m.get_nodes_of_type(Temporal)
         self.assertEqual(len(temporals), 1)
-        self.assertEqual(temporals[0].rank_variable, {"m"})
+        self.assertEqual(temporals[0].rank_variable, "m")
 
     def test_split_tensor_holders_with_multiple_tensors(self):
         m = Mapping(

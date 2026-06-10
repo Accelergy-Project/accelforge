@@ -6,6 +6,7 @@ from typing import Any, Callable
 from uuid import UUID, uuid4
 
 import accelforge.frontend.arch as arch
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Mapping,
@@ -57,7 +58,7 @@ class Job:
     mapping: Mapping | None = None
     constraints: MappingConstraints | None = None
     fusable_tensors: set[TensorName] | None = None
-    flattened_arch: list[arch.Leaf] | None = None
+    flattened_arch: FlattenedArch | None = None
 
     einsum_name: EinsumName | None = None
     """If the Job is for a single einsum, this is the einsum name."""
@@ -85,6 +86,10 @@ class Job:
     ranks_with_tile_pattern: set[Rank] | None = None
 
     intermediate_tensors: set[TensorName] | None = None
+
+    explore_imperfect_spatial_loops: bool = False
+    explore_imperfect_temporal_loops: bool = False
+    allow_imperfect_all: bool = False
 
     @property
     def einsum(self) -> Einsum:

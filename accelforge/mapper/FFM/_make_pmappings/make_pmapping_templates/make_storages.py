@@ -47,7 +47,7 @@ def make_tensor_choices_one_level(
 
     new_symbol_table = copy.copy(symbol_table)
 
-    node = copy.copy(node)
+    node: arch.TensorHolder = copy.copy(node)
     if not node.tensors.tensor_order_options and prioritize_reuse_of_unfused_tensors:
         node.tensors = copy.copy(node.tensors)
         node.tensors.tensor_order_options.append(EvalableList(["Above", "~Above"]))
@@ -62,9 +62,19 @@ def make_tensor_choices_one_level(
         e.add_field(f"Einsum {einsum_name} arch.{node.name}.tensors")
         raise e
 
+    if not node.enabled:
+        yield [], symbol_table, oset(seen_tensors)
+        return
+
     must_keep = tensors.to_my_space(node.tensors.keep | node.tensors.back)
     may_keep = tensors.to_my_space(node.tensors.may_keep)
     may_keep -= must_keep
+
+    # Tolls are passthrough and cannot be the outermost level storing a tensor.
+    if isinstance(node, arch.Toll):
+        above = tensors.to_my_space(symbol_table.get("Above", oset()))
+        must_keep &= above
+        may_keep &= above
 
     if seen_tensors & oset(node.tensors.back):
         return

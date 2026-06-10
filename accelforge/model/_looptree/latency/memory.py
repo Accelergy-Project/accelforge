@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from accelforge.frontend import arch
 from accelforge.frontend.arch import Leaf, Memory, TensorHolder, Component
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.mapping import Compute, Mapping
 from accelforge.frontend.spec import Spec
 
@@ -14,7 +15,8 @@ from accelforge.model._looptree.types import Buffet
 from accelforge.model._looptree.reuse.symbolic import BuffetStats
 from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
 from accelforge.util._sympy.broadcast_max import Max, Min
-import sympy as sp
+from accelforge.util._basetypes import EvalableList
+import symengine as se
 
 
 def isl_to_summarized(
@@ -25,17 +27,44 @@ def isl_to_summarized(
     )
     buffet_stats = {
         Buffet(level=component, tensor=tensor, einsum=einsum): BuffetStats(
-            max_per_unit_read_actions=accesses.max_per_unit_reads,
-            max_per_unit_write_actions=accesses.max_per_unit_writes,
+            total_writes_to_parent=accesses.max_per_unit_reads,
+            total_reads_to_parent=accesses.max_per_unit_writes,
+            read_scale=1,
+            write_scale=1,
+            count_upward=True,
+            count_downward=True,
         )
         for (component, tensor, einsum), accesses in accesses_stats.items()
     }
     return SymbolicAnalysisOutput(buffet_stats=buffet_stats)
 
 
+def _sum(*args):
+    """Sum that accepts either a single iterable (e.g. a generator) or varargs, so
+    total_latency expressions like ``sum(x for x in ...)`` and ``sum(*values)`` both
+    evaluate to a symengine expression."""
+    if len(args) == 1 and hasattr(args[0], "__iter__"):
+        args = tuple(args[0])
+    return se.Add(*args) if args else se.Integer(0)
+
+
+def _max(*args):
+    """Max that accepts either a single iterable (generator) or varargs."""
+    if len(args) == 1 and hasattr(args[0], "__iter__"):
+        args = tuple(args[0])
+    return Max(*args)
+
+
+def _min(*args):
+    """Min that accepts either a single iterable (generator) or varargs."""
+    if len(args) == 1 and hasattr(args[0], "__iter__"):
+        args = tuple(args[0])
+    return Min(*args)
+
+
 def component_latency(
     looptree_results: SymbolicAnalysisOutput,
-    flattened_arch: list[Leaf],
+    flattened_arch: FlattenedArch,
     mapping: Mapping,
     spec: Spec,
 ):
@@ -55,15 +84,15 @@ def component_latency(
             raise ValueError(f"Component {component} found in mapping but not arch")
 
         for action in name2component[component].actions:
-            actions[f"{action.name}_actions"] += 0
+            actions[action.name] += 0
 
         if isinstance(name2component[component], TensorHolder):
-            actions["read_actions"] += (
+            actions["read"] += (
                 buffet_stats.max_per_unit_read_actions
                 - buffet_stats.min_per_unit_skipped_first_read_actions
             )
             if not isinstance(name2component[component], arch.Toll):
-                actions["write_actions"] += (
+                actions["write"] += (
                     buffet_stats.max_per_unit_write_actions
                     - buffet_stats.min_per_unit_skipped_first_write_actions
                 )
@@ -77,41 +106,49 @@ def component_latency(
     longest_compute_latency = Max(
         0, *[s.max_latency for s in looptree_results.compute_stats.values()]
     )
-    component_to_actions[compute_obj.name]["compute_actions"] = longest_compute_latency
+    component_to_actions[compute_obj.name]["compute"] = longest_compute_latency
 
-    # TODO: Unhardcode "compute" name"
-    component_to_action_latency = defaultdict(dict)
-    for component, actions in component_to_actions.items():
+    new_component_to_actions: dict[str, list] = {}
+    for component, action_counts in component_to_actions.items():
         component_obj = name2component[component]
-        for action, count in actions.items():
-            action_name = action.rsplit("_", 1)[0]
-            latency = component_obj.actions[action_name].latency
-            component_to_action_latency[component][f"{action_name}_latency"] = (
-                latency * count
-            )
+        scale = getattr(component_obj, "actions_scale", 1)
+        for action_name in action_counts:
+            if action_name not in component_obj.actions:
+                raise ValueError(
+                    f"Action {action_name} not found in component {component}"
+                )
+        cur_actions = EvalableList()
+        for a in component_obj.actions:
+            a = a.model_copy()
+            a._set_n_calls(action_counts.get(a.name, 0) * scale)
+            cur_actions.append(a)
+        new_component_to_actions[component] = cur_actions
+    component_to_actions = new_component_to_actions
 
     component_latency = {}
 
-    symbol_table_base = {
+    arch_vars = dict(spec.arch.variables) if spec.arch.variables else {}
+    symbol_table_base = {  # TODO: Make a global symbol table initialization function
+        **arch_vars,
         **dict(spec.variables),
         "variables": spec.variables,
-        "max": Max,
-        "min": Min,
-        "sum": sp.Add,
+        "arch_variables": spec.arch.variables,
+        "max": _max,
+        "min": _min,
+        "sum": _sum,
     }
 
-    for component, actions in component_to_actions.items():
+    for component in component_to_actions:
         component_obj = name2component[component]
-        symbol_table = {
-            "action2latency": component_to_action_latency[component],
-            **symbol_table_base,
-            **dict(name2component[component]),
-            **actions,
-            **component_to_action_latency[component],
-        }
-        if name2component[component].total_latency is not None:
+        dump = component_obj.shallow_model_dump(include_None=True)
+        # Replace serialized `actions` dump with local Action copies that carry
+        # the correct n_calls for this job, so formulas can access `a.n_calls`,
+        # `a.throughput`, etc. without mutating the shared spec state.
+        dump["actions"] = component_to_actions[component]
+        symbol_table = {**symbol_table_base, **dump}
+        if component_obj.total_latency is not None:
             component_latency[component] = eval_expression(
-                name2component[component].total_latency,
+                component_obj.total_latency,
                 symbol_table,
                 attr_name="latency",
                 location=component,

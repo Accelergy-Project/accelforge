@@ -18,6 +18,7 @@ from accelforge.model._looptree.types import Network
 def gather_actions(
     looptree_results: SymbolicAnalysisOutput,
     bindings: dict[str, str],
+    spec: Spec,
     verbose: bool = False,
     use_name=False,
 ):
@@ -65,7 +66,19 @@ def gather_actions(
         actions[key].total += stats.total_hops
         actions[key].max_per_unit += stats.max_hops
 
+    _apply_actions_scale(actions, spec)
+
     return actions
+
+
+def _apply_actions_scale(actions, spec):
+    components = {}
+    for key, count in actions.items():
+        if key.level not in components:
+            components[key.level] = spec.arch.find(key.level)
+        scale = getattr(components[key.level], "actions_scale", 1)
+        count.total *= scale
+        count.max_per_unit *= scale
 
 
 def _get_buffet_keyer(verbose, use_name, bindings):

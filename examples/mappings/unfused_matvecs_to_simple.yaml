@@ -14,7 +14,7 @@ mapping:
         rank_variable: ny
         tile_shape: 1
       - !Storage
-        tensors: [A, B]
+        tensors: [Y]
         component: GlobalBuffer
       - !Temporal
         rank_variable: na

@@ -5,6 +5,7 @@ import logging
 import math
 import re
 import threading
+import traceback
 from typing import Any, Callable
 from ._yaml import load_yaml, SCRIPTS_FROM
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString, SingleQuotedScalarString
@@ -207,7 +208,7 @@ def eval_expression(
     FUNCTION_BINDINGS.update(MATH_FUNCS)
 
     try:
-        v = eval(expression, FUNCTION_BINDINGS, symbol_table)
+        v = eval(expression, {**FUNCTION_BINDINGS, **symbol_table}, {})
         infostr = f'Calculated "{expression}" = {v}.'
         if isinstance(v, str):
             v = LiteralString(v)
@@ -231,6 +232,7 @@ def eval_expression(
         elif location:
             extra = f" while parsing {location}"
         errstr += f"Problem encountered{extra}: {e.__class__.__name__}: {e}\n"
+        errstr += f"Stack trace:\n{''.join(traceback.format_tb(e.__traceback__))}\n"
         err = errstr
         errstr += f"Symbol table: "
         bindings = {}
@@ -311,7 +313,8 @@ def load_functions_from_file(path: str):
     path = path.strip()
     if not os.path.exists(path):
         raise FileNotFoundError(f"Could not find math function file {path}.")
-    python_module = SourceFileLoader("python_plug_in", path).load_module()
+    module_name = f"python_functions_{abs(hash(path))}"
+    python_module = SourceFileLoader(module_name, path).load_module()
     funcs = {}
     defined_funcs = [
         f for f in dir(python_module) if isinstance(getattr(python_module, f), Callable)

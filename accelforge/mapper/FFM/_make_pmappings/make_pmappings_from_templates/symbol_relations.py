@@ -1,6 +1,7 @@
 from collections import defaultdict
 from functools import lru_cache
 from numbers import Number
+from typing import Any
 
 from sympy import Symbol
 
@@ -19,12 +20,16 @@ class SymbolRelations:
         self.tile_shape_and_initial: list[tuple[Symbol | int, Symbol | int]] = []
         self.delta_choices: list[tuple[Symbol, frozenset[int]]] = []
         self.bounds: tuple[tuple[Symbol, int, int], ...] = ()
+        self.tiling_order_outer_to_inner: tuple[Symbol, ...] = ()
 
-    def make_bounds(self):
+    def make_bounds(self, mapping: "Mapping"):
         all_symbols = oset(
             s for w in self.what_tiles_symbol for s in w if isinstance(s, Symbol)
         )
         self.bounds = tuple((s, 1, self.get_max_size(s)) for s in all_symbols)
+        self.tiling_order_outer_to_inner = tuple(
+            n.tile_shape for n in mapping.nodes if isinstance(n, Loop)
+        )
 
     @lru_cache(maxsize=100)
     def is_stride(self, symbol: Symbol) -> bool:
@@ -88,7 +93,10 @@ class SymbolRelations:
 
     @lru_cache(maxsize=100)
     def get_inner_tiles(
-        self, symbol: Symbol, none_if_fail: bool = False
+        self,
+        symbol: Symbol,
+        none_if_fail: bool = False,
+        value_if_fail: Any | None = None,
     ) -> Symbol | int | None:
         """Get tiles within the tile represented by `symbol`."""
         found = None
@@ -100,9 +108,13 @@ class SymbolRelations:
                     raise ValueError(
                         f"Symbol {symbol} is tiled by both {found} and {what_tiles}"
                     )
-        if found is not None or none_if_fail:
-            return found
-        raise ValueError(f"Symbol {symbol} not found in {self}")
+        if found is None:
+            if value_if_fail is not None:
+                return value_if_fail
+            if none_if_fail:
+                return None
+            raise ValueError(f"Symbol {symbol} not found in {self}")
+        return found
 
     @lru_cache(maxsize=100)
     def get_outer_tiles(
@@ -164,7 +176,7 @@ class SymbolRelations:
             if isinstance(s, Symbol):
                 relation.what_tiles_symbol.append((s, 1))
 
-        relation.make_bounds()
+        relation.make_bounds(pmapping)
         return relation
 
 

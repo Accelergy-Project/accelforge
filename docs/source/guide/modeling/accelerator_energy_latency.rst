@@ -28,7 +28,7 @@ depends on the number of accesses to the component. They may be accessed in two 
 The number of actions incurred by accesses for each tensor are equal to the number of
 values accessed times the bits per value of the tensor (determined by the workload),
 divided by the :py:attr:`~accelforge.frontend.arch.TensorHolderAction.bits_per_action`
-attribute. attribute. For example, if 1024 values are accessed with a bits per value of
+attribute. For example, if 1024 values are accessed with a bits per value of
 16 bits and :py:attr:`~accelforge.frontend.arch.TensorHolderAction.bits_per_action` is
 32, then 1024 * 16 / 32 = 512 actions are incurred.
 
@@ -47,8 +47,10 @@ The total latency of a component, defined in the class's
 :py:obj:`~accelforge.frontend.arch.Component.total_latency` field, is a Python
 expression that is evaluated using the component's actions.
 
-The :py:obj:`~accelforge.frontend.arch.Component.total_latency` field is
-:docstring-lower:`accelforge.frontend.arch.Component.total_latency`
+The :py:obj:`~accelforge.frontend.arch.Component.total_latency` field is:
+
+.. include-docstring:: accelforge.frontend.arch.Component.total_latency
+   :decapitalize:
 
 
 Calculating Area and Leak Power

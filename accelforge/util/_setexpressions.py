@@ -8,10 +8,13 @@ from accelforge.util._eval_expressions import MATH_FUNCS
 T = TypeVar("T")
 
 
-def _reconstruct_invertible_set(state):
+def _reconstruct_invertible_set(dict_state, pydantic_private):
     """Helper function to reconstruct InvertibleSet during unpickling."""
     obj = object.__new__(InvertibleSet)
-    obj.__dict__.update(state)
+    obj.__dict__.update(dict_state)
+    object.__setattr__(obj, "__pydantic_fields_set__", set())
+    object.__setattr__(obj, "__pydantic_extra__", {})
+    object.__setattr__(obj, "__pydantic_private__", pydantic_private or {})
     return obj
 
 
@@ -53,32 +56,41 @@ class InvertibleSet(BaseModel, Generic[T]):
         self._bits_per_value = value
 
     def __reduce__(self):
-        return (_reconstruct_invertible_set, (self.__dict__,))
+        return (
+            _reconstruct_invertible_set,
+            (
+                self.__dict__,
+                getattr(self, "__pydantic_private__", {}),
+            ),
+        )
 
     def __getstate__(self):
-        return self.__dict__
+        return self.__dict__, getattr(self, "__pydantic_private__", {})
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        dict_state, pydantic_private = state
+        self.__dict__.update(dict_state)
+        object.__setattr__(self, "__pydantic_fields_set__", set())
+        object.__setattr__(self, "__pydantic_extra__", {})
+        object.__setattr__(self, "__pydantic_private__", pydantic_private or {})
 
     def __deepcopy__(self, memo):
-        """Custom deepcopy implementation to avoid pydantic deepcopy issues."""
+        # Share the immutable fields (frozenset[str], type, int, None) and
+        # only deep-copy the element_to_child_space dict. Faster than
+        # recursing pydantic's deepcopy path.
         import copy
 
-        cls = type(self)
-        # Create a new instance without calling __init__
-        new_obj = cls.__new__(cls)
-        # Mark it in the memo to handle circular references
+        new_obj = type(self).__new__(type(self))
         memo[id(self)] = new_obj
-        # Deep copy the __dict__ directly to avoid triggering setattr
-        new_obj.__dict__.update(copy.deepcopy(self.__dict__, memo))
-        # Initialize pydantic's internal attributes if they don't exist
-        if not hasattr(new_obj, "__pydantic_fields_set__"):
-            object.__setattr__(new_obj, "__pydantic_fields_set__", set())
-        if not hasattr(new_obj, "__pydantic_extra__"):
-            object.__setattr__(new_obj, "__pydantic_extra__", {})
-        if not hasattr(new_obj, "__pydantic_private__"):
-            object.__setattr__(new_obj, "__pydantic_private__", {})
+        for k, v in self.__dict__.items():
+            new_obj.__dict__[k] = (
+                copy.deepcopy(v, memo)
+                if k == "element_to_child_space" and v is not None
+                else v
+            )
+        object.__setattr__(new_obj, "__pydantic_fields_set__", set())
+        object.__setattr__(new_obj, "__pydantic_extra__", {})
+        object.__setattr__(new_obj, "__pydantic_private__", {})
         return new_obj
 
     def __repr__(self):
@@ -226,6 +238,7 @@ def eval_set_expression(
     expected_space: type[T],
     location: str,
     expected_count: int | None = None,
+    fast_error: bool = False,
 ) -> InvertibleSet[T]:
     try:
         err = None
@@ -255,15 +268,17 @@ def eval_set_expression(
         set_expression_type_check(result, expected_space, expected_count, location)
 
     except Exception as e:
+        if fast_error:
+            err = EvaluationError(f'{e}. Set expression: "{expression}".')
+        else:
+            def strformat(v):
+                v = str(v)
+                return v if len(v) <= 100 else v[:100] + "..."
 
-        def strformat(v):
-            v = str(v)
-            return v if len(v) <= 100 else v[:100] + "..."
-
-        err = EvaluationError(
-            f'{e}. Set expression: "{expression}". Symbol table:\n\t'
-            + "\n\t".join(f"{k}: {strformat(v)}" for k, v in symbol_table.items())
-        )
+            err = EvaluationError(
+                f'{e}. Set expression: "{expression}". Symbol table:\n\t'
+                + "\n\t".join(f"{k}: {strformat(v)}" for k, v in symbol_table.items())
+            )
         if location is not None:
             err.add_field(location)
     if err:

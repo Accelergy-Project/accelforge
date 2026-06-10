@@ -7,11 +7,21 @@ from accelforge._accelerated_imports import pd
 from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
     get_n_computes,
-    get_per_tensor_size,
+    get_per_tensor_n_elements,
 )
 from typing import Union
 from accelforge._accelerated_imports import numpy as np
 from numbers import Integral
+import sympy
+import symengine as se
+
+
+def _coerce_numeric(x):
+    # symengine (and sympy) numerics don't always implement __format__, so
+    # downstream users can't `f"{x:.2f}"` them. Coerce to Python float.
+    if isinstance(x, (se.Basic, sympy.Basic)):
+        return float(x)
+    return x
 
 
 def _series2list(
@@ -19,15 +29,17 @@ def _series2list(
     list_if_one: bool,
 ) -> list[float | int]:
     if isinstance(v, dict):
-        return {k: _series2list(v, list_if_one) for k, v in v.items()}
+        return {k: _series2list(val, list_if_one) for k, val in v.items()}
 
     if isinstance(v, pd.Series):
         v = list(v)
     if isinstance(v, list):
+        v = [_coerce_numeric(x) for x in v]
         if len(v) == 1 and not list_if_one:
             return v[0]
         return v
 
+    v = _coerce_numeric(v)
     return [v] if list_if_one else v
 
 
@@ -111,10 +123,15 @@ class Mappings:
         assert (
             self.evaluated_specs is not None
         ), "Can't get per-tensor size if no Einsums have been mapped."
-        return get_per_tensor_size(
-            next(iter(self.evaluated_specs.values())).workload,
-            return_n_elements=return_n_elements,
-        )
+        workload = next(iter(self.evaluated_specs.values())).workload
+        sizes = get_per_tensor_n_elements(workload)
+        if not return_n_elements:
+            for einsum in workload.einsums:
+                for tensor in einsum.tensor_names:
+                    sizes[tensor] = (
+                        sizes[tensor] * einsum.tensor_accesses[tensor].bits_per_value
+                    )
+        return sizes
 
     def _update(self, **kwargs):
         data = dict(
@@ -672,7 +689,10 @@ class Mappings:
 
             # Not per-Einsum and not per-component: sum into a single value
             else:
-                result = np.sum(list(result.values()))
+                summed = None
+                for v in result.values():
+                    summed = v if summed is None else summed + v
+                result = summed
 
         return _series2list(result, list_if_one_mapping)
 

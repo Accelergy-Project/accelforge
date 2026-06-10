@@ -2,7 +2,7 @@ from numbers import Number
 from typing import Optional, List
 from hwcomponents.scaling import tech_node_area
 from util.bit_functions import rescale_sum_to_1
-from hwcomponents import ComponentModel, action
+from hwcomponents import ComponentModel, action, ActionCost
 
 
 class Capacitor(ComponentModel):
@@ -107,7 +107,11 @@ class Capacitor(ComponentModel):
             f"Can not raise voltage to {target_voltage} when supply voltage "
             f"is {supply_voltage}."
         )
-        return self.capacitance * target_voltage * supply_voltage, 0
+        return ActionCost(
+            energy=self.capacitance * target_voltage * supply_voltage,
+            throughput=float("inf"),
+            latency=0,
+        )
 
     @action
     def switch(
@@ -147,12 +151,16 @@ class Capacitor(ComponentModel):
                     continue
                 e0 = self.raise_voltage_to(
                     v0 / (len(value_probabilities) - 1) * self.voltage, supply_voltage
-                )[0]
+                ).energy
                 e1 = self.raise_voltage_to(
                     v1 / (len(value_probabilities) - 1) * self.voltage, supply_voltage
-                )[0]
+                ).energy
                 expected_energy += (e1 - e0) * p0 * p1
-        return expected_energy, 0
+        return ActionCost(energy=expected_energy, throughput=float("inf"), latency=0)
+
+    @action
+    def read(self) -> tuple:
+        return self.raise_voltage_to(self.voltage)
 
 
 class Wire(Capacitor):
@@ -181,12 +189,13 @@ class Wire(Capacitor):
     def __init__(
         self,
         length: Number,
+        tech_node: float,
         capacitance_per_m: Number = 2e-10,
         voltage: Number = 0.7,
-        **kwargs,
     ):
         super().__init__(
             capacitance=length * capacitance_per_m,
+            tech_node=tech_node,
             voltage=voltage,
         )
         self.length = length

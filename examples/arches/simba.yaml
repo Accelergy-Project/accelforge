@@ -37,14 +37,14 @@ arch:
     name: AccumulationBuffer
     component_class: SmartBufferSRAM
     size: 24576 # 3kB
-    bits_per_value_scale: {All: 3}
+    bits_per_value: {output: 3 * output.bits_per_value}
     tensors: {keep: output}
 
   - !Container
     name: VectorMAC
     spatial:
-    - {name: reuse_output, fanout: 8, min_usage: 1, may_reuse: output, reuse: output}
-    - {name: reuse_input, fanout: 8, min_usage: 1, may_reuse: input, reuse: input}
+    - {name: reuse_output, fanout: 8, min_usage: 1, reuse: output}
+    - {name: reuse_input, fanout: 8, min_usage: 1, reuse: input}
 
   - !Memory
     name: Register

@@ -43,10 +43,7 @@ class IncludeFunctions(Directive):
             # Check if it's a function or method
             if inspect.isfunction(member) or inspect.ismethod(member):
                 doc = self._extract_summary_doc(member)
-                functions[name] = {
-                    'signature': self._get_signature(member),
-                    'doc': doc
-                }
+                functions[name] = {"signature": self._get_signature(member), "doc": doc}
 
         # --- Build bullet list ---
         if not functions:
@@ -60,19 +57,22 @@ class IncludeFunctions(Directive):
 
             # Function name as :py:func: role for clickable links
             from sphinx.addnodes import pending_xref
+
             refnode = pending_xref(
-                '',
-                refdomain='py',
-                reftype='func',
-                reftarget=fqname + '.' + func_name,
-                refwarn=True
+                "",
+                refdomain="py",
+                reftype="func",
+                reftarget=fqname + "." + func_name,
+                refwarn=True,
             )
             # refnode += nodes.literal('', f"{func_name}{func_info['signature']}", classes=['xref', 'py', 'py-func'])
-            refnode += nodes.literal('', f"{func_name}()", classes=['xref', 'py', 'py-func'])
+            refnode += nodes.literal(
+                "", f"{func_name}()", classes=["xref", "py", "py-func"]
+            )
             para += refnode
 
             # Docstring
-            if func_info['doc']:
+            if func_info["doc"]:
                 para += nodes.Text(f": {func_info['doc']}")
 
             list_item += para
@@ -82,10 +82,7 @@ class IncludeFunctions(Directive):
 
     def _should_skip_function(self, func_name):
         """Check if a function should be skipped."""
-        return (
-            func_name.startswith('_') or
-            func_name.startswith('__')
-        )
+        return func_name.startswith("_") or func_name.startswith("__")
 
     def _get_signature(self, func):
         """Get the function signature as a string."""
@@ -106,13 +103,25 @@ class IncludeFunctions(Directive):
         doc = inspect.cleandoc(doc)
 
         section_headers = [
-            "Parameters", "Returns", "Postcondition", "Raises",
-            "Yields", "Examples", "Notes", "See Also", "Attributes",
-            "Methods", "References", "Warnings", "Args", "Return",
-            "Keyword Arguments", "Other Parameters"
+            "Parameters",
+            "Returns",
+            "Postcondition",
+            "Raises",
+            "Yields",
+            "Examples",
+            "Notes",
+            "See Also",
+            "Attributes",
+            "Methods",
+            "References",
+            "Warnings",
+            "Args",
+            "Return",
+            "Keyword Arguments",
+            "Other Parameters",
         ]
 
-        lines = doc.split('\n')
+        lines = doc.split("\n")
         summary_lines = []
 
         for line in lines:
@@ -130,22 +139,22 @@ class IncludeFunctions(Directive):
                 break
 
             # Check if this line ends with a colon and might be a section header
-            if stripped.endswith(':'):
+            if stripped.endswith(":"):
                 header_candidate = stripped[:-1].strip()
                 if header_candidate in section_headers:
                     break
 
             # Check for common docstring section patterns (underlined headers)
-            if stripped and all(c in '-=~' for c in stripped):
+            if stripped and all(c in "-=~" for c in stripped):
                 break
 
             summary_lines.append(line)
 
         # Join lines and clean up
-        summary = '\n'.join(summary_lines).strip()
+        summary = "\n".join(summary_lines).strip()
 
         # Replace multiple newlines/spaces with single space for better formatting
-        summary = ' '.join(summary.split())
+        summary = " ".join(summary.split())
 
         return summary if summary else None
 

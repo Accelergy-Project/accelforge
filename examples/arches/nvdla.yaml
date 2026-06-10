@@ -9,26 +9,26 @@ arch:
       # their reference, and they said it left out some things. Latency is 38.4 GB/s.
       # DDR5-4800. Chip runs at at 1GHz, so divide to get per-cycle bandwidth.
       # https://www.jedec.org/news/pressreleases/jedec-updates-standard-low-power-memory-devices-lpddr5
-    - {name: read, energy: 7.03e-12, latency: 1 / (8 * 38.4e9)}
-    - {name: write, energy: 7.03e-12, latency: 1 / (8 * 38.4e9)}
+    - {name: read, energy: 7.03e-12, throughput: 8 * 38.4e9}
+    - {name: write, energy: 7.03e-12, throughput: 8 * 38.4e9}
     tensors: {keep: ~Intermediates, may_keep: All}
 
   - !Memory
     name: GlobalBuffer
     size: 1024*64*8 # 64 kB
-    total_latency: max(read_latency, write_latency) # Separate ports
+    total_latency: max(a.n_calls / a.throughput for a in actions) # Separate ports
     leak_power: 0
     actions:
     # 512 GB/s read, 128 GB/s write
-    - {name: read, energy: 0.249e-12, latency: 1 / 512e9 / 8}
-    - {name: write, energy: 0.293e-12, latency: 1 / 128e9 / 8}
+    - {name: read, energy: 0.249e-12, throughput: 512e9 * 8}
+    - {name: write, energy: 0.293e-12, throughput: 128e9 * 8}
     tensors: {keep: All}
 
   - !Container
     name: ProcessingElement
     spatial:
-    - {name: reuse_input, fanout: 32, may_reuse: input, reuse: input, min_usage: 1}
-    - {name: reuse_output, fanout: 192, may_reuse: output, reuse: output, min_usage: 1}
+    - {name: reuse_input, fanout: 32, reuse: input, min_usage: 1}
+    - {name: reuse_output, fanout: 192, reuse: output, min_usage: 1}
 
   - !Memory
     name: Register
@@ -40,4 +40,4 @@ arch:
     name: MAC
     leak_power: 0
     actions:
-    - {name: compute, energy: 0.084e-12, latency: 1 / 1e9}
+    - {name: compute, energy: 0.084e-12, throughput: 1e9}

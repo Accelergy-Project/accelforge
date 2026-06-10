@@ -1,0 +1,332 @@
+# @INPROCEEDINGS{9499746,
+#   author={Shiflett, Kyle and Karanth, Avinash and Bunescu, Razvan and Louri, Ahmed},
+#   booktitle={2021 ACM/IEEE 48th Annual International Symposium on Computer Architecture (ISCA)},
+#   title={Albireo: Energy-Efficient Acceleration of Convolutional Neural Networks via Silicon Photonics},
+#   year={2021},
+#   volume={},
+#   number={},
+#   pages={860-873},
+#   doi={10.1109/ISCA52012.2021.00072}}
+#
+# @INPROCEEDINGS{10590061,
+#   author={Andrulis, Tanner and Chaudhry, Gohar Irfan and Suriyakumar, Vinith M. and Emer, Joel S. and Sze, Vivienne},
+#   booktitle={2024 IEEE International Symposium on Performance Analysis of Systems and Software (ISPASS)},
+#   title={Architecture-Level Modeling of Photonic Deep Neural Network Accelerators},
+#   year={2024},
+#   volume={},
+#   number={},
+#   pages={307-309},
+#   doi={10.1109/ISPASS61541.2024.00040}}
+
+{{include_text('_include.yaml')}}
+
+arch:
+  # ===================================================================================
+  # Architecture-specific variables.
+  # ===================================================================================
+  variables:
+    # Encoding-dependent parameters ---------------------------------------------------
+    encoded_input_bits:  input.bits_per_value
+    encoded_weight_bits: weight.bits_per_value
+    encoded_output_bits: output.bits_per_value
+
+    # Architecture & CiM Array Structure ----------------------------------------------
+    n_plcg:                        9
+    n_plcu:                        3
+    n_star_coupled_groups_of_rows: 3
+    n_rows:                        3
+    n_columns:                     5
+    n_input_wavelengths:           21  # WDM wavelengths per PLCU input
+    glb_size_scale:                1
+
+    # Data Converters -----------------------------------------------------------------
+    adc_resolution: 8
+    n_adc_per_bank: n_columns
+
+    # Hardware ------------------------------------------------------------------------
+    base_latency: 0.2e-9
+    cycle_period: base_latency * voltage_latency_scale
+
+  extra_attributes_for_all_component_models:
+    tech_node: tech_node
+    scaling: scaling
+    cycle_period: cycle_period
+
+  # ===================================================================================
+  # Architecture
+  # ===================================================================================
+  nodes:
+   # On-chip global buffer stores inputs and outputs
+  - !Memory
+    name: GlobalBuffer
+    component_class: SRAM
+    size: 32768 * 128 * glb_size_scale # 32768 entries x 128 bits x scale
+    tensors: {keep: input | output}
+    energy_scale: sram_energy_leak_power_scale
+    leak_power_scale: sram_energy_leak_power_scale
+    area_scale: sram_area_scale
+    extra_attributes_for_component_model: {n_banks: 16}
+
+  # Input DAC converts digital input values to analog with which we can modulate light.
+  - !Toll
+    name: DAC
+    <<: [*one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: AlbireoDAC
+    area_scale: row_col_drivers_area_scale
+
+  # MZMs modulate input light using values from the global buffer before they are
+  # multicast to all PCLGs.
+  - !Toll
+    name: InputMachZehnderModulator
+    <<: [*one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: AlbireoMachZehnderModulator
+    n_parallel_instances: n_input_wavelengths * n_plcu
+
+  # Input Microring Resonators (MRRs) wavelength-division-multiplex (WDM) inputs onto
+  # separate wavelengths. This allows them to be sent simultaneously through the same
+  # components and interconnects.
+  - !Toll
+    name: InputMicroRingResonator
+    <<: [*one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: AlbireoMicroRingResonator
+    n_parallel_instances: n_input_wavelengths * n_plcu
+
+  # Each Photonic Locally Connected Group (PLCG) is a tile that contains weight cache
+  # and works on one set of outputs
+  - !Container
+    name: PhotonicLocallyConnectedGroupPLCG
+    spatial:
+    - name: reuse_input
+      fanout: n_plcg
+      reuse: input
+      min_usage: 1
+
+  # A weight cache holds weights for one PLCG (weight-stationary).
+  - !Memory
+    name: WeightCache
+    component_class: SRAM
+    size: 4096 * 64  # 4096 entries x 64 bits
+    tensors: {keep: weight}
+    energy_scale: sram_energy_leak_power_scale
+    leak_power_scale: sram_energy_leak_power_scale
+    area_scale: sram_area_scale
+    throughput_scale: inf
+
+  # Output registers hold the outputs from each PLCG.
+  - !Memory
+    name: OutputRegs
+    component_class: Register
+    size: output.bits_per_value * n_columns  # One register per column
+    tensors: {keep: output}
+
+  # ADCs convert analog outputs from the arrays to digital.
+  - !Toll
+    name: ADC
+    <<: [*one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ADC
+    area_scale: adc_area_scale
+    energy_scale: adc_energy_scale
+    extra_attributes_for_component_model:
+      n_bits: adc_resolution
+      n_adcs: n_adc_per_bank
+      throughput: 1 / cycle_period * n_columns
+
+  # Transimpedance amplifiers (TIAs) converts photodiode current to voltage for the ADC.
+  - !Toll
+    name: TIA
+    <<: [*one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: AlbireoTIA
+    n_parallel_instances: n_columns
+
+  # Photonic Locally Connected Units (PLCUs) are arrays that perform MACs. The analog
+  # output currents are summed across PLCUs.
+  - !Container
+    name: PhotonicLocallyConnectedUnitPLCU
+    spatial:
+    - name: reuse_output
+      fanout: n_plcu
+      reuse: output
+      min_usage: 1
+      loop_bounds: [{expression: "{P, Q, N}", operator: "<=", value: 1}]
+
+  # Photodiodes converts optical output power to eletrical current that can be read by
+  # electronics.
+  - !Toll
+    name: Photodiode
+    <<: [*one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    n_parallel_instances: n_columns
+    component_class: AlbireoPhotodiode
+
+  # Each star coupled group of rows works on a different set of inputs and the same set
+  # of outputs.
+  - !Container
+    name: StarCoupledGroupOfRows
+    spatial:
+    - name: reuse_output
+      fanout: n_star_coupled_groups_of_rows
+      reuse: output
+      min_usage: 1
+
+  # Arrayed Waveguide Grating (AWGs) demultiplex wavelength-division multipliexed (WDM)
+  # input light, sending each wavelength to their respective PLCUs. WDM allows multiple
+  # optical values to be sent simultaneously through the same components and
+  # interconnects by encoding them on different wavelengths of light.
+  - !Toll
+    name: ArrayedWaveguideGrating
+    <<: [*one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: AlbireoArrayedWaveguideGrating
+
+  # Star couplers are any-to-any optical interconnects that distribute inputs to rows.
+  - !Toll
+    name: StarCoupler
+    <<: [*one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: AlbireoStarCoupler
+
+  # This memory catches sliding windows that may be sent spatially in the array. E.g.,
+  # convolution steps spatially unrolled onto columns with overlapping windows.
+  - !Memory
+    name: DummyRowDriverMemory
+    component_class: Dummy
+    # Size = one input value per row (max number of inputs we can do in parallel)
+    size: inf
+    # no_resend_to_below prevents reuse across temporal iterations because this isn't
+    # really a memory.
+    tensors: {keep: input, no_resend_to_below: input}
+
+  # Each row works on a different column of the filter weights
+  - !Container
+    name: Row
+    spatial:
+    - name: reuse_output
+      fanout: n_rows
+      reuse: output
+      min_usage: 1
+
+  # Weight DACs convert digital weight values to analog electrical signals that will
+  # later be used to modulate light.
+  - !Toll
+    name: WeightDAC
+    <<: [*one_action_per_value]
+    tensors: {keep: weight}
+    direction: down
+    component_class: AlbireoDAC
+
+  # Weight Mach Zehnder Modulators (MZMs) modulate input light with the analog weight
+  # signal to produce an input-weight product. Multiple wavelengths of input light can
+  # go through this at once to be multiplied with the same weight.
+  - !Toll
+    name: WeightMachZehnderModulator
+    <<: [*one_action_per_value]
+    tensors: {keep: weight}
+    direction: down
+    component_class: AlbireoMachZehnderModulator
+
+  # Each column produces a different output. Columns share weights. In the design this
+  # is realized as each row having multiple weight*input products from the MZM, each
+  # sharing one weight and using a different input. Each column will then pulling off
+  # one weight*input product from the row.
+  - !Container
+    name: Column
+    spatial:
+    - name: reuse_weight
+      fanout: n_columns
+      reuse: weight
+      min_usage: 1
+
+  # Microring Resonators (MRRs) pull off an individual input * weight light wavelength
+  # from the row, sending it down the column to be summed. It is two MRRs, not one, to
+  # handle positive/negative weights.
+  - !Toll
+    name: DoubleMRR
+    <<: [*one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: AlbireoDoubleMicroRingResonator
+
+  # Laser. Put down here because power scales with the number of MAC sites.
+  - !Toll
+    name: Laser
+    <<: [*one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: AlbireoLaser
+
+  # We account for compute energy and latency in other components, so just use a dummy
+  # compute here.
+  - !Compute
+    name: FreeCompute
+    component_class: Dummy
+    enabled: len(All) == 3
+
+# These variables pertain to the workload, microarch, and circuits.
+variables:
+  ## Microarch ------------------------------------------------------------------------
+  supported_input_bits:  8       # Maximum input bits supported by the arch
+  supported_weight_bits: 8       # Maximum weight bits supported by the arch
+  supported_output_bits: 8       # Maximum output bits supported by the arch
+
+  # Circuits --------------------------------------------------------------------------
+  voltage: 1
+  tech_node: 7e-9
+  voltage_energy_scale: voltage ** 2
+  voltage_latency_scale: 1 / voltage
+  scaling: "conservative" # conservative, moderate, or aggressive
+
+  # Calibration -----------------------------------------------------------------------
+  # 28nm ADC reused without 7nm scaling -> upscale area & energy.
+  adc_area_scale: 10.9
+  adc_energy_scale: 1.4 if scaling == 'aggressive' else (12.9 if scaling == 'moderate' else 26.4)
+  row_col_drivers_area_scale: 1
+
+  # Albireo uses aggressive SRAM energy and area predictions
+  sram_energy_leak_power_scale: 0.012
+  sram_area_scale: 0.204
+
+# =====================================================================================
+# Default Workload
+# =====================================================================================
+# This workload is sized to achieve peak utilization of the architecture:
+# - M = n_plcg = 9     (fills all 9 PLCGs, each computes a different output channel)
+# - N = n_columns = 5  (fills all 5 columns, each computes a different output position)
+# - K = n_plcu * n_star_coupled_groups_of_rows * n_rows = 3*3*3 = 27
+#       (fills all PLCUs x star-coupled groups x rows)
+workload:
+  rank_sizes:
+    M: 9 # Fill 9 PLCGs
+    C: 9 # Fill 3 PLCUs * 3 star coupled groups of rows
+    R: 3 # Fill 3 rows
+    S: 1
+    P: 5 # Fill 5 columns
+    Q: 1
+    N: 1
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - name: input
+      projection: {N: n, C: c, H: p + r, W: q + s}
+    - name: weight
+      projection: {M: m, C: c, R: r, S: s}
+    - name: output
+      projection: {N: n, M: m, P: p, Q: q}
+      output: True
+
+renames: {} # Not needed for this workload

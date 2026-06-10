@@ -70,15 +70,11 @@ def get_n_computes(spec: Spec, einsum_name: EinsumName | None = None) -> int:
     return sum(get_operation_space_size(spec.workload, e) for e in einsums)
 
 
-def get_per_tensor_size(
-    workload: Workload, return_n_elements: bool = False
-) -> dict[TensorName, int]:
+def get_per_tensor_n_elements(workload: Workload) -> dict[TensorName, int]:
     sizes = {}
     for einsum in workload.einsums:
         for tensor in einsum.tensor_names:
             sizes[tensor] = get_tensor_size(workload, tensor)
-            if not return_n_elements:
-                sizes[tensor] *= einsum.tensor_accesses[tensor].bits_per_value
     return sizes
 
 
@@ -97,25 +93,32 @@ def get_jobs(
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     einsum2spec: dict[EinsumName, Spec] = {}
-    s = f"Getting energy, latency, and leak power for components running "
-    pbar = tqdm(einsum_names, desc=s) if print_progress else einsum_names
-    for einsum_name in pbar:
-        if print_progress:
-            pbar.set_description(s + einsum_name)
-        einsum2spec[einsum_name] = (
+    s = "Getting energy, leak power, latency, and throughput for components running each Einsum. "
+
+    def _get_per_einsum_spec(spec, einsum_name):
+        result = (
             spec._spec_eval_expressions(
                 einsum_name=einsum_name,
                 eval_arch=True,
                 eval_non_arch=False,
             )
-            .calculate_component_area_energy_latency_leak(
+            .calculate_component_costs(
                 einsum_name=einsum_name,
                 area=False,
             )
             ._for_einsum(einsum_name)
             ._clear_component_models()
         )
-        einsum2spec[einsum_name] = _memmap_read(einsum2spec[einsum_name])
+        return einsum_name, _memmap_read(result)
+
+    for einsum_name, result in parallel(
+        [
+            delayed(_get_per_einsum_spec)(spec, einsum_name)
+            for einsum_name in einsum_names
+        ],
+        pbar=s if print_progress else None,
+    ):
+        einsum2spec[einsum_name] = result
 
     def make_jobs_for_einsum(
         einsum_name: EinsumName,
@@ -147,6 +150,12 @@ def get_jobs(
                 workload_n_einsums=n_einsums,
                 intermediate_tensors=intermediate_tensors
                 & workload_einsum.tensor_names,
+                explore_imperfect_spatial_loops=bool(
+                    spec.mapper.explore_imperfect_spatial_loops
+                ),
+                explore_imperfect_temporal_loops=bool(
+                    spec.mapper.explore_imperfect_temporal_loops
+                ),
             )
             for j in make_pmapping_templates(job, print_progress):
                 jobs.setdefault(j.compatibility, SameCompatibilityJobs()).append(j)
@@ -252,7 +261,7 @@ def get_memories_to_track(
         )
 
     tensor_sizes = {}
-    for tensor, size in get_per_tensor_size(spec.workload).items():
+    for tensor, size in get_per_tensor_n_elements(spec.workload).items():
         scale = 1
         for einsum in spec.workload.einsums_with_tensor(tensor):
             if einsum.tensor_accesses[tensor].persistent:
@@ -273,8 +282,13 @@ def get_memories_to_track(
                 if mem.size == 0:
                     usage = 2  # FAIL
                 else:
-                    scale = mem.bits_per_value_scale[tensor] / mem.size
-                    usage += tensor_sizes[tensor] * scale
+                    workload_bpv = (
+                        spec.workload.einsums[einsum]
+                        .tensor_accesses[tensor]
+                        .bits_per_value
+                    )
+                    effective_bpv = mem.bits_per_value.get(tensor, workload_bpv)
+                    usage += tensor_sizes[tensor] * effective_bpv / mem.size
 
         if usage <= 1:
             ignored_resources.add(memory)

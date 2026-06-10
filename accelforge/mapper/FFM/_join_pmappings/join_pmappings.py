@@ -34,7 +34,13 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     Compatibility,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
-from accelforge.util import _fillna_and__numeric_cast, parallel, delayed, oset
+from accelforge.util import (
+    _fillna_and__numeric_cast,
+    delayed,
+    get_n_parallel_jobs,
+    oset,
+    parallel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,89 +68,67 @@ class JoiningTimer:
         logger.info(f"============================\n")
 
 
+def _apply_edp_columns(df: pd.DataFrame, metrics: Metrics) -> pd.DataFrame:
+    if not metrics & Metrics.ENERGY_DELAY_PRODUCT:
+        return df
+
+    energy = df["Total<SEP>energy"]
+    latency = df["Total<SEP>latency"]
+    df["Total<SEP>energy_delay_product"] = energy * latency
+    if not (metrics & Metrics.ENERGY):
+        del df["Total<SEP>energy"]
+    if not (metrics & Metrics.LATENCY):
+        del df["Total<SEP>latency"]
+    return df
+
+
 class OptimalityThresholder:
     def __init__(
         self,
         prev_solutions: Mappings,
         _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray],
-        aggregator: str,
         print_progress: bool,
+        metrics: Metrics,
     ):
-        compare_to = prev_solutions.data
+        self.metrics = metrics
+        compare_to = _apply_edp_columns(prev_solutions.data.copy(), metrics)
         compare_cols = [c for c in compare_to.columns if col_used_in_pareto(c)]
         self._pmapping_row_filter_function = _pmapping_row_filter_function
-        self.aggregator = aggregator
 
-        if self.aggregator in ("prod", "sum"):
-            objective_cols = [c for c in compare_cols if is_objective_col(c)]
-            self._agg_cols = objective_cols
-            if objective_cols:
-                values = np.column_stack(
-                    [compare_to[c].values for c in objective_cols]
-                )
-                if self.aggregator == "prod":
-                    agg = np.prod(values, axis=1)
-                else:
-                    agg = np.sum(values, axis=1)
-                self._agg_threshold = agg.min()
-            else:
-                self._agg_threshold = float("inf")
+        compare_to = compare_to.sort_values(by=compare_cols, ascending=False)
+
+        if len(compare_to) > 100:
+            chosen_indices = np.round(np.linspace(0, len(compare_to) - 1, 100))
+        else:
+            chosen_indices = np.round(np.arange(len(compare_to)))
+
+        self.compare_to: list[dict[str, float]] = []
+        if print_progress:
+            print(f"Filtering out pmappings worse than the following:")
+
+        for i in chosen_indices.astype(int):
+            self.compare_to.append({c: compare_to[c].iloc[i] for c in compare_cols})
             if print_progress:
-                label = "product" if self.aggregator == "prod" else "sum"
                 print(
-                    f"Filtering out pmappings with {label} > "
-                    f"{self._agg_threshold:.2e}"
-                )
-        else:  # "any"
-            compare_to = compare_to.sort_values(by=compare_cols, ascending=False)
-
-            if len(compare_to) > 10:
-                chosen_indices = np.round(
-                    np.linspace(0, len(compare_to) - 1, 10)
-                )
-            else:
-                chosen_indices = np.round(np.arange(len(compare_to)))
-
-            self.compare_to: list[dict[str, float]] = []
-            if print_progress:
-                print(f"Filtering out pmappings worse than the following:")
-
-            for i in chosen_indices.astype(int):
-                self.compare_to.append(
-                    {c: compare_to[c].iloc[i] for c in compare_cols}
-                )
-                if print_progress:
-                    print(
-                        "\t"
-                        + "    ".join(
-                            f"{k}={float(v):.2e}"
-                            for k, v in self.compare_to[-1].items()
-                        )
+                    "\t"
+                    + "    ".join(
+                        f"{k}={float(v):.2e}" for k, v in self.compare_to[-1].items()
                     )
+                )
 
     def __call__(self, mapping: pd.DataFrame) -> bool:
         nondominated_by_all = np.ones(len(mapping), dtype=bool)
 
-        if self.aggregator in ("prod", "sum"):
-            cols_present = [c for c in self._agg_cols if c in mapping.columns]
-            if cols_present:
-                values = np.column_stack(
-                    [mapping[c].values for c in cols_present]
-                )
-                if self.aggregator == "prod":
-                    agg = np.prod(values, axis=1)
+        edp_mapping = _apply_edp_columns(mapping.copy(), self.metrics)
+
+        for c in self.compare_to:
+            nondominated = np.zeros(len(edp_mapping), dtype=bool)
+            for k, v in c.items():
+                if k not in edp_mapping.columns:
+                    nondominated |= True
                 else:
-                    agg = np.sum(values, axis=1)
-                nondominated_by_all = agg <= self._agg_threshold
-        else:  # "any"
-            for c in self.compare_to:
-                nondominated = np.zeros(len(mapping), dtype=bool)
-                for k, v in c.items():
-                    if k not in mapping.columns:
-                        nondominated |= True
-                    else:
-                        nondominated |= mapping[k] <= v
-                nondominated_by_all &= nondominated
+                    nondominated |= edp_mapping[k] <= v
+            nondominated_by_all &= nondominated
 
         if self._pmapping_row_filter_function is not None:
             nondominated_by_all &= self._pmapping_row_filter_function(mapping)
@@ -157,6 +141,7 @@ def prune_with_tolerance(
     objective_tolerance: float,
     resource_usage_tolerance: float,
     print_progress: bool = True,
+    is_last: bool = False,
 ):
     if objective_tolerance == 0 and resource_usage_tolerance == 0:
         return pmappings
@@ -164,11 +149,14 @@ def prune_with_tolerance(
     prev_n = sum(len(pg.mappings) for p in pmappings.values() for pg in p)
 
     def prune(einsum_name: EinsumName, pg: PmappingGroup):
-        pg = PmappingGroup(pg.compatibility, pg.mappings.make_pareto(
-            objective_tolerance=objective_tolerance,
-            resource_usage_tolerance=resource_usage_tolerance,
-            inplace=False,
-        ))
+        pg = PmappingGroup(
+            pg.compatibility,
+            pg.mappings.make_pareto(
+                objective_tolerance=objective_tolerance,
+                resource_usage_tolerance=resource_usage_tolerance,
+                inplace=False,
+            ),
+        )
         return einsum_name, pg
 
     jobs = [delayed(prune)(e, pg) for e, p in pmappings.items() for pg in p]
@@ -180,6 +168,9 @@ def prune_with_tolerance(
         result[einsum_name].append(pg)
 
     new_n = sum(len(pg.mappings) for p in result.values() for pg in p)
+    if new_n == prev_n and not is_last:
+        return None
+
     if print_progress:
         print(f"Dirty joining uses {new_n / prev_n * 100:.2f}% of the pmappings")
 
@@ -211,6 +202,7 @@ def join_strategy_2(
         # Write round marker so the notebook can distinguish dirty vs clean
         if _runtime_log_file and is_dirty:
             import json
+
             with open(_runtime_log_file, "a") as f:
                 f.write(json.dumps({"round": i, "threshold": threshold}) + "\n")
         try:
@@ -219,7 +211,11 @@ def join_strategy_2(
                 objective_tolerance=threshold,
                 resource_usage_tolerance=resource_usage_tolerance,
                 print_progress=print_progress,
+                is_last=i == len(thresholds) - 1,
             )
+            if cur_compressed is None:
+                continue
+
             joined = join_pmappings(
                 cur_compressed,
                 spec,
@@ -231,8 +227,8 @@ def join_strategy_2(
                 filter_func = OptimalityThresholder(
                     joined,
                     _pmapping_row_filter_function,
-                    spec.mapper._metric_aggregator,
-                    print_progress
+                    print_progress,
+                    metrics,
                 )
         except Exception as e:
             if i == len(thresholds) - 1:
@@ -275,7 +271,19 @@ def multi_strategy_join(
             _pmapping_row_filter_function,
         )
 
-    resource_usage_thresholds = [0.02, 0.01, 0.001, 0.0001, 0]
+    resource_usage_thresholds = [
+        0.2,
+        0.1,
+        0.05,
+        0.02,
+        0.01,
+        0.005,
+        0.002,
+        0.001,
+        0.0001,
+        0.00001,
+        0,  # Give up, do full precision join
+    ]
     for i, threshold in enumerate(resource_usage_thresholds):
         for p in compressed.values():
             for pg in p:
@@ -340,12 +348,18 @@ def clean_compress_and_join_pmappings(
 
     joined = decompress_pmappings(joined, decompress_data)
 
+    _apply_edp_columns(joined.data, metrics)
+    # Pareto prune again in case the EDP column application reduced number of
+    # objectives.
+    joined.make_pareto()
+
     for einsum_name in einsum2pmappings:
         col = f"{einsum_name}<SEP>{MAPPING_COLUMN}"
         joined.data[col] = joined.data[col].apply(
             lambda x: pmappings.pmapping_objects[einsum_name][x]
         )
     joined._data = _fillna_and__numeric_cast(joined.data, 0).reset_index(drop=True)
+    joined._data = joined._data.copy()  # Defrag
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(pmappings.spec)
     einsum_names = list(einsum2pmappings.keys())
@@ -510,6 +524,10 @@ def join_pmappings(
     combine_reservations = spec.mapper._combine_reservations
     _runtime_log_file = spec.mapper._runtime_log_file
 
+    assert (
+        skip_invalid
+    ), "Joining only joins valid compatibilities in the for loops in this function."
+
     drop_valid_reservations = not (Metrics.RESOURCE_USAGE & metrics)
     ignored_resources = oset()
 
@@ -540,11 +558,7 @@ def join_pmappings(
 
     aliased_tensors = spec.workload.get_tensor_copies()
 
-    n_mappings = {}
     runtime = {}
-    nbuckets = []
-
-    n_evaluations = 0
 
     pmapping_groups = list(pmapping_groups.items())
 
@@ -565,7 +579,6 @@ def join_pmappings(
     # ======================================================================
     # Initial consolidate and group all PmappingGroups
     # ======================================================================
-    n_mappings["Post Intra-Layer"] = 0
     for i, einsum_pmappings in enumerate(pmgroups):
         cur_tensors = einsum_pmappings.tensor_names
         right_tensors = oset.union(oset(), *[s.tensor_names for s in pmgroups[i + 1 :]])
@@ -629,9 +642,6 @@ def join_pmappings(
             pbar_postfix=f" for {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
             print_progress=print_progress,
         )
-        n_mappings["Post Intra-Layer"] += sum(
-            len(s.mappings.data) for s in einsum_pmappings.pmapping_groups
-        )
         einsum_pmappings.pmapping_groups = PmappingGroup.group(
             einsum_pmappings.pmapping_groups, left_tensors
         )
@@ -640,8 +650,18 @@ def join_pmappings(
         runtime[f"{prev_einsum} → {einsum}"] = step_time
         if _runtime_log_file:
             import json as _json
+
             with open(_runtime_log_file, "a") as _f:
-                _f.write(_json.dumps({"step": f"{prev_einsum} → {einsum}", "phase": "consolidate", "time": step_time}) + "\n")
+                _f.write(
+                    _json.dumps(
+                        {
+                            "step": f"{prev_einsum} → {einsum}",
+                            "phase": "consolidate",
+                            "time": step_time,
+                        }
+                    )
+                    + "\n"
+                )
         t0 = time.time()
     timer.print_time(f"Initial consolidate and group")
 
@@ -679,8 +699,6 @@ def join_pmappings(
         # Grab new Einsum from the right. Record logging data and find still
         # tensors that will be live after this Einsum.
         # ======================================================================
-        nbuckets.append(len(left))
-        # nmappings.append(sum(len(s.mappings.data) for s in left))
         right, right_einsum, right_tensors = grab_einsum_pmappings()
         logger.info(f"Einsum {right_einsum} ({n_iterations}/{total_iterations})")
 
@@ -708,6 +726,28 @@ def join_pmappings(
         left = PmappingGroup.group(left, right_tensors)
         # print_time("Grouping")
 
+        # =============================================================================
+        # If we're multiprocessing and the left side has fewer groups than the number of
+        # processes, repeatedly split the largest group in half so that the merge work
+        # below can fan out across all workers.
+        # =============================================================================
+        n_procs = get_n_parallel_jobs()
+        n_groups = sum(len(v) for v in left.values())
+        for _ in range(n_procs - n_groups):
+            best_k, best_i, best_len = None, None, -1
+            for k, vs in left.items():
+                for i, (pg, _perm) in enumerate(vs):
+                    length = len(pg.mappings.data) if pg.mappings is not None else 0
+                    if length > best_len:
+                        best_len = length
+                        best_k, best_i = k, i
+            if best_k is None or best_len < 2:
+                break  # nothing left worth splitting
+            pg, perm = left[best_k][best_i]
+            first, second = pg.split_in_half()
+            left[best_k][best_i] = (first, perm)
+            left[best_k].append((second, perm))
+
         # ======================================================================
         # Remove dead tensors from left and right. This happens after grouping because
         # we only reserve space for shared tensors after they're dead (alive is handled
@@ -724,7 +764,6 @@ def join_pmappings(
         # Merge the left and right buckets.
         # ======================================================================
         combined: list[PmappingGroup] = []
-        cur_nmappings = 0
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
         for k in left:
@@ -777,8 +816,6 @@ def join_pmappings(
                     )
                 )
 
-                if not DELAY:
-                    cur_nmappings += len(a.mappings.data) * len(b.mappings.data)
                 if DO_PRINT:
                     # s = f"\t-->\n\t{combined[-1].compatibility}"
                     # s += f"({len(a.mappings.data)})x({len(b.mappings.data)})"
@@ -793,11 +830,6 @@ def join_pmappings(
                 if k not in left:
                     for b, _ in right[k]:
                         print(f"\tREVERSE: No match for {b.compatibility} using {k}")
-
-        # Count before clearing (needed for skip_invalid=False)
-        if not skip_invalid:
-            _left_n = sum(len(s.mappings.data) for k in left.values() for s, _ in k)
-            _right_n = sum(len(s.mappings.data) for k in right.values() for s, _ in k)
 
         for l in left.values():
             for s, _ in l:
@@ -904,7 +936,6 @@ def join_pmappings(
             )
             for c, mapping in zip(combined, mappings):
                 c.mappings = mapping
-                cur_nmappings += c.n_pre_prune_mappings
         timer.print_time("Pmapping merging")
 
         if not any(len(s.mappings.data) for s in combined):
@@ -913,21 +944,22 @@ def join_pmappings(
             #     x[0](*x[1], **x[2])
             raise ValueError(f"No mappings found for {left_einsum} <--> {right_einsum}")
 
-        prev_nmappings = cur_nmappings
-        if not skip_invalid:
-            cur_nmappings = _left_n * _right_n
-        n_mappings[f"{left_einsum} → {right_einsum}"] = cur_nmappings
-        n_evaluations += cur_nmappings
-        step_time = (time.time() - t0) * (cur_nmappings / prev_nmappings)
+        step_time = time.time() - t0
         runtime[f"{left_einsum} → {right_einsum}"] += step_time
         if _runtime_log_file:
             import json as _json
-            with open(_runtime_log_file, "a") as _f:
-                _f.write(_json.dumps({"step": f"{left_einsum} → {right_einsum}", "phase": "join", "time": step_time}) + "\n")
-        # print(
-        #     f'Scaled runtime by {cur_nmappings / prev_nmappings}. Runtime: {runtime[f"{prev_einsum} → {einsum}"]:.2f}'
-        # )
 
+            with open(_runtime_log_file, "a") as _f:
+                _f.write(
+                    _json.dumps(
+                        {
+                            "step": f"{left_einsum} → {right_einsum}",
+                            "phase": "join",
+                            "time": step_time,
+                        }
+                    )
+                    + "\n"
+                )
         # # ======================================================================
         # # Print statements
         # # ======================================================================
@@ -935,13 +967,13 @@ def join_pmappings(
         #     f"\tCombining {sum(len(s) for s in left.values())}({len(left)}) x {sum(len(s) for s in right.values())}({len(right)}) -> {len(combined)}"
         # )
 
-        # nmappings = sum(len(s.mappings.data) for s in combined)
-        # for_einsum_text = f"for Einsum {right_einsum}"
-        # logger.info(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
-        # # for c in combined:
-        # #     print(f"\t\t{c.compatibility}")
-        # logger.info(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
-        # logger.info(
+        nmappings = sum(len(s.mappings.data) for s in combined)
+        for_einsum_text = f"for Einsum {right_einsum}"
+        # print(f"\tNumber of groups {for_einsum_text}: {len(combined)}")
+        # for c in combined:
+        #     print(f"\t\t{c.compatibility}")
+        # print(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
+        # print(
         #     f"\tMappings per group {for_einsum_text}: {nmappings / len(combined)}"
         # )
         # logger.info(

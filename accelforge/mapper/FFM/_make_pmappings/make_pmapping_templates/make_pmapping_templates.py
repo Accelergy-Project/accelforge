@@ -11,6 +11,7 @@ import uuid
 from tqdm import tqdm
 
 import accelforge.frontend.arch as arch
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
     Compute,
@@ -52,6 +53,7 @@ from accelforge.mapper.FFM._make_pmappings.contraints.constraints import (
 from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_loops import (
     insert_temporal_loops,
     insert_spatial_loops,
+    label_imperfect_tile_shapes,
 )
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
@@ -85,7 +87,7 @@ def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
 # Iterate over mappings
 # =================================================================================================
 def place_missing_temporal_loops(
-    mapping: List[MappingNode], einsum: Einsum, flattened_arch: list[arch.Leaf]
+    mapping: List[MappingNode], einsum: Einsum, flattened_arch: FlattenedArch
 ):
     """
     Adds temporal loops to the mapping to fill in any rank variables that are missing.
@@ -131,7 +133,7 @@ def place_missing_temporal_loops(
 
 def remove_unordered_spatial_temporal_loops(
     mapping: list[MappingNode],
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     einsum: Einsum,
     explore_unordered_spatial_loops: bool = True,
 ):
@@ -257,7 +259,7 @@ def assert_proper_fusion_labeling(
 def iterate_mappings_no_constraints(
     spec: Spec,
     einsum_name: str,
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     rank_variable_bounds: dict[RankVariable, int],
     job: Job,
 ) -> Iterator[tuple[Mapping, SymbolTable, arch.Compute, int]]:
@@ -330,7 +332,7 @@ def iterate_mappings_no_constraints(
 def iterate_mappings_constraints(
     spec: Spec,
     einsum_names: list[str] | str,
-    flattened_arch: list[arch.Leaf],
+    flattened_arch: FlattenedArch,
     rank_variable_bounds: dict[RankVariable, int],
     tensor_to_relevancy: dict[
         TensorName, dict[RankVariable, Relevant | PartiallyRelevant]
@@ -358,7 +360,12 @@ def iterate_mappings_constraints(
             job,
         ):
             mapping, constraints = get_constraints(
-                flattened_arch, mapping, symbol_table, einsum_name, tensor_to_relevancy
+                flattened_arch,
+                mapping,
+                symbol_table,
+                einsum_name,
+                tensor_to_relevancy,
+                is_copy_operation=spec.workload.einsums[einsum_name].is_copy_operation,
             )
 
             # This goes after the constraints because constraints may remove some loops,
@@ -381,6 +388,9 @@ def iterate_mappings_constraints(
 
                 # MAPPING MUST NOT BE MODIFIED AFTER constraints.set_loop_indices
                 constraints.set_loop_indices(mapping)
+                label_imperfect_tile_shapes(
+                    mapping, spec.workload.einsums[einsum_name], job
+                )
 
                 mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
                 mapping._n_loop_orders = n_orders

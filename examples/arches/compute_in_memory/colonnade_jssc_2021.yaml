@@ -1,0 +1,295 @@
+# @ARTICLE{9373949,
+#   author={Kim, Hyunjoon and Yoo, Taegeun and Kim, Tony Tae-Hyoung and Kim, Bongjin},
+#   journal={IEEE Journal of Solid-State Circuits},
+#   title={Colonnade: A Reconfigurable SRAM-Based Digital Bit-Serial Compute-In-Memory Macro for Processing Neural Networks},
+#   year={2021},
+#   volume={56},
+#   number={7},
+#   pages={2221-2233},
+#   doi={10.1109/JSSC.2021.3061508}}
+
+{{include_text('_include.yaml')}}
+{{add_to_path('./memory_cells')}}
+
+arch:
+  # ===================================================================================
+  # Architecture-specific variables.
+  # ===================================================================================
+  variables:
+    # Inherit these from _include.yaml. Many definitions are included there.
+    <<: *variables_global
+
+    # Encoding-dependent parameters ---------------------------------------------------
+    encoded_input_bits:  input_bits
+    encoded_weight_bits: weight_bits + ceil(log2(array_parallel_inputs))
+    encoded_output_bits: output_bits
+
+    input_encoding_func: offset_encode_hist
+    weight_encoding_func: offset_encode_hist
+
+    # For accuracy model. Can in-array accumulation include signed values? Signed
+    # accumulation not compatible with offset encoding (since offset encoding makes
+    # values non-negative)
+    signed_sum_across_inputs: False
+    signed_sum_across_weights: False
+
+    # Architecture & CiM Array Structure ----------------------------------------------
+    # DEFINITIONS:
+    # - Cell: Smallest structure capable of storing memory. Note that a cell may store
+    #   more than one bit. For example, a cell consisting of a RRAM device may store >1
+    #   bits, while a cell consisting of an SRAM bitcell may store only 1 bit.
+    # - CiM Unit: Smallest structure capable of computing an analog MAC
+    # - CiM Unit Width Cells: Number of CiM unit cells that are accessed as one. These
+    #   cells receive one analog input and compute one analog MAC per timestep.
+    # - CiM Unit Depth Cells: Number of independent groups of "CiM Unit Width" cells
+    #   that form a CiM unit. Each of these groups is indepently addressible and
+    #   operates in must be activated in a different timestep than the others.
+    cim_unit_width_cells:  1
+    cim_unit_depth_cells:  1
+    bits_per_cell:         1
+
+    # Data Converters -----------------------------------------------------------------
+    adc_resolution: 1
+    voltage_dac_resolution: 1
+    temporal_dac_resolution: 1
+    n_adc_per_bank: 1
+
+    # Hardware ------------------------------------------------------------------------
+    cycle_period: base_latency * voltage_latency_scale * latency_pipeline_scale
+    read_pulse_width: cycle_period
+
+    n_regs_per_col: 16
+    n_rows_per_reg: 8
+
+    # True = 100 MHz fixed clock for energy tests, False = variable frequency
+    # based on critical path
+    force_100mhz: False
+    bit_pipelined: True
+    n_adders_critical_path: encoded_weight_bits + n_rows_per_reg + 2
+    critical_path_latency: n_adders_critical_path * 0.4e-9
+
+    base_latency: 10e-9 if force_100mhz else critical_path_latency
+    latency_pipeline_scale: 1 if bit_pipelined else (n_regs_per_col + 1)
+
+  extra_attributes_for_all_component_models:
+    <<: *cim_component_attributes
+    tech_node: tech_node
+    cycle_period: cycle_period
+
+  # ===================================================================================
+  # Architecture
+  # ===================================================================================
+  nodes:
+  # This memory catches sliding windows that may be sent spatially in the array. E.g.,
+  # convolution steps spatially unrolled onto columns with overlapping windows.
+  - !Memory
+    name: DummyRowDriverMemory
+    component_class: Dummy
+    # Size = one input value per row (max number of inputs we can do in parallel)
+    size: input.bits_per_value * array_parallel_inputs
+    # no_resend_to_below prevents reuse across temporal iterations because this isn't
+    # really a memory.
+    tensors: {keep: input, no_resend_to_below: input}
+
+  # Row drivers feed inputs onto the rows of the array.
+  - !Toll
+    name: RowDrivers
+    <<: [*input_sliced, *one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: ArrayRowDrivers
+    area_scale: row_col_drivers_area_scale
+
+  # The input ports of the CiM logic are modeled here, representing the energy to drive
+  # all of the adders that will be switching for each input bit. We put this logic up
+  # here, not by the CiM unit, because the input bits fan out to all columns regardless
+  # of if the columns are used, so we charge the full energy here for each input bit
+  # entering the array.
+  - !Toll
+    name: DigitalLogicInputPorts
+    <<: [*input_sliced, *one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: ColonnadeCimLogicInputPort
+    extra_attributes_for_component_model:
+      n_instances: array_bitlines
+      switching_activity: (average_input_value * (1 - average_input_value)) ** 0.5
+      voltage: voltage
+      voltage_energy_scale: voltage_energy_scale
+
+  # A bitline decoder is used to select array columns.
+  - !Toll
+    name: ColumnDrivers
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ArrayColumnDrivers
+    area_scale: row_col_drivers_area_scale
+    # Cols active at once = 1 to create a full decoder. We use 1 /
+    # array_parallel_outputs scaling because we actually can accumulate outputs in
+    # parallel.
+    throughput_scale: array_parallel_outputs
+    extra_attributes_for_component_model: {cols_active_at_once: 1}
+
+  # Weight drivers write weights.
+  - !Toll
+    name: WeightDrivers
+    tensors: {keep: weight & Above}
+    direction: down
+    component_class: ArrayRowDrivers
+    bits_per_action: average_weight_bits_per_slice
+    area_scale: row_col_drivers_area_scale
+    extra_attributes_for_component_model: {<<: *weight_drivers_attributes}
+
+  # Each column stores a different weight slices. Columns share inputs.
+  - !Container
+    name: Column
+    spatial:
+    # ARRAY_COLUMNS suffix used for used for counting the array size
+    - name: column_ARRAY_COLUMNS
+      fanout: 128
+      # Note: may_reuse here and not reuse because we may have columns that reuse some,
+      # but not all, input values, so we want reuse to be optional and only for inputs.
+      may_reuse: input
+      min_usage: 1
+      usage_scale: n_weight_slices
+
+  # Column bandwidth limiter to limit write speed (only one value can be written per
+  # column per cycle)
+  - !Toll
+    name: ColumnBandwidthLimiter
+    tensors: {keep: (weight | output) & Above}
+    direction: {Outputs: up, ~Outputs: down}
+    component_class: Dummy
+    bits_per_value:
+      weight: 1
+      output: n_input_slices
+    actions: [{name: read, throughput: 1 / cycle_period}]
+
+  # Each group of rows has a register for pipelining. Rows share outputs.
+  - !Container
+    name: RowGroup
+    spatial:
+    - name: group_ARRAY_ROWS
+      fanout: n_regs_per_col
+      reuse: output
+      min_usage: 1
+
+  # Register stores partially-accumulated outputs. They are used for pipelining the
+  # design to run the array at a higher clock frequency.
+  - !Toll
+    name: Register
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ColonnadeRegister
+    extra_attributes_for_component_model:
+      width: encoded_output_bits
+      voltage_energy_scale: voltage_energy_scale
+
+  # Each row receives a different input slice. Rows share outputs.
+  - !Container
+    name: Row
+    spatial:
+    # ARRAY_ROWS suffix used for used for counting the array size
+    - name: row_ARRAY_ROWS
+      fanout: n_rows_per_reg
+      reuse: output
+      min_usage: 1
+
+  # CiM units stores weights and computes MACs. Each CiM unit stores up to
+  # cim_unit_depth_cells indepedently-addressable weight slices, with up to
+  # cim_unit_width_cells * cim_unit_depth_cells in a weight slice. Only one weight slice
+  # can be used at a time.
+  - !Memory
+    name: CimUnit
+    # Computes with one input slice * weight slice at a time. Computations are
+    # parallelized across weight slices, and input slices are processed sequentially.
+    <<: [*both_sliced_weight_slices_parallelized, *one_action_per_value]
+    tensors:
+      keep: weight
+      # Write weights at most once
+      no_refetch_from_above: weight
+      # Can store values at this level longer than levels above, which lets the mapping
+      # be maximally-weight-stationary (CimUnit weight storage node as high as
+      # possible).
+      force_memory_hierarchy_order: False
+    # Each instance of this component represents n_weight_slices weight slices, meaning
+    # that it holds a full weight
+    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell
+    component_class: MemoryCell
+    # CimUnits represent cim_unit_width_cells * cim_unit_depth_cells memory cells tied
+    # together into one weight
+    extra_attributes_for_component_model:
+      n_instances: cim_unit_width_cells * cim_unit_depth_cells
+
+  # CiM logic (adder switching) performs MACs in the memory array. In Colonnade they
+  # include a XOR gate to perform the multiply and an adder that sums values from this
+  # XOR gate, the previous row, and the carry from the previous column.
+  - !Toll
+    name: CimLogic
+    <<: [*both_sliced_weight_slices_parallelized, *one_action_per_value]
+    tensors: {keep: weight}
+    direction: down
+    component_class: ColonnadeCimLogic
+    extra_attributes_for_component_model:
+      width: cim_unit_width_cells * bits_per_cell
+      p_switch: (average_input_value * (1 - average_input_value)) ** 0.5
+      switching_activity: n_adders_critical_path * p_switch
+      voltage_energy_scale: voltage_energy_scale
+
+  # We account for compute energy and latency in other components, so just use a dummy
+  # compute here.
+  - !Compute
+    name: FreeCompute
+    component_class: Dummy
+    enabled: len(All) == 3
+
+
+# These variables pertain to the workload, microarch, and circuits. They should be
+# matched between architectures when comparing for a fair comparison.
+variables:
+  inputs_hist: [1, 1, 1, 1, 1, 1, 1]
+  weights_hist: [1, 1, 1, 1, 1, 1, 1]
+  outputs_hist: inputs_hist
+
+  ## Microarch ------------------------------------------------------------------------
+  supported_input_bits:  16
+  supported_weight_bits: 16
+  supported_output_bits: 24
+  min_supported_input_bits: 1
+  min_supported_weight_bits: 1
+  min_supported_output_bits: 1
+
+  # Circuits --------------------------------------------------------------------------
+  voltage: 0.8
+  tech_node: 65e-9 # 65nm
+  cell_config: "{{find_path('sram_colonnade_jssc_2021.yaml')}}"
+  voltage_energy_scale: (voltage / 0.8) ** 2
+  voltage_latency_scale: 0.8 / voltage
+
+  # Calibration -----------------------------------------------------------------------
+  adc_energy_scale: 1 * voltage_energy_scale
+  adc_area_scale: 1
+  row_col_drivers_area_scale: 1
+
+
+# =====================================================================================
+# Default Workload
+# =====================================================================================
+# This workload is sized to get peak throughput & energy efficiency.
+# 128 columns × (16 regs × 8 rows/reg) = 128 × 128 rows
+workload:
+  rank_sizes:
+    M: 1
+    N: 128
+    K: 128
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: input, projection: [m, k], bits_per_value: 1}
+    - {name: weight, projection: [k, n], bits_per_value: 1}
+    - {name: output, projection: [m, n], output: True, bits_per_value: 1}
+
+renames: {}

@@ -1,0 +1,12 @@
+# Two back-to-back matmuls producing an intermediate tensor (T1).
+# T1 is both the output of Matmul1 and an input to Matmul2.
+workload:
+  rank_sizes:
+    M: 16
+    K: 16
+    N: 16
+    P: 16
+  bits_per_value: {All: 8}
+  einsums:
+  - "T1[m, n] = T0[m, k] * W0[k, n]"
+  - "T2[m, p] = T1[m, n] * W1[n, p]"

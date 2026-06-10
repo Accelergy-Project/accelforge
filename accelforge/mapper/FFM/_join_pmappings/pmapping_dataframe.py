@@ -307,7 +307,7 @@ class PmappingDataframe:
                 for c in max_columns:
                     max_to_col(self.data, target, c)
                 drop_columns += [m for m in max_columns if m != target]
-        self.data.drop(columns=drop_columns, inplace=True)
+        self._data = self.data.drop(columns=drop_columns)
 
         return len(drop_columns) != 0
 
@@ -772,6 +772,24 @@ class PmappingDataframe:
             check_above_subset_below=False,
         )
 
+    def split_in_half(self) -> tuple["PmappingDataframe", "PmappingDataframe"]:
+        mid = len(self.data) // 2
+        half_total = self.n_total_pmappings / 2
+        half_valid = self.n_valid_pmappings / 2
+        first = self.update(
+            data=self.data.iloc[:mid].copy(),
+            skip_pareto=True,
+            n_total_pmappings=half_total,
+            n_valid_pmappings=half_valid,
+        )
+        second = self.update(
+            data=self.data.iloc[mid:].copy(),
+            skip_pareto=True,
+            n_total_pmappings=half_total,
+            n_valid_pmappings=half_valid,
+        )
+        return first, second
+
     def limit_capacity(
         self,
         next_shared_loop_index: int = None,
@@ -801,7 +819,7 @@ class PmappingDataframe:
                         print(f"{col2}: {list[Any](self.data[col2])}")
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
-                    l == 0
+                    l <= 0
                     and next_shared_loop_index == -1
                     # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
                     # tensors may get saved later and would live at the same time as
@@ -832,7 +850,7 @@ class PmappingDataframe:
                         print(f"{col2}: {list[Any](self.data[col2])}")
                 self._data = self.data[self.data[col] <= 1 + tolerance]
                 if (
-                    l == 0
+                    l <= 0
                     # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
                     # tensors may get saved later.
                     and finished

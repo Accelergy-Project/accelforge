@@ -12,6 +12,7 @@ from accelforge.frontend.arch import (
     Container,
     Spatialable,
 )
+from accelforge.frontend.arch._flattened_arch import FlattenedArch
 
 from accelforge.frontend.workload import Workload
 from accelforge.frontend.variables import Variables
@@ -175,7 +176,16 @@ class Spec(EvalableModel):
             evaluated_spec._evaluated = True
             return evaluated_spec
 
-    def calculate_component_area_energy_latency_leak(
+    def calculate_component_area_energy_latency_leak(*args, **kwargs):
+        import warnings
+
+        warnings.warn(
+            "calculate_component_area_energy_latency_leak is deprecated. Please use "
+            "calculate_component_costs instead.",
+            DeprecationWarning,
+        )
+
+    def calculate_component_costs(
         self,
         einsum_name: EinsumName | None = None,
         area: bool = True,
@@ -187,7 +197,7 @@ class Spec(EvalableModel):
         Populates per-component area, energy, latency, and/or leak power. For each
         component, populates the ``area``, ``total_area``, ``leak_power`` and
         ``total_leak_power``. Additionally, for each action of each component, populates
-        the ``<action>.energy`` and ``<action>.latency`` fields. Extends the
+        the ``<action>.energy`` and ``<action>.throughput`` fields. Extends the
         ``component_modeling_log`` field with log messages. Also populates the
         ``component_model`` attribute for each component if not already set.
 
@@ -233,7 +243,7 @@ class Spec(EvalableModel):
                 e.add_note(
                     "If this error seems to be caused by a missing symbol that depends on \n"
                     "the workload, you may need to provide an appropriate einsum_name to \n"
-                    "calculate_component_area_energy_latency_leak. This may occur if the \n"
+                    "calculate_component_costs. This may occur if the \n"
                     "architecture depends on something in the workload.\n"
                 )
             raise
@@ -249,6 +259,8 @@ class Spec(EvalableModel):
 
             orig: Component = self.arch.find(leaf.name)
             c = leaf
+            prev_log = list(c.component_modeling_log)
+            c.component_modeling_log.clear()
             if area:
                 c = c.calculate_area(models)
                 orig.area = c.area
@@ -259,15 +271,15 @@ class Spec(EvalableModel):
                     orig_action = orig.actions[a.name]
                     orig_action.energy = a.energy
             if latency:
-                c = c.calculate_action_latency(models)
+                c = c.calculate_action_throughput(models)
                 for a in c.actions:
                     orig_action = orig.actions[a.name]
-                    orig_action.latency = a.latency
+                    orig_action.throughput = a.throughput
             if leak:
                 c = c.calculate_leak_power(models)
                 orig.leak_power = c.leak_power
                 orig.total_leak_power = c.leak_power * global_fanout
-            orig.component_modeling_log.extend(c.component_modeling_log)
+            orig.component_modeling_log = prev_log + c.component_modeling_log
             orig.component_model = c.component_model
 
         return self
@@ -276,7 +288,7 @@ class Spec(EvalableModel):
         self,
         compute_node: str | Compute | None = None,
         einsum_name: EinsumName | None = None,
-    ) -> list[list[Leaf]] | list[Leaf]:
+    ) -> list[FlattenedArch] | FlattenedArch:
         """
         Return the architecture as paths of ``Leaf`` instances from the highest-level
         node to each ``Compute`` node. Parses arithmetic expressions in the
