@@ -480,3 +480,120 @@
 #     expected:
 #         latency: 1
 #         total_hops: 4
+###################################################
+# 8-GPU fully-connected (NVLink/NVSwitch-style)   #
+# all-to-all, one-hot GPU encoding.               #
+#                                                 #
+# GPU i sits at one-hot coordinate e_i so every   #
+# src!=dst cast has extent 1 along exactly the    #
+# src and dst dims: cost = (1+1)(1+1)-1 = 3,      #
+# uniform across all pairs (fully-connected).     #
+# Self-chunks never cross the fabric (cost 0).    #
+# dist_fn is unit-cost (matching only).           #
+###################################################
+
+# All-to-all over 8 GPUs: each GPU holds chunks data[self, d] and requests data[s, self].
+-   occ: |
+        {
+            noc[gs0, gs1, gs2, gs3, gs4, gs5, gs6, gs7] -> data[s, d] :
+                0 <= gs0 <= 1 and 0 <= gs1 <= 1 and 0 <= gs2 <= 1 and 0 <= gs3 <= 1 and 0 <= gs4 <= 1 and 0 <= gs5 <= 1 and 0 <= gs6 <= 1 and 0 <= gs7 <= 1 and
+                gs0 + gs1 + gs2 + gs3 + gs4 + gs5 + gs6 + gs7 = 1 and
+                s = 1*gs1 + 2*gs2 + 3*gs3 + 4*gs4 + 5*gs5 + 6*gs6 + 7*gs7 and 0 <= d < 8
+        }
+    fill: |
+        {
+            noc[gd0, gd1, gd2, gd3, gd4, gd5, gd6, gd7] -> data[s, d] :
+                0 <= gd0 <= 1 and 0 <= gd1 <= 1 and 0 <= gd2 <= 1 and 0 <= gd3 <= 1 and 0 <= gd4 <= 1 and 0 <= gd5 <= 1 and 0 <= gd6 <= 1 and 0 <= gd7 <= 1 and
+                gd0 + gd1 + gd2 + gd3 + gd4 + gd5 + gd6 + gd7 = 1 and
+                d = 1*gd1 + 2*gd2 + 3*gd3 + 4*gd4 + 5*gd5 + 6*gd6 + 7*gd7 and 0 <= s < 8
+        }
+    dims: &8d_onehot_spatial
+        -   type: Spatial
+            spatial_dim: 0
+            target: 0
+        -   type: Spatial
+            spatial_dim: 1
+            target: 0
+        -   type: Spatial
+            spatial_dim: 2
+            target: 0
+        -   type: Spatial
+            spatial_dim: 3
+            target: 0
+        -   type: Spatial
+            spatial_dim: 4
+            target: 0
+        -   type: Spatial
+            spatial_dim: 5
+            target: 0
+        -   type: Spatial
+            spatial_dim: 6
+            target: 0
+        -   type: Spatial
+            spatial_dim: 7
+            target: 0
+    dist_fn: &fully_connected_unit |
+        {
+            [noc[xd0, xd1, xd2, xd3, xd4, xd5, xd6, xd7] -> noc[xs0, xs1, xs2, xs3, xs4, xs5, xs6, xs7]] -> hops[0] :
+                xd0 = xs0 and xd1 = xs1 and xd2 = xs2 and xd3 = xs3 and xd4 = xs4 and xd5 = xs5 and xd6 = xs6 and xd7 = xs7;
+            [noc[xd0, xd1, xd2, xd3, xd4, xd5, xd6, xd7] -> noc[xs0, xs1, xs2, xs3, xs4, xs5, xs6, xs7]] -> hops[1] :
+                (xd0 < xs0) or (xd0 > xs0) or (xd1 < xs1) or (xd1 > xs1) or (xd2 < xs2) or (xd2 > xs2) or (xd3 < xs3) or (xd3 > xs3) or (xd4 < xs4) or (xd4 > xs4) or (xd5 < xs5) or (xd5 > xs5) or (xd6 < xs6) or (xd6 > xs6) or (xd7 < xs7) or (xd7 > xs7)
+        }
+    expected:
+        latency: null
+        total_hops: null
+        multicast_hops: null
+        hypercube_hops: 168
+        extent_DOR_hops: null
+
+# Single chunk GPU0 -> GPU3: one unicast cast, cost (1+1)(1+1)-1 = 3.
+-   occ: |
+        {
+            noc[gs0, gs1, gs2, gs3, gs4, gs5, gs6, gs7] -> data[s, d] :
+                0 <= gs0 <= 1 and 0 <= gs1 <= 1 and 0 <= gs2 <= 1 and 0 <= gs3 <= 1 and 0 <= gs4 <= 1 and 0 <= gs5 <= 1 and 0 <= gs6 <= 1 and 0 <= gs7 <= 1 and
+                gs0 + gs1 + gs2 + gs3 + gs4 + gs5 + gs6 + gs7 = 1 and
+                s = 1*gs1 + 2*gs2 + 3*gs3 + 4*gs4 + 5*gs5 + 6*gs6 + 7*gs7 and s = 0 and d = 3
+        }
+    fill: |
+        {
+            noc[gd0, gd1, gd2, gd3, gd4, gd5, gd6, gd7] -> data[s, d] :
+                0 <= gd0 <= 1 and 0 <= gd1 <= 1 and 0 <= gd2 <= 1 and 0 <= gd3 <= 1 and 0 <= gd4 <= 1 and 0 <= gd5 <= 1 and 0 <= gd6 <= 1 and 0 <= gd7 <= 1 and
+                gd0 + gd1 + gd2 + gd3 + gd4 + gd5 + gd6 + gd7 = 1 and
+                d = 1*gd1 + 2*gd2 + 3*gd3 + 4*gd4 + 5*gd5 + 6*gd6 + 7*gd7 and s = 0 and d = 3
+        }
+    dims: *8d_onehot_spatial
+
+    dist_fn: *fully_connected_unit
+
+    expected:
+        latency: null
+        total_hops: null
+        multicast_hops: null
+        hypercube_hops: 3
+        extent_DOR_hops: null
+
+# Self chunk GPU5 -> GPU5: never crosses the fabric, cost 0.
+-   occ: |
+        {
+            noc[gs0, gs1, gs2, gs3, gs4, gs5, gs6, gs7] -> data[s, d] :
+                0 <= gs0 <= 1 and 0 <= gs1 <= 1 and 0 <= gs2 <= 1 and 0 <= gs3 <= 1 and 0 <= gs4 <= 1 and 0 <= gs5 <= 1 and 0 <= gs6 <= 1 and 0 <= gs7 <= 1 and
+                gs0 + gs1 + gs2 + gs3 + gs4 + gs5 + gs6 + gs7 = 1 and
+                s = 1*gs1 + 2*gs2 + 3*gs3 + 4*gs4 + 5*gs5 + 6*gs6 + 7*gs7 and s = 5 and d = 5
+        }
+    fill: |
+        {
+            noc[gd0, gd1, gd2, gd3, gd4, gd5, gd6, gd7] -> data[s, d] :
+                0 <= gd0 <= 1 and 0 <= gd1 <= 1 and 0 <= gd2 <= 1 and 0 <= gd3 <= 1 and 0 <= gd4 <= 1 and 0 <= gd5 <= 1 and 0 <= gd6 <= 1 and 0 <= gd7 <= 1 and
+                gd0 + gd1 + gd2 + gd3 + gd4 + gd5 + gd6 + gd7 = 1 and
+                d = 1*gd1 + 2*gd2 + 3*gd3 + 4*gd4 + 5*gd5 + 6*gd6 + 7*gd7 and s = 5 and d = 5
+        }
+    dims: *8d_onehot_spatial
+
+    dist_fn: *fully_connected_unit
+
+    expected:
+        latency: null
+        total_hops: null
+        multicast_hops: null
+        hypercube_hops: 0
+        extent_DOR_hops: null
