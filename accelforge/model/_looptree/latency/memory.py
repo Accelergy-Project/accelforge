@@ -103,10 +103,25 @@ def component_latency(
                 f"Component {component} is not a TensorHolder or Compute"
             )
 
-    longest_compute_latency = Max(
-        0, *[s.max_latency for s in looptree_results.compute_stats.values()]
-    )
-    component_to_actions[compute_obj.name]["compute"] = longest_compute_latency
+    # `max_latency` is now a per-op-kind dict ({op_kind: cycles-per-iter-of-worst-iter}).
+    # For each op_kind, take the max across compute_stats entries (different
+    # (einsum, compute-level) keys) and inject it under the action's name,
+    # where action_name is the ComputeAction on this Compute whose op_kind matches.
+    # The Compute's `total_latency` expression (default sum(*action2latency.values()))
+    # then turns the per-kind counts into per-kind latency contributions and combines
+    # them. This implements sum-then-max: sum across op_kinds within a Compute
+    # (via total_latency), max across compute levels (via the per-kind max here
+    # and the Max(...) over component latencies at the get_latency layer).
+    per_kind_max_latency: dict[str, float] = {}
+    for s in looptree_results.compute_stats.values():
+        for op_kind, val in s.max_latency.items():
+            if op_kind in per_kind_max_latency:
+                per_kind_max_latency[op_kind] = Max(per_kind_max_latency[op_kind], val)
+            else:
+                per_kind_max_latency[op_kind] = val
+    for op_kind, count in per_kind_max_latency.items():
+        action = compute_obj.action_for_op_kind(op_kind)
+        component_to_actions[compute_obj.name][action.name] = count
 
     new_component_to_actions: dict[str, list] = {}
     for component, action_counts in component_to_actions.items():
