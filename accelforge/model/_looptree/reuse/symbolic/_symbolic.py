@@ -47,7 +47,7 @@ from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.mapper.FFM._pareto_df.df_convention import iterations2col
 
 import sympy
-from installs.accelforge.accelforge.util._sympy.broadcast_max import max_nonzero
+from accelforge.util._sympy.broadcast_max import max_nonzero
 import symengine as se
 
 from ._common import (
