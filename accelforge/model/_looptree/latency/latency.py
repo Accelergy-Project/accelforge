@@ -47,10 +47,17 @@ def calculate_compute_latency(reuse_analysis_results, mapping, workload):
 
 def compute_summarized_latency(compute_stats, mapping, workload):
     # TODO: this is only for single-Einsum!!!
+    # `stats.max_latency` is a dict[op_kind, cycles]. Sum across op_kinds
+    # within a ComputeStats entry (matching the Compute's default
+    # total_latency = sum(*action2latency.values())), then take the max
+    # across entries -- i.e., sum-then-max. The cross-stats max here mirrors
+    # max_nonzero(comp_latency, ...) in get_latency(), keeping this code path
+    # consistent with the per-component path in latency/memory.py.
     longest_compute_latency = 0
     for stats in compute_stats.values():
+        per_iter_latency = sum(stats.max_latency.values(), 0)
         longest_compute_latency = max_nonzero(
-            longest_compute_latency, stats.max_latency
+            longest_compute_latency, per_iter_latency
         )
     return longest_compute_latency
 

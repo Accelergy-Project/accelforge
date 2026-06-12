@@ -1,0 +1,33 @@
+# Tropical (max-plus) GEMM: A[m,n] = max over k of (B[m,k] + C[k,n]).
+#
+# Same iteration space and tensor shapes as standard GEMM, but the inner op is
+# an add followed by a max-reduction instead of a multiply followed by a
+# sum-reduction. Set via map_op: add / reduce_op: max, so effective_op_profile()
+# emits {add: 1, max: 1}. The "add"+"max" pair is not a fused-MAC pattern, so no
+# arch fuses it; arch_add_max.yaml charges add and max separately.
+#
+# Useful for shortest-path-style algorithms (Floyd-Warshall inner loop),
+# HMM forward/Viterbi, and other dynamic-programming kernels that share GEMM's
+# data movement but use a different semiring.
+
+workload:
+  rank_sizes:
+    M: 64
+    N: 64
+    K: 64
+
+  iteration_space_shape:
+    m: 0 <= m < 64
+    n: 0 <= n < 64
+    k: 0 <= k < 64
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - name: TropicalMatmul
+    tensor_accesses:
+    - {name: B, projection: [m, k]}
+    - {name: C, projection: [k, n]}
+    - {name: A, projection: [m, n], output: True}
+    map_op: add
+    reduce_op: max

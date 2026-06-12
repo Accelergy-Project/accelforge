@@ -175,13 +175,39 @@ class BuffetStats:
         stats.n_loops_above = None  # Inherit from whoever is added to this
         return stats
 
+def _scale_op_dict(d: dict[str, Any], factor: Any) -> dict[str, Any]:
+    """Multiply every per-op-kind value by `factor`. Identity at factor==1."""
+    if factor == 1:
+        return dict(d)
+    if isinstance(factor, float) and factor == int(factor):
+        factor = int(factor)
+    return {k: v * factor for k, v in d.items()}
+
+
+def _sum_op_dicts(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """Per-op-kind sum. Keys present in only one operand are kept as-is."""
+    out = dict(a)
+    for k, v in b.items():
+        out[k] = out[k] + v if k in out else v
+    return out
+
+
+def _max_op_dicts(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """Per-op-kind max_nonzero. Keys present in only one operand are kept as-is."""
+    out = dict(a)
+    for k, v in b.items():
+        out[k] = max_nonzero(out[k], v) if k in out else v
+    return out
 
 @dataclass
 class ComputeStats:
-    total_ops: Any = field(default=0)
-    max_per_unit_ops: Any = field(default=0)
+    # Per-op-kind counts. Keys are op_kind strings (e.g. "mul", "add", "mac")
+    # matching the ComputeAction.op_kind values declared on the arch's Compute
+    # component. An empty dict means no contribution.
+    total_ops: dict[str, Any] = field(default_factory=dict)
+    max_per_unit_ops: dict[str, Any] = field(default_factory=dict)
     # "max" below refers to the longest latency of any iteration
-    max_latency: Any = field(default=0)
+    max_latency: dict[str, Any] = field(default_factory=dict)
     # Mapping from the loop-index (0 at top) to the latency of the first
     # iteration of that loop. "Max" because we may have loops above that and we
     # will take the maximum of the firsts.
@@ -193,9 +219,9 @@ class ComputeStats:
             return new
         if type(factor) is float and factor == int(factor):
             factor = int(factor)
-        new.total_ops = new.total_ops * factor
-        new.max_per_unit_ops = new.max_per_unit_ops * factor
-        new.max_latency = new.max_latency * factor
+        new.total_ops = _scale_op_dict(new.total_ops, factor)
+        new.max_per_unit_ops = _scale_op_dict(new.max_per_unit_ops, factor)
+        new.max_latency = _scale_op_dict(new.max_latency, factor)
         # NOTE: max_first_latency does not change
         return new
 
@@ -205,14 +231,14 @@ class ComputeStats:
             return new
         if type(factor) is float and factor == int(factor):
             factor = int(factor)
-        new.total_ops = new.total_ops * factor
+        new.total_ops = _scale_op_dict(new.total_ops, factor)
         return new
 
     def __add__(self, other: "ComputeStats") -> "ComputeStats":
         new = copy.copy(self)
-        new.total_ops += other.total_ops
-        new.max_per_unit_ops += other.max_per_unit_ops
-        new.max_latency += other.max_latency
+        new.total_ops = _sum_op_dicts(new.total_ops, other.total_ops)
+        new.max_per_unit_ops = _sum_op_dicts(new.max_per_unit_ops, other.max_per_unit_ops)
+        new.max_latency = _sum_op_dicts(new.max_latency, other.max_latency)
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
         new.max_first_latency = max_dict(
@@ -221,9 +247,9 @@ class ComputeStats:
         return new
 
     def combine_temporal(self, other: "ComputeStats"):
-        self.total_ops += other.total_ops
-        self.max_per_unit_ops += other.max_per_unit_ops
-        self.max_latency += other.max_latency
+        self.total_ops = _sum_op_dicts(self.total_ops, other.total_ops)
+        self.max_per_unit_ops = _sum_op_dicts(self.max_per_unit_ops, other.max_per_unit_ops)
+        self.max_latency = _sum_op_dicts(self.max_latency, other.max_latency)
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
         self.max_first_latency = max_dict(
@@ -231,11 +257,9 @@ class ComputeStats:
         )  # FIRST LATENCY
 
     def combine_spatial(self, other: "ComputeStats"):
-        self.total_ops += other.total_ops
-        self.max_per_unit_ops = max_nonzero(
-            self.max_per_unit_ops, other.max_per_unit_ops
-        )
-        self.max_latency = max_nonzero(self.max_latency, other.max_latency)
+        self.total_ops = _sum_op_dicts(self.total_ops, other.total_ops)
+        self.max_per_unit_ops = _max_op_dicts(self.max_per_unit_ops, other.max_per_unit_ops)
+        self.max_latency = _max_op_dicts(self.max_latency, other.max_latency)
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
         self.max_first_latency = max_dict(

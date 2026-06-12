@@ -225,6 +225,30 @@ class TensorHolderAction(Action):
         return super()._eval_expressions(*args, **kwargs, post_calls=(MyPostCall(),))
 
 
+class ComputeAction(Action):
+    op_kind: str = "mac"
+    """ The semantic category of operation this action models (e.g., "mul", "add",
+    "mac", "max"). Einsums declare `map_op`/`reduce_op`; the analysis derives an
+    op_profile from those and binds each op_kind to the Compute action that declares
+    it. The default "mac" preserves legacy single-action behavior. """
+
+    fuses: EvalableList[str] = []
+    """ op_kinds this action coalesces into a single fire. When an einsum's op_profile
+    contains all listed op_kinds with EQUAL counts, those entries collapse into one
+    entry keyed under this action's `op_kind` with the shared count -- e.g. a fused MAC
+    pairs (mul, add) into one charge per iteration. Left unset, an `op_kind="mac"`
+    action defaults to fusing `[mul, add]` (so legacy single-MAC arches need no
+    change); any other op_kind defaults to no fusion. See `effective_fuses`. """
+
+    @property
+    def effective_fuses(self) -> list[str]:
+        """`fuses` if set, else the op_kind-derived default: a bare `mac` action
+        fuses `[mul, add]` (legacy fused-MAC); every other op_kind fuses nothing."""
+        if self.fuses:
+            return list(self.fuses)
+        return ["mul", "add"] if self.op_kind == "mac" else []
+
+
 _COMPONENT_MODEL_CACHE: dict[tuple, "Component"] = {}
 
 
@@ -888,7 +912,7 @@ PROCESSING_STAGE_ACTIONS = EvalableList[TensorHolderAction](
 
 COMPUTE_ACTIONS = EvalableList(
     [
-        Action(name="compute"),
+        ComputeAction(name="compute", op_kind="mac"),
     ]
 )
 
@@ -1279,8 +1303,9 @@ class Toll(TensorHolder):
 
 
 class Compute(Component, Leaf):
-    actions: EvalableList[Action] = COMPUTE_ACTIONS
-    """ The actions that this `Compute` can perform. """
+    actions: EvalableList[ComputeAction] = COMPUTE_ACTIONS
+    """ The actions that this `Compute` can perform. Each `ComputeAction` declares an
+    `op_kind` that einsums bind to via their `map_op`/`reduce_op`. """
 
     skip_initial_output_write: bool = True
     """
@@ -1288,8 +1313,20 @@ class Compute(Component, Leaf):
     initalize outputs. If True, this initial fetch and fill is skipped.
     """
 
-    def model_post_init(self, __context__=None) -> None:
-        self._update_actions(COMPUTE_ACTIONS)
+    def action_for_op_kind(self, op_kind: str) -> ComputeAction:
+        """Return the `ComputeAction` on this Compute whose `op_kind` matches.
+
+        Raises EvaluationError if no action declares this op_kind.
+        """
+        for action in self.actions:
+            if getattr(action, "op_kind", None) == op_kind:
+                return action
+        declared = sorted({getattr(a, "op_kind", None) for a in self.actions})
+        raise EvaluationError(
+            f"Compute component {self.name!r} has no action with op_kind "
+            f"{op_kind!r}. Declared op_kinds: {declared}.",
+            source_field=f"{self.name}.actions",
+        )
 
     def _render_node_shape(self) -> str:
         return "ellipse"
