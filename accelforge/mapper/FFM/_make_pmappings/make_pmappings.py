@@ -422,12 +422,13 @@ def make_pmappings(
     }
 
     # Propagate keep_rates from worker-side job copies back to original jobs
-    id2keep_rates = {jid: (keep_rates, n) for jid, keep_rates, n in keep_rates}
+    id2keep_rates = {jid: (kr, n, ne) for jid, kr, n, ne in keep_rates}
     for jobs in return_jobs.values():
         for job in jobs:
             assert job.job_id in id2keep_rates, f"Job {job.job_id} not found"
             job.pmapping_keep_rates.update(id2keep_rates[job.job_id][0])
             job.n_total_pmappings = id2keep_rates[job.job_id][1]
+            job.n_evaluated_pmappings = id2keep_rates[job.job_id][2]
 
     return pmapping_groups, pmapping_objects, return_jobs
 

@@ -271,6 +271,7 @@ def eval_set_expression(
         if fast_error:
             err = EvaluationError(f'{e}. Set expression: "{expression}".')
         else:
+
             def strformat(v):
                 v = str(v)
                 return v if len(v) <= 100 else v[:100] + "..."

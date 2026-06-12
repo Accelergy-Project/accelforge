@@ -1753,6 +1753,7 @@ def get_tile_shape_choices(
                 continue
 
             choices_enumerated_float = choices_enumerated.astype(util.NUMPY_FLOAT_TYPE)
+            job.n_evaluated_pmappings += choices_enumerated.shape[0]
 
             # ==========================================================================
             # Create functions to Pareto using objectives
@@ -1908,7 +1909,6 @@ def get_tile_shape_choices(
                 for symbol, goal in goals.items():
                     update_symbol2goal(symbol, goal)
 
-            job.n_evaluated_pmappings += choices_enumerated.shape[0]
             if not choices_enumerated.shape[0]:
                 return np.array([]).reshape(-1, len(symbols))
 
