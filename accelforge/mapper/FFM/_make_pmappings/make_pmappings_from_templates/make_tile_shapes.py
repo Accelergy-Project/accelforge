@@ -47,7 +47,7 @@ from accelforge.model.run_model import (
 
 import getpass
 
-DEBUG = getpass.getuser() == "tanner"
+DEBUG = getpass.getuser() == "tanner" or PRINT_FORMULAS
 
 
 # Sympy drops known-dominated terms from Maxes and Mins using two passes,
@@ -735,9 +735,7 @@ def get_possible_factor_sizes(
     n_tiles = set()
 
     def _try_admit(n: int) -> bool:
-        if not imperfect and outer_size % n != 0:
-            return False
-        if n > outer_size:
+        if n > outer_size or n in factors:
             return False
 
         # This check: Avoid redundant tile shapes that lead to the same number of tiles,
@@ -752,19 +750,24 @@ def get_possible_factor_sizes(
             factors.add(new_n)
         return True
 
-    n = inner_size
-    while n <= outer_size:
-        # If we successfully admit an n, don't try another n until we hit our coarseness
-        # target.
-        if _try_admit(n):
-            n = max(n + 1, math.ceil(n * coarseness))
-        else:
-            n += 1
+    if imperfect:
+        n = inner_size
+        while n <= outer_size:
+            # Force n to be a multiple of the inner size. ctrl-f for
+            # IMPERFECT_OUTER_ONLY_ASSUMPTION. Note we also require that the enumeration
+            # order is inner -> outer if we're doing imperfect.
+            _try_admit(round(n / inner_size) * inner_size)
+            n = n * coarseness if coarseness > 1 else n + inner_size
 
-        # Force n to be a multiple of the inner size. ctrl-f for
-        # IMPERFECT_OUTER_ONLY_ASSUMPTION. Note we also require that the enumeration
-        # order is inner -> outer if we're doing imperfect.
-        n = math.ceil(n / inner_size) * inner_size
+    # Do all the prime factors
+    else:
+        try_add = set(_factorize(math.ceil(outer_size / inner_size)) * inner_size)
+        factors = set()
+        prev = 0
+        for f in sorted(try_add):
+            if f >= prev * coarseness:
+                factors.add(f)
+                prev = f
 
     # One more in case coarseness jumped the max value
     _try_admit(outer_size)
