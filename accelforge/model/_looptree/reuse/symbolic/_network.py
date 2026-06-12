@@ -14,7 +14,7 @@ from accelforge.frontend._workload_isl._symbolic import (
     PartiallyRelevant,
 )
 
-from accelforge.util._sympy.broadcast_max import Min, Max, MaxGeqZero
+from accelforge.util._sympy.broadcast_max import Min, Max, max_nonzero
 
 from ._common import AnalysisInfo
 from ._stats import NetworkStats
@@ -42,7 +42,7 @@ class NetworkAnalyzer:
             accumulated_network_stats.total_hops += (
                 child_network_stats.total_hops * shape_repeats
             )
-            accumulated_network_stats.max_hops = MaxGeqZero(
+            accumulated_network_stats.max_hops = max_nonzero(
                 accumulated_network_stats.max_hops,
                 child_network_stats.max_hops,
             )
@@ -80,7 +80,7 @@ class NetworkAnalyzer:
                 self.overall_max_hops += multicast_hops
 
                 accumulated_network_stats.total_hops += multicast_cost
-                accumulated_network_stats.max_hops = MaxGeqZero(
+                accumulated_network_stats.max_hops = max_nonzero(
                     accumulated_network_stats.max_hops,
                     self.overall_max_hops + child_network_stats.max_hops,
                 )
@@ -95,7 +95,7 @@ class NetworkAnalyzer:
                 self.overall_max_hops += max_unicast_hops
 
                 accumulated_network_stats.total_hops += total_unicast_cost
-                accumulated_network_stats.max_hops = MaxGeqZero(
+                accumulated_network_stats.max_hops = max_nonzero(
                     accumulated_network_stats.max_hops,
                     self.overall_max_hops + child_network_stats.max_hops,
                 )

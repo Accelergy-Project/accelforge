@@ -9,8 +9,7 @@ from accelforge.model._looptree.types import Buffet, Compute, Network
 
 from accelforge.util._frozenset import oset
 from accelforge.util._sympy.broadcast_max import (
-    MaxGeqZero,
-    MinGeqZero,
+    max_nonzero,
     min_nonzero,
     max_dict,
 )
@@ -119,11 +118,11 @@ class BuffetStats:
 
     def max(self, **kwargs: Any):
         for key, value in kwargs.items():
-            setattr(self, key, MaxGeqZero(getattr(self, key), value))
+            setattr(self, key, max_nonzero(getattr(self, key), value))
 
     def min(self, **kwargs: Any):
         for key, value in kwargs.items():
-            setattr(self, key, MinGeqZero(getattr(self, key), value))
+            setattr(self, key, min_nonzero(getattr(self, key), value))
 
     def __add__(self, other: "BuffetStats") -> "BuffetStats":
         new = copy.copy(self)
@@ -132,7 +131,7 @@ class BuffetStats:
             if k.startswith("min_"):
                 new.__dict__[k] = min_nonzero(v, other_v)
             elif k.startswith("max_"):
-                new.__dict__[k] = MaxGeqZero(v, other_v)
+                new.__dict__[k] = max_nonzero(v, other_v)
             elif k.startswith("total_"):
                 new.__dict__[k] = v + other_v
             elif v is None:
@@ -233,10 +232,10 @@ class ComputeStats:
 
     def combine_spatial(self, other: "ComputeStats"):
         self.total_ops += other.total_ops
-        self.max_per_unit_ops = MaxGeqZero(
+        self.max_per_unit_ops = max_nonzero(
             self.max_per_unit_ops, other.max_per_unit_ops
         )
-        self.max_latency = MaxGeqZero(self.max_latency, other.max_latency)
+        self.max_latency = max_nonzero(self.max_latency, other.max_latency)
         # max_first_latency is only ever updated across loops ABOVE the loop
         # for which we calculated that first latency, so we should MAX
         self.max_first_latency = max_dict(
@@ -282,7 +281,7 @@ class SymbolicAnalysisOutput:
                 previous.setdefault(k, {})
                 for k2, v2 in v.items():
                     if k2 in previous[k]:
-                        previous[k][k2] = MaxGeqZero(previous[k][k2], v2)
+                        previous[k][k2] = max_nonzero(previous[k][k2], v2)
                     else:
                         previous[k][k2] = v2
 

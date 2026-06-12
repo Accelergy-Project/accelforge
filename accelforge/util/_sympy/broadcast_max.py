@@ -1,20 +1,33 @@
-from symengine import Max, Min
+from sympy import Max, Min
 from typing import Any
 
 
-def MaxGeqZero(*args):
-    # Fast paths for numeric args. 2-arg case dominates.
-    if len(args) == 2:
-        a, b = args
-        if type(a) is int or type(a) is float:
-            if type(b) is int or type(b) is float:
-                return max(a, b, 0)
-            if a == 0:
-                return Max(0, b)
-        elif type(b) is int or type(b) is float:
-            if b == 0:
-                return Max(0, a)
-    return Max(0, *args)
+def MaxGeqZero(*args, known_geq_zero=False):
+    args_nonzero = set()
+    for a in args:
+        try:
+            if a <= 0:
+                pass
+            else:
+                args_nonzero.add(a)
+        except:
+            args_nonzero.add(a)
+        try:
+            if a > 0:
+                known_geq_zero = True
+        except:
+            pass
+
+    if not known_geq_zero:
+        args_nonzero.add(0)
+
+    args_nonzero = sorted(args_nonzero, key=str)
+
+    assert (
+        args_nonzero
+    ), f"MaxGeqZero should have at least one arg that is known to be >= 0. Got: {args}"
+
+    return Max(*args_nonzero) if len(args_nonzero) > 1 else args_nonzero[0]
 
 
 def MinGeqZero(*args):
@@ -27,14 +40,55 @@ def MinGeqZero(*args):
     return Min(*args)
 
 
-# TODO: unsure if this is needed. If the sympy symbol is created with the
-# correct assumption (e.g., positive), this should be automatic.
-def min_nonzero(a: Any, b: Any) -> Any:
-    if a == 0:
-        return b
-    if b == 0:
-        return a
-    return MinGeqZero(a, b)
+def get_zero_with_number(args) -> Any | None:
+    nonzero = None
+    for a in args:
+        if type(a) is int or type(a) is float and a == 0:
+            pass
+        if nonzero is not None:
+            return None
+        nonzero = a
+    return nonzero
+
+
+def min_nonzero(*args) -> Any:
+    if (x := get_zero_with_number(args)) is not None:
+        return x
+
+    args_nonzero = set()
+    for a in args:
+        eq_zero = True
+        try:
+            eq_zero = a == 0
+        except:
+            pass
+        if not eq_zero:
+            args_nonzero.add(a)
+    if not args_nonzero:
+        return 0
+    if len(args_nonzero) == 1:
+        return args_nonzero.pop()
+    return Min(*sorted(args_nonzero, key=str))
+
+
+def max_nonzero(*args) -> Any:
+    if (x := get_zero_with_number(args)) is not None:
+        return x
+
+    args_nonzero = set()
+    for a in args:
+        eq_zero = True
+        try:
+            eq_zero = a == 0
+        except:
+            pass
+        if not eq_zero:
+            args_nonzero.add(a)
+    if not args_nonzero:
+        return 0
+    if len(args_nonzero) == 1:
+        return args_nonzero.pop()
+    return Max(*sorted(args_nonzero, key=str))
 
 
 def max_dict(a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
