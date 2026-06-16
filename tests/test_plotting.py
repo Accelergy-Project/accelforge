@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from accelforge.frontend.spec import Spec
@@ -16,6 +17,7 @@ try:
 except ImportError:
     from paths import EXAMPLES_DIR
 
+SAVE_FIGS = os.environ.get("SAVE_FIGS", "").lower() in ("1", "true", "yes")
 
 class TestEnergyPlotting(unittest.TestCase):
     def test_comparison(self):
@@ -30,7 +32,8 @@ class TestEnergyPlotting(unittest.TestCase):
 
         fig, ax = plot_energy_comparison([result])
         fig.tight_layout()
-        # fig.savefig("total.png", dpi=400, bbox_inches="tight")
+        if SAVE_FIGS:
+            fig.savefig("total.png", dpi=400, bbox_inches="tight")
 
     def test_breakdown(self):
         spec = Spec.from_yaml(
@@ -44,7 +47,8 @@ class TestEnergyPlotting(unittest.TestCase):
 
         fig, axes = plot_energy_breakdown([result, result], ["einsum", "component"])
         fig.tight_layout()
-        fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")
+        if SAVE_FIGS:
+            fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")
 
     def test_breakdown_stacked(self):
         spec = Spec.from_yaml(
@@ -60,7 +64,8 @@ class TestEnergyPlotting(unittest.TestCase):
             [result, result], ["einsum", "component"], ["action"]
         )
         fig.tight_layout()
-        fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")
+        if SAVE_FIGS:
+            fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")
 
 
 class TestActionPlotting(unittest.TestCase):
@@ -76,4 +81,5 @@ class TestActionPlotting(unittest.TestCase):
 
         fig, axes = plot_action_breakdown([result, result], ["einsum", "component"])
         fig.tight_layout()
-        fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")
+        if SAVE_FIGS:
+            fig.savefig("/tmp/fig.png", dpi=400, bbox_inches="tight")

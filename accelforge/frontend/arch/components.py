@@ -328,9 +328,7 @@ class Component(Spatialable):
     component's energy and latency.
     """
 
-    total_latency: str | int | float = (
-        "sum(a.n_calls / a.throughput for a in actions)"
-    )
+    total_latency: str | int | float = "sum(a.n_calls / a.throughput for a in actions)"
     """
     An expression representing the total latency of this component in seconds. This is
     used to calculate the latency of a given Einsum. Special variables available are the
@@ -382,9 +380,7 @@ class Component(Spatialable):
                     f"on `{cls.__name__}`. Drop the deprecated `latency_scale`."
                 )
             ls = str(ls).strip()
-            data["throughput_scale"] = (
-                f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
-            )
+            data["throughput_scale"] = f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
         return data
 
     n_parallel_instances: EvalsTo[int | float] = 1

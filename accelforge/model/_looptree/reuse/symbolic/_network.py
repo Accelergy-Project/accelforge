@@ -13,7 +13,7 @@ from accelforge.frontend._workload_isl._symbolic import (
     PartiallyRelevant,
 )
 
-from accelforge.util._sympy.broadcast_max import MaxGeqZero, MinGeqZero
+from accelforge.util._sympy.broadcast_max import max_nonzero, min_nonzero
 
 from ._common import AnalysisInfo
 from ._stats import NetworkStats, SymbolicAnalysisOutput
@@ -123,14 +123,14 @@ class MeshTopologyModel(TopologyModel):
             if src_component._get_physical_fanout_along(dim_name) > 1:
                 physical_stride = src_component._get_physical_stride_along(dim_name)
 
-                n_dsts_per_physical = MinGeqZero(
+                n_dsts_per_physical = min_nonzero(
                     # if last_fanout > physical_stride, set n_dst to 1, which results in 0 hops
                     # later (which is correct because the set of destinations always overlap
                     # the set of sources).
-                    MaxGeqZero(physical_stride / last_fanout, 1),
+                    max_nonzero(physical_stride / last_fanout, 1),
                     shape_repeats
                 )
-                n_activated_physical = MaxGeqZero(shape_repeats * last_fanout / physical_stride, 1)
+                n_activated_physical = max_nonzero(shape_repeats * last_fanout / physical_stride, 1)
                 total_cost = (
                     n_activated_physical
                     *
@@ -138,7 +138,7 @@ class MeshTopologyModel(TopologyModel):
                     *
                     volume
                 )
-                max_hops = MinGeqZero((n_dsts_per_physical - 1) * last_fanout, physical_stride)
+                max_hops = min_nonzero((n_dsts_per_physical - 1) * last_fanout, physical_stride)
                 max_traffic = (n_dsts_per_physical - 1) * volume
             else:
                 total_cost = unicast_cost(shape_repeats, last_fanout) * volume
@@ -260,12 +260,12 @@ class NetworkAnalyzer:
                 accumulated_network_stats.total_hops += (
                     child_network_stats.total_hops * shape_repeats
                 )
-                accumulated_network_stats.max_hops = MaxGeqZero(
+                accumulated_network_stats.max_hops = max_nonzero(
                     accumulated_network_stats.max_hops,
                     child_network_stats.max_hops,
                 )
                 for k, v in child_network_stats.max_traffic.items():
-                    accumulated_network_stats.max_traffic[k] = MaxGeqZero(
+                    accumulated_network_stats.max_traffic[k] = max_nonzero(
                         accumulated_network_stats.max_traffic.get(k, 0),
                         v
                     )
@@ -299,11 +299,11 @@ class NetworkAnalyzer:
                 per_loop_transfer_cost.total_cost
                 + child_network_stats.total_hops * shape_repeats
             )
-            accumulated_network_stats.max_hops = MaxGeqZero(
+            accumulated_network_stats.max_hops = max_nonzero(
                 accumulated_network_stats.max_hops,
                 overall_max_hops + child_network_stats.max_hops,
             )
-            accumulated_network_stats.max_traffic[self.node.name] = MaxGeqZero(
+            accumulated_network_stats.max_traffic[self.node.name] = max_nonzero(
                 accumulated_network_stats.max_traffic.get(self.node.name, 0),
                 per_loop_transfer_cost.max_traffic + child_network_stats.max_traffic.get(self.node.name, 0)
             )

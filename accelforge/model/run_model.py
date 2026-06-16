@@ -21,9 +21,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     energy2col,
 )
 from accelforge.frontend.mapper.metrics import Metrics
-import sympy
-from numbers import Number
-from accelforge.util._sympy.broadcast_max import MaxGeqZero
+from accelforge.util._sympy.broadcast_max import max_nonzero
 
 
 def run_model(
@@ -43,22 +41,24 @@ def run_model(
     )
 
     latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
-    try:
-        overall_latency = MaxGeqZero(*latency.values())
-    except Exception as e:
-        for k, v in latency.items():
-            if not isinstance(v, (Number, sympy.Symbol, sympy.Expr)):
-                raise ValueError(
-                    f"Invalid type for latency: {k}: {type(v)} {str(v).strip()}"
-                )
+    overall_latency = max_nonzero(*latency.values())
 
-        raise ValueError(
-            f"Error calculating latency for {job.einsum_name}. Could not calculate "
-            f"a symbolic max of the following latencies:\n\t"
-            + "\n\t".join(
-                [f"{k}: {type(v)} {str(v).strip()}" for k, v in latency.items()]
-            )
-        )
+    # try:
+    #     overall_latency = max_nonzero(*latency.values())
+    # except Exception as e:
+    #     for k, v in latency.items():
+    #         if not isinstance(v, (Number, sympy.Symbol, sympy.Expr)):
+    #             raise ValueError(
+    #                 f"Invalid type for latency: {k}: {type(v)} {str(v).strip()}"
+    #             )
+
+    #     raise ValueError(
+    #         f"Error calculating latency for {job.einsum_name}. Could not calculate "
+    #         f"a symbolic max of the following latencies:\n\t"
+    #         + "\n\t".join(
+    #             [f"{k}: {type(v)} {str(v).strip()}" for k, v in latency.items()]
+    #         )
+    #     )
 
     used_fanout = {
         (component, dim): n

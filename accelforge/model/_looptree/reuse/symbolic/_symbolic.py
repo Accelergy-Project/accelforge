@@ -44,10 +44,10 @@ from accelforge.model._looptree.reuse.symbolic.mapping_utils import (
 )
 
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
-from accelforge.util._sympy.broadcast_max import MaxGeqZero
 from accelforge.mapper.FFM._pareto_df.df_convention import iterations2col
 
 import sympy
+from accelforge.util._sympy.broadcast_max import max_nonzero
 import symengine as se
 
 from ._common import (
@@ -641,8 +641,10 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
                 result_accumulator.temporal_steps[einsum] = child_steps
+            elif result_accumulator.temporal_steps[einsum] == 0:
+                result_accumulator.temporal_steps[einsum] = child_steps
             else:
-                result_accumulator.temporal_steps[einsum] = MaxGeqZero(
+                result_accumulator.temporal_steps[einsum] = max_nonzero(
                     result_accumulator.temporal_steps[einsum], child_steps
                 )
 
