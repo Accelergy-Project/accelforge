@@ -1,0 +1,31 @@
+# Tropical-GEMM-targeting arch: separate adder and max unit.
+
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read,  energy: 100, throughput: .inf}
+    - {name: write, energy: 100, throughput: .inf}
+
+  - !Memory
+    name: Buffer
+    size: 1024
+    leak_power: 0
+    area: 0
+    tensors: {keep: ~MainMemory, may_keep: All}
+    actions:
+    - {name: read,  energy: 1, throughput: .inf}
+    - {name: write, energy: 1, throughput: .inf}
+
+  - !Compute
+    name: TropicalALU
+    leak_power: 0
+    area: 0
+    actions:
+    - {name: add, op_kind: add, energy: 0.3, throughput: 1}
+    - {name: max, op_kind: max, energy: 0.2, throughput: 1}

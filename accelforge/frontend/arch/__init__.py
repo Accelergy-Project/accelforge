@@ -27,6 +27,7 @@ __all__ = [
     "Comparison",
     "Component",
     "Compute",
+    "ComputeAction",
     "Container",
     "Fork",
     "Array",

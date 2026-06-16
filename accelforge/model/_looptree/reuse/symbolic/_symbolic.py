@@ -64,7 +64,6 @@ SYMBOL = "symbol"
 
 PRINT_FORMULAS = False
 
-
 def quick_insert_reservation_nodes(
     job: Job, mapping: Mapping | None = None, tensors: oset[TensorName] | None = None
 ) -> Mapping:
@@ -550,7 +549,11 @@ def analyze_temporal(
 
         for key in child_result.compute_stats:
             if first_latency is None:
-                first_latency = child_result.compute_stats[key].max_latency
+                # max_latency is now a per-op-kind dict; collapse to scalar
+                # for the FIRST LATENCY column (one number per loop_idx).
+                first_latency = sum(
+                    child_result.compute_stats[key].max_latency.values(), 0
+                )
 
             compute_stats = result_accumulator.compute_stats.setdefault(
                 key, ComputeStats()
@@ -925,27 +928,95 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     return child_result
 
 
+def _apply_compute_fusion(profile: dict[str, Any], compute_obj: Any) -> dict[str, Any]:
+    """Coalesce op_profile entries via the Compute's `fuses` declarations.
+
+    For each ComputeAction whose `effective_fuses` lists more than one op_kind: if
+    the profile contains all of them with EQUAL counts, remove those entries and add
+    the shared count under the action's primary `op_kind`. Actions that fuse nothing
+    (the common case) are no-ops. Actions are processed in declaration order, and the
+    first match wins on overlap.
+
+    This is how a fused-MAC arch charges one MAC per (mul, add) pair instead of two
+    separate ops: the standard sum-of-products einsum emits `{mul: N, add: N}`, and a
+    `mac` action (which fuses `[mul, add]` by default) collapses that to `{mac: N}`
+    before downstream binding.
+    """
+    if not profile:
+        return profile
+    profile = dict(profile)
+    for action in getattr(compute_obj, "actions", []) or []:
+        fuses = getattr(action, "effective_fuses", None)
+        if not fuses or len(fuses) <= 1:
+            continue
+        if any(ok not in profile for ok in fuses):
+            continue
+        counts = [profile[ok] for ok in fuses]
+        # Require all counts equal -- otherwise we cannot safely collapse.
+        first = counts[0]
+        if not all(c is first or c == first for c in counts[1:]):
+            continue
+        for ok in fuses:
+            del profile[ok]
+        primary = action.op_kind
+        if primary in profile:
+            profile[primary] = profile[primary] + first
+        else:
+            profile[primary] = first
+    return profile
+
+
 def analyze_compute(
     node_idx, current_shape, info: AnalysisInfo
 ) -> SymbolicAnalysisOutput:
-    einsum = info.mapping[-1].einsum
+    einsum_name = info.mapping[-1].einsum
+    einsum = info.workload.einsums[einsum_name]
     node = info.mapping[node_idx]
-
-    computes = 0 if info.is_copy_operation else 1
-
     component_object = info.job.flattened_arch[node.component]
     skip_initial = (
         component_object.skip_initial_output_write and not info.is_copy_operation
     )
 
+    # Seed per-op-kind counts from the einsum's map_op/reduce_op (one
+    # iteration's worth of work per op_kind), after coalescing any fused-MAC
+    # pairs the arch declares. Loops above scale these via repeat_temporal
+    # / repeat_spatial so the final value is `(#iteration-space points) *
+    # ops_per_point[kind]`.
+    #
+    # NOTE (structural vs. semantic accounting): this counts ops structurally
+    # -- the adder fires on every iteration-space point of a reducing einsum,
+    # including the first iteration along the reduction dim where the value
+    # is being added to zero. The "semantic" count would subtract one add per
+    # unique output cell (the `+= 0` that isn't really accumulating). This
+    # over-counts by `#output_cells` adds per reducing einsum; for GEMM
+    # MNK=4,4,8 that's 16 over 128 = 12.5%, shrinking with K. If/when an arch
+    # that physically skips initial writes (see Compute.skip_initial_output_write)
+    # needs exact accounting, split max_latency into reduction-loop vs.
+    # map-loop products inside ComputeStats and consult `skip_initial` here.
+    op_profile = einsum.effective_op_profile()
+    op_profile = _apply_compute_fusion(op_profile, component_object)
+    if info.is_copy_operation:
+        seed_total_ops = {"mac": 0}
+        seed_max_per_unit_ops = {"mac": 0}
+        seed_max_latency = {"mac": 0}
+    else:
+        seed_total_ops = dict(op_profile)
+        seed_max_per_unit_ops = dict(op_profile)
+        seed_max_latency = dict(op_profile)
+
+    # `temporal_steps` is a single scalar count of iterations per einsum used
+    # by other code paths; keep it equal to (1 if non-copy else 0) to match
+    # legacy semantics.
+    temporal_step_seed = 0 if info.is_copy_operation else 1
+
     result_accumulator = SymbolicAnalysisOutput()
 
-    compute_key = Compute(einsum, node.component)
-    result_accumulator.temporal_steps[einsum] = computes
+    compute_key = Compute(einsum_name, node.component)
+    result_accumulator.temporal_steps[einsum_name] = temporal_step_seed
     result_accumulator.compute_stats[compute_key] = ComputeStats(
-        computes,
-        computes,
-        computes,
+        total_ops=seed_total_ops,
+        max_per_unit_ops=seed_max_per_unit_ops,
+        max_latency=seed_max_latency,
     )
 
     if info.is_copy_operation:
@@ -953,11 +1024,11 @@ def analyze_compute(
 
     tensors = info.all_tensors if info.current_tensor is None else [info.current_tensor]
     for tensor in tensors:
-        buffet = Buffet(tensor, einsum, node.component)
+        buffet = Buffet(tensor, einsum_name, node.component)
         stats = BuffetStats()
         stats.total_reads_to_parent = 1
         stats.max_per_parent_reads_to_parent = 1
-        if tensor in info.workload.einsums[einsum].output_tensor_names:
+        if tensor in einsum.output_tensor_names:
             stats.total_writes_to_parent = 1
             stats.max_per_parent_writes_to_parent = 1
             if skip_initial:

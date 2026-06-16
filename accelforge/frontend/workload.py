@@ -456,6 +456,18 @@ class Einsum(EvalableModel):
     and directly place them at the location of the output tensor(s) without any
     computation. If the destination tensor is at the same location, then this is a
     no-op."""
+    map_op: str = "mul"
+    """ Binary operator applied to paired input-tensor values at each iteration-space
+    point (e.g. "mul", "add", "max", "square"). Combined with `reduce_op` to derive the
+    einsum's op_profile: the map and reduce ops are each charged once per
+    iteration-space point. The default "mul" + "add" describes a standard
+    sum-of-products; on an arch that declares a fused-MAC compute action this pair
+    collapses into one MAC (see `ComputeAction.fuses`), so legacy arches stay
+    bit-identical. """
+    reduce_op: str = "add"
+    """ Operator that folds mapped values into the output tensor across the reduction
+    ranks (e.g. "add", "max"). Charged once per iteration-space point alongside
+    `map_op`. Ignored for copy operations. """
     renames: RenameList[Rename] = RenameList()
     """ Renames of the Einsum. Renames here can be used to rename rank variables or
     tensors. When this Einsum is executed on an architecture, the architecture can use
@@ -581,6 +593,30 @@ class Einsum(EvalableModel):
             - partially_relevant[t.name]
             for t in self.tensor_accesses
         }
+
+    def effective_op_profile(self) -> dict[str, int]:
+        """Per-iteration-space-point op counts keyed by op_kind, derived from
+        `map_op` and `reduce_op`.
+
+        Copy operations have no ops. Every other einsum is charged one map and
+        one reduce per point (matching the legacy uniform "1 op per iter"
+        attribution); if `map_op` and `reduce_op` are the same op_kind the two
+        entries collapse into one with count 2. These are the *raw* ops -- a
+        fused-MAC arch coalesces a `{mul: N, add: N}` profile back into
+        `{mac: N}` downstream via `ComputeAction.fuses`, so the default mul+add
+        einsum stays bit-identical on legacy single-MAC arches.
+
+        `square` is treated as `mul` here (x*x runs on any multiplier), so a
+        square+add reduction fuses into a MAC like an ordinary product. An arch
+        declaring a dedicated `op_kind="square"` action would therefore not
+        bind -- the substitution erases the distinction.
+        """
+        if self.is_copy_operation:
+            return {}
+        map_op = "mul" if self.map_op == "square" else self.map_op
+        if map_op == self.reduce_op:
+            return {map_op: 2}
+        return {map_op: 1, self.reduce_op: 1}
 
     def _to_formatted_string(self, compress: bool = False) -> str:
         """
