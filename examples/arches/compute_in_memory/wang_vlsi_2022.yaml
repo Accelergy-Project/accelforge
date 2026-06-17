@@ -150,6 +150,7 @@ arch:
     direction: up
     component_class: ADC
     energy_scale: adc_energy_scale
+    leak_power_scale: adc_energy_scale
     area_scale: adc_area_scale
     extra_attributes_for_component_model:
       n_bits: adc_resolution
@@ -286,7 +287,7 @@ variables:
   voltage_latency_scale: (0.7 / voltage) ** 1.1
 
   # Calibration -----------------------------------------------------------------------
-  adc_energy_scale: 3.6 * voltage_energy_scale
+  adc_energy_scale: 3.15 * voltage_energy_scale
   adc_area_scale: 0.4
   row_col_drivers_area_scale: 1
 
