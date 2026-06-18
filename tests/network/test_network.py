@@ -58,7 +58,7 @@ class TestModelMesh(TestCase):
         )
         result = spec.evaluate_mapping()
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN / MAC_TILE)  # number of used Scratchpad
             * M_TILE
@@ -68,7 +68,7 @@ class TestModelMesh(TestCase):
         )
         # NOTE: assuming XY routing (as defined in mapping)
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T1<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T1<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN / MAC_TILE)
             * M_TILE
@@ -77,7 +77,7 @@ class TestModelMesh(TestCase):
             * BITS_PER_VALUE,
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>W0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>W0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN / MAC_TILE)
             * M_TILE
@@ -87,7 +87,7 @@ class TestModelMesh(TestCase):
         )
 
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * sum(i for i in range(KN // MAC_TILE))  # unicast along X-axis of PeArray
             * M_TILE
@@ -96,7 +96,7 @@ class TestModelMesh(TestCase):
         )
         # NOTE: assuming XY routing (as defined in mapping)
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN // MAC_TILE - 1)  # multicast along X-axis of PeArray
             * M_TILE
@@ -104,7 +104,7 @@ class TestModelMesh(TestCase):
             * BITS_PER_VALUE,
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * sum(i for i in range(KN // MAC_TILE))  # unicast along PeArray
             * MAC_TILE
@@ -140,7 +140,7 @@ class TestModelMesh(TestCase):
         )
         result = spec.evaluate_mapping()
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN / MAC_TILE) ** 2
             * M_TILE
@@ -153,7 +153,7 @@ class TestModelMesh(TestCase):
         )
         # NOTE: assuming XY routing (as defined in mapping)
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T1<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>T1<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN / MAC_TILE) ** 2
             * M_TILE
@@ -165,7 +165,7 @@ class TestModelMesh(TestCase):
             * BITS_PER_VALUE,
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>W0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>MacArray<SEP>W0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN / MAC_TILE) ** 2
             * M_TILE
@@ -178,7 +178,7 @@ class TestModelMesh(TestCase):
         )
 
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (
                 sum(i for i in range(PE_TILE))
@@ -190,7 +190,7 @@ class TestModelMesh(TestCase):
         )
         # NOTE: assuming XY routing (as defined in mapping)
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (
                 PE_TILE * (PE_TILE - 1)
@@ -202,7 +202,7 @@ class TestModelMesh(TestCase):
             * BITS_PER_VALUE,
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (
                 PE_TILE * sum(i for i in range(PE_TILE))
@@ -234,7 +234,7 @@ class TestModelMesh(TestCase):
         )
         result = spec.evaluate_mapping()
         self.assertEqual(
-            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T0<SEP>hops'].iloc[0],
+            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T0<SEP>hop'].iloc[0],
             (
                 M / M_TILE
                 *
@@ -246,7 +246,7 @@ class TestModelMesh(TestCase):
             )
         )
         self.assertEqual(
-            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T1<SEP>hops'].iloc[0],
+            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T1<SEP>hop'].iloc[0],
             (
                 M / M_TILE
                 *
@@ -258,7 +258,7 @@ class TestModelMesh(TestCase):
             )
         )
         self.assertEqual(
-            result.data['Matmul0<SEP>action<SEP>NoC<SEP>W0<SEP>hops'].iloc[0],
+            result.data['Matmul0<SEP>action<SEP>NoC<SEP>W0<SEP>hop'].iloc[0],
             (
                 M / M_TILE
                 *
@@ -370,7 +370,7 @@ class TestModelAllToAll(TestCase):
         for tensor in ("T0", "T1", "W0"):
             self.assertEqual(
                 result.data[
-                    f"Matmul0<SEP>action<SEP>MacArray<SEP>{tensor}<SEP>hops"
+                    f"Matmul0<SEP>action<SEP>MacArray<SEP>{tensor}<SEP>hop"
                 ].iloc[0],
                 all_to_all,
                 msg=f"unexpected MacArray hops for {tensor}",
@@ -380,7 +380,7 @@ class TestModelAllToAll(TestCase):
         # Unchanged from test_hierarchical_1d, so the mesh formulas hold (now
         # with MAC_TILE = 4, i.e. KN // MAC_TILE = 2).
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * sum(i for i in range(KN // MAC_TILE))  # unicast along X of PeArray
             * M_TILE
@@ -388,7 +388,7 @@ class TestModelAllToAll(TestCase):
             * BITS_PER_VALUE,
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hop"].iloc[0],
             (M / M_TILE)
             * (KN // MAC_TILE - 1)  # multicast along X of PeArray
             * M_TILE
@@ -396,7 +396,7 @@ class TestModelAllToAll(TestCase):
             * BITS_PER_VALUE,
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hops"].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>PeArray<SEP>W0<SEP>hop"].iloc[0],
             (M / M_TILE)
             * sum(i for i in range(KN // MAC_TILE))  # unicast along PeArray
             * MAC_TILE

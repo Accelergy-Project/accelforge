@@ -20,7 +20,7 @@ from accelforge.util._basetypes import (
 
 from accelforge.util.exceptions import EvaluationError
 
-from accelforge.frontend.arch.spatialable import Spatialable, PhysicalSpatial
+from accelforge.frontend.arch.spatialable import Spatialable, _PhysicalSpatial
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
 
 from pydantic import Discriminator
@@ -347,7 +347,7 @@ class Array(Branch, Spatialable):
                         fanout *= node.get_fanout()
                         node = deepcopy(node)
                         node._physical_spatial = [
-                            PhysicalSpatial(
+                            _PhysicalSpatial(
                                 name=s.name,
                                 fanout=s.fanout,
                                 stride=self.get_fanout_along(s.name)/s.fanout

@@ -26,7 +26,7 @@ arch:
     leak_power: 0
     total_latency: "max_hops"
     actions:
-    - {name: hops, energy: 1, latency: 1, throughput: inf}
+    - {name: hop, energy: 1, latency: 1, throughput: inf}
 
   - !Memory
     name: Scratchpad
@@ -47,7 +47,7 @@ arch:
     area: 0
     leak_power: 0
     actions:
-    - {name: hops, energy: 1, latency: 1, throughput: inf}
+    - {name: hop, energy: 1, latency: 1, throughput: inf}
 
   - !Compute
     name: MAC

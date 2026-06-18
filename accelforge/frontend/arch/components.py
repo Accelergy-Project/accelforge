@@ -1295,6 +1295,13 @@ class TopologySpec(enum.StrEnum):
     ALL_TO_ALL = "all_to_all"
 
 
+NETWORK_ACTIONS = EvalableList(
+    [
+        Action(name="hop"),
+    ]
+)
+
+
 class Network(Component, Leaf):
     """
     Defines a network component.
@@ -1302,8 +1309,9 @@ class Network(Component, Leaf):
     The routing is currently defined using the mapping, the routing follows the order
     of the spatial nodes from top to bottom.
     """
+    actions: EvalableList[Action] = NETWORK_ACTIONS
 
-    total_latency: str | int | float = "max(max_hops*actions['hops'].latency, max_link_traffic/actions['hops'].throughput)"
+    total_latency: str | int | float = "max(max_hops*actions['hop'].latency, max_link_traffic/actions['hop'].throughput)"
     """
     Models latency as either:
     - *Latency-bound*, which means that the latency of the route with the most number of

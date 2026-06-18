@@ -68,7 +68,7 @@ arch:
       area: 0
       leak_power: 0
       actions:
-      - {name: hops, energy: 1, latency: 0, throughput: inf}
+      - {name: hop, energy: 1, latency: 0, throughput: inf}
 
   - !Memory
     name: Scratchpad

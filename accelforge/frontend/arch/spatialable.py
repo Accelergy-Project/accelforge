@@ -93,7 +93,7 @@ class Spatial(EvalableModel):
         return super(self.__class__, self)._eval_expressions(*args, **kwargs)
 
 
-class PhysicalSpatial(EvalableModel):
+class _PhysicalSpatial(EvalableModel):
     name: str
     """
     The name of the dimension over which this spatial fanout is occurring (e.g., X or Y).
@@ -120,7 +120,7 @@ class Spatialable(EvalableModel):
     specified at this level also apply to lower-level `Leaf` nodes in the architecture.
     """
 
-    _physical_spatial: NoParse[PhysicalSpatial] = EvalableList()
+    _physical_spatial: NoParse[_PhysicalSpatial] = EvalableList()
     """
     The physical spatial fanout of this node. Should only have a value for a
     flattened arch. Otherwise, the `spatial` attribute is authoritative.
