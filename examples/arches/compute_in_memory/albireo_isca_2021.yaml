@@ -134,6 +134,7 @@ arch:
     component_class: ADC
     area_scale: adc_area_scale
     energy_scale: adc_energy_scale
+    leak_power_scale: adc_energy_scale
     extra_attributes_for_component_model:
       n_bits: adc_resolution
       n_adcs: n_adc_per_bank

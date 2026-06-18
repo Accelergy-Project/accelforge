@@ -1,4 +1,13 @@
-# Basic analog CiM macro with row drivers (DAC), column drivers, ADC, and memory cells.
+# @ARTICLE{9530646,
+#   author={Sinangil, M. Emin and Emer, Joel S. and Chandrakasan, Anantha P.},
+#   journal={IEEE Journal of Solid-State Circuits},
+#   title={A 7-nm Compute-in-Memory SRAM Macro Implementing Digital Multiply-Accumulate},
+#   year={2021},
+#   volume={56},
+#   number={9},
+#   pages={2891-2900},
+#   doi={10.1109/JSSC.2021.3098187}
+# }
 
 {{include_text('_include.yaml')}}
 {{add_to_path('./memory_cells')}}
@@ -9,15 +18,15 @@ arch:
   # ===================================================================================
   variables:
     # Inherit these from _include.yaml. Many definitions are included there.
-    <<: *variables_global
+    <<: [*variables_global]
 
     # Encoding-dependent parameters ---------------------------------------------------
-    encoded_input_bits:  input_bits
-    encoded_weight_bits: weight_bits
+    encoded_input_bits:  input_bits * (2 if is_hist_signed(inputs_hist) else 1)
+    encoded_weight_bits: weight_bits * (2 if is_hist_signed(weights_hist) else 1)
     encoded_output_bits: output_bits
 
-    input_encoding_func: offset_encode_hist
-    weight_encoding_func: offset_encode_hist
+    input_encoding_func: two_part_magnitude_encode_if_signed_hist
+    weight_encoding_func: two_part_magnitude_encode_if_signed_hist
 
     # For accuracy model. Can in-array accumulation include signed values? Signed
     # accumulation not compatible with offset encoding (since offset encoding makes
@@ -36,23 +45,23 @@ arch:
     # - CiM Unit Depth Cells: Number of independent groups of "CiM Unit Width" cells
     #   that form a CiM unit. Each of these groups is indepently addressible and
     #   operates in must be activated in a different timestep than the others.
-    cim_unit_width_cells:  1
+    cim_unit_width_cells:  4
     cim_unit_depth_cells:  1
-    bits_per_cell:         8
+    bits_per_cell:         1
 
     # Data Converters -----------------------------------------------------------------
-    adc_resolution: 8
+    adc_resolution: 4
     voltage_dac_resolution: 1
-    temporal_dac_resolution: 8
-
-    n_adc_per_bank: 4
+    temporal_dac_resolution: 4
+    n_adc_per_bank: n_columns
 
     # Hardware ------------------------------------------------------------------------
-    cycle_period: 1e-7 * voltage_latency_scale
-    read_pulse_width: 1e-9
+    base_latency: 5.5e-9
+    cycle_period: base_latency * voltage_latency_scale
+    read_pulse_width: cycle_period / 2 / (2 ** dac_resolution - 1)
 
   extra_attributes_for_all_component_models:
-    <<: *cim_component_attributes
+    <<: [*cim_component_attributes]
     tech_node: tech_node
     cycle_period: cycle_period
 
@@ -60,48 +69,27 @@ arch:
   # Architecture
   # ===================================================================================
   nodes:
-  # ADCs read analog outputs from the array and convert to digital.
+  # Weight drivers write weights.
   - !Toll
-    name: ADC
-    # Reads out once for each input slice and weight slice combination. One action per
-    # value because each ADC read corresponds to one output value, and this is not
-    # affected by the number of output bits (beyond any effects from #slices).
-    <<: [*both_sliced, *one_action_per_value]
-    tensors: {keep: output}
-    direction: up
-    component_class: ADC
-    energy_scale: adc_energy_scale
-    leak_power_scale: adc_energy_scale
-    area_scale: adc_area_scale
-    extra_attributes_for_component_model:
-      n_bits: adc_resolution
-      n_adcs: n_adc_per_bank
-      throughput: 1 / cycle_period * cols_active_at_once
+    name: WeightDrivers
+    <<: [*weight_sliced, *one_action_per_value]
+    tensors: {keep: weight & Above}
+    direction: down
+    component_class: ArrayRowDrivers
+    area_scale: row_col_drivers_area_scale
+    extra_attributes_for_component_model: {<<: [*weight_drivers_attributes]}
 
-  # Column drivers precharge the array columns.
+  # Counter encodes the 4b digital input as a 0-15 pulse count.
   - !Toll
-    name: ColumnDrivers
-    # Reads out once for each input slice and weight slice combination. One action per
-    # value because each column drive to one output value, and this is not affected by
-    # the number of output bits except through already-captured effects from slicing.
-    <<: [*both_sliced, *one_action_per_value]
-    tensors: {keep: output}
-    direction: up
-    component_class: ArrayColumnDrivers
-
-  # Row drivers feed inputs onto the rows of the array.
-  - !Toll
-    name: RowDrivers
-    # Drive rows for each input slice and weight slice combination. One action per value
-    # because each row drive read corresponds to one input value, and this is not
-    # affected by the number of input bits except through already-captured effects from
-    # slicing.
+    name: Counter
     <<: [*input_sliced, *one_action_per_value]
     tensors: {keep: input}
     direction: down
-    component_class: ArrayRowDrivers
+    component_class: AladdinCounter
+    n_parallel_instances: array_parallel_inputs
     extra_attributes_for_component_model:
-      temporal_spiking: true
+      width: dac_resolution
+      n_bits: dac_resolution
 
   # This memory catches sliding windows that may be sent spatially in the array. E.g.,
   # convolution steps spatially unrolled onto columns with overlapping windows.
@@ -114,20 +102,79 @@ arch:
     # really a memory.
     tensors: {keep: input, no_resend_to_below: input}
 
+  # Row drivers feed inputs onto the rows of the array.
+  - !Toll
+    name: RowDrivers
+    <<: [*input_sliced, *one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: ArrayRowDrivers
+    area_scale: row_col_drivers_area_scale
+    extra_attributes_for_component_model:
+      temporal_dac_bits: dac_resolution
+      temporal_spiking: True
+
+  # ADCs read analog outputs from the array and convert to digital.
+  - !Toll
+    name: ADC
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ADC
+    energy_scale: adc_energy_scale
+    leak_power_scale: adc_energy_scale
+    area_scale: adc_area_scale
+    extra_attributes_for_component_model:
+      n_bits: adc_resolution
+      throughput_scale: 1
+      throughput: 1 / cycle_period * cols_active_at_once * throughput_scale
+
+  # Column drivers precharge the array columns.
+  - !Toll
+    name: ColumnDrivers
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ArrayColumnDrivers
+    energy_scale: cim_unit_width_cells
+    area_scale: row_col_drivers_area_scale
+
   # Each column stores a different weight slice. Columns share inputs.
   - !Container
     name: Column
     spatial:
     # ARRAY_COLUMNS suffix used for used for counting the array size
-    - name: column_ARRAY_COLUMNS 
-      fanout: 32
+    - name: column_ARRAY_COLUMNS
+      fanout: n_columns
       # Note: may_reuse here and not reuse because we may have columns that reuse some,
       # but not all, input values, so we want reuse to be optional and only for inputs.
       may_reuse: input
       min_usage: 1
-      # n_weight_slices columns work in parallel to perform the computations for each
-      # weight. Each column holds a different slice.
       usage_scale: n_weight_slices
+
+  # Column bandwidth limiter: 1 weight write or 1 output read per col per cycle
+  - !Toll
+    name: ColumnBandwidthLimiter
+    tensors: {keep: (weight | output) & Above}
+    direction: {Outputs: up, ~Outputs: down}
+    component_class: Dummy
+    bits_per_value:
+      weight: 0.75
+      output: n_input_slices
+    actions: [{name: read, latency: cycle_period}]
+
+  # Binary-weighted capacitors sum outputs across columns.
+  - !Toll
+    name: BinaryWeightingCapacitors
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: Capacitor
+    extra_attributes_for_component_model:
+      capacitance: 1e-15 * 2 ** cim_unit_width_cells
+      cap_per_m2: 1.7e-3
+      voltage: voltage
+    energy_scale: average_input_value * average_weight_value * 224 / 64
 
   # Each row receives a different input slice. Rows share outputs.
   - !Container
@@ -135,7 +182,7 @@ arch:
     spatial:
     # ARRAY_ROWS suffix used for used for counting the array size
     - name: row_ARRAY_ROWS
-      fanout: 32
+      fanout: 64
       reuse: output
       min_usage: 1
 
@@ -145,12 +192,8 @@ arch:
   # can be used at a time.
   - !Memory
     name: CimUnit
-    # Computes with one input slice * weight slice at a time. Computations are
-    # parallelized across weight slices, and input slices are processed sequentially.
-    # One action per value because each weight read corresponds to one weight value, and
-    # this is not affected by the number of weight bits except through already-captured
-    # effects from slicing.
-    <<: [*both_sliced_weight_slices_parallelized, *one_action_per_value]
+    # Computes with one input slice * weight slice at a time.
+    <<: [*both_sliced, *one_action_per_value]
     tensors:
       keep: weight
       # Write weights at most once
@@ -161,7 +204,7 @@ arch:
       force_memory_hierarchy_order: False
     # Each instance of this component represents n_weight_slices weight slices, meaning
     # that it holds a full weight
-    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell
+    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell * n_weight_slices
     component_class: MemoryCell
     # CimUnits represent cim_unit_width_cells * cim_unit_depth_cells memory cells tied
     # together into one weight
@@ -178,29 +221,31 @@ arch:
 
 # These variables pertain to the workload, microarch, and circuits.
 variables:
+  n_columns: 16
+
   inputs_hist: [0, 0, 0, 3, 2, 1, 0]
-  weights_hist: ([1] * 15)
+  weights_hist: ([0] * 7 + [1] * 8)
   outputs_hist: inputs_hist
 
   ## Microarch ------------------------------------------------------------------------
-  supported_input_bits:  8
-  supported_weight_bits: 8
-  supported_output_bits: 8
+  supported_input_bits:  4
+  supported_weight_bits: 4
+  supported_output_bits: 4
   min_supported_input_bits: 1
   min_supported_weight_bits: 1
   min_supported_output_bits: 1
 
   # Circuits --------------------------------------------------------------------------
-  voltage: 1
-  tech_node: 65e-9 # 65nm
-  cell_config: "{{find_path('rram_example.yaml')}}"
-  voltage_energy_scale: voltage ** 2
-  voltage_latency_scale: 1 / voltage
+  voltage: 0.8
+  tech_node: 7e-9
+  cell_config: "{{find_path('sram_sinangil_jssc_2021.yaml')}}"
+  voltage_energy_scale: (voltage / 0.8) ** 1.7
+  voltage_latency_scale: 0.6 + 0.4 * (0.8 / voltage) ** 2.75
 
   # Calibration -----------------------------------------------------------------------
-  adc_energy_scale: voltage_energy_scale
-  adc_area_scale: 1
-  row_col_drivers_area_scale: 1
+  adc_energy_scale: 3.5 * voltage_energy_scale
+  adc_area_scale: 0.25
+  row_col_drivers_area_scale: 10.5
 
 
 # =====================================================================================
@@ -208,16 +253,15 @@ variables:
 # =====================================================================================
 workload:
   rank_sizes:
-    # 32 columns × 32 rows perfectly fills the array.
     M: 1
-    N: 32
-    K: 32
+    N: 16
+    K: 64
 
   einsums:
   - name: Matmul
     tensor_accesses:
-    - {name: input, projection: [m, k], bits_per_value: 8}
-    - {name: weight, projection: [k, n], bits_per_value: 8}
-    - {name: output, projection: [m, n], output: True, bits_per_value: 8}
+    - {name: input, projection: [m, k], bits_per_value: 4}
+    - {name: weight, projection: [k, n], bits_per_value: 4}
+    - {name: output, projection: [m, n], output: True, bits_per_value: 4}
 
-renames: {} # Not needed for this workload
+renames: {}
