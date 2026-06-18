@@ -97,9 +97,7 @@ class Capacitor(ComponentModel):
 
         Returns
         -------
-        energy, latency: tuple
-            The energy required to raise the voltage to the target voltage. Latency is
-            0.
+        ActionCost: The cost of this action
         """
         if supply_voltage is None:
             supply_voltage = self.voltage
@@ -137,9 +135,7 @@ class Capacitor(ComponentModel):
 
         Returns
         -------
-        energy, latency: tuple
-            The energy required to switch the voltage to the values in
-            value_probabilities. Latency is 0.
+        ActionCost: The cost of this action
         """
         supply_voltage = self.voltage if supply_voltage is None else supply_voltage
         expected_energy = 0
@@ -160,6 +156,13 @@ class Capacitor(ComponentModel):
 
     @action
     def read(self) -> tuple:
+        """
+        Returns the cost consumed by one read of the capacitor.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return self.raise_voltage_to(self.voltage)
 
 

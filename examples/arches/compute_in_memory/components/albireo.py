@@ -71,6 +71,13 @@ class AlbireoTIA(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(
             energy=self._energy,
             throughput=1 / self.cycle_period,
@@ -102,6 +109,13 @@ class AlbireoDAC(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(energy=self._energy, throughput=float("inf"), latency=0)
 
 
@@ -129,6 +143,13 @@ class AlbireoMachZehnderModulator(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
@@ -156,6 +177,13 @@ class AlbireoMicroRingResonator(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
@@ -183,6 +211,13 @@ class AlbireoDoubleMicroRingResonator(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
@@ -216,6 +251,13 @@ class AlbireoPhotodiode(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(
             energy=0, throughput=1 / self.cycle_period, latency=self.cycle_period
         )
@@ -247,6 +289,13 @@ class AlbireoArrayedWaveguideGrating(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
@@ -276,6 +325,13 @@ class AlbireoStarCoupler(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
 
@@ -310,4 +366,11 @@ class AlbireoLaser(ComponentModel):
 
     @action
     def read(self) -> ActionCost:
+        """
+        Returns the cost consumed by one read of this component.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         return ActionCost(energy=0, throughput=float("inf"), latency=0)

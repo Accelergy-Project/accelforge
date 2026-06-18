@@ -55,6 +55,13 @@ class ColonnadeCimLogic(ComponentModel):
 
     @action()
     def read(self) -> tuple:
+        """
+        Returns the cost consumed by one read of the CiM logic.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         self.adder.read()
         return ActionCost(energy=0, throughput=float("inf"), latency=0)
 
@@ -121,6 +128,13 @@ class ColonnadeCimLogicInputPort(ComponentModel):
 
     @action(bits_per_action=1)
     def read(self) -> tuple:
+        """
+        Returns the cost consumed by one read of the CiM logic input port.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
+        """
         self.adder.read()
         p_switch = self.switching_activity * self.switching_activity
         wire_energy = (

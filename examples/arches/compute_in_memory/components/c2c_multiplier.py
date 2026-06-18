@@ -116,6 +116,10 @@ class C2CMultiplier(ComponentModel):
     def switch_a(self):
         """
         Charge all capacitors to the values in a_hist.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
         """
         # Count energy by just charging one of the capacitors and multiplying by the
         # number of bits.
@@ -137,6 +141,10 @@ class C2CMultiplier(ComponentModel):
     def switch_b(self):
         """
         Connect capacitors to A with probability b_lo2hi_probability.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
         """
         sub_a = self.unit_cap.raise_voltage_to(self.a_rms)
         sub_b = self.unit2_cap.raise_voltage_to(self.a_rms)
@@ -155,6 +163,10 @@ class C2CMultiplier(ComponentModel):
         port. If you are only using the read() action, then also initialize a
         C2CMultiplierPortB to have it process the digital operand with the read()
         action.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
         """
         return self.switch_a()
 
@@ -232,5 +244,9 @@ class C2CMultiplierPortB(C2CMultiplier):
         Returns the energy and latency to send a value through the multiplier's digital
         port. If you are only using the read() action, then also initialize a
         C2CMultiplier to have it process the analog operand with the read() action.
+
+        Returns
+        -------
+        ActionCost: The cost of this action
         """
         return self.switch_b()

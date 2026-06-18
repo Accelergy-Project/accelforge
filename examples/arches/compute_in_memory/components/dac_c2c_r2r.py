@@ -293,7 +293,7 @@ class _X2XLadderDAC(ComponentModel):
 
         Returns
         -------
-        float: Energy in Joules float: Latency in seconds
+        ActionCost: The cost of this action
         """
         min_latency = self._get_latency(
             load_capacitance=self.load_capacitance, load_resistance=self.load_resistance
@@ -318,7 +318,7 @@ class _X2XLadderDAC(ComponentModel):
 
         Returns
         -------
-        float: Energy in Joules float: Latency in seconds
+        ActionCost: The cost of this action
         """
         return self.convert()
 
