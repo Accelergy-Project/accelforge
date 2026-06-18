@@ -14,7 +14,7 @@ from accelforge.model._looptree.types import Buffet
 
 from accelforge.model._looptree.reuse.symbolic import BuffetStats
 from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
-from accelforge.util._sympy.broadcast_max import Max, Min
+from accelforge.util._sympy.broadcast_max import Max, Min, MaxGeqZero
 from accelforge.util._basetypes import EvalableList
 import symengine as se
 
@@ -71,6 +71,10 @@ def component_latency(
     component_to_actions: dict[str, dict[str, float]] = defaultdict(
         lambda: defaultdict(lambda: 0)
     )
+    # Holds ``keywords" that do not map neatly to actions, e.g., max_hops for network
+    component_to_keywords: dict[str, dict[str, float]] = defaultdict(
+        lambda: defaultdict(lambda: 0)
+    )
     name2component: dict[str, Component] = {node.name: node for node in flattened_arch}
 
     compute_obj = flattened_arch[-1]
@@ -102,6 +106,30 @@ def component_latency(
             raise NotImplementedError(
                 f"Component {component} is not a TensorHolder or Compute"
             )
+
+    network_to_max_link_traffic = defaultdict(lambda: defaultdict(lambda: 0))
+    network_to_max_hops = defaultdict(lambda: [])
+    # Aggregates across tensors
+    for network, network_stats in looptree_results.network_stats.items():
+        component = network.component
+        if component not in name2component:
+            raise ValueError(f"Component {component} found in mapping but not arch")
+
+        dim_traffic = network_to_max_link_traffic[component]
+        for dim, max_traffic_in_dim in network_stats.max_traffic.items():
+            dim_traffic[dim] += max_traffic_in_dim
+
+        network_to_max_hops[component].append(network_stats.max_hops)
+
+    for network, network_stats in looptree_results.network_stats.items():
+        component = network.component
+        keywords = component_to_keywords[component]
+        keywords["max_link_traffic"] = MaxGeqZero(
+            *network_to_max_link_traffic[component].values()
+        )
+        keywords["max_hops"] = MaxGeqZero(
+            *network_to_max_hops[component]
+        )
 
     longest_compute_latency = Max(
         0, *[s.max_latency for s in looptree_results.compute_stats.values()]
@@ -138,13 +166,18 @@ def component_latency(
         "sum": _sum,
     }
 
-    for component in component_to_actions:
+    for component in name2component:
+        if component not in component_to_actions and component not in component_to_keywords:
+            continue
         component_obj = name2component[component]
         dump = component_obj.shallow_model_dump(include_None=True)
         # Replace serialized `actions` dump with local Action copies that carry
         # the correct n_calls for this job, so formulas can access `a.n_calls`,
         # `a.throughput`, etc. without mutating the shared spec state.
-        dump["actions"] = component_to_actions[component]
+        if component in component_to_actions:
+            dump["actions"] = component_to_actions[component]
+        if component in component_to_keywords:
+            dump |= component_to_keywords[component]
         symbol_table = {**symbol_table_base, **dump}
         if component_obj.total_latency is not None:
             component_latency[component] = eval_expression(
