@@ -73,7 +73,7 @@ class TestModelMesh(TestCase):
             * (KN / MAC_TILE)
             * M_TILE
             * KN  # temporal for n1 in mapping
-            * (MAC_TILE - 1)   # multicast along X-axis of MacArray
+            * (MAC_TILE - 1)  # multicast along X-axis of MacArray
             * BITS_PER_VALUE,
         )
         self.assertEqual(
@@ -111,10 +111,7 @@ class TestModelMesh(TestCase):
             * KN
             * BITS_PER_VALUE,
         )
-        self.assertEqual(
-            result.data["Total<SEP>latency"].iloc[0],
-            4
-        )
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 4)
 
     def test_hierarchical(self):
         M = 8
@@ -146,8 +143,7 @@ class TestModelMesh(TestCase):
             * M_TILE
             * (
                 sum(i for i in range(MAC_TILE))  # unicasting along X
-                +
-                MAC_TILE * (MAC_TILE-1)  # multicast along Y for each column
+                + MAC_TILE * (MAC_TILE - 1)  # multicast along Y for each column
             )
             * BITS_PER_VALUE,
         )
@@ -158,9 +154,12 @@ class TestModelMesh(TestCase):
             * (KN / MAC_TILE) ** 2
             * M_TILE
             * (
-                MAC_TILE * (MAC_TILE - 1)  # multicast along X (the tile is shape N1, which is MAC_TILE here)
-                +
-                MAC_TILE * sum(i for i in range(MAC_TILE))  # unicasting along Y for each row
+                MAC_TILE
+                * (
+                    MAC_TILE - 1
+                )  # multicast along X (the tile is shape N1, which is MAC_TILE here)
+                + MAC_TILE
+                * sum(i for i in range(MAC_TILE))  # unicasting along Y for each row
             )
             * BITS_PER_VALUE,
         )
@@ -170,21 +169,19 @@ class TestModelMesh(TestCase):
             * (KN / MAC_TILE) ** 2
             * M_TILE
             * (
-                MAC_TILE * sum(i for i in range(MAC_TILE))  # unicast along X (the tile is shape N1, which is MAC_TILE here)
-                +
-                MAC_TILE * sum(i for i in range(MAC_TILE))  # unicasting along Y for each row
+                MAC_TILE
+                * sum(
+                    i for i in range(MAC_TILE)
+                )  # unicast along X (the tile is shape N1, which is MAC_TILE here)
+                + MAC_TILE
+                * sum(i for i in range(MAC_TILE))  # unicasting along Y for each row
             )
             * BITS_PER_VALUE,
         )
 
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T0<SEP>hop"].iloc[0],
-            (M / M_TILE)
-            * (
-                sum(i for i in range(PE_TILE))
-                +
-                PE_TILE * (PE_TILE - 1)
-            )
+            (M / M_TILE) * (sum(i for i in range(PE_TILE)) + PE_TILE * (PE_TILE - 1))
             # tile shape
             * M_TILE * MAC_TILE * BITS_PER_VALUE,
         )
@@ -192,11 +189,7 @@ class TestModelMesh(TestCase):
         self.assertEqual(
             result.data["Matmul0<SEP>action<SEP>PeArray<SEP>T1<SEP>hop"].iloc[0],
             (M / M_TILE)
-            * (
-                PE_TILE * (PE_TILE - 1)
-                +
-                PE_TILE * sum(i for i in range(PE_TILE))
-            )
+            * (PE_TILE * (PE_TILE - 1) + PE_TILE * sum(i for i in range(PE_TILE)))
             * M_TILE
             * MAC_TILE
             * BITS_PER_VALUE,
@@ -206,8 +199,7 @@ class TestModelMesh(TestCase):
             (M / M_TILE)
             * (
                 PE_TILE * sum(i for i in range(PE_TILE))
-                +
-                PE_TILE * sum(i for i in range(PE_TILE))
+                + PE_TILE * sum(i for i in range(PE_TILE))
             )
             * MAC_TILE**2
             * BITS_PER_VALUE,
@@ -234,102 +226,88 @@ class TestModelMesh(TestCase):
         )
         result = spec.evaluate_mapping()
         self.assertEqual(
-            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T0<SEP>hop'].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>NoC<SEP>T0<SEP>hop"].iloc[0],
             (
-                M / M_TILE
-                *
-                (KN / MAC_TILE) * (KN / MAC_TILE - 1)   # num rows * multicast_hops
-                *
-                M_TILE * MAC_TILE  # tile shape
-                *
-                BITS_PER_VALUE
-            )
+                M
+                / M_TILE
+                * (KN / MAC_TILE)
+                * (KN / MAC_TILE - 1)  # num rows * multicast_hops
+                * M_TILE
+                * MAC_TILE  # tile shape
+                * BITS_PER_VALUE
+            ),
         )
         self.assertEqual(
-            result.data['Matmul0<SEP>action<SEP>NoC<SEP>T1<SEP>hop'].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>NoC<SEP>T1<SEP>hop"].iloc[0],
             (
-                M / M_TILE
-                *
-                (KN / MAC_TILE) * (KN / MAC_TILE - 1)   # num rows * multicast_hops
-                *
-                M_TILE * MAC_TILE  # tile shape
-                *
-                BITS_PER_VALUE
-            )
+                M
+                / M_TILE
+                * (KN / MAC_TILE)
+                * (KN / MAC_TILE - 1)  # num rows * multicast_hops
+                * M_TILE
+                * MAC_TILE  # tile shape
+                * BITS_PER_VALUE
+            ),
         )
         self.assertEqual(
-            result.data['Matmul0<SEP>action<SEP>NoC<SEP>W0<SEP>hop'].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>NoC<SEP>W0<SEP>hop"].iloc[0],
             (
-                M / M_TILE
-                *
-                (
-                    4   # a 2x2 grid of physical buffers
-                    *
-                    (
-                        sum(i for i in range(2)) * MAC_TILE  # unicast along row * tile shape
-                        +
-                        2 * sum(i for i in range(2))  # num cols * unicast down col
+                M
+                / M_TILE
+                * (
+                    4  # a 2x2 grid of physical buffers
+                    * (
+                        sum(i for i in range(2))
+                        * MAC_TILE  # unicast along row * tile shape
+                        + 2 * sum(i for i in range(2))  # num cols * unicast down col
                     )
                 )
-                *
-                MAC_TILE * MAC_TILE  # tile shape
-                *
-                BITS_PER_VALUE
-            )
+                * MAC_TILE
+                * MAC_TILE  # tile shape
+                * BITS_PER_VALUE
+            ),
         )
         self.assertEqual(
-            result.data['Matmul0<SEP>action<SEP>RowBuffer<SEP>T0<SEP>read'].iloc[0],
+            result.data["Matmul0<SEP>action<SEP>RowBuffer<SEP>T0<SEP>read"].iloc[0],
+            (M / M_TILE * KN // MAC_TILE * M_TILE * MAC_TILE * BITS_PER_VALUE),
+        )
+        self.assertEqual(
+            result.data["Matmul0<SEP>latency<SEP>RowBuffer"].iloc[0],
             (
-                M / M_TILE
-                *
-                KN // MAC_TILE
-                *
-                M_TILE * MAC_TILE
-                *
-                BITS_PER_VALUE
-            )
+                M
+                / M_TILE
+                * KN
+                // MAC_TILE
+                * M_TILE
+                * MAC_TILE
+                * BITS_PER_VALUE
+                / 4  # num of physical RowBuffer
+            ),
         )
         self.assertEqual(
-            result.data['Matmul0<SEP>latency<SEP>RowBuffer'].iloc[0],
-            (
-                M / M_TILE
-                *
-                KN // MAC_TILE
-                *
-                M_TILE * MAC_TILE
-                *
-                BITS_PER_VALUE
-                /
-                4    # num of physical RowBuffer
+            result.data["Matmul0<SEP>latency<SEP>DistributedBuffer"].iloc[0],
+            (  # Reads from child
+                M
+                / M_TILE
+                * KN
+                // MAC_TILE
+                * KN
+                // MAC_TILE
+                * MAC_TILE
+                * MAC_TILE  # tile shape
+                * BITS_PER_VALUE
+                / 4  # num of physical DistributedBuffer
             )
-        )
-        self.assertEqual(
-            result.data['Matmul0<SEP>latency<SEP>DistributedBuffer'].iloc[0],
-            (   # Reads from child
-                M / M_TILE
-                *
-                KN // MAC_TILE
-                *
-                KN // MAC_TILE
-                *
-                MAC_TILE * MAC_TILE  # tile shape
-                *
-                BITS_PER_VALUE
-                /
-                4    # num of physical DistributedBuffer
-            )
-            +
-            (   # Writes from parent
-                KN // MAC_TILE
-                *
-                KN // MAC_TILE
-                *
-                MAC_TILE * MAC_TILE  # tile shape
-                *
-                BITS_PER_VALUE
-                /
-                4    # num of physical DistributedBuffer
-            )
+            + (  # Writes from parent
+                KN
+                // MAC_TILE
+                * KN
+                // MAC_TILE
+                * MAC_TILE
+                * MAC_TILE  # tile shape
+                * BITS_PER_VALUE
+                / 4  # num of physical DistributedBuffer
+            ),
         )
 
 
@@ -358,7 +336,7 @@ class TestModelAllToAll(TestCase):
         result = spec.evaluate_mapping()
 
         # --- MacArray: all-to-all switch ---------------------------------
-        # Every node is one hop away 
+        # Every node is one hop away
         all_to_all = (
             (M / M_TILE)
             * (KN / MAC_TILE)  # number of used Scratchpad
@@ -407,12 +385,8 @@ class TestModelAllToAll(TestCase):
         # --- Latency ------------------------------------------------------
         # The switch's uniform single-hop routing gives MacArray a constant
         # latency of 1, versus the mesh PeArray's 2.
-        self.assertEqual(
-            result.data["Matmul0<SEP>latency<SEP>MacArray"].iloc[0], 1
-        )
-        self.assertEqual(
-            result.data["Matmul0<SEP>latency<SEP>PeArray"].iloc[0], 2
-        )
+        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>MacArray"].iloc[0], 1)
+        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>PeArray"].iloc[0], 2)
         self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 2)
 
 
@@ -424,7 +398,7 @@ class TestMapper(TestCase):
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
             INPUT_FILES_DIR / "hierarchical.yaml",
-            jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN}
+            jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
         result = spec.map_workload_to_arch()
 
@@ -435,7 +409,7 @@ class TestMapper(TestCase):
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
             INPUT_FILES_DIR / "flat.yaml",
-            jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN}
+            jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
         result = spec.map_workload_to_arch()
 
@@ -446,6 +420,6 @@ class TestMapper(TestCase):
         spec = af.Spec.from_yaml(
             af.examples.workloads.matmuls,
             INPUT_FILES_DIR / "flat.yaml",
-            jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN, "N_ROW_BUFFER": 1}
+            jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN, "N_ROW_BUFFER": 1},
         )
         result = spec.map_workload_to_arch()

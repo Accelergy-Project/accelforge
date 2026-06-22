@@ -165,8 +165,8 @@ arch:
     component_class: MemoryCell
     # CimUnits represent cim_unit_width_cells * cim_unit_depth_cells memory cells tied
     # together into one weight
-    extra_attributes_for_component_model:
-      n_instances: cim_unit_width_cells * cim_unit_depth_cells
+    area_scale: cim_unit_width_cells * cim_unit_depth_cells
+    leak_power_scale: cim_unit_width_cells * cim_unit_depth_cells
 
   # We account for compute energy and latency in other components, so just use a dummy
   # compute here.

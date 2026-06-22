@@ -19,6 +19,7 @@ except ImportError:
 
 SAVE_FIGS = os.environ.get("SAVE_FIGS", "").lower() in ("1", "true", "yes")
 
+
 class TestEnergyPlotting(unittest.TestCase):
     def test_comparison(self):
         spec = Spec.from_yaml(

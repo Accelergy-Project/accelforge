@@ -196,3 +196,4 @@ tests/*.png
 .vscode
 
 accelforge/_version.py
+examples/arches/compute_in_memory/CLAUDE_DO_NOT_TOUCH
