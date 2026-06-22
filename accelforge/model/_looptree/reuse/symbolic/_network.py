@@ -2,9 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from accelforge.frontend.mapping import (
-    Spatial
-)
+from accelforge.frontend.mapping import Spatial
 from accelforge.frontend.arch.components import TopologySpec
 from accelforge.frontend._workload_isl._symbolic import (
     compute_dense_tile_occupancy,
@@ -128,17 +126,19 @@ class MeshTopologyModel(TopologyModel):
                     # later (which is correct because the set of destinations always overlap
                     # the set of sources).
                     max_nonzero(physical_stride / last_fanout, 1),
-                    shape_repeats
+                    shape_repeats,
                 )
-                n_activated_physical = max_nonzero(shape_repeats * last_fanout / physical_stride, 1)
+                n_activated_physical = max_nonzero(
+                    shape_repeats * last_fanout / physical_stride, 1
+                )
                 total_cost = (
                     n_activated_physical
-                    *
-                    unicast_cost(n_dsts_per_physical, last_fanout)
-                    *
-                    volume
+                    * unicast_cost(n_dsts_per_physical, last_fanout)
+                    * volume
                 )
-                max_hops = min_nonzero((n_dsts_per_physical - 1) * last_fanout, physical_stride)
+                max_hops = min_nonzero(
+                    (n_dsts_per_physical - 1) * last_fanout, physical_stride
+                )
                 max_traffic = (n_dsts_per_physical - 1) * volume
             else:
                 total_cost = unicast_cost(shape_repeats, last_fanout) * volume
@@ -149,7 +149,9 @@ class MeshTopologyModel(TopologyModel):
         else:
             raise RuntimeError(f"unhandled relevancy type {relevancy}")
 
-        return PerLoopTransferCost(total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic)
+        return PerLoopTransferCost(
+            total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic
+        )
 
 
 class AllToAllTopologyModel(TopologyModel):
@@ -266,17 +268,20 @@ class NetworkAnalyzer:
                 )
                 for k, v in child_network_stats.max_traffic.items():
                     accumulated_network_stats.max_traffic[k] = max_nonzero(
-                        accumulated_network_stats.max_traffic.get(k, 0),
-                        v
+                        accumulated_network_stats.max_traffic.get(k, 0), v
                     )
                 continue
 
             volume = self._get_data_volume(network, child_shape)
 
-            relevancy = self.info.tensor_to_relevancy[network.tensor][self.node.rank_variable]
+            relevancy = self.info.tensor_to_relevancy[network.tensor][
+                self.node.rank_variable
+            ]
 
             # The fanout in this dimension in mapping nodes below, i.e., the stride
-            last_fanout = child_result.fanout.get((self.node.component, self.einsum_name), {})
+            last_fanout = child_result.fanout.get(
+                (self.node.component, self.einsum_name), {}
+            )
             last_fanout = last_fanout.get(self.node.name, 1)
 
             topology_model = self._get_topology_model(
@@ -305,7 +310,8 @@ class NetworkAnalyzer:
             )
             accumulated_network_stats.max_traffic[self.node.name] = max_nonzero(
                 accumulated_network_stats.max_traffic.get(self.node.name, 0),
-                per_loop_transfer_cost.max_traffic + child_network_stats.max_traffic.get(self.node.name, 0)
+                per_loop_transfer_cost.max_traffic
+                + child_network_stats.max_traffic.get(self.node.name, 0),
             )
 
         overall_max_hops = {}
@@ -319,9 +325,7 @@ class NetworkAnalyzer:
         flattened_arch = info.job.flattened_arch
         projection = info.einsum_tensor_to_projection[(einsum_name, network.tensor)]
         component_object = flattened_arch[network.component]
-        workload_bpv = info.job.einsum.tensor_accesses[
-            network.tensor
-        ].bits_per_value
+        workload_bpv = info.job.einsum.tensor_accesses[network.tensor].bits_per_value
         bits_per_value = component_object.bits_per_value.get(
             network.tensor, workload_bpv
         )
@@ -331,23 +335,22 @@ class NetworkAnalyzer:
         else:
             actions_per_value = bits_per_value
         volume = (
-            compute_dense_tile_occupancy(projection, child_shape)
-            * actions_per_value
+            compute_dense_tile_occupancy(projection, child_shape) * actions_per_value
         )
         return volume
 
 
 def multicast_cost(n_dsts, stride):
     """Returns total hops of multicast along a dimension."""
-    return (n_dsts-1)*stride
+    return (n_dsts - 1) * stride
 
 
 def unicast_cost(n_dsts, stride):
     """Returns total hops of unicast along a dimension."""
     # Cost of unicast is the cost of delivering to each point in
     # the dimension with shape as stride
-    return arithmetic_sum(n_dsts-1)*stride
+    return arithmetic_sum(n_dsts - 1) * stride
 
 
 def arithmetic_sum(n):
-    return 0.5 * (n+1) * n
+    return 0.5 * (n + 1) * n

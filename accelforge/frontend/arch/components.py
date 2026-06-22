@@ -156,9 +156,7 @@ class Action(EvalableModel):
                     stacklevel=2,
                 )
                 l = str(l).strip()
-                data["throughput"] = (
-                    f"1 / ({l}) if ({l}) != 0 else float('inf')"
-                )
+                data["throughput"] = f"1 / ({l}) if ({l}) != 0 else float('inf')"
             if "latency_scale" in data and not "throughput_scale" in data:
                 ls = data.pop("latency_scale")
                 warnings.warn(
@@ -1309,9 +1307,12 @@ class Network(Component, Leaf):
     The routing is currently defined using the mapping, the routing follows the order
     of the spatial nodes from top to bottom.
     """
+
     actions: EvalableList[Action] = NETWORK_ACTIONS
 
-    total_latency: str | int | float = "max(max_hops*actions['hop'].latency, max_link_traffic/actions['hop'].throughput)"
+    total_latency: str | int | float = (
+        "max(max_hops*actions['hop'].latency, max_link_traffic/actions['hop'].throughput)"
+    )
     """
     Models latency as either:
     - *Latency-bound*, which means that the latency of the route with the most number of

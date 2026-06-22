@@ -350,7 +350,7 @@ class Array(Branch, Spatialable):
                             _PhysicalSpatial(
                                 name=s.name,
                                 fanout=s.fanout,
-                                stride=self.get_fanout_along(s.name)/s.fanout
+                                stride=self.get_fanout_along(s.name) / s.fanout,
                             )
                             for s in node.spatial
                         ]

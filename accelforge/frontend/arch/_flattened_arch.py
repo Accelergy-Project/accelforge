@@ -92,7 +92,9 @@ class FlattenedArch:
         if default is not _FIND_SENTINEL:
             return default
         else:
-            raise ValueError(f"node with type {node_type} between {name_upper} and {name_lower} not found")
+            raise ValueError(
+                f"node with type {node_type} between {name_upper} and {name_lower} not found"
+            )
 
     def find_first_of_type_above(
         self,

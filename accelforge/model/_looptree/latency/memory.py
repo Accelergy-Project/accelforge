@@ -127,9 +127,7 @@ def component_latency(
         keywords["max_link_traffic"] = MaxGeqZero(
             *network_to_max_link_traffic[component].values()
         )
-        keywords["max_hops"] = MaxGeqZero(
-            *network_to_max_hops[component]
-        )
+        keywords["max_hops"] = MaxGeqZero(*network_to_max_hops[component])
 
     longest_compute_latency = Max(
         0, *[s.max_latency for s in looptree_results.compute_stats.values()]
@@ -167,7 +165,10 @@ def component_latency(
     }
 
     for component in name2component:
-        if component not in component_to_actions and component not in component_to_keywords:
+        if (
+            component not in component_to_actions
+            and component not in component_to_keywords
+        ):
             continue
         component_obj = name2component[component]
         dump = component_obj.shallow_model_dump(include_None=True)
