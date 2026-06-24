@@ -186,7 +186,7 @@ class ArchNodes(EvalableList):
     def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         class PostCallArchNode(_PostCall):
             def __call__(self, field, value, evaluated, symbol_table):
-                if isinstance(evaluated, Leaf):
+                if isinstance(evaluated, (Leaf, Array)):
                     symbol_table[evaluated.name] = evaluated
                 return evaluated
 
@@ -315,6 +315,10 @@ class Branch(ArchNode):
 
         return result, non_power_gated_porp
 
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+        if hasattr(self, "name"):
+            symbol_table[self.name] = self
+        return super()._eval_expressions(symbol_table, *args, **kwargs)
 
 class Array(Branch, Spatialable):
     name: str
