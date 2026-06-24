@@ -113,7 +113,12 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
     separated_names = colname.split(SEP)
     if len(separated_names) == 4:
         assert separated_names[1] == "energy", colname
-        return ActionKey(separated_names[2], separated_names[3])
+        return VerboseActionKey(
+            separated_names[2],
+            separated_names[3],
+            "None",
+            separated_names[0],
+        )
     elif len(separated_names) == 5:
         assert separated_names[1] == "energy"
         return VerboseActionKey(
