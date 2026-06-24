@@ -206,7 +206,7 @@ def col2nametensor(col: str) -> str | None:
     x = partition_col(col, "tensor", 2)
     if x is None:
         return None
-    return x[1]
+    return x[0]
 
 
 @dict_cached
