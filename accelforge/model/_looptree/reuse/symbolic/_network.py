@@ -121,15 +121,24 @@ class MeshTopologyModel(TopologyModel):
             if src_component._get_physical_fanout_along(dim_name) > 1:
                 physical_stride = src_component._get_physical_stride_along(dim_name)
 
-                n_dsts_per_physical = min_nonzero(
-                    # if last_fanout > physical_stride, set n_dst to 1, which results in 0 hops
-                    # later (which is correct because the set of destinations always overlap
-                    # the set of sources).
-                    max_nonzero(physical_stride / last_fanout, 1),
-                    shape_repeats,
-                )
-                n_activated_physical = max_nonzero(
-                    shape_repeats * last_fanout / physical_stride, 1
+                if physical_stride == 1:
+                    # Fast special case path
+                    # Assumptions:
+                    #   shape_repeats >= 1
+                    #   last_fanout >= 1
+                    n_dsts_per_physical = 1
+                else:
+                    n_dsts_per_physical = min_nonzero(
+                        # if last_fanout > physical_stride, set n_dst to 1, which results in 0 hops
+                        # later (which is correct because the set of destinations always overlap
+                        # the set of sources).
+                        max_nonzero(physical_stride / last_fanout, 1),
+                        shape_repeats,
+                    )
+
+                n_activated_physical = ratio_geq_one(
+                    shape_repeats*last_fanout,
+                    physical_stride
                 )
                 total_cost = (
                     n_activated_physical
@@ -354,3 +363,14 @@ def unicast_cost(n_dsts, stride):
 
 def arithmetic_sum(n):
     return 0.5 * (n + 1) * n
+
+
+def ratio_geq_one(numerator, denominator):
+    """
+    Returns max(numerator/denominator, 1) with speedup if denominator == 1.
+    Assumes numerator >= 1 and denominator >= 1.
+    """
+    if denominator == 1:
+        return numerator
+    else:
+        return max_nonzero(numerator/denominator, 1)
