@@ -183,7 +183,6 @@ def evaluate_mapping(
             job.mapping,
             job.fusable_tensors,
             einsum,
-            flattened_arch=job.flattened_arch,
         )
         symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
             einsum_name

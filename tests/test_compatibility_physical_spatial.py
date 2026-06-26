@@ -2,6 +2,10 @@
 Tests for recording spatial-for loops below a physically-distributed storage in
 ``Compatibility`` (see ``TensorReservation.physical_spatial_loops``).
 
+Whether a storage is distributed is read from the reservation node's
+``_component_object`` (set when the reservation is created), so these tests stub that
+object directly on the reservation node rather than passing an architecture.
+
     pytest tests/test_compatibility_physical_spatial.py -v
     python -m unittest tests.test_compatibility_physical_spatial
 """
@@ -29,14 +33,6 @@ class _StubStorage:
         return dim_name in self._physical_dims
 
 
-class _StubArch:
-    def __init__(self, name_to_storage):
-        self._n2s = name_to_storage
-
-    def __getitem__(self, name):
-        return self._n2s[name]  # raises KeyError if absent, like FlattenedArch
-
-
 def _matmul_einsum():
     spec = Spec.from_yaml(
         af.examples.arches.simple,
@@ -61,26 +57,25 @@ class TestPhysicalSpatialLoops(unittest.TestCase):
         self.sp_n0 = Spatial(rank_variable="n0", name="X", component="DistBuf", tile_shape=4)
         self.mapping = _mapping([self.res, self.sp_m, self.sp_n1, self.sp_n0])
 
-    def _from(self, arch):
-        return Compatibility.from_mapping(
-            self.mapping, {"T1"}, self.einsum, flattened_arch=arch
-        )
+    def _from(self, storage):
+        # The reservation carries the arch component it reserves; that object is what
+        # from_mapping consults to decide whether the storage is distributed.
+        self.res._component_object = storage
+        return Compatibility.from_mapping(self.mapping, {"T1"}, self.einsum)
 
     def _phys(self, compat):
         (t,) = compat.tensors
         return t.physical_spatial_loops
 
-    def test_no_arch_records_nothing(self):
+    def test_no_component_object_records_nothing(self):
         self.assertEqual(self._phys(self._from(None)), ())
 
     def test_non_distributed_records_nothing(self):
-        arch = _StubArch({"DistBuf": _StubStorage(False, {"X", "Y"})})
-        self.assertEqual(self._phys(self._from(arch)), ())
+        self.assertEqual(self._phys(self._from(_StubStorage(False, {"X", "Y"}))), ())
 
     def test_dim_filter(self):
         # Only X is a physical dim: only the 'm' loop (over X, indexing T1) is recorded.
-        arch = _StubArch({"DistBuf": _StubStorage(True, {"X"})})
-        phys = self._phys(self._from(arch))
+        phys = self._phys(self._from(_StubStorage(True, {"X"})))
         self.assertEqual(len(phys), 1)
         loop = phys[0]
         self.assertTrue(loop.is_spatial)
@@ -91,8 +86,7 @@ class TestPhysicalSpatialLoops(unittest.TestCase):
 
     def test_excludes_loop_not_indexing_tensor(self):
         # X and Y physical: 'm'->X and 'n1'->Y recorded; 'n0' (over X) doesn't index T1.
-        arch = _StubArch({"DistBuf": _StubStorage(True, {"X", "Y"})})
-        phys = self._phys(self._from(arch))
+        phys = self._phys(self._from(_StubStorage(True, {"X", "Y"})))
         self.assertEqual(len(phys), 2)
         self.assertEqual({str(l.rank_name) for l in phys}, {"M", "N1"})
         self.assertEqual({l.spatial_dim for l in phys}, {"X", "Y"})
@@ -100,21 +94,17 @@ class TestPhysicalSpatialLoops(unittest.TestCase):
     def test_stops_at_next_storage_level(self):
         # A lower reservation ends the region; spatial loops below it are not recorded.
         lower = Reservation(purposes=["T1"], resource="DistBuf")
+        self.res._component_object = _StubStorage(True, {"X"})
         mapping = _mapping([self.res, lower, self.sp_m])
-        compat = Compatibility.from_mapping(
-            mapping, {"T1"}, self.einsum,
-            flattened_arch=_StubArch({"DistBuf": _StubStorage(True, {"X"})}),
-        )
+        compat = Compatibility.from_mapping(mapping, {"T1"}, self.einsum)
         # Backing reservation (first) has the loop below the lower one excluded.
         backing = compat.get_reservation_of_tensor("T1")
         self.assertEqual(backing.physical_spatial_loops, ())
 
     def test_distribution_difference_breaks_equality(self):
-        arch_x = _StubArch({"DistBuf": _StubStorage(True, {"X"})})
-        arch_xy = _StubArch({"DistBuf": _StubStorage(True, {"X", "Y"})})
-        a = self._from(arch_x)
-        b = self._from(arch_xy)
-        c = self._from(arch_x)
+        a = self._from(_StubStorage(True, {"X"}))
+        b = self._from(_StubStorage(True, {"X", "Y"}))
+        c = self._from(_StubStorage(True, {"X"}))
         self.assertEqual(a, c)
         self.assertEqual(hash(a), hash(c))
         self.assertNotEqual(a, b)
@@ -126,8 +116,7 @@ class TestPhysicalSpatialLoops(unittest.TestCase):
     def test_regular_loops_unaffected(self):
         # A reservation with above-storage loops keeps physical_spatial_loops empty
         # when the storage is not distributed, and n_loops/above_loop_index are unchanged.
-        arch = _StubArch({"DistBuf": _StubStorage(False, set())})
-        compat = self._from(arch)
+        compat = self._from(_StubStorage(False, set()))
         (t,) = compat.tensors
         self.assertEqual(t.above_loop_index, len(t.loops))
         self.assertEqual(t.physical_spatial_loops, ())

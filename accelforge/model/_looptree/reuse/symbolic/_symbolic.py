@@ -437,6 +437,7 @@ def insert_reservation_nodes(
             node = Reservation(purposes=[buffet.tensor], resource=buffet.level)
             node.persistent = tracker.node.persistent
             node._backing = tracker.node._backing
+            node._component_object = tracker.node.component_object
 
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
