@@ -31,6 +31,8 @@ from accelforge.util import _expfmt, fzs, oset
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
 #    next-innermost...
 # 2. All loops above any shared tensor are co-tiled and must match between PmappingGroups.
+# 3. Spatial loops *below* a physically-distributed storage (i.e., the data binding)
+#    must match. These are in TensorReservations.physical_spatial_loops.
 
 T = TypeVar("T", bound="Updatable")
 
@@ -58,11 +60,14 @@ class Loop(Updatable):
     rank_name: Rank
     tile_pattern: TilePattern | None
     is_spatial: bool
+    spatial_dim: str | None = None
+    # The architecture spatial dimension (e.g. "X", "Y") this loop fans out over.
 
     def __post_init__(self):
         assert isinstance(self.rank_name, Rank)
         assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
+        assert isinstance(self.spatial_dim, str | None)
         assert isinstance(
             self.tile_pattern.initial_tile_shape,
             Number | str | None,
@@ -162,10 +167,16 @@ class TensorReservation(Updatable):
     name: TensorName
     resource_name: str
     persistent: bool = False
+    # Spatial loops *below* this storage that distribute the tensor across physical
+    # instances
+    physical_spatial_loops: tuple[Loop, ...] = ()
 
     def __post_init__(self):
         if self.persistent:
             assert len(self.loops) == 0, "Persistent tensors be above all loops"
+        assert all(
+            isinstance(l, Loop) and l.is_spatial for l in self.physical_spatial_loops
+        ), "physical_spatial_loops must all be spatial Loops"
 
     @property
     def above_loop_index(self) -> int:
@@ -175,7 +186,12 @@ class TensorReservation(Updatable):
         return f"[{self.resource_name}] {self.name} below {self.loops}"
 
     def __repr__(self):
-        return f"Reservation({repr(self.name)}, {repr(self.loops)}, {repr(self.resource_name)})"
+        phys = (
+            f", physical_spatial_loops={repr(self.physical_spatial_loops)}"
+            if self.physical_spatial_loops
+            else ""
+        )
+        return f"Reservation({repr(self.name)}, {repr(self.loops)}, {repr(self.resource_name)}{phys})"
 
     def pydot_str(self):
         return f"[{self.resource_name}] {self.name}"
@@ -216,6 +232,9 @@ class TensorReservation(Updatable):
     def clear_symbolic_tile_patterns(self) -> "TensorReservation":
         return self.update(
             loops=tuple(l.clear_symbolic_tile_patterns() for l in self.loops),
+            physical_spatial_loops=tuple(
+                l.clear_symbolic_tile_patterns() for l in self.physical_spatial_loops
+            ),
         )
 
     def make_fused_loop_symbols(
@@ -243,7 +262,20 @@ class TensorReservation(Updatable):
             l_mine, new_renames = l_mine._rename_to_match(l_other)
             _update_rename_dict(renames, new_renames)
             new_loops.append(l_mine)
-        return self.update(loops=tuple(new_loops)), renames
+        new_physical = []
+        for l_mine, l_other in zip(
+            self.physical_spatial_loops, other.physical_spatial_loops
+        ):
+            l_mine, new_renames = l_mine._rename_to_match(l_other)
+            _update_rename_dict(renames, new_renames)
+            new_physical.append(l_mine)
+        return (
+            self.update(
+                loops=tuple(new_loops),
+                physical_spatial_loops=tuple(new_physical),
+            ),
+            renames,
+        )
 
 
 class SplitKind(Enum):
@@ -533,10 +565,16 @@ class Compatibility(Updatable):
         mapping: Mapping,
         tensors: set[TensorName],
         einsum: Einsum,
+        flattened_arch=None,
     ) -> "Compatibility":
         """
         Create Compatibility from a mapping, a set of fusable tensors, and the
         workload.
+
+        If ``flattened_arch`` is given, spatial loops below a physically-distributed
+        storage are recorded in each ``TensorReservation.physical_spatial_loops`` so that
+        fused Einsums sharing a tensor must agree on its physical placement. If it is
+        ``None`` (the default), no such loops are recorded and behavior is unchanged.
         """
         if not isinstance(einsum, Einsum):
             raise TypeError(f"einsum should be an Einsum, but {type(einsum)} instead")
@@ -544,7 +582,6 @@ class Compatibility(Updatable):
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
 
-        # TODO: update compatibility to handle spatial-for loop per-tensor update
         tensor_indices = []
         split_above_loop_indices = []
         reservation_indices = []
@@ -597,6 +634,48 @@ class Compatibility(Updatable):
             ]
             return tuple(loops)
 
+        def make_physical_spatial_loops(
+            above_index: int, tensor_name: TensorName, resource: str
+        ) -> tuple[Loop, ...]:
+            # Spatial loops below a distributed storage fix which physical instance holds
+            # which slice of the tensor; fused Einsums must agree on them. Only relevant
+            # when the backing storage has a physical stride.
+            if flattened_arch is None:
+                return ()
+            try:
+                storage = flattened_arch[resource]
+            except (KeyError, ValueError):
+                return ()
+            if not getattr(storage, "_is_distributed", lambda: False)():
+                return ()
+            out = []
+            for n in mapping.nodes[above_index + 1 :]:
+                # Stop at the next storage level: loops below it belong to that storage.
+                if isinstance(n, (MappingReservation, TensorHolder)):
+                    break
+                if not isinstance(n, Spatial):
+                    continue
+                # Only dimensions the storage is physically distributed along matter.
+                if not storage._has_physical_dim(n.name):
+                    continue
+                rank = get_rank(n.rank_variable, tensor_name)
+                # Skip loops that don't partition this tensor (don't index it).
+                if rank == Rank("NO RANK. RECOMPUTED."):
+                    continue
+                # Clear symbolic tile patterns: below-storage spatial loops never get
+                # DataFrame columns, so they're matched structurally (rank + dim, plus a
+                # concrete fanout when known; symbolic fanouts are pinned by the fixed
+                # hardware fanout along the dimension).
+                out.append(
+                    Loop(
+                        rank_name=rank,
+                        tile_pattern=n.tile_pattern._symbol2str(),
+                        is_spatial=True,
+                        spatial_dim=n.name,
+                    ).clear_symbolic_tile_patterns()
+                )
+            return tuple(out)
+
         return cls(
             tensors=fzs(
                 TensorReservation(
@@ -604,6 +683,9 @@ class Compatibility(Updatable):
                     loops=make_loops(i, mapping.nodes[i].purpose),
                     resource_name=mapping.nodes[i].resource,
                     persistent=mapping.nodes[i].persistent,
+                    physical_spatial_loops=make_physical_spatial_loops(
+                        i, mapping.nodes[i].purpose, mapping.nodes[i].resource
+                    ),
                 )
                 for i in tensor_indices
             ),

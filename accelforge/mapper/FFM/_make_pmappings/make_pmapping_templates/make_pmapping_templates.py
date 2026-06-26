@@ -455,6 +455,7 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
             mapping_with_reservations,
             new_job.fusable_tensors,
             new_job.einsum,
+            flattened_arch=new_job.flattened_arch,
         )
         jobs.append(new_job)
 
