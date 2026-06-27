@@ -1,17 +1,17 @@
 # @INPROCEEDINGS{9830322,
 #   author={Wang, Hechen and Liu, Renzhi and Dorrance, Richard and Dasalukunte, Deepak and Liu, Xiaosen and Lake, Dan and Carlton, Brent and Wu, May},
-#   booktitle={2022 IEEE Symposium on VLSI Technology and Circuits (VLSI Technology and Circuits)},
-#   title={A 32.2 TOPS/W SRAM Compute-in-Memory Macro Employing a Linear 8b C-2C Ladder for Charge Domain Computation in 22nm for Edge Inference},
+#   booktitle={2022 IEEE Symposium on VLSI Technology and Circuits (VLSI Technology and Circuits)}, 
+#   title={A 32.2 TOPS/W SRAM Compute-in-Memory Macro Employing a Linear 8b C-2C Ladder for Charge Domain Computation in 22nm for Edge Inference}, 
 #   year={2022},
 #   volume={},
 #   number={},
 #   pages={36-37},
 #   doi={10.1109/VLSITechnologyandCir46769.2022.9830322}}
-#
+
 # @ARTICLE{10008405,
 #   author={Wang, Hechen and Liu, Renzhi and Dorrance, Richard and Dasalukunte, Deepak and Lake, Dan and Carlton, Brent},
-#   journal={IEEE Journal of Solid-State Circuits},
-#   title={A Charge Domain SRAM Compute-in-Memory Macro With C-2C Ladder-Based 8b MAC Unit in 22-nm FinFET Process for Edge Inference},
+#   journal={IEEE Journal of Solid-State Circuits}, 
+#   title={A Charge Domain SRAM Compute-in-Memory Macro With C-2C Ladder-Based 8b MAC Unit in 22-nm FinFET Process for Edge Inference}, 
 #   year={2023},
 #   volume={58},
 #   number={4},
@@ -150,11 +150,11 @@ arch:
     direction: up
     component_class: ADC
     energy_scale: adc_energy_scale
+    leak_power_scale: adc_energy_scale
     area_scale: adc_area_scale
     extra_attributes_for_component_model:
       n_bits: adc_resolution
-      throughput_scale: 1 # 1 cycle to process all outputs
-      throughput: 1 / cycle_period * cols_active_at_once * throughput_scale
+      throughput: 1 / cycle_period * cols_active_at_once
 
   # Column drivers precharge the array columns.
   - !Toll
@@ -226,8 +226,8 @@ arch:
     component_class: MemoryCell
     # CimUnits represent cim_unit_width_cells * cim_unit_depth_cells memory cells tied
     # together into one weight
-    extra_attributes_for_component_model:
-      n_instances: cim_unit_width_cells * cim_unit_depth_cells
+    area_scale: cim_unit_width_cells * cim_unit_depth_cells
+    leak_power_scale: cim_unit_width_cells * cim_unit_depth_cells
 
   # Digital port of the C-2C multiplier. Weights enter here.
   - !Toll
@@ -286,7 +286,7 @@ variables:
   voltage_latency_scale: (0.7 / voltage) ** 1.1
 
   # Calibration -----------------------------------------------------------------------
-  adc_energy_scale: 3.6 * voltage_energy_scale
+  adc_energy_scale: 3.15 * voltage_energy_scale
   adc_area_scale: 0.4
   row_col_drivers_area_scale: 1
 

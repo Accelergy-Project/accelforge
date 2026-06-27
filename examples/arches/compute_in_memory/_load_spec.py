@@ -65,9 +65,6 @@ def get_spec(
     )
     if os.path.exists(arch_helpers):
         spec.config.expression_custom_functions.append(arch_helpers)
-    spec.config.component_models.append(
-        os.path.join(THIS_SCRIPT_DIR, "components/*.py")
-    )
     if n_macros > 1:
         macro = af.arch.Container(
             name="MacroAuto",

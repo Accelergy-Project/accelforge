@@ -7,8 +7,8 @@ arch:
     leak_power: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 0, latency: 0}
-    - {name: write, energy: 0, latency: 0}
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
 
   - !Memory
     name: GlobalBuffer
@@ -17,15 +17,16 @@ arch:
     leak_power: 0
     tensors: {keep: ~MainMemory, may_keep: All}
     actions:
-    - {name: read, energy: 0, latency: 0}
-    - {name: write, energy: 0, latency: 0}
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
 
   - !Network
     name: PeArray
     area: 0
     leak_power: 0
+    total_latency: "max_hops"
     actions:
-    - {name: hops, energy: 1, latency: 0}
+    - {name: hop, energy: 1, latency: 1, throughput: inf}
 
   - !Memory
     name: Scratchpad
@@ -34,23 +35,25 @@ arch:
     leak_power: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 0, latency: 0}
-    - {name: write, energy: 0, latency: 0}
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
     spatial:
     - {name: X, fanout: 4}
 
+  # All-to-all switch (NVLink-like): every node is one hop from every other
   - !Network
     name: MacArray
+    topology: all_to_all
     area: 0
     leak_power: 0
     actions:
-    - {name: hops, energy: 1, latency: 0}
+    - {name: hop, energy: 1, latency: 1, throughput: inf}
 
   - !Compute
     name: MAC
     area: 0
     leak_power: 0
     actions:
-    - {name: compute, energy: 0, latency: 0}
+    - {name: compute, energy: 0, throughput: inf}
     spatial:
-    - {name: X, fanout: 2}
+    - {name: X, fanout: 4}

@@ -20,7 +20,7 @@ from accelforge.util._basetypes import (
 
 from accelforge.util.exceptions import EvaluationError
 
-from accelforge.frontend.arch.spatialable import Spatialable
+from accelforge.frontend.arch.spatialable import Spatialable, _PhysicalSpatial
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
 
 from pydantic import Discriminator
@@ -186,7 +186,7 @@ class ArchNodes(EvalableList):
     def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
         class PostCallArchNode(_PostCall):
             def __call__(self, field, value, evaluated, symbol_table):
-                if isinstance(evaluated, Leaf):
+                if isinstance(evaluated, (Leaf, Array)):
                     symbol_table[evaluated.name] = evaluated
                 return evaluated
 
@@ -315,6 +315,10 @@ class Branch(ArchNode):
 
         return result, non_power_gated_porp
 
+    def _eval_expressions(self, symbol_table: dict[str, Any], *args, **kwargs):
+        if hasattr(self, "name"):
+            symbol_table[self.name] = self
+        return super()._eval_expressions(symbol_table, *args, **kwargs)
 
 class Array(Branch, Spatialable):
     name: str
@@ -334,6 +338,10 @@ class Array(Branch, Spatialable):
 
         nodes = []
 
+        # Nodes inside an array are flattened to fit into a hierarchical
+        # model in order to map.
+        # However, we will keep information about how these nodes are
+        # arranged for modeling.
         for node in self.nodes:
             try:
                 if isinstance(node, Branch):
@@ -342,7 +350,14 @@ class Array(Branch, Spatialable):
                     if isinstance(node, Spatialable):
                         fanout *= node.get_fanout()
                         node = deepcopy(node)
-                        node._physical_spatial = node.spatial
+                        node._physical_spatial = [
+                            _PhysicalSpatial(
+                                name=s.name,
+                                fanout=s.fanout,
+                                stride=self.get_fanout_along(s.name) / s.fanout,
+                            )
+                            for s in node.spatial
+                        ]
                         node.spatial = EvalableList()
                     nodes.append(node)
                 else:

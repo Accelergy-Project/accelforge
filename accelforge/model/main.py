@@ -314,7 +314,7 @@ def _assert_valid_pmapping(pmapping: Mapping, workload: Workload):
             if isinstance(node.rank_variable, set):
                 rank_variables.difference_update(node.rank_variable)
             else:
-                rank_variables.remove(node.rank_variable)
+                rank_variables.discard(node.rank_variable)
     if len(rank_variables) > 0:
         raise InvalidMappingError(
             f"Missing loop with shape 1 for rank variables {rank_variables} in Einsum {einsum_name}"

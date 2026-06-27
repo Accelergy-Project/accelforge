@@ -45,10 +45,10 @@ from accelforge.model._looptree.reuse.symbolic.mapping_utils import (
 )
 
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
-from accelforge.util._sympy.broadcast_max import MaxGeqZero
 from accelforge.mapper.FFM._pareto_df.df_convention import iterations2col
 
 import sympy
+from accelforge.util._sympy.broadcast_max import max_nonzero
 import symengine as se
 
 from ._common import (
@@ -589,13 +589,16 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     node: Spatial = mapping[node_idx]
     rank_var = node.rank_variable
     node_dim = node.name
-    spatial_component = info.job.flattened_arch[node.component]
+    flattened_arch = info.job.flattened_arch
+    spatial_component = flattened_arch[node.component]
     component_spatial_dim = spatial_component.spatial[node_dim]
     stride_and_shape = loop_stride_and_shape(node, current_shape, node_idx, info)
 
     result_accumulator = SymbolicAnalysisOutput()
 
-    network_analyzer = NetworkAnalyzer(result_accumulator.network_stats)
+    network_analyzer = NetworkAnalyzer(
+        result_accumulator.network_stats, info, einsum_name, node
+    )
 
     def handle_repeated_value(repeated_shape):
         shape_value = repeated_shape.value
@@ -609,7 +612,6 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
         accumulated_buffet_stats = result_accumulator.buffet_stats
         child_stats = list(child_result.buffet_stats.items())
         for i, (buffet, buffet_stats) in enumerate(child_stats):
-            stats = buffet_stats
             accumulated_stats = accumulated_buffet_stats.setdefault(
                 buffet, BuffetStats.blank()
             )
@@ -631,20 +633,22 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
                 and buffet.tensor in component_spatial_dim.may_reuse
             )
 
-            stats.n_loops_above = stats.n_loops_above + 1
-            accumulated_stats += stats.repeat_spatial(
+            buffet_stats.n_loops_above = buffet_stats.n_loops_above + 1
+            accumulated_stats += buffet_stats.repeat_spatial(
                 shape_repeats, reuse_parent_accesses
             )
 
         network_analyzer.accumulate_child_result(
-            child_result, info, shape_repeats, einsum_name, child_shape, node
+            child_result, shape_repeats, child_shape
         )
 
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
                 result_accumulator.temporal_steps[einsum] = child_steps
+            elif result_accumulator.temporal_steps[einsum] == 0:
+                result_accumulator.temporal_steps[einsum] = child_steps
             else:
-                result_accumulator.temporal_steps[einsum] = MaxGeqZero(
+                result_accumulator.temporal_steps[einsum] = max_nonzero(
                     result_accumulator.temporal_steps[einsum], child_steps
                 )
 
@@ -695,6 +699,7 @@ def analyze_storage(
     count_writes: bool = True,
 ):
     mapping = info.mapping
+    flattened_arch = info.job.flattened_arch
     einsum_name = mapping[-1].einsum
     node: TensorHolder = mapping[node_idx]
 
@@ -801,25 +806,53 @@ def analyze_storage(
         else:
             write_scale = 0
 
+        # =======================
+        # For distributed buffers
+        n_active_physical_units = 1
+        if child is not None:
+            next_spatial = flattened_arch.first_below(
+                node.component,
+                lambda n: isinstance(n, arch.Spatialable) and len(n.spatial) > 0,
+                default=None,
+            )
+            if component_object._is_distributed() and next_spatial is not None:
+                for (b, e), dim_fanout in child_result.fanout.items():
+                    if b != next_spatial.name:
+                        continue
+                    for d in dim_fanout:
+                        if not component_object._has_physical_dim(d):
+                            continue
+                        n_active_physical_units *= dim_fanout[
+                            d
+                        ] / component_object._get_physical_stride_along(d)
+
+        # ==========================
+        # Recalculate usage of distributed buffers
+        stats.max_occupancy /= n_active_physical_units
+
         # ==========================
         # Data exchanges with parent
         if count_downward_movement[tensor]:  # Parent -> Me
             stats.total_write_actions += stats.total_reads_to_parent * write_scale
             stats.max_per_unit_write_actions += (
-                stats.total_reads_to_parent * write_scale
+                stats.total_reads_to_parent * write_scale / n_active_physical_units
             )
             stats.total_skipped_first_write_actions += (
                 stats.total_skipped_first_reads_to_parent * write_scale
             )
             stats.min_per_unit_skipped_first_write_actions += (
-                stats.min_per_parent_skipped_first_reads_to_parent * write_scale
+                stats.min_per_parent_skipped_first_reads_to_parent
+                * write_scale
+                / n_active_physical_units
             )
 
         if count_upward_movement[tensor]:  # Me -> Parent
             # Comment this to have the final writeback to a buffer hit both that buffer and
             # go directly to the parent without incurring another read from the buffer.
             stats.total_read_actions += stats.total_writes_to_parent * read_scale
-            stats.max_per_unit_read_actions += stats.total_writes_to_parent * read_scale
+            stats.max_per_unit_read_actions += (
+                stats.total_writes_to_parent * read_scale / n_active_physical_units
+            )
 
         # ========================
         # Data exchanges with peer
@@ -832,7 +865,9 @@ def analyze_storage(
             if count_downward_movement[tensor]:  # Me -> Child
                 stats.total_read_actions += child.total_reads_to_parent * read_scale
                 stats.max_per_unit_read_actions += (
-                    child.max_per_parent_reads_to_parent * read_scale
+                    child.max_per_parent_reads_to_parent
+                    * read_scale
+                    / n_active_physical_units
                 )
                 # Skip first read
                 if skip_initial:
@@ -840,13 +875,17 @@ def analyze_storage(
                         child.total_skipped_first_reads_to_parent * read_scale
                     )
                     stats.min_per_unit_skipped_first_read_actions += (
-                        child.min_per_parent_skipped_first_reads_to_parent * read_scale
+                        child.min_per_parent_skipped_first_reads_to_parent
+                        * read_scale
+                        / n_active_physical_units
                     )
 
             if count_upward_movement[tensor]:  # Child -> Me
                 stats.total_write_actions += child.total_writes_to_parent * write_scale
                 stats.max_per_unit_write_actions += (
-                    child.max_per_parent_writes_to_parent * write_scale
+                    child.max_per_parent_writes_to_parent
+                    * write_scale
+                    / n_active_physical_units
                 )
 
     return child_result
@@ -906,19 +945,21 @@ def analyze_reservation(node_idx, current_shape, info: AnalysisInfo):
     child_result.buffet_stats[buffet] = stats
 
     # Reservation nodes are the first to produce stats for a network
-    network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(
-        NetworkSpec, buffet.level, default=None
-    )
-    if network_node is not None:
-        network = Network(
-            tensor,
-            einsum_name,
-            info.data_movement_connections.get_src(buffet),
-            buffet,
-            component=network_node.name if network_node else network_node,
+    src = info.data_movement_connections.get_src(buffet)
+    if src is not None:
+        network_node = info.job.flattened_arch.find_first_of_type_between(
+            NetworkSpec, buffet.level, src.level, default=None
         )
-        assert network not in child_result.network_stats
-        child_result.network_stats[network] = NetworkStats()
+        if network_node is not None:
+            network = Network(
+                tensor,
+                einsum_name,
+                src,
+                buffet,
+                component=network_node.name if network_node else network_node,
+            )
+            assert network not in child_result.network_stats
+            child_result.network_stats[network] = NetworkStats()
 
     fanout_key = (node.resource, einsum_name)
     if fanout_key not in child_result.fanout:
@@ -947,7 +988,7 @@ def analyze_compute(
     result_accumulator.compute_stats[compute_key] = ComputeStats(
         computes,
         computes,
-        1,
+        computes,
     )
 
     if info.is_copy_operation:
@@ -968,18 +1009,20 @@ def analyze_compute(
         stats.max_occupancy = 1
         result_accumulator.buffet_stats[buffet] = stats
 
-        network_node = info.job.spec_one_einsum.arch.find_first_of_type_above(
-            NetworkSpec, node.component, default=None
-        )
-        if network_node is not None:
-            network = Network(
-                tensor,
-                info.job.einsum_name,
-                info.data_movement_connections.get_src(buffet),
-                buffet,
-                component=network_node.name if network_node else network_node,
+        src = info.data_movement_connections.get_src(buffet)
+        if src is not None:
+            network_node = info.job.flattened_arch.find_first_of_type_between(
+                NetworkSpec, node.component, src.level, default=None
             )
-            result_accumulator.network_stats[network] = NetworkStats()
+            if network_node is not None:
+                network = Network(
+                    tensor,
+                    info.job.einsum_name,
+                    src,
+                    buffet,
+                    component=network_node.name if network_node else network_node,
+                )
+                result_accumulator.network_stats[network] = NetworkStats()
 
     return result_accumulator
 

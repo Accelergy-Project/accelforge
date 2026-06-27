@@ -1,4 +1,5 @@
 import copy
+import enum
 import itertools
 import logging
 from numbers import Number
@@ -144,7 +145,7 @@ class Action(EvalableModel):
     @classmethod
     def _deprecate_latency_fields(cls, data):
         if isinstance(data, dict):
-            if "latency" in data:
+            if "latency" in data and not "throughput" in data:
                 l = data.pop("latency")
                 warnings.warn(
                     f"Setting `latency` on `{cls.__name__}` is deprecated; use "
@@ -154,16 +155,9 @@ class Action(EvalableModel):
                     DeprecationWarning,
                     stacklevel=2,
                 )
-                if "throughput" in data:
-                    raise ValueError(
-                        f"Cannot specify both `latency` and `throughput` on "
-                        f"`{cls.__name__}`. Drop the deprecated `latency` field."
-                    )
                 l = str(l).strip()
-                data["throughput"] = (
-                    f"1 / ({l}) if ({l}) != 0 else float('inf')"
-                )
-            if "latency_scale" in data:
+                data["throughput"] = f"1 / ({l}) if ({l}) != 0 else float('inf')"
+            if "latency_scale" in data and not "throughput_scale" in data:
                 ls = data.pop("latency_scale")
                 warnings.warn(
                     f"Setting `latency_scale` on `{cls.__name__}` is deprecated; use "
@@ -173,11 +167,6 @@ class Action(EvalableModel):
                     DeprecationWarning,
                     stacklevel=2,
                 )
-                if "throughput_scale" in data:
-                    raise ValueError(
-                        f"Cannot specify both `latency_scale` and `throughput_scale` "
-                        f"on `{cls.__name__}`. Drop the deprecated `latency_scale`."
-                    )
                 ls = str(ls).strip()
                 data["throughput_scale"] = (
                     f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
@@ -337,9 +326,7 @@ class Component(Spatialable):
     component's energy and latency.
     """
 
-    total_latency: str | int | float = (
-        "sum(a.n_calls / a.throughput for a in actions)"
-    )
+    total_latency: str | int | float = "sum(a.n_calls / a.throughput for a in actions)"
     """
     An expression representing the total latency of this component in seconds. This is
     used to calculate the latency of a given Einsum. Special variables available are the
@@ -391,9 +378,7 @@ class Component(Spatialable):
                     f"on `{cls.__name__}`. Drop the deprecated `latency_scale`."
                 )
             ls = str(ls).strip()
-            data["throughput_scale"] = (
-                f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
-            )
+            data["throughput_scale"] = f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
         return data
 
     n_parallel_instances: EvalsTo[int | float] = 1
@@ -1303,12 +1288,42 @@ class Compute(Component, Leaf):
         return "#E0EEFF"
 
 
+class TopologySpec(enum.StrEnum):
+    MESH = "mesh"
+    ALL_TO_ALL = "all_to_all"
+
+
+NETWORK_ACTIONS = EvalableList(
+    [
+        Action(name="hop"),
+    ]
+)
+
+
 class Network(Component, Leaf):
     """
     Defines a network component.
 
     The routing is currently defined using the mapping, the routing follows the order
     of the spatial nodes from top to bottom.
+    """
+
+    actions: EvalableList[Action] = NETWORK_ACTIONS
+
+    total_latency: str | int | float = (
+        "max(max_hops*actions['hop'].latency, max_link_traffic/actions['hop'].throughput)"
+    )
+    """
+    Models latency as either:
+    - *Latency-bound*, which means that the latency of the route with the most number of
+      hops dominate the overall communication latency.
+    - *Bandwidth-bound*, which means that the traffic over the most congested link
+      dominates the overall communication latency.
+
+    Keywords:
+    - `max_hops` returns the number of hops in the longest route.
+    - `max_link_traffic` returns the amount of traffic (in bits) over the most congested
+      link.
     """
 
     bits_per_value: EvalsTo[dict] = {}
@@ -1323,6 +1338,11 @@ class Network(Component, Leaf):
     The number of bits accessed in each of this component's actions. Overridden by
     bits_per_action in any action of this component. If set here, acts as a default
     value for the bits_per_action of all actions of this component.
+    """
+
+    topology: TopologySpec = TopologySpec.MESH
+    """
+    The topology of the network.
     """
 
     def _render_node_shape(self) -> str:

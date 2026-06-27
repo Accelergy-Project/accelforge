@@ -60,7 +60,7 @@ def gather_actions(
         actions[key].max_per_unit += ops.max_per_unit_ops
 
     for network, stats in looptree_results.network_stats.items():
-        key = network_keyer(network, "hops")
+        key = network_keyer(network, "hop")
         if key not in actions:
             actions[key] = ActionCount.default()
         actions[key].total += stats.total_hops

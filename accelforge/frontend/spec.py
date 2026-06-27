@@ -190,11 +190,11 @@ class Spec(EvalableModel):
         einsum_name: EinsumName | None = None,
         area: bool = True,
         energy: bool = True,
-        latency: bool = True,
+        throughput: bool = True,
         leak: bool = True,
     ) -> "Spec":
         """
-        Populates per-component area, energy, latency, and/or leak power. For each
+        Populates per-component area, energy, throughput, and/or leak power. For each
         component, populates the ``area``, ``total_area``, ``leak_power`` and
         ``total_leak_power``. Additionally, for each action of each component, populates
         the ``<action>.energy`` and ``<action>.throughput`` fields. Extends the
@@ -216,12 +216,12 @@ class Spec(EvalableModel):
             Whether to compute and populate area entries.
         energy : bool, optional
             Whether to compute and populate energy entries.
-        latency : bool, optional
-            Whether to compute and populate latency entries.
+        throughput : bool, optional
+            Whether to compute and populate throughput entries.
         leak : bool, optional
             Whether to compute and populate leak power entries.
         """
-        if not area and not energy and not latency and not leak:
+        if not area and not energy and not throughput and not leak:
             return self
 
         models = hwcomponents.get_models(
@@ -270,7 +270,7 @@ class Spec(EvalableModel):
                 for a in c.actions:
                     orig_action = orig.actions[a.name]
                     orig_action.energy = a.energy
-            if latency:
+            if throughput:
                 c = c.calculate_action_throughput(models)
                 for a in c.actions:
                     orig_action = orig.actions[a.name]
