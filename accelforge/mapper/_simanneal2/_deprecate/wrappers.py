@@ -16,6 +16,7 @@ from accelforge.mapper.simanneal.tracking import EvaluationsScoreTracker
 from accelforge.util import _fillna_and__numeric_cast
 from accelforge.util._frozenset import fzs, oset
 from accelforge.util.parallel import parallel, get_n_parallel_jobs
+from accelforge.util.indent import print
 
 
 def mapping2sims(einsum_to_result: Compatibility):

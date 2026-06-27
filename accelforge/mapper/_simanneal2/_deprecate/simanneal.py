@@ -18,6 +18,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
 )
 from accelforge.util._frozenset import fzs, oset
 from accelforge.mapper.simanneal.mapspaceglobals import MapspaceGlobals
+from accelforge.util.indent import print
 
 OBJECTIVE_COLUMN = None  # None -> Product
 
