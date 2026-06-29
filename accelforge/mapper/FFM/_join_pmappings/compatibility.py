@@ -15,7 +15,7 @@ from accelforge.frontend.mapping import (
     TilePattern,
     Loop as MappingLoop,
 )
-from accelforge.frontend.renames import Rank, RankVariable, TensorName
+from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DONT_CARE
 from accelforge.frontend.workload import Einsum
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
@@ -31,6 +31,8 @@ from accelforge.util import _expfmt, fzs, oset
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
 #    next-innermost...
 # 2. All loops above any shared tensor are co-tiled and must match between PmappingGroups.
+# 3. Spatial loops *below* a physically-distributed storage (i.e., the data binding)
+#    must match. These are in TensorReservations.physical_spatial_loops.
 
 T = TypeVar("T", bound="Updatable")
 
@@ -58,11 +60,14 @@ class Loop(Updatable):
     rank_name: Rank
     tile_pattern: TilePattern | None
     is_spatial: bool
+    # The architecture spatial dimension (e.g. "X", "Y") this loop fans out over.
+    spatial_dim: str | None = None
 
     def __post_init__(self):
         assert isinstance(self.rank_name, Rank)
         assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
+        assert isinstance(self.spatial_dim, str | None)
         assert isinstance(
             self.tile_pattern.initial_tile_shape,
             Number | str | None,
@@ -162,10 +167,16 @@ class TensorReservation(Updatable):
     name: TensorName
     resource_name: str
     persistent: bool = False
+    # Spatial loops *below* this storage that distribute the tensor across physical
+    # instances
+    physical_spatial_loops: tuple[Loop] = ()
 
     def __post_init__(self):
         if self.persistent:
             assert len(self.loops) == 0, "Persistent tensors be above all loops"
+        assert all(
+            isinstance(l, Loop) and l.is_spatial for l in self.physical_spatial_loops
+        ), "physical_spatial_loops must all be spatial Loops"
 
     @property
     def above_loop_index(self) -> int:
@@ -175,7 +186,12 @@ class TensorReservation(Updatable):
         return f"[{self.resource_name}] {self.name} below {self.loops}"
 
     def __repr__(self):
-        return f"Reservation({repr(self.name)}, {repr(self.loops)}, {repr(self.resource_name)})"
+        phys = (
+            f", physical_spatial_loops={repr(self.physical_spatial_loops)}"
+            if self.physical_spatial_loops
+            else ""
+        )
+        return f"Reservation({repr(self.name)}, {repr(self.loops)}, {repr(self.resource_name)}{phys})"
 
     def pydot_str(self):
         return f"[{self.resource_name}] {self.name}"
@@ -216,6 +232,9 @@ class TensorReservation(Updatable):
     def clear_symbolic_tile_patterns(self) -> "TensorReservation":
         return self.update(
             loops=tuple(l.clear_symbolic_tile_patterns() for l in self.loops),
+            physical_spatial_loops=tuple(
+                l.clear_symbolic_tile_patterns() for l in self.physical_spatial_loops
+            ),
         )
 
     def make_fused_loop_symbols(
@@ -243,7 +262,20 @@ class TensorReservation(Updatable):
             l_mine, new_renames = l_mine._rename_to_match(l_other)
             _update_rename_dict(renames, new_renames)
             new_loops.append(l_mine)
-        return self.update(loops=tuple(new_loops)), renames
+        new_physical = []
+        for l_mine, l_other in zip(
+            self.physical_spatial_loops, other.physical_spatial_loops
+        ):
+            l_mine, new_renames = l_mine._rename_to_match(l_other)
+            _update_rename_dict(renames, new_renames)
+            new_physical.append(l_mine)
+        return (
+            self.update(
+                loops=tuple(new_loops),
+                physical_spatial_loops=tuple(new_physical),
+            ),
+            renames,
+        )
 
 
 class SplitKind(Enum):
@@ -544,7 +576,6 @@ class Compatibility(Updatable):
             t.name: t.rank_variable2ranks for t in einsum.tensor_accesses
         }
 
-        # TODO: update compatibility to handle spatial-for loop per-tensor update
         tensor_indices = []
         split_above_loop_indices = []
         reservation_indices = []
@@ -577,6 +608,11 @@ class Compatibility(Updatable):
         ), f"Tensors {backing_remaining} not found in mapping"
 
         def get_rank(rank_variable, tensor):
+            """
+            Return rank in tensor indexed by rank_variable or
+            Rank("NO RANK.RECOMPUTED") if rank not in tensor.
+            """
+            # TODO: shouldn't this whole logic use relevancy from workload?
             rv = rank_variable_to_ranks[tensor].get(rank_variable, oset())
             assert (
                 len(rv) <= 1
@@ -597,6 +633,33 @@ class Compatibility(Updatable):
             ]
             return tuple(loops)
 
+        def make_physical_spatial_loops(
+            above_index: int, tensor_name: TensorName, storage
+        ) -> tuple[Loop]:
+            """Make data binding of physically distributed storages."""
+            if storage is None or not storage._is_distributed():
+                return ()
+            out = []
+            for n in mapping.nodes[above_index + 1 :]:
+                # Stop at the next storage level: loops below it belong to that storage.
+                if isinstance(n, (MappingReservation, TensorHolder)):
+                    break
+                if not isinstance(n, Spatial):
+                    continue
+                rank = get_rank(n.rank_variable, tensor_name)
+                # If the rank is irrelevant, the binding could be any rank
+                if rank == Rank("NO RANK. RECOMPUTED."):
+                    rank = RANK_DONT_CARE
+                out.append(
+                    Loop(
+                        rank_name=rank,
+                        tile_pattern=n.tile_pattern._symbol2str(),
+                        is_spatial=True,
+                        spatial_dim=n.name,
+                    )
+                )
+            return tuple(out)
+
         return cls(
             tensors=fzs(
                 TensorReservation(
@@ -604,6 +667,9 @@ class Compatibility(Updatable):
                     loops=make_loops(i, mapping.nodes[i].purpose),
                     resource_name=mapping.nodes[i].resource,
                     persistent=mapping.nodes[i].persistent,
+                    physical_spatial_loops=make_physical_spatial_loops(
+                        i, mapping.nodes[i].purpose, mapping.nodes[i]._component_object
+                    ),
                 )
                 for i in tensor_indices
             ),
