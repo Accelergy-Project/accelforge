@@ -15,7 +15,7 @@ from accelforge.frontend.mapping import (
     TilePattern,
     Loop as MappingLoop,
 )
-from accelforge.frontend.renames import Rank, RankVariable, TensorName
+from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DONT_CARE
 from accelforge.frontend.workload import Einsum
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
@@ -60,8 +60,8 @@ class Loop(Updatable):
     rank_name: Rank
     tile_pattern: TilePattern | None
     is_spatial: bool
-    spatial_dim: str | None = None
     # The architecture spatial dimension (e.g. "X", "Y") this loop fans out over.
+    spatial_dim: str | None = None
 
     def __post_init__(self):
         assert isinstance(self.rank_name, Rank)
@@ -169,7 +169,7 @@ class TensorReservation(Updatable):
     persistent: bool = False
     # Spatial loops *below* this storage that distribute the tensor across physical
     # instances
-    physical_spatial_loops: tuple[Loop, ...] = ()
+    physical_spatial_loops: tuple[Loop] = ()
 
     def __post_init__(self):
         if self.persistent:
@@ -614,6 +614,11 @@ class Compatibility(Updatable):
         ), f"Tensors {backing_remaining} not found in mapping"
 
         def get_rank(rank_variable, tensor):
+            """
+            Return rank in tensor indexed by rank_variable or
+            Rank("NO RANK.RECOMPUTED") if rank not in tensor.
+            """
+            # TODO: shouldn't this whole logic use relevancy from workload?
             rv = rank_variable_to_ranks[tensor].get(rank_variable, oset())
             assert (
                 len(rv) <= 1
@@ -636,7 +641,7 @@ class Compatibility(Updatable):
 
         def make_physical_spatial_loops(
             above_index: int, tensor_name: TensorName, storage
-        ) -> tuple[Loop, ...]:
+        ) -> tuple[Loop]:
             # Spatial loops below a distributed storage fix which physical instance holds
             # which slice of the tensor; fused Einsums must agree on them. Only relevant
             # when the backing storage is physically distributed.
@@ -649,24 +654,17 @@ class Compatibility(Updatable):
                     break
                 if not isinstance(n, Spatial):
                     continue
-                # Only dimensions the storage is physically distributed along matter.
-                if not storage._has_physical_dim(n.name):
-                    continue
                 rank = get_rank(n.rank_variable, tensor_name)
-                # Skip loops that don't partition this tensor (don't index it).
+                # If the rank is irrelevant, the binding could be any rank
                 if rank == Rank("NO RANK. RECOMPUTED."):
-                    continue
-                # Clear symbolic tile patterns: below-storage spatial loops never get
-                # DataFrame columns, so they're matched structurally (rank + dim, plus a
-                # concrete fanout when known; symbolic fanouts are pinned by the fixed
-                # hardware fanout along the dimension).
+                    rank = RANK_DONT_CARE
                 out.append(
                     Loop(
                         rank_name=rank,
                         tile_pattern=n.tile_pattern._symbol2str(),
                         is_spatial=True,
                         spatial_dim=n.name,
-                    ).clear_symbolic_tile_patterns()
+                    )
                 )
             return tuple(out)
 
