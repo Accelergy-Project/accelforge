@@ -29,6 +29,19 @@ both_sliced_weight_slices_parallelized: &both_sliced_weight_slices_parallelized
   # throughput by n_weight_slices.
   throughput_scale: n_weight_slices
 
+weight_sliced_weight_slices_parallelized: &weight_sliced_weight_slices_parallelized
+  # Weights are sliced; each slice is a subset of the bits of the full weight.
+  bits_per_value: {weight: average_weight_bits_per_slice}
+
+  # Each weight slice is a different action.
+  actions_scale: n_weight_slices
+
+  # Hopefully the architecture already has all of its hardware instances defined and
+  # already uses usage_scale to account for weight slices consuming more array
+  # utilization. So they should process the weight slices in parallel, scaling the
+  # throughput by n_weight_slices.
+  throughput_scale: n_weight_slices
+
 one_action_per_value: &one_action_per_value
   values_per_action: {All: 1}
 

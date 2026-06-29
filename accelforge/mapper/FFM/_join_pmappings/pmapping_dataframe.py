@@ -606,6 +606,13 @@ class PmappingDataframe:
             ignored_resources=ignored_resources,
         )
 
+        dead_tensor_cols = [
+            c
+            for c in result.data.columns
+            if is_tensor_col(c) and col2nametensor(c) not in live_tensors
+        ]
+        result.data.drop(columns=dead_tensor_cols, inplace=True)
+
         if CHECK_CORRECTNESS:
             result.check_above_subset_below(live_tensors)
             result.check_reservations(live_tensors)

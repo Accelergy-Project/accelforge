@@ -6,6 +6,7 @@ from accelforge.mapper.FFM._join_pmappings.sim import PmappingGroup, Loop, Compa
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingDataframe
 from accelforge.mapper.simanneal.mapspaceglobals import MapspaceGlobals
 from accelforge.util._frozenset import fzs, oset
+from accelforge.util.indent import print
 
 
 def mapping2sims(einsum_to_result: Compatibility):

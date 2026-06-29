@@ -1,0 +1,42 @@
+mapping:
+  nodes:
+  - !Storage
+    component: MainMemory
+    tensors: [T0, T1, W0]
+  - !Storage
+    component: DistributedBuffer
+    tensors: [W0]
+  - !Temporal
+    rank_variable: m
+    tile_shape: {{ M_TILE }}
+  - !Storage
+    component: RowBuffer
+    tensors: [T0]
+  - !Storage
+    component: ColumnBuffer
+    tensors: [T1]
+  - !Spatial
+    rank_variable: n0
+    tile_shape: {{ MAC_TILE }}
+    component: Array
+    name: X
+  - !Spatial
+    rank_variable: n1
+    tile_shape: {{ MAC_TILE }}
+    component: Array
+    name: Y
+  - !Storage
+    component: Scratchpad
+    tensors: [T0, T1, W0]
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n0
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n1
+    tile_shape: 1
+  - !Compute
+    einsum: Matmul0
+    component: MAC

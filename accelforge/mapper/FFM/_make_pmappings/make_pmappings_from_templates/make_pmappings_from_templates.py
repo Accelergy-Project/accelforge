@@ -283,7 +283,12 @@ def make_pmappings_from_templates(
             result = result[[c for c in result.columns if c not in drop_set]]
         results.append(result)
         pmapping_keep_rates.append(
-            (job.job_id, dict(job.pmapping_keep_rates), job.n_total_pmappings)
+            (
+                job.job_id,
+                dict(job.pmapping_keep_rates),
+                job.n_total_pmappings,
+                job.n_evaluated_pmappings,
+            )
         )
 
     fusable_tensors = jwsc.fusable_tensors

@@ -1,6 +1,7 @@
 import pprint
 
 import islpy as isl
+from accelforge.util.indent import print
 
 # from bindings._looptree import PipelineSpatialTag
 # from pytimeloop._isl.sum import sum_until_idx, make_reduction_map

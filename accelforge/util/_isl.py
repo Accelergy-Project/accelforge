@@ -4,6 +4,7 @@ import islpy as isl
 
 from pydantic import BaseModel, ValidationError
 from pydantic_core import core_schema
+from accelforge.util.indent import print
 
 
 class ISLStr:

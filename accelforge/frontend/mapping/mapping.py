@@ -49,6 +49,7 @@ from accelforge.frontend.workload import RankVariable, TensorName
 from accelforge.util._visualization import ColorMap, _pydot_graph
 from accelforge.util.parallel import _SVGJupyterRender
 from accelforge.frontend import arch
+from accelforge.util.indent import print
 
 T = TypeVar("T", bound="MappingNode")
 """TypeVar T: Restricts the allowable types to types of MappingNodes."""
