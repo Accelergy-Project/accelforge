@@ -28,6 +28,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     col_used_in_pareto,
     is_objective_col,
     is_reservation_col,
+    is_tensor_col,
 )
 from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
@@ -347,6 +348,12 @@ def clean_compress_and_join_pmappings(
     )
 
     joined = decompress_pmappings(joined, decompress_data)
+
+    # These are normally dropped during each join, but that never happens if there's
+    # just one Einsum, so we do it once more here.
+    joined.data.drop(
+        columns=[c for c in joined.data.columns if is_tensor_col(c)], inplace=True
+    )
 
     _apply_edp_columns(joined.data, metrics)
     # Pareto prune again in case the EDP column application reduced number of
