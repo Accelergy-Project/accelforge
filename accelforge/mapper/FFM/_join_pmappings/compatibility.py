@@ -569,12 +569,6 @@ class Compatibility(Updatable):
         """
         Create Compatibility from a mapping, a set of fusable tensors, and the
         workload.
-
-        Spatial loops below a physically-distributed storage are recorded in each
-        ``TensorReservation.physical_spatial_loops`` so that fused Einsums sharing a
-        tensor must agree on its physical placement. Whether a storage is distributed is
-        determined from the reservation node's component object (set when the reservation
-        is created); reservations without one record no such loops.
         """
         if not isinstance(einsum, Einsum):
             raise TypeError(f"einsum should be an Einsum, but {type(einsum)} instead")
@@ -642,9 +636,7 @@ class Compatibility(Updatable):
         def make_physical_spatial_loops(
             above_index: int, tensor_name: TensorName, storage
         ) -> tuple[Loop]:
-            # Spatial loops below a distributed storage fix which physical instance holds
-            # which slice of the tensor; fused Einsums must agree on them. Only relevant
-            # when the backing storage is physically distributed.
+            """Make data binding of physically distributed storages."""
             if storage is None or not storage._is_distributed():
                 return ()
             out = []
