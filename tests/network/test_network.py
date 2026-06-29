@@ -115,7 +115,7 @@ class TestModelMesh(TestCase):
 
     def test_hierarchical(self):
         M = 8
-        KN = 8
+        KN = 4
         MAC_TILE = 2
         PE_TILE = KN // MAC_TILE
         M_TILE = 4
@@ -130,7 +130,7 @@ class TestModelMesh(TestCase):
             jinja_parse_data={
                 "N_EINSUMS": 1,
                 "M": 8,
-                "KN": 8,
+                "KN": 4,
                 "MAC_TILE": MAC_TILE,
                 "M_TILE": M_TILE,
             },

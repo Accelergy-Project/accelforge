@@ -15,6 +15,7 @@ from accelforge.util._sympy.broadcast_max import (
 )
 
 import sympy
+from accelforge.util.indent import print
 
 
 @dataclass

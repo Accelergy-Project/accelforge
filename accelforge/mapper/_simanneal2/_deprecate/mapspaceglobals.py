@@ -9,6 +9,7 @@ from accelforge.util._frozenset import fzs, oset
 from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
     make_full_equivalent_rank_variables,
 )
+from accelforge.util.indent import print
 
 
 class MapspaceGlobals:

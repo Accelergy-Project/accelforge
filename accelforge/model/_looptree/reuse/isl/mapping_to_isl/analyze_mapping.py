@@ -59,6 +59,7 @@ from .types import (
     OperationOccupancy,
     SkewsInfo,
 )
+from accelforge.util.indent import print
 
 
 def buffet_direct_above_sequential(mapping: Mapping) -> defaultdict[Buffet, bool]:

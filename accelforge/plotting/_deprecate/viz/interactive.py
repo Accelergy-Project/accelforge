@@ -8,6 +8,7 @@ from accelforge._accelerated_imports import pd
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import row2pmappings
 from accelforge.frontend.mapping import Mapping
 from accelforge.util._frozenset import oset
+from accelforge.util.indent import print
 
 
 def make_mapping(row, einsum_names, rank_variable_bounds):

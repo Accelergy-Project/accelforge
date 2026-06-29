@@ -21,6 +21,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
 )
 
 from .fast_pareto import fast_pareto_mask
+from accelforge.util.indent import print
 
 
 def dominates(a: pd.Series, b: pd.Series) -> bool:

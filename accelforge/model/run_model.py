@@ -1,3 +1,4 @@
+from numbers import Number
 from sympy import Symbol
 import accelforge.frontend.arch as arch
 from accelforge.frontend.mapping import TensorHolder, Toll
@@ -22,12 +23,15 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
 )
 from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.util._sympy.broadcast_max import max_nonzero
+from accelforge.util.indent import print
 
 
 def run_model(
     job: Job,
     add_reservations: bool = True,
 ) -> tuple[list[Symbol], dict[str, float], dict[str, float], dict[str, float]]:
+    from accelforge.model.main import InvalidMappingError
+
     pmapping = job.mapping
     spec = job.spec_one_einsum
     metrics = job.metrics
@@ -83,7 +87,17 @@ def run_model(
 
         if isinstance(node, arch.Spatialable):
             for s in node.spatial:
-                usage = used_fanout[node.name, s.name] / s.fanout
+                used = used_fanout[node.name, s.name]
+                usage = used / s.fanout
+                if isinstance(used, Number) and used > s.fanout:
+                    raise InvalidMappingError(
+                        f"The mapping uses {used} spatial instances of {node.name} "
+                        f"dimension {s.name}, but its fanout is only {s.fanout}. "
+                        f"Use spatial loops with a smaller fanout; i.e., reduce the "
+                        f"loop bound, which can be done by increasing the spatial "
+                        f"loop's tile shape or reducing the tile shape of an outer "
+                        f"loop."
+                    )
                 scaled_usage = usage * s.usage_scale
                 spatial_usage[node.name, s.name] = scaled_usage
                 s = f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"
@@ -157,19 +171,18 @@ def run_model(
     for memory, occupancies in total_occupancy.items():
         if memory not in job.memories_track_all:
             continue
+        size = memory_to_size[memory]
         running_total = 0
         for n_loop in sorted(n_loop_options):
             if n_loop in occupancies:
                 running_total += occupancies[n_loop]
-                df[reservation2col(memory, n_loop)] = (
-                    running_total / memory_to_size[memory]
-                )
-
-    if metrics & Metrics.DETAILED_MEMORY_USAGE:
-        for buffet, stats in reuse.buffet_stats.items():
-            if buffet.level == compute_unit:
-                continue
-            occupancy = stats.max_occupancy
+                df[reservation2col(memory, n_loop)] = running_total / size
+        if isinstance(running_total, Number) and running_total > size:
+            raise InvalidMappingError(
+                f"The mapping uses {running_total} bits of {memory} but its size is "
+                f"only {size} bits. Use a smaller tile shape for loops below the "
+                f"storage nodes of {memory}."
+            )
 
     if metrics & Metrics.ACTIONS:
         detailed_actions = gather_actions(
