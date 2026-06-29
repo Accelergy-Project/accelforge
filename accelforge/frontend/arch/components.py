@@ -860,6 +860,26 @@ class Component(Spatialable):
                 action.extra_attributes_for_component_model.model_copy()
             )
         return self
+    
+    def _eval_expressions(
+        self, 
+        symbol_table: dict[str, Any], 
+        order: tuple[str, ...] = (),
+        post_calls: tuple[_PostCall[T], ...] = (),
+        *args,
+        **kwargs,
+    ) -> tuple:
+        class MyPostCall(_PostCall):
+            def __call__(self, field, value, evaluated, symbol_table):
+                if field == "extra_attributes_for_component_model":
+                    symbol_table.update(evaluated.shallow_model_dump())
+                return evaluated
+            
+        order = ("extra_attributes_for_component_model",) + order
+            
+        return super()._eval_expressions(
+            symbol_table, order, post_calls + (MyPostCall(),), *args, **kwargs
+        )
 
 
 MEMORY_ACTIONS = EvalableList[TensorHolderAction](
