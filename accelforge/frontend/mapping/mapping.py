@@ -1535,6 +1535,10 @@ class Reservation(MappingNode):
     """ Tensors for which this reservation is reserving the tensor's backing storage.
     """
 
+    _component_object: "arch.Component | None" = None
+    """ The arch component backing the reserved resource, taken from the Storage node
+    this Reservation was created from. Used internally by the Mapper; do not set. """
+
     persistent: bool = False
     """
     Whether this reservation is persistent. Persistent reservations can't be tiled and
