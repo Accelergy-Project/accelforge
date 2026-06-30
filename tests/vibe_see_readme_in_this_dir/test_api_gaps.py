@@ -468,7 +468,7 @@ workload:
     def test_selective_area_only(self):
         spec = self._make_spec()
         result = spec.calculate_component_costs(
-            area=True, energy=False, latency=False, leak=False
+            area=True, energy=False, throughput=False, leak=False
         )
         mm = result.arch.find("MainMemory")
         self.assertIsNotNone(mm.total_area)
@@ -476,7 +476,7 @@ workload:
     def test_noop_if_all_false(self):
         spec = self._make_spec()
         result = spec.calculate_component_costs(
-            area=False, energy=False, latency=False, leak=False
+            area=False, energy=False, throughput=False, leak=False
         )
         self.assertIsInstance(result, Spec)
 

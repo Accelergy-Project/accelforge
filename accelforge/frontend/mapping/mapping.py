@@ -49,6 +49,7 @@ from accelforge.frontend.workload import RankVariable, TensorName
 from accelforge.util._visualization import ColorMap, _pydot_graph
 from accelforge.util.parallel import _SVGJupyterRender
 from accelforge.frontend import arch
+from accelforge.util.indent import print
 
 T = TypeVar("T", bound="MappingNode")
 """TypeVar T: Restricts the allowable types to types of MappingNodes."""
@@ -1533,6 +1534,10 @@ class Reservation(MappingNode):
     _backing: Set[str] = oset()
     """ Tensors for which this reservation is reserving the tensor's backing storage.
     """
+
+    _component_object: "arch.Component | None" = None
+    """ The arch component backing the reserved resource, taken from the Storage node
+    this Reservation was created from. Used internally by the Mapper; do not set. """
 
     persistent: bool = False
     """

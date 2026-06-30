@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 import accelforge.frontend.arch as arch
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
-from accelforge.util._frozenset import oset
+from accelforge.util._frozenset import fzs, oset
 from accelforge.frontend.mapping import (
     Compute,
     Loop,
@@ -329,6 +329,22 @@ def iterate_mappings_no_constraints(
             yield mapping, symbol_table, compute, n_orders
 
 
+def _template_dedup_key(mapping: Mapping) -> tuple:
+    key = []
+    storage_group = []
+    for node in mapping.nodes:
+        if isinstance(node, TensorHolder):
+            storage_group.append(node.compact_str())
+        else:
+            if storage_group:
+                key.append(fzs(storage_group))
+                storage_group = []
+            key.append(node.compact_str())
+    if storage_group:
+        key.append(fzs(storage_group))
+    return tuple(key)
+
+
 def iterate_mappings_constraints(
     spec: Spec,
     einsum_names: list[str] | str,
@@ -342,6 +358,7 @@ def iterate_mappings_constraints(
     compute_name = flattened_arch[-1].name
 
     n_yielded = 0
+    seen_templates = set()
 
     if isinstance(einsum_names, str):
         einsum_names = [einsum_names]
@@ -394,6 +411,12 @@ def iterate_mappings_constraints(
 
                 mapping = Mapping(nodes=[copy.copy(n) for n in mapping])
                 mapping._n_loop_orders = n_orders
+
+                key = _template_dedup_key(mapping)
+                if key in seen_templates:
+                    continue
+                seen_templates.add(key)
+
                 yield mapping, constraints, symbol_table
                 n_yielded += 1
                 if n_yielded >= spec.mapper.max_pmapping_templates_per_einsum:

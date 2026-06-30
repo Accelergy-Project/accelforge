@@ -1,0 +1,289 @@
+# @article{Jia2020APH,
+#   title={A Programmable Heterogeneous Microprocessor Based on Bit-Scalable In-Memory Computing},
+#   author={Hongyang Jia and Hossein Valavi and Yinqi Tang and Jintao Zhang and Naveen Verma},
+#   journal={IEEE Journal of Solid-State Circuits},
+#   year={2020},
+#   volume={55},
+#   pages={2609-2621},
+#   doi={10.1109/JSSC.2020.2987714}
+# }
+
+{{include_text('_include.yaml')}}
+{{add_to_path('./memory_cells')}}
+
+arch:
+  # ===================================================================================
+  # Architecture-specific variables.
+  # ===================================================================================
+  variables:
+    # Inherit these from _include.yaml. Many definitions are included there.
+    <<: [*variables_global]
+
+    # Encoding-dependent parameters ---------------------------------------------------
+    xnor_encode: 0
+    zero_gate_inputs: 1
+
+    encoded_input_bits:  input_bits + xnor_encode
+    encoded_weight_bits: weight_bits
+    encoded_output_bits: output_bits
+
+    input_encoding_func: >
+      (zero_gated_xnor_encode_hist if zero_gate_inputs else xnor_encode_hist)
+      if xnor_encode else offset_encode_if_signed_hist
+    weight_encoding_func: offset_encode_hist
+
+    signed_sum_across_inputs: False
+    signed_sum_across_weights: False
+
+    # Architecture & CiM Array Structure ----------------------------------------------
+    # DEFINITIONS:
+    # - Cell: Smallest structure capable of storing memory. Note that a cell may store
+    #   more than one bit. For example, a cell consisting of a RRAM device may store >1
+    #   bits, while a cell consisting of an SRAM bitcell may store only 1 bit.
+    # - CiM Unit: Smallest structure capable of computing an analog MAC
+    # - CiM Unit Width Cells: Number of CiM unit cells that are accessed as one. These
+    #   cells receive one analog input and compute one analog MAC per timestep.
+    # - CiM Unit Depth Cells: Number of independent groups of "CiM Unit Width" cells
+    #   that form a CiM unit. Each of these groups is indepently addressible and
+    #   operates in must be activated in a different timestep than the others.
+    cim_unit_width_cells:  1
+    cim_unit_depth_cells:  1
+    bits_per_cell:         1
+
+    # Data Converters -----------------------------------------------------------------
+    adc_resolution: 8
+    voltage_dac_resolution: 1
+    temporal_dac_resolution: 1
+    n_adc_per_bank: array_parallel_outputs
+
+    # Hardware ------------------------------------------------------------------------
+    base_latency: 25e-9 * 54
+    cycle_period: max(base_latency * voltage_latency_scale, 2e-9)
+    read_pulse_width: cycle_period
+
+  extra_attributes_for_all_component_models:
+    <<: [*cim_component_attributes]
+    tech_node: tech_node
+    cycle_period: cycle_period
+
+  # ===================================================================================
+  # Architecture
+  # ===================================================================================
+  nodes:
+  # Output datapath performs quantization
+  - !Toll
+    name: OutDatapath
+    <<: [*one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: JiaDatapath
+    n_parallel_instances: array_parallel_outputs // 8
+
+  # Shift+add sums outputs from multiple slices.
+  - !Toll
+    name: ShiftAdd
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: JiaShiftAdd
+    n_parallel_instances: array_parallel_outputs // 8
+
+  # Sparsity controller disables row assertions for zero inputs.
+  - !Toll
+    name: InputZeroGating
+    <<: [*input_sliced, *one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: JiaZeroComparator
+    extra_attributes_for_component_model:
+      n_bits:        encoded_input_bits
+      n_comparators: array_parallel_inputs
+      n_flags_store: array_parallel_inputs
+
+  # This memory catches sliding windows that may be sent spatially in the array. E.g.,
+  # convolution steps spatially unrolled onto columns with overlapping windows.
+  - !Memory
+    name: DummyRowDriverMemory
+    component_class: Dummy
+    # Size = one input value per row (max number of inputs we can do in parallel)
+    size: input.bits_per_value * array_parallel_inputs
+    # no_resend_to_below prevents reuse across temporal iterations because this isn't
+    # really a memory.
+    tensors: {keep: input, no_resend_to_below: input}
+
+  # Row drivers feed inputs onto the rows of the array.
+  - !Toll
+    name: RowDrivers
+    <<: [*input_sliced, *one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: ArrayRowDrivers
+    area_scale: row_col_drivers_area_scale
+    leak_power_scale: row_col_drivers_area_scale
+
+  # Weight drivers write weights into the array.
+  - !Toll
+    name: WeightDrivers
+    <<: [*weight_sliced, *one_action_per_value]
+    tensors: {keep: weight & Above}
+    direction: down
+    component_class: ArrayRowDrivers
+    area_scale: row_col_drivers_area_scale
+    leak_power_scale: row_col_drivers_area_scale
+
+  # ADCs read analog outputs from the array and convert to digital.
+  - !Toll
+    name: ADC
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ADC
+    energy_scale: adc_energy_scale
+    leak_power_scale: adc_energy_scale
+    area_scale: adc_area_scale
+    extra_attributes_for_component_model:
+      n_bits: adc_resolution
+      throughput: 1 / cycle_period * cols_active_at_once
+
+  # Column drivers precharge the array columns.
+  - !Toll
+    name: ColumnDrivers
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ArrayColumnDrivers
+    area_scale: row_col_drivers_area_scale
+    leak_power_scale: row_col_drivers_area_scale
+
+  # Each column stores a different weight slice. Columns share inputs.
+  - !Container
+    name: Column
+    spatial:
+    # ARRAY_COLUMNS suffix used for used for counting the array size
+    - name: group_ARRAY_COLUMNS
+      fanout: 4
+      reuse: input
+      min_usage: 1
+      power_gateable: True
+    - name: subgroup_ARRAY_COLUMNS
+      fanout: 64
+      reuse: input
+      min_usage: 1
+      usage_scale: n_weight_slices
+    - name: folded_columns_ARRAY_COLUMNS
+      fanout: 3
+      reuse: output
+      min_usage: 1
+
+  # Column bandwidth limiter: one value written per column per cycle.
+  - !Toll
+    name: ColumnBandwidthLimiter
+    tensors: {keep: (weight | output) & Above}
+    direction: {Outputs: up, ~Outputs: down}
+    component_class: Dummy
+    bits_per_value:
+      weight: weight.bits_per_value * (20 / 50) * max_weight_bits_per_slice
+      output: output.bits_per_value / encoded_output_bits
+      input: 0
+    actions: [{name: read, latency: cycle_period}]
+
+  # Each row receives a different input slice. Rows share outputs.
+  - !Container
+    name: Row
+    spatial:
+    # ARRAY_ROWS suffix used for used for counting the array size
+    - name: group_ARRAY_ROWS
+      fanout: 4
+      reuse: output
+      min_usage: 1
+    - name: row_ARRAY_ROWS
+      fanout: 192
+      reuse: output
+      min_usage: 1
+
+  # CiM units stores weights and computes MACs. Each CiM unit stores up to
+  # cim_unit_depth_cells indepedently-addressable weight slices, with up to
+  # cim_unit_width_cells * cim_unit_depth_cells in a weight slice. Only one weight slice
+  # can be used at a time.
+  - !Memory
+    name: CimUnit
+    # Computes with one input slice * weight slice at a time. Computations are
+    # parallelized across weight slices, and input slices are processed sequentially.
+    <<: [*both_sliced_weight_slices_parallelized, *one_action_per_value]
+    tensors:
+      keep: weight
+      # Write weights at most once
+      no_refetch_from_above: weight
+      # Can store values at this level longer than levels above, which lets the mapping
+      # be maximally-weight-stationary (CimUnit weight storage node as high as
+      # possible).
+      force_memory_hierarchy_order: False
+    # Each instance of this component represents n_weight_slices weight slices, meaning
+    # that it holds a full weight
+    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell
+    component_class: MemoryCell
+    # CimUnits represent cim_unit_width_cells * cim_unit_depth_cells memory cells tied
+    # together into one weight
+    area_scale: cim_unit_width_cells * cim_unit_depth_cells
+    leak_power_scale: cim_unit_width_cells * cim_unit_depth_cells
+
+  # Bitcell capacitor performs the analog MAC accumulation.
+  - !Toll
+    name: BitcellCapacitor
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: weight}
+    direction: down
+    component_class: Capacitor
+    extra_attributes_for_component_model:
+      voltage: voltage
+      capacitance: 4.5e-15
+    area_scale: 0 # Stacked under cell; area accounted for in cell file
+
+  # Compute energy/latency accounted for in other components.
+  - !Compute
+    name: FreeCompute
+    component_class: Dummy
+    enabled: len(All) == 3
+
+
+# These variables pertain to the workload, microarch, and circuits.
+variables:
+  inputs_hist: [0, 0, 0, 8, 4, 2, 1]
+  weights_hist: ([1] * 15)
+
+  ## Microarch ------------------------------------------------------------------------
+  supported_input_bits:  8       # Maximum input bits supported by the arch
+  supported_weight_bits: 8       # Maximum weight bits supported by the arch
+  supported_output_bits: 8       # Maximum output bits supported by the arch
+  min_supported_input_bits: 1    # Minimum input bits supported by the arch
+  min_supported_weight_bits: 1   # Minimum weight bits supported by the arch
+  min_supported_output_bits: 1   # Minimum output bits supported by the arch
+
+  # Circuits --------------------------------------------------------------------------
+  voltage: 0.85
+  tech_node: 65e-9
+  cell_config: "{{find_path('sram_jia_jssc_2020.yaml')}}"
+  voltage_energy_scale: (voltage / 0.85) ** 2
+  voltage_latency_scale: (0.85 / voltage) ** 2.66
+
+  # Calibration -----------------------------------------------------------------------
+  adc_energy_scale: 0.275 * voltage_energy_scale
+  adc_area_scale: 0.4
+  row_col_drivers_area_scale: 9.1
+
+
+# Peak-throughput workload: N=4x64 outputs, K=3x4x192 inputs.
+workload:
+  rank_sizes:
+    M: 1
+    N: 4 * 64
+    K: 3 * 4 * 192
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: input, projection: [m, k], bits_per_value: 8}
+    - {name: weight, projection: [k, n], bits_per_value: 8}
+    - {name: output, projection: [m, n], output: True, bits_per_value: 8}
+
+renames: {}

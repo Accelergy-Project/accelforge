@@ -35,3 +35,37 @@ class Config(EvalableModel):
 
         data = _yaml.load_yaml(f)
         return cls(**data)
+
+    def add_component_models(self, *args):
+        """
+        Adds component models to ``component_models``. Each argument may be a
+        :py:class:`~hwcomponents.ComponentModel` class, a path to a Python file
+        containing models, a module (all non-underscore ComponentModel subclasses in the
+        module are added), or a list/tuple of any of these.
+        
+        Parameters
+        ----------
+        *args : list of str | ComponentModel | module | list | tuple
+            The component models to add. Each argument may be a
+            :py:class:`~hwcomponents.ComponentModel` class, a path to a Python file
+            containing models, a module (all non-underscore ComponentModel subclasses in
+            the module are added), or a list/tuple of any of these.
+
+        Returns
+        -------
+        None
+
+        """
+        from types import ModuleType
+        from hwcomponents.find_models import get_models_in_module
+
+        model_ids = set()
+        to_add = list(args)
+        while to_add:
+            arg = to_add.pop(0)
+            if isinstance(arg, (list, tuple)):
+                to_add[:0] = list(arg)
+            elif isinstance(arg, ModuleType):
+                self.component_models.extend(get_models_in_module(arg, model_ids))
+            else:
+                self.component_models.append(arg)

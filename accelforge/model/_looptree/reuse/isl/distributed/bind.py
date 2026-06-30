@@ -8,6 +8,7 @@ from accelforge.model._looptree.reuse.isl.mapping_to_isl.analyze_mapping import 
     occupancies_from_mapping,
     MappingAnalysisResult,
 )
+from accelforge.util.indent import print
 
 
 def apply_binding(binding: Binding, mapping: Mapping, workload: Workload):

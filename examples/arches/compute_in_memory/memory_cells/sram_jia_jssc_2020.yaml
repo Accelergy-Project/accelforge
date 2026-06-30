@@ -7,7 +7,7 @@
 -DeviceRoadmap -1LP 1HP 2LSTP:  2
 
 # Device size
--CellArea (F^2):  426
+-CellArea (F^2):  739
 -CellAspectRatio: 1 # Width/Height
 
 # Calibration parameters

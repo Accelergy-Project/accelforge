@@ -13,8 +13,8 @@
 # Calibration parameters
 -CellReadLeakEnergyMultiplier: 1
 -CellWriteEnergyMultiplier: 1
--CellCapacitanceMultiplier: 1
--CellCapacitanceAdjust (F): -0.1e-15 # Capacitance = (Nominal Capacitance) * Multiplier + Adjust
+-CellCapacitanceMultiplier: 9.5
+-CellCapacitanceAdjust (F): 0 # Capacitance = (Nominal Capacitance) * Multiplier + Adjust
 
 # Used for RRAM with access transistors or SRAM
 -AccessCMOSWidth (F): 4

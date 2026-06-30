@@ -7,8 +7,8 @@ arch:
     leak_power: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 0, throughput: inf}
-    - {name: write, energy: 0, throughput: inf}
+    - {name: read, energy: 100, latency: 1e-9}
+    - {name: write, energy: 100, latency: 1e-9}
 
   - !Memory
     name: GlobalBuffer
@@ -17,15 +17,15 @@ arch:
     leak_power: 0
     tensors: {keep: ~MainMemory, may_keep: All}
     actions:
-    - {name: read, energy: 0, throughput: inf}
-    - {name: write, energy: 0, throughput: inf}
+    - {name: read, energy: 10, latency: 1e-9/4}
+    - {name: write, energy: 10, latency: 1e-9/4}
 
   - !Network
     name: PeArray
     area: 0
     leak_power: 0
     actions:
-    - {name: hops, energy: 1, throughput: inf}
+    - {name: hop, energy: 5, latency: 1e-9/4}
 
   - !Memory
     name: Scratchpad
@@ -34,8 +34,8 @@ arch:
     leak_power: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 0, throughput: inf}
-    - {name: write, energy: 0, throughput: inf}
+    - {name: read, energy: 2, latency: 1e-9/16}
+    - {name: write, energy: 2, latency: 1e-9/16}
     spatial:
     - {name: X, fanout: 2}
     - {name: Y, fanout: 2}
@@ -45,14 +45,14 @@ arch:
     area: 0
     leak_power: 0
     actions:
-    - {name: hops, energy: 1, throughput: inf}
+    - {name: hop, energy: 1, latency: 1e-9/16}
 
   - !Compute
     name: MAC
     area: 0
     leak_power: 0
     actions:
-    - {name: compute, energy: 0, throughput: inf}
+    - {name: compute, energy: 1, latency: 1e-9}
     spatial:
     - {name: X, fanout: 2}
     - {name: Y, fanout: 2}

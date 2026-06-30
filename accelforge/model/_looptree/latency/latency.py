@@ -7,7 +7,7 @@ from accelforge.model._looptree.latency.processors import LATENCY_PROCESSORS
 from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
 from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 
-from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero
+from accelforge.util._sympy.broadcast_max import max_nonzero
 
 # from bindings._looptree import SpatialTag
 
@@ -16,7 +16,7 @@ def get_latency(looptree_results, mapping, workload, flattened_arch):
     comp_latency = calculate_compute_latency(looptree_results, mapping, workload)
     mem_latency = memory_latency(looptree_results, flattened_arch, mapping, workload)
 
-    overall_latency = Max(comp_latency, *mem_latency.values())
+    overall_latency = max_nonzero(comp_latency, *mem_latency.values())
     return overall_latency, comp_latency, mem_latency
 
 
@@ -49,12 +49,9 @@ def compute_summarized_latency(compute_stats, mapping, workload):
     # TODO: this is only for single-Einsum!!!
     longest_compute_latency = 0
     for stats in compute_stats.values():
-        if longest_compute_latency == 0:
-            longest_compute_latency = stats.max_latency
-        else:
-            longest_compute_latency = MaxGeqZero(
-                longest_compute_latency, stats.max_latency
-            )
+        longest_compute_latency = max_nonzero(
+            longest_compute_latency, stats.max_latency
+        )
     return longest_compute_latency
 
 

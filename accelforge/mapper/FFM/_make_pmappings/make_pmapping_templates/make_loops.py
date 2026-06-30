@@ -20,6 +20,7 @@ from accelforge.frontend.workload import (
     RankVariable,
     Workload,
 )
+from accelforge.util.indent import print
 
 # =================================================================================================
 # Insert loops

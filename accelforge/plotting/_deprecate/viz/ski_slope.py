@@ -4,6 +4,7 @@ from accelforge._accelerated_imports import np
 from accelforge._accelerated_imports import pd
 
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
+from accelforge.util.indent import print
 
 DATAFLOW_COLUMN = "dataflow"
 

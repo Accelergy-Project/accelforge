@@ -1,0 +1,291 @@
+# @article{wan2022compute,
+#   title={A compute-in-memory chip based on resistive random-access memory},
+#   author={Wan, Weier and Kubendran, Rajkumar and Schaefer, Clemens and Eryilmaz, Sukru Burc and Zhang, Wenqiang and Wu, Dabin and Deiss, Stephen and Raina, Priyanka and Qian, He and Gao, Bin and others},
+#   journal={Nature},
+#   volume={608},
+#   number={7923},
+#   pages={504--512},
+#   year={2022},
+#   publisher={Nature Publishing Group UK London}
+# }
+
+{{include_text('_include.yaml')}}
+{{add_to_path('./memory_cells')}}
+
+arch:
+  # ===================================================================================
+  # Architecture-specific variables.
+  # ===================================================================================
+  variables:
+    # Inherit these from _include.yaml. Many definitions are included there.
+    <<: [*variables_global]
+
+    # Encoding-dependent parameters ---------------------------------------------------
+    encoded_input_bits:  max(1, input_bits - (1 if is_hist_signed(inputs_hist) else 0))
+    encoded_weight_bits: weight_bits * (2 if is_hist_signed(weights_hist) else 1)
+    encoded_output_bits: output_bits
+
+    input_encoding_func: magnitude_encode_hist
+    weight_encoding_func: two_part_magnitude_encode_if_signed_hist
+
+    # For accuracy model. Can in-array accumulation include signed values? Signed
+    # accumulation not compatible with offset encoding (since offset encoding makes
+    # values non-negative)
+    signed_sum_across_inputs: True
+    signed_sum_across_weights: False
+
+    # Architecture & CiM Array Structure ----------------------------------------------
+    array_rows: 256
+    array_cols: 256
+
+    cim_unit_width_cells:  1
+    cim_unit_depth_cells:  1
+    bits_per_cell:         weight_bits
+
+    # Data Converters -----------------------------------------------------------------
+    adc_resolution: 8
+    voltage_dac_resolution: 1
+    temporal_dac_resolution: 1
+    n_adc_per_bank: 1
+
+    # Multi-phase Analog Integration --------------------------------------------------
+    # One-phase: integrate 2^k times for the k-th input bit (single ADC convert).
+    # Two-phase: split inputs into 4b slices and then do the above
+    one_phase: False
+    max_input_bits_before_two_phase: 3
+
+    latency_integrate:   0.27e-6
+    latency_adc_step:    0.3e-6
+    latency_inter_phase: 0.3e-6
+
+    phases: (bits2phase_1phase if one_phase else bits2phase_2phase)(encoded_input_bits, max_input_bits_before_two_phase)
+    integration_steps: sum_map(bits2integration_steps, phases)
+    n_phases: sum([p > 0 for p in phases])
+    adc_steps_per_input: sum_phase_out_bits(encoded_output_bits, phases)
+
+    integration_steps_per_input_bit: integration_steps / encoded_input_bits
+    adc_steps_per_input_bit:         adc_steps_per_input / encoded_input_bits
+    inter_phases_per_input_bit:      n_phases / encoded_input_bits
+
+    # Hardware ------------------------------------------------------------------------
+    t_latency_integrate:   latency_integrate * integration_steps_per_input_bit
+    t_latency_adc_step:    latency_adc_step * adc_steps_per_input_bit
+    t_latency_inter_phase: latency_inter_phase * inter_phases_per_input_bit
+
+    base_latency: t_latency_integrate + t_latency_adc_step + t_latency_inter_phase
+    cycle_period: base_latency * voltage_latency_scale
+    read_pulse_width: 10e-9
+
+  extra_attributes_for_all_component_models:
+    <<: *cim_component_attributes
+    tech_node: tech_node
+    cycle_period: cycle_period
+
+  # ===================================================================================
+  # Architecture
+  # ===================================================================================
+  nodes:
+  - !Toll # Wordline capacitance. Wordlines control the integrators.
+    # Output processing stage because each neuron has one wordline and each
+    # neuron generates one output, so #WLs active = the number of outputs
+    name: WordlineCap
+    # Fire once per input bit & output combination
+    <<: [*one_action_per_value, *input_sliced]
+    tensors: {keep: output}
+    direction: up
+    component_class: Capacitor
+    extra_attributes_for_component_model:
+      # Reported: 48fF drivers, 1.5fF/access transistor, 0.6fF RRAM coupling cap
+      base_cap: ((1.5 + 0.6) * array_bitlines + 48) * 1e-15
+      capacitance: base_cap * (tech_node / 130e-9) ** 2
+    area_scale: 0 # Area accounted for in the memory cells (stacked)
+
+  - !Toll # Wordline drivers ONLY FOR AREA. We do energy with wordline_cap.
+    name: WordlineDrivers
+    tensors: {keep: Nothing}
+    direction: up
+    component_class: ArrayRowDrivers
+    area_scale: row_col_drivers_area_scale
+    extra_attributes_for_component_model:
+      rows: array_bitlines # TRANSPOSED
+      cols: array_wordlines # TRANSPOSED
+      average_input_value: 0 # Doesn't matter
+
+  - !Toll # Row drivers feed inputs onto the rows of the array
+    name: RowDrivers
+    <<: [*input_sliced, *one_action_per_value]
+    tensors: {keep: input}
+    direction: down
+    component_class: ArrayRowDrivers
+    area_scale: row_col_drivers_area_scale
+
+  # This memory catches sliding windows that may be sent spatially in the array. E.g.,
+  # convolution steps spatially unrolled onto columns with overlapping windows.
+  - !Memory
+    name: DummyRowDriverMemory
+    component_class: Dummy
+    # Size = one input value per row (max number of inputs we can do in parallel)
+    size: input.bits_per_value * array_parallel_inputs
+    # no_resend_to_below prevents reuse across temporal iterations because this isn't
+    # really a memory.
+    tensors: {keep: input, no_resend_to_below: input}
+
+  - !Toll # Weight drivers write weights
+    name: WeightDrivers
+    <<: [*weight_sliced, *one_action_per_value]
+    tensors: {keep: weight & Above}
+    direction: down
+    component_class: ArrayRowDrivers
+    area_scale: 0 # Input & weight drivers are shared. Separate weight drivers are
+                  # just for energy calculations.
+    extra_attributes_for_component_model: {<<: *weight_drivers_attributes}
+
+  # Column drivers precharge the array columns.
+  - !Toll
+    name: ColumnDrivers
+    <<: [*both_sliced, *one_action_per_value]
+    tensors: {keep: output}
+    direction: up
+    component_class: ArrayColumnDrivers
+    area_scale: row_col_drivers_area_scale
+
+  - !Container # Each column stores a different weight slice. Columns share inputs.
+    name: Column
+    spatial:
+    # ARRAY_COLUMNS suffix used for used for counting the array size
+    - name: column_ARRAY_COLUMNS
+      fanout: 256
+      # Note: may_reuse here and not reuse because we may have columns that reuse some,
+      # but not all, input values, so we want reuse to be optional and only for inputs.
+      may_reuse: input
+      min_usage: 1
+      # The real arch uses one array for positive weights and one array for negative
+      # (each in separate slices), but we can get the same effect by using one column
+      # for positive and one for negative.
+      usage_scale: n_weight_slices
+
+  - !Toll # Each column gets one ADC and Shift+Add
+    name: ShiftAdd
+    # Not input sliced because we handle that with adc_steps_per_input.
+    <<: [*one_action_per_value, *weight_sliced_weight_slices_parallelized]
+    tensors: {keep: output}
+    direction: up
+    component_class: NeurramShiftAdd
+    energy_scale: adc_steps_per_input
+    throughput_scale: 1 / adc_steps_per_input
+
+  - !Toll # ADCs read analog outputs from the array and convert to digital.
+    name: ADC
+    <<: [*one_action_per_value, *weight_sliced_weight_slices_parallelized]
+    tensors: {keep: output}
+    direction: up
+    component_class: NeurramVariablePrecisionADC
+    energy_scale: adc_steps_per_input
+    throughput_scale: 1 / adc_steps_per_input
+
+  - !Toll # Charge integrator
+    name: Integrator
+    # Not input sliced because we handle that with integration_steps.
+    <<: [*one_action_per_value, *weight_sliced_weight_slices_parallelized]
+    tensors: {keep: output}
+    direction: up
+    component_class: NeurramAnalogIntegrator
+    energy_scale: integration_steps
+    throughput_scale: 1 / integration_steps
+
+  - !Toll # Sample 1x per input bit
+    name: Sample
+    <<: [*one_action_per_value, *both_sliced_weight_slices_parallelized]
+    tensors: {keep: output}
+    direction: up
+    component_class: NeurramAnalogSample
+
+  - !Container # Each row receives a different input slice. Rows share outputs.
+    name: Row
+    spatial:
+    # ARRAY_ROWS suffix used for used for counting the array size
+    - name: row_ARRAY_ROWS
+      fanout: 256
+      reuse: output
+      min_usage: 1
+
+  # CiM units stores weights and computes MACs. Each CiM unit stores up to
+  # cim_unit_depth_cells indepedently-addressable weight slices, with up to
+  # cim_unit_width_cells * cim_unit_depth_cells in a weight slice. Only one weight slice
+  # can be used at a time.
+  - !Memory
+    name: CimUnit
+    # Computes with one input slice * weight slice at a time. Computations are
+    # parallelized across weight slices, and input slices are processed sequentially.
+    <<: [*both_sliced_weight_slices_parallelized, *one_action_per_value]
+    tensors:
+      keep: weight
+      # Write weights at most once
+      no_refetch_from_above: weight
+      # Can store values at this level longer than levels above, which lets the mapping
+      # be maximally-weight-stationary (CimUnit weight storage node as high as
+      # possible).
+      force_memory_hierarchy_order: False
+    # Each instance of this component represents n_weight_slices weight slices, meaning
+    # that it holds a full weight
+    size: cim_unit_width_cells * cim_unit_depth_cells * bits_per_cell
+    component_class: MemoryCell
+    # CimUnits represent cim_unit_width_cells * cim_unit_depth_cells memory cells tied
+    # together into one weight
+    area_scale: cim_unit_width_cells * cim_unit_depth_cells
+    leak_power_scale: cim_unit_width_cells * cim_unit_depth_cells
+
+  # We account for compute energy and latency in other components, so just use a dummy
+  # compute here.
+  - !Compute
+    name: FreeCompute
+    component_class: Dummy
+    enabled: len(All) == 3
+
+# These variables pertain to the workload, microarch, and circuits. They should be
+# matched between architectures when comparing for a fair comparison.
+variables:
+  inputs_hist:  [5, 5, 6, 6, 7, 7, 8, 8, 8, 7, 7, 6, 6, 5, 5] # Fig 7e
+  weights_hist: [5, 5, 6, 6, 7, 7, 8, 8, 8, 7, 7, 6, 6, 5, 5] # Fig 7e
+  outputs_hist: inputs_hist
+
+  ## Microarch ------------------------------------------------------------------------
+  supported_input_bits:  8            # Maximum input bits supported by the arch
+  supported_weight_bits: 999          # Maximum weight bits supported by the arch
+  supported_output_bits: 10           # Maximum output bits supported by the arch
+  min_supported_input_bits: 1         # Minimum input bits supported by the arch
+  min_supported_weight_bits: 1        # Minimum weight bits supported by the arch
+  min_supported_output_bits: 1        # Minimum output bits supported by the arch
+
+  # Circuits --------------------------------------------------------------------------
+  voltage: 1.8
+  tech_node: 130e-9 # 130nm
+  cell_config: "{{find_path('rram_neurram_nature_2022.yaml')}}"
+  voltage_energy_scale: (voltage / 1.8) ** 2
+  voltage_latency_scale: 1.8 / voltage
+
+  # Calibration -----------------------------------------------------------------------
+  adc_energy_scale: 1
+  adc_area_scale: 1
+  row_col_drivers_area_scale: 5.25
+
+
+# =====================================================================================
+# Default Workload
+# =====================================================================================
+# Workload sized for peak throughput and efficiency 256 rows x 256 / 2 (columns / 2
+# devices per signed weight)
+workload:
+  rank_sizes:
+    M: 1
+    N: 128
+    K: 256
+
+  einsums:
+  - name: Matmul
+    tensor_accesses:
+    - {name: input, projection: [m, k], bits_per_value: 8}
+    - {name: weight, projection: [k, n], bits_per_value: 4}
+    - {name: output, projection: [m, n], output: True, bits_per_value: 8}
+
+renames: {}
