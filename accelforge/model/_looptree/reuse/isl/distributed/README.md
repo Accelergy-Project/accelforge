@@ -438,7 +438,74 @@ PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \
 
 ---
 
-## 8. References
+## 8. Per-edge memory pressure (link load): `EdgePressure`
+
+`hops` collapses a whole routing to one scalar, which hides a real constraint: **each physical edge
+has a finite bandwidth**, so the *busiest* link is what saturates first. `EdgePressure` keeps the
+load broken out per directed physical edge — `{ edge -> number-of-trees-crossing-it }` — which is
+exactly the quantity the production symbolic path calls `max_traffic` and feeds into the `Network`
+latency formula `max(max_hops·latency, max_link_traffic / throughput)`
+([`frontend/arch/components.py`](../../../../frontend/arch/components.py)). Two models expose it
+today via an `edge_pressure(fills, occs) -> EdgePressure` method.
+
+### The primitive
+
+After `identify_mesh_casts` fixes the `[src] -> [dst]` pairs, build, per directed edge type, a map
+`M = { [data -> src] -> edge }` associating each multicast **tree** with every edge its route
+crosses. Then
+
+```python
+load = M.reverse().card()        # { edge -> #trees crossing it }
+```
+
+The key is the tree `(data, src)`, **not** the destination: within one tree a link is traversed once
+regardless of how many leaves hang off it, so this counts *pressure* (distinct flows on a link), not
+summed hops. `EdgePressure.bottleneck()` returns the max load (enumerating pieces; parameter-free
+regime, like `_cost_xy`); `eval_edge(name, coords)` looks up one edge.
+
+### XY routing → directed mesh edges
+
+`XYRoutingMulticastModel._directed_mesh_links` decomposes each tree onto four directed link types:
+`xedge_r`/`xedge_l` along the source row (split at the source column `xs`) and `yedge_u`/`yedge_d`
+down each destination column (split at the source row `ys`). It reuses the §7 link-set construction
+but **keeps the edge identity** instead of collapsing to a count (and builds the X links explicitly —
+`calculate_extents_per_dim` only yields a scalar length and discards *which* links are used).
+
+Decisive cross-check (no oracle needed): **`Σ_edges load == total XY hops`**. The per-edge loads must
+sum back to the already-trusted A–F totals (4/6/6/3/4/448), so a wrong decomposition fails. Worked F
+geometry (8×8, datum `(d0,d1)` held at node `(d0,d1)`, requested by all of column `x=d0`): every
+datum of column `c` floods all 7 vertical links of column `c`, so `yedge_u[c,t]` load = `t+1` and
+`yedge_d[c,t]` = `7−t`; the busiest directed link is `7` (the physical link total is `8`). Cases A–E
+are single trees, so every edge load is `1`.
+
+### Star / fully-connected → spokes
+
+`StarMulticastModel` **is** the spokes realization of the fully-connected fabric (NVSwitch-style: each
+node has one link to a central switch). A delivery routes `src → switch → dst`, so each datum loads
+its source's egress spoke once (multicast fans out *at the switch*) and each destination's ingress
+spoke once; self-deliveries (0 hops) load nothing. `_spoke_loads` returns `spoke_in[n]` (ingress) and
+`spoke_out[n]` (egress) loads. For an N-way all-to-all every node receives `N−1` and sources `1`, so
+the **ingress spokes are hottest at `N−1`** — this is where bandwidth actually bites, whereas
+`FullyConnectedMulticastModel`'s contention-free full-mesh view has no hotspot. The two are tied by
+**`Σ_nodes ingress == FullyConnected crossing count`** (every crossing delivery is one node's
+ingress; e.g. 8-GPU all-to-all: `56`). The star scalar `hops` = `Σ egress + Σ ingress` (injections +
+deliveries).
+
+### Tested
+
+[`tests/not_working/distribuffers/test_edge_pressure.py`](../../../../../../tests/not_working/distribuffers/test_edge_pressure.py)
+— the XY `Σ load == hops` invariant over A–F, F's bottleneck/edge loads (`7`, `yedge_u[0,6]=7`,
+`yedge_d[0,1]=6`), single-tree unit bottlenecks, and the star spoke loads / `Σ ingress == FC count`
+invariant for 4- and 8-GPU all-to-all. Run:
+
+```bash
+PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \
+  tests/not_working/distribuffers/test_edge_pressure.py -q
+```
+
+---
+
+## 9. References
 
 - Interface + `SimpleLinkTransferModel` + `TransferInfo`: [`../spatial.py`](../spatial.py)
 - `HypercubeMulticastModel`, `identify_mesh_casts`, `calculate_extents_per_dim`:

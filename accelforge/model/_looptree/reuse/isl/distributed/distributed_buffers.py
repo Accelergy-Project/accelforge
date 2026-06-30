@@ -5,6 +5,8 @@ architectures.
 
 import logging
 
+from dataclasses import dataclass
+
 import islpy as isl
 
 from accelforge.frontend.mapping import MappingNode
@@ -19,6 +21,146 @@ from accelforge.model._looptree.reuse.isl.spatial import (
 )
 
 from typing import Optional
+
+
+@dataclass(frozen=True)
+class EdgePressure:
+    """
+    Per-edge memory pressure (link load) for a spatial transfer.
+
+    Where a ``TransferModel``'s ``hops`` collapses a whole routing to a single
+    scalar, ``EdgePressure`` keeps the load broken out *per physical edge*: how
+    many multicast trees cross each individual link. This is what a per-link
+    bandwidth limit acts on -- the busiest edge (``bottleneck``) is what saturates
+    first, exactly the quantity the symbolic network model calls
+    ``max_traffic`` and divides by an edge's throughput to get a bandwidth-bound
+    latency.
+
+    "Edge" is a *directed* physical link. Its identity is encoded in the tuple
+    name and coordinates of ``load``'s domain, e.g. ``yedge_u[x, t]`` (the upward
+    vertical link in column ``x`` between rows ``t`` and ``t + 1``) for the XY
+    mesh model, or ``spoke_in[n]`` / ``spoke_out[n]`` (a node's ingress / egress
+    link to the central switch) for the star/fully-connected spokes model.
+
+    The load is keyed on the multicast *tree* ``(data, src)``, not on individual
+    destinations: within one tree a link is traversed once regardless of how many
+    leaves hang off it, so ``load`` measures pressure (distinct flows over a link)
+    rather than summed hops. Consequently the per-direction sums satisfy useful
+    invariants -- e.g. for XY routing ``sum over edges of load == total hops``.
+
+    Attributes
+    ----------
+    load:
+        An ``isl.UnionPwQPolynomial`` ``{ edge -> number-of-trees }`` spanning
+        every directed edge type the model emits.
+
+    Notes
+    -----
+    ``bottleneck`` and ``eval_edge`` assume the load is piecewise constant (the
+    parameter-free regime the distributed models are validated in); there is no
+    clean ISL "max of a quasi-polynomial over its domain" primitive, so the
+    bottleneck is obtained by enumerating pieces.
+    """
+
+    load: isl.UnionPwQPolynomial
+
+    def total(self) -> int:
+        """
+        Sum the load over every edge.
+
+        For a single-direction (or single edge-type) pressure this is the total
+        traffic; for the full mesh pressure it equals the model's total ``hops``
+        (the ``sum over edges of load == total hops`` invariant), which is the
+        primary cross-check that the per-edge decomposition is correct.
+        """
+        pieces: list[isl.PwQPolynomial] = []
+        self.load.foreach_pw_qpolynomial(pieces.append)
+        total = 0
+        for pwq in pieces:
+            summed: isl.PwQPolynomial = pwq.sum()
+            total += int(
+                str(summed.eval(isl.Point.zero(summed.domain().get_space())))
+            )
+        return total
+
+    def bottleneck(self) -> int:
+        """
+        Return the load on the single most-pressured edge.
+
+        This is the bandwidth-binding quantity: with a uniform per-link
+        bandwidth, the most-congested edge saturates first, so its load sets the
+        transfer's bandwidth-bound latency.
+
+        The per-edge load is generally *not* constant across an edge type (e.g. a
+        flooded column's upward link ``yedge_u[x, t]`` carries ``t + 1`` trees), so
+        the maximum is found by enumerating the (finite, parameter-free) edge
+        domain and evaluating the load at each edge -- sampling one point per
+        piece would under-report a monotone load.
+        """
+        best = 0
+        pieces: list[isl.PwQPolynomial] = []
+        self.load.foreach_pw_qpolynomial(pieces.append)
+        for pwq in pieces:
+            edges: list[isl.Point] = []
+            pwq.domain().foreach_point(edges.append)
+            for edge in edges:
+                best = max(best, int(str(pwq.eval(edge))))
+        return best
+
+    def eval_edge(self, name: str, coords: list[int]) -> int:
+        """
+        Look up the load on one named edge, e.g. ``eval_edge("yedge_u", [0, 6])``.
+
+        Returns 0 if no flow crosses that edge (it is outside the load's support).
+
+        Parameters
+        ----------
+        name:
+            The edge tuple name (``xedge_r``/``xedge_l``/``yedge_u``/``yedge_d``
+            for the mesh model, ``spoke_in``/``spoke_out`` for the spokes model).
+        coords:
+            The integer edge coordinates within that tuple.
+        """
+        pieces: list[isl.PwQPolynomial] = []
+        self.load.foreach_pw_qpolynomial(pieces.append)
+        for pwq in pieces:
+            if pwq.domain().get_space().get_tuple_name(isl.dim_type.set) != name:
+                continue
+            point: isl.Point = isl.Set.read_from_str(
+                isl.DEFAULT_CONTEXT,
+                "{ %s[%s] }" % (name, ", ".join(str(c) for c in coords)),
+            ).sample_point()
+            return int(str(pwq.eval(point)))
+        return 0
+
+
+def _edge_pressure_from_links(edge_maps: list[isl.Map]) -> EdgePressure:
+    """
+    Turn directed flow maps into an ``EdgePressure``.
+
+    Parameters
+    ----------
+    edge_maps:
+        A list of ``{ [data -> src] -> edge }`` maps, one per directed edge type,
+        each associating a multicast tree with every edge its route traverses.
+
+    Returns
+    -------
+    An ``EdgePressure`` whose ``load`` is ``{ edge -> number-of-trees }``: for
+    each map we reverse it and take the cardinality (``reverse().card()`` counts,
+    per edge, how many distinct ``(data, src)`` trees cross it), then union the
+    per-type results into one ``UnionPwQPolynomial``.
+    """
+    acc: Optional[isl.UnionPwQPolynomial] = None
+    for edge_map in edge_maps:
+        # { edge -> #trees crossing it }
+        per_edge: isl.PwQPolynomial = edge_map.reverse().card()
+        contribution = isl.UnionPwQPolynomial.from_pw_qpolynomial(per_edge)
+        acc = contribution if acc is None else acc.add(contribution)
+    if acc is None:
+        acc = isl.UnionPwQPolynomial.read_from_str(isl.DEFAULT_CONTEXT, "{ }")
+    return EdgePressure(acc)
+
 
 def identify_mesh_casts(
     src_occupancy: isl.Map, dst_fill: isl.Map, dist_fn: isl.Map
@@ -438,9 +580,149 @@ class XYRoutingMulticastModel(TransferModel):
             link_transfer=True,
         )
 
+    def edge_pressure(self, fills: Fill, occs: Occupancy) -> EdgePressure:
+        """
+        Per-edge memory pressure (link load) of the XY-routing transfer.
+
+        After ``identify_mesh_casts`` fixes the ``[src] -> [dst]`` pairs, this
+        decomposes each multicast tree onto the directed mesh links it traverses
+        and counts, per link, how many trees cross it. The result is the load a
+        per-link bandwidth limit acts on; ``EdgePressure.bottleneck`` is the
+        busiest link.
+
+        Parameters
+        ----------
+        fills:
+            The fill of `buffer` across time from parents.
+        occs:
+            The occupancy of `buffer` across time.
+
+        Returns
+        -------
+        An ``EdgePressure`` over the four directed mesh-edge types
+        (``xedge_r``/``xedge_l``/``yedge_u``/``yedge_d``). Its ``total`` equals
+        this model's ``hops`` -- the cross-check that the decomposition is exact.
+        """
+        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
+        return _edge_pressure_from_links(self._directed_mesh_links(mcs))
+
+    def _directed_mesh_links(self, mcns: isl.Map) -> list[isl.Map]:
+        """
+        Decompose every multicast tree in `mcns` onto the directed mesh links it
+        traverses under XY routing.
+
+        Each returned map is ``{ [data -> src] -> edge }`` for one directed edge
+        type, associating a tree with every link of that type on its route. The
+        X phase runs along the source row out to every destination column; the Y
+        phase runs down each destination column from the source row. Directions
+        split at the source: rightward/leftward in X (at the source column ``xs``)
+        and upward/downward in Y (at the source row ``ys``).
+
+        Parameters
+        ----------
+        mcns:
+            Multicast networks { [data] -> [dst -> src] } from `identify_mesh_casts`.
+
+        Returns
+        -------
+        ``[xedge_r, xedge_l, yedge_u, yedge_d]`` maps. An edge ``xedge_r[t, ys]``
+        is the rightward link in row ``ys`` between columns ``t`` and ``t + 1``;
+        ``yedge_u[x, t]`` is the upward link in column ``x`` between rows ``t`` and
+        ``t + 1`` (and ``_l`` / ``_d`` the opposite directions).
+        """
+        ctx = isl.DEFAULT_CONTEXT
+        # { [data -> src] -> dst noc[x, y] } and a handle on the source per tree.
+        per_src: isl.Map = mcns.range_reverse().uncurry()
+        keymap: isl.Map = per_src.domain().unwrap().range_map()  # [data->src] -> src
+
+        # --- Y phase: vertical links per (tree, destination column). ---
+        # Key each destination's y by its column: { [data->src->col] -> yv[y] }.
+        dst_y: isl.Map = per_src.apply_range(
+            isl.Map.read_from_str(
+                ctx, "{ noc[x, y] -> [col[x'] -> yv[y']] : x' = x and y' = y }"
+            )
+        ).uncurry()
+        # Inject the source row ys into every destination column so each Y segment
+        # starts from the source.
+        src_y: isl.Map = keymap.apply_range(
+            isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> yv[ys] }")
+        )
+        src_row: isl.Map = dst_y.domain().unwrap().range_product(src_y).uncurry()
+        col_ys: isl.Map = dst_y.union(src_row)
+        # Every link {ymin <= t < ymax} touched in a column, as a relation keyed by
+        # the column (card of an explicit link set, robust where a min/max sum is
+        # not). { [data->src->col] -> p[t] }.
+        ylinks: isl.Map = col_ys.lexmin().apply_range(
+            isl.Map.read_from_str(ctx, "{ yv[ymin] -> p[t] : t >= ymin }")
+        ).intersect(
+            col_ys.lexmax().apply_range(
+                isl.Map.read_from_str(ctx, "{ yv[ymax] -> p[t] : t < ymax }")
+            )
+        )
+        # Re-key links by the tree and carry ys so direction splits at the source:
+        # { [data->src] -> [[col[x] -> p[t]] -> ysv[ys]] }.
+        y_with_ys: isl.Map = ylinks.curry().range_product(
+            keymap.apply_range(
+                isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> ysv[ys] }")
+            )
+        )
+        yedge_u: isl.Map = y_with_ys.apply_range(
+            isl.Map.read_from_str(
+                ctx, "{ [[col[x] -> p[t]] -> ysv[ys]] -> yedge_u[x, t] : t >= ys }"
+            )
+        )
+        yedge_d: isl.Map = y_with_ys.apply_range(
+            isl.Map.read_from_str(
+                ctx, "{ [[col[x] -> p[t]] -> ysv[ys]] -> yedge_d[x, t] : t < ys }"
+            )
+        )
+
+        # --- X phase: horizontal links along the source row. ---
+        # Columns spanned per tree = {src column} u {destination columns}. (Built
+        # explicitly, not from calculate_extents_per_dim, which keeps only the
+        # extent length and discards which links are used.)
+        col_x: isl.Map = per_src.apply_range(
+            isl.Map.read_from_str(ctx, "{ noc[x, y] -> cx[x] }")
+        ).union(
+            keymap.apply_range(
+                isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> cx[xs] }")
+            )
+        )
+        xlinks: isl.Map = col_x.lexmin().apply_range(
+            isl.Map.read_from_str(ctx, "{ cx[xmin] -> ex[t] : t >= xmin }")
+        ).intersect(
+            col_x.lexmax().apply_range(
+                isl.Map.read_from_str(ctx, "{ cx[xmax] -> ex[t] : t < xmax }")
+            )
+        )
+        # Carry the source (xs, ys) so direction splits at xs and the row ys is
+        # part of the edge identity: { [data->src] -> [ex[t] -> xy[xs, ys]] }.
+        x_with_src: isl.Map = xlinks.range_product(
+            keymap.apply_range(
+                isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> xy[xs, ys] }")
+            )
+        )
+        xedge_r: isl.Map = x_with_src.apply_range(
+            isl.Map.read_from_str(
+                ctx, "{ [ex[t] -> xy[xs, ys]] -> xedge_r[t, ys] : t >= xs }"
+            )
+        )
+        xedge_l: isl.Map = x_with_src.apply_range(
+            isl.Map.read_from_str(
+                ctx, "{ [ex[t] -> xy[xs, ys]] -> xedge_l[t, ys] : t < xs }"
+            )
+        )
+
+        return [xedge_r, xedge_l, yedge_u, yedge_d]
+
     def _cost_xy(self, mcns: isl.Map) -> isl.PwQPolynomial:
         """
         Total XY-routing link count for the multicast networks `mcns`.
+
+        Equals the sum of the per-edge loads from ``_directed_mesh_links`` (every
+        directed link of every tree counted once), returned as a parameter-free
+        constant. This is the X-phase links (per source row) plus the Y-phase
+        links (per destination column).
 
         Parameters
         ----------
@@ -450,55 +732,12 @@ class XYRoutingMulticastModel(TransferModel):
 
         Returns
         -------
-        The X-phase links (per source row) plus Y-phase links (per destination
-        column), as a constant piecewise quasi-polynomial.
+        The total link count as a constant piecewise quasi-polynomial.
         """
         ctx = isl.DEFAULT_CONTEXT
-
-        # X-phase: horizontal links along each source row. The x-extent of
-        # {dsts} u {src} per (data, src) is exactly calculate_extents_per_dim()'s
-        # first (x) dimension; summing it counts every X link.
-        x_extent: isl.PwAff = calculate_extents_per_dim(mcns)[0]
-        x_links: isl.Val = self._eval_const(
-            isl.PwQPolynomial.from_pw_aff(x_extent).sum()
-        )
-
-        # Y-phase: vertical links per (data, src, destination column), each column
-        # spanning from the source row ys to the destinations in that column.
-        # { [data -> src] -> [dst noc[x, y]] }
-        per_src: isl.Map = mcns.range_reverse().uncurry()
-        # Split each destination into its column and its y-coordinate, keying y by
-        # column: { [data -> src -> col[x]] -> [yv[y]] }.
-        split_col: isl.Map = isl.Map.read_from_str(
-            ctx, "{ noc[x, y] -> [col[x'] -> yv[y']] : x' = x and y' = y }"
-        )
-        dst_y: isl.Map = per_src.apply_range(split_col).uncurry()
-        # Inject the source row ys into every destination column so each column's
-        # Y segment starts from the source.
-        src_y: isl.Map = per_src.domain().unwrap().range_map().apply_range(
-            isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> yv[ys] }")
-        )
-        src_row: isl.Map = (
-            dst_y.domain().unwrap().range_product(src_y).uncurry()
-        )
-        # { [data -> src -> col] -> [yv[y]] }: all y-positions touched in a column.
-        col_ys: isl.Map = dst_y.union(src_row)
-
-        # Count the links {ymin <= p < ymax} in each column via cardinality (robust
-        # where summing a min/max polynomial is not).
-        ge_min: isl.Map = isl.Map.read_from_str(
-            ctx, "{ yv[ymin] -> p[t] : t >= ymin }"
-        )
-        lt_max: isl.Map = isl.Map.read_from_str(
-            ctx, "{ yv[ymax] -> p[t] : t < ymax }"
-        )
-        links: isl.Map = col_ys.lexmin().apply_range(ge_min).intersect(
-            col_ys.lexmax().apply_range(lt_max)
-        )
-        y_links: isl.Val = self._eval_const(links.wrap().card())
-
-        # Total links as a parameter-free constant.
-        total: isl.Val = x_links.add(y_links)
+        total: isl.Val = isl.Val.zero(ctx)
+        for edge_map in self._directed_mesh_links(mcns):
+            total = total.add(self._eval_const(edge_map.wrap().card()))
         zero_dim: isl.Space = isl.Space.set_alloc(ctx, 0, 0)
         return isl.PwQPolynomial.from_qpolynomial(
             isl.QPolynomial.val_on_domain(zero_dim, total)
@@ -512,33 +751,53 @@ class XYRoutingMulticastModel(TransferModel):
 
 class StarMulticastModel(TransferModel):
     """
-    Does distributed multicasting assuming all nodes are connected to a central node.
+    Multicast cost model for a star / central-switch fabric -- the spokes
+    realization of a fully-connected interconnect (e.g. an NVSwitch, where every
+    GPU connects to a shared switch rather than to a full mesh of peers).
+
+    Every node has exactly one spoke (its bidirectional link to the switch). A
+    delivery routes ``src -> switch -> dst``: the source injects each datum once
+    up its egress spoke (multicast fan-out happens at the switch, so one copy per
+    datum regardless of how many destinations want it), and every destination
+    receives its datum down its ingress spoke. Self-deliveries (a node already
+    holding the datum) never cross the fabric and so load no spoke.
+
+    Where ``FullyConnectedMulticastModel`` treats the fabric as a contention-free
+    full mesh (one dedicated link per pair, no hotspot) and only counts crossings,
+    this model exposes *where the contention is*: the per-spoke load. The two are
+    tied by the invariant ``sum over nodes of ingress == FullyConnected crossing
+    count`` (every crossing delivery is exactly one node's ingress).
+
+    See Also
+    --------
+    FullyConnectedMulticastModel :
+        The same all-to-all traffic costed as crossings on a full mesh; its hop
+        count equals this model's total ingress.
     """
 
-    def __init__(self, reindexer: Optional[isl.Map] = None):
+    def __init__(self, dist_fn: isl.Map):
         """
-        No distance function as hops for a star model are assumed to be 1 to and from center to any node, and
-        all data must route through the center.
-
         Parameters
         ----------
-        reindexer: 
-            flattens an input so that 0 (or the lexmin across all dimensions) is the assumed center everything
-            connects to.
+        dist_fn:
+            A distance function { [dst -> src] -> [hops] }, used both to pick each
+            destination's nearest source and to tell self-deliveries (0 hops, no
+            spoke load) apart from fabric-crossing ones (>= 1 hop). The hop
+            magnitude does not enter the spoke load -- on a star every crossing is
+            one switch hop each way.
         """
-        self.reindexer: Optional[isl.Map] = reindexer
-    
-    
+        self.dist_fn = dist_fn
+
     def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
         """
         Given a buffer, its fills across time, and its occupancies across time,
-        calculate the spatial transfers."
+        calculate the spatial transfers on a star / central-switch fabric.
 
         Parameters
         ----------
         buff:
-            The buffer whose spatial analysis is being considered. Currently,
-            we rely on dist_fn to deal with this rather than buffer.
+            The buffer whose spatial analysis is being considered. Unused; the
+            topology is captured entirely by ``dist_fn``.
         fills:
             The fill of `buffer` across time from parents.
         occs:
@@ -546,22 +805,12 @@ class StarMulticastModel(TransferModel):
 
         Returns
         -------
-        Fills that were fulfilled, Fills that were unfilled, and parent reads per
-        position in spacetime. Then, gets hops per timestep.
+        A TransferInfo whose `hops` is the total spoke traversals (injections plus
+        deliveries). Per-spoke load is available via ``edge_pressure``.
         """
-        if self.reindexer:
-            occs_map = isl.apply_domain(self.relabeler)
-            fills_map = isl.apply_domain(self.relabeler)
-        else:
-            occs_map = occs.map
-            fills_map = fills_map
-
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_star_multicast(mcs)
 
-        # TODO: Read once from all buffers, assert that
-        # card(mcs) == tensor_size * duplication factor
-        n_meshcasts: int = mcs.card()
         return TransferInfo(
             fulfilled_fill=Transfers(fills.tags, fills.map_),
             parent_reads=Reads(occs.tags, mcs),
@@ -570,146 +819,105 @@ class StarMulticastModel(TransferModel):
             link_transfer=True,
         )
 
-    def classify_src_dst(rel: isl.Map | isl.Set):
+    def edge_pressure(self, fills: Fill, occs: Occupancy) -> EdgePressure:
         """
-        Build a quasi-affine classifier over a wrapped relation  [src -> dst].
-    
-            f([src -> dst]) = 0   if   src == dst
-                            = 1   elif src is the lexmin  OR  dst is the lexmin
-                            = 2   otherwise
-    
-        Works for any dimensionality: `src`/`dst` may be scalars (1-D) or
-        tuples (n-D). The only requirement is that the src space and the dst
-        space match.
-    
-        Parameters
-        ----------
-        rel:
-            isl.Map  ({ src -> dst }, with src-space == dst-space)
-            or isl.Set ({ [src -> dst] }, i.e. already wrapped).
-            The lexmin of src-space is the center of the star.
-    
-        Returns
-        -------
-        isl.PwAff defined on the wrapped space [src -> dst].
+        Per-edge memory pressure (spoke load) of the star transfer.
 
-        Preconditions
-        -------------
-        lexmin is unique.
-        """
-        # Accept either a relation or an already-wrapped set.
-        m = rel.unwrap() if isinstance(rel, isl.Set) else rel
-    
-        assert m.dim(isl.dim_type.in_) == m.dim(isl.dim_type.out), \
-            "src and dst must share the same space"
-    
-        space_set = m.domain()
-    
-        # Position-wise identity  src -> dst. Used to (a) select the diagonal
-        # src == dst, and (b) carry the lexmin point from the domain (src)
-        # space into the range (dst) space, so tuple names need not match.
-        ident = isl.Map.identity(m.get_space())
-    
-        lex_src = space_set.lexmin()      # lexmin point in the src space
-        lex_dst = lex_src.apply(ident)    # same point, in the dst space
-    
-        # The three regions, as relations  src -> dst  (all subsets of m):
-        eq        = m.intersect(ident)                  # src == dst
-        is_lexmin = m.intersect_domain(lex_src).union(  # src == lexmin
-                    m.intersect_range(lex_dst))         #   or dst == lexmin
-    
-        # Move everything into the wrapped  [src -> dst]  set space:
-        W  = m.wrap()
-        R0 = eq.wrap()
-        R1 = is_lexmin.wrap().subtract(R0)              # the "elif": drop src==dst
-        R2 = W.subtract(R0).subtract(R1)                # everything else
-    
-        # A constant quasi-affine piece with value `c` on the given domain.
-        def const_on(domain, c):
-            ls  = isl.LocalSpace.from_space(domain.get_space())
-            val = isl.Val.int_from_si(domain.get_ctx(), c)
-            aff = isl.Aff.zero_on_domain(ls).set_constant_val(val)
-            return isl.PwAff.from_aff(aff).intersect_domain(domain)
-    
-        # Disjoint domains, so union_add is just a disjoint union of pieces.
-        return (const_on(R0, 0)
-                .union_add(const_on(R1, 1))
-                .union_add(const_on(R2, 2)))
-
-
-    def _pairing(src_occupancy: isl.Map, dst_fill: isl.Map, dist_fn: isl.Map):
-        """
-        Given srcs with data, fills to destinations, and a distance function, identify per data
-        the srcs delivering that data to dsts.
+        After ``identify_mesh_casts`` fixes the ``[src] -> [dst]`` pairs, this
+        reports, per node spoke, how much data crosses it -- egress (data the node
+        sources into the switch) and ingress (data it receives) as two directed
+        edges. ``EdgePressure.bottleneck`` is the busiest spoke, the link a
+        per-spoke bandwidth limit binds on first (e.g. for an N-way all-to-all the
+        ingress spokes are hottest at ``N - 1``).
 
         Parameters
         ----------
-        src_occupancy:
-            An isl.Map of the form { [src] -> [data] } corresponding to the data held
-            at the buffer at space `src`.
-        dst_fill:
-            An isl.Map of the form { [dst] -> [data] } corresponding to the data requested
-            at the element at space `dst`.
+        fills:
+            The fill of `buffer` across time from parents.
+        occs:
+            The occupancy of `buffer` across time.
 
         Returns
         -------
-        { [data] -> [dst -> src] } where { [dst] -> [data] } and { [src] -> [data] } are in
-        `src_occupancy` and `dst_fill` respectively, and where `[dst -> src]` is the infimum of
-        `dst_fn(src, dst), ∀ src, dst s.t. { [src] -> [data] } ∈ `src_occupancy` and
-        `{ [dst] -> [data] }` ∈ `dst_fill`.
-
-        Preconditions:
-        No duplication of data.
+        An ``EdgePressure`` over ``spoke_in[n]`` (ingress) and ``spoke_out[n]``
+        (egress) edges.
         """
-        # Makes { [dst -> data] -> [dst -> data] }
-        fill_to_fill: isl.Map = dst_fill.wrap().identity()
-        if DUMP_ISL_IR:
-            logging.info(f"fill_to_fill: {fill_to_fill}")
+        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
+        ingress, egress = self._spoke_loads(mcs)
+        acc = isl.UnionPwQPolynomial.from_pw_qpolynomial(ingress)
+        acc = acc.add(isl.UnionPwQPolynomial.from_pw_qpolynomial(egress))
+        return EdgePressure(acc)
 
-        # Inverts src_occupancy s.t. data -> src.
-        # i.e. { [xs, ys] -> [d0, d1] } to { [d0, d1] -> [xs, ys] }
-        data_presence: isl.Map = src_occupancy.reverse()
+    def _spoke_loads(
+        self, mcns: isl.Map
+    ) -> tuple[isl.PwQPolynomial, isl.PwQPolynomial]:
+        """
+        Per-spoke ingress and egress load for the multicast networks `mcns`.
 
-        # { [dst -> data] -> [dst -> src] } where src contains data.
-        fills_to_matches: isl.Map = (
-            fill_to_fill.uncurry()  # { [[dst -> data] -> dst] -> data }
-            .apply_range(data_presence)  # { [[dst -> data] -> dst] -> src }
-            .curry()
-        )  # { [[dst -> data] -> [dst -> src] }
-        if DUMP_ISL_IR:
-            logging.info(f"fills_to_matches: {fills_to_matches}")
+        Parameters
+        ----------
+        mcns:
+            Multicast networks { [data] -> [dst -> src] } from `identify_mesh_casts`.
 
-        # Calculates the distance of a fill to the nearest src satisfying the fill.
-        # { [dst -> data] -> [dist] }
-        fill_min_dist: isl.Map = fills_to_matches.apply_range(dist_fn).lexmin()
-        # Isolates the relevant minimal pairs.
-        # { [dst -> data] -> [dst -> src] :.dst -> src is minimized distance }
-        minimal_pairs: isl.Map = (
-            fill_min_dist.apply_range(
-                # Note: Need to match fill -> min_dist with min_dist -> [fill -> match] as lexmin over
-                # fill and match will minimize distance over the tuple (src, dst, data), but that
-                # overconstrains the optimization as we want to minimize over distance (dst, data)
-                # only for all src.
-                fills_to_matches.range_map()
-                .apply_range(dist_fn)
-                .reverse()
-            )
-            .range()
-            .unwrap()
+        Returns
+        -------
+        ``(ingress, egress)`` where ``ingress`` is ``{ spoke_in[n] -> #data the
+        node receives }`` and ``egress`` is ``{ spoke_out[n] -> #data the node
+        sources }``, counting only fabric-crossing (>= 1 hop) deliveries.
+        """
+        # Keep only deliveries that actually cross the fabric (>= 1 hop); a node
+        # already holding its datum loads no spoke.
+        crossing_hops: isl.Set = isl.Set.read_from_str(
+            isl.DEFAULT_CONTEXT, "{ hops[h] : h >= 1 }"
         )
-        if DUMP_ISL_IR:
-            logging.info(f"minimal_pairs: {minimal_pairs}")
+        crossing_pairs: isl.Set = self.dist_fn.intersect_range(crossing_hops).domain()
+        crossing: isl.Map = mcns.intersect_range(crossing_pairs)
 
-        # Isolates the multicast networks.
-        # { [data] -> [dst -> src] : dst -> src is minimized distance }
-        multicast_networks: isl.Map = minimal_pairs.curry().range().unwrap()
-        # Devolves to a single source if multiple sources per domain point.
-        multicast_networks = multicast_networks.uncurry().lexmin().curry()
+        # { dst -> [src -> data] }: regroup so each delivery is keyed by destination.
+        cur: isl.Map = crossing.reverse().curry()
+        # Distinct (node, data) pairs per direction. A source injects each datum
+        # once (multicast fans out at the switch); a destination receives each once.
+        ingress_nodes: isl.Map = cur.range_factor_range()  # { noc[dst] -> data }
+        egress_nodes: isl.Map = cur.range().unwrap()       # { noc[src] -> data }
 
-        return multicast_networks
+        # Relabel the node tuple to the directed spoke edge, then count data per
+        # spoke. { spoke_in[n] -> #data } and { spoke_out[n] -> #data }.
+        dims: int = ingress_nodes.dim(isl.dim_type.in_)
+        idx: str = ", ".join(f"i{k}" for k in range(dims))
+        ingress: isl.PwQPolynomial = ingress_nodes.apply_domain(
+            isl.Map.read_from_str(
+                isl.DEFAULT_CONTEXT, "{ noc[%s] -> spoke_in[%s] }" % (idx, idx)
+            )
+        ).card()
+        egress: isl.PwQPolynomial = egress_nodes.apply_domain(
+            isl.Map.read_from_str(
+                isl.DEFAULT_CONTEXT, "{ noc[%s] -> spoke_out[%s] }" % (idx, idx)
+            )
+        ).card()
+        return ingress, egress
 
-
-    def _cost_star_multicast(self, mcs):
+    def _cost_star_multicast(self, mcns: isl.Map) -> isl.PwQPolynomial:
         """
+        Total spoke traversals for the multicast networks `mcns`.
+
+        Each datum costs one egress-spoke hop per injecting source plus one
+        ingress-spoke hop per receiving destination, so the total is
+        ``sum(egress) + sum(ingress)``. Returned as a parameter-free constant.
+
+        Parameters
+        ----------
+        mcns:
+            Multicast networks { [data] -> [dst -> src] } from `identify_mesh_casts`.
         """
-        raise NotImplementedError("WIP: star multicast cost not yet implemented")
+        ctx = isl.DEFAULT_CONTEXT
+        ingress, egress = self._spoke_loads(mcns)
+        total: isl.Val = isl.Val.zero(ctx)
+        for load in (ingress, egress):
+            summed: isl.PwQPolynomial = load.sum()
+            total = total.add(
+                summed.eval(isl.Point.zero(summed.domain().get_space()))
+            )
+        zero_dim: isl.Space = isl.Space.set_alloc(ctx, 0, 0)
+        return isl.PwQPolynomial.from_qpolynomial(
+            isl.QPolynomial.val_on_domain(zero_dim, total)
+        )
