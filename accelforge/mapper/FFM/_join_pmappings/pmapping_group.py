@@ -232,7 +232,7 @@ class PmappingGroup:
         clear_tile_patterns_and_reservation_indices: bool = False,
         include_permutations: bool = False,
         clear_symbolic_tile_patterns: bool = False,
-        try_permute_into_equivalent: bool = False,
+        combine_equivalent_permutations: bool = False,
         # mixable_ranks: dict[Rank, set[Rank]] = None,
     ) -> (
         dict[Compatibility, list["PmappingGroup"]]
@@ -241,6 +241,14 @@ class PmappingGroup:
         """
         Clears dead tensors (may keep loops), then group PmappingGroups based on
         compatibility.
+
+        Parameters
+        ----------
+        include_permutations: Whether to also create permutations of the
+          compatibility (using `compatibility.make_equivalent_permutations`) to
+          include in the groups
+        combine_equivalent_permutations: Whether to combine pmapping groups that
+          have equivalent compatibilities if permuted.
         """
         grouped = defaultdict(list)
 
@@ -251,17 +259,17 @@ class PmappingGroup:
                 return c.clear_tile_patterns_and_reservation_indices()
             return c
 
-        for s in pmapping_groups:
-            compatibility = s.compatibility.clear_dead_tensors(live_tensors)
+        for pg in pmapping_groups:
+            compatibility = pg.compatibility.clear_dead_tensors(live_tensors)
 
-            if include_permutations or try_permute_into_equivalent:
+            if include_permutations or combine_equivalent_permutations:
                 keys = compatibility.make_equivalent_permutations()
                 for t, loop_changes in keys:
                     # Line below DOES NOT MUTATE. It's check that the permutation works.
-                    s.compatibility.permute(loop_changes)
-                    grouped[clear(t)].append((s, loop_changes))
+                    pg.compatibility.permute(loop_changes)
+                    grouped[clear(t)].append((pg, loop_changes))
             else:
-                grouped[clear(compatibility)].append(s)
+                grouped[clear(compatibility)].append(pg)
 
         if clear_tile_patterns_and_reservation_indices:
             for k in grouped:
@@ -276,26 +284,26 @@ class PmappingGroup:
         #             new_grouped.setdefault(c2, []).extend(g)
         #     grouped = new_grouped
 
-        if try_permute_into_equivalent:
+        if combine_equivalent_permutations:
             assert not include_permutations
             new_grouped = {}
-            pmgroups_remaining = oset(id(s) for s in pmapping_groups)
-            for c, g in sorted(grouped.items(), key=lambda x: len(x[1]), reverse=True):
+            pmgroups_remaining = oset(id(pg) for pg in pmapping_groups)
+            for c, pg_lc in sorted(grouped.items(), key=lambda x: len(x[1]), reverse=True):
                 if not pmgroups_remaining:
                     break
-                g = [
-                    (s, loop_changes)
-                    for s, loop_changes in g
-                    if id(s) in pmgroups_remaining
+                pg_lc = [
+                    (pg, loop_changes)
+                    for pg, loop_changes in pg_lc
+                    if id(pg) in pmgroups_remaining
                 ]
-                if g:
-                    pmgroups_remaining -= oset(id(s) for s, _ in g)
+                if pg_lc:
+                    pmgroups_remaining -= oset(id(pg) for pg, _ in pg_lc)
                     permuted = [
                         PmappingGroup(
-                            s.compatibility.permute(lc),
-                            s.mappings.clear_irrelevant_columns(s.compatibility),
+                            pg.compatibility.permute(lc),
+                            pg.mappings.clear_irrelevant_columns(pg.compatibility),
                         )
-                        for s, lc in g
+                        for pg, lc in pg_lc
                     ]
                     new_grouped[c] = permuted
             grouped = new_grouped
@@ -324,7 +332,7 @@ class PmappingGroup:
                 pmapping_groups,
                 live_tensors,
                 clear_symbolic_tile_patterns=True,
-                try_permute_into_equivalent=True,
+                combine_equivalent_permutations=True,
             ).values()
         )
         groups_with_one = [g[0] for g in groups if len(g) == 1]
