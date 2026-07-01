@@ -229,6 +229,7 @@ class PmappingGroup:
     def _group(
         pmapping_groups: list["PmappingGroup"],
         live_tensors: set[str] | Literal["All"],
+        workload,
         clear_tile_patterns_and_reservation_indices: bool = False,
         include_permutations: bool = False,
         clear_symbolic_tile_patterns: bool = False,
@@ -263,11 +264,11 @@ class PmappingGroup:
             compatibility = pg.compatibility.clear_dead_tensors(live_tensors)
 
             if include_permutations or combine_equivalent_permutations:
-                keys = compatibility.make_equivalent_permutations()
-                for t, loop_changes in keys:
-                    # Line below DOES NOT MUTATE. It's check that the permutation works.
-                    pg.compatibility.permute(loop_changes)
-                    grouped[clear(t)].append((pg, loop_changes))
+                keys = compatibility.make_equivalent_compatibilities(workload)
+                for t, equivalence in keys:
+                    # Line below DOES NOT MUTATE. It's a check that the transform works.
+                    equivalence.apply(pg.compatibility)
+                    grouped[clear(t)].append((pg, equivalence))
             else:
                 grouped[clear(compatibility)].append(pg)
 
@@ -292,18 +293,18 @@ class PmappingGroup:
                 if not pmgroups_remaining:
                     break
                 pg_lc = [
-                    (pg, loop_changes)
-                    for pg, loop_changes in pg_lc
+                    (pg, equivalence)
+                    for pg, equivalence in pg_lc
                     if id(pg) in pmgroups_remaining
                 ]
                 if pg_lc:
                     pmgroups_remaining -= oset(id(pg) for pg, _ in pg_lc)
                     permuted = [
                         PmappingGroup(
-                            pg.compatibility.permute(lc),
+                            equivalence.apply(pg.compatibility),
                             pg.mappings.clear_irrelevant_columns(pg.compatibility),
                         )
-                        for pg, lc in pg_lc
+                        for pg, equivalence in pg_lc
                     ]
                     new_grouped[c] = permuted
             grouped = new_grouped
@@ -314,6 +315,7 @@ class PmappingGroup:
     def combine_combineable(
         pmapping_groups: list["PmappingGroup"],
         live_tensors: set[str] | Literal["All"],
+        workload,
         allow_different_compatibilies: bool = False,
         _combine_reservations: bool = True,
         print_progress: bool = True,
@@ -331,6 +333,7 @@ class PmappingGroup:
             PmappingGroup._group(
                 pmapping_groups,
                 live_tensors,
+                workload,
                 clear_symbolic_tile_patterns=True,
                 combine_equivalent_permutations=True,
             ).values()
@@ -370,11 +373,12 @@ class PmappingGroup:
 
     @staticmethod
     def group(
-        pmapping_groups: list["PmappingGroup"], live_tensors: set[str]
-    ) -> dict[tuple[Compatibility, ...], list[tuple["PmappingGroup", list[int]]]]:
+        pmapping_groups: list["PmappingGroup"], live_tensors: set[str], workload
+    ) -> dict[tuple[Compatibility, ...], list[tuple["PmappingGroup", "CompatibilityDiff"]]]:
         x = PmappingGroup._group(
             pmapping_groups,
             live_tensors,
+            workload,
             clear_tile_patterns_and_reservation_indices=True,
             include_permutations=True,
             # mixable_ranks=mixable_ranks,

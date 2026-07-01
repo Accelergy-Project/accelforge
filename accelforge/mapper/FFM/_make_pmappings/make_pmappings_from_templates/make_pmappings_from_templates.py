@@ -83,16 +83,6 @@ def shift_reservations_by_null_loop_indices(
     return mappings
 
 
-def get_equivalent_pmappings(
-    pmapping_group: PmappingGroup, reservation_levels: set[int]
-) -> list[PmappingGroup]:
-    equivalent_permutations = pmapping_group.compatibility.make_equivalent_permutations(
-        reservation_levels
-    )
-    result = [PmappingGroup(c, None) for c in equivalent_permutations]
-    return result
-
-
 def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
     cols = []
     for loop in [l for l in mapping.nodes if isinstance(l, Loop) and l._fused]:

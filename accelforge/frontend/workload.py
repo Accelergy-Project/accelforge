@@ -1005,6 +1005,15 @@ class Workload(EvalableModel):
         """
         return [t for e in self.einsums for t in e.tensor_accesses if t.name == tensor]
 
+    def tensor_ranks(self, tensor: TensorName) -> oset[Rank]:
+        """
+        Returns ranks of `tensor`
+        """
+        for e in self.einsums:
+            for t in e.tensor_accesses:
+                if t.name == tensor:
+                    return oset(t.ranks)
+
     def get_iteration_space_shape_isl_string(self, einsum_name: str) -> str:
         """
         Returns the ISL string representing the iteration space of the given Einsum.

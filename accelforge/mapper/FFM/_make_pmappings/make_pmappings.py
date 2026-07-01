@@ -413,6 +413,7 @@ def make_pmappings(
         pmapping_groups[einsum_name] = PmappingGroup.combine_combineable(
             pmapping_groups[einsum_name],
             "All",
+            spec.workload,
             pbar_postfix=f" for {einsum_name}",
             print_progress=print_progress,
         )

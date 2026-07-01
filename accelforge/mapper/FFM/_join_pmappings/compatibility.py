@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Iterator, Iterable
 from enum import Enum
 from dataclasses import dataclass, replace
 import itertools
@@ -16,7 +17,7 @@ from accelforge.frontend.mapping import (
     Loop as MappingLoop,
 )
 from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DONT_CARE
-from accelforge.frontend.workload import Einsum
+from accelforge.frontend.workload import Einsum, Workload
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
     make_fused_loop_col,
@@ -200,6 +201,39 @@ class TensorReservation(Updatable):
         new_loops = [self.loops[permutation[i]] for i in range(len(self.loops))]
         return self.update(loops=tuple(new_loops))
 
+    def replace_physical_spatial_loops(
+        self, diff: dict[int, Rank]
+    ) -> "TensorReservation":
+        return self.update(physical_spatial_loops=tuple(
+            l.update(rank_name=diff[i]) if i in diff else l
+            for i, l in enumerate(self.physical_spatial_loops)
+        ))
+
+    def make_equivalent_bindings(
+        self, ranks: set[Rank]
+    ) -> list[tuple["TensorReservation", dict[int, Rank]]]:
+        """
+        Make equivalent bindings by enumerating rank substitutions for
+        RANK_DONT_CARE. Returns tuples of new tensor reservations and the
+        substitutions made.
+        """
+        dc_indices = [
+            i
+            for i, l in enumerate(self.physical_spatial_loops)
+            if l.rank_name == RANK_DONT_CARE
+        ]
+        ranks = sorted(ranks)
+        if not dc_indices or not ranks:
+            return [(self, {})]
+        out = []
+        for combo in itertools.product(ranks, repeat=len(dc_indices)):
+            index2rank = dict(zip(dc_indices, combo))
+            out.append((
+                self.replace_physical_spatial_loops(index2rank),
+                index2rank
+            ))
+        return out
+
     def clear_loop_bounds(self) -> "Reservation":
         return self.update(loops=tuple(loop.clear_loop_bound() for loop in self.loops))
 
@@ -287,6 +321,24 @@ class SplitKind(Enum):
 class Split:
     split: MappingSplit
     above_loop_index: int
+
+
+@dataclass(frozen=True)
+class CompatibilityDiff:
+    """
+    The diff applied to a Compatibility to generate another Compatibility.
+    """
+
+    loop_permutation: tuple[int, ...]
+    # (tensor_name, physical_spatial_loop_index, new_rank) for each DONT_CARE
+    # binding that was rewritten to a concrete rank.
+    physical_rank_rewrites: fzs = fzs()
+
+    def apply(self, c: "Compatibility") -> "Compatibility":
+        c = c.permute(list(self.loop_permutation))
+        if self.physical_rank_rewrites:
+            c = c.replace_physical_spatial_loops(self.physical_rank_rewrites)
+        return c
 
 
 @dataclass(frozen=True)
@@ -504,7 +556,22 @@ class Compatibility(Updatable):
         new_tensors = fzs(s.permute(loop_changes) for s in self.tensors)
         return self.update(tensors=new_tensors)
 
-    def make_equivalent_permutations(self) -> list[tuple["Compatibility", list[int]]]:
+    def replace_physical_spatial_loops(self, rewrites: fzs) -> "Compatibility":
+        """Apply ``(tensor_name, physical_loop_index, rank)`` rewrites to the
+        physical-spatial loops of the matching tensors."""
+        by_tensor = defaultdict(dict)
+        for tensor, idx, rank in rewrites:
+            by_tensor[tensor][idx] = rank
+        new_tensors = fzs(
+            t.replace_physical_spatial_loops(by_tensor[t.name]) if t.name in by_tensor
+            else t
+            for t in self.tensors
+        )
+        return self.update(tensors=new_tensors)
+
+    def _make_equivalent_loop_permutations(
+            self
+    ) -> Iterator[tuple["Compatibility", tuple]]:
         # Get contiguous blocks of loops with no tensor reservation between them
         blocks = []
         current_block = []
@@ -525,7 +592,42 @@ class Compatibility(Updatable):
         all_permutations = [
             list(itertools.chain(*loop_changes)) for loop_changes in all_permutations
         ]
-        return [(self.permute(p), p) for p in all_permutations]
+        yield from all_permutations
+
+    def _make_equivalent_physical_bindings(
+        self,
+        workload: Workload
+    ) -> list[tuple["Compatibility", fzs]]:
+        """
+        Enumerate equivalent compatibilities produced by ``RANK_DONT_CARE``
+        into concrete ranks of its tensor. Returns a list of tuples of the
+        updated compatibility and the substitutions that produced it.
+        """
+        tensors = list(self.tensors)
+        per_tensor = [
+            t.make_equivalent_bindings(workload.tensor_ranks(t.name))
+            for t in tensors
+        ]
+        for combo in itertools.product(*per_tensor):
+            rewrites = fzs(
+                (t.name, idx, rank)
+                for t, (_, index2rank) in zip(tensors, combo)
+                for idx, rank in index2rank.items()
+            )
+            yield rewrites
+
+    def make_equivalent_compatibilities(
+        self, workload
+    ) -> list[tuple["Compatibility", "CompatibilityDiff"]]:
+        result = []
+        for loop_diff in self._make_equivalent_loop_permutations():
+            for rewrites in self._make_equivalent_physical_bindings(workload):
+                diff = CompatibilityDiff(
+                    loop_permutation=tuple(loop_diff),
+                    physical_rank_rewrites=rewrites
+                )
+                result.append((diff.apply(self), diff))
+        return result
 
     def get_reservation_of_tensor(self, tensor: str) -> TensorReservation:
         for s in self.tensors:
@@ -541,16 +643,6 @@ class Compatibility(Updatable):
 
     def clear_loop_bounds(self) -> "Compatibility":
         return self.update(tensors=fzs(t.clear_loop_bounds() for t in self.tensors))
-
-    def compatible_with(self, other: "Compatibility") -> bool:
-        return True
-        # for a in self.tensors:
-        #     a = a.loops
-        #     for b in other.tensors:
-        #         b = b.loops
-        #         if a[:len(b)] != b[:len(a)]:
-        #             return False
-        # return True
 
     def populate_loops(self, ranks_with_tile_pattern: set[Rank]):
         return self.update(

@@ -1,5 +1,8 @@
 from copy import deepcopy
-from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
+from accelforge.mapper.FFM._join_pmappings.compatibility import (
+    Compatibility,
+    CompatibilityDiff,
+)
 from collections import defaultdict
 import itertools
 import logging
@@ -645,12 +648,13 @@ def join_pmappings(
         einsum_pmappings.pmapping_groups = PmappingGroup.combine_combineable(
             einsum_pmappings.pmapping_groups,
             left_tensors | right_tensors,
+            spec.workload,
             _combine_reservations=combine_reservations,
             pbar_postfix=f" for {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
             print_progress=print_progress,
         )
         einsum_pmappings.pmapping_groups = PmappingGroup.group(
-            einsum_pmappings.pmapping_groups, left_tensors
+            einsum_pmappings.pmapping_groups, left_tensors, spec.workload
         )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         step_time = time.time() - t0
@@ -724,13 +728,14 @@ def join_pmappings(
         left = PmappingGroup.combine_combineable(
             left,
             live_tensors | right_tensors,
+            spec.workload,
             _combine_reservations=combine_reservations,
             print_progress=print_progress,
         )
 
         # print_time(f"Combining")
         # Group left and right into buckets
-        left = PmappingGroup.group(left, right_tensors)
+        left = PmappingGroup.group(left, right_tensors, spec.workload)
         # print_time("Grouping")
 
         # =============================================================================
@@ -782,16 +787,16 @@ def join_pmappings(
             ):
                 a: PmappingGroup
                 b: PmappingGroup
-                perm_a: list[int]
-                perm_b: list[int]
+                perm_a: CompatibilityDiff
+                perm_b: CompatibilityDiff
                 key_check = (id(a), id(b))
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
                 found = True
 
-                compatibility_a = a.compatibility.permute(perm_a)
-                compatibility_b = b.compatibility.permute(perm_b)
+                compatibility_a = perm_a.apply(a.compatibility)
+                compatibility_b = perm_b.apply(b.compatibility)
                 try:
                     compatibility_joined = compatibility_a.merge_next(
                         compatibility_b,
@@ -888,7 +893,7 @@ def join_pmappings(
                 if not next_right_tensors & cur_tensors:
                     continue
                 prev_combined = combined
-                combined = PmappingGroup.group(combined, next_right_tensors)
+                combined = PmappingGroup.group(combined, next_right_tensors, spec.workload)
                 next_keys = oset(
                     c.clear_dead_tensors(
                         cur_tensors
@@ -896,7 +901,7 @@ def join_pmappings(
                     for c in next_pmapping_groups.pmapping_groups
                 )
                 for k in list[PmappingGroup](combined):
-                    perms = k.make_equivalent_permutations()
+                    perms = k.make_equivalent_compatibilities(spec.workload)
                     perms = [
                         p[0]
                         .clear_dead_tensors(next_right_tensors)
@@ -911,7 +916,7 @@ def join_pmappings(
                                 )
                         del combined[k]
                 if not combined:
-                    PmappingGroup.group(prev_combined, next_right_tensors)
+                    PmappingGroup.group(prev_combined, next_right_tensors, spec.workload)
                     no_match_lookahead_error(prev_combined, next_keys)
 
                 combined = list(itertools.chain.from_iterable(combined.values()))
@@ -1005,7 +1010,7 @@ def join_pmappings(
         left, None, pbar="Final consolidate" if print_progress else None
     )
     s_final = PmappingGroup.combine_combineable(
-        left, oset(), print_progress=print_progress
+        left, oset(), spec.workload, print_progress=print_progress
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
