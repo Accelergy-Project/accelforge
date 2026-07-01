@@ -5,17 +5,19 @@ Where a model's ``hops`` is a single scalar, ``EdgePressure`` breaks the load ou
 per *physical* directed edge: how many multicast trees cross each link. Two models
 are covered:
 
-- ``XYRoutingMulticastModel.edge_pressure`` -- directed mesh links
-  (``xedge_r``/``xedge_l``/``yedge_u``/``yedge_d``). The decisive, oracle-free
-  check is the invariant ``sum over edges of load == total XY hops``: the per-edge
-  loads must sum back to the already-validated A-F hop totals (4/6/6/3/4/448), so
-  a wrong decomposition fails here. Bottlenecks and a couple of individual edge
-  loads (hand-derived, geometry documented inline) pin the shape.
+- ``XYRoutingMulticastModel``'s ``edge_pressure`` (now reached via
+  ``model.apply(0, fill, occ).edge_pressure``, not a standalone method -- see
+  the API-change note on ``test_load_sums_to_hops`` below) -- directed mesh
+  links (``xedge_r``/``xedge_l``/``yedge_u``/``yedge_d``). ``test_load_sums_to_hops``
+  checks the per-edge loads sum back to the already-validated A-F hop totals
+  (4/6/6/3/4/448). Bottlenecks and a couple of individual edge loads
+  (hand-derived, geometry documented inline) pin the shape.
 
-- ``StarMulticastModel.edge_pressure`` -- the spokes realization of a
-  fully-connected fabric (``spoke_in[n]`` ingress, ``spoke_out[n]`` egress). For
-  an N-way all-to-all each node receives N-1 and sources 1, so the ingress spokes
-  are hottest at N-1. Tied to ``FullyConnectedMulticastModel`` by
+- ``StarMulticastModel``'s ``edge_pressure`` (same access-pattern change) --
+  the spokes realization of a fully-connected fabric (``spoke_in[n]`` ingress,
+  ``spoke_out[n]`` egress). For an N-way all-to-all each node receives N-1 and
+  sources 1, so the ingress spokes are hottest at N-1. Tied to
+  ``FullyConnectedMulticastModel`` by
   ``sum over nodes of ingress == FullyConnected crossing count``.
 
 See accelforge/model/_looptree/reuse/isl/distributed/README.md.
@@ -29,27 +31,24 @@ import islpy as isl
 from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
     Fill,
     Occupancy,
-    Tag,
     SpatialTag,
-    TemporalTag,
 )
 from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import (
     XYRoutingMulticastModel,
     StarMulticastModel,
     FullyConnectedMulticastModel,
+    # Design: this used to be a local copy (identical signature/behavior) kept
+    # in sync by hand; now that the source module exposes one module-level,
+    # `int`-returning `_eval_const` (D6), the test suite imports it directly
+    # instead of re-deriving the "evaluate a parameter-free PwQPolynomial at
+    # the space's zero point" idiom a second time.
+    _eval_const,
 )
-from .util import load_solutions
 
-
-def construct_spacetime(dims: list) -> list[Tag]:
-    """Convert a list of dim-tag dicts (from yaml) into ``Tag`` objects."""
-    spacetime: list[Tag] = []
-    for dim in dims:
-        if dim["type"] == "Temporal":
-            spacetime.append(TemporalTag())
-        elif dim["type"] == "Spatial":
-            spacetime.append(SpatialTag(dim["spatial_dim"], dim["target"]))
-    return spacetime
+# `construct_spacetime` and `load_solutions` are hoisted into `helpers.py`
+# (single-sourced there, see that module's docstring for the run-from-repo-root
+# import requirement) rather than redefined/re-imported locally here.
+from .helpers import construct_spacetime, load_solutions
 
 
 # 1-D Manhattan distance over a line of GPUs, for the star/all-to-all cases.
@@ -57,11 +56,6 @@ _MANHATTAN_1D: str = (
     "{ [noc[gd] -> noc[gs]] -> hops[gd - gs] : gd >= gs;"
     "  [noc[gd] -> noc[gs]] -> hops[gs - gd] : gd <  gs }"
 )
-
-
-def _eval_const(pwq: isl.PwQPolynomial) -> int:
-    """Evaluate a parameter-free piecewise quasi-polynomial to an int."""
-    return int(str(pwq.eval(isl.Point.zero(pwq.domain().get_space()))))
 
 
 class TestXYRoutingEdgePressure(unittest.TestCase):
@@ -72,8 +66,25 @@ class TestXYRoutingEdgePressure(unittest.TestCase):
 
     def test_load_sums_to_hops(self):
         """
-        Invariant: summed per-edge load == total XY hops (the cross-check that the
-        edge decomposition is exact). Validated against the trusted A-F totals.
+        Summed per-edge load matches the trusted A-F hop totals.
+
+        # NOTE (post-D5 API/semantics change): before D5, `XYRoutingMulticastModel`
+        # computed `hops` via a standalone `_cost_xy` and `edge_pressure` via a
+        # *second*, independent traversal of `mcns`; this test's "sum(load) ==
+        # hops" check was therefore a genuine cross-implementation invariant --
+        # a bug in either path's edge decomposition would surface here even if
+        # each path's own totals looked locally correct. D5 replaced that with
+        # one aggregation path: `apply()` now computes `hops = _const_pwq(
+        # pressure.total())` *from* the same `EdgePressure`, so `pressure.total()
+        # == info.hops` is true by construction, not by cross-checked
+        # computation -- the invariant, as originally framed, is now
+        # tautological. What is *not* tautological is comparing `pressure.total()`
+        # against the yaml's hand-derived `xy_routing_hops` oracle (an
+        # independent, human-computed number, unrelated to how the code is
+        # wired) -- that is what this test still checks, so it keeps its
+        # regression value as a per-case oracle check even though it can no
+        # longer catch a hops/edge_pressure disagreement (there structurally
+        # isn't one to catch anymore).
         """
         for test in self.testcases:
             expected = test["expected"]["xy_routing_hops"]
@@ -83,7 +94,7 @@ class TestXYRoutingEdgePressure(unittest.TestCase):
             fill = Fill(dim_tags, test["fill"])
             occ = Occupancy(dim_tags, test["occ"])
             model = XYRoutingMulticastModel(test["dist_fn"])
-            pressure = model.edge_pressure(fill, occ)
+            pressure = model.apply(0, fill, occ).edge_pressure
             assert pressure.total() == expected, (
                 f"Σ edge load {pressure.total()} != hops {expected}"
             )
@@ -99,8 +110,9 @@ class TestXYRoutingEdgePressure(unittest.TestCase):
         f = next(t for t in self.testcases if t["expected"]["xy_routing_hops"] == 448)
         dim_tags = construct_spacetime(f["dims"])
         model = XYRoutingMulticastModel(f["dist_fn"])
-        pressure = model.edge_pressure(Fill(dim_tags, f["fill"]),
-                                       Occupancy(dim_tags, f["occ"]))
+        pressure = model.apply(
+            0, Fill(dim_tags, f["fill"]), Occupancy(dim_tags, f["occ"])
+        ).edge_pressure
         assert pressure.bottleneck() == 7
         assert pressure.eval_edge("yedge_u", [0, 6]) == 7  # top link, all 7 below
         assert pressure.eval_edge("yedge_d", [0, 1]) == 6  # links below row 1
@@ -125,7 +137,7 @@ class TestXYRoutingEdgePressure(unittest.TestCase):
             "                       or (c=2 and x=0 and y=0) }")))
         fill = Fill(tags, isl.Map.read_from_str(
             isl.DEFAULT_CONTEXT, "{ noc[x,y]->data[c] : x=0 and y=3 and 0<=c<3 }"))
-        pressure = XYRoutingMulticastModel(manhattan).edge_pressure(fill, occ)
+        pressure = XYRoutingMulticastModel(manhattan).apply(0, fill, occ).edge_pressure
         assert pressure.eval_edge("yedge_u", [0, 2]) == 3  # top link, all three
         assert pressure.bottleneck() == 3                  # NOT 1 or 2
 
@@ -140,8 +152,9 @@ class TestXYRoutingEdgePressure(unittest.TestCase):
                 continue
             dim_tags = construct_spacetime(test["dims"])
             model = XYRoutingMulticastModel(test["dist_fn"])
-            pressure = model.edge_pressure(Fill(dim_tags, test["fill"]),
-                                           Occupancy(dim_tags, test["occ"]))
+            pressure = model.apply(
+                0, Fill(dim_tags, test["fill"]), Occupancy(dim_tags, test["occ"])
+            ).edge_pressure
             assert pressure.bottleneck() == 1
 
 
@@ -168,7 +181,7 @@ class TestStarSpokePressure(unittest.TestCase):
         """
         for n in (4, 8):
             fill, occ, dist_fn = self._all_to_all(n)
-            pressure = StarMulticastModel(dist_fn).edge_pressure(fill, occ)
+            pressure = StarMulticastModel(dist_fn).apply(0, fill, occ).edge_pressure
             for node in range(n):
                 assert pressure.eval_edge("spoke_in", [node]) == n - 1
                 assert pressure.eval_edge("spoke_out", [node]) == 1
@@ -181,7 +194,7 @@ class TestStarSpokePressure(unittest.TestCase):
         """
         for n in (4, 8):
             fill, occ, dist_fn = self._all_to_all(n)
-            pressure = StarMulticastModel(dist_fn).edge_pressure(fill, occ)
+            pressure = StarMulticastModel(dist_fn).apply(0, fill, occ).edge_pressure
             total_ingress = sum(pressure.eval_edge("spoke_in", [g]) for g in range(n))
             fc_hops = _eval_const(
                 FullyConnectedMulticastModel(dist_fn).apply(0, fill, occ).hops

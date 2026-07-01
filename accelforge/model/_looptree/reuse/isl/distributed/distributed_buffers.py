@@ -77,10 +77,10 @@ class EdgePressure:
         self.load.foreach_pw_qpolynomial(pieces.append)
         total = 0
         for pwq in pieces:
-            summed: isl.PwQPolynomial = pwq.sum()
-            total += int(
-                str(summed.eval(isl.Point.zero(summed.domain().get_space())))
-            )
+            # `.sum()` collapses the edge-indexed domain away (summing over every
+            # edge of this piece), leaving a 0-set-dim, parameter-free
+            # polynomial -- exactly `_eval_const`'s precondition.
+            total += _eval_const(pwq.sum())
         return total
 
     def bottleneck(self) -> int:
@@ -134,6 +134,169 @@ class EdgePressure:
         return 0
 
 
+def _eval_const(pwq: isl.PwQPolynomial) -> int:
+    """
+    Evaluate a parameter-free, already-reduced piecewise quasi-polynomial to its
+    scalar value.
+
+    # Design (D6): this idiom -- evaluate at the space's zero point to pull a
+    # single int out of an ``isl.PwQPolynomial`` -- previously existed four times
+    # with drifting return types: ``EdgePressure.total`` did it inline and
+    # returned ``int``, ``XYRoutingMulticastModel._eval_const`` returned the raw
+    # ``isl.Val`` (forcing every caller to convert), ``_cost_star_multicast``
+    # inlined a variant that accumulated ``isl.Val``s, and the test suite had its
+    # own copy. Consolidating to one module-level, ``int``-returning helper means
+    # every call site agrees on both the operation and its return type, and the
+    # test suite can import this directly instead of re-deriving it.
+
+    Parameters
+    ----------
+    pwq:
+        A piecewise quasi-polynomial with **no free set dimensions** (its domain
+        is a point, up to parameters) and **no parameters** -- e.g. the output of
+        ``.card()`` on a parameter-free map/set, ``.sum()`` on a
+        parameter-free polynomial (which sums away every set dimension), or a
+        constant built by ``_const_pwq``. This is the "parameter-free regime"
+        every distributed model in this module is validated in; a piecewise
+        quasi-polynomial that still varies over real domain points or
+        parameters is evaluated only at the space's zero point, which is
+        **not** meaningful for such inputs -- callers are responsible for
+        reducing to a true constant first (via ``.sum()``/``.card()``).
+
+    Returns
+    -------
+    The polynomial's constant value as a Python ``int``.
+
+    Notes
+    -----
+    ``isl.Val`` has no direct ``int()`` conversion in this islpy build (it
+    raises ``TypeError``); round-tripping through ``str()`` is the working
+    idiom already used throughout this module and ``EdgePressure``.
+    """
+    return int(str(pwq.eval(isl.Point.zero(pwq.domain().get_space()))))
+
+
+def _const_pwq(value: int) -> isl.PwQPolynomial:
+    """
+    Build a 0-dimensional, parameter-free constant ``isl.PwQPolynomial`` equal to
+    ``value``.
+
+    # Design (D5): ``_cost_xy`` and ``_cost_star_multicast`` each independently
+    # built this "wrap an int as a constant PwQPolynomial" idiom (zero-dim space
+    # + ``QPolynomial.val_on_domain`` + ``PwQPolynomial.from_qpolynomial``) right
+    # before returning. Both models now compute their cost by aggregating an
+    # ``EdgePressure`` (``pressure.total()``) and need to hand that scalar back
+    # as a ``TransferInfo.hops`` polynomial, so this is factored out once rather
+    # than duplicated in ``XYRoutingMulticastModel.apply`` and
+    # ``StarMulticastModel.apply``.
+
+    Parameters
+    ----------
+    value:
+        The integer the returned polynomial evaluates to everywhere (it has no
+        domain dimensions or parameters to vary over).
+
+    Returns
+    -------
+    An ``isl.PwQPolynomial`` over the empty (0-dim, 0-param) space, suitable
+    wherever a parameter-free ``hops`` cost is expected. Round-trips through
+    ``_eval_const`` back to ``value``.
+    """
+    ctx = isl.DEFAULT_CONTEXT
+    zero_dim: isl.Space = isl.Space.set_alloc(ctx, 0, 0)
+    return isl.PwQPolynomial.from_qpolynomial(
+        isl.QPolynomial.val_on_domain(zero_dim, isl.Val(value, ctx))
+    )
+
+
+def _covered_fills(mcs: isl.Map) -> isl.Map:
+    """
+    Recover the ``{ dst -> data }`` fills actually covered by a matched
+    multicast source, from ``identify_mesh_casts``'s result.
+
+    # Design (D2): all four models used to return
+    # ``fulfilled_fill = fills`` (the *entire* fill map, unconditionally) and
+    # ``unfulfilled_fill = fills.map_.subtract(fills.map_)`` (always empty --
+    # subtracting a map from itself). That silently dropped the case
+    # ``identify_mesh_casts`` is explicitly built to detect: a destination
+    # requesting a datum that *no* source holds simply never appears in ``mcs``,
+    # so it should show up as unfulfilled, not as (falsely) fulfilled.
+    #
+    # ``mcs`` is ``{ [data] -> [dst -> src] }`` (one entry per *matched*
+    # dst/datum pair -- see ``identify_mesh_casts``). To turn that into the
+    # ``{ dst -> data }`` shape that lines up with ``fills.map_`` (also
+    # ``{ dst -> data }``, see ``Fill``/``Occupancy`` in
+    # ``mapping_to_isl/types.py``) for a direct ``intersect``/``subtract``:
+    #   1. ``range_reverse()``      { data -> [dst -> src] } -> { data -> [src -> dst] }
+    #   2. ``uncurry()``            { data -> [src -> dst] } -> { [data -> src] -> dst }
+    #   3. ``domain_factor_domain()``  { [data -> src] -> dst } -> { data -> dst }
+    #      (keeps the *domain*'s domain factor -- i.e. drops ``src`` -- while
+    #      preserving the ``-> dst`` range; this is exactly "forget which
+    #      source served it, keep dst and data".)
+    #   4. ``reverse()``            { data -> dst } -> { dst -> data }
+    # Empirically verified against a hand-built example (see the scratchpad
+    # snippet referenced in the PR/commit that introduced this function) before
+    # being wired in here.
+
+    Parameters
+    ----------
+    mcs:
+        ``{ [data] -> [dst -> src] }``, the multicast-network map returned by
+        ``identify_mesh_casts``.
+
+    Returns
+    -------
+    ``{ dst -> data }`` -- every (destination, datum) pair that has a matched
+    source in ``mcs``. A model's fill partition is then
+    ``fulfilled = fills.map_.intersect(covered)`` and
+    ``unfulfilled = fills.map_.subtract(covered)``.
+    """
+    return mcs.range_reverse().uncurry().domain_factor_domain().reverse()
+
+
+def _mesh_node_tuple(mcns: isl.Map) -> tuple[str, int]:
+    """
+    Read the spacetime/node tuple's name and dimensionality off a multicast
+    network map, instead of assuming a hardcoded name.
+
+    # Design (D1): ``XYRoutingMulticastModel._directed_mesh_links`` and
+    # ``StarMulticastModel._spoke_loads`` used to hardcode the ISL tuple name
+    # ``'noc'`` directly into every map string they built
+    # (e.g. ``"{ noc[x, y] -> ... }"``). Any caller using a different spacetime
+    # tuple name (real pipelines derive names from occupancy maps -- see
+    # ``SimpleLinkTransferModel.apply`` in ``spatial.py``, which reads
+    # ``occs.map_.get_tuple_name(isl.dim_type.in_)`` rather than assuming a
+    # literal) would hit a raw ISL assertion deep inside these helpers instead
+    # of a clear error, because the name in the caller's maps would silently
+    # fail to match the literal ``'noc'`` baked into the helper's map strings.
+    # Reading the name back off ``mcns`` (already threaded through
+    # ``identify_mesh_casts`` from the caller's ``occs``/``fills``) and
+    # interpolating it into every map string generalizes both helpers to any
+    # tuple name, following the same precedent.
+
+    Parameters
+    ----------
+    mcns:
+        ``{ [data] -> [dst -> src] }``, the multicast-network map returned by
+        ``identify_mesh_casts``. Both ``dst`` and ``src`` share the same node
+        tuple (``identify_mesh_casts``'s caller contract requires
+        ``src_occupancy``'s and ``dst_fill``'s domains to name the same
+        spacetime tuple), so it suffices to read the name/dims off one side
+        (``dst``, via ``.range().unwrap()``'s domain).
+
+    Returns
+    -------
+    ``(name, dims)``: the node tuple's ISL tuple name (e.g. ``"noc"`` or
+    ``"pe"``) and its dimensionality. Correct even when ``mcns`` is empty --
+    ISL preserves space/tuple-name information on empty relations (verified
+    empirically), so this does not require any data to be present.
+    """
+    node_space: isl.Map = mcns.range().unwrap()
+    name: str = node_space.get_tuple_name(isl.dim_type.in_)
+    dims: int = node_space.dim(isl.dim_type.in_)
+    return name, dims
+
+
 def _edge_pressure_from_links(edge_maps: list[isl.Map]) -> EdgePressure:
     """
     Turn directed flow maps into an ``EdgePressure``.
@@ -178,10 +341,27 @@ def identify_mesh_casts(
         An isl.Map of the form { [dst] -> [data] } corresponding to the data requested
         at the element at space `dst`.
     dist_fn:
-        A distance function { [src -> dst] -> [hops] } that accepts two points in
-        space, corresponding to the `src` and `dst`, and returns the distance
+        A distance function { [dst -> src] -> [hops] } that accepts two points in
+        space, corresponding to the `dst` and `src`, and returns the distance
         between the two points in terms of `hops`, a quantized atomic distance of
         data transmission cost.
+
+        # Design (D3): this Parameters entry previously read `{ [src -> dst] ->
+        # [hops] }`, the opposite of what the code below actually does --
+        # `fills_to_matches.apply_range(dist_fn)` composes a `{ ... -> [dst ->
+        # src] }` map with `dist_fn`, which only type-checks (and only produces
+        # the intended "distance from this dst to this candidate src" value) if
+        # `dist_fn`'s domain is `[dst -> src]`. Every concrete `dist_fn` in the
+        # test suite and every caller in `distributed_buffers.py` already builds
+        # it this way; this is a documentation-only fix, no behavior change.
+
+        Caller contract: the tuple names of `dst_fill`'s and `src_occupancy`'s
+        domains (the spacetime/node tuple, e.g. `noc[x, y]`) must match the
+        corresponding tuple names in `dist_fn`'s domain -- ISL will raise on a
+        name mismatch when `dist_fn` is applied. `dist_fn`'s range tuple must be
+        named `hops` (consumers such as `FullyConnectedMulticastModel` and
+        `StarMulticastModel` filter on `{ hops[h] : h >= 1 }` to distinguish
+        self-deliveries from fabric-crossing ones).
 
     Returns
     -------
@@ -338,19 +518,30 @@ class HypercubeMulticastModel(TransferModel):
         -------
         Fills that were fulfilled, Fills that were unfilled, and parent reads per
         position in spacetime. Then, gets hops per timestep.
+
+        `fulfilled_fill`/`unfulfilled_fill` partition `fills` by whether
+        `identify_mesh_casts` found a matched source for that (dst, data) pair
+        (D2) -- a fill with no source holding its datum is `unfulfilled_fill`,
+        not silently treated as fulfilled. `edge_pressure` is left at its
+        default (`None`): the hypercube model costs a convex bounding box, which
+        has no notion of individual links to report pressure on (D4).
         """
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_mesh_cast_hypercube(mcs)
+        # { dst -> data } fills actually covered by a matched source (D2).
+        covered: isl.Map = _covered_fills(mcs)
 
         # TODO: Read once from all buffers, assert that
         # card(mcs) == tensor_size * duplication factor
         n_meshcasts: int = mcs.card()
         return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_),
+            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
             parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
             hops=result,
             link_transfer=True,
+            # No per-link decomposition defined for the hypercube abstraction.
+            edge_pressure=None,
         )
 
     def _cost_mesh_cast_hypercube(self, mcns: isl.Map) -> int:
@@ -459,16 +650,26 @@ class FullyConnectedMulticastModel(TransferModel):
         Returns
         -------
         A TransferInfo whose `hops` is the number of fabric-crossing deliveries.
+        `fulfilled_fill`/`unfulfilled_fill` partition `fills` by whether
+        `identify_mesh_casts` matched a source (D2). `edge_pressure` is left at
+        its default (`None`): this model treats the fabric as a
+        contention-free full mesh (one dedicated link per pair), so there is no
+        per-link pressure to report -- see `StarMulticastModel` for the spokes
+        realization of the same fabric that does expose it (D4).
         """
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_fully_connected(mcs)
+        # { dst -> data } fills actually covered by a matched source (D2).
+        covered: isl.Map = _covered_fills(mcs)
 
         return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_),
+            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
             parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
             hops=result,
             link_transfer=True,
+            # No per-link decomposition defined for the full-mesh abstraction.
+            edge_pressure=None,
         )
 
     def _cost_fully_connected(self, mcns: isl.Map) -> isl.PwQPolynomial:
@@ -529,8 +730,15 @@ class XYRoutingMulticastModel(TransferModel):
 
     Preconditions
     -------------
-    The NoC is two-dimensional, ``noc[x, y]`` (no temporal dimensions in the
-    spacetime), with ``x`` routed before ``y``. N-dimensional dimension-order
+    The NoC is two-dimensional (no temporal dimensions in the spacetime), with
+    the first coordinate routed before the second (X then Y). The node tuple's
+    *name* is generic -- read off ``fills``/``occs`` at ``apply`` time rather
+    than hardcoded (D1), so any name works (e.g. ``noc[x, y]`` or
+    ``pe[x, y]``) as long as ``fills``, ``occs``, and ``self.dist_fn`` all agree
+    on it (see the caller contract on ``identify_mesh_casts``'s ``dist_fn``
+    parameter). The tuple must be exactly 2-D; ``apply`` raises ``ValueError``
+    otherwise (a non-2-D tuple used to reach a raw, opaque ISL assertion deep
+    inside ``_directed_mesh_links`` instead). N-dimensional dimension-order
     routing is a future extension. The returned cost is a parameter-free constant
     (the validated regime); parametric spacetimes are not yet supported.
 
@@ -559,7 +767,7 @@ class XYRoutingMulticastModel(TransferModel):
         ----------
         buff:
             The buffer whose spatial analysis is being considered. Unused; the
-            topology is captured by ``dist_fn`` and the ``noc[x, y]`` coordinates.
+            topology is captured by ``dist_fn`` and the node coordinates.
         fills:
             The fill of `buffer` across time from parents.
         occs:
@@ -567,44 +775,45 @@ class XYRoutingMulticastModel(TransferModel):
 
         Returns
         -------
-        A TransferInfo whose `hops` is the total XY-routing link count.
+        A TransferInfo whose `hops` is the total XY-routing link count and whose
+        `edge_pressure` is the per-directed-mesh-link decomposition backing it
+        (``xedge_r``/``xedge_l``/``yedge_u``/``yedge_d`` -- see
+        `_directed_mesh_links`). `hops` is derived from the same
+        `EdgePressure` (`pressure.total()`, D5) rather than recomputed
+        independently, so the two can never disagree.
+        `fulfilled_fill`/`unfulfilled_fill` partition `fills` by whether
+        `identify_mesh_casts` matched a source (D2).
+
+        Raises
+        ------
+        ValueError
+            If the node tuple embedded in `fills`/`occs` is not exactly 2-D
+            (XY routing is only defined for a 2-D mesh; see `_directed_mesh_links`).
         """
+        # Design (D4): `identify_mesh_casts` is called exactly once per `apply`;
+        # both `hops` and `edge_pressure` are derived from this single `mcs`
+        # (previously the now-removed `edge_pressure` method recomputed it a
+        # second time from scratch, wasting the ISL/barvinok work and risking
+        # the two falling out of sync if `dist_fn`/inputs were mutated between
+        # calls).
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
-        result: isl.PwQPolynomial = self._cost_xy(mcs)
+        links: list[isl.Map] = self._directed_mesh_links(mcs)
+        pressure: EdgePressure = _edge_pressure_from_links(links)
+        # (D5) `hops` is the aggregation `EdgePressure.total()` already performs
+        # (sum of per-edge loads == total link count), wrapped as the constant
+        # `TransferInfo.hops` expects -- not a second, independent aggregation.
+        hops: isl.PwQPolynomial = _const_pwq(pressure.total())
+        # { dst -> data } fills actually covered by a matched source (D2).
+        covered: isl.Map = _covered_fills(mcs)
 
         return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_),
+            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
             parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),
-            hops=result,
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
+            hops=hops,
             link_transfer=True,
+            edge_pressure=pressure,
         )
-
-    def edge_pressure(self, fills: Fill, occs: Occupancy) -> EdgePressure:
-        """
-        Per-edge memory pressure (link load) of the XY-routing transfer.
-
-        After ``identify_mesh_casts`` fixes the ``[src] -> [dst]`` pairs, this
-        decomposes each multicast tree onto the directed mesh links it traverses
-        and counts, per link, how many trees cross it. The result is the load a
-        per-link bandwidth limit acts on; ``EdgePressure.bottleneck`` is the
-        busiest link.
-
-        Parameters
-        ----------
-        fills:
-            The fill of `buffer` across time from parents.
-        occs:
-            The occupancy of `buffer` across time.
-
-        Returns
-        -------
-        An ``EdgePressure`` over the four directed mesh-edge types
-        (``xedge_r``/``xedge_l``/``yedge_u``/``yedge_d``). Its ``total`` equals
-        this model's ``hops`` -- the cross-check that the decomposition is exact.
-        """
-        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
-        return _edge_pressure_from_links(self._directed_mesh_links(mcs))
 
     def _directed_mesh_links(self, mcns: isl.Map) -> list[isl.Map]:
         """
@@ -629,9 +838,32 @@ class XYRoutingMulticastModel(TransferModel):
         is the rightward link in row ``ys`` between columns ``t`` and ``t + 1``;
         ``yedge_u[x, t]`` is the upward link in column ``x`` between rows ``t`` and
         ``t + 1`` (and ``_l`` / ``_d`` the opposite directions).
+
+        Raises
+        ------
+        ValueError
+            If the node tuple embedded in ``mcns`` is not exactly 2-D. (D1) Every
+            map string below is built assuming a 2-D ``name[x, y]`` node tuple;
+            a 3-D-or-more tuple (e.g. ``noc[x, y, t]``) used to fail deep inside
+            an ``isl.Map.read_from_str``/``apply_range`` call with a raw,
+            uninformative ISL assertion instead of a clear error here.
         """
         ctx = isl.DEFAULT_CONTEXT
-        # { [data -> src] -> dst noc[x, y] } and a handle on the source per tree.
+        # Design (D1): read the node tuple's name (and validate its
+        # dimensionality) off `mcns` instead of assuming the literal `'noc'`,
+        # following the precedent in `spatial.py`'s
+        # `SimpleLinkTransferModel.apply` (`occs.map_.get_tuple_name(...)`).
+        # Every map string below interpolates `name` so this method works for
+        # any 2-D node tuple, not just one literally called `noc`.
+        name, dims = _mesh_node_tuple(mcns)
+        if dims != 2:
+            raise ValueError(
+                "XYRoutingMulticastModel requires a 2-D node tuple "
+                f"(X then Y); got tuple '{name}' with {dims} dimensions. "
+                "N-dimensional dimension-order routing is not yet supported."
+            )
+
+        # { [data -> src] -> dst name[x, y] } and a handle on the source per tree.
         per_src: isl.Map = mcns.range_reverse().uncurry()
         keymap: isl.Map = per_src.domain().unwrap().range_map()  # [data->src] -> src
 
@@ -639,13 +871,14 @@ class XYRoutingMulticastModel(TransferModel):
         # Key each destination's y by its column: { [data->src->col] -> yv[y] }.
         dst_y: isl.Map = per_src.apply_range(
             isl.Map.read_from_str(
-                ctx, "{ noc[x, y] -> [col[x'] -> yv[y']] : x' = x and y' = y }"
+                ctx,
+                "{ %s[x, y] -> [col[x'] -> yv[y']] : x' = x and y' = y }" % name,
             )
         ).uncurry()
         # Inject the source row ys into every destination column so each Y segment
         # starts from the source.
         src_y: isl.Map = keymap.apply_range(
-            isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> yv[ys] }")
+            isl.Map.read_from_str(ctx, "{ %s[xs, ys] -> yv[ys] }" % name)
         )
         src_row: isl.Map = dst_y.domain().unwrap().range_product(src_y).uncurry()
         col_ys: isl.Map = dst_y.union(src_row)
@@ -663,7 +896,7 @@ class XYRoutingMulticastModel(TransferModel):
         # { [data->src] -> [[col[x] -> p[t]] -> ysv[ys]] }.
         y_with_ys: isl.Map = ylinks.curry().range_product(
             keymap.apply_range(
-                isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> ysv[ys] }")
+                isl.Map.read_from_str(ctx, "{ %s[xs, ys] -> ysv[ys] }" % name)
             )
         )
         yedge_u: isl.Map = y_with_ys.apply_range(
@@ -682,10 +915,10 @@ class XYRoutingMulticastModel(TransferModel):
         # explicitly, not from calculate_extents_per_dim, which keeps only the
         # extent length and discards which links are used.)
         col_x: isl.Map = per_src.apply_range(
-            isl.Map.read_from_str(ctx, "{ noc[x, y] -> cx[x] }")
+            isl.Map.read_from_str(ctx, "{ %s[x, y] -> cx[x] }" % name)
         ).union(
             keymap.apply_range(
-                isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> cx[xs] }")
+                isl.Map.read_from_str(ctx, "{ %s[xs, ys] -> cx[xs] }" % name)
             )
         )
         xlinks: isl.Map = col_x.lexmin().apply_range(
@@ -699,7 +932,7 @@ class XYRoutingMulticastModel(TransferModel):
         # part of the edge identity: { [data->src] -> [ex[t] -> xy[xs, ys]] }.
         x_with_src: isl.Map = xlinks.range_product(
             keymap.apply_range(
-                isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> xy[xs, ys] }")
+                isl.Map.read_from_str(ctx, "{ %s[xs, ys] -> xy[xs, ys] }" % name)
             )
         )
         xedge_r: isl.Map = x_with_src.apply_range(
@@ -714,39 +947,6 @@ class XYRoutingMulticastModel(TransferModel):
         )
 
         return [xedge_r, xedge_l, yedge_u, yedge_d]
-
-    def _cost_xy(self, mcns: isl.Map) -> isl.PwQPolynomial:
-        """
-        Total XY-routing link count for the multicast networks `mcns`.
-
-        Equals the sum of the per-edge loads from ``_directed_mesh_links`` (every
-        directed link of every tree counted once), returned as a parameter-free
-        constant. This is the X-phase links (per source row) plus the Y-phase
-        links (per destination column).
-
-        Parameters
-        ----------
-        mcns:
-            Multicast networks { [data] -> [dst -> src] } from `identify_mesh_casts`,
-            grouped per destination by nearest source.
-
-        Returns
-        -------
-        The total link count as a constant piecewise quasi-polynomial.
-        """
-        ctx = isl.DEFAULT_CONTEXT
-        total: isl.Val = isl.Val.zero(ctx)
-        for edge_map in self._directed_mesh_links(mcns):
-            total = total.add(self._eval_const(edge_map.wrap().card()))
-        zero_dim: isl.Space = isl.Space.set_alloc(ctx, 0, 0)
-        return isl.PwQPolynomial.from_qpolynomial(
-            isl.QPolynomial.val_on_domain(zero_dim, total)
-        )
-
-    @staticmethod
-    def _eval_const(pwq: isl.PwQPolynomial) -> isl.Val:
-        """Evaluate a parameter-free piecewise quasi-polynomial to its value."""
-        return pwq.eval(isl.Point.zero(pwq.domain().get_space()))
 
 
 class StarMulticastModel(TransferModel):
@@ -806,47 +1006,38 @@ class StarMulticastModel(TransferModel):
         Returns
         -------
         A TransferInfo whose `hops` is the total spoke traversals (injections plus
-        deliveries). Per-spoke load is available via ``edge_pressure``.
+        deliveries) and whose `edge_pressure` is the per-spoke decomposition
+        backing it (``spoke_in[n]``/``spoke_out[n]`` -- see `_spoke_loads`).
+        `hops` is derived from the same `EdgePressure` (`pressure.total()`, D5)
+        rather than recomputed independently, so the two can never disagree.
+        `fulfilled_fill`/`unfulfilled_fill` partition `fills` by whether
+        `identify_mesh_casts` matched a source (D2).
         """
-        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
-        result: isl.PwQPolynomial = self._cost_star_multicast(mcs)
-
-        return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_),
-            parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),
-            hops=result,
-            link_transfer=True,
-        )
-
-    def edge_pressure(self, fills: Fill, occs: Occupancy) -> EdgePressure:
-        """
-        Per-edge memory pressure (spoke load) of the star transfer.
-
-        After ``identify_mesh_casts`` fixes the ``[src] -> [dst]`` pairs, this
-        reports, per node spoke, how much data crosses it -- egress (data the node
-        sources into the switch) and ingress (data it receives) as two directed
-        edges. ``EdgePressure.bottleneck`` is the busiest spoke, the link a
-        per-spoke bandwidth limit binds on first (e.g. for an N-way all-to-all the
-        ingress spokes are hottest at ``N - 1``).
-
-        Parameters
-        ----------
-        fills:
-            The fill of `buffer` across time from parents.
-        occs:
-            The occupancy of `buffer` across time.
-
-        Returns
-        -------
-        An ``EdgePressure`` over ``spoke_in[n]`` (ingress) and ``spoke_out[n]``
-        (egress) edges.
-        """
+        # Design (D4): `identify_mesh_casts` is called exactly once per `apply`;
+        # both `hops` and `edge_pressure` are derived from this single `mcs`
+        # (previously the now-removed `edge_pressure` method recomputed it a
+        # second time from scratch).
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         ingress, egress = self._spoke_loads(mcs)
-        acc = isl.UnionPwQPolynomial.from_pw_qpolynomial(ingress)
-        acc = acc.add(isl.UnionPwQPolynomial.from_pw_qpolynomial(egress))
-        return EdgePressure(acc)
+        acc: isl.UnionPwQPolynomial = isl.UnionPwQPolynomial.from_pw_qpolynomial(
+            ingress
+        ).add(isl.UnionPwQPolynomial.from_pw_qpolynomial(egress))
+        pressure: EdgePressure = EdgePressure(acc)
+        # (D5) `hops` is the aggregation `EdgePressure.total()` already performs
+        # (sum(ingress) + sum(egress)), wrapped as the constant `TransferInfo.hops`
+        # expects -- not a second, independent aggregation.
+        hops: isl.PwQPolynomial = _const_pwq(pressure.total())
+        # { dst -> data } fills actually covered by a matched source (D2).
+        covered: isl.Map = _covered_fills(mcs)
+
+        return TransferInfo(
+            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
+            parent_reads=Reads(occs.tags, mcs),
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
+            hops=hops,
+            link_transfer=True,
+            edge_pressure=pressure,
+        )
 
     def _spoke_loads(
         self, mcns: isl.Map
@@ -865,6 +1056,14 @@ class StarMulticastModel(TransferModel):
         node receives }`` and ``egress`` is ``{ spoke_out[n] -> #data the node
         sources }``, counting only fabric-crossing (>= 1 hop) deliveries.
         """
+        # Design (D1): read the node tuple's name off `mcns` instead of assuming
+        # the literal `'noc'`, following the same precedent as
+        # `XYRoutingMulticastModel._directed_mesh_links`. Unlike XY, the star
+        # model has no dimensionality requirement -- `dims` (used below to build
+        # the `spoke_in`/`spoke_out` relabeling) is already read generically off
+        # `ingress_nodes`, so only the hardcoded name needed fixing here.
+        name, _dims = _mesh_node_tuple(mcns)
+
         # Keep only deliveries that actually cross the fabric (>= 1 hop); a node
         # already holding its datum loads no spoke.
         crossing_hops: isl.Set = isl.Set.read_from_str(
@@ -877,8 +1076,8 @@ class StarMulticastModel(TransferModel):
         cur: isl.Map = crossing.reverse().curry()
         # Distinct (node, data) pairs per direction. A source injects each datum
         # once (multicast fans out at the switch); a destination receives each once.
-        ingress_nodes: isl.Map = cur.range_factor_range()  # { noc[dst] -> data }
-        egress_nodes: isl.Map = cur.range().unwrap()       # { noc[src] -> data }
+        ingress_nodes: isl.Map = cur.range_factor_range()  # { name[dst] -> data }
+        egress_nodes: isl.Map = cur.range().unwrap()       # { name[src] -> data }
 
         # Relabel the node tuple to the directed spoke edge, then count data per
         # spoke. { spoke_in[n] -> #data } and { spoke_out[n] -> #data }.
@@ -886,38 +1085,12 @@ class StarMulticastModel(TransferModel):
         idx: str = ", ".join(f"i{k}" for k in range(dims))
         ingress: isl.PwQPolynomial = ingress_nodes.apply_domain(
             isl.Map.read_from_str(
-                isl.DEFAULT_CONTEXT, "{ noc[%s] -> spoke_in[%s] }" % (idx, idx)
+                isl.DEFAULT_CONTEXT, "{ %s[%s] -> spoke_in[%s] }" % (name, idx, idx)
             )
         ).card()
         egress: isl.PwQPolynomial = egress_nodes.apply_domain(
             isl.Map.read_from_str(
-                isl.DEFAULT_CONTEXT, "{ noc[%s] -> spoke_out[%s] }" % (idx, idx)
+                isl.DEFAULT_CONTEXT, "{ %s[%s] -> spoke_out[%s] }" % (name, idx, idx)
             )
         ).card()
         return ingress, egress
-
-    def _cost_star_multicast(self, mcns: isl.Map) -> isl.PwQPolynomial:
-        """
-        Total spoke traversals for the multicast networks `mcns`.
-
-        Each datum costs one egress-spoke hop per injecting source plus one
-        ingress-spoke hop per receiving destination, so the total is
-        ``sum(egress) + sum(ingress)``. Returned as a parameter-free constant.
-
-        Parameters
-        ----------
-        mcns:
-            Multicast networks { [data] -> [dst -> src] } from `identify_mesh_casts`.
-        """
-        ctx = isl.DEFAULT_CONTEXT
-        ingress, egress = self._spoke_loads(mcns)
-        total: isl.Val = isl.Val.zero(ctx)
-        for load in (ingress, egress):
-            summed: isl.PwQPolynomial = load.sum()
-            total = total.add(
-                summed.eval(isl.Point.zero(summed.domain().get_space()))
-            )
-        zero_dim: isl.Space = isl.Space.set_alloc(ctx, 0, 0)
-        return isl.PwQPolynomial.from_qpolynomial(
-            isl.QPolynomial.val_on_domain(zero_dim, total)
-        )

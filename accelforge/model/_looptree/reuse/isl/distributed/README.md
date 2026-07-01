@@ -17,11 +17,11 @@ implementations:
 
 | Model | File | Shape |
 |-------|------|-------|
-| `SimpleLinkTransferModel` | [`../spatial.py`](../spatial.py) (line ~86) | Neighbor-to-neighbor mesh; no constructor state |
-| `HypercubeMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) (line ~157) | Distance-aware worst-case multicast; takes a `dist_fn` |
-| `FullyConnectedMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) (line ~265) | Fully-connected fabric; 1 hop per fabric crossing (see §6) |
-| `XYRoutingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | XY / dimension-order routing on a 2-D mesh; X-then-Y multicast tree (see §7) |
-| `StarMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | **WIP / incomplete** — not yet usable |
+| `SimpleLinkTransferModel` | [`../spatial.py`](../spatial.py) | Neighbor-to-neighbor mesh; no constructor state |
+| `HypercubeMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Distance-aware worst-case multicast; takes a `dist_fn` |
+| `FullyConnectedMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Fully-connected fabric; 1 hop per fabric crossing (see §6) |
+| `XYRoutingMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | XY / dimension-order routing on a 2-D mesh; X-then-Y multicast tree; per-link `EdgePressure` (see §7–§8) |
+| `StarMulticastModel` | [`distributed_buffers.py`](distributed_buffers.py) | Star / central-switch — the spokes realization of a fully-connected fabric; per-spoke `EdgePressure` (see §8). Parameter-free constant regime only, like XY |
 
 > **There is no registry or factory.** Models are constructed directly
 > (`HypercubeMulticastModel(dist_fn)`) and applied via `.apply(...)`. The only current usage is the
@@ -64,11 +64,25 @@ A frozen dataclass (in `../spatial.py`) you must fully populate:
 
 | Field | Type | Meaning |
 |-------|------|---------|
-| `fulfilled_fill` | `Transfers` | Fills satisfied by peer-to-peer transfers (a tagged map). |
-| `unfulfilled_fill` | `Fill` | Fills *not* satisfied (must come from higher in the hierarchy). |
+| `fulfilled_fill` | `Transfers` | Fills satisfied by peer-to-peer transfers (a tagged map) — the fills *covered* by a matched multicast source. |
+| `unfulfilled_fill` | `Fill` | Fills *not* satisfied — no source held the datum, so it must come from higher in the hierarchy. |
 | `parent_reads` | `Reads` | Fills satisfied by parent-to-child reads. |
 | `hops` | `isl.PwQPolynomial` | The transfer cost metric across spacetime. |
 | `link_transfer` | `bool` | Metadata flag — whether this used link transfers. |
+| `edge_pressure` | `Optional[EdgePressure]` | Per-directed-edge load backing `hops` (see §8), for models that define a per-link topology. Defaults to `None`. |
+
+`fulfilled_fill` and `unfulfilled_fill` **partition the fills exactly**: with
+`covered = _covered_fills(mcs)` (the `{ dst -> data }` pairs `identify_mesh_casts` matched to a
+source), `fulfilled = fills ∩ covered` and `unfulfilled = fills − covered`. A destination requesting
+a datum that *no* source holds simply never appears in the multicast networks, so it lands in
+`unfulfilled_fill` — it is never silently treated as fulfilled.
+
+`edge_pressure` is populated by the models with an explicit per-link topology
+(`XYRoutingMulticastModel`: mesh links; `StarMulticastModel`: spokes) inside `apply()`, from the
+same `identify_mesh_casts` result as `hops`. `HypercubeMulticastModel` and
+`FullyConnectedMulticastModel` leave it `None` — a convex bounding box has no notion of individual
+links, and a contention-free full mesh (one dedicated link per pair) has no shared-link pressure to
+report.
 
 `Transfers` and `Reads` are thin `TaggedMap` subclasses; construct them as
 `Transfers(tags, map_)` / `Reads(tags, map_)`.
@@ -86,12 +100,18 @@ A frozen dataclass (in `../spatial.py`) you must fully populate:
 HypercubeMulticastModel(dist_fn: isl.Map)
 ```
 
-`dist_fn` is a distance function `{ [src -> dst] -> [hops] }`. Two assumptions are baked in:
+`dist_fn` is a distance function `{ [dst -> src] -> [hops] }` — note the orientation: its domain is
+a **`[dst -> src]` pair** (destination first), because `identify_mesh_casts` composes it as
+`fills_to_matches.apply_range(dist_fn)` onto `{ ... -> [dst -> src] }` maps. Two further caller
+contracts: the tuple names in `dist_fn`'s domain must match the spacetime tuple names of
+`fills`/`occs` (ISL raises on a name mismatch when `dist_fn` is applied), and its range tuple must
+be named `hops` (the fully-connected and star models filter on `{ hops[h] : h >= 1 }` to tell
+self-deliveries apart from fabric crossings). Two assumptions are baked in:
 
 1. **Orthogonal dimensions / Manhattan distance** — each unit move along a dimension costs 1 hop,
    and dimensions are orthogonal in the metric space.
 2. **Translational invariance** — distance depends only on the displacement: if
-   `|src − dst| = |src' − dst'|` then `dist_fn(src, dst) = dist_fn(src', dst')`.
+   `|src − dst| = |src' − dst'|` then `dist_fn(dst, src) = dist_fn(dst', src')`.
 
 These come from `calculate_extents_per_dim`, which the model relies on.
 
@@ -113,7 +133,7 @@ occs.map_  { [spacetime] -> [data] }   fills.map_  { [spacetime] -> [data] }
 ```
 
 **Step A — `identify_mesh_casts(src_occupancy, dst_fill, dist_fn)`**
-([`distributed_buffers.py`](distributed_buffers.py), line ~22).
+([`distributed_buffers.py`](distributed_buffers.py)).
 
 For every datum, it pairs the destinations that request it with the *nearest* source that holds it.
 Conceptually:
@@ -130,14 +150,14 @@ The result is the set of **multicast networks** (`mcns`): per datum, the destina
 their chosen source.
 
 **Step B — extents per dimension: `calculate_extents_per_dim(mcns)`**
-([`distributed_buffers.py`](distributed_buffers.py), line ~98).
+([`distributed_buffers.py`](distributed_buffers.py)).
 
 For each multicast network it unions the sources with the destinations, then for each NoC dimension
 projects away the others and takes `dim_max − dim_min`. That difference is the **extent** (the side
 length of the bounding box) along that dimension, returned as one `isl.PwAff` per dimension.
 
 **Step C — hypercube cost: `_cost_mesh_cast_hypercube(mcns)`**
-([`distributed_buffers.py`](distributed_buffers.py), line ~213).
+([`distributed_buffers.py`](distributed_buffers.py)).
 
 It folds the per-dimension extents into a single cost, then `.sum()`s over all networks.
 
@@ -159,24 +179,34 @@ It folds the per-dimension extents into a single cost, then `.sum()`s over all n
 ### Return value
 
 ```python
+# { dst -> data } fills actually covered by a matched source (D2).
+covered: isl.Map = _covered_fills(mcs)
+
 return TransferInfo(
-    fulfilled_fill=Transfers(fills.tags, fills.map_),                 # everything treated as fulfilled
-    parent_reads=Reads(occs.tags, mcs),                              # the multicast map
-    unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),  # empty (map minus itself)
-    hops=result,                                                     # the PwQPolynomial cost
+    fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
+    parent_reads=Reads(occs.tags, mcs),                          # the multicast map
+    unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
+    hops=result,                                                 # the PwQPolynomial cost
     link_transfer=True,
+    # No per-link decomposition defined for the hypercube abstraction.
+    edge_pressure=None,
 )
 ```
 
-Note the idiom `fills.map_.subtract(fills.map_)` — an **empty map over the right space**. This is
-how you build a typed empty relation without hardcoding dimensions.
+Note the partition idiom: `_covered_fills(mcs)` reshapes the multicast networks
+`{ [data] -> [dst -> src] }` into `{ dst -> data }` (via
+`range_reverse().uncurry().domain_factor_domain().reverse()` — "forget which source served it, keep
+dst and data"), which lines up with `fills.map_` so `intersect`/`subtract` split the fills into the
+covered and uncovered halves. Earlier revisions returned the *entire* fill map as `fulfilled_fill`
+and an always-empty `unfulfilled_fill` (`fills.map_.subtract(fills.map_)`); that silently
+mis-reported fills whose datum no source holds, and was fixed in D2 — do not copy that idiom.
 
 ---
 
 ## 4. Contrast: `SimpleLinkTransferModel`
 
 For comparison (the *other* valid shape — no constructor state), `SimpleLinkTransferModel`
-([`../spatial.py`](../spatial.py), line ~86):
+([`../spatial.py`](../spatial.py)):
 
 - Takes **no `dist_fn`**; constructed as `SimpleLinkTransferModel()`.
 - Asserts `fills.tags == occs.tags`.
@@ -188,7 +218,7 @@ For comparison (the *other* valid shape — no constructor state), `SimpleLinkTr
 - Has an early-out: if there is no temporal dimension or no spatial dimension, nothing moves, so it
   returns an empty/zero `TransferInfo`.
 
-So the two existing models bracket the design space: **stateful + distance-aware** (hypercube) vs.
+So these two models bracket the design space: **stateful + distance-aware** (hypercube) vs.
 **stateless + fixed-topology** (simple link).
 
 ---
@@ -202,11 +232,18 @@ So the two existing models bracket the design space: **stateful + distance-aware
 3. **Implement `apply(self, buff, fills, occs) -> TransferInfo`.** If your model is mesh/multicast
    shaped, reuse the existing kernels:
    - `identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)` to get `{ [data] -> [dst -> src] }`.
+   - `_covered_fills(mcs)` to partition the fills into fulfilled/unfulfilled.
    - `calculate_extents_per_dim(mcns)` if you want per-dimension bounding-box extents.
-   Otherwise write your own cost kernel over the ISL maps.
+   - `_edge_pressure_from_links(...)` / `_const_pwq(...)` / `_eval_const(...)` if you report a
+     per-link `EdgePressure` (see §8) and derive `hops` from it.
+   Otherwise write your own cost kernel over the ISL maps. Call `identify_mesh_casts` **once** per
+   `apply` and derive everything (`hops`, `edge_pressure`, the fill partition) from that single
+   result, so the outputs can never disagree.
 4. **Honor the invariants.** Assert `fills.tags == occs.tags` if your model needs aligned tags.
-   Build `hops` as an `isl.PwQPolynomial` over the correct domain, and build empty maps with the
-   `map_.subtract(map_)` idiom rather than hardcoding spaces.
+   Build `hops` as an `isl.PwQPolynomial` over the correct domain, and partition the fills with
+   `_covered_fills` (`fulfilled = fills ∩ covered`, `unfulfilled = fills − covered`) rather than
+   declaring everything fulfilled. Decide deliberately whether your topology defines an
+   `edge_pressure` (per-link decomposition) or leaves it `None`.
 5. **Add a test** mirroring
    [`tests/not_working/distribuffers/test_multicast.py`](../../../../../../tests/not_working/distribuffers/test_multicast.py):
    a YAML-driven gamut of `(dims, fill, occ, dist_fn, expected_hops)` cases.
@@ -228,6 +265,7 @@ from accelforge.model._looptree.reuse.isl.spatial import (
 from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import (
     identify_mesh_casts,
     calculate_extents_per_dim,
+    _covered_fills,
 )
 
 
@@ -241,19 +279,26 @@ class MyTransferModel(TransferModel):
     def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
         # TODO (optional): assert fills.tags == occs.tags
 
-        # 1. Group destinations with their nearest source per datum.
+        # 1. Group destinations with their nearest source per datum. Call this
+        #    ONCE and derive every output from the same `mcs`.
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
 
         # 2. TODO: compute your cost as an isl.PwQPolynomial.
         hops: isl.PwQPolynomial = self._cost(mcs)
 
-        # 3. Assemble the result.
+        # 3. Partition the fills by whether a source was matched (D2).
+        covered: isl.Map = _covered_fills(mcs)  # { dst -> data }
+
+        # 4. Assemble the result.
         return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_),
+            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
             parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),  # empty
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
             hops=hops,
             link_transfer=True,
+            # TODO: an EdgePressure if your topology defines per-link loads
+            # (see §8); None if it has no per-link decomposition.
+            edge_pressure=None,
         )
 
     def _cost(self, mcns: isl.Map) -> isl.PwQPolynomial:
@@ -266,9 +311,12 @@ class MyTransferModel(TransferModel):
 - [ ] Subclasses `TransferModel`, implements `apply`.
 - [ ] Constructor state matches what the cost kernel needs.
 - [ ] `hops` is an `isl.PwQPolynomial` over the right domain.
-- [ ] `fulfilled_fill` + `parent_reads` + `unfulfilled_fill` partition the fills correctly for your
-      model's semantics.
-- [ ] Empty maps built with `map_.subtract(map_)`, not hardcoded.
+- [ ] `fulfilled_fill` + `unfulfilled_fill` partition the fills via `_covered_fills(mcs)`
+      (`fills ∩ covered` / `fills − covered`), not "everything fulfilled / empty unfulfilled".
+- [ ] `identify_mesh_casts` is called once per `apply`; `hops`, `edge_pressure`, and the fill
+      partition all derive from the same result.
+- [ ] `edge_pressure` is a deliberate choice: an `EdgePressure` if the topology has per-link loads,
+      `None` (with a comment saying why) if not.
 - [ ] A YAML-driven gamut test exists.
 
 ---
@@ -299,12 +347,17 @@ class FullyConnectedMulticastModel(TransferModel):
     def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_fully_connected(mcs)
+        # { dst -> data } fills actually covered by a matched source (D2).
+        covered: isl.Map = _covered_fills(mcs)
+
         return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_),
+            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
             parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(fills.map_)),  # empty
+            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
             hops=result,
             link_transfer=True,
+            # No per-link decomposition defined for the full-mesh abstraction.
+            edge_pressure=None,
         )
 
     def _cost_fully_connected(self, mcns: isl.Map) -> isl.PwQPolynomial:
@@ -388,38 +441,47 @@ model): source `(1,0)` casting to `(0,2)` and `(2,2)`:
 
 ### Cost kernel
 
+There is no standalone cost method: the cost *is* the per-edge decomposition, aggregated. `apply()`
+decomposes every tree onto directed mesh links, wraps the per-link loads as an `EdgePressure`
+(see §8), and derives `hops` from its total — one aggregation path, so the scalar and the per-edge
+view can never disagree:
+
 ```python
-def _cost_xy(self, mcns: isl.Map) -> isl.PwQPolynomial:
-    # X-phase: horizontal links along each source row (x-extent of {dsts} ∪ {src}).
-    x_extent = calculate_extents_per_dim(mcns)[0]
-    x_links = self._eval_const(isl.PwQPolynomial.from_pw_aff(x_extent).sum())
+def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
+    # `identify_mesh_casts` is called exactly once; `hops`, `edge_pressure`,
+    # and the fill partition all derive from this single `mcs` (D4/D5).
+    mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
+    links: list[isl.Map] = self._directed_mesh_links(mcs)   # see §8
+    pressure: EdgePressure = _edge_pressure_from_links(links)
+    # `hops` == the sum of per-edge loads (Σ_edges load == total link count),
+    # wrapped as the constant PwQPolynomial `TransferInfo.hops` expects.
+    hops: isl.PwQPolynomial = _const_pwq(pressure.total())
+    covered: isl.Map = _covered_fills(mcs)                   # { dst -> data }
 
-    # Y-phase: vertical links per (data, src, destination column), each column
-    # spanning from the source row ys to the destinations in that column.
-    per_src = mcns.range_reverse().uncurry()                       # {[data->src] -> dst}
-    split_col = isl.Map.read_from_str(ctx,
-        "{ noc[x, y] -> [col[x'] -> yv[y']] : x' = x and y' = y }")
-    dst_y = per_src.apply_range(split_col).uncurry()               # {[data->src->col] -> yv[y]}
-    src_y = per_src.domain().unwrap().range_map().apply_range(
-        isl.Map.read_from_str(ctx, "{ noc[xs, ys] -> yv[ys] }"))
-    src_row = dst_y.domain().unwrap().range_product(src_y).uncurry()
-    col_ys = dst_y.union(src_row)                                  # source row ∪ dst y's per column
-
-    # Count {ymin <= p < ymax} links per column via cardinality (robust where
-    # summing a min/max polynomial is not).
-    ge_min = isl.Map.read_from_str(ctx, "{ yv[ymin] -> p[t] : t >= ymin }")
-    lt_max = isl.Map.read_from_str(ctx, "{ yv[ymax] -> p[t] : t < ymax }")
-    links = col_ys.lexmin().apply_range(ge_min).intersect(
-            col_ys.lexmax().apply_range(lt_max))
-    y_links = self._eval_const(links.wrap().card())
-    ...  # total = x_links + y_links, returned as a constant PwQPolynomial
+    return TransferInfo(
+        fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
+        parent_reads=Reads(occs.tags, mcs),
+        unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
+        hops=hops,
+        link_transfer=True,
+        edge_pressure=pressure,
+    )
 ```
 
+`_directed_mesh_links` builds the X segments explicitly along each source row (out to every
+destination column, split rightward/leftward at the source column `xs`) and the Y segments down
+each destination column from the source row (split upward/downward at `ys`), keeping every link's
+identity — see §8 for the edge naming.
+
 Notes / limitations:
-- **2-D `noc[x, y]` only** (no temporal dims); N-D dimension-order routing is a TODO. The helper maps
-  hardcode the `noc[x, y]` shape.
-- The Y-term is counted via `card()` of the per-column link set rather than summing a min/max
-  polynomial — the latter trips a barvinok `summate` assertion at scale (e.g. the 8×8 case).
+- **2-D node tuples only** (no temporal dims); `apply` raises a `ValueError` ("XYRoutingMulticastModel
+  requires a 2-D node tuple (X then Y)...") for any other arity — N-D dimension-order routing is a
+  TODO. The tuple *name* is generic: it is read off the maps at `apply` time (via
+  `_mesh_node_tuple`), so `noc[x, y]`, `pe[x, y]`, etc. all work as long as `fills`, `occs`, and
+  `dist_fn` agree on it (see the caller contract in §3).
+- Each per-column/per-row link set is built explicitly and counted via `card()` rather than summing
+  a min/max polynomial — the latter trips a barvinok `summate` assertion at scale (e.g. the 8×8
+  case).
 - Returns a **parameter-free constant** (the validated regime); parametric spacetimes are future work.
 
 ### Tested
@@ -445,14 +507,18 @@ has a finite bandwidth**, so the *busiest* link is what saturates first. `EdgePr
 load broken out per directed physical edge — `{ edge -> number-of-trees-crossing-it }` — which is
 exactly the quantity the production symbolic path calls `max_traffic` and feeds into the `Network`
 latency formula `max(max_hops·latency, max_link_traffic / throughput)`
-([`frontend/arch/components.py`](../../../../frontend/arch/components.py)). Two models expose it
-today via an `edge_pressure(fills, occs) -> EdgePressure` method.
+([`frontend/arch/components.py`](../../../../frontend/arch/components.py)). It is exposed as the
+`TransferInfo.edge_pressure` field: `model.apply(buff, fills, occs).edge_pressure`, an
+`Optional[EdgePressure]` populated by `XYRoutingMulticastModel` and `StarMulticastModel` inside
+`apply()` (from the same `identify_mesh_casts` result as `hops`, so the two are always consistent)
+and `None` for `HypercubeMulticastModel` / `FullyConnectedMulticastModel` (see §2). There is no
+standalone `edge_pressure(fills, occs)` method.
 
 ### The primitive
 
-After `identify_mesh_casts` fixes the `[src] -> [dst]` pairs, build, per directed edge type, a map
+After `identify_mesh_casts` fixes the `[dst -> src]` pairs, build, per directed edge type, a map
 `M = { [data -> src] -> edge }` associating each multicast **tree** with every edge its route
-crosses. Then
+crosses. Then (`_edge_pressure_from_links` does exactly this, unioning the per-type results)
 
 ```python
 load = M.reverse().card()        # { edge -> #trees crossing it }
@@ -460,16 +526,18 @@ load = M.reverse().card()        # { edge -> #trees crossing it }
 
 The key is the tree `(data, src)`, **not** the destination: within one tree a link is traversed once
 regardless of how many leaves hang off it, so this counts *pressure* (distinct flows on a link), not
-summed hops. `EdgePressure.bottleneck()` returns the max load (enumerating pieces; parameter-free
-regime, like `_cost_xy`); `eval_edge(name, coords)` looks up one edge.
+summed hops. `EdgePressure.total()` sums the load over every edge (this is what XY/Star `hops` is
+built from, via `_const_pwq`); `bottleneck()` returns the max load (enumerating the finite,
+parameter-free edge domain); `eval_edge(name, coords)` looks up one edge.
 
 ### XY routing → directed mesh edges
 
 `XYRoutingMulticastModel._directed_mesh_links` decomposes each tree onto four directed link types:
 `xedge_r`/`xedge_l` along the source row (split at the source column `xs`) and `yedge_u`/`yedge_d`
-down each destination column (split at the source row `ys`). It reuses the §7 link-set construction
-but **keeps the edge identity** instead of collapsing to a count (and builds the X links explicitly —
-`calculate_extents_per_dim` only yields a scalar length and discards *which* links are used).
+down each destination column (split at the source row `ys`). This **is** the §7 cost kernel — every
+link is built explicitly with its identity kept (not via `calculate_extents_per_dim`, which only
+yields a scalar length and discards *which* links are used), and the scalar `hops` is just
+`EdgePressure.total()` over these maps.
 
 Decisive cross-check (no oracle needed): **`Σ_edges load == total XY hops`**. The per-edge loads must
 sum back to the already-trusted A–F totals (4/6/6/3/4/448), so a wrong decomposition fails. Worked F
@@ -494,9 +562,11 @@ deliveries).
 ### Tested
 
 [`tests/not_working/distribuffers/test_edge_pressure.py`](../../../../../../tests/not_working/distribuffers/test_edge_pressure.py)
-— the XY `Σ load == hops` invariant over A–F, F's bottleneck/edge loads (`7`, `yedge_u[0,6]=7`,
-`yedge_d[0,1]=6`), single-tree unit bottlenecks, and the star spoke loads / `Σ ingress == FC count`
-invariant for 4- and 8-GPU all-to-all. Run:
+— the XY `Σ load == hops` invariant over A–F (with the pressure taken from
+`apply(...).edge_pressure`), F's bottleneck/edge loads (`7`, `yedge_u[0,6]=7`, `yedge_d[0,1]=6`),
+single-tree unit bottlenecks, and the star spoke loads / `Σ ingress == FC count` invariant for 4-
+and 8-GPU all-to-all (star `hops` = injections + deliveries: `16`/`64`, ingress bottleneck
+`3`/`7`). Run:
 
 ```bash
 PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \

@@ -4,7 +4,7 @@ Handles the ISL spatial reuse functions.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import islpy as isl
 
@@ -22,6 +22,18 @@ from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
     TaggedMap,
 )
 
+if TYPE_CHECKING:
+    # Design: `EdgePressure` lives in `distributed/distributed_buffers.py`, which
+    # itself imports `TransferInfo` from this module (see `spatial.py`'s role as
+    # the base contract every distributed model builds on). Importing it at
+    # runtime here would form an import cycle
+    # (spatial -> distributed_buffers -> spatial); a `TYPE_CHECKING`-guarded
+    # import plus a forward-reference string annotation on the `edge_pressure`
+    # field below gets static type-checking for free without paying that cost.
+    from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import (
+        EdgePressure,
+    )
+
 
 class Transfers(TaggedMap):
     """Transfers between regions in spacetime."""
@@ -37,9 +49,21 @@ class TransferInfo:
 
     # Crucial information to transfer info.
     fulfilled_fill: Transfers
-    """Fills done by peer-to-peer transfers."""
+    """Fills done by peer-to-peer transfers.
+
+    Restricted to the fills actually *covered* by a matched multicast source
+    (see `identify_mesh_casts`) -- a destination requesting a datum no source
+    holds is never "fulfilled" even though it is dropped from the multicast
+    network, hence the separate `unfulfilled_fill` below.
+    """
     unfulfilled_fill: Fill
-    """Fills not performed."""
+    """Fills not performed.
+
+    Fills whose datum has no matching source in `identify_mesh_casts`'s
+    result -- i.e. `fills - covered`, the complement of `fulfilled_fill`
+    within the original fill set (`fulfilled_fill` and `unfulfilled_fill`
+    partition `fills` exactly; see each model's `apply` for the derivation).
+    """
     parent_reads: Reads
     """Fills done by parent-to-child transfers."""
     hops: isl.PwQPolynomial
@@ -47,6 +71,23 @@ class TransferInfo:
 
     # Metadata on what is occurring.
     link_transfer: bool
+
+    # Optional, model-specific per-link decomposition -- last field / defaulted
+    # so this addition does not disturb any existing positional or keyword
+    # construction site (`grep`-verified: every `TransferInfo(...)` call in the
+    # tree already uses keyword arguments).
+    edge_pressure: Optional["EdgePressure"] = None
+    """Per-directed-edge load backing `hops`, for models that define one.
+
+    Populated by models with an explicit per-link topology (mesh links for
+    `XYRoutingMulticastModel`, spokes for `StarMulticastModel`) from the same
+    `identify_mesh_casts` result used to compute `hops`, so the two are always
+    consistent. `None` for models with no per-link decomposition defined --
+    `HypercubeMulticastModel` costs a convex bounding box (no notion of
+    individual links) and `FullyConnectedMulticastModel` treats the fabric as
+    a contention-free full mesh (one dedicated link per pair, so there is no
+    shared-link pressure to report); both leave this field at its default.
+    """
 
 
 class TransferModel(ABC):
