@@ -179,7 +179,7 @@ It folds the per-dimension extents into a single cost, then `.sum()`s over all n
 ### Return value
 
 ```python
-# { dst -> data } fills actually covered by a matched source (D2).
+# { dst -> data } fills actually covered by a matched source.
 covered: isl.Map = _covered_fills(mcs)
 
 return TransferInfo(
@@ -199,7 +199,7 @@ Note the partition idiom: `_covered_fills(mcs)` reshapes the multicast networks
 dst and data"), which lines up with `fills.map_` so `intersect`/`subtract` split the fills into the
 covered and uncovered halves. Earlier revisions returned the *entire* fill map as `fulfilled_fill`
 and an always-empty `unfulfilled_fill` (`fills.map_.subtract(fills.map_)`); that silently
-mis-reported fills whose datum no source holds, and was fixed in D2 — do not copy that idiom.
+mis-reported fills whose datum no source holds — do not copy that idiom.
 
 ---
 
@@ -286,7 +286,7 @@ class MyTransferModel(TransferModel):
         # 2. TODO: compute your cost as an isl.PwQPolynomial.
         hops: isl.PwQPolynomial = self._cost(mcs)
 
-        # 3. Partition the fills by whether a source was matched (D2).
+        # 3. Partition the fills by whether a source was matched.
         covered: isl.Map = _covered_fills(mcs)  # { dst -> data }
 
         # 4. Assemble the result.
@@ -347,7 +347,7 @@ class FullyConnectedMulticastModel(TransferModel):
     def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
         mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
         result: isl.PwQPolynomial = self._cost_fully_connected(mcs)
-        # { dst -> data } fills actually covered by a matched source (D2).
+        # { dst -> data } fills actually covered by a matched source.
         covered: isl.Map = _covered_fills(mcs)
 
         return TransferInfo(
@@ -361,7 +361,7 @@ class FullyConnectedMulticastModel(TransferModel):
         )
 
     def _cost_fully_connected(self, mcns: isl.Map) -> isl.PwQPolynomial:
-        """Count the deliveries in ``mcns`` that traverse the fabric (dist >= 1)."""
+        """Count the deliveries in `mcns` that traverse the fabric (dist >= 1)."""
         # [dst -> src] pairs that actually traverse the fabric (>= 1 hop).
         crossing_hops: isl.Set = isl.Set.read_from_str(
             isl.DEFAULT_CONTEXT, "{ hops[h] : h >= 1 }"
@@ -449,7 +449,7 @@ view can never disagree:
 ```python
 def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
     # `identify_mesh_casts` is called exactly once; `hops`, `edge_pressure`,
-    # and the fill partition all derive from this single `mcs` (D4/D5).
+    # and the fill partition all derive from this single `mcs`.
     mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
     links: list[isl.Map] = self._directed_mesh_links(mcs)   # see §8
     pressure: EdgePressure = _edge_pressure_from_links(links)
