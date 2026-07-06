@@ -4,11 +4,14 @@ Handles the ISL spatial reuse functions.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import islpy as isl
 
 from accelforge.frontend.mapping import MappingNode
+from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import (
+    EdgePressure,
+)
 from accelforge.model._looptree.reuse.isl.isl_functions import (
     insert_equal_dims_map,
     reorder_projector,
@@ -21,14 +24,6 @@ from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
     Tag,
     TaggedMap,
 )
-
-if TYPE_CHECKING:
-    # Note: guarded to avoid a runtime import cycle -- distributed_buffers.py
-    # imports TransferInfo from this module, so importing EdgePressure back
-    # here at runtime would form a loop.
-    from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import (
-        EdgePressure,
-    )
 
 
 class Transfers(TaggedMap):
@@ -68,7 +63,7 @@ class TransferInfo:
     # so this addition does not disturb any existing positional or keyword
     # construction site (`grep`-verified: every `TransferInfo(...)` call in the
     # tree already uses keyword arguments).
-    edge_pressure: Optional["EdgePressure"] = None
+    edge_pressure: Optional[EdgePressure] = None
     """Per-directed-edge load backing `hops`, for models that define one.
 
     Populated by `XYRoutingMulticastModel` (mesh links) and

@@ -28,6 +28,15 @@ implementations:
 > test suite — [`tests/not_working/distribuffers/test_multicast.py`](../../../../../../tests/not_working/distribuffers/test_multicast.py).
 > The `not_working/` location signals these models are work-in-progress.
 
+> **Module layout.** This directory splits into three files: the four model classes above and
+> the shared `MulticastModel` base they all inherit (one `apply()`, one abstract `_transfer_cost`
+> hook per model) live in [`distributed_buffers.py`](distributed_buffers.py); the `EdgePressure`
+> per-link-load abstraction and its scalar-extraction helpers live in
+> [`edge_pressure.py`](edge_pressure.py); multicast-network construction (`identify_mesh_casts`
+> and the helpers built on its result) lives in [`mesh_casts.py`](mesh_casts.py).
+> `distributed_buffers.py` re-exports the moved names, so existing imports of the four models and
+> `_eval_const` from `distributed_buffers.py` keep working (see §9 for the full map).
+
 ---
 
 ## 2. The `TransferModel` contract
@@ -133,7 +142,7 @@ occs.map_  { [spacetime] -> [data] }   fills.map_  { [spacetime] -> [data] }
 ```
 
 **Step A — `identify_mesh_casts(src_occupancy, dst_fill, dist_fn)`**
-([`distributed_buffers.py`](distributed_buffers.py)).
+([`mesh_casts.py`](mesh_casts.py)).
 
 For every datum, it pairs the destinations that request it with the *nearest* source that holds it.
 Conceptually:
@@ -150,7 +159,7 @@ The result is the set of **multicast networks** (`mcns`): per datum, the destina
 their chosen source.
 
 **Step B — extents per dimension: `calculate_extents_per_dim(mcns)`**
-([`distributed_buffers.py`](distributed_buffers.py)).
+([`mesh_casts.py`](mesh_casts.py)).
 
 For each multicast network it unions the sources with the destinations, then for each NoC dimension
 projects away the others and takes `dim_max − dim_min`. That difference is the **extent** (the side
@@ -227,23 +236,24 @@ So these two models bracket the design space: **stateful + distance-aware** (hyp
 
 1. **Pick a home.** Add your class under `reuse/isl/`. Put distributed / NoC / mesh models in this
    `distributed/` directory next to `distributed_buffers.py`.
-2. **Subclass `TransferModel`** and decide your constructor state — a `dist_fn`, topology
-   parameters, bandwidth, or nothing (like `SimpleLinkTransferModel`).
-3. **Implement `apply(self, buff, fills, occs) -> TransferInfo`.** If your model is mesh/multicast
-   shaped, reuse the existing kernels:
-   - `identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)` to get `{ [data] -> [dst -> src] }`.
-   - `_covered_fills(mcs)` to partition the fills into fulfilled/unfulfilled.
+2. **Subclass `MulticastModel`** if your model is distance-driven multicast (one `dist_fn`,
+   nearest-source matching) — the base owns the constructor, the single `identify_mesh_casts`
+   call, the fill partition, and the `TransferInfo` assembly. Only subclass `TransferModel`
+   directly (and write your own `apply`) for a different shape entirely, like the stateless
+   `SimpleLinkTransferModel`.
+3. **Implement `_transfer_cost(self, mcs) -> isl.PwQPolynomial | EdgePressure`.** `mcs` is the
+   `{ [data] -> [dst -> src] }` multicast networks, computed once by the base `apply`. Reuse the
+   existing kernels:
    - `calculate_extents_per_dim(mcns)` if you want per-dimension bounding-box extents.
-   - `_edge_pressure_from_links(...)` / `_const_pwq(...)` / `_eval_const(...)` if you report a
-     per-link `EdgePressure` (see §8) and derive `hops` from it.
-   Otherwise write your own cost kernel over the ISL maps. Call `identify_mesh_casts` **once** per
-   `apply` and derive everything (`hops`, `edge_pressure`, the fill partition) from that single
-   result, so the outputs can never disagree.
-4. **Honor the invariants.** Assert `fills.tags == occs.tags` if your model needs aligned tags.
-   Build `hops` as an `isl.PwQPolynomial` over the correct domain, and partition the fills with
-   `_covered_fills` (`fulfilled = fills ∩ covered`, `unfulfilled = fills − covered`) rather than
-   declaring everything fulfilled. Decide deliberately whether your topology defines an
-   `edge_pressure` (per-link decomposition) or leaves it `None`.
+   - `_fabric_crossing(mcns, self.dist_fn)` to keep only deliveries that cross the fabric.
+   - `_edge_pressure_from_links(...)` if you report a per-link `EdgePressure` (see §8) — return
+     it directly and the base derives `hops` from its total; return a bare `isl.PwQPolynomial`
+     and the base leaves `edge_pressure` at `None`.
+4. **Honor the invariants.** The base guarantees the big ones structurally: the fill partition
+   (`fulfilled = fills ∩ covered`, `unfulfilled = fills − covered`), one `identify_mesh_casts`
+   call per `apply`, and `hops == EdgePressure.total()` whenever you return a pressure. What is
+   left to you: build the cost over the correct domain, and decide deliberately whether your
+   topology defines a per-link decomposition or not.
 5. **Add a test** mirroring
    [`tests/not_working/distribuffers/test_multicast.py`](../../../../../../tests/not_working/distribuffers/test_multicast.py):
    a YAML-driven gamut of `(dims, fill, occ, dist_fn, expected_hops)` cases.
@@ -253,70 +263,36 @@ So these two models bracket the design space: **stateful + distance-aware** (hyp
 ```python
 import islpy as isl
 
-from accelforge.frontend.mapping import MappingNode
-from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import Fill, Occupancy
-from accelforge.model._looptree.reuse.isl.spatial import (
-    Reads,
-    Transfers,
-    TransferInfo,
-    TransferModel,
-)
-# Reuse these if your model is mesh/multicast-shaped:
 from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import (
-    identify_mesh_casts,
-    calculate_extents_per_dim,
-    _covered_fills,
+    MulticastModel,
 )
 
 
-class MyTransferModel(TransferModel):
+class MyMulticastModel(MulticastModel):
     """One-line description of the topology/assumptions this model encodes."""
 
-    def __init__(self, dist_fn: isl.Map):
-        # TODO: store whatever state your cost kernel needs (or drop the arg entirely).
-        self.dist_fn = dist_fn
-
-    def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
-        # TODO (optional): assert fills.tags == occs.tags
-
-        # 1. Group destinations with their nearest source per datum. Call this
-        #    ONCE and derive every output from the same `mcs`.
-        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
-
-        # 2. TODO: compute your cost as an isl.PwQPolynomial.
-        hops: isl.PwQPolynomial = self._cost(mcs)
-
-        # 3. Partition the fills by whether a source was matched.
-        covered: isl.Map = _covered_fills(mcs)  # { dst -> data }
-
-        # 4. Assemble the result.
-        return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
-            parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
-            hops=hops,
-            link_transfer=True,
-            # TODO: an EdgePressure if your topology defines per-link loads
-            # (see §8); None if it has no per-link decomposition.
-            edge_pressure=None,
-        )
-
-    def _cost(self, mcns: isl.Map) -> isl.PwQPolynomial:
-        # TODO: your cost kernel.
+    def _transfer_cost(self, mcs: isl.Map) -> isl.PwQPolynomial:
+        # `mcs` is { [data] -> [dst -> src] } from `identify_mesh_casts`,
+        # computed once by `MulticastModel.apply`; the fill partition and the
+        # `TransferInfo` assembly are already handled there.
+        # TODO: your cost kernel. Return an `EdgePressure` instead (see §8) if
+        # your topology defines per-link loads -- `apply` then derives `hops`
+        # from its total automatically.
         raise NotImplementedError
 ```
 
+(A non-multicast model — different matching, no `dist_fn` — instead subclasses `TransferModel`
+directly and implements the full `apply`; use `SimpleLinkTransferModel` in
+[`../spatial.py`](../spatial.py) as the reference for that shape.)
+
 **Checklist**
 
-- [ ] Subclasses `TransferModel`, implements `apply`.
-- [ ] Constructor state matches what the cost kernel needs.
-- [ ] `hops` is an `isl.PwQPolynomial` over the right domain.
-- [ ] `fulfilled_fill` + `unfulfilled_fill` partition the fills via `_covered_fills(mcs)`
-      (`fills ∩ covered` / `fills − covered`), not "everything fulfilled / empty unfulfilled".
-- [ ] `identify_mesh_casts` is called once per `apply`; `hops`, `edge_pressure`, and the fill
-      partition all derive from the same result.
-- [ ] `edge_pressure` is a deliberate choice: an `EdgePressure` if the topology has per-link loads,
-      `None` (with a comment saying why) if not.
+- [ ] Subclasses `MulticastModel` and implements `_transfer_cost` (only non-multicast shapes
+      subclass `TransferModel` and hand-roll `apply`).
+- [ ] Constructor state matches what the cost kernel needs (the base stores `dist_fn`; override
+      `__init__` only to add state).
+- [ ] `_transfer_cost` returns an `isl.PwQPolynomial` over the right domain — or an
+      `EdgePressure` for per-link topologies, making `hops == Σ_edges load` structural.
 - [ ] A YAML-driven gamut test exists.
 
 ---
@@ -338,44 +314,25 @@ cost = | { (data, dst, src) ∈ mcs : dist_fn(dst, src) ≥ 1 } |
 *magnitude* never enters the cost. This sidesteps the hypercube extent overestimate (see §3) entirely.
 
 ```python
-class FullyConnectedMulticastModel(TransferModel):
+class FullyConnectedMulticastModel(MulticastModel):
     """Multicast cost on a fully-connected fabric: 1 hop per fabric crossing."""
 
-    def __init__(self, dist_fn: isl.Map):
-        self.dist_fn = dist_fn
-
-    def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
-        mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
-        result: isl.PwQPolynomial = self._cost_fully_connected(mcs)
-        # { dst -> data } fills actually covered by a matched source.
-        covered: isl.Map = _covered_fills(mcs)
-
-        return TransferInfo(
-            fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
-            parent_reads=Reads(occs.tags, mcs),
-            unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
-            hops=result,
-            link_transfer=True,
-            # No per-link decomposition defined for the full-mesh abstraction.
-            edge_pressure=None,
-        )
+    def _transfer_cost(self, mcs: isl.Map) -> isl.PwQPolynomial:
+        return self._cost_fully_connected(mcs)
 
     def _cost_fully_connected(self, mcns: isl.Map) -> isl.PwQPolynomial:
         """Count the deliveries in `mcns` that traverse the fabric (dist >= 1)."""
         # [dst -> src] pairs that actually traverse the fabric (>= 1 hop).
-        crossing_hops: isl.Set = isl.Set.read_from_str(
-            isl.DEFAULT_CONTEXT, "{ hops[h] : h >= 1 }"
-        )
-        crossing_pairs: isl.Set = self.dist_fn.intersect_range(crossing_hops).domain()
-        crossing: isl.Map = mcns.intersect_range(crossing_pairs)
+        crossing: isl.Map = _fabric_crossing(mcns, self.dist_fn)
         return crossing.wrap().card()
 ```
 
-How the kernel works: `dist_fn.intersect_range({ hops[h] : h ≥ 1 }).domain()` is the set of
-`[dst -> src]` pairs that cross the fabric; intersecting `mcns`' range with it keeps only crossing
-deliveries; `.wrap().card()` counts the `(data, dst, src)` points as an `isl.PwQPolynomial`
-(constant when there are no parameters). `intersect_range`, `domain`, `wrap`, and `card` are all
-standard `islpy`/barvinok operations already used elsewhere in this subsystem.
+How the kernel works: `_fabric_crossing` ([`mesh_casts.py`](mesh_casts.py)) computes
+`dist_fn.intersect_range({ hops[h] : h ≥ 1 }).domain()` — the set of `[dst -> src]` pairs that
+cross the fabric — and intersects `mcns`' range with it, keeping only crossing deliveries;
+`.wrap().card()` then counts the `(data, dst, src)` points as an `isl.PwQPolynomial` (constant
+when there are no parameters). Everything else — the single `identify_mesh_casts` call, the fill
+partition, `edge_pressure=None` — is `MulticastModel.apply`'s job, not this class's.
 
 **Verified numbers** (8-GPU one-hot encoding, from the test below):
 
@@ -441,32 +398,17 @@ model): source `(1,0)` casting to `(0,2)` and `(2,2)`:
 
 ### Cost kernel
 
-There is no standalone cost method: the cost *is* the per-edge decomposition, aggregated. `apply()`
-decomposes every tree onto directed mesh links, wraps the per-link loads as an `EdgePressure`
-(see §8), and derives `hops` from its total — one aggregation path, so the scalar and the per-edge
-view can never disagree:
+There is no standalone cost method: the cost *is* the per-edge decomposition, aggregated. The
+whole model is one hook —
 
 ```python
-def apply(self, buff: MappingNode, fills: Fill, occs: Occupancy) -> TransferInfo:
-    # `identify_mesh_casts` is called exactly once; `hops`, `edge_pressure`,
-    # and the fill partition all derive from this single `mcs`.
-    mcs: isl.Map = identify_mesh_casts(occs.map_, fills.map_, self.dist_fn)
-    links: list[isl.Map] = self._directed_mesh_links(mcs)   # see §8
-    pressure: EdgePressure = _edge_pressure_from_links(links)
-    # `hops` == the sum of per-edge loads (Σ_edges load == total link count),
-    # wrapped as the constant PwQPolynomial `TransferInfo.hops` expects.
-    hops: isl.PwQPolynomial = _const_pwq(pressure.total())
-    covered: isl.Map = _covered_fills(mcs)                   # { dst -> data }
-
-    return TransferInfo(
-        fulfilled_fill=Transfers(fills.tags, fills.map_.intersect(covered)),
-        parent_reads=Reads(occs.tags, mcs),
-        unfulfilled_fill=Fill(fills.tags, fills.map_.subtract(covered)),
-        hops=hops,
-        link_transfer=True,
-        edge_pressure=pressure,
-    )
+def _transfer_cost(self, mcs: isl.Map) -> EdgePressure:
+    return _edge_pressure_from_links(self._directed_mesh_links(mcs))
 ```
+
+— because it returns an `EdgePressure` (see §8), `MulticastModel.apply` sets `edge_pressure` to
+it and derives `hops = _const_pwq(pressure.total())` in one place: one aggregation path, so the
+scalar and the per-edge view can never disagree (Σ_edges load == total link count, structurally).
 
 `_directed_mesh_links` builds the X segments explicitly along each source row (out to every
 destination column, split rightward/leftward at the source column `xs`) and the Y segments down
@@ -578,8 +520,12 @@ PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \
 ## 9. References
 
 - Interface + `SimpleLinkTransferModel` + `TransferInfo`: [`../spatial.py`](../spatial.py)
-- `HypercubeMulticastModel`, `identify_mesh_casts`, `calculate_extents_per_dim`:
-  [`distributed_buffers.py`](distributed_buffers.py)
+- `MulticastModel` base + the four model classes, `HypercubeMulticastModel`'s
+  `_cost_mesh_cast_hypercube`: [`distributed_buffers.py`](distributed_buffers.py)
+- `identify_mesh_casts`, `calculate_extents_per_dim`, `_covered_fills`, `_mesh_node_tuple`:
+  [`mesh_casts.py`](mesh_casts.py)
+- `EdgePressure`, `_eval_const`, `_const_pwq`, `_edge_pressure_from_links`:
+  [`edge_pressure.py`](edge_pressure.py)
 - Tagged-map / tag types: [`../mapping_to_isl/types.py`](../mapping_to_isl/types.py)
 - Example test harness:
   [`tests/not_working/distribuffers/test_multicast.py`](../../../../../../tests/not_working/distribuffers/test_multicast.py)
