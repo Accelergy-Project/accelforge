@@ -20,7 +20,7 @@ from accelforge.util._basetypes import (
     EvalableModel,
     EvalsTo,
 )
-from accelforge.util._visualization import _pydot_graph
+from accelforge.util._visualization import _pydot_graph, _render_svg
 from accelforge.frontend.renames import (
     EinsumName,
     RankVariable,
@@ -1123,7 +1123,7 @@ class Workload(EvalableModel):
                         dir="forward",
                     )
                     graph.add_edge(edge)
-        return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
+        return _SVGJupyterRender(_render_svg(graph))
 
     def _eval_expressions(
         self, symbol_table: dict[str, Any], *args, renames: Renames, **kwargs
