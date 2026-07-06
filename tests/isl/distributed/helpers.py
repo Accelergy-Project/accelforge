@@ -24,7 +24,7 @@ This module (and every test module in this package) imports the canonical
 a local copy. That import only resolves if the repository root is on
 ``sys.path``, which is the case when the suite is invoked from the repo root as
 
-    PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest tests/not_working/distribuffers/ -q
+    PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest tests/isl/distributed/ -q
 
 (pytest inserts the current working directory / rootdir onto ``sys.path``).
 Running this module or its dependents from a different working directory, or
@@ -58,10 +58,11 @@ from accelforge.model._looptree.reuse.isl.mapping_to_isl.types import (
 )
 from accelforge.model._looptree.reuse.isl.spatial import TransferInfo, TransferModel
 
-# Design: `tests/not_working/distribuffers/util.py` used to be a byte-identical
-# copy of `tests/isl/util.py`. Rather than keep two copies of `load_solutions`
-# in sync by hand, this package now imports the canonical one directly -- see
-# the "Import note" above for the run-from-repo-root requirement this implies.
+# Design: this package (formerly `tests/not_working/distribuffers/`) used to
+# carry a byte-identical copy of `tests/isl/util.py` as its own `util.py`.
+# Rather than keep two copies of `load_solutions` in sync by hand, it imports
+# the canonical one directly -- see the "Import note" above for the
+# run-from-repo-root requirement this implies.
 from tests.isl.util import load_solutions
 
 

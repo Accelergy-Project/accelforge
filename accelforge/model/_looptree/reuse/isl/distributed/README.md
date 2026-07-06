@@ -25,8 +25,8 @@ implementations:
 
 > **There is no registry or factory.** Models are constructed directly
 > (`HypercubeMulticastModel(dist_fn)`) and applied via `.apply(...)`. The only current usage is the
-> test suite — [`tests/not_working/distribuffers/test_multicast.py`](../../../../../../tests/not_working/distribuffers/test_multicast.py).
-> The `not_working/` location signals these models are work-in-progress.
+> test suite — [`tests/isl/distributed/test_multicast.py`](../../../../../../tests/isl/distributed/test_multicast.py).
+> The suite lives at `tests/isl/distributed/` and runs as part of CI.
 
 > **Module layout.** This directory splits into three files: the four model classes above and
 > the shared `MulticastModel` base they all inherit (one `apply()`, one abstract `_transfer_cost`
@@ -255,7 +255,7 @@ So these two models bracket the design space: **stateful + distance-aware** (hyp
    left to you: build the cost over the correct domain, and decide deliberately whether your
    topology defines a per-link decomposition or not.
 5. **Add a test** mirroring
-   [`tests/not_working/distribuffers/test_multicast.py`](../../../../../../tests/not_working/distribuffers/test_multicast.py):
+   [`tests/isl/distributed/test_multicast.py`](../../../../../../tests/isl/distributed/test_multicast.py):
    a YAML-driven gamut of `(dims, fill, occ, dist_fn, expected_hops)` cases.
 
 ### Copy-paste skeleton
@@ -347,14 +347,14 @@ model incurs on a fully-connected fabric (each unicast costed as a `(1+1)(1+1) �
 instead of a single crossing — see the discrepancy in §3).
 
 This example is exercised by a real test:
-[`tests/not_working/distribuffers/test_fully_connected.py`](../../../../../../tests/not_working/distribuffers/test_fully_connected.py)
+[`tests/isl/distributed/test_fully_connected.py`](../../../../../../tests/isl/distributed/test_fully_connected.py)
 with cases in
-[`tests/not_working/distribuffers/fully_connected/test_cases.yaml`](../../../../../../tests/not_working/distribuffers/fully_connected/test_cases.yaml).
+[`tests/isl/distributed/fully_connected/test_cases.yaml`](../../../../../../tests/isl/distributed/fully_connected/test_cases.yaml).
 Run it (m4 on `PATH` per the islpy-barvinok setup):
 
 ```bash
 PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \
-  tests/not_working/distribuffers/test_fully_connected.py -q
+  tests/isl/distributed/test_fully_connected.py -q
 ```
 
 ---
@@ -428,16 +428,16 @@ Notes / limitations:
 
 ### Tested
 
-[`tests/not_working/distribuffers/test_xy_routing.py`](../../../../../../tests/not_working/distribuffers/test_xy_routing.py)
+[`tests/isl/distributed/test_xy_routing.py`](../../../../../../tests/isl/distributed/test_xy_routing.py)
 with hand-derived cases in
-[`tests/not_working/distribuffers/xy_routing/test_cases.yaml`](../../../../../../tests/not_working/distribuffers/xy_routing/test_cases.yaml)
+[`tests/isl/distributed/xy_routing/test_cases.yaml`](../../../../../../tests/isl/distributed/xy_routing/test_cases.yaml)
 (there is **no XY oracle in the repo**, so the expected values are hand-derived and each case carries
 its geometry). Cases: unicast `4`, the `(1,0)` discriminator `6`, three-corner `6`, 1-D column `3`,
 replicated-source `4`, and an 8×8 scale case `448`. Run:
 
 ```bash
 PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \
-  tests/not_working/distribuffers/test_xy_routing.py -q
+  tests/isl/distributed/test_xy_routing.py -q
 ```
 
 ---
@@ -503,7 +503,7 @@ deliveries).
 
 ### Tested
 
-[`tests/not_working/distribuffers/test_edge_pressure.py`](../../../../../../tests/not_working/distribuffers/test_edge_pressure.py)
+[`tests/isl/distributed/test_edge_pressure.py`](../../../../../../tests/isl/distributed/test_edge_pressure.py)
 — the XY `Σ load == hops` invariant over A–F (with the pressure taken from
 `apply(...).edge_pressure`), F's bottleneck/edge loads (`7`, `yedge_u[0,6]=7`, `yedge_d[0,1]=6`),
 single-tree unit bottlenecks, and the star spoke loads / `Σ ingress == FC count` invariant for 4-
@@ -512,7 +512,7 @@ and 8-GPU all-to-all (star `hops` = injections + deliveries: `16`/`64`, ingress 
 
 ```bash
 PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \
-  tests/not_working/distribuffers/test_edge_pressure.py -q
+  tests/isl/distributed/test_edge_pressure.py -q
 ```
 
 ---
@@ -528,4 +528,4 @@ PATH="$HOME/.local/bin:$PATH" .venv/bin/python -m pytest \
   [`edge_pressure.py`](edge_pressure.py)
 - Tagged-map / tag types: [`../mapping_to_isl/types.py`](../mapping_to_isl/types.py)
 - Example test harness:
-  [`tests/not_working/distribuffers/test_multicast.py`](../../../../../../tests/not_working/distribuffers/test_multicast.py)
+  [`tests/isl/distributed/test_multicast.py`](../../../../../../tests/isl/distributed/test_multicast.py)
