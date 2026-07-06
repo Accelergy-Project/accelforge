@@ -26,7 +26,7 @@ from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from pydantic import Discriminator
 from accelforge.util._basetypes import _uninstantiable
 from accelforge.util.parallel import _SVGJupyterRender
-from accelforge.util._visualization import _pydot_graph
+from accelforge.util._visualization import _pydot_graph, _render_svg
 
 _FIND_SENTINEL = object()
 
@@ -423,7 +423,7 @@ class Array(Branch, Spatialable):
         for parent_name, child_name in edges:
             graph.add_edge(pydot.Edge(parent_name, child_name))
 
-        return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
+        return _SVGJupyterRender(_render_svg(graph))
 
     def _repr_svg_(self) -> str:
         return self.render()
@@ -551,7 +551,7 @@ class Hierarchical(Branch):
         for parent_name, child_name, style in edges:
             graph.add_edge(pydot.Edge(parent_name, child_name, style=style))
 
-        return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
+        return _SVGJupyterRender(_render_svg(graph))
 
     def _repr_svg_(self) -> str:
         return self.render()

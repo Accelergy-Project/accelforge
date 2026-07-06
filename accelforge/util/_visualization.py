@@ -1,3 +1,5 @@
+import subprocess
+
 import pydot
 
 
@@ -6,6 +8,20 @@ def _pydot_graph() -> pydot.Dot:
     graph.set_node_defaults(shape="box", fontname="Arial", fontsize="12")
     graph.set_edge_defaults(fontname="Arial", fontsize="10")
     return graph
+
+
+def _render_svg(graph: pydot.Dot) -> str:
+    """
+    Render a Pydot graph to an SVG string. On a large graph (e.g. a many-Einsum
+    workload) graphviz can exit nonzero while still emitting valid SVG, which pydot's
+    create() rejects; run dot directly and keep the output if it is valid.
+    """
+    out = subprocess.run(
+        ["dot", "-Tsvg"], input=graph.to_string().encode(), capture_output=True
+    )
+    if b"<svg" not in out.stdout:
+        raise RuntimeError(f"dot failed to render graph: {out.stderr.decode()}")
+    return out.stdout.decode("utf-8")
 
 
 # =============================================================================
