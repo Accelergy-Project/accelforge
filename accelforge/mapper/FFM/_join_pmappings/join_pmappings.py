@@ -900,7 +900,7 @@ def join_pmappings(
                     ).clear_tile_patterns_and_reservation_indices()
                     for c in next_pmapping_groups.pmapping_groups
                 )
-                for k in list[PmappingGroup](combined):
+                for k in list[Compatibility](combined):
                     perms = k.make_equivalent_compatibilities(spec.workload)
                     perms = [
                         p[0]

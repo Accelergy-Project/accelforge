@@ -19,6 +19,7 @@ from accelforge.frontend.mapping import (
     Mapping,
     MappingNode,
     Spatial,
+    Storage,
     TensorHolder,
     Temporal,
 )
@@ -40,6 +41,7 @@ from accelforge.frontend.workload import (
     Workload,
     SymbolTable,
 )
+from accelforge.frontend.renames import RANK_DONT_CARE
 from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
     get_tensor_choices,
 )
@@ -430,6 +432,33 @@ def iterate_mappings_constraints(
                         return
 
 
+def infer_locally_optimal_binding(mapping: Mapping, job: Job):
+    """
+    Insert locally-optimal (to this Einsum) bindings to storage nodes of
+    distributed memories.
+    """
+    last_distributed_storage = None
+    irrelevant_rvs = None
+    for node in mapping.nodes:
+        if isinstance(node, Storage):
+            last_distributed_storage = None
+            irrelevant_rvs = None
+            component = node.component_object
+            assert isinstance(component, arch.Memory)
+            if not component._is_distributed():
+                continue
+            assert len(node.tensors) == 1
+            last_distributed_storage = node
+            tensor = next(iter(node.tensors))
+            irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
+        elif isinstance(node, Spatial) and last_distributed_storage is not None:
+            binding_spatial = node.model_copy()
+            rv = binding_spatial.rank_variable
+            if rv in irrelevant_rvs:
+                binding_spatial.rank_variable = RANK_DONT_CARE
+            last_distributed_storage.binding.append(binding_spatial)
+
+
 # =================================================================================================
 # Top level
 # =================================================================================================
@@ -467,6 +496,9 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
             continue
         if isinstance(only_output_index, set) and i not in only_output_index:
             continue
+
+        infer_locally_optimal_binding(mapping, job)
+
         new_job = copy.copy(job)
         new_job.mapping = mapping
         new_job.mapping._template_index = i

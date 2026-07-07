@@ -442,6 +442,7 @@ def insert_reservation_nodes(
             node.persistent = tracker.node.persistent
             node._backing = tracker.node._backing
             node._component_object = tracker.node.component_object
+            node._tensor_holder = tracker.node
 
             if (
                 buffet.tensor not in info.tensor_to_reservation_backer_id
@@ -466,6 +467,7 @@ def insert_reservation_nodes(
         n_nodes = len(mapping)
 
     label_fused_loops(mapping, fusable_tensors)
+    label_shared_tensor_binding_loops(mapping, fusable_tensors)
 
 
 def label_fused_loops(mapping: List[MappingNode], fusable_tensors: set[TensorName]):
@@ -491,6 +493,28 @@ def label_fused_loops(mapping: List[MappingNode], fusable_tensors: set[TensorNam
     for i, node in enumerate[MappingNode](mapping):
         if isinstance(node, Loop):
             node._fused = i < last_backer
+
+    return mapping
+
+
+def label_shared_tensor_binding_loops(
+    mapping: List[MappingNode],
+    fusable_tensors: set[TensorName]
+):
+    found_distributed = False
+    for node in mapping:
+        if isinstance(node, TensorHolder):
+            component = node.component_object
+            found_distributed = (
+                len(node._backing & fusable_tensors) > 0
+                and
+                isinstance(component, arch.Memory)
+                and
+                component._is_distributed()
+            )
+            continue
+        if isinstance(node, Spatial) and found_distributed:
+            node._shared_tensor_binding = True
 
     return mapping
 
@@ -1088,5 +1112,28 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
         )
 
         loop_idx += 1
+
+    # TODO: the current assumption is that the binding defaults to the locally
+    # optimal one, and the rank variables are already set from the pmapping
+    # templates. All we have to do here is ensure the same symbol is used
+    # in the binding loops as the spatial loops they are generated from.
+    last_distributed_storage = None
+    loop_idx = 0
+    for node in mapping:
+        if isinstance(node, Storage):
+            last_distributed_storage = None
+            loop_idx = 0
+            component = node.component_object
+            assert isinstance(component, arch.Memory)
+            if not component._is_distributed():
+                continue
+            assert len(node.tensors) == 1
+            last_distributed_storage = node
+        elif isinstance(node, Spatial) and last_distributed_storage is not None:
+            binding_loop = last_distributed_storage.binding[loop_idx]
+            binding_loop.initial_tile_shape = node.initial_tile_shape
+            binding_loop.tile_shape = node.tile_shape
+            binding_loop.calculated_n_iterations = node.calculated_n_iterations
+            loop_idx += 1
 
     return symbols

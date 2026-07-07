@@ -41,6 +41,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
     SameCompatibilityJobs,
+    SameTemplateJobs,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
@@ -219,7 +220,7 @@ def assert_all_jobs_have_same_symbols(
 
 
 def make_pmappings_from_templates(
-    jobs_with_similar_compatibilities: SameCompatibilityJobs,
+    jobs_with_similar_compatibilities: SameTemplateJobs,
 ) -> tuple[EinsumName, list[PmappingGroup], dict[UUID, Mapping]]:
     jwsc = jobs_with_similar_compatibilities
 
@@ -234,7 +235,7 @@ def make_pmappings_from_templates(
             raise
 
         job.compatibility = job.compatibility.populate_loops(
-            job.ranks_with_tile_pattern
+            job.ranks_with_tile_pattern, job.mapping
         )
 
         # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION TODO: Turn tensor2pmapping

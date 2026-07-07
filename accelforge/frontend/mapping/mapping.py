@@ -383,6 +383,9 @@ class Loop(MappingNode):
     _fused: bool = None
     """ Whether this Loop is shared with another Einsum. """
 
+    _shared_tensor_binding: bool = False
+    """ Whether this loop is used to determine shared tensor binding. """
+
     _may_cause_imperfect: bool = False
     """
     This means that the tile shape of this loop may not perfectly factorize the rank
@@ -508,6 +511,9 @@ class Spatial(Loop):
     def __str__(self) -> str:
         return f"S-{self.name} " + super().__str__()
 
+    def __repr__(self) -> str:
+        return f"Spatial({self.rank_variable}, {self.tile_pattern}, {self.name}, {self.component})"
+
     def __eq__(self, other: "Spatial") -> bool:
         return (
             isinstance(other, Spatial)
@@ -550,7 +556,7 @@ class TensorHolder(MappingNode):
     component: str
     """ The name of the component holding the tensors. """
 
-    component_object: NoParse[arch.Component] = None
+    component_object: NoParse[arch.TensorHolder] = None
     """ The component object holding the tensors. """
 
     _must_keep_tensors: EvalableList[TensorName] = EvalableList()
@@ -635,9 +641,21 @@ class Storage(TensorHolder):
     A Storage :class:`~.TensorHolder` that can hold tensors for reuse.
     """
 
+    binding: EvalableList[Spatial] = []
+    """
+    Spatial loops that make up the binding of the tensor. Should only be used
+    if `tensors` only has one tensor.
+    """
+
     def _merge(self, other: "Storage") -> "Storage":
         if not isinstance(other, Storage):
             raise ValueError(f"Expected Storage, got {type(other)}")
+
+        if len(self.binding) > 0 or len(other.binding) > 0:
+            raise ValueError(
+                f"Cannot merge if binding is used because binding is per-tensor."
+            )
+
         return super()._merge(other)
 
 
@@ -1539,6 +1557,11 @@ class Reservation(MappingNode):
     """ The arch component backing the reserved resource, taken from the Storage node
     this Reservation was created from. Used internally by the Mapper; do not set. """
 
+    _tensor_holder: TensorHolder | None = None
+    """
+    The TensorHolder node from which this reservation is created.
+    """
+
     persistent: bool = False
     """
     Whether this reservation is persistent. Persistent reservations can't be tiled and
@@ -1556,6 +1579,9 @@ class Reservation(MappingNode):
             return color_map.format_list(format_list)
         return f"{self.resource} reserved for {",".join(purposes)}"
 
+    def __repr__(self):
+        return f"Reservation({self.purposes}, {self.resource}, {self.persistent})"
+
     def _render_node_shape(self) -> str:
         return "component"
 
@@ -1564,6 +1590,11 @@ class Reservation(MappingNode):
         if len(self.purposes) == 1:
             return self.purposes[0]
         raise ValueError(f"Reservation has multiple purposes: {self.purposes}")
+
+    @property
+    def binding(self) -> EvalableList[Spatial]:
+        assert isinstance(self._tensor_holder, Storage)
+        return self._tensor_holder.binding
 
     def __eq__(self, other: "Reservation") -> bool:
         return (
@@ -1651,6 +1682,19 @@ class Mapping(Nested):
             else:
                 new_nodes.append(node)
         self.nodes = new_nodes
+
+    def clear_reservations(self):
+        new_nodes = []
+        for node in self.nodes:
+            if isinstance(node, Reservation):
+                continue
+            new_nodes.append(node)
+        self.nodes = new_nodes
+
+    def clear_bindings(self):
+        for node in self.nodes:
+            if isinstance(node, Storage):
+                node.binding = EvalableList()
 
     def split_tensor_holders_with_multiple_tensors(self):
         new_nodes = []

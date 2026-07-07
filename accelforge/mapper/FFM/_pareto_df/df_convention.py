@@ -244,6 +244,14 @@ def is_fused_loop_col(c: str) -> bool:
     return c.startswith("fused_loop<SEP>")
 
 
+def make_binding_col(s: str) -> str:
+    return f"binding<SEP>{s}"
+
+
+def is_binding_col(c: str) -> bool:
+    return c.startswith("binding<SEP>")
+
+
 def is_n_iterations_col(c: str) -> bool:
     return c.startswith("fused_loop<SEP>n_iterations")
 
@@ -295,6 +303,7 @@ def col_used_in_joining(c):
     return (
         col_used_in_pareto(c)
         or is_fused_loop_col(c)
+        or is_binding_col(c)
         or is_tensor_col(c)
         or is_n_iterations_col(c)
     )

@@ -97,6 +97,8 @@ def map_workload_to_arch(
         local_spec.mapping = mappings.data.iloc[i]["Total<SEP>mapping"](
             _for_model=True,
         )
+        with open("mapping.svg", "w") as f:
+            f.write(mappings[i].render())
         try:
             this_mapping = evaluate_mapping(
                 local_spec,
