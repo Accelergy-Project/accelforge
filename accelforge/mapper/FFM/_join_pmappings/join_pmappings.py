@@ -648,13 +648,12 @@ def join_pmappings(
         einsum_pmappings.pmapping_groups = PmappingGroup.combine_combineable(
             einsum_pmappings.pmapping_groups,
             left_tensors | right_tensors,
-            spec.workload,
             _combine_reservations=combine_reservations,
             pbar_postfix=f" for {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
             print_progress=print_progress,
         )
         einsum_pmappings.pmapping_groups = PmappingGroup.group(
-            einsum_pmappings.pmapping_groups, left_tensors, spec.workload
+            einsum_pmappings.pmapping_groups, left_tensors,
         )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         step_time = time.time() - t0
@@ -728,14 +727,13 @@ def join_pmappings(
         left = PmappingGroup.combine_combineable(
             left,
             live_tensors | right_tensors,
-            spec.workload,
             _combine_reservations=combine_reservations,
             print_progress=print_progress,
         )
 
         # print_time(f"Combining")
         # Group left and right into buckets
-        left = PmappingGroup.group(left, right_tensors, spec.workload)
+        left = PmappingGroup.group(left, right_tensors)
         # print_time("Grouping")
 
         # =============================================================================
@@ -893,7 +891,7 @@ def join_pmappings(
                 if not next_right_tensors & cur_tensors:
                     continue
                 prev_combined = combined
-                combined = PmappingGroup.group(combined, next_right_tensors, spec.workload)
+                combined = PmappingGroup.group(combined, next_right_tensors)
                 next_keys = oset(
                     c.clear_dead_tensors(
                         cur_tensors
@@ -916,7 +914,7 @@ def join_pmappings(
                                 )
                         del combined[k]
                 if not combined:
-                    PmappingGroup.group(prev_combined, next_right_tensors, spec.workload)
+                    PmappingGroup.group(prev_combined, next_right_tensors)
                     no_match_lookahead_error(prev_combined, next_keys)
 
                 combined = list(itertools.chain.from_iterable(combined.values()))
@@ -1010,7 +1008,7 @@ def join_pmappings(
         left, None, pbar="Final consolidate" if print_progress else None
     )
     s_final = PmappingGroup.combine_combineable(
-        left, oset(), spec.workload, print_progress=print_progress
+        left, oset(), print_progress=print_progress
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings

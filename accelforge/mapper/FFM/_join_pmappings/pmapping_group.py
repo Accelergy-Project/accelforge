@@ -229,7 +229,6 @@ class PmappingGroup:
     def _group(
         pmapping_groups: list["PmappingGroup"],
         live_tensors: set[str] | Literal["All"],
-        workload,
         clear_tile_patterns_and_reservation_indices: bool = False,
         include_permutations: bool = False,
         clear_symbolic_tile_patterns: bool = False,
@@ -264,7 +263,7 @@ class PmappingGroup:
             compatibility = pg.compatibility.clear_dead_tensors(live_tensors)
 
             if include_permutations or combine_equivalent_permutations:
-                keys = compatibility.make_equivalent_compatibilities(workload)
+                keys = compatibility.make_equivalent_compatibilities()
                 for t, equivalence in keys:
                     # Line below DOES NOT MUTATE. It's a check that the transform works.
                     equivalence.apply(pg.compatibility)
@@ -315,7 +314,6 @@ class PmappingGroup:
     def combine_combineable(
         pmapping_groups: list["PmappingGroup"],
         live_tensors: set[str] | Literal["All"],
-        workload,
         allow_different_compatibilies: bool = False,
         _combine_reservations: bool = True,
         print_progress: bool = True,
@@ -333,7 +331,6 @@ class PmappingGroup:
             PmappingGroup._group(
                 pmapping_groups,
                 live_tensors,
-                workload,
                 clear_symbolic_tile_patterns=True,
                 combine_equivalent_permutations=True,
             ).values()
@@ -373,12 +370,11 @@ class PmappingGroup:
 
     @staticmethod
     def group(
-        pmapping_groups: list["PmappingGroup"], live_tensors: set[str], workload
+        pmapping_groups: list["PmappingGroup"], live_tensors: set[str],
     ) -> dict[tuple[Compatibility, ...], list[tuple["PmappingGroup", "CompatibilityDiff"]]]:
         x = PmappingGroup._group(
             pmapping_groups,
             live_tensors,
-            workload,
             clear_tile_patterns_and_reservation_indices=True,
             include_permutations=True,
             # mixable_ranks=mixable_ranks,

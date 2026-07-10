@@ -419,10 +419,11 @@ class PmappingDataframe:
         left_match, right_match = [], []
         make_empty_result = False
 
-        # TODO: "check" shouldn't have side effect
         def check_match(la: Loop, lb: Loop, param: str):
             a, b = getattr(la.tile_pattern, param), getattr(lb.tile_pattern, param)
-            if isinstance(a, str) or isinstance(b, str):
+            if isinstance(a, str) and isinstance(b, str):
+                if a in left_match and b in left_match:
+                    return
                 left_match.append(a)
                 right_match.append(b)
             elif a != b:
@@ -438,6 +439,7 @@ class PmappingDataframe:
                 for la, lb in zip(ta.physical_spatial_loops, tb.physical_spatial_loops):
                     check_match(la, lb, "initial_tile_shape")
                     check_match(la, lb, "tile_shape")
+                    check_match(la, lb, "calculated_n_iterations")
 
             for la, lb in zip(compatibility_left.loops, compatibility_right.loops):
                 check_match(la, lb, "calculated_n_iterations")

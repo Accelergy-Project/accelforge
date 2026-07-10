@@ -29,7 +29,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 
-from accelforge.util import _expfmt, fzs, oset
+from accelforge.util import _expfmt, fzs, oset, DONT_CARE, Permutation, DontCare
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -61,14 +61,14 @@ def _update_rename_dict(
 
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
-    rank_name: Rank
+    rank_name: Rank | DontCare
     tile_pattern: TilePattern | None
     is_spatial: bool
     # The architecture spatial dimension (e.g. "X", "Y") this loop fans out over.
     spatial_dim: str | None = None
 
     def __post_init__(self):
-        assert isinstance(self.rank_name, Rank)
+        assert isinstance(self.rank_name, (Rank, DontCare))
         assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
         assert isinstance(self.spatial_dim, str | None)
@@ -82,9 +82,6 @@ class Loop(Updatable):
         ), f"tile pattern is {self.tile_pattern.tile_shape}"
 
     def __repr__(self):
-        return (
-            f"Loop({self.rank_name.__repr__()})"
-        )
         return (
             f"Loop({self.rank_name.__repr__()}, {self.tile_pattern}, {self.is_spatial})"
         )
@@ -219,46 +216,8 @@ class TensorReservation(Updatable):
     def pydot_str(self):
         return f"[{self.resource_name}] {self.name}"
 
-    def permute(self, permutation) -> "Reservation":
-        new_loops = [self.loops[permutation[i]] for i in range(len(self.loops))]
-        return self.update(loops=tuple(new_loops))
-
-    def replace_physical_spatial_loops(
-        self, diff: dict[int, Rank]
-    ) -> "TensorReservation":
-        return self.update(physical_spatial_loops=tuple(
-            l.update(rank_name=diff[i]) if i in diff else l
-            for i, l in enumerate(self.physical_spatial_loops)
-        ))
-
-    def make_equivalent_bindings(
-        self, ranks: set[Rank]
-    ) -> list[tuple["TensorReservation", dict[int, Rank]]]:
-        """
-        Make equivalent bindings by enumerating rank substitutions for
-        RANK_DONT_CARE that is any rank not in a loop under the DONT_CARE loop.
-        """
-        return [(self, {})]
-        # TODO: no equivalent bindings yet
-        index2choices = {}
-        existing_ranks = oset()
-        for i, loop in enumerate(self.physical_spatial_loops):
-            if loop.rank_name == RANK_DUPLICATE:
-                index2choices[i] = existing_ranks.copy()
-            else:
-                existing_ranks.add(loop.rank_name)
-
-        ranks = sorted(ranks)
-        if not index2choices:
-            return [(self, {})]
-        out = []
-        for combo in itertools.product(ranks, repeat=len(dc_indices)):
-            index2rank = dict(zip(dc_indices, combo))
-            out.append((
-                self.replace_physical_spatial_loops(index2rank),
-                index2rank
-            ))
-        return out
+    def permute_loops(self, permutation: Permutation) -> "Reservation":
+        return self.update(loops=tuple(permutation.apply(self.loops)))
 
     def clear_loop_bounds(self) -> "Reservation":
         return self.update(loops=tuple(loop.clear_loop_bound() for loop in self.loops))
@@ -275,12 +234,28 @@ class TensorReservation(Updatable):
             ),
         )
         if len(self.physical_spatial_loops) > 0:
-            new_loop = tuple(
-                loop.update(tile_pattern=mapping_loop.tile_pattern._symbol2str())
-                for loop, mapping_loop
-                in zip(updated_loops.physical_spatial_loops, reservation_node.binding)
-            )
-            return updated_loops.update(physical_spatial_loops=new_loop)
+            new_loop = []
+            for compat_loop, mapping_loop in zip(updated_loops.physical_spatial_loops, reservation_node.binding):
+                mapping_tile_pattern = mapping_loop.tile_pattern._symbol2str()
+                """
+                A DONT_CARE binding loop arises from a spatial loop over an irrelevant rank variable,
+                denoting that any tensor rank may be partitioned without changing amount of traffic.
+                Using a DONT_CARE loop means we only have to evaluate those mappings once instead of
+                generating a bunch of bindings with the same model result over and over.
+
+                A DONT_CARE binding loop is compatible with another binding loop over *any* tensor rank
+                with *any* shape. However, the number of iterations must match, thus the code below.
+                """
+                if compat_loop.rank_name is DONT_CARE:
+                    new_compat_tile_pattern = TilePattern(
+                        tile_shape=DONT_CARE,
+                        initial_tile_shape=DONT_CARE,
+                        calculated_n_iterations=mapping_tile_pattern.calculated_n_iterations,
+                    )
+                else:
+                    new_compat_tile_pattern = mapping_tile_pattern
+                new_loop.append(compat_loop.update(tile_pattern=new_compat_tile_pattern))
+            return updated_loops.update(physical_spatial_loops=tuple(new_loop))
         else:
             return updated_loops
 
@@ -375,16 +350,10 @@ class CompatibilityDiff:
     """
     The diff applied to a Compatibility to generate another Compatibility.
     """
-
-    loop_permutation: tuple[int, ...]
-    # (tensor_name, physical_spatial_loop_index, new_rank) for each DONT_CARE
-    # binding that was rewritten to a concrete rank.
-    physical_rank_rewrites: fzs = fzs()
+    loop_permutation: Permutation
 
     def apply(self, c: "Compatibility") -> "Compatibility":
-        c = c.permute(list(self.loop_permutation))
-        if self.physical_rank_rewrites:
-            c = c.replace_physical_spatial_loops(self.physical_rank_rewrites)
+        c = c.permute_loops(list(self.loop_permutation))
         return c
 
 
@@ -581,18 +550,12 @@ class Compatibility(Updatable):
         stops |= oset(s.above_loop_index for s in self.splits)
         return stops
 
-    def permute(
+    def permute_loops(
         self,
-        loop_changes: list[int],
+        loop_changes: Permutation,
     ) -> "Compatibility":
         assert len(loop_changes) <= self.n_loops
-        assert oset(loop_changes) == oset(
-            range(len(loop_changes))
-        ), f"Loop changes {loop_changes} are not a permutation of {range(len(loop_changes))}"
-        if len(loop_changes) < len(self.loops):
-            loop_changes = loop_changes + list(
-                range(len(loop_changes), len(self.loops))
-            )
+        loop_changes.extend_unpermuted(len(self.loops))
 
         permute_stops = self._permute_stops()
         for i, c in enumerate(loop_changes):
@@ -600,25 +563,10 @@ class Compatibility(Updatable):
                 assert (i < r) == (
                     c < r
                 ), f"Loop changes {loop_changes} cross reservation {r}"
-        new_tensors = fzs(s.permute(loop_changes) for s in self.tensors)
+        new_tensors = fzs(s.permute_loops(loop_changes) for s in self.tensors)
         return self.update(tensors=new_tensors)
 
-    def replace_physical_spatial_loops(self, rewrites: fzs) -> "Compatibility":
-        """Apply ``(tensor_name, physical_loop_index, rank)`` rewrites to the
-        physical-spatial loops of the matching tensors."""
-        by_tensor = defaultdict(dict)
-        for tensor, idx, rank in rewrites:
-            by_tensor[tensor][idx] = rank
-        new_tensors = fzs(
-            t.replace_physical_spatial_loops(by_tensor[t.name]) if t.name in by_tensor
-            else t
-            for t in self.tensors
-        )
-        return self.update(tensors=new_tensors)
-
-    def _make_equivalent_loop_permutations(
-            self
-    ) -> Iterator[tuple["Compatibility", tuple]]:
+    def _make_equivalent_loop_permutations(self) -> Iterator[Permutation]:
         # Get contiguous blocks of loops with no tensor reservation between them
         blocks = []
         current_block = []
@@ -636,44 +584,17 @@ class Compatibility(Updatable):
             list(itertools.permutations(block)) for block in blocks
         ]
         all_permutations = list(itertools.product(*per_block_permutations))
-        all_permutations = [
-            list(itertools.chain(*loop_changes)) for loop_changes in all_permutations
-        ]
-        yield from all_permutations
+        yield from (
+            Permutation(itertools.chain(*loop_changes)) for loop_changes in all_permutations
+        )
 
-    def _make_equivalent_physical_bindings(
-        self,
-        workload: Workload
-    ) -> list[tuple["Compatibility", fzs]]:
-        """
-        Enumerate equivalent compatibilities produced by ``RANK_DONT_CARE``
-        into concrete ranks of its tensor. Returns a list of tuples of the
-        updated compatibility and the substitutions that produced it.
-        """
-        tensors = list(self.tensors)
-        per_tensor = [
-            t.make_equivalent_bindings(workload.tensor_ranks(t.name))
-            for t in tensors
-        ]
-        for combo in itertools.product(*per_tensor):
-            rewrites = fzs(
-                (t.name, idx, rank)
-                for t, (_, index2rank) in zip(tensors, combo)
-                for idx, rank in index2rank.items()
-            )
-            yield rewrites
-
-    def make_equivalent_compatibilities(
-        self, workload
-    ) -> list[tuple["Compatibility", "CompatibilityDiff"]]:
+    def make_equivalent_compatibilities(self) -> list[tuple["Compatibility", "CompatibilityDiff"]]:
         result = []
-        for loop_diff in self._make_equivalent_loop_permutations():
-            for rewrites in self._make_equivalent_physical_bindings(workload):
-                diff = CompatibilityDiff(
-                    loop_permutation=tuple(loop_diff),
-                    physical_rank_rewrites=rewrites
-                )
-                result.append((diff.apply(self), diff))
+        for loop_permutation in self._make_equivalent_loop_permutations():
+            diff = CompatibilityDiff(
+                loop_permutation=loop_permutation,
+            )
+            result.append((diff.apply(self), diff))
         return result
 
     def get_reservation_of_tensor(self, tensor: str) -> TensorReservation:

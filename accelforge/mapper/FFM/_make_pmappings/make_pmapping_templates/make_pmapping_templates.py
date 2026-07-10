@@ -41,7 +41,6 @@ from accelforge.frontend.workload import (
     Workload,
     SymbolTable,
 )
-from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
     get_tensor_choices,
 )
@@ -66,6 +65,7 @@ from accelforge.model._looptree.reuse.symbolic import (
     label_fused_loops,
     quick_insert_reservation_nodes,
 )
+from accelforge.util import DONT_CARE
 
 
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
@@ -432,10 +432,9 @@ def iterate_mappings_constraints(
                         return
 
 
-def infer_concordant_binding(mapping: Mapping, job: Job):
+def infer_default_binding(mapping: Mapping, job: Job):
     """
-    Insert locally-optimal (to this Einsum) bindings to storage nodes of
-    distributed memories.
+    Insert a non-duplicating binding for distributed memories.
     """
     last_distributed_storage = None
     irrelevant_rvs = None
@@ -455,7 +454,7 @@ def infer_concordant_binding(mapping: Mapping, job: Job):
             binding_spatial = node.model_copy()
             rv = binding_spatial.rank_variable
             if rv in irrelevant_rvs:
-                binding_spatial.rank_variable = RANK_DUPLICATE
+                binding_spatial.rank_variable = DONT_CARE
             else:
                 ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
                 assert len(ranks) == 1
@@ -501,7 +500,7 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         if isinstance(only_output_index, set) and i not in only_output_index:
             continue
 
-        infer_concordant_binding(mapping, job)
+        infer_default_binding(mapping, job)
 
         new_job = copy.copy(job)
         new_job.mapping = mapping
