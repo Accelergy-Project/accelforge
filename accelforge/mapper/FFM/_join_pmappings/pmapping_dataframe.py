@@ -419,6 +419,7 @@ class PmappingDataframe:
         left_match, right_match = [], []
         make_empty_result = False
 
+        # TODO: "check" shouldn't have side effect
         def check_match(la: Loop, lb: Loop, param: str):
             a, b = getattr(la.tile_pattern, param), getattr(lb.tile_pattern, param)
             if isinstance(a, str) or isinstance(b, str):
@@ -432,6 +433,9 @@ class PmappingDataframe:
                 ta = compatibility_left.get_reservation_of_tensor(s)
                 tb = compatibility_right.get_reservation_of_tensor(s)
                 for la, lb in zip(ta.loops, tb.loops):
+                    check_match(la, lb, "initial_tile_shape")
+                    check_match(la, lb, "tile_shape")
+                for la, lb in zip(ta.physical_spatial_loops, tb.physical_spatial_loops):
                     check_match(la, lb, "initial_tile_shape")
                     check_match(la, lb, "tile_shape")
 

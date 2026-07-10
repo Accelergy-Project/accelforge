@@ -17,7 +17,7 @@ from accelforge.frontend.mapping import (
     TilePattern,
     Loop as MappingLoop,
 )
-from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DONT_CARE
+from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DUPLICATE
 from accelforge.frontend.workload import Einsum, Workload
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
@@ -82,6 +82,9 @@ class Loop(Updatable):
         ), f"tile pattern is {self.tile_pattern.tile_shape}"
 
     def __repr__(self):
+        return (
+            f"Loop({self.rank_name.__repr__()})"
+        )
         return (
             f"Loop({self.rank_name.__repr__()}, {self.tile_pattern}, {self.is_spatial})"
         )
@@ -233,16 +236,20 @@ class TensorReservation(Updatable):
     ) -> list[tuple["TensorReservation", dict[int, Rank]]]:
         """
         Make equivalent bindings by enumerating rank substitutions for
-        RANK_DONT_CARE. Returns tuples of new tensor reservations and the
-        substitutions made.
+        RANK_DONT_CARE that is any rank not in a loop under the DONT_CARE loop.
         """
-        dc_indices = [
-            i
-            for i, l in enumerate(self.physical_spatial_loops)
-            if l.rank_name == RANK_DONT_CARE
-        ]
+        return [(self, {})]
+        # TODO: no equivalent bindings yet
+        index2choices = {}
+        existing_ranks = oset()
+        for i, loop in enumerate(self.physical_spatial_loops):
+            if loop.rank_name == RANK_DUPLICATE:
+                index2choices[i] = existing_ranks.copy()
+            else:
+                existing_ranks.add(loop.rank_name)
+
         ranks = sorted(ranks)
-        if not dc_indices or not ranks:
+        if not index2choices:
             return [(self, {})]
         out = []
         for combo in itertools.product(ranks, repeat=len(dc_indices)):

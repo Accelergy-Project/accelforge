@@ -23,7 +23,7 @@ into a join dataframe lives at the call sites in the FFM join path.
 from dataclasses import dataclass
 from typing import Any
 
-from accelforge.frontend.renames import RANK_DONT_CARE
+from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend._workload_isl._symbolic import Irrelevant, Relevant
 from accelforge.model._looptree.reuse.symbolic._network import get_topology_model
 
@@ -46,7 +46,7 @@ def _relevancy(loop):
     along the dimension (unicast -> :class:`Relevant`). A ``RANK_DONT_CARE``
     binding replicates the same data (multicast -> :class:`Irrelevant`).
     """
-    if loop is None or loop.rank_name == RANK_DONT_CARE:
+    if loop is None or loop.rank_name == RANK_DUPLICATE:
         return Irrelevant()
     return Relevant(loop.rank_name)
 

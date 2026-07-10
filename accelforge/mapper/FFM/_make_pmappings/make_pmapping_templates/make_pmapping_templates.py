@@ -41,7 +41,7 @@ from accelforge.frontend.workload import (
     Workload,
     SymbolTable,
 )
-from accelforge.frontend.renames import RANK_DONT_CARE
+from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_storage_order import (
     get_tensor_choices,
 )
@@ -432,7 +432,7 @@ def iterate_mappings_constraints(
                         return
 
 
-def infer_locally_optimal_binding(mapping: Mapping, job: Job):
+def infer_concordant_binding(mapping: Mapping, job: Job):
     """
     Insert locally-optimal (to this Einsum) bindings to storage nodes of
     distributed memories.
@@ -455,7 +455,11 @@ def infer_locally_optimal_binding(mapping: Mapping, job: Job):
             binding_spatial = node.model_copy()
             rv = binding_spatial.rank_variable
             if rv in irrelevant_rvs:
-                binding_spatial.rank_variable = RANK_DONT_CARE
+                binding_spatial.rank_variable = RANK_DUPLICATE
+            else:
+                ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
+                assert len(ranks) == 1
+                binding_spatial.rank_variable = next(iter(ranks))
             last_distributed_storage.binding.append(binding_spatial)
 
 
@@ -497,7 +501,7 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         if isinstance(only_output_index, set) and i not in only_output_index:
             continue
 
-        infer_locally_optimal_binding(mapping, job)
+        infer_concordant_binding(mapping, job)
 
         new_job = copy.copy(job)
         new_job.mapping = mapping
