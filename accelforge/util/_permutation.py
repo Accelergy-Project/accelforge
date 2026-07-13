@@ -12,8 +12,9 @@ class Permutation:
     of a sequence that has N elements.
     """
     def __init__(self, permutation: Iterable[int]):
-        self.permutation = list(permutation)
-        assert oset(self.permutation) == oset(range(len(self.permutation)))
+        permutation = list(permutation)
+        assert oset(permutation) == oset(range(len(permutation)))
+        self.permutation = permutation
 
     def __getitem__(self, idx: int):
         return self.permutation[idx]
@@ -24,19 +25,24 @@ class Permutation:
     def __len__(self) -> int:
         return len(self.permutation)
 
-    def extend_unpermuted(self, n: int):
+    def apply(
+        self,
+        sequence: Sequence[T],
+        include_remaining_unpermuted: bool=True
+    ) -> Iterable[T]:
         """
-        Extend the permutation to n elements with remaining elements unpermuted.
-        For example,
-        ```
-        p = Permutation([0, 2, 1])
-        p.extend_unpermuted(5)
-        p == Permutation([0, 2, 1, 3, 4])
-        ```
+        Apply permutation to sequence. If `include_remaining_unpermuted` and
+        the sequence is longer than the permutation, then the remainder of the
+        sequence is included unpermuted. Otherwise, the remainder of the
+        sequence is omitted.
         """
-        assert n >= len(self)
-        self.permutation.extend(list(range(len(self), n)))
+        assert len(sequence) >= len(self)
+        yield from (sequence[idx] for idx in self.permutation)
+        if include_remaining_unpermuted and len(sequence) > len(self):
+            yield from sequence[len(self):]
 
-    def apply(self, sequence: Sequence[T]) -> Iterable[T]:
-        assert len(sequence) == len(self)
-        yield from (sequence[self[i]] for i in range(len(sequence)))
+    def copy(self) -> "Permutation":
+        return Permutation(self.permutation.copy())
+
+    def get_prefix(self, n: int) -> "Permutation":
+        return Permutation(self.permutation[:n])

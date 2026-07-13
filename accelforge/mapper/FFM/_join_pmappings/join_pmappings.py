@@ -899,7 +899,7 @@ def join_pmappings(
                     for c in next_pmapping_groups.pmapping_groups
                 )
                 for k in list[Compatibility](combined):
-                    perms = k.make_equivalent_compatibilities(spec.workload)
+                    perms = k.make_equivalent_compatibilities()
                     perms = [
                         p[0]
                         .clear_dead_tensors(next_right_tensors)

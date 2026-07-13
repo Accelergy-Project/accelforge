@@ -76,7 +76,7 @@ def evaluate_mapping(
         run_model,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
-        infer_concordant_binding,
+        infer_default_binding,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
         _calculate_iterations_and_rank_columns,
@@ -175,7 +175,7 @@ def evaluate_mapping(
         job.fusable_tensors = fusable_tensors & oset(job.tensor_to_relevancy)
         einsum = cur_spec.workload.einsums[job.einsum_name]
 
-        infer_concordant_binding(job.mapping, job)
+        infer_default_binding(job.mapping, job)
 
         _, df, _, _, tensor2mapping, _ = run_model(
             job, add_reservations=True

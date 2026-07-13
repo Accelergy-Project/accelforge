@@ -217,6 +217,8 @@ class TensorReservation(Updatable):
         return f"[{self.resource_name}] {self.name}"
 
     def permute_loops(self, permutation: Permutation) -> "Reservation":
+        if len(self.loops) < len(permutation):
+            permutation = permutation.get_prefix(len(self.loops))
         return self.update(loops=tuple(permutation.apply(self.loops)))
 
     def clear_loop_bounds(self) -> "Reservation":
@@ -353,7 +355,7 @@ class CompatibilityDiff:
     loop_permutation: Permutation
 
     def apply(self, c: "Compatibility") -> "Compatibility":
-        c = c.permute_loops(list(self.loop_permutation))
+        c = c.permute_loops(self.loop_permutation)
         return c
 
 
@@ -554,9 +556,6 @@ class Compatibility(Updatable):
         self,
         loop_changes: Permutation,
     ) -> "Compatibility":
-        assert len(loop_changes) <= self.n_loops
-        loop_changes.extend_unpermuted(len(self.loops))
-
         permute_stops = self._permute_stops()
         for i, c in enumerate(loop_changes):
             for r in permute_stops:
