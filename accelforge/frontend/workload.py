@@ -33,7 +33,11 @@ from accelforge.frontend.renames import (
 )
 from accelforge.util.exceptions import EvaluationError
 from accelforge.util._eval_expressions import eval_expression
-from accelforge.util._setexpressions import InvertibleSet, eval_set_expression
+from accelforge.util._setexpressions import (
+    InvertibleSet,
+    eval_set_expression,
+    eval_set_expression_dict,
+)
 
 from accelforge.frontend.renames import (
     EinsumName,
@@ -778,13 +782,12 @@ class Einsum(EvalableModel):
         # Parse the bits per value
         bits_per_value = dict()
         bpv_to_source = dict()
-        for k, v in symbol_table["workload_bits_per_value"].items():
-            bpv = eval_set_expression(
-                expression=k,
-                symbol_table=st,
-                expected_space=TensorName,
-                location=f"(workload global bits_per_value)[{k}]",
-            )
+        for k, bpv, v in eval_set_expression_dict(
+            symbol_table["workload_bits_per_value"],
+            st,
+            TensorName,
+            "workload global bits_per_value",
+        ):
             for t in bpv:
                 if t in bits_per_value:
                     raise EvaluationError(
@@ -882,8 +885,17 @@ class Workload(EvalableModel):
 
     def __init__(self, **data):
         if "einsums" in data and data["einsums"]:
+            flattened = []
+            to_flatten = list(reversed(data["einsums"]))
+            while to_flatten:
+                e = to_flatten.pop()
+                if isinstance(e, list):
+                    to_flatten.extend(reversed(e))
+                else:
+                    flattened.append(e)
+
             processed_einsums = []
-            for einsum_entry in data["einsums"]:
+            for einsum_entry in flattened:
                 if isinstance(einsum_entry, str):
                     einsum_entry = {"einsum": einsum_entry}
                 elif isinstance(einsum_entry, Einsum):
@@ -1024,8 +1036,11 @@ class Workload(EvalableModel):
         my_ispace = self.iteration_space_shape
         global_shape = [my_ispace[r] for r in einsum.rank_variables if r in my_ispace]
         rank_sizes = einsum.rank_sizes
+        workload_rank_sizes = self.rank_sizes._eval_expressions(
+            symbol_table={}, validator_from_parent=EvalsTo[int]
+        )[0]
         global_rank_sizes = {
-            r: self.rank_sizes[r] for r in einsum.ranks if r in self.rank_sizes
+            r: workload_rank_sizes[r] for r in einsum.ranks if r in workload_rank_sizes
         }
 
         exprs = einsum_shape + global_shape
