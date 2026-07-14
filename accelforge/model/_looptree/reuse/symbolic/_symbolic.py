@@ -137,6 +137,7 @@ def convert_to_copy(
                     isinstance(node2, TensorHolder)
                     and node.component == node2.component
                 ):
+                    node._backing |= node2._backing
                     mapping.pop(j)
                 else:
                     j += 1
