@@ -41,6 +41,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     Job,
     SameCompatibilityJobs,
+    SameTemplateJobs,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
@@ -81,16 +82,6 @@ def shift_reservations_by_null_loop_indices(
     if len(mappings.columns) != len(mappings.columns.unique()):
         raise ValueError(f"Duplicate columns: {mappings.columns}")
     return mappings
-
-
-def get_equivalent_pmappings(
-    pmapping_group: PmappingGroup, reservation_levels: set[int]
-) -> list[PmappingGroup]:
-    equivalent_permutations = pmapping_group.compatibility.make_equivalent_permutations(
-        reservation_levels
-    )
-    result = [PmappingGroup(c, None) for c in equivalent_permutations]
-    return result
 
 
 def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
@@ -229,7 +220,7 @@ def assert_all_jobs_have_same_symbols(
 
 
 def make_pmappings_from_templates(
-    jobs_with_similar_compatibilities: SameCompatibilityJobs,
+    jobs_with_similar_compatibilities: SameTemplateJobs,
 ) -> tuple[EinsumName, list[PmappingGroup], dict[UUID, Mapping]]:
     jwsc = jobs_with_similar_compatibilities
 
@@ -244,7 +235,7 @@ def make_pmappings_from_templates(
             raise
 
         job.compatibility = job.compatibility.populate_loops(
-            job.ranks_with_tile_pattern
+            job.ranks_with_tile_pattern, job.mapping
         )
 
         # Ctrl-F for CONTIGUOUS_ITERATION_SPACE_DISCUSSION TODO: Turn tensor2pmapping

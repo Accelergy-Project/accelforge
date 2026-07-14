@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Iterator, Iterable
 from enum import Enum
 from dataclasses import dataclass, replace
 import itertools
@@ -10,22 +11,25 @@ from accelforge.frontend.mapping import (
     Mapping,
     Spatial,
     TensorHolder,
+    Storage as MappingStorage,
     Reservation as MappingReservation,
     Split as MappingSplit,
     TilePattern,
     Loop as MappingLoop,
 )
-from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DONT_CARE
-from accelforge.frontend.workload import Einsum
+from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DUPLICATE
+from accelforge.frontend.workload import Einsum, Workload
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
     make_fused_loop_col,
+    is_binding_col,
+    make_binding_col,
     stride2col,
     initial2col,
     iterations2col,
 )
 
-from accelforge.util import _expfmt, fzs, oset
+from accelforge.util import _expfmt, fzs, oset, DONT_CARE, Permutation, DontCare
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -57,14 +61,14 @@ def _update_rename_dict(
 
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
-    rank_name: Rank
+    rank_name: Rank | DontCare
     tile_pattern: TilePattern | None
     is_spatial: bool
     # The architecture spatial dimension (e.g. "X", "Y") this loop fans out over.
     spatial_dim: str | None = None
 
     def __post_init__(self):
-        assert isinstance(self.rank_name, Rank)
+        assert isinstance(self.rank_name, (Rank, DontCare))
         assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
         assert isinstance(self.spatial_dim, str | None)
@@ -75,7 +79,7 @@ class Loop(Updatable):
         assert isinstance(
             self.tile_pattern.tile_shape,
             Number | str | None,
-        )
+        ), f"tile pattern is {self.tile_pattern.tile_shape}"
 
     def __repr__(self):
         return (
@@ -147,6 +151,22 @@ class Loop(Updatable):
 
         return r, new
 
+    def make_binding_symbols(self, prefix: str) -> tuple[dict[str, str], "Loop"]:
+        assert self.is_spatial
+        r = {}
+        new = self
+
+        for attr in new.tile_pattern._symbol_attrs():
+            attr_val = getattr(self.tile_pattern, attr)
+            if isinstance(attr_val, str):
+                new_attr_val = make_binding_col(f"{prefix}<SEP>{attr_val}")
+                r[attr_val] = new_attr_val
+            else:
+                new_attr_val = attr_val
+            new = new.update(tile_pattern=new.tile_pattern.update(**{attr: new_attr_val}))
+
+        return r, new
+
     def add_n_iteration_symbols(self) -> "Loop":
         return self.update(tile_pattern=self.tile_pattern.add_n_iteration_symbols())
 
@@ -196,20 +216,50 @@ class TensorReservation(Updatable):
     def pydot_str(self):
         return f"[{self.resource_name}] {self.name}"
 
-    def permute(self, permutation) -> "Reservation":
-        new_loops = [self.loops[permutation[i]] for i in range(len(self.loops))]
-        return self.update(loops=tuple(new_loops))
+    def permute_loops(self, permutation: Permutation) -> "Reservation":
+        if len(self.loops) < len(permutation):
+            permutation = permutation.get_prefix(len(self.loops))
+        return self.update(loops=tuple(permutation.apply(self.loops)))
 
     def clear_loop_bounds(self) -> "Reservation":
         return self.update(loops=tuple(loop.clear_loop_bound() for loop in self.loops))
 
-    def populate_loops(self, ranks_with_tile_pattern: set[Rank]) -> "TensorReservation":
-        return self.update(
+    def populate_loops(
+        self,
+        ranks_with_tile_pattern: set[Rank],
+        reservation_node: MappingReservation
+    ) -> "TensorReservation":
+        updated_loops = self.update(
             loops=tuple(
                 loop.populate(nloop, ranks_with_tile_pattern)
                 for nloop, loop in enumerate(self.loops)
-            )
+            ),
         )
+        if len(self.physical_spatial_loops) > 0:
+            new_loop = []
+            for compat_loop, mapping_loop in zip(updated_loops.physical_spatial_loops, reservation_node.binding):
+                mapping_tile_pattern = mapping_loop.tile_pattern._symbol2str()
+                """
+                A DONT_CARE binding loop arises from a spatial loop over an irrelevant rank variable,
+                denoting that any tensor rank may be partitioned without changing amount of traffic.
+                Using a DONT_CARE loop means we only have to evaluate those mappings once instead of
+                generating a bunch of bindings with the same model result over and over.
+
+                A DONT_CARE binding loop is compatible with another binding loop over *any* tensor rank
+                with *any* shape. However, the number of iterations must match, thus the code below.
+                """
+                if compat_loop.rank_name is DONT_CARE:
+                    new_compat_tile_pattern = TilePattern(
+                        tile_shape=DONT_CARE,
+                        initial_tile_shape=DONT_CARE,
+                        calculated_n_iterations=mapping_tile_pattern.calculated_n_iterations,
+                    )
+                else:
+                    new_compat_tile_pattern = mapping_tile_pattern
+                new_loop.append(compat_loop.update(tile_pattern=new_compat_tile_pattern))
+            return updated_loops.update(physical_spatial_loops=tuple(new_loop))
+        else:
+            return updated_loops
 
     @staticmethod
     def get_backing_tensors(
@@ -246,7 +296,15 @@ class TensorReservation(Updatable):
             r, l = l.make_fused_loop_symbols(prefix)
             result.update(r)
             loops.append(l)
-        return result, self.update(loops=tuple(loops))
+        physical_loops = []
+        for l in self.physical_spatial_loops:
+            r, l = l.make_binding_symbols(prefix)
+            result.update(r)
+            physical_loops.append(l)
+        return (
+            result,
+            self.update(loops=tuple(loops), physical_spatial_loops=tuple(physical_loops))
+        )
 
     def add_n_iteration_symbols(self) -> "TensorReservation":
         return self.update(
@@ -287,6 +345,18 @@ class SplitKind(Enum):
 class Split:
     split: MappingSplit
     above_loop_index: int
+
+
+@dataclass(frozen=True)
+class CompatibilityDiff:
+    """
+    The diff applied to a Compatibility to generate another Compatibility.
+    """
+    loop_permutation: Permutation
+
+    def apply(self, c: "Compatibility") -> "Compatibility":
+        c = c.permute_loops(self.loop_permutation)
+        return c
 
 
 @dataclass(frozen=True)
@@ -482,29 +552,20 @@ class Compatibility(Updatable):
         stops |= oset(s.above_loop_index for s in self.splits)
         return stops
 
-    def permute(
+    def permute_loops(
         self,
-        loop_changes: list[int],
+        loop_changes: Permutation,
     ) -> "Compatibility":
-        assert len(loop_changes) <= self.n_loops
-        assert oset(loop_changes) == oset(
-            range(len(loop_changes))
-        ), f"Loop changes {loop_changes} are not a permutation of {range(len(loop_changes))}"
-        if len(loop_changes) < len(self.loops):
-            loop_changes = loop_changes + list(
-                range(len(loop_changes), len(self.loops))
-            )
-
         permute_stops = self._permute_stops()
         for i, c in enumerate(loop_changes):
             for r in permute_stops:
                 assert (i < r) == (
                     c < r
                 ), f"Loop changes {loop_changes} cross reservation {r}"
-        new_tensors = fzs(s.permute(loop_changes) for s in self.tensors)
+        new_tensors = fzs(s.permute_loops(loop_changes) for s in self.tensors)
         return self.update(tensors=new_tensors)
 
-    def make_equivalent_permutations(self) -> list[tuple["Compatibility", list[int]]]:
+    def _make_equivalent_loop_permutations(self) -> Iterator[Permutation]:
         # Get contiguous blocks of loops with no tensor reservation between them
         blocks = []
         current_block = []
@@ -522,10 +583,18 @@ class Compatibility(Updatable):
             list(itertools.permutations(block)) for block in blocks
         ]
         all_permutations = list(itertools.product(*per_block_permutations))
-        all_permutations = [
-            list(itertools.chain(*loop_changes)) for loop_changes in all_permutations
-        ]
-        return [(self.permute(p), p) for p in all_permutations]
+        yield from (
+            Permutation(itertools.chain(*loop_changes)) for loop_changes in all_permutations
+        )
+
+    def make_equivalent_compatibilities(self) -> list[tuple["Compatibility", "CompatibilityDiff"]]:
+        result = []
+        for loop_permutation in self._make_equivalent_loop_permutations():
+            diff = CompatibilityDiff(
+                loop_permutation=loop_permutation,
+            )
+            result.append((diff.apply(self), diff))
+        return result
 
     def get_reservation_of_tensor(self, tensor: str) -> TensorReservation:
         for s in self.tensors:
@@ -542,20 +611,17 @@ class Compatibility(Updatable):
     def clear_loop_bounds(self) -> "Compatibility":
         return self.update(tensors=fzs(t.clear_loop_bounds() for t in self.tensors))
 
-    def compatible_with(self, other: "Compatibility") -> bool:
-        return True
-        # for a in self.tensors:
-        #     a = a.loops
-        #     for b in other.tensors:
-        #         b = b.loops
-        #         if a[:len(b)] != b[:len(a)]:
-        #             return False
-        # return True
-
-    def populate_loops(self, ranks_with_tile_pattern: set[Rank]):
+    def populate_loops(self, ranks_with_tile_pattern: set[Rank], mapping: Mapping):
+        tensor2reservation = {}
+        for node in mapping.nodes:
+            if not isinstance(node, MappingReservation):
+                continue
+            for tensor in node._backing:
+                tensor2reservation[tensor] = node
         return self.update(
             tensors=fzs(
-                t.populate_loops(ranks_with_tile_pattern) for t in self.tensors
+                t.populate_loops(ranks_with_tile_pattern, tensor2reservation[t.name])
+                for t in self.tensors
             ),
         )
 
@@ -633,32 +699,23 @@ class Compatibility(Updatable):
             ]
             return tuple(loops)
 
-        def make_physical_spatial_loops(
-            above_index: int, tensor_name: TensorName, storage
-        ) -> tuple[Loop]:
+        def make_physical_spatial_loops(above_index: int) -> tuple[Loop]:
             """Make data binding of physically distributed storages."""
-            if storage is None or not storage._is_distributed():
+            assert isinstance(reservation_node := mapping.nodes[above_index], MappingReservation)
+            assert isinstance(storage_node := reservation_node._tensor_holder, MappingStorage)
+            memory = reservation_node._component_object
+            if memory is None or not memory._is_distributed():
                 return ()
-            out = []
-            for n in mapping.nodes[above_index + 1 :]:
-                # Stop at the next storage level: loops below it belong to that storage.
-                if isinstance(n, (MappingReservation, TensorHolder)):
-                    break
-                if not isinstance(n, Spatial):
-                    continue
-                rank = get_rank(n.rank_variable, tensor_name)
-                # If the rank is irrelevant, the binding could be any rank
-                if rank == Rank("NO RANK. RECOMPUTED."):
-                    rank = RANK_DONT_CARE
-                out.append(
-                    Loop(
-                        rank_name=rank,
-                        tile_pattern=n.tile_pattern._symbol2str(),
-                        is_spatial=True,
-                        spatial_dim=n.name,
-                    )
+            out = tuple(
+                Loop(
+                    rank_name=loop.rank_variable,
+                    tile_pattern=loop.tile_pattern._symbol2str(),
+                    is_spatial=True,
+                    spatial_dim=loop.name,
                 )
-            return tuple(out)
+                for loop in storage_node.binding
+            )
+            return out
 
         return cls(
             tensors=fzs(
@@ -667,9 +724,7 @@ class Compatibility(Updatable):
                     loops=make_loops(i, mapping.nodes[i].purpose),
                     resource_name=mapping.nodes[i].resource,
                     persistent=mapping.nodes[i].persistent,
-                    physical_spatial_loops=make_physical_spatial_loops(
-                        i, mapping.nodes[i].purpose, mapping.nodes[i]._component_object
-                    ),
+                    physical_spatial_loops=make_physical_spatial_loops(i),
                 )
                 for i in tensor_indices
             ),
@@ -687,7 +742,7 @@ class Compatibility(Updatable):
                 symbols.append(x)
 
         for t in self.tensors:
-            for l in t.loops:
+            for l in itertools.chain(t.loops, t.physical_spatial_loops):
                 add(l.tile_pattern.initial_tile_shape)
                 add(l.tile_pattern.tile_shape)
                 add(l.tile_pattern.calculated_n_iterations)

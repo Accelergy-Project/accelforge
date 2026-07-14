@@ -19,6 +19,7 @@ from accelforge.frontend.mapping import (
     Mapping,
     MappingNode,
     Spatial,
+    Storage,
     TensorHolder,
     Temporal,
 )
@@ -64,6 +65,7 @@ from accelforge.model._looptree.reuse.symbolic import (
     label_fused_loops,
     quick_insert_reservation_nodes,
 )
+from accelforge.util import DONT_CARE
 
 
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
@@ -430,6 +432,37 @@ def iterate_mappings_constraints(
                         return
 
 
+def infer_default_binding(mapping: Mapping, job: Job):
+    """
+    Insert a non-duplicating binding for distributed memories.
+    """
+    last_distributed_storage = None
+    irrelevant_rvs = None
+    for node in mapping.nodes:
+        if isinstance(node, Storage):
+            last_distributed_storage = None
+            irrelevant_rvs = None
+            component = node.component_object
+            assert isinstance(component, arch.Spatialable), f"{component}"
+            if not component._is_distributed():
+                continue
+            assert isinstance(component, arch.Memory)
+            assert len(node.tensors) == 1
+            last_distributed_storage = node
+            tensor = next(iter(node.tensors))
+            irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
+        elif isinstance(node, Spatial) and last_distributed_storage is not None:
+            binding_spatial = node.model_copy()
+            rv = binding_spatial.rank_variable
+            if rv in irrelevant_rvs:
+                binding_spatial.rank_variable = DONT_CARE
+            else:
+                ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
+                assert len(ranks) == 1
+                binding_spatial.rank_variable = next(iter(ranks))
+            last_distributed_storage.binding.append(binding_spatial)
+
+
 # =================================================================================================
 # Top level
 # =================================================================================================
@@ -467,6 +500,9 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
             continue
         if isinstance(only_output_index, set) and i not in only_output_index:
             continue
+
+        infer_default_binding(mapping, job)
+
         new_job = copy.copy(job)
         new_job.mapping = mapping
         new_job.mapping._template_index = i
