@@ -312,19 +312,18 @@ def eval_set_expression_dict(
     evaluated: list[tuple[str, Any, Any]] = []
     
     symbol_table = symbol_table.copy()
+    symbol_table["Other"] = symbol_table["All"]
 
     def _eval(i):
         k, v = items[i]
-        if i in others:
-            symbol_table["Other"] = symbol_table["All"]
-            for _, s, _ in evaluated:
-                symbol_table["Other"] = symbol_table["Other"] - s
-        return k, v, eval_set_expression(
+        ins = eval_set_expression(
             expression=k,
             symbol_table=symbol_table,
             expected_space=expected_space,
             location=f"{location}[{k}]",
         ).instance
+        symbol_table["Other"] -= ins
+        return k, ins, v
     
     eval_order = [i for i in range(len(items)) if i not in others] + others
     for i in eval_order:
