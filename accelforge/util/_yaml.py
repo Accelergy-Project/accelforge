@@ -27,9 +27,7 @@ class AssertExtension(Extension):
             message = parser.parse_expression()
         else:
             message = nodes.Const(None)
-        call = self.call_method(
-            "_check", [condition, message, nodes.Const(lineno)]
-        )
+        call = self.call_method("_check", [condition, message, nodes.Const(lineno)])
         return nodes.CallBlock(call, [], [], []).set_lineno(lineno)
 
     def _check(self, condition, message, lineno, caller):

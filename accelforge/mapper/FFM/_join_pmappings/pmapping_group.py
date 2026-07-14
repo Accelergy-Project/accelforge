@@ -288,7 +288,9 @@ class PmappingGroup:
             assert not include_permutations
             new_grouped = {}
             pmgroups_remaining = oset(id(pg) for pg in pmapping_groups)
-            for c, pg_lc in sorted(grouped.items(), key=lambda x: len(x[1]), reverse=True):
+            for c, pg_lc in sorted(
+                grouped.items(), key=lambda x: len(x[1]), reverse=True
+            ):
                 if not pmgroups_remaining:
                     break
                 pg_lc = [

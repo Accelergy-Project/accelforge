@@ -137,8 +137,7 @@ class MeshTopologyModel(TopologyModel):
                     )
 
                 n_activated_physical = ratio_geq_one(
-                    shape_repeats*last_fanout,
-                    physical_stride
+                    shape_repeats * last_fanout, physical_stride
                 )
                 total_cost = (
                     n_activated_physical
@@ -373,4 +372,4 @@ def ratio_geq_one(numerator, denominator):
     if denominator == 1:
         return numerator
     else:
-        return max_nonzero(numerator/denominator, 1)
+        return max_nonzero(numerator / denominator, 1)

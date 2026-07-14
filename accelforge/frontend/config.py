@@ -42,7 +42,7 @@ class Config(EvalableModel):
         :py:class:`~hwcomponents.ComponentModel` class, a path to a Python file
         containing models, a module (all non-underscore ComponentModel subclasses in the
         module are added), or a list/tuple of any of these.
-        
+
         Parameters
         ----------
         *args : list of str | ComponentModel | module | list | tuple
