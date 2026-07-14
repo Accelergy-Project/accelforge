@@ -1802,6 +1802,31 @@ class Mapping(Nested):
         graph = self.render_pydot(with_reservations, with_tile_shape)
         return _SVGJupyterRender(graph.create_svg(prog="dot").decode("utf-8"))
 
+    def _update_component_objects(self, spec: "Spec"):
+        """
+        Resolve every node's string ``component`` from a spec.
+        """
+        name_to_object = {}
+        for compute in self.get_nodes_of_type(Compute):
+            flattened = spec._get_flattened_architecture(compute_node=compute.component)
+            for leaf in flattened:
+                name_to_object[leaf.name] = leaf
+
+        def resolve(name: str):
+            try:
+                return name_to_object[name]
+            except KeyError:
+                raise KeyError(
+                    f"Component {name!r} referenced by the mapping was not found "
+                    f"in the flattened architecture."
+                )
+
+        for node in self._flatten():
+            if isinstance(node, (Spatial, TensorHolder, Compute)):
+                node.component_object = resolve(node.component)
+            elif isinstance(node, Reservation):
+                node._component_object = resolve(node.resource)
+
     @classmethod
     def _from_pmappings(
         cls,

@@ -443,9 +443,10 @@ def infer_default_binding(mapping: Mapping, job: Job):
             last_distributed_storage = None
             irrelevant_rvs = None
             component = node.component_object
-            assert isinstance(component, arch.Memory)
+            assert isinstance(component, arch.Spatialable), f"{component}"
             if not component._is_distributed():
                 continue
+            assert isinstance(component, arch.Memory)
             assert len(node.tensors) == 1
             last_distributed_storage = node
             tensor = next(iter(node.tensors))

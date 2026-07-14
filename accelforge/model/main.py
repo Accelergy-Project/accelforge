@@ -159,6 +159,10 @@ def evaluate_mapping(
         pmapping.clear_reservations()
         pmapping.clear_bindings()
 
+        # component_objects are can become stale from mapper to here
+        # if calling just model, they are unset
+        pmapping._update_component_objects(cur_spec)
+
         label_imperfect_tile_shapes(
             pmapping.nodes,
             job.spec_one_einsum.workload.einsums[job.einsum_name],
