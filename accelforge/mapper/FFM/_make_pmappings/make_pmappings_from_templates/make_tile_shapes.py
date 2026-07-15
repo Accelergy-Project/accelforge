@@ -2052,7 +2052,10 @@ def makesymbol(name: str):
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
     keep_symbols = oset()
     for node in pmapping.nodes:
-        if isinstance(node, Loop) and node._fused:
+        if (
+            (isinstance(node, Loop) and node._fused)
+            or (isinstance(node, Spatial) and node._shared_tensor_binding)
+        ):
             if isinstance(node.initial_tile_shape, Symbol):
                 keep_symbols.add(node.initial_tile_shape)
             if isinstance(node.tile_shape, Symbol):
@@ -2112,8 +2115,8 @@ def _calculate_iterations_and_rank_columns(
 
     # Some initial tile shapes are invalid
     for nloops, n in enumerate(loops):
-        if not n._fused:
-            break
+        if not n._fused and not (isinstance(n, Spatial) and n._shared_tensor_binding):
+            continue
         stride = n.tile_pattern.tile_shape
         initial = (
             n.tile_pattern.initial_tile_shape

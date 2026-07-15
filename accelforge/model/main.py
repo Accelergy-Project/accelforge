@@ -75,6 +75,9 @@ def evaluate_mapping(
     from accelforge.model.run_model import (
         run_model,
     )
+    from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
+        infer_default_binding,
+    )
     from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
         _calculate_iterations_and_rank_columns,
         _clean_energy_columns,
@@ -103,7 +106,7 @@ def evaluate_mapping(
         "this spec returned by spec.calculate_component_costs()?"
     )
 
-    needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
+    # needs_reservations = not bool(spec.mapping.get_nodes_of_type(Reservation))
 
     fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
     stride_and_halo = get_stride_and_halo(spec.workload)
@@ -153,6 +156,12 @@ def evaluate_mapping(
             ].tensor_names
         }
         pmapping.clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
+        pmapping.clear_reservations()
+        pmapping.clear_bindings()
+
+        # component_objects are can become stale from mapper to here
+        # if calling just model, they are unset
+        pmapping._update_component_objects(cur_spec)
 
         label_imperfect_tile_shapes(
             pmapping.nodes,
@@ -170,8 +179,10 @@ def evaluate_mapping(
         job.fusable_tensors = fusable_tensors & oset(job.tensor_to_relevancy)
         einsum = cur_spec.workload.einsums[job.einsum_name]
 
+        infer_default_binding(job.mapping, job)
+
         _, df, _, _, tensor2mapping, _ = run_model(
-            job, add_reservations=needs_reservations
+            job, add_reservations=True
         )
 
         # Calculate iteration counts and rank columns

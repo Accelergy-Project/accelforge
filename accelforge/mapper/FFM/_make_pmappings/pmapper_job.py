@@ -244,3 +244,11 @@ class SameCompatibilityJobs(SameEinsumJobs):
 
     def split(self) -> list["SameCompatibilityJobs"]:
         return [SameCompatibilityJobs([j]) for j in self]
+
+
+class SameTemplateJobs(SameCompatibilityJobs):
+    """Jobs with the same template."""
+
+    @property
+    def mapping(self) -> Mapping:
+        return self.mapping
