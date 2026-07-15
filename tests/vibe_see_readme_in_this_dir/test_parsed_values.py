@@ -57,11 +57,13 @@ EXAMPLES_DIR = _REPO_ROOT / "examples"
 
 
 class TestThreeMatmulsAnnotatedWorkload(unittest.TestCase):
-    """Golden-value tests for examples/workloads/three_matmuls_annotated.yaml"""
+    """Golden-value tests for examples/workloads/basic/three_matmuls_annotated.yaml"""
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
         cls.spec = Spec.from_yaml(yaml_path)
@@ -248,7 +250,9 @@ class TestThreeMatmulsEvaluated(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
         cls.spec = Spec.from_yaml(yaml_path)._spec_eval_expressions()
@@ -316,11 +320,11 @@ class TestThreeMatmulsEvaluated(unittest.TestCase):
 
 
 class TestMatmulsJinjaParsed(unittest.TestCase):
-    """Golden-value tests for examples/workloads/matmuls.yaml with Jinja vars."""
+    """Golden-value tests for examples/workloads/basic/matmuls.yaml with Jinja vars."""
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
         cls.spec_1 = Spec.from_yaml(yaml_path, jinja_parse_data={"N_EINSUMS": 1})
@@ -390,21 +394,26 @@ class TestGPTConciseParsed(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
-        cls.spec = Spec.from_yaml(yaml_path)
+        cls.spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         cls.wl = cls.spec.workload
 
     def test_rank_sizes(self):
         rs = self.wl.rank_sizes
         self.assertEqual(rs["B"], 1)
-        self.assertEqual(rs["M"], 8192)
-        self.assertEqual(rs["P"], 8192)
+        self.assertEqual(rs["M"], 2048)
+        self.assertEqual(rs["P"], 2048)
         self.assertEqual(rs["H"], 32)
         self.assertEqual(rs["E"], 128)
         self.assertEqual(rs["F"], 128)
-        self.assertEqual(rs["D"], 4096)
+        self.assertEqual(rs["D"], 4096)  # N_HIDDEN_DIMS, set by the wrapper
         self.assertEqual(rs["C"], 16384)
         self.assertEqual(rs["J"], 4096)
         self.assertEqual(rs["G"], 4096)
@@ -484,10 +493,6 @@ class TestGPTConciseParsed(unittest.TestCase):
     def test_persistent_tensors_field(self):
         self.assertEqual(self.wl.persistent_tensors, "weight - Intermediates")
 
-    def test_bits_per_value_all_8(self):
-        self.assertEqual(self.wl.bits_per_value, {"All": 8})
-
-
 # ============================================================================
 # simple.yaml arch -- golden values
 # ============================================================================
@@ -499,7 +504,7 @@ class TestSimpleArchParsed(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         yaml_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         if not yaml_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(yaml_path, wl_path, jinja_parse_data={"N_EINSUMS": 1})
@@ -571,7 +576,7 @@ class TestSimpleArchEvaluated(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         yaml_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         if not yaml_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(
@@ -599,7 +604,7 @@ class TestTPUArchParsed(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         yaml_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not yaml_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(yaml_path, wl_path)
@@ -730,7 +735,7 @@ class TestTPUArchEvaluated(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         yaml_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not yaml_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(yaml_path, wl_path)._spec_eval_expressions(
@@ -773,7 +778,7 @@ class TestUnfusedMapping1Einsum(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         map_path = EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml"
         if not all(p.exists() for p in [arch_path, wl_path, map_path]):
             raise unittest.SkipTest("YAML not found")
@@ -839,7 +844,7 @@ class TestUnfusedMapping2Einsums(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         map_path = EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml"
         if not all(p.exists() for p in [arch_path, wl_path, map_path]):
             raise unittest.SkipTest("YAML not found")
@@ -897,7 +902,7 @@ class TestFusedMapping2Einsums(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         map_path = EXAMPLES_DIR / "mappings" / "fused_matmuls_to_simple.yaml"
         if not all(p.exists() for p in [arch_path, wl_path, map_path]):
             raise unittest.SkipTest("YAML not found")

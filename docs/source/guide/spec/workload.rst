@@ -9,7 +9,7 @@ and a cascade of Einsums is a list of Einsums with data dependencies.
 
 The following is an example workload for three back-to-back matrix multiplications:
 
-.. include:: ../../../../examples/workloads/three_matmuls_annotated.yaml
+.. include:: ../../../../examples/workloads/basic/three_matmuls_annotated.yaml
    :code: yaml
 
 The top-level Workload spec has the following attributes:
@@ -148,9 +148,3 @@ concise notation.
       - {name: I_in, projection: [b, m, d], bits_per_value: 16}
       - {name: I, projection: [b, m, d], output: True}
       renames: {input: I_in, output: I}
-
-Below is the concise notation equivalent of the previously-shown verbose GPT3 6.7B
-example workload:
-
-.. include:: ../../../../examples/workloads/gpt3_6.7B.yaml
-   :code: yaml

@@ -43,7 +43,7 @@ class TestModelMesh(TestCase):
         BITS_PER_VALUE = 8
 
         spec = af.Spec.from_yaml(
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             # af.examples.arches.networked.hierarchical,
             INPUT_FILES_DIR / "hierarchical_1d.yaml",
             # af.examples.mappings.one_matmul_to_networked_hierarchical,
@@ -122,7 +122,7 @@ class TestModelMesh(TestCase):
         BITS_PER_VALUE = 8
 
         spec = af.Spec.from_yaml(
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             # af.examples.arches.networked.hierarchical,
             INPUT_FILES_DIR / "hierarchical.yaml",
             # af.examples.mappings.one_matmul_to_networked_hierarchical,
@@ -213,7 +213,7 @@ class TestModelMesh(TestCase):
         BITS_PER_VALUE = 8
 
         spec = af.Spec.from_yaml(
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             INPUT_FILES_DIR / "flat.yaml",
             INPUT_FILES_DIR / "one_matmul_to_flat.yaml",
             jinja_parse_data={
@@ -322,7 +322,7 @@ class TestModelAllToAll(TestCase):
         BITS_PER_VALUE = 8
 
         spec = af.Spec.from_yaml(
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             INPUT_FILES_DIR / "hierarchical_1d_all_to_all.yaml",
             INPUT_FILES_DIR / "one_matmul_to_networked_hierarchical_1d.yaml",
             jinja_parse_data={
@@ -396,7 +396,7 @@ class TestMapper(TestCase):
         KN = 8
 
         spec = af.Spec.from_yaml(
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             INPUT_FILES_DIR / "hierarchical.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -407,7 +407,7 @@ class TestMapper(TestCase):
         KN = 8
 
         spec = af.Spec.from_yaml(
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             INPUT_FILES_DIR / "flat.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -418,7 +418,7 @@ class TestMapper(TestCase):
         KN = 8
 
         spec = af.Spec.from_yaml(
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             INPUT_FILES_DIR / "flat.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN, "N_ROW_BUFFER": 1},
         )

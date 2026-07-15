@@ -1,0 +1,13 @@
+# Two chained matrix-vector products:
+#   Y = A * B   then   Z = Y * C
+workload:
+  iteration_space_shape:
+    na: 0 <= na < 4    # Reduced rank of the first matvec
+    ny: 0 <= ny < 3    # Output of matvec 1 / reduced rank of matvec 2
+    nz: 0 <= nz < 4    # Output of matvec 2
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - Y[ny] = A[na]*B[na,ny]      # matrix-vector: A (vector) times B (matrix)
+  - Z[nz] = Y[ny]*C[ny,nz]      # matrix-vector: Y times C

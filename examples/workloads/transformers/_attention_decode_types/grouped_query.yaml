@@ -1,0 +1,61 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Grouped-query attention reduces the number of key/value heads by grouping multiple
+# query heads into one key/value head.
+#
+# Omits positional encoding, activation, bias, residual, and normalization. Assumes that
+# the KV cache is much larger than the new K and V, so we can omit the concatenation.
+# Assumes softmax can be performed elementwise and includes causal mask plus score
+# scaling.
+#
+# Used by: Llama 3, Mixtral, Qwen3, Gemma 3, Llama 4.
+
+{% set N_CONTEXT_TOKENS = N_CACHED_TOKENS if DECODE else N_NEW_TOKENS %}
+{{include_text("_max_tokens_assert.yaml")}}
+
+workload:
+  rank_sizes:
+    P:   {{N_CONTEXT_TOKENS}}      # Context tokens
+    M:   {{N_NEW_TOKENS}}          # New query token(s) generated this decode step
+    B:   {{BATCH_SIZE}}            # Batch index
+    HKV: {{N_HEADS}}               # Key/value heads
+    HQ:  {{N_Q_HEADS_PER_KV_HEAD}} # Query heads per KV head for grouped query attention
+    E:   {{N_EMB_PER_HEAD}}        # Embedding per head
+    F:   {{N_EMB_PER_HEAD}}        # Embedding per head (duplicated to multiply K,Q x V)
+    D:   {{N_HIDDEN_DIMS}}         # Model hidden dim, projection input
+    G:   {{N_HIDDEN_DIMS}}         # Model hidden dim, projection output
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Optionally copy the input tensor onto the accelerator
+  - {einsum: "I[b, m, d] = I_in[b, m, d]", is_copy_operation: True}
+
+  # Projection of input into Value V, Query Q, and Key K.
+  - "V[b, m, hkv, e] = I[b, m, d] * WV[hkv, e, d]"
+  - "K[b, m, hkv, e] = I[b, m, d] * WK[hkv, e, d]"
+  - "Q[b, m, hkv, hq, e] = I[b, m, d] * WQ[hkv, hq, e, d]"
+
+  # If this is decode, we use a KV cache, and we impose a few assumptions to make the
+  # Einsums for decode + KV cache simpler. We drop the previously-generated V and K,
+  # assuming that the K_cache and V_cache are much larger. This assumes that N_TOKENS >>
+  # N_NEW_TOKENS. In reality, we would concatenate K with K_cache and V with V_cache,
+  # but since K >> K_new and V >> V_new, we can ignore these tensors and assume that the
+  # concatenation is cheap relative to the movement of K_cache and V_cache.
+  {% set K_CACHE = "K_cache" if DECODE else "K" %}
+  {% set V_CACHE = "V_cache" if DECODE else "V" %}
+  # In decode the context rank P indexes the KV cache; in prefill it is the tokens M.
+  {% set P = "P" if DECODE else "M" %}
+
+  # Calculate how the new Query Q attends to Keys K
+  - einsum: "QK[b, m, p, hkv, hq] = Q[b, m, hkv, hq, e] * {{K_CACHE}}[b, {{P}}: p, hkv, e]"
+    renames: {input: Q}
+  - "QK_softmax[b, m, p, hkv, hq] = QK[b, m, p, hkv, hq]"
+
+  # Multiply attention scores by Values V to get attended output AV.
+  - einsum: "AV[b, m, hkv, hq, f] = QK_softmax[b, m, p, hkv, hq] * {{V_CACHE}}[b, {{P}}: p, hkv, E: f]"
+    renames: {input: QK_softmax}
+
+  # Project into the attention output Z.
+  - "Z[b, m, g] = AV[b, m, hkv, hq, f] * WZ[hkv, hq, f, g]"

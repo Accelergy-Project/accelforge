@@ -1,0 +1,32 @@
+{{include_text("../../_renames_default.yaml")}}
+{{add_to_path("../_attention_decode_types")}}
+{{add_to_path("../_feedforward_types")}}
+
+# Reference:
+#     https://github.com/huggingface/transformers/blob/v4.46.3/src/transformers/models/mixtral/modeling_mixtral.py
+#
+# @misc{jiang2024mixtralexperts,
+#       title={Mixtral of Experts}, 
+#       author={Albert Q. Jiang and Alexandre Sablayrolles and Antoine Roux and Arthur Mensch and Blanche Savary and Chris Bamford and Devendra Singh Chaplot and Diego de las Casas and Emma Bou Hanna and Florian Bressand and Gianna Lengyel and Guillaume Bour and Guillaume Lample and Lélio Renard Lavaud and Lucile Saulnier and Marie-Anne Lachaux and Pierre Stock and Sandeep Subramanian and Sophia Yang and Szymon Antoniak and Teven Le Scao and Théophile Gervet and Thibaut Lavril and Thomas Wang and Timothée Lacroix and William El Sayed},
+#       year={2024},
+#       eprint={2401.04088},
+#       archivePrefix={arXiv},
+#       primaryClass={cs.LG},
+#       url={https://arxiv.org/abs/2401.04088}, 
+# }
+
+{% set ATTENTION = include("grouped_query.yaml", "") %}
+{% set FEEDFORWARD = include("mixture_of_experts.yaml", "") %}
+
+workload:
+  rank_sizes:
+    <<<: [{{ATTENTION}}.workload.rank_sizes, {{FEEDFORWARD}}.workload.rank_sizes]
+
+  bits_per_value: {All: 16}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Attention: q/k/v/o proj 299-302, scores 353-368
+  - {{ATTENTION}}.workload.einsums
+  # MoE: experts w1/w3/w2 598-600, router 630-644
+  - {{FEEDFORWARD}}.workload.einsums

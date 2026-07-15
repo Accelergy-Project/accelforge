@@ -1,0 +1,35 @@
+{{include_text("../../_renames_default.yaml")}}
+{{add_to_path("../_attention_decode_types")}}
+{{add_to_path("../_feedforward_types")}}
+
+# Reference:
+#     https://github.com/huggingface/transformers/blob/v4.53.3/src/transformers/models/qwen3/modeling_qwen3.py
+#     https://github.com/huggingface/transformers/blob/v4.53.3/src/transformers/models/qwen3_moe/modeling_qwen3_moe.py
+#
+# @misc{yang2025qwen3technicalreport,
+#       title={Qwen3 Technical Report}, 
+#       author={An Yang and Anfeng Li and Baosong Yang and Beichen Zhang and Binyuan Hui and Bo Zheng and Bowen Yu and Chang Gao and Chengen Huang and Chenxu Lv and Chujie Zheng and Dayiheng Liu and Fan Zhou and Fei Huang and Feng Hu and Hao Ge and Haoran Wei and Huan Lin and Jialong Tang and Jian Yang and Jianhong Tu and Jianwei Zhang and Jianxin Yang and Jiaxi Yang and Jing Zhou and Jingren Zhou and Junyang Lin and Kai Dang and Keqin Bao and Kexin Yang and Le Yu and Lianghao Deng and Mei Li and Mingfeng Xue and Mingze Li and Pei Zhang and Peng Wang and Qin Zhu and Rui Men and Ruize Gao and Shixuan Liu and Shuang Luo and Tianhao Li and Tianyi Tang and Wenbiao Yin and Xingzhang Ren and Xinyu Wang and Xinyu Zhang and Xuancheng Ren and Yang Fan and Yang Su and Yichang Zhang and Yinger Zhang and Yu Wan and Yuqiong Liu and Zekun Wang and Zeyu Cui and Zhenru Zhang and Zhipeng Zhou and Zihan Qiu},
+#       year={2025},
+#       eprint={2505.09388},
+#       archivePrefix={arXiv},
+#       primaryClass={cs.CL},
+#       url={https://arxiv.org/abs/2505.09388}, 
+# }
+
+{% set FEEDFORWARD_TYPE = FEEDFORWARD_TYPE | default("dense") %}
+{% set ATTENTION = include("grouped_query.yaml", "") %}
+{% assert FEEDFORWARD_TYPE in ['moe', 'dense'], "FEEDFORWARD_TYPE must be 'moe' or 'dense'." %}
+{% set FEEDFORWARD = include("mixture_of_experts.yaml", "") if FEEDFORWARD_TYPE == "moe" else include("gated_linear_unit.yaml", "") %}
+
+workload:
+  rank_sizes:
+    <<<: [{{ATTENTION}}.workload.rank_sizes, {{FEEDFORWARD}}.workload.rank_sizes]
+
+  bits_per_value: {All: 16}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Attention: q/k/v/o proj 173-182, scores 147-154
+  - {{ATTENTION}}.workload.einsums
+  # FFN: dense gate/up/down 78-84 / MoE expert 205-211, router 233
+  - {{FEEDFORWARD}}.workload.einsums

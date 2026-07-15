@@ -1,0 +1,21 @@
+{{add_to_path(".")}}
+
+# Mixtral 8x22B one decoder layer. The full model is an embedding + 56 of these
+# (num_hidden_layers) + final normalization and unembedding.
+#
+# Set BATCH_SIZE, DECODE, N_NEW_TOKENS. If DECODE, also set N_CACHED_TOKENS.
+#
+# config.json:
+# https://huggingface.co/mistralai/Mixtral-8x22B-v0.1/blob/e1cd34ff1747406fb2277635ed25242803009bc2/config.json
+
+{% set N_HEADS = 8 %}                # num_key_value_heads   config.json#L17
+{% set N_Q_HEADS_PER_KV_HEAD = 6 %}  # num_attention_heads/num_key_value_heads = 48/8   config.json#L14,L17
+{% set N_EMB_PER_HEAD = 128 %}       # head_dim = 6144/48   config.json#L9,L14
+{% set N_HIDDEN_DIMS = 6144 %}       # hidden_size   config.json#L9
+{% set N_FF_DIMS = 16384 %}          # intermediate_size (per expert)   config.json#L11
+{% set N_EXPERTS = 8 %}              # num_local_experts   config.json#L18
+{% set N_EXPERTS_PER_TOKEN = 2 %}    # num_experts_per_tok   config.json#L15
+{% set MAX_N_TOKENS = MAX_N_TOKENS | default(65536) %}       # max_position_embeddings   config.json#L12
+{% set MODEL = include("_mixtral8x22B.yaml", "") %}
+workload: {{MODEL}}.workload
+renames: {{MODEL}}.renames

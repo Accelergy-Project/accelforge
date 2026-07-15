@@ -1,0 +1,27 @@
+{{include_text("../../_renames_default.yaml")}}
+{{add_to_path("../_attention_decode_types")}}
+{{add_to_path("../_feedforward_types")}}
+
+# Reference implementation:
+#     https://github.com/huggingface/transformers/blob/v4.53.3/src/transformers/models/llama4/modeling_llama4.py
+#
+# https://ai.meta.com/blog/llama-4-multimodal-intelligence/
+
+{% set FEEDFORWARD_TYPE = FEEDFORWARD_TYPE | default("moe") %}
+{% assert ATTENTION_TYPE in ['chunked_local', 'grouped_query'], "ATTENTION_TYPE must be 'chunked_local' or 'grouped_query'." %}
+{% set ATTENTION = include("grouped_query.yaml", "") if ATTENTION_TYPE == "grouped_query" else include("grouped_query_chunked.yaml", "") %}
+{% assert FEEDFORWARD_TYPE in ['moe', 'dense'], "FEEDFORWARD_TYPE must be 'moe' or 'dense'." %}
+{% set FEEDFORWARD = include("mixture_of_experts_shared.yaml", "") if FEEDFORWARD_TYPE == "moe" else include("gated_linear_unit.yaml", "") %}
+
+workload:
+  rank_sizes:
+    <<<: [{{ATTENTION}}.workload.rank_sizes, {{FEEDFORWARD}}.workload.rank_sizes]
+
+  bits_per_value: {All: 16}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Attention: q/k/v/o proj 289-298, scores 258-265
+  - {{ATTENTION}}.workload.einsums
+  # FFN: shared expert L139, routed gate_up/down bmm 69-71 / dense MLP 85-91
+  - {{FEEDFORWARD}}.workload.einsums

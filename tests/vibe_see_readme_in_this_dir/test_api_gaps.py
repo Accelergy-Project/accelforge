@@ -156,7 +156,9 @@ class TestGetIterationSpaceShapeIslString(unittest.TestCase):
         self.assertIn("16", isl_str)
 
     def test_from_yaml_three_matmuls(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest("YAML not found")
         spec = Spec.from_yaml(yaml_path)
@@ -164,6 +166,29 @@ class TestGetIterationSpaceShapeIslString(unittest.TestCase):
         isl_str = spec.workload.get_iteration_space_shape_isl_string("Matmul1")
         self.assertIsInstance(isl_str, str)
         self.assertIn("and", isl_str)
+
+    def test_rank_size_expression_referencing_other_ranks(self):
+        # A workload rank size may be an expression referencing other rank sizes.
+        # The ISL bounds must contain the resolved integer, not the raw expression,
+        # even when the workload has not been separately evaluated.
+        wl = Workload(
+            rank_sizes={"M": 16, "K": "M * N", "N": 4},
+            einsums=[
+                Einsum(
+                    name="Matmul",
+                    tensor_accesses=[
+                        TensorAccess(name="A", projection={"M": "m", "K": "k"}),
+                        TensorAccess(name="B", projection={"K": "k", "N": "n"}),
+                        TensorAccess(
+                            name="C", projection={"M": "m", "N": "n"}, output=True
+                        ),
+                    ],
+                )
+            ],
+        )
+        isl_str = wl.get_iteration_space_shape_isl_string("Matmul")
+        self.assertIn("< 64", isl_str)  # K = M * N = 16 * 4
+        self.assertNotIn("M * N", isl_str)
 
 
 # ============================================================================

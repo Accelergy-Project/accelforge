@@ -1,0 +1,7 @@
+{% if MAX_N_TOKENS is defined %}
+  {% if DECODE %}
+    {% assert N_NEW_TOKENS + (N_CACHED_TOKENS if DECODE else 0) <= MAX_N_TOKENS, "N_NEW_TOKENS + N_CACHED_TOKENS exceeds MAX_N_TOKENS." %}
+  {% else %}
+    {% assert N_NEW_TOKENS <= MAX_N_TOKENS, "N_NEW_TOKENS exceeds MAX_N_TOKENS." %}
+  {% endif %}
+{% endif %}

@@ -1,10 +1,12 @@
+# A chain of N_EINSUMS back-to-back matrix multiplications. Einsum i computes T{i+1} =
+# T{i} * W{i};
 workload:
   iteration_space_shape:
     {% set M = M | default(128) %}
     {% set KN = KN | default(128) %}
-    m:  0 <= m  < {{M}}
+    m:  0 <= m  < {{M}}                # Input & output tensor rows, weight columns
     {% for i in range(N_EINSUMS+1) %}
-    n{{i}}: 0 <= n{{i}} < {{KN}}
+    n{{i}}: 0 <= n{{i}} < {{KN}}       # Input & output columns, weight rows 
     {% endfor %}
 
   bits_per_value: {All: 8}

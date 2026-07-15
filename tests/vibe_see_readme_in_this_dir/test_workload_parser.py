@@ -362,10 +362,15 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
 
     def test_parse_concise_yaml(self):
         """Test parsing the concise GPT-3 6.7B workload YAML."""
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
 
         # Load and parse the spec
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         workload = spec.workload
 
         # Check that workload was parsed correctly
@@ -399,10 +404,15 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
 
     def test_persistent_tensors_in_concise_yaml(self):
         """Test that persistent_tensors field marks weight tensors as persistent."""
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
 
         # Load and parse the spec
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         spec = spec._spec_eval_expressions()
         workload = spec.workload
 
@@ -426,10 +436,15 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
 
     def test_parse_regular_yaml(self):
         """Test parsing the regular GPT-3 6.7B workload YAML."""
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
 
         # Load and parse the spec
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         workload = spec.workload
 
         # Check that workload was parsed correctly
@@ -450,10 +465,15 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
 
     def test_persistent_tensors_in_regular_yaml(self):
         """Test that persistent flags in regular YAML are preserved."""
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
 
         # Load and parse the spec
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         spec = spec._spec_eval_expressions()
         workload = spec.workload
 
@@ -469,10 +489,15 @@ class TestWorkloadYAMLParsing(unittest.TestCase):
                     )
 
     def test_concise_and_regular_same_structure(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         regular_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
 
-        concise_spec = Spec.from_yaml(concise_path)
+        concise_spec = Spec.from_yaml(
+            concise_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         concise_spec = concise_spec._spec_eval_expressions()
         regular_spec = Spec.from_yaml(regular_path)
         regular_spec = regular_spec._spec_eval_expressions()

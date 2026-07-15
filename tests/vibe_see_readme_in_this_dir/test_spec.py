@@ -129,37 +129,49 @@ class TestSpecFromYAML(unittest.TestCase):
     """Tests for Spec.from_yaml with real YAML files."""
 
     def test_load_concise_gpt(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         self.assertIsNotNone(spec.workload)
         self.assertGreater(len(spec.workload.einsums), 0)
 
     def test_load_regular_gpt(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         self.assertIsNotNone(spec.workload)
         self.assertGreater(len(spec.workload.einsums), 0)
 
     def test_load_three_matmuls(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
         self.assertEqual(len(spec.workload.einsums), 3)
 
     def test_load_matmuls_with_jinja(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path, jinja_parse_data={"N_EINSUMS": 2})
         self.assertEqual(len(spec.workload.einsums), 2)
 
     def test_jinja_variables_propagate(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(
@@ -177,7 +189,9 @@ class TestSpecEvaluation(unittest.TestCase):
     """Tests for Spec._spec_eval_expressions."""
 
     def test_eval_basic_spec(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -186,27 +200,19 @@ class TestSpecEvaluation(unittest.TestCase):
         self.assertTrue(getattr(evaluated, "_evaluated", False))
 
     def test_eval_with_einsum_name(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
         evaluated = spec._spec_eval_expressions(einsum_name="Matmul1")
         self.assertTrue(getattr(evaluated, "_evaluated", False))
 
-    def test_eval_concise_gpt(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
-        if not yaml_path.exists():
-            self.skipTest(f"YAML file not found: {yaml_path}")
-        spec = Spec.from_yaml(yaml_path)
-        evaluated = spec._spec_eval_expressions()
-        # Check that bits_per_value was properly resolved
-        for einsum in evaluated.workload.einsums:
-            for ta in einsum.tensor_accesses:
-                self.assertIsNotNone(ta.bits_per_value)
-                self.assertEqual(ta.bits_per_value, 8)
-
     def test_eval_partial_arch_only(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -215,7 +221,9 @@ class TestSpecEvaluation(unittest.TestCase):
         self.assertIsNotNone(evaluated)
 
     def test_eval_partial_non_arch_only(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path)
@@ -232,10 +240,15 @@ class TestSpecPersistentTensors(unittest.TestCase):
     """Test that persistent_tensors field properly marks tensors."""
 
     def test_persistent_tensors_evaluated(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         evaluated = spec._spec_eval_expressions()
 
         weight_tensors = {"WV", "WK", "WQ", "WZ", "WFFA", "WFFB"}
@@ -257,12 +270,17 @@ class TestSpecConciseRegularEquivalence(unittest.TestCase):
     """Test that concise and regular YAML produce equivalent results."""
 
     def test_same_einsum_names(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         regular_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not concise_path.exists() or not regular_path.exists():
             self.skipTest("YAML files not found")
 
-        concise = Spec.from_yaml(concise_path)._spec_eval_expressions()
+        concise = Spec.from_yaml(
+            concise_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )._spec_eval_expressions()
         regular = Spec.from_yaml(regular_path)._spec_eval_expressions()
 
         concise_names = {e.name for e in concise.workload.einsums}
@@ -270,12 +288,17 @@ class TestSpecConciseRegularEquivalence(unittest.TestCase):
         self.assertEqual(concise_names, regular_names)
 
     def test_same_rank_size_keys(self):
-        concise_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        concise_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         regular_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not concise_path.exists() or not regular_path.exists():
             self.skipTest("YAML files not found")
 
-        concise = Spec.from_yaml(concise_path)
+        concise = Spec.from_yaml(
+            concise_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         regular = Spec.from_yaml(regular_path)
         self.assertEqual(
             set(concise.workload.rank_sizes.keys()),

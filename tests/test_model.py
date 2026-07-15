@@ -18,7 +18,7 @@ class TestInvalidMapping(unittest.TestCase):
         KN = 64
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             "tests/input_files/mapping/invalid_matmul_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -32,7 +32,7 @@ class TestModel(unittest.TestCase):
         BITS_PER_VALUE = 8
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -57,7 +57,7 @@ class TestModel(unittest.TestCase):
         OVERRIDE_BPV = 4
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -86,7 +86,7 @@ class TestModel(unittest.TestCase):
         OVERRIDE_BPV = 16
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -111,7 +111,7 @@ class TestModel(unittest.TestCase):
         BITS_PER_VALUE = 8
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 1, "M": M, "KN": KN},
         )
@@ -136,7 +136,7 @@ class TestModel(unittest.TestCase):
     def test_two_matmuls(self):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )

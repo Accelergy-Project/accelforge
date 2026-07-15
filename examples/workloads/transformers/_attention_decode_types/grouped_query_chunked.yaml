@@ -1,0 +1,95 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Grouped-query attention reduces the number of key/value heads by grouping multiple
+# query heads into one key/value head.
+#
+# Omits positional encoding, activation, bias, residual, and normalization. Assumes that
+# the KV cache is much larger than the new K and V, so we can omit the concatenation.
+# Assumes softmax can be performed elementwise and includes causal mask plus score
+# scaling.
+#
+# Chunks are all size-N, except for the last which may be smaller. This spec assumes
+# that all chunks are equal-size. For example, if max chunk size is 100 and we have 150
+# tokens, it'll split into two size-75 chunks.
+#
+# Used by: Llama 4.
+
+# Sometimes decode looks like prefill (when it's starting a new chunk), so we track that
+# with _DECODE.
+{% set _DECODE = DECODE %}
+
+# If we're in decode, only process the last chunk (relevant to the new tokens).
+{% if DECODE %}
+  {% set N_CHUNKS = 1 %}
+  {% set N_TOTAL_TOKENS = N_NEW_TOKENS + N_CACHED_TOKENS %}
+
+  # I don't know how to handle >1 tokens because they may cross a chunk boundary
+  {% assert N_NEW_TOKENS <= 1, "N_NEW_TOKENS > 1 not supported for DECODE." %}
+
+  # If N_TOTAL_TOKENS = CHUNK_SIZE, stop us from having a zero there. 
+  {% set N_CHUNK_TOKENS = N_TOTAL_TOKENS % CHUNK_SIZE if N_TOTAL_TOKENS % CHUNK_SIZE != 0 else CHUNK_SIZE %}
+  {% set CONTEXT_TOKENS_PER_CHUNK = max(N_CHUNK_TOKENS, N_NEW_TOKENS) - N_NEW_TOKENS %}
+
+  # If no context makes it into the chunk, it's just a prefill of the next chunk
+  {% if CONTEXT_TOKENS_PER_CHUNK == 0 %} {% set _DECODE = False %} {% endif %}
+{% endif %}
+
+{% if not _DECODE %}
+  {% set N_TOTAL_TOKENS = N_NEW_TOKENS %}
+  {% set N_CHUNKS = ceil(N_TOTAL_TOKENS / CHUNK_SIZE) %}
+  {% set CONTEXT_TOKENS_PER_CHUNK = ceil(N_NEW_TOKENS / N_CHUNKS) %}
+{% endif %}
+
+{% set NEW_TOKENS_PER_CHUNK = ceil(N_NEW_TOKENS / N_CHUNKS) %}
+
+workload:
+  rank_sizes:
+    M:   {{N_NEW_TOKENS}}          # New query token(s) generated this decode step
+    PC:  {{CONTEXT_TOKENS_PER_CHUNK}} # Context tokens
+    MC:  {{NEW_TOKENS_PER_CHUNK}}     # New query token(s) generated this decode step
+    CH:  {{N_CHUNKS}}              # Number of chunks
+    B:   {{BATCH_SIZE}}            # Batch index
+    HKV: {{N_HEADS}}               # Key/value heads
+    HQ:  {{N_Q_HEADS_PER_KV_HEAD}} # Query heads per KV head for grouped query attention
+    E:   {{N_EMB_PER_HEAD}}        # Embedding per head
+    F:   {{N_EMB_PER_HEAD}}        # Embedding per head (duplicated to multiply K,Q x V)
+    D:   {{N_HIDDEN_DIMS}}         # Model hidden dim, projection input
+    G:   {{N_HIDDEN_DIMS}}         # Model hidden dim, projection output
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Optionally copy the input tensor onto the accelerator
+  - {einsum: "I[b, mc, d, ch] = I_in[b, m, d]", is_copy_operation: True}
+
+  # Projection of input into Value V, Query Q, and Key K.
+  - "V[b, mc, hkv, e, ch] = I[b, mc, d, ch] * WV[hkv, e, d]"
+  - "K[b, mc, hkv, e, ch] = I[b, mc, d, ch] * WK[hkv, e, d]"
+  - "Q[b, mc, hkv, hq, e, ch] = I[b, mc, d, ch] * WQ[hkv, hq, e, d]"
+
+  # If this is decode, we use a KV cache, and we impose a few assumptions to make the
+  # Einsums for decode + KV cache simpler. We drop the previously-generated V and K,
+  # assuming that the K_cache and V_cache are much larger. This assumes that N_TOKENS >>
+  # N_NEW_TOKENS. In reality, we would concatenate K with K_cache and V with V_cache,
+  # but since K >> K_new and V >> V_new, we can ignore these tensors and assume that the
+  # concatenation is cheap relative to the movement of K_cache and V_cache.
+  {% set K_CACHE = "K_cache" if _DECODE else "K" %}
+  {% set V_CACHE = "V_cache" if _DECODE else "V" %}
+  # In decode the context rank P indexes the KV cache; in prefill it is the tokens M.
+  {% set PC = "PC" if _DECODE else "MC" %}
+
+  # Calculate how the new Query Q attends to Keys K
+  - einsum: "QK[b, mc, pc, hkv, hq, ch] = Q[b, mc, hkv, hq, e, ch] * {{K_CACHE}}[b, {{PC}}: pc, hkv, e, ch]"
+    renames: {input: Q}
+  - "QK_softmax[b, mc, pc, hkv, hq, ch] = QK[b, mc, pc, hkv, hq, ch]"
+
+  # Multiply attention scores by Values V to get attended output AV.
+  - einsum: "AV[b, mc, hkv, hq, f, ch] = QK_softmax[b, mc, pc, hkv, hq, ch] * {{V_CACHE}}[b, {{PC}}: pc, hkv, E: f, ch]"
+    renames: {input: QK_softmax}
+
+  # Project into the attention output Z per-chunk, then reshape
+  - "ZC[b, mc, g, ch] = AV[b, mc, hkv, hq, f, ch] * WZ[hkv, hq, f, g]"
+
+  - einsum: "Z[b, m, g] = ZC[b, mc, g, ch]"
+    is_copy_operation: True

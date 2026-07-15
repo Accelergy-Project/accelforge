@@ -1,0 +1,26 @@
+{{add_to_path(".")}}
+
+# Llama 4 Maverick 17B-128E. The full model is an embedding + 48 of these
+# (num_hidden_layers) + final normalization and unembedding. Every other layer is a
+# dense feedforward (interleave_moe_layer_step config.json#L25). Every 4th layer is
+# global context, and others use local context with chunked attention size 8192.
+#
+# Set BATCH_SIZE, DECODE, N_NEW_TOKENS, FEEDFORWARD_TYPE. If DECODE, also set
+# N_CACHED_TOKENS. FEEDFORWARD_TYPE selects the feedforward: 'moe' (default) or 'dense'.
+#
+# config.json:
+# https://huggingface.co/unsloth/Llama-4-Maverick-17B-128E/blob/764d2884ed58223ffc67f6904a32d3dc9a6267d7/config.json
+
+{% set FEEDFORWARD_TYPE = FEEDFORWARD_TYPE | default("moe") %}
+{% set N_HEADS = 8 %}                # num_key_value_heads   config.json#L34
+{% set N_Q_HEADS_PER_KV_HEAD = 5 %}  # num_attention_heads/num_key_value_heads = 40/8   config.json#L31,L34
+{% set N_EMB_PER_HEAD = 128 %}       # head_dim   config.json#L21
+{% set N_HIDDEN_DIMS = 5120 %}       # hidden_size   config.json#L23
+{% set N_FF_DIMS = 16384 if FEEDFORWARD_TYPE == "dense" else 8192 %} # intermediate_size_mlp L27 (dense) / intermediate_size L26 (expert)
+{% set N_SHARED_FF_DIMS = 8192 %}    # shared expert = intermediate_size   config.json#L26
+{% set N_EXPERTS = 128 %}            # num_local_experts   config.json#L35
+{% set N_EXPERTS_PER_TOKEN = 1 %}    # num_experts_per_tok   config.json#L32
+{% set MAX_N_TOKENS = MAX_N_TOKENS | default(10485760) %}
+{% set MODEL = include("_llama4.yaml", "") %}
+workload: {{MODEL}}.workload
+renames: {{MODEL}}.renames
