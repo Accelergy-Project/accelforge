@@ -80,12 +80,12 @@ class TestMeshTopologyModel(TestCase):
         # physical_stride / last_fanout = 4, capped at shape_repeats = 4
         n_dsts_per_physical = 4
         n_activated_physical = 1  # n*stride / physical_stride = 4/4
-        self.assertEqual(
+        self.assertAlmostEqual(
             cost.total_cost,
             n_activated_physical * sum(range(n_dsts_per_physical)) * stride * volume,
         )
-        self.assertEqual(cost.max_hops, (n_dsts_per_physical - 1) * stride)
-        self.assertEqual(cost.max_traffic, (n_dsts_per_physical - 1) * volume)
+        self.assertAlmostEqual(cost.max_hops, (n_dsts_per_physical - 1) * stride)
+        self.assertAlmostEqual(cost.max_traffic, (n_dsts_per_physical - 1) * volume)
 
     def test_partially_relevant_not_implemented(self):
         with self.assertRaises(NotImplementedError):

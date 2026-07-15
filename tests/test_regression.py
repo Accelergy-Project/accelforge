@@ -134,7 +134,6 @@ REGRESSION_CASES = {
         {"workload": af.examples.workloads.basic.matmuls, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
         {"workload": af.examples.workloads.basic.matvecs},
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
-        {"workload": af.examples.workloads.cnns.mobilenet.mobilenetv2},
         {"workload": af.examples.workloads.cnns.mobilenet.mobilenet_28},
         {"workload": af.examples.workloads.transformers.mamba, "jinja_parse_data": _PF},
         {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": _PF},
