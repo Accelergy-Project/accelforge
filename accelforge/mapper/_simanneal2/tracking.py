@@ -9,6 +9,7 @@ class EvaluationsScoreTracker:
         stop_at_score: float,
         optimal: float,
         print_period: int = 10,
+        max_time_s: float | None = None,
     ):
         self.max_evaluations = max_evaluations
         self.stop_at_score = stop_at_score
@@ -22,6 +23,8 @@ class EvaluationsScoreTracker:
         self.n_mappings = {}
         self.runtime = {}
         self.optimal = optimal
+        self.max_time_s = max_time_s
+        self.start_time = time.time()
 
     def add_evaluation(self, n_evaluations: int, best_score: float):
         self.evaluations += n_evaluations * self._scale_by
@@ -57,7 +60,19 @@ class EvaluationsScoreTracker:
                 print(f"Stopping due to score {self.score} < {self.stop_at_score}")
                 self.print_stopped_text = True
             return True
+        if self._out_of_time():
+            self.clean_history()
+            if not self.print_stopped_text:
+                print(f"Stopping due to time limit {self.max_time_s}s")
+                self.print_stopped_text = True
+            return True
         return False
+
+    def _out_of_time(self):
+        return (
+            self.max_time_s is not None
+            and time.time() - self.start_time > self.max_time_s
+        )
 
     def finished(self):
         enough_evaluations = (
@@ -66,7 +81,7 @@ class EvaluationsScoreTracker:
         enough_score = (
             self.stop_at_score is not None and self.score < self.stop_at_score
         )
-        return enough_evaluations or enough_score
+        return enough_evaluations or enough_score or self._out_of_time()
 
     def __repr__(self):
         return f"Evaluations: {self.evaluations}, Score: {self.score}"

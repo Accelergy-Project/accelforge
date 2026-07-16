@@ -858,6 +858,7 @@ def join_pmappings(
     algorithm: str = "simanneal",
     optimal: float | None = None,
     pick_lowest_usage_first: bool = False,
+    max_time_s: float | None = None,
 ) -> EvaluationsScoreTracker:
 
     spec = pmappings.spec
@@ -866,6 +867,7 @@ def join_pmappings(
         stop_at_score=None,
         print_period=1,
         optimal=optimal,
+        max_time_s=max_time_s,
     )
 
     # Disable validation in the compatibility class to avoid errors when joining
@@ -910,7 +912,7 @@ def join_pmappings(
             n_pmappings = s.mappings.n_total_pmappings
             n_evaluated += n_pmappings
             # Count all permutations as separate choices
-            for c_perm, _ in s.compatibility.make_equivalent_compatibilities(spec.workload):
+            for c_perm, _ in s.compatibility.make_equivalent_compatibilities():
                 permuted.setdefault(einsum_name, []).append(
                     PmappingGroup(
                         compatibility=c_perm,
