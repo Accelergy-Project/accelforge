@@ -8,7 +8,7 @@ from accelforge.frontend.spec import Spec
 
 from accelforge.model._looptree.accesses import isl_buffer_accesses_from_buffet_actions
 from accelforge.model._looptree.mapping_utilities import get_leaves
-from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
+from accelforge.model._looptree.reuse.isl.des import IslReuseAnalysisOutput
 from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 from accelforge.model._looptree.types import Buffet
 

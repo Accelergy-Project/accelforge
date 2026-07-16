@@ -34,8 +34,6 @@ implementations:
 > per-link-load abstraction and its scalar-extraction helpers live in
 > [`edge_pressure.py`](edge_pressure.py); multicast-network construction (`identify_mesh_casts`
 > and the helpers built on its result) lives in [`mesh_casts.py`](mesh_casts.py).
-> `distributed_buffers.py` re-exports the moved names, so existing imports of the four models and
-> `_eval_const` from `distributed_buffers.py` keep working (see §9 for the full map).
 
 ---
 

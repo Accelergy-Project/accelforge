@@ -5,15 +5,14 @@ Where a model's ``hops`` is a single scalar, ``EdgePressure`` breaks the load ou
 per *physical* directed edge: how many multicast trees cross each link. Two models
 are covered:
 
-- ``XYRoutingMulticastModel``'s ``edge_pressure`` (now reached via
-  ``model.apply(0, fill, occ).edge_pressure``, not a standalone method -- see
-  the API-change note on ``test_load_sums_to_hops`` below) -- directed mesh
+- ``XYRoutingMulticastModel``'s ``edge_pressure`` (reached via
+  ``model.apply(0, fill, occ).edge_pressure``) -- directed mesh
   links (``xedge_r``/``xedge_l``/``yedge_u``/``yedge_d``). ``test_load_sums_to_hops``
   checks the per-edge loads sum back to the already-validated A-F hop totals
   (4/6/6/3/4/448). Bottlenecks and a couple of individual edge loads
   (hand-derived, geometry documented inline) pin the shape.
 
-- ``StarMulticastModel``'s ``edge_pressure`` (same access-pattern change) --
+- ``StarMulticastModel``'s ``edge_pressure`` --
   the spokes realization of a fully-connected fabric (``spoke_in[n]`` ingress,
   ``spoke_out[n]`` egress). For an N-way all-to-all each node receives N-1 and
   sources 1, so the ingress spokes are hottest at N-1. Tied to
@@ -37,17 +36,9 @@ from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import
     XYRoutingMulticastModel,
     StarMulticastModel,
     FullyConnectedMulticastModel,
-    # Design: this used to be a local copy (identical signature/behavior) kept
-    # in sync by hand; now that the source module exposes one module-level,
-    # `int`-returning `_eval_const` (D6), the test suite imports it directly
-    # instead of re-deriving the "evaluate a parameter-free PwQPolynomial at
-    # the space's zero point" idiom a second time.
-    _eval_const,
 )
+from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import _eval_const
 
-# `construct_spacetime` and `load_solutions` are hoisted into `helpers.py`
-# (single-sourced there, see that module's docstring for the run-from-repo-root
-# import requirement) rather than redefined/re-imported locally here.
 from .helpers import construct_spacetime, load_solutions
 
 
@@ -68,23 +59,12 @@ class TestXYRoutingEdgePressure(unittest.TestCase):
         """
         Summed per-edge load matches the trusted A-F hop totals.
 
-        # NOTE (post-D5 API/semantics change): before D5, `XYRoutingMulticastModel`
-        # computed `hops` via a standalone `_cost_xy` and `edge_pressure` via a
-        # *second*, independent traversal of `mcns`; this test's "sum(load) ==
-        # hops" check was therefore a genuine cross-implementation invariant --
-        # a bug in either path's edge decomposition would surface here even if
-        # each path's own totals looked locally correct. D5 replaced that with
-        # one aggregation path: `apply()` now computes `hops = _const_pwq(
-        # pressure.total())` *from* the same `EdgePressure`, so `pressure.total()
-        # == info.hops` is true by construction, not by cross-checked
-        # computation -- the invariant, as originally framed, is now
-        # tautological. What is *not* tautological is comparing `pressure.total()`
-        # against the yaml's hand-derived `xy_routing_hops` oracle (an
-        # independent, human-computed number, unrelated to how the code is
-        # wired) -- that is what this test still checks, so it keeps its
-        # regression value as a per-case oracle check even though it can no
-        # longer catch a hops/edge_pressure disagreement (there structurally
-        # isn't one to catch anymore).
+        `MulticastModel.apply` computes `hops = _const_pwq(pressure.total())`
+        from the same `EdgePressure` it reports, so `pressure.total() ==
+        info.hops` is true by construction. The regression value here is the
+        comparison against the yaml's hand-derived `xy_routing_hops` oracle --
+        an independent, human-computed number, unrelated to how the code is
+        wired -- checked per case.
         """
         for test in self.testcases:
             expected = test["expected"]["xy_routing_hops"]

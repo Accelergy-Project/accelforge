@@ -1,33 +1,31 @@
 """
-Regression tests for the D1/D2/D3 contract fixes to
-``distributed_buffers.py``'s multicast models (see the module's design notes
-and the module-level ``_mesh_node_tuple``/``_covered_fills``/
-``identify_mesh_casts`` docstrings for the full rationale). Each class below
-pins down one previously-broken-or-undocumented contract so a future change
-cannot silently regress it:
+Regression tests for contract fixes to ``distributed_buffers.py``'s multicast
+models (see the ``_mesh_node_tuple``/``_covered_fills``/
+``identify_mesh_casts`` docstrings in ``mesh_casts.py`` for the full
+rationale). Each class below pins down one previously-broken-or-undocumented
+contract so a future change cannot silently regress it:
 
-- ``TestTupleNameGenericity`` (D1): a spacetime/node tuple named anything
+- ``TestTupleNameGenericity``: a spacetime/node tuple named anything
   other than the literal ``'noc'`` (e.g. ``pe[x, y]``) used to crash deep
   inside an opaque ISL assertion in ``XYRoutingMulticastModel``'s and
   ``StarMulticastModel``'s helpers, which hardcoded ``'noc'`` into every map
   string they built. Both now read the tuple name off the caller's own maps.
-- ``TestXYDimensionalityGuard`` (D1): a non-2-D node tuple through
+- ``TestXYDimensionalityGuard``: a non-2-D node tuple through
   ``XYRoutingMulticastModel`` now raises a clear ``ValueError`` instead of the
   same kind of opaque ISL assertion.
-- ``TestUnfulfilledPartition`` (D2): ``fulfilled_fill``/``unfulfilled_fill``
+- ``TestUnfulfilledPartition``: ``fulfilled_fill``/``unfulfilled_fill``
   are a true partition of ``fills`` by whether ``identify_mesh_casts`` found a
   matched source, for all four models -- previously ``unfulfilled_fill`` was
   unconditionally empty regardless of whether a fill actually had a source.
-- ``TestAsymmetricDistFnOrientation`` (D3): ``identify_mesh_casts``'s
-  ``dist_fn`` is documented (after the D3 fix) to be applied in the
+- ``TestAsymmetricDistFnOrientation``: ``identify_mesh_casts``'s
+  ``dist_fn`` is documented to be applied in the
   ``{ [dst -> src] -> [hops] }`` orientation; this pins down that an
   asymmetric ``dist_fn`` (direction-dependent cost) actually selects the
   source that is *cheapest to reach from the destination*, not some other
   pairing that a swapped orientation would silently produce.
 
 See accelforge/model/_looptree/reuse/isl/distributed/README.md for the models'
-background, and accelforge/model/_looptree/reuse/isl/distributed/distributed_buffers.py
-for the D1/D2/D3 design comments this file exercises.
+background.
 """
 
 import unittest
@@ -44,8 +42,8 @@ from accelforge.model._looptree.reuse.isl.distributed.distributed_buffers import
     FullyConnectedMulticastModel,
     XYRoutingMulticastModel,
     StarMulticastModel,
-    _eval_const,
 )
+from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import _eval_const
 
 _CTX = isl.DEFAULT_CONTEXT
 
@@ -56,7 +54,7 @@ def _manhattan_2d(name: str) -> isl.Map:
     node tuple named ``name`` (e.g. ``"noc"`` or ``"pe"``), identical in shape
     to the ``2d_manhattan`` fixture in ``xy_routing/test_cases.yaml`` but with
     the tuple name parametrized so it can be reused for the tuple-name
-    genericity regression tests (D1) below.
+    genericity regression tests below.
     """
     return isl.Map.read_from_str(
         _CTX,
@@ -94,7 +92,7 @@ def _all_to_all(name: str, n: int) -> tuple[Fill, Occupancy, isl.Map]:
 
     Node ``g`` starts holding only ``data[g]`` and requests every other node's
     datum, exactly the ``_all_to_all`` fixture in ``test_edge_pressure.py``
-    but with the tuple name parametrized for the D1 genericity checks.
+    but with the tuple name parametrized for the genericity checks.
     """
     tags = [SpatialTag(0, 0)]
     occ = Occupancy(
@@ -115,7 +113,7 @@ def _all_to_all(name: str, n: int) -> tuple[Fill, Occupancy, isl.Map]:
 
 class TestTupleNameGenericity(unittest.TestCase):
     """
-    D1: a node tuple named anything other than ``'noc'`` must produce the same
+    A node tuple named anything other than ``'noc'`` must produce the same
     numbers as the ``'noc'``-named equivalent, for every model whose helpers
     used to hardcode the literal ``'noc'`` into ISL map strings.
     """
@@ -124,7 +122,7 @@ class TestTupleNameGenericity(unittest.TestCase):
         """
         XY routing case B (source (1,0) -> (0,2),(2,2), 6 hops -- see
         ``xy_routing/test_cases.yaml``) run under both ``noc[x, y]`` and
-        ``pe[x, y]`` must produce the identical hop count. Before D1, `'pe'`
+        ``pe[x, y]`` must produce the identical hop count. Previously, `'pe'`
         crashed inside ``_directed_mesh_links``'s hardcoded ``'noc[...]'`` map
         strings with a raw ISL tuple-name-mismatch assertion.
         """
@@ -153,7 +151,7 @@ class TestTupleNameGenericity(unittest.TestCase):
         """
         The 8-node all-to-all oracle (FullyConnected 56, Star 64 -- see
         ``TestStarSpokePressure`` in ``test_edge_pressure.py``) run under both
-        ``noc[g]`` and ``pe[g]`` must produce identical numbers. Before D1,
+        ``noc[g]`` and ``pe[g]`` must produce identical numbers. Previously,
         ``StarMulticastModel._spoke_loads`` hardcoded ``'noc'`` the same way
         ``_directed_mesh_links`` did (``FullyConnectedMulticastModel`` never
         hardcoded a tuple name, so it is included here only as a same-input
@@ -174,7 +172,7 @@ class TestTupleNameGenericity(unittest.TestCase):
 
 class TestXYDimensionalityGuard(unittest.TestCase):
     """
-    D1: ``XYRoutingMulticastModel`` only supports exactly 2-D node tuples, and
+    ``XYRoutingMulticastModel`` only supports exactly 2-D node tuples, and
     must say so with a clear ``ValueError`` rather than an opaque ISL abort.
     """
 
@@ -184,7 +182,7 @@ class TestXYDimensionalityGuard(unittest.TestCase):
         ``apply`` (via ``_directed_mesh_links``), naming the offending tuple
         and its dimensionality, instead of failing deep inside an
         ``isl.Map.read_from_str``/``apply_range`` call the way it did before
-        D1's ``_mesh_node_tuple`` dimensionality check was added. The
+        ``_mesh_node_tuple``'s dimensionality check was added. The
         `dist_fn` here is a trivial constant (correctness of routing over a
         3-D mesh is out of scope -- this test only exercises the guard).
         """
@@ -213,11 +211,11 @@ class TestXYDimensionalityGuard(unittest.TestCase):
 
 class TestUnfulfilledPartition(unittest.TestCase):
     """
-    D2: ``fulfilled_fill``/``unfulfilled_fill`` must be a true partition of
+    ``fulfilled_fill``/``unfulfilled_fill`` must be a true partition of
     ``fills`` by whether ``identify_mesh_casts`` matched a source, for every
     model. Shared geometry: node 0 holds only ``data[0]``; node 1 requests
     both ``data[0]`` (has a source -- fulfilled) and ``data[1]`` (no source
-    anywhere -- unfulfilled). Before D2, every model reported
+    anywhere -- unfulfilled). Previously, every model reported
     ``unfulfilled_fill`` as unconditionally empty (``fills - fills``) and
     ``fulfilled_fill`` as the entire (uncovered) fill map.
     """
@@ -313,10 +311,10 @@ class TestUnfulfilledPartition(unittest.TestCase):
 
 class TestAsymmetricDistFnOrientation(unittest.TestCase):
     """
-    D3: ``identify_mesh_casts`` applies ``dist_fn`` in the
+    ``identify_mesh_casts`` applies ``dist_fn`` in the
     ``{ [dst -> src] -> [hops] }`` orientation (the docstring previously said
-    the opposite, though the code itself was never wrong -- D3 was a
-    documentation-only fix). This pins down the now-correctly-documented
+    the opposite, though the code itself was never wrong -- the fix was
+    documentation-only). This pins down the now-correctly-documented
     behavior with a ``dist_fn`` that is *directionally* asymmetric (cost
     depends on which side is source vs. destination, not just on distance),
     so a caller who mis-orients their own ``dist_fn`` -- or a future change

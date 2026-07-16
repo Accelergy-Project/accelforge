@@ -7,9 +7,7 @@ one `TransferInfo` assembly) lives on the `MulticastModel` base class; each
 concrete model below contributes only its cost kernel via `_transfer_cost`.
 The underlying primitives -- `EdgePressure` and its scalar-extraction helpers,
 and the multicast-network construction (`identify_mesh_casts` and friends) --
-live in `edge_pressure.py` and `mesh_casts.py` respectively, and are
-re-exported below for backward compatibility (see the Note at the import
-site).
+live in `edge_pressure.py` and `mesh_casts.py` respectively.
 """
 
 from abc import abstractmethod
@@ -27,18 +25,8 @@ from accelforge.model._looptree.reuse.isl.spatial import (
     TransferModel,
 )
 
-# Note: these re-exports preserve this module's historical public surface.
-# `EdgePressure`/`_eval_const`/`_const_pwq`/`_edge_pressure_from_links` and
-# `identify_mesh_casts`/`calculate_extents_per_dim`/`_covered_fills`/
-# `_mesh_node_tuple` used to be defined directly in this file; the test suite
-# and `correlation.ipynb` import them from this module path, so the split
-# into `edge_pressure.py` / `mesh_casts.py` must not break that import.
-# `_union_pwqs`, `_per_src`, and `_fabric_crossing` are pulled in for this
-# module's own internal use (Star/XY/FullyConnected kernels below), not part
-# of the historical surface.
 from accelforge.model._looptree.reuse.isl.distributed.edge_pressure import (
     EdgePressure,
-    _eval_const,
     _const_pwq,
     _edge_pressure_from_links,
     _union_pwqs,
