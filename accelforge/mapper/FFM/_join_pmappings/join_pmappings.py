@@ -1,5 +1,8 @@
 from copy import deepcopy
-from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
+from accelforge.mapper.FFM._join_pmappings.compatibility import (
+    Compatibility,
+    CompatibilityDiff,
+)
 from collections import defaultdict
 import itertools
 import logging
@@ -650,7 +653,7 @@ def join_pmappings(
             print_progress=print_progress,
         )
         einsum_pmappings.pmapping_groups = PmappingGroup.group(
-            einsum_pmappings.pmapping_groups, left_tensors
+            einsum_pmappings.pmapping_groups, left_tensors,
         )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         step_time = time.time() - t0
@@ -782,16 +785,16 @@ def join_pmappings(
             ):
                 a: PmappingGroup
                 b: PmappingGroup
-                perm_a: list[int]
-                perm_b: list[int]
+                perm_a: CompatibilityDiff
+                perm_b: CompatibilityDiff
                 key_check = (id(a), id(b))
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
                 found = True
 
-                compatibility_a = a.compatibility.permute(perm_a)
-                compatibility_b = b.compatibility.permute(perm_b)
+                compatibility_a = perm_a.apply(a.compatibility)
+                compatibility_b = perm_b.apply(b.compatibility)
                 try:
                     compatibility_joined = compatibility_a.merge_next(
                         compatibility_b,
@@ -895,8 +898,8 @@ def join_pmappings(
                     ).clear_tile_patterns_and_reservation_indices()
                     for c in next_pmapping_groups.pmapping_groups
                 )
-                for k in list[PmappingGroup](combined):
-                    perms = k.make_equivalent_permutations()
+                for k in list[Compatibility](combined):
+                    perms = k.make_equivalent_compatibilities()
                     perms = [
                         p[0]
                         .clear_dead_tensors(next_right_tensors)

@@ -1,0 +1,19 @@
+{{add_to_path(".")}}
+
+# GPT-3 175B one decoder layer. The full model is an embedding + 96 of these + final
+# normalization and unembedding. GPT-3 has no public code; per the paper (Sec. 2.1) it
+# uses "the same model and architecture as GPT-2", except alternating sparse-attention
+# layers (not modeled).
+#
+# Set BATCH_SIZE, DECODE, N_NEW_TOKENS. If DECODE, also set N_CACHED_TOKENS.
+#
+# Rank sizes: GPT-3 paper (Brown et al. 2020) Table 2.1. 
+
+{% set N_HEADS       = 96 %}    # n_heads
+{% set N_EMB_PER_HEAD = 128 %}  # d_head
+{% set N_HIDDEN_DIMS = 12288 %} # d_model = n_heads * d_head
+{% set N_FF_DIMS     = 49152 %} # d_ff = 4 * d_model
+{% set MAX_N_TOKENS = MAX_N_TOKENS | default(2048) %}   # n_ctx (GPT-3 paper Table 2.1)
+{% set MODEL = include("_gpt3.yaml", "") %}
+workload: {{MODEL}}.workload
+renames: {{MODEL}}.renames

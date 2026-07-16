@@ -1,0 +1,22 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Used by: GPT-3, BERT, and other pre-GLU transformers.
+#
+# Dense two-layer feedforward MLP with up projection, activation, and down projection.
+# Activation, residuals, normalization are omitted.
+
+workload:
+  rank_sizes:
+    B: {{BATCH_SIZE}}      # Batch index
+    M: {{N_NEW_TOKENS}}    # Token index
+    G: {{N_HIDDEN_DIMS}}   # Model hidden dim (feedforward input)
+    C: {{N_FF_DIMS}}       # Feedforward hidden dim
+    J: {{N_HIDDEN_DIMS}}   # Model hidden dim (feedforward output)
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Activation is omitted.
+  - "FFA[b, m, c] = Z[b, m, g] * WFFA[g, c]"    # up projection
+  - "FFB[b, m, j] = FFA[b, m, c] * WFFB[c, j]"  # down projection

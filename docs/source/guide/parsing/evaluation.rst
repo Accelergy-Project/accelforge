@@ -180,6 +180,9 @@ combination. The following set expressions are supported:
   the workload's execution.
 - ``Shared``: Tensors that are shared between multiple Einsums.
 - ``Tensors``: Alias for ``All``.
+- ``Other``: If used in a dictionary key, resolves to everything not covered by the
+  other keys. May not be used outside of dictionary keys, and may only appear in one
+  key.
 
 Additionally, the following special variables are available:
 

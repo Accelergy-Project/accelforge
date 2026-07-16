@@ -1,0 +1,18 @@
+{{add_to_path(".")}}
+
+# Llama 3 8B one decoder layer. The full model is an embedding + 32 of these
+# (num_hidden_layers) + final normalization and unembedding.
+#
+# Set BATCH_SIZE, DECODE, N_NEW_TOKENS. If DECODE, also set N_CACHED_TOKENS.
+#
+# config.json: https://huggingface.co/NousResearch/Meta-Llama-3-8B/blob/315b20096dc791d381d514deb5f8bd9c8d6d3061/config.json
+
+{% set N_HEADS = 8 %}                # num_key_value_heads   config.json#L17
+{% set N_Q_HEADS_PER_KV_HEAD = 4 %}  # num_attention_heads/num_key_value_heads = 32/8   config.json#L15,L17
+{% set N_EMB_PER_HEAD = 128 %}       # head_dim = 4096/32   config.json#L10,L15
+{% set N_HIDDEN_DIMS = 4096 %}       # hidden_size   config.json#L10
+{% set N_FF_DIMS = 14336 %}          # intermediate_size   config.json#L12
+{% set MAX_N_TOKENS = MAX_N_TOKENS | default(8192) %}        # max_position_embeddings   config.json#L13
+{% set MODEL = include("_llama3.yaml", "") %}
+workload: {{MODEL}}.workload
+renames: {{MODEL}}.renames

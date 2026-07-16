@@ -50,7 +50,11 @@ from accelforge.util._basetypes import (
 
 from accelforge.util.exceptions import EvaluationError
 from accelforge.util._eval_expressions import eval_expression
-from accelforge.util._setexpressions import InvertibleSet, eval_set_expression
+from accelforge.util._setexpressions import (
+    InvertibleSet,
+    eval_set_expression,
+    eval_set_expression_dict,
+)
 from accelforge.frontend.renames import TensorName
 from accelforge.frontend.arch.constraints import Comparison
 from accelforge.frontend.arch.structure import ArchNode, Branch, Leaf
@@ -860,10 +864,10 @@ class Component(Spatialable):
                 action.extra_attributes_for_component_model.model_copy()
             )
         return self
-    
+
     def _eval_expressions(
-        self, 
-        symbol_table: dict[str, Any], 
+        self,
+        symbol_table: dict[str, Any],
         order: tuple[str, ...] = (),
         post_calls: tuple[_PostCall[T], ...] = (),
         *args,
@@ -874,9 +878,9 @@ class Component(Spatialable):
                 if field == "extra_attributes_for_component_model":
                     symbol_table.update(evaluated.shallow_model_dump())
                 return evaluated
-            
+
         order = ("extra_attributes_for_component_model",) + order
-            
+
         return super()._eval_expressions(
             symbol_table, order, post_calls + (MyPostCall(),), *args, **kwargs
         )
@@ -909,23 +913,15 @@ def _eval_tensor2number(
     symbol_table: dict[str, Any],
 ) -> dict[str, Any]:
     result = {}
-    for key, value in toeval.items():
-        key_evaluated = eval_set_expression(
-            expression=key,
-            symbol_table=symbol_table,
-            expected_space=TensorName,
-            location=f"{location} key {key}",
-        ).instance
+    for key, key_evaluated, value in eval_set_expression_dict(
+        toeval, symbol_table, TensorName, location
+    ):
         result[key_evaluated] = eval_expression(
             expression=value,
             symbol_table=symbol_table,
             attr_name=key,
             location=location,
         )
-
-    for a, b in itertools.combinations(result.keys(), 2):
-        if a & b:
-            raise EvaluationError(f"{location} for {a} and {b} overlap")
 
     return {k2: v for k, v in result.items() for k2 in k}
 

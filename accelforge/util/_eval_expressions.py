@@ -245,7 +245,7 @@ def eval_expression(
             bindings[k] = str(v).replace("\n", "\\n")
             if len(bindings[k]) > 100:
                 bindings[k] = bindings[k][:100] + "..."
-        
+
         bindings_sorted = sorted(bindings.items(), key=lambda item: str(item[0]))
         errstr += "".join(f"\n\t{k} = {v}" for k, v in bindings_sorted)
         errstr += "\n\n" + err

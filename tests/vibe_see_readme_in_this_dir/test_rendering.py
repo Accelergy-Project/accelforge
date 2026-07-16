@@ -114,7 +114,9 @@ class TestWorkloadRender(unittest.TestCase):
         self.assertEqual(str(wl._repr_svg_()), str(wl.render()))
 
     def test_render_from_yaml_workload(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest("YAML file not found")
         spec = Spec.from_yaml(yaml_path)
@@ -179,7 +181,7 @@ class TestArchRender(unittest.TestCase):
 
     def test_render_from_yaml_arch(self):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML files not found")
         spec = Spec.from_yaml(arch_path, wl_path, jinja_parse_data={"N_EINSUMS": 1})
@@ -191,7 +193,7 @@ class TestArchRender(unittest.TestCase):
     def test_render_tpu_arch(self):
         """TPU arch needs einsum context for expressions like len(All) == 2."""
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML files not found")
         spec = Spec.from_yaml(arch_path, wl_path)
@@ -422,10 +424,15 @@ class TestMappingRenderHelpers(unittest.TestCase):
 
 class TestRenderFromYAML(unittest.TestCase):
     def test_full_spec_workload_render(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         if not yaml_path.exists():
             self.skipTest("YAML file not found")
-        spec = Spec.from_yaml(yaml_path)
+        spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )
         evaluated = spec._spec_eval_expressions()
         svg = str(evaluated.workload.render())
         self.assertIn("<svg", svg)
@@ -435,7 +442,7 @@ class TestRenderFromYAML(unittest.TestCase):
 
     def test_full_spec_mapping_render(self):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
         map_path = EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml"
         if not all(p.exists() for p in [arch_path, wl_path, map_path]):
             self.skipTest("YAML files not found")

@@ -1,0 +1,95 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Multi-head latent attention (MLA) projects query, key, and value tensors into a
+# lower-dimensional latent space to save memory.
+#
+# Omits positional encoding, activation, bias, residual, and normalization. Assumes that
+# the KV cache is much larger than the new K and V, so we can omit the concatenation.
+# Assumes softmax can be performed elementwise and includes causal mask plus score
+# scaling. Omits NoPE/RoPE split and focuses only on the larger NoPE part.
+#
+# Used by DeepSeek-V3.
+#
+# Reference https://arxiv.org/abs/2405.04434
+
+{% set N_CONTEXT_TOKENS = N_CACHED_TOKENS if DECODE else N_NEW_TOKENS %}
+{{include_text("_max_tokens_assert.yaml")}}
+{% set ABSORBED = ABSORBED | default(True) %}
+
+workload:
+  rank_sizes:
+    P:   {{N_CONTEXT_TOKENS}}      # Context tokens
+    M:   {{N_NEW_TOKENS}}          # New query token(s) generated this decode step
+    B:   {{BATCH_SIZE}}            # Batch index
+    H:   {{N_HEADS}}               # Attention heads
+    E:   {{N_EMB_PER_HEAD}}        # QK embedding per head
+    F:   {{N_V_DIMS}}              # Value embedding per head
+    LQ:  {{N_Q_LATENT}}            # Compressed query latent dim
+    LKV: {{N_KV_LATENT}}           # Compressed key/value latent dim 
+    D:   {{N_HIDDEN_DIMS}}         # Model hidden dim, projection input
+    G:   {{N_HIDDEN_DIMS}}         # Model hidden dim, projection output
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Optionally copy the input tensor onto the accelerator
+  - {einsum: "I[b, m, d] = I_in[b, m, d]", is_copy_operation: True}
+
+  # Create compressed latent Compressed Query CQ and Compressed Latent Key/Value CKV
+  - "CQ[b, m, lq] = I[b, m, d] * WCQ[d, lq]"
+  - "CKV[b, m, lkv] = I[b, m, d] * WCKV[d, lkv]"
+
+  # If this is decode, we use a KV cache, and we impose a few assumptions to make the
+  # Einsums for decode + KV cache simpler. We drop the previously-generated V and K,
+  # assuming that the K_cache and V_cache are much larger. This assumes that N_TOKENS >>
+  # N_NEW_TOKENS. In reality, we would concatenate K with K_cache and V with V_cache,
+  # but since K >> K_new and V >> V_new, we can ignore these tensors and assume that the
+  # concatenation is cheap relative to the movement of K_cache and V_cache.
+  {% set CKV_CACHE = "CKV_cache" if DECODE else "CKV" %}
+  # In decode the context rank P indexes the cached latent; in prefill it is the tokens M.
+  {% set P = "P" if DECODE else "M" %}
+
+  # ABSORBED VERSION: Perform QK and AV in the latent space, then up-project AV at the
+  # end. 
+  {% if ABSORBED %}
+  # Project Q into the K/V latent space. Note we could do this in one Einsum by
+  # pre-multiplying the weights together, but lq and lkv tend to be large so this can
+  # create a big weight tensor and a lot of MACs.
+  - "Q[b, m, h, e] = CQ[b, m, lq] * WQ[h, e, lq]"
+  - "Q_latent[b, m, h, lkv] = Q[b, m, h, e] * WK[h, e, lkv]"
+
+  # Calculate how the new Query Q attends to Keys K
+  - einsum: "QK[b, m, p, h] = Q_latent[b, m, h, lkv] * {{CKV_CACHE}}[b, {{P}}: p, lkv]"
+    renames: {input: Q_latent}
+  - "QK_softmax[b, m, p, h] = QK[b, m, p, h]"
+ 
+  # Multiply attention scores the compressed CKV to get attended output AV in the latent space.
+  - einsum: "AV_latent[b, m, h, lkv] = QK_softmax[b, m, p, h] * {{CKV_CACHE}}[b, {{P}}: p, lkv]"
+    renames: {input: QK_softmax}
+
+  # Up-project AV out of the latent space
+  - "AV[b, m, h, f] = AV_latent[b, m, h, lkv] * WV[h, f, lkv]"
+
+  # NON-ABSORBED VERSION: Up-project Q, K, and V out of the latent space, then perform
+  # attention as normal.
+  {% else %}
+  # Up-project Q and K into out of the latent space
+  - "Q[b, m, h, e] = CQ[b, m, lq] * WQN[h, e, lq]"
+  - "K[b, p, h, e] = {{CKV_CACHE}}[b, {{P}}: p, lkv] * WKN[h, e, lkv]"
+
+  # Calculate how the new Query Q attends to Keys K
+  - einsum: "QK[b, m, p, h] = Q[b, m, h, e] * K[b, p, h, e]"
+    renames: {input: Q}
+  - "QK_softmax[b, m, p, h] = QK[b, m, p, h]"
+
+  # Up-project V out of the latent space
+  - einsum: "V[b, p, h, f] = {{CKV_CACHE}}[b, {{P}}: p, lkv] * WV[h, f, lkv]"
+
+  # Multiply attention scores by Values V to get attended output AV.
+  - einsum: "AV[b, m, h, f] = QK_softmax[b, m, p, h] * V[b, p, h, f]"
+    renames: {input: QK_softmax}
+  {% endif %}
+
+  # Project into the attention output Z.
+  - "Z[b, m, g] = AV[b, m, h, f] * WZ[h, f, g]"

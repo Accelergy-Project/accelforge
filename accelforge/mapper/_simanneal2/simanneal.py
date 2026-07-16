@@ -910,7 +910,7 @@ def join_pmappings(
             n_pmappings = s.mappings.n_total_pmappings
             n_evaluated += n_pmappings
             # Count all permutations as separate choices
-            for c_perm, _ in s.compatibility.make_equivalent_permutations():
+            for c_perm, _ in s.compatibility.make_equivalent_compatibilities(spec.workload):
                 permuted.setdefault(einsum_name, []).append(
                     PmappingGroup(
                         compatibility=c_perm,

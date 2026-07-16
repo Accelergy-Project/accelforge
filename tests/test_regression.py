@@ -20,52 +20,136 @@ from accelforge.mapper import Metrics
 JSON_PATH = Path(__file__).parent / "regression_reference.json"
 HWCOMPONENTS_JSON_PATH = Path(__file__).parent / "hwcomponents_expected.json"
 
+_PF = {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 256}
+
 REGRESSION_CASES = {
     af.examples.arches.simple: [
         {
-            "workload": af.examples.workloads.matmuls,
+            "workload": af.examples.workloads.basic.matmuls,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
-        {"workload": af.examples.workloads.three_matmuls_annotated},
-        {"workload": af.examples.workloads.gpt3_175B},
-        {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-        # {"workload": af.examples.workloads.gpt3_6_7B},
-        # {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+        {"workload": af.examples.workloads.basic.three_matmuls_annotated},
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_175B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": False,
+                "N_NEW_TOKENS": 2048,
+            },
+        },
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_175B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": True,
+                "N_NEW_TOKENS": 1,
+                "N_CACHED_TOKENS": 2047,
+            },
+        },
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048}},
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
     ],
     af.examples.arches.eyeriss: [
         {
-            "workload": af.examples.workloads.matmuls,
+            "workload": af.examples.workloads.basic.matmuls,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
-        {"workload": af.examples.workloads.three_matmuls_annotated},
-        # {"workload": af.examples.workloads.gpt3_175B},
-        # {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-        {"workload": af.examples.workloads.gpt3_6_7B},
-        {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+        {"workload": af.examples.workloads.basic.three_matmuls_annotated},
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_175B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048}},
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_175B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_6_7B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": False,
+                "N_NEW_TOKENS": 2048,
+            },
+        },
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_6_7B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": True,
+                "N_NEW_TOKENS": 1,
+                "N_CACHED_TOKENS": 2047,
+            },
+        },
     ],
     af.examples.arches.simba: [
         {
-            "workload": af.examples.workloads.matmuls,
+            "workload": af.examples.workloads.basic.matmuls,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
-        {"workload": af.examples.workloads.three_matmuls_annotated},
-        # {"workload": af.examples.workloads.gpt3_175B},
-        # {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-        {"workload": af.examples.workloads.gpt3_6_7B},
-        {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+        {"workload": af.examples.workloads.basic.three_matmuls_annotated},
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_175B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048}},
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_175B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_6_7B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": False,
+                "N_NEW_TOKENS": 2048,
+            },
+        },
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_6_7B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": True,
+                "N_NEW_TOKENS": 1,
+                "N_CACHED_TOKENS": 2047,
+            },
+        },
     ],
     af.examples.arches.tpu_v4i: [
         {
-            "workload": af.examples.workloads.matmuls,
+            "workload": af.examples.workloads.basic.matmuls,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
-        {"workload": af.examples.workloads.three_matmuls_annotated},
-        {"workload": af.examples.workloads.gpt3_175B},
-        {"workload": af.examples.workloads.gpt3_175B_kv_cache},
-        # {"workload": af.examples.workloads.gpt3_6_7B},
-        # {"workload": af.examples.workloads.gpt3_6_7B_kv_cache},
+        {"workload": af.examples.workloads.basic.three_matmuls_annotated},
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_175B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": False,
+                "N_NEW_TOKENS": 2048,
+            },
+        },
+        {
+            "workload": af.examples.workloads.transformers.gpt.gpt3_175B,
+            "jinja_parse_data": {
+                "BATCH_SIZE": 1,
+                "DECODE": True,
+                "N_NEW_TOKENS": 1,
+                "N_CACHED_TOKENS": 2047,
+            },
+        },
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048}},
+        # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
+    ],
+    # snowcat: broad workload-coverage smoke -- ENERGY objective + unfused (see
+    # ENERGY_UNFUSED_ARCHES), one representative config per example workload, to catch
+    # load/map regressions across every workload at low cost.
+    af.examples.arches.snowcat: [
+        {"workload": af.examples.workloads.basic.matmuls, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
+        {"workload": af.examples.workloads.basic.matvecs},
+        {"workload": af.examples.workloads.basic.three_matmuls_annotated},
+        {"workload": af.examples.workloads.cnns.mobilenet.mobilenet_28},
+        {"workload": af.examples.workloads.transformers.mamba, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.gpt.gpt3_175B, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.llama.llama3_8B, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.mixtral, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.qwen.qwen3_8B, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.qwen.qwen3_30B_A3B, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.deepseek, "jinja_parse_data": _PF},
+        {"workload": af.examples.workloads.transformers.llama.llama4_scout, "jinja_parse_data": {**_PF, "ATTENTION_TYPE": "grouped_query"}},
+        {"workload": af.examples.workloads.transformers.llama.llama4_maverick, "jinja_parse_data": {**_PF, "ATTENTION_TYPE": "grouped_query"}},
     ],
 }
+
+
+ENERGY_UNFUSED_ARCHES = {af.examples.arches.snowcat}
 
 
 def cast(d):
@@ -93,7 +177,9 @@ def _run(arch, workload, fused, print_progress: bool = True):
         workload["workload"],
         jinja_parse_data=workload.get("jinja_parse_data"),
     )
-    spec.mapper.metrics = Metrics.ENERGY_DELAY_PRODUCT
+    spec.mapper.metrics = (
+        Metrics.ENERGY if arch in ENERGY_UNFUSED_ARCHES else Metrics.ENERGY_DELAY_PRODUCT
+    )
     spec.mapper.max_fused_loops = 1
     if not fused:
         for node in spec.arch.nodes:
@@ -118,8 +204,9 @@ def _run(arch, workload, fused, print_progress: bool = True):
 
 def _cases(fusion_choices=(False, True)):
     for arch, workloads in REGRESSION_CASES.items():
+        choices = (False,) if arch in ENERGY_UNFUSED_ARCHES else fusion_choices
         for workload in workloads:
-            for fused in fusion_choices:
+            for fused in choices:
                 yield _key(arch, workload, fused), arch, workload, fused
 
 
@@ -230,7 +317,7 @@ class TestHWComponentsConsistency(unittest.TestCase):
         for name, arch_path in arches.items():
             spec = Spec.from_yaml(
                 arch_path,
-                af.examples.workloads.matmuls,
+                af.examples.workloads.basic.matmuls,
                 jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
             )
             spec = spec.calculate_component_costs(einsum_name="Matmul0")
@@ -329,7 +416,7 @@ def generate_hwcomponents():
     for name, arch_path in arches.items():
         spec = Spec.from_yaml(
             arch_path,
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
         spec = spec.calculate_component_costs(einsum_name="Matmul0")

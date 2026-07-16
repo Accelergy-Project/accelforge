@@ -1,0 +1,70 @@
+{{include_text("../../_renames_default.yaml")}}
+{{add_to_path("../_attention_decode_types")}}
+{{add_to_path("../_feedforward_types")}}
+
+# Reference implementation:
+#     https://github.com/huggingface/transformers/blob/v4.53.3/src/transformers/models/deepseek_v3/modeling_deepseek_v3.py
+#
+# @misc{deepseekai2025deepseekv3technicalreport,
+#       title={DeepSeek-V3 Technical Report}, 
+#       author={DeepSeek-AI and Aixin Liu and Bei Feng and Bing Xue and Bingxuan Wang and Bochao Wu and Chengda Lu and Chenggang Zhao and Chengqi Deng and Chenyu Zhang and Chong Ruan and Damai Dai and Daya Guo and Dejian Yang and Deli Chen and Dongjie Ji and Erhang Li and Fangyun Lin and Fucong Dai and Fuli Luo and Guangbo Hao and Guanting Chen and Guowei Li and H. Zhang and Han Bao and Hanwei Xu and Haocheng Wang and Haowei Zhang and Honghui Ding and Huajian Xin and Huazuo Gao and Hui Li and Hui Qu and J. L. Cai and Jian Liang and Jianzhong Guo and Jiaqi Ni and Jiashi Li and Jiawei Wang and Jin Chen and Jingchang Chen and Jingyang Yuan and Junjie Qiu and Junlong Li and Junxiao Song and Kai Dong and Kai Hu and Kaige Gao and Kang Guan and Kexin Huang and Kuai Yu and Lean Wang and Lecong Zhang and Lei Xu and Leyi Xia and Liang Zhao and Litong Wang and Liyue Zhang and Meng Li and Miaojun Wang and Mingchuan Zhang and Minghua Zhang and Minghui Tang and Mingming Li and Ning Tian and Panpan Huang and Peiyi Wang and Peng Zhang and Qiancheng Wang and Qihao Zhu and Qinyu Chen and Qiushi Du and R. J. Chen and R. L. Jin and Ruiqi Ge and Ruisong Zhang and Ruizhe Pan and Runji Wang and Runxin Xu and Ruoyu Zhang and Ruyi Chen and S. S. Li and Shanghao Lu and Shangyan Zhou and Shanhuang Chen and Shaoqing Wu and Shengfeng Ye and Shengfeng Ye and Shirong Ma and Shiyu Wang and Shuang Zhou and Shuiping Yu and Shunfeng Zhou and Shuting Pan and T. Wang and Tao Yun and Tian Pei and Tianyu Sun and W. L. Xiao and Wangding Zeng and Wanjia Zhao and Wei An and Wen Liu and Wenfeng Liang and Wenjun Gao and Wenqin Yu and Wentao Zhang and X. Q. Li and Xiangyue Jin and Xianzu Wang and Xiao Bi and Xiaodong Liu and Xiaohan Wang and Xiaojin Shen and Xiaokang Chen and Xiaokang Zhang and Xiaosha Chen and Xiaotao Nie and Xiaowen Sun and Xiaoxiang Wang and Xin Cheng and Xin Liu and Xin Xie and Xingchao Liu and Xingkai Yu and Xinnan Song and Xinxia Shan and Xinyi Zhou and Xinyu Yang and Xinyuan Li and Xuecheng Su and Xuheng Lin and Y. K. Li and Y. Q. Wang and Y. X. Wei and Y. X. Zhu and Yang Zhang and Yanhong Xu and Yanhong Xu and Yanping Huang and Yao Li and Yao Zhao and Yaofeng Sun and Yaohui Li and Yaohui Wang and Yi Yu and Yi Zheng and Yichao Zhang and Yifan Shi and Yiliang Xiong and Ying He and Ying Tang and Yishi Piao and Yisong Wang and Yixuan Tan and Yiyang Ma and Yiyuan Liu and Yongqiang Guo and Yu Wu and Yuan Ou and Yuchen Zhu and Yuduan Wang and Yue Gong and Yuheng Zou and Yujia He and Yukun Zha and Yunfan Xiong and Yunxian Ma and Yuting Yan and Yuxiang Luo and Yuxiang You and Yuxuan Liu and Yuyang Zhou and Z. F. Wu and Z. Z. Ren and Zehui Ren and Zhangli Sha and Zhe Fu and Zhean Xu and Zhen Huang and Zhen Zhang and Zhenda Xie and Zhengyan Zhang and Zhewen Hao and Zhibin Gou and Zhicheng Ma and Zhigang Yan and Zhihong Shao and Zhipeng Xu and Zhiyu Wu and Zhongyu Zhang and Zhuoshu Li and Zihui Gu and Zijia Zhu and Zijun Liu and Zilin Li and Ziwei Xie and Ziyang Song and Ziyi Gao and Zizheng Pan},
+#       year={2025},
+#       eprint={2412.19437},
+#       archivePrefix={arXiv},
+#       primaryClass={cs.CL},
+#       url={https://arxiv.org/abs/2412.19437}, 
+# }
+
+{% set FEEDFORWARD_TYPE = FEEDFORWARD_TYPE | default("moe") %}
+{% set ABSORBED = ABSORBED | default(True) %}
+{% set ATTENTION = include("multi_head_latent.yaml", "") %}
+{% assert FEEDFORWARD_TYPE in ['moe', 'dense'], "FEEDFORWARD_TYPE must be 'moe' or 'dense'." %}
+{% set FEEDFORWARD = include("mixture_of_experts_shared.yaml", "") if FEEDFORWARD_TYPE == "moe" else include("gated_linear_unit.yaml", "") %}
+
+workload:
+  rank_sizes:
+    <<<: [{{ATTENTION}}.workload.rank_sizes, {{FEEDFORWARD}}.workload.rank_sizes]
+
+  bits_per_value:
+    # 16b operands
+
+    # Attention QK and QK softmax
+    QK: 16
+    QK_softmax: 16
+
+    # Latent tensors when we perform the absorbed version
+    {% if ABSORBED %}
+    CKV: 16
+    {% if DECODE %}
+    CKV_cache: 16
+    {% endif %}
+    Q_latent: 16
+
+    # Q, K, V when we do not absorb the latent tensors
+    {% else %}
+    Q: 16
+    K: 16
+    V: 16
+    {% endif %}
+    # Some GLU tensors
+    FFG: 16
+    FFU: 16
+    FFB: 16
+    {% if FEEDFORWARD_TYPE == "moe" %}
+    # Some MoE tensors
+    SFG: 16
+    SFU: 16
+    SFB: 16
+    FFD: 16
+    RFFB: 16
+    {% endif %}
+    Other: 8
+
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Lines 344-360 implement projections. QK/softmax/AV are 265-272. Out projection is
+  # 360.
+  - {{ATTENTION}}.workload.einsums
+  # DeepSeekMoE: router L104, routed experts L159, shared expert L166/L202. Dense MLP L87.
+  - {{FEEDFORWARD}}.workload.einsums

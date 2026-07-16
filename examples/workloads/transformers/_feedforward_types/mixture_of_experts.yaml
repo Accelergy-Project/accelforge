@@ -1,0 +1,41 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Used by: Mixtral, Qwen3 (MoE).
+#
+# Mixture-of-experts feedforward with gated-linear-unit experts. We omit the router
+# top-k weighting (tokens split evenly across routed experts; only active experts exist
+# in memory), sum of outputs across experts, activation, residuals, normalization. Reads
+# the attention output Z.
+
+workload:
+  rank_sizes:
+    B: {{BATCH_SIZE}}      # Batch index
+    M: {{N_NEW_TOKENS}}    # Token index
+    G: {{N_HIDDEN_DIMS}}   # Model hidden dim (feedforward input)
+    C: {{N_FF_DIMS}}       # Feedforward hidden dim of each expert
+    J: {{N_HIDDEN_DIMS}}   # Model hidden dim (feedforward output)
+
+    # Assume tokens split evenly across experts: min(N_NEW_TOKENS * N_EXPERTS_PER_TOKEN,
+    # N_EXPERTS) experts are active.
+    X:  {{ [N_EXPERTS, N_NEW_TOKENS * N_EXPERTS_PER_TOKEN] | min }}
+    XT: ceil({{N_NEW_TOKENS}}*{{N_EXPERTS_PER_TOKEN}}/X)  # Tokens per expert
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Scatter tokens to their experts
+  - einsum: "Z_per_expert[b, x, xt, g] = Z[b, m, g]"
+    is_copy_operation: True
+
+  # Routed experts are a GLU over a subset of tokens. Router, top-k weighting, and
+  # activation are omitted.
+  - "FFG[b, x, xt, c] = Z_per_expert[b, x, xt, g] * WFFG[x, g, c]"   # gate projection
+  - "FFU[b, x, xt, c] = Z_per_expert[b, x, xt, g] * WFFU[x, g, c]"   # up projection
+  - einsum: "FFH[b, x, xt, c] = FFG[b, x, xt, c] * FFU[b, x, xt, c]" # act(gate) * up
+    renames: {input: FFG}
+  - "FFD[b, x, xt, j] = FFH[b, x, xt, c] * WFFD[x, c, j]"            # down projection
+
+  # Collect tokens from their experts. Omits sum over expert rank.
+  - einsum: "FFB[b, m, j] = FFD[b, x, xt, j]"
+    is_copy_operation: True

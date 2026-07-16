@@ -1,0 +1,44 @@
+{{include_text("../../_renames_default.yaml")}}
+
+# Used by: Llama 3, Qwen3 (dense), Gemma 3, Llama 4 (dense layers), DeepSeek-V3 (dense
+# layers).
+#
+# Gated-linear-unit feedforward: down(act(gate x) * up x). The gate activation is
+# elementwise and omitted. Reads the attention output Z.
+#
+# Activation, residuals, normalization are omitted.
+#
+{% raw %}
+# @article{DBLP:journals/corr/abs-2002-05202,
+#   author       = {Noam Shazeer},
+#   title        = {{GLU} Variants Improve Transformer},
+#   journal      = {CoRR},
+#   volume       = {abs/2002.05202},
+#   year         = {2020},
+#   url          = {https://arxiv.org/abs/2002.05202},
+#   eprinttype   = {arXiv},
+#   eprint       = {2002.05202},
+#   timestamp    = {Fri, 14 Feb 2020 12:07:41 +0100},
+#   biburl       = {https://dblp.org/rec/journals/corr/abs-2002-05202.bib},
+#   bibsource    = {dblp computer science bibliography, https://dblp.org}
+# }
+{% endraw %}
+
+workload:
+  rank_sizes:
+    B: {{BATCH_SIZE}}      # Batch index
+    M: {{N_NEW_TOKENS}}    # Token index
+    G: {{N_HIDDEN_DIMS}}   # Model hidden dim (feedforward input)
+    C: {{N_FF_DIMS}}       # Feedforward hidden dim
+    J: {{N_HIDDEN_DIMS}}   # Model hidden dim (feedforward output)
+
+  bits_per_value: {All: 8}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Activation is omitted.
+  - "FFG[b, m, c] = Z[b, m, g] * WFFG[g, c]"             # gate projection
+  - "FFU[b, m, c] = Z[b, m, g] * WFFU[g, c]"             # up projection
+  - einsum: "FFH[b, m, c] = FFG[b, m, c] * FFU[b, m, c]" # act(gate) * up
+    renames: {input: FFG}
+  - "FFB[b, m, j] = FFH[b, m, c] * WFFD[c, j]"           # down projection

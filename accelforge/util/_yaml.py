@@ -9,11 +9,32 @@ from typing import Callable, List, Dict, Any, OrderedDict, Tuple
 import ruamel.yaml
 import warnings
 from ruamel.yaml.error import ReusedAnchorWarning
-from jinja2 import StrictUndefined, Environment, FileSystemLoader
+from jinja2 import StrictUndefined, Environment, FileSystemLoader, pass_context, nodes
+from jinja2.ext import Extension
 import threading
 import time
 from accelforge.util._frozenset import oset
 from accelforge.util.indent import print
+
+
+class AssertExtension(Extension):
+    tags = {"assert"}
+
+    def parse(self, parser):
+        lineno = next(parser.stream).lineno
+        condition = parser.parse_expression()
+        if parser.stream.skip_if("comma"):
+            message = parser.parse_expression()
+        else:
+            message = nodes.Const(None)
+        call = self.call_method("_check", [condition, message, nodes.Const(lineno)])
+        return nodes.CallBlock(call, [], [], []).set_lineno(lineno)
+
+    def _check(self, condition, message, lineno, caller):
+        if not condition:
+            raise AssertionError(message or f"assertion failed on line {lineno}")
+        return ""
+
 
 PARSING_LOCK = threading.Lock()
 THREAD_ID = 0
@@ -172,7 +193,20 @@ def load_file_and_includes(
 
     include_counter = 0
 
-    def include(p, single, indices: str = "", **kwargs):
+    def _child_data(ctx, inherit_parse_data, kwargs):
+        child = {**data}
+        if inherit_parse_data and ctx is not None:
+            child.update(
+                {
+                    k: v
+                    for k, v in ctx.get_all().items()
+                    if not callable(v) and not k.startswith("_")
+                }
+            )
+        child.update(kwargs)
+        return child
+
+    def include(p, single, indices, child_data):
         # If the path is a relative path, make it relative to the current file
         to_include = []
         indices = indices.lstrip(".")
@@ -186,7 +220,7 @@ def load_file_and_includes(
             logging.info(
                 f"YAML Adding {np} to document with !include{'_all' if not single else ''}"
             )
-            to_include.append(load_yaml(np, {**data, **kwargs}, include_dirs))
+            to_include.append(load_yaml(np, child_data, include_dirs))
 
         if single:
             if len(to_include) > 1:
@@ -204,24 +238,28 @@ def load_file_and_includes(
         include_counter += 1
         return v
 
-    def include_single(p, indices: str = "", **kwargs):
-        return include(p, True, indices, **kwargs)
+    @pass_context
+    def include_single(ctx, p, indices: str = "", inherit_parse_data=True, **kwargs):
+        return include(p, True, indices, _child_data(ctx, inherit_parse_data, kwargs))
 
-    def include_all(p, indices: str = "", **kwargs):
-        return include(p, False, indices, **kwargs)
+    @pass_context
+    def include_all(ctx, p, indices: str = "", inherit_parse_data=True, **kwargs):
+        return include(p, False, indices, _child_data(ctx, inherit_parse_data, kwargs))
 
-    def include_text(p, **kwargs):
+    @pass_context
+    def include_text(ctx, p, inherit_parse_data=True, **kwargs):
+        child_data = _child_data(ctx, inherit_parse_data, kwargs)
         found = []
         for np in find_paths(p, path, include_dirs):
-            found.append(
-                load_file_and_includes(np, {**data, **kwargs}, include_dirs)[0]
-            )
+            found.append(load_file_and_includes(np, child_data, include_dirs)[0])
             logging.info(f"YAML Adding {np} to document with !include_text")
         return "\n".join(found)
 
     # Add include_as to the template environment
     env = Environment(
-        loader=FileSystemLoader(os.path.dirname(path)), undefined=StrictUndefined
+        loader=FileSystemLoader(os.path.dirname(path)),
+        undefined=StrictUndefined,
+        extensions=[AssertExtension],
     )
 
     def setenv(key, value):
@@ -486,7 +524,9 @@ class YAMLFileLoader:
         self.loading_from_dir = os.path.abspath(os.path.dirname(path))
         self.include_data = data or {}
         self.env = Environment(
-            loader=FileSystemLoader(os.path.dirname(path)), undefined=StrictUndefined
+            loader=FileSystemLoader(os.path.dirname(path)),
+            undefined=StrictUndefined,
+            extensions=[AssertExtension],
         )
 
     def nomerge(self, constructor, node):

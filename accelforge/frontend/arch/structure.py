@@ -320,6 +320,7 @@ class Branch(ArchNode):
             symbol_table[self.name] = self
         return super()._eval_expressions(symbol_table, *args, **kwargs)
 
+
 class Array(Branch, Spatialable):
     name: str
 

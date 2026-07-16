@@ -1,0 +1,20 @@
+{{add_to_path(".")}}
+
+# Qwen3 one decoder layer. The full model is embedding + 36 of these (num_hidden_layers)
+# + final normalization and unembedding.
+#
+# Set BATCH_SIZE, DECODE, N_NEW_TOKENS. If DECODE, also set N_CACHED_TOKENS.
+#
+# config.json:
+# https://huggingface.co/Qwen/Qwen3-8B/blob/b968826d9c46dd6066d109eabc6255188de91218/config.json
+
+{% set FEEDFORWARD_TYPE = 'dense' %}
+{% set N_HEADS = 8 %}                # num_key_value_heads   config.json#L19
+{% set N_Q_HEADS_PER_KV_HEAD = 4 %}  # num_attention_heads/num_key_value_heads = 32/8   config.json#L17,L19
+{% set N_EMB_PER_HEAD = 128 %}       # head_dim   config.json#L9
+{% set N_HIDDEN_DIMS = 4096 %}       # hidden_size   config.json#L11
+{% set N_FF_DIMS = 12288 %}          # intermediate_size   config.json#L13
+{% set MAX_N_TOKENS = MAX_N_TOKENS | default(40960) %}       # max_position_embeddings   config.json#L14
+{% set MODEL = include("_qwen3.yaml", "") %}
+workload: {{MODEL}}.workload
+renames: {{MODEL}}.renames

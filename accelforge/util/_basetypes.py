@@ -339,7 +339,11 @@ class Evalable(Generic[M]):
                 (
                     f,
                     getattr(self, f) if use_setattr else self[f],
-                    self.get_validator(f),
+                    (
+                        validator_from_parent
+                        if validator_from_parent is not None
+                        else self.get_validator(f)
+                    ),
                 )
                 for f in fields
             ],

@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Generic, TypeVar
 
 T = TypeVar("T")
@@ -29,7 +30,7 @@ class fzs(frozenset[T], Generic[T]):
     def __str__(self):
         return self.__repr__()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[T]:
         cached = object.__getattribute__(self, "_sorted_cache")
         if cached is not None:
             return iter(cached)

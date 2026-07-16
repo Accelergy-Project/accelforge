@@ -286,7 +286,7 @@ class TestTPUComponentFieldsParsed(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(arch_path, wl_path)
@@ -337,7 +337,7 @@ class TestTPUComponentFieldsEvaluated(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(arch_path, wl_path)._spec_eval_expressions(

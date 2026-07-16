@@ -1,4 +1,6 @@
 import functools
+import itertools
+import re
 from accelforge.util.exceptions import EvaluationError
 from accelforge.util._frozenset import _sorted_iter, oset
 from pydantic import BaseModel, ConfigDict, model_serializer
@@ -285,3 +287,53 @@ def eval_set_expression(
     if err:
         raise err
     return result
+
+
+def eval_set_expression_dict(
+    d: dict[str, Any],
+    symbol_table: dict[str, InvertibleSet],
+    expected_space: type[T],
+    location: str,
+    disjoint: bool=True,
+) -> list[tuple[str, "frozenset[T]", Any]]:
+    """
+    Evaluate a dict whose keys are set expressions, returning an ordered list of
+    ``(original_key, evaluated_instance, value)``. Implements the "Other" key and checks
+    that keys are disjoint.
+    """
+    items = list(d.items())
+    others = [i for i, (k, _) in enumerate(items) if re.findall(r"\bOther\b", k)]
+    if len(others) > 1:
+        raise EvaluationError(
+            f"Other appears more than once (indexes {others}) in {location}. "
+            "It may appear at most once."
+        )
+
+    evaluated: list[tuple[str, Any, Any]] = []
+    
+    symbol_table = symbol_table.copy()
+    symbol_table["Other"] = symbol_table["All"]
+
+    def _eval(i):
+        k, v = items[i]
+        ins = eval_set_expression(
+            expression=k,
+            symbol_table=symbol_table,
+            expected_space=expected_space,
+            location=f"{location}[{k}]",
+        ).instance
+        symbol_table["Other"] -= ins
+        return k, ins, v
+    
+    eval_order = [i for i in range(len(items)) if i not in others] + others
+    for i in eval_order:
+        evaluated.append(_eval(i))
+
+    if disjoint:
+        for (ka, a, _), (kb, b, _) in itertools.combinations(evaluated, 2):
+            if a & b:
+                raise EvaluationError(
+                    f"{location} keys {ka} and {kb} overlap on {set(a & b)}."
+                )
+
+    return evaluated

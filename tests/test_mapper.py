@@ -34,7 +34,12 @@ class TestMapperComprehensiveness(unittest.TestCase):
         for glb_size in [2, 4, 8]:
             spec = Spec.from_yaml(
                 af.examples.arches.snowcat,
-                af.examples.workloads.gpt3_6_7B,
+                af.examples.workloads.transformers.gpt.gpt3_6_7B,
+                jinja_parse_data={
+                    "BATCH_SIZE": 1,
+                    "DECODE": False,
+                    "N_NEW_TOKENS": 2048,
+                },
             )
             spec.arch.find("GlobalBuffer").size = glb_size * 1024 * 1024 * 8
             spec.mapper.metrics = Metrics.ENERGY
@@ -60,7 +65,7 @@ class TestMapper(ActionChecker, unittest.TestCase):
     def test_one_matmul(self):
         spec = Spec.from_yaml(
             af.examples.arches.simple,
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             jinja_parse_data={"N_EINSUMS": 1, "M": 64, "KN": 64},
         )
         result = map_workload_to_arch(spec)
@@ -69,7 +74,7 @@ class TestMapper(ActionChecker, unittest.TestCase):
     def test_two_matmuls(self):
         spec = Spec.from_yaml(
             af.examples.arches.simple,
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
         result = map_workload_to_arch(spec)
@@ -78,7 +83,7 @@ class TestMapper(ActionChecker, unittest.TestCase):
     def test_mapper_return_many_mappings(self):
         spec = Spec.from_yaml(
             af.examples.arches.simple,
-            af.examples.workloads.matmuls,
+            af.examples.workloads.basic.matmuls,
             jinja_parse_data={
                 "N_EINSUMS": 1,
                 "M": 64,
@@ -105,7 +110,7 @@ class TestFanout(ActionChecker):
     def _run_with_arch(self, arch_fname: str, n_einsums=1):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "fanout_variations" / arch_fname,
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             jinja_parse_data={"N_EINSUMS": n_einsums, "M": 64, "KN": 64},
         )
         spec.mapper.metrics = Metrics.LATENCY
@@ -227,8 +232,10 @@ class TestUntrackedSpatialNotPrunedByPareto(unittest.TestCase):
     def test_relaxed_min_usage_finds_optimal(self):
         spec = Spec.from_yaml(
             os.path.join(EXAMPLES_DIR, "arches", "tpu_v4i.yaml"),
-            os.path.join(EXAMPLES_DIR, "workloads", "gpt3_6.7B.yaml"),
-            jinja_parse_data={"BATCH_SIZE": 1, "N_TOKENS": 1},
+            os.path.join(
+                EXAMPLES_DIR, "workloads", "transformers", "gpt", "gpt3_6.7B.yaml"
+            ),
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 1},
         )
         spec.mapper.metrics = Metrics.ENERGY | Metrics.LATENCY
         spec.mapper.max_pmapping_templates_per_einsum = 1

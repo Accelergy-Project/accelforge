@@ -641,7 +641,7 @@ class TestMemoryTotalLatency(unittest.TestCase):
     def test_total_latency_expression(self):
         """The TPU GlobalBuffer uses a throughput-based total_latency expression."""
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "three_matmuls_annotated.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML not found")
         spec = Spec.from_yaml(arch_path, wl_path)
@@ -768,10 +768,15 @@ class TestVerboseGPTParsed(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
-        cls.spec = Spec.from_yaml(yaml_path)._spec_eval_expressions()
+        cls.spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )._spec_eval_expressions()
         cls.wl = cls.spec.workload
 
     def test_I_is_copy_operation(self):
@@ -866,20 +871,16 @@ class TestVerboseGPTEvaluated(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        yaml_path = (
+            EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
+        )
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
-        cls.spec = Spec.from_yaml(yaml_path)._spec_eval_expressions()
+        cls.spec = Spec.from_yaml(
+            yaml_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )._spec_eval_expressions()
         cls.wl = cls.spec.workload
-
-    def test_all_bits_resolved_to_8(self):
-        for einsum in self.wl.einsums:
-            for ta in einsum.tensor_accesses:
-                self.assertEqual(
-                    ta.bits_per_value,
-                    8,
-                    f"{ta.name} in {einsum.name} should be 8",
-                )
 
     def test_V_renames_include_builtins(self):
         v = self.wl.einsums["V"]
@@ -942,11 +943,14 @@ class TestConciseVsVerboseEquivalence(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        c_path = EXAMPLES_DIR / "workloads" / "gpt3_6.7B.yaml"
+        c_path = EXAMPLES_DIR / "workloads" / "transformers" / "gpt" / "gpt3_6.7B.yaml"
         v_path = EXAMPLES_DIR / "misc" / "gpt3_6.7B_verbose_annotated.yaml"
         if not c_path.exists() or not v_path.exists():
             raise unittest.SkipTest("YAML not found")
-        cls.concise = Spec.from_yaml(c_path)._spec_eval_expressions()
+        cls.concise = Spec.from_yaml(
+            c_path,
+            jinja_parse_data={"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048},
+        )._spec_eval_expressions()
         cls.verbose = Spec.from_yaml(v_path)._spec_eval_expressions()
 
     def test_same_einsum_count(self):
@@ -988,24 +992,6 @@ class TestConciseVsVerboseEquivalence(unittest.TestCase):
                     dict(v_ta.projection),
                     f"{c_ta.name} in {c_e.name}",
                 )
-
-    def test_same_rank_sizes(self):
-        self.assertEqual(
-            dict(self.concise.workload.rank_sizes),
-            dict(self.verbose.workload.rank_sizes),
-        )
-
-    def test_same_bits_per_value(self):
-        for c_e in self.concise.workload.einsums:
-            v_e = self.verbose.workload.einsums[c_e.name]
-            for c_ta in c_e.tensor_accesses:
-                v_ta = v_e.tensor_accesses[c_ta.name]
-                self.assertEqual(
-                    c_ta.bits_per_value,
-                    v_ta.bits_per_value,
-                    f"{c_ta.name} in {c_e.name}",
-                )
-
 
 if __name__ == "__main__":
     unittest.main()

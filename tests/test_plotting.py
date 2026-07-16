@@ -24,7 +24,7 @@ class TestEnergyPlotting(unittest.TestCase):
     def test_comparison(self):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
@@ -39,7 +39,7 @@ class TestEnergyPlotting(unittest.TestCase):
     def test_breakdown(self):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
@@ -54,7 +54,7 @@ class TestEnergyPlotting(unittest.TestCase):
     def test_breakdown_stacked(self):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
@@ -73,7 +73,7 @@ class TestActionPlotting(unittest.TestCase):
     def test_breakdown(self):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "simple.yaml",
-            EXAMPLES_DIR / "workloads" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
             EXAMPLES_DIR / "mappings" / "unfused_matmuls_to_simple.yaml",
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )

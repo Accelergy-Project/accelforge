@@ -1,0 +1,32 @@
+{{include_text("../../_renames_default.yaml")}}
+{{add_to_path("../_attention_decode_types")}}
+{{add_to_path("../_feedforward_types")}}
+
+# Reference implementation:
+#     https://github.com/openai/gpt-2/blob/9b63575ef42771a015060c964af2c3da4cf7c8ab/src/model.py
+#
+# @misc{brown2020languagemodelsfewshotlearners,
+#       title={Language Models are Few-Shot Learners}, 
+#       author={Tom B. Brown and Benjamin Mann and Nick Ryder and Melanie Subbiah and Jared Kaplan and Prafulla Dhariwal and Arvind Neelakantan and Pranav Shyam and Girish Sastry and Amanda Askell and Sandhini Agarwal and Ariel Herbert-Voss and Gretchen Krueger and Tom Henighan and Rewon Child and Aditya Ramesh and Daniel M. Ziegler and Jeffrey Wu and Clemens Winter and Christopher Hesse and Mark Chen and Eric Sigler and Mateusz Litwin and Scott Gray and Benjamin Chess and Jack Clark and Christopher Berner and Sam McCandlish and Alec Radford and Ilya Sutskever and Dario Amodei},
+#       year={2020},
+#       eprint={2005.14165},
+#       archivePrefix={arXiv},
+#       primaryClass={cs.CL},
+#       url={https://arxiv.org/abs/2005.14165}, 
+# }
+
+{% set ATTENTION = include("multi_head.yaml", "") %}
+{% set FEEDFORWARD = include("dense_two_layer.yaml", "") %}
+
+workload:
+  rank_sizes:
+    <<<: [{{ATTENTION}}.workload.rank_sizes, {{FEEDFORWARD}}.workload.rank_sizes]
+
+  bits_per_value: {All: 16}
+  persistent_tensors: weight - Intermediates
+
+  einsums:
+  # Attention: QKV c_attn L102, QK/softmax/AV 93-98, out proj L111
+  - {{ATTENTION}}.workload.einsums
+  # MLP: c_fc/c_proj 118-119
+  - {{FEEDFORWARD}}.workload.einsums
