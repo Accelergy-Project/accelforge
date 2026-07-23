@@ -405,23 +405,6 @@ class PmappingsOneEinsum:
         return self.pmapping_groups[i]
 
 
-def make_full_equivalent_rank_variables(pairwise_equivalent_rank_variables):
-    full_equivalent_rank_variables = {
-        k: oset(v) for k, v in pairwise_equivalent_rank_variables.items()
-    }
-    changed = True
-    while changed:
-        changed = False
-        for r in full_equivalent_rank_variables:
-            for r2 in list(full_equivalent_rank_variables[r]):
-                for r3 in list(full_equivalent_rank_variables[r2]):
-                    if r3 in full_equivalent_rank_variables[r]:
-                        continue
-                    changed = True
-                    full_equivalent_rank_variables[r].add(r3)
-    return full_equivalent_rank_variables
-
-
 def get_memories_to_track(
     pmapping_groups: dict[str, list[PmappingGroup]],
     print_progress: bool = True,
