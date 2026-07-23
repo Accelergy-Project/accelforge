@@ -43,8 +43,16 @@ class Directory:
             if stem.replace(".", "_") in [name_replaced, name_yaml_replaced]:
                 path = self.path / item
                 return _dir_or_only_yaml(path) if path.is_dir() else path
+            
+        present = [p.stem for p in self.path.iterdir()]
 
-        raise ValueError(f"Not found: {target_stem} or {target_yaml}")
+        s = f"Available items in {self.path}:\n"
+        for p in present:
+            s += f" \t{p}\n"
+
+        raise ValueError(
+            f"Not found: {target_stem} or {target_yaml}.\n{s}"
+        )
 
     def iter(self):
         if not self.path.is_dir():
