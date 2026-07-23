@@ -1,0 +1,37 @@
+accelforge.util package
+=======================
+
+Submodules
+----------
+
+accelforge.util.exceptions module
+---------------------------------
+
+.. automodule:: accelforge.util.exceptions
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.util.indent module
+-----------------------------
+
+.. automodule:: accelforge.util.indent
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.util.parallel module
+-------------------------------
+
+.. automodule:: accelforge.util.parallel
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: accelforge.util
+   :members:
+   :show-inheritance:
+   :undoc-members:
