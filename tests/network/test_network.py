@@ -272,7 +272,7 @@ class TestModelMesh(TestCase):
             (M / M_TILE * KN // MAC_TILE * M_TILE * MAC_TILE * BITS_PER_VALUE),
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>latency<SEP>RowBuffer"].iloc[0],
+            result.data["Matmul0<SEP>component_latency<SEP>RowBuffer"].iloc[0],
             (
                 M
                 / M_TILE
@@ -285,7 +285,7 @@ class TestModelMesh(TestCase):
             ),
         )
         self.assertEqual(
-            result.data["Matmul0<SEP>latency<SEP>DistributedBuffer"].iloc[0],
+            result.data["Matmul0<SEP>component_latency<SEP>DistributedBuffer"].iloc[0],
             (  # Reads from child
                 M
                 / M_TILE
@@ -385,8 +385,12 @@ class TestModelAllToAll(TestCase):
         # --- Latency ------------------------------------------------------
         # The switch's uniform single-hop routing gives MacArray a constant
         # latency of 1, versus the mesh PeArray's 2.
-        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>MacArray"].iloc[0], 1)
-        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>PeArray"].iloc[0], 2)
+        self.assertEqual(
+            result.data["Matmul0<SEP>component_latency<SEP>MacArray"].iloc[0], 1
+        )
+        self.assertEqual(
+            result.data["Matmul0<SEP>component_latency<SEP>PeArray"].iloc[0], 2
+        )
         self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 2)
 
 

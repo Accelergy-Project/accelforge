@@ -195,8 +195,6 @@ def run_model(
         )
         for key, energy_val in detailed_energy.items():
             df[energy2col(key)] = energy_val * n_instances
-        for component, cur_latency in latency.items():
-            df[f"latency<SEP>{component}"] = cur_latency * n_instances
 
     actions_df = {}
     simple_actions = gather_actions(
@@ -206,8 +204,9 @@ def run_model(
         actions_df[action2col(key)] = count.total * n_instances
 
     if metrics.includes_latency():
+        for component, cur_latency in latency.items():
+            df[f"component_latency<SEP>{component}"] = cur_latency * n_instances
         df["Total<SEP>latency"] = overall_latency * n_instances
-        # df[f"latency<SEP>compute"] = comp_latency * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
         for compute_level, stats in reuse.compute_stats.items():  # FIRST LATENCY
