@@ -12,7 +12,10 @@ from accelforge.model._looptree.energy import (
     compute_energy_from_actions,
     gather_actions,
 )
-from accelforge.model._looptree.latency.memory import component_latency
+from accelforge.model._looptree.latency.memory import (
+    communication_latency,
+    component_latency,
+)
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
     reservation2col,
@@ -120,11 +123,10 @@ def run_model(
     for node in pmapping.nodes:
         if isinstance(node, TensorHolder):
             for tensor in node.tensors:
-                if tensor not in tensor_to_backing and tensor in job.fusable_tensors:
-                    tensor_to_backing[tensor] = node.component
+                tensor_to_backing.setdefault(tensor, node.component)
 
-    # A Toll is a pass-through and must never be the outermost level backing
-    # a fusable tensor — that would leave no real Memory holding it.
+    # A Toll is a pass-through and must never be the outermost level backing a tensor —
+    # that would leave no real Memory holding it.
     for node in pmapping.nodes:
         if isinstance(node, Toll):
             for tensor in node.tensors:
@@ -134,7 +136,7 @@ def run_model(
                 ):
                     raise ValueError(
                         f"Toll '{node.component}' is the outermost level holding "
-                        f"fusable tensor '{tensor}' in einsum '{job.einsum_name}'. "
+                        f"tensor '{tensor}' in einsum '{job.einsum_name}'. "
                         f"A Toll cannot be the outermost holder of a tensor — a "
                         f"Memory above the Toll must also keep it."
                     )
@@ -144,6 +146,9 @@ def run_model(
 
     n_instances = workload.n_instances * workload.einsums[job.einsum_name].n_instances
 
+    # =================================================================================
+    # Tensor sizes
+    # =================================================================================
     n_loop_options = oset()
     for buffet, stats in reuse.buffet_stats.items():
         if buffet.level == compute_unit:
@@ -157,6 +162,8 @@ def run_model(
             occupancy *= n_instances
 
         for tensor, backing in tensor_to_backing.items():
+            if tensor not in job.fusable_tensors:
+                continue
             if (is_copy_op or buffet.tensor == tensor) and buffet.level == backing:
                 df[tensor2col(tensor)] = occupancy / memory_to_size[buffet.level]
 
@@ -168,6 +175,9 @@ def run_model(
             key = memory_usage2col(buffet.level, buffet.tensor)
             df[key] = occupancy / memory_to_size[buffet.level]
 
+    # =================================================================================
+    # Reservations
+    # =================================================================================
     for memory, occupancies in total_occupancy.items():
         if memory not in job.memories_track_all:
             continue
@@ -184,6 +194,9 @@ def run_model(
                 f"storage nodes of {memory}."
             )
 
+    # =================================================================================
+    # Actions
+    # =================================================================================
     if metrics & Metrics.ACTIONS:
         detailed_actions = gather_actions(
             reuse, None, verbose=True, use_name=True, spec=spec
@@ -203,10 +216,26 @@ def run_model(
     for key, count in simple_actions.items():
         actions_df[action2col(key)] = count.total * n_instances
 
+    # =================================================================================
+    # Latency
+    # =================================================================================
     if metrics.includes_latency():
         for component, cur_latency in latency.items():
             df[f"component_latency<SEP>{component}"] = cur_latency * n_instances
-        df["Total<SEP>latency"] = overall_latency * n_instances
+
+        # Total latency of each component is its own total_latency plus the worst
+        # communication latency to reach it.
+        comm_latency = communication_latency(
+            reuse,
+            job.flattened_arch,
+            tensor_to_backing,
+            workload.einsums[job.einsum_name].output_tensor_names
+        )
+        per_component_total = [
+            latency.get(component, 0) + comm_latency.get(component, 0)
+            for component in oset(latency) | oset(comm_latency)
+        ]
+        df["Total<SEP>latency"] = max_nonzero(*per_component_total) * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
         for compute_level, stats in reuse.compute_stats.items():  # FIRST LATENCY
@@ -215,6 +244,9 @@ def run_model(
                     max_first_latency * n_instances
                 )
 
+    # =================================================================================
+    # Energy
+    # =================================================================================
     if metrics.includes_dynamic_energy():
         dynamic_energy = [e for k, e in energy.items() if k.action != "leak"]
         df["Total<SEP>dynamic_energy"] = sum(dynamic_energy) * n_instances
@@ -223,6 +255,9 @@ def run_model(
         leak_energy = [e for k, e in energy.items() if k.action == "leak"]
         df["Total<SEP>leak_energy"] = sum(leak_energy) * n_instances
 
+    # =================================================================================
+    # Memory usage
+    # =================================================================================
     per_memory_spatial_usage_df = {}
     for memory, occupancies in total_occupancy.items():
         ignored = job.ignored_resources is not None and memory in job.ignored_resources

@@ -1,4 +1,5 @@
 import copy
+import operator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,6 +38,25 @@ class NetworkStats:
         return new
 
 
+class ActionCounts(dict):
+    """Per-action-name counts. Missing actions count as 0 so `d[action] += x`
+    works for actions a component lacks."""
+
+    def __missing__(self, key):
+        return 0
+    
+def _scale(value: Any, factor: Any) -> Any:
+    if isinstance(value, ActionCounts):
+        return ActionCounts({k: v * factor for k, v in value.items()})
+    return value * factor
+
+
+def _combine(a: Any, b: Any, op) -> Any:
+    if isinstance(a, ActionCounts) or isinstance(b, ActionCounts):
+        return ActionCounts({k: op(a[k], b[k]) for k in oset(a) | oset(b)})
+    return op(a, b)
+
+
 @dataclass
 class BuffetStats:
     total_reads_to_parent: Any = field(default=0)
@@ -58,20 +78,20 @@ class BuffetStats:
     max_occupancy: Any = field(default=0)
     _n_loops_above: int = field(default=0)
 
-    # These are used to calculate energy and latency
-    total_write_actions: Any = field(default=0)
-    max_per_unit_write_actions: Any = field(default=0)
-    total_read_actions: Any = field(default=0)
-    max_per_unit_read_actions: Any = field(default=0)
-
-    total_skipped_first_write_actions: Any = field(default=0)
-    min_per_unit_skipped_first_write_actions: Any = field(default=0)
-    total_skipped_first_read_actions: Any = field(default=0)
-    min_per_unit_skipped_first_read_actions: Any = field(default=0)
+    # These are used to calculate energy and latency. Keyed by action name.
+    total_actions: ActionCounts = field(default_factory=ActionCounts)
+    max_per_unit_actions: ActionCounts = field(default_factory=ActionCounts)
+    total_skipped_first_actions: ActionCounts = field(default_factory=ActionCounts)
+    min_per_unit_skipped_first_actions: ActionCounts = field(
+        default_factory=ActionCounts
+    )
 
     # NOTE: anything other than min_, max_, or total_ must default to
     # None. There are asserts that check this.
     persistent: bool = field(default=None)
+
+    # Number of temporal iterations above this buffet's storage node.
+    iterations_above: Any = field(default=1)
 
     @property
     def n_loops_above(self) -> int:
@@ -96,7 +116,7 @@ class BuffetStats:
                 continue  # First actions occur once per relevant iteration.
             if k == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
-            new.__dict__[k] = v * factor
+            new.__dict__[k] = _scale(v, factor)
         return new
 
     def repeat_spatial(self, factor: int, reuse_parent_accesses: bool) -> "BuffetStats":
@@ -120,7 +140,7 @@ class BuffetStats:
                 continue  # Spatial fanout doesn't affect per-unit stats
             if k == "max_occupancy":
                 continue  # Max occupancy is not affected by temporal loops above
-            new.__dict__[k] = v * factor
+            new.__dict__[k] = _scale(v, factor)
         return new
 
     def max(self, **kwargs: Any):
@@ -136,11 +156,13 @@ class BuffetStats:
         for k, v in self.__dict__.items():
             other_v = other.__dict__[k]
             if k.startswith("min_"):
-                new.__dict__[k] = min_nonzero(v, other_v)
+                new.__dict__[k] = _combine(v, other_v, min_nonzero)
             elif k.startswith("max_"):
-                new.__dict__[k] = max_nonzero(v, other_v)
+                new.__dict__[k] = _combine(v, other_v, max_nonzero)
             elif k.startswith("total_"):
-                new.__dict__[k] = v + other_v
+                new.__dict__[k] = _combine(v, other_v, operator.add)
+            elif k == "iterations_above" and v is not None and other_v is not None:
+                new.__dict__[k] = max_nonzero(v, other_v)
             elif v is None:
                 new.__dict__[k] = other_v
             else:
@@ -158,28 +180,26 @@ class BuffetStats:
             setattr(self, key, value)
         return self
 
-    def net_total_read_actions(self) -> Any:
-        return self.total_read_actions - self.total_skipped_first_read_actions
+    def net_total_actions(self, action: str | None = None) -> Any:
+        if action is not None:
+            return self.total_actions[action] - self.total_skipped_first_actions[action]
+        return ActionCounts({a: self.net_total_actions(a) for a in self.total_actions})
 
-    def net_total_write_actions(self) -> Any:
-        return self.total_write_actions - self.total_skipped_first_write_actions
-
-    def net_max_per_unit_read_actions(self) -> Any:
-        return (
-            self.max_per_unit_read_actions
-            - self.min_per_unit_skipped_first_read_actions
-        )
-
-    def net_max_per_unit_write_actions(self) -> Any:
-        return (
-            self.max_per_unit_write_actions
-            - self.min_per_unit_skipped_first_write_actions
+    def net_max_per_unit_actions(self, action: str | None = None) -> Any:
+        if action is not None:
+            return (
+                self.max_per_unit_actions[action]
+                - self.min_per_unit_skipped_first_actions[action]
+            )
+        return ActionCounts(
+            {a: self.net_max_per_unit_actions(a) for a in self.max_per_unit_actions}
         )
 
     @classmethod
     def blank(cls):
         stats = cls()
         stats.n_loops_above = None  # Inherit from whoever is added to this
+        stats.iterations_above = None
         return stats
 
 

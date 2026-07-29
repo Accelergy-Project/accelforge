@@ -96,7 +96,7 @@ class TestComputeComponentFields(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertEqual(c.energy_scale, 1)
 
@@ -105,7 +105,7 @@ class TestComputeComponentFields(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertEqual(c.area_scale, 1)
 
@@ -114,7 +114,7 @@ class TestComputeComponentFields(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertEqual(c.leak_power_scale, 1)
 
@@ -123,7 +123,7 @@ class TestComputeComponentFields(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertEqual(c.n_parallel_instances, 1)
 
@@ -132,7 +132,7 @@ class TestComputeComponentFields(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=100,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
             energy_scale=0.5,
             area_scale=2,
             leak_power_scale=0.1,
@@ -146,7 +146,7 @@ class TestComputeComponentFields(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
             n_parallel_instances=4,
         )
         self.assertEqual(c.n_parallel_instances, 4)
@@ -162,8 +162,13 @@ class TestMemoryComponentFields(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(m.size, 1024)
@@ -175,8 +180,13 @@ class TestMemoryComponentFields(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(m.size, "inf")
@@ -188,8 +198,13 @@ class TestMemoryComponentFields(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertIsNotNone(m.total_latency)
@@ -201,8 +216,8 @@ class TestMemoryComponentFields(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 5},
-                {"name": "write", "energy": 1, "latency": 3},
+                {"name": "read", "energy": 1, "throughput": 1 / 5, "latency": 0},
+                {"name": "write", "energy": 1, "throughput": 1 / 3, "latency": 0},
             ],
             total_latency="max(read_latency, write_latency)",
         )
@@ -215,8 +230,13 @@ class TestMemoryComponentFields(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
             energy_scale=0.5,
         )
@@ -229,8 +249,13 @@ class TestMemoryComponentFields(unittest.TestCase):
             leak_power=0.01,
             area=100,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(m.area, 100)
@@ -261,8 +286,13 @@ class TestTensorsFields(unittest.TestCase):
             area=0,
             tensors={"keep": "~Intermediates", "may_keep": "All"},
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(m.tensors.keep, "~Intermediates")
@@ -430,8 +460,8 @@ class TestTollComponent(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 0.5, "latency": 1},
-                {"name": "write", "energy": 0.3, "latency": 1},
+                {"name": "read", "energy": 0.5, "throughput": 1, "latency": 0},
+                {"name": "write", "energy": 0.3, "throughput": 1, "latency": 0},
             ],
         )
         self.assertEqual(len(t.actions), 2)

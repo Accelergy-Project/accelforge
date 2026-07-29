@@ -11,15 +11,12 @@ from typing import (
     Self,
     TypeVar,
 )
-import warnings
 from pydantic import ConfigDict, PrivateAttr, field_validator, model_validator
 from hwcomponents import (
     ComponentModel,
     get_models,
     get_model,
 )
-
-from accelforge.util._migration import LATENCY_TO_THROUGHPUT_MIGRATION
 
 
 # Verify the installed `hwcomponents` exposes the new `get_action_cost` API. If it
@@ -87,14 +84,14 @@ class Action(EvalableModel):
 
     latency: EvalsTo[int | float | None] = None
     """
-    Deprecated; use `throughput` instead. Setting this emits a deprecation warning and
-    auto-converts to `throughput = 1 / latency`.
+    Latency of one call of this action in seconds. Per-action latency is multiplied by
+    the component's latency_scale and the action's latency_scale.
     """
 
     latency_scale: EvalsTo[int | float] = 1
     """
-    Deprecated; use `throughput_scale` instead. Setting this to a non-default value
-    emits a deprecation warning and auto-converts to `throughput_scale = 1 / latency_scale`.
+    The scale factor for latency of this action. Multiplies this action's latency by
+    this value.
     """
 
     throughput: EvalsTo[int | float | None] = None
@@ -144,38 +141,6 @@ class Action(EvalableModel):
     def _set_n_calls(self, value: int | float) -> None:
         self._n_calls = value
         self._model_running = True
-
-    @model_validator(mode="before")
-    @classmethod
-    def _deprecate_latency_fields(cls, data):
-        if isinstance(data, dict):
-            if "latency" in data and not "throughput" in data:
-                l = data.pop("latency")
-                warnings.warn(
-                    f"Setting `latency` on `{cls.__name__}` is deprecated; use "
-                    f"`throughput` instead. Auto-converting `latency={l!r}` to "
-                    f"`throughput`. Please update your input.\n\n"
-                    f"{LATENCY_TO_THROUGHPUT_MIGRATION}",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                l = str(l).strip()
-                data["throughput"] = f"1 / ({l}) if ({l}) != 0 else float('inf')"
-            if "latency_scale" in data and not "throughput_scale" in data:
-                ls = data.pop("latency_scale")
-                warnings.warn(
-                    f"Setting `latency_scale` on `{cls.__name__}` is deprecated; use "
-                    f"`throughput_scale` instead (with the reciprocal). Auto-converting "
-                    f"`latency_scale={ls!r}` to `throughput_scale`. Please update your "
-                    f"input.\n\n{LATENCY_TO_THROUGHPUT_MIGRATION}",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                ls = str(ls).strip()
-                data["throughput_scale"] = (
-                    f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
-                )
-        return data
 
     def _attributes_for_component_model(self) -> dict[str, Any]:
         return {
@@ -352,8 +317,8 @@ class Component(Spatialable):
 
     latency_scale: EvalsTo[int | float] = 1
     """
-    Deprecated; use `throughput_scale` instead. Setting this to a non-default value
-    emits a deprecation warning and auto-converts to `throughput_scale = 1 / latency_scale`.
+    The scale factor for the latency of this component. Multiplies the calculated
+    latency of each action.
     """
 
     throughput_scale: EvalsTo[int | float] = 1
@@ -362,28 +327,6 @@ class Component(Spatialable):
     throughput of each action. For example, if the throughput attribute is 1M actions/second and
     the scale factor is 2, then the final throughput is 2M actions/second.
     """
-
-    @model_validator(mode="before")
-    @classmethod
-    def _deprecate_latency_scale_on_component(cls, data):
-        if isinstance(data, dict) and "latency_scale" in data:
-            ls = data.pop("latency_scale")
-            warnings.warn(
-                f"Setting `latency_scale` on `{cls.__name__}` is deprecated; use "
-                f"`throughput_scale` instead (with the reciprocal). Auto-converting "
-                f"`latency_scale={ls!r}` to `throughput_scale`. Please update your "
-                f"input.\n\n{LATENCY_TO_THROUGHPUT_MIGRATION}",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            if "throughput_scale" in data:
-                raise ValueError(
-                    f"Cannot specify both `latency_scale` and `throughput_scale` "
-                    f"on `{cls.__name__}`. Drop the deprecated `latency_scale`."
-                )
-            ls = str(ls).strip()
-            data["throughput_scale"] = f"1 / ({ls}) if ({ls}) != 0 else float('inf')"
-        return data
 
     n_parallel_instances: EvalsTo[int | float] = 1
     """
@@ -431,7 +374,7 @@ class Component(Spatialable):
                 "talk to hwcomponents, but was missing necessary attributes. If you do "
                 "not want to use hwcomponents component_models, ensure that area and "
                 "leak_power are set, as well as, for each action, "
-                f"energy and throughput are set.{extra_info}",
+                f"energy, throughput, and latency are set.{extra_info}",
                 source_field=f"{self.name}.component_class",
             )
         return self.component_class
@@ -783,6 +726,77 @@ class Component(Spatialable):
                 )
         return self
 
+    def calculate_action_latency(
+        self,
+        component_models: list[ComponentModel] | None = None,
+        in_place: bool = False,
+    ) -> Self:
+        """
+        Calculates the latency for each action by this component. Populates the
+        ``<action>.latency`` field. Extends the ``component_modeling_log`` field with
+        log messages.
+
+        Parameters
+        ----------
+        component_models : list[hwcomponents.ComponentModel] | None
+            The models to use for latency calculation. If not provided, the models
+            will be found with `hwcomponents.get_models()`.
+        in_place : bool
+            If True, the component will be modified in place. Otherwise, a copy will be
+            returned.
+
+        Returns
+        -------
+        Self
+            A copy of the component with the calculated latency for each action.
+        """
+        if not in_place:
+            self: Self = self._copy_for_component_modeling()
+
+        messages = self.component_modeling_log
+
+        for action in self.actions:
+            messages.append(
+                f"Calculating latency for {self.name} action {action.name}."
+            )
+            if action.latency is not None:
+                latency = action.latency
+                messages.append(f"Setting {self.name} latency to {action.latency=}")
+            elif self._is_dummy():
+                latency = 0
+                messages.append("Component is dummy. Setting latency to 0.")
+            else:
+                self.populate_component_model(
+                    component_models,
+                    in_place=True,
+                    trying_to_calculate=f"latency for action {action.name}",
+                )
+                latency = self.component_model.try_call_arbitrary_action(
+                    action_name=action.name,
+                    _return_estimation_object=True,
+                    **{
+                        **self._attributes_for_component_model(),
+                        **action._attributes_for_component_model(),
+                    },
+                )
+                messages.extend(latency.messages)
+                latency = latency.value.latency
+            if self.latency_scale != 1:
+                latency *= self.latency_scale
+                messages.append(f"Scaling {self.name} latency by {self.latency_scale=}")
+            if action.latency_scale != 1:
+                latency *= action.latency_scale
+                messages.append(
+                    f"Scaling {self.name} latency by {action.latency_scale=}"
+                )
+            action.latency = latency
+            if action.latency < 0:
+                logging.warning(
+                    f"Component {self.name} action {action.name} has negative latency: "
+                    f"{action.latency}"
+                )
+        return self
+
     def calculate_component_costs(
         self,
         component_models: list[ComponentModel] | None = None,
@@ -842,6 +856,7 @@ class Component(Spatialable):
         self.calculate_area(component_models, in_place=True)
         self.calculate_action_energy(component_models, in_place=True)
         self.calculate_action_throughput(component_models, in_place=True)
+        self.calculate_action_latency(component_models, in_place=True)
         self.calculate_leak_power(component_models, in_place=True)
         if _use_cache:
             _set_component_model_cache(cachekey, self)
@@ -1326,18 +1341,16 @@ class Network(Component, Leaf):
 
     actions: EvalableList[Action] = NETWORK_ACTIONS
 
-    total_latency: str | int | float = (
-        "max(max_hops*actions['hop'].latency, max_link_traffic/actions['hop'].throughput)"
-    )
+    total_latency: str | int | float | None = "max_link_traffic/actions['hop'].throughput"
     """
-    Models latency as either:
-    - *Latency-bound*, which means that the latency of the route with the most number of
-      hops dominate the overall communication latency.
-    - *Bandwidth-bound*, which means that the traffic over the most congested link
-      dominates the overall communication latency.
+    Models latency as bandwidth-bound, which means that the traffic over the most
+    congested link dominates the overall communication latency. Note that max_hops *
+    actions['hop'].latency will already be included in wind-up and wind-down of the
+    network.
 
     Keywords:
-    - `max_hops` returns the number of hops in the longest route.
+    
+    - `max_hops` returns the number of hops in the longest route. 
     - `max_link_traffic` returns the amount of traffic (in bits) over the most congested
       link.
     """

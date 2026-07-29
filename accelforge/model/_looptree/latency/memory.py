@@ -1,4 +1,5 @@
 from collections import defaultdict
+from numbers import Number
 
 from accelforge.frontend import arch
 from accelforge.frontend.arch import Leaf, Memory, TensorHolder, Component
@@ -12,9 +13,10 @@ from accelforge.model._looptree.reuse.isl import IslReuseAnalysisOutput
 from accelforge.model._looptree.reuse import SymbolicAnalysisOutput
 from accelforge.model._looptree.types import Buffet
 
-from accelforge.model._looptree.reuse.symbolic import BuffetStats
+from accelforge.model._looptree.reuse.symbolic import BuffetStats, NetworkStats
 from accelforge.util._eval_expressions import MATH_FUNCS, eval_expression
-from accelforge.util._sympy.broadcast_max import Max, Min, MaxGeqZero
+from accelforge.util._frozenset import oset
+from accelforge.util._sympy.broadcast_max import Max, Min, MaxGeqZero, max_nonzero
 from accelforge.util._basetypes import EvalableList
 import symengine as se
 
@@ -62,6 +64,73 @@ def _min(*args):
     return Min(*args)
 
 
+def communication_latency(
+    reuse: SymbolicAnalysisOutput,
+    flattened_arch: FlattenedArch,
+    tensor_to_backing: dict[str, str],
+    output_tensors,
+) -> dict[str, object]:
+    """
+    Communication latency per component: the time to move one tile of each tensor to
+    that level. Inputs travel from their backing storage down; outputs are produced
+    after the worst input reaches compute, then travel from compute up. Each level on
+    the path charges one call of each action it performs for the tensor; each network
+    on the path charges its longest route. The whole path repeats once per temporal
+    iteration above the backing storage. Returns, for each component, the worst
+    communication latency over all tensors.
+    """
+    name2component = {n.name: n for n in flattened_arch}
+    name2index = {n.name: i for i, n in enumerate(flattened_arch)}
+
+    tensor_stats = {}
+    for b, s in reuse.buffet_stats.items():
+        tensor_stats.setdefault(b.tensor, []).append((b.level, s))
+    for n, s in reuse.network_stats.items():
+        tensor_stats.setdefault(n.tensor, []).append((n.component, s))
+
+    communication = defaultdict(list)
+    worst_input_to_compute = 0
+    # Inputs first: outputs build on the worst input's arrival at compute.
+    tensor_order = sorted(tensor_stats, key=lambda t: t in output_tensors)
+    for tensor in tensor_order:
+        stats = tensor_stats[tensor]
+        is_output = tensor in output_tensors
+        stats.sort(key=lambda c: name2index[c[0]], reverse=is_output)
+        backing = tensor_to_backing[tensor]
+
+        cur_latency = 0
+        iterations = None
+        tensor_latency = {}
+        for level, stats in stats:
+            if isinstance(stats, BuffetStats):
+                if level == backing:
+                    iterations = stats.iterations_above
+                cur_latency += sum(
+                    name2component[level].actions[action].latency
+                    for action, count in stats.total_actions.items()
+                    if not isinstance(count, Number) or count != 0
+                )
+                tensor_latency[level] = cur_latency
+            elif isinstance(stats, NetworkStats):
+                cur_latency += (
+                    stats.max_hops * name2component[level].actions["hop"].latency
+                )
+                tensor_latency[level] = cur_latency
+            else:
+                raise ValueError(f"Unknown stats type: {type(stats)}")
+
+        assert iterations is not None, f"Tensor {tensor} has no backing storage"
+        start = worst_input_to_compute if is_output else 0
+        for level in tensor_latency:
+            communication[level].append(start + tensor_latency[level] * iterations)
+        if not is_output:
+            worst_input_to_compute = max_nonzero(
+                worst_input_to_compute, cur_latency * iterations
+            )
+
+    return {level: max_nonzero(*vals) for level, vals in communication.items()}
+
+
 def component_latency(
     looptree_results: SymbolicAnalysisOutput,
     flattened_arch: FlattenedArch,
@@ -91,15 +160,9 @@ def component_latency(
             actions[action.name] += 0
 
         if isinstance(name2component[component], TensorHolder):
-            actions["read"] += (
-                buffet_stats.max_per_unit_read_actions
-                - buffet_stats.min_per_unit_skipped_first_read_actions
-            )
+            actions["read"] += buffet_stats.net_max_per_unit_actions("read")
             if not isinstance(name2component[component], arch.Toll):
-                actions["write"] += (
-                    buffet_stats.max_per_unit_write_actions
-                    - buffet_stats.min_per_unit_skipped_first_write_actions
-                )
+                actions["write"] += buffet_stats.net_max_per_unit_actions("write")
         elif isinstance(name2component[component], arch.Compute):
             pass
         else:

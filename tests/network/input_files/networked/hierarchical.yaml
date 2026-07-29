@@ -7,8 +7,8 @@ arch:
     leak_power: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 0, throughput: 1e9}
-    - {name: write, energy: 0, throughput: 1e9}
+    - {name: read, energy: 0, throughput: 1e9, latency: 0}
+    - {name: write, energy: 0, throughput: 1e9, latency: 0}
 
   - !Memory
     name: GlobalBuffer
@@ -17,8 +17,8 @@ arch:
     leak_power: 0
     tensors: {keep: ~MainMemory, may_keep: All}
     actions:
-    - {name: read, energy: 0, throughput: 4e9}
-    - {name: write, energy: 0, throughput: 4e9}
+    - {name: read, energy: 0, throughput: 4e9, latency: 0}
+    - {name: write, energy: 0, throughput: 4e9, latency: 0}
 
   - !Network
     name: PeArray
@@ -34,8 +34,8 @@ arch:
     leak_power: 0
     tensors: {keep: All}
     actions:
-    - {name: read, energy: 0, throughput: 16e9}
-    - {name: write, energy: 0, throughput: 16e9}
+    - {name: read, energy: 0, throughput: 16e9, latency: 0}
+    - {name: write, energy: 0, throughput: 16e9, latency: 0}
     spatial:
     - {name: X, fanout: 2}
     - {name: Y, fanout: 2}
@@ -52,7 +52,7 @@ arch:
     area: 0
     leak_power: 0
     actions:
-    - {name: compute, energy: 0, throughput: 1e9}
+    - {name: compute, energy: 0, throughput: 1e9, latency: 0}
     spatial:
     - {name: X, fanout: 2}
     - {name: Y, fanout: 2}

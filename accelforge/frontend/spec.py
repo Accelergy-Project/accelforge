@@ -191,6 +191,7 @@ class Spec(EvalableModel):
         area: bool = True,
         energy: bool = True,
         throughput: bool = True,
+        latency: bool = True,
         leak: bool = True,
     ) -> "Spec":
         """
@@ -218,10 +219,12 @@ class Spec(EvalableModel):
             Whether to compute and populate energy entries.
         throughput : bool, optional
             Whether to compute and populate throughput entries.
+        latency : bool, optional
+            Whether to compute and populate latency entries.
         leak : bool, optional
             Whether to compute and populate leak power entries.
         """
-        if not area and not energy and not throughput and not leak:
+        if not area and not energy and not throughput and not latency and not leak:
             return self
 
         models = hwcomponents.get_models(
@@ -275,6 +278,11 @@ class Spec(EvalableModel):
                 for a in c.actions:
                     orig_action = orig.actions[a.name]
                     orig_action.throughput = a.throughput
+            if latency:
+                c = c.calculate_action_latency(models)
+                for a in c.actions:
+                    orig_action = orig.actions[a.name]
+                    orig_action.latency = a.latency
             if leak:
                 c = c.calculate_leak_power(models)
                 orig.leak_power = c.leak_power

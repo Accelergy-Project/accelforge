@@ -341,14 +341,14 @@ arch:
     leak_power: 0
     area: 0
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 
 workload:
   rank_sizes: {M: 16}
@@ -386,14 +386,14 @@ arch:
     area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         mem = spec.arch.find("Mem")
@@ -411,14 +411,14 @@ arch:
     area: 0
     tensors: {keep: input | output}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         mem = spec.arch.find("Mem")
@@ -437,8 +437,8 @@ arch:
     area: 0
     tensors: {keep: ~Intermediates, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Memory
     name: Buffer
     size: inf
@@ -446,14 +446,14 @@ arch:
     area: 0
     tensors: {keep: ~MainMemory.tensors, may_keep: All}
     actions:
-    - {name: read, energy: 1, latency: 0}
-    - {name: write, energy: 1, latency: 0}
+    - {name: read, energy: 1, throughput: .inf, latency: 0}
+    - {name: write, energy: 1, throughput: .inf, latency: 0}
   - !Compute
     name: MAC
     leak_power: 0
     area: 0
     actions:
-    - {name: compute, energy: 1, latency: 1}
+    - {name: compute, energy: 1, throughput: 1, latency: 0}
 """
         )
         buf = spec.arch.find("Buffer")
@@ -608,7 +608,9 @@ class TestTollParsed(unittest.TestCase):
             direction="up",
             leak_power=0,
             area=0,
-            actions=[{"name": "read", "energy": 1, "latency": 0}],
+            actions=[
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0}
+            ],
         )
         self.assertEqual(t.direction, "up")
 
@@ -659,7 +661,7 @@ class TestEnabledField(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
         self.assertTrue(c.enabled)
 
@@ -668,7 +670,7 @@ class TestEnabledField(unittest.TestCase):
             name="MAC",
             leak_power=0,
             area=0,
-            actions=[{"name": "compute", "energy": 1, "latency": 1}],
+            actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
             enabled="len(All) == 3",
         )
         self.assertEqual(c.enabled, "len(All) == 3")
@@ -751,8 +753,13 @@ class TestFanoutVariationsParsed(unittest.TestCase):
             leak_power=0,
             area=0,
             actions=[
-                {"name": "read", "energy": 1, "latency": 0},
-                {"name": "write", "energy": 1, "latency": 0},
+                {"name": "read", "energy": 1, "throughput": float("inf"), "latency": 0},
+                {
+                    "name": "write",
+                    "energy": 1,
+                    "throughput": float("inf"),
+                    "latency": 0,
+                },
             ],
         )
         self.assertEqual(mem.get_fanout(), 1)
@@ -992,6 +999,7 @@ class TestConciseVsVerboseEquivalence(unittest.TestCase):
                     dict(v_ta.projection),
                     f"{c_ta.name} in {c_e.name}",
                 )
+
 
 if __name__ == "__main__":
     unittest.main()

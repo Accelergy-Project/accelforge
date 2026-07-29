@@ -111,7 +111,10 @@ class TestModelMesh(TestCase):
             * KN
             * BITS_PER_VALUE,
         )
-        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 4)
+        # PeArray is bandwidth-bound at 1 bit/s: its most congested link carries
+        # T0 (3 * 64) + W0 (3 * 128) + T1 (256) = 832 bits. Wind-up/down adds the
+        # 2 MacArray hops each way (PeArray hops have zero latency).
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 832 + 4)
 
     def test_hierarchical(self):
         M = 8
@@ -383,15 +386,10 @@ class TestModelAllToAll(TestCase):
         )
 
         # --- Latency ------------------------------------------------------
-        # The switch's uniform single-hop routing gives MacArray a constant
-        # latency of 1, versus the mesh PeArray's 2.
-        self.assertEqual(
-            result.data["Matmul0<SEP>component_latency<SEP>MacArray"].iloc[0], 1
-        )
-        self.assertEqual(
-            result.data["Matmul0<SEP>component_latency<SEP>PeArray"].iloc[0], 2
-        )
-        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 2)
+        # Network hops surface as communication latency: the worst input winds
+        # down to compute (2 mesh + 1 all-to-all hops), then the output winds
+        # back up to MainMemory (1 + 2 hops) = 6.
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 6)
 
 
 class TestMapper(TestCase):
