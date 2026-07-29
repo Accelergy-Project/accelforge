@@ -127,9 +127,6 @@ REGRESSION_CASES = {
         # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 2048}},
         # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
     ],
-    # snowcat: broad workload-coverage smoke -- ENERGY objective + unfused (see
-    # ENERGY_UNFUSED_ARCHES), one representative config per example workload, to catch
-    # load/map regressions across every workload at low cost.
     af.examples.arches.snowcat: [
         {"workload": af.examples.workloads.basic.matmuls, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
         {"workload": af.examples.workloads.basic.matvecs},

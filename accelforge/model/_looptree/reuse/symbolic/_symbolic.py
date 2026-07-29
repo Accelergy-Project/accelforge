@@ -114,43 +114,36 @@ def convert_to_copy(
 
     mapping = copy.deepcopy(mapping)
 
-    first_input_tensor = workload.einsums[mapping[-1].einsum].copy_source_tensor()
 
     for node in mapping:
         if isinstance(node, TensorHolder):
             if node.tensors:
-                node.tensors = [first_input_tensor]
                 node._lower = False
-        if isinstance(node, Reservation):
-            if node.purposes:
-                node.purposes = [first_input_tensor]
 
-    to_remove = []
-    i = 0
-    while i < len(mapping):
-        node = mapping[i]
-        if isinstance(node, TensorHolder):
-            j = i + 1
-            while j < len(mapping):
-                node2 = mapping[j]
-                if (
-                    isinstance(node2, TensorHolder)
-                    and node.component == node2.component
-                ):
-                    node._backing |= node2._backing
-                    mapping.pop(j)
-                else:
-                    j += 1
-        if isinstance(node, Reservation):
-            j = i + 1
-            while j < len(mapping):
-                node2 = mapping[j]
-                if isinstance(node2, Reservation) and node.resource == node2.resource:
-                    mapping.pop(j)
-                else:
-                    j += 1
-        i += 1
-    mapping = [node for node in mapping if node not in to_remove]
+    # Every tensor of the copy shares one reservation per memory level, so they must all
+    # be tiled by the same loops there.
+    for i, node in enumerate(mapping):
+        if not isinstance(node, TensorHolder):
+            continue
+        for j in range(i + 1, len(mapping)):
+            node2 = mapping[j]
+            if isinstance(node2, TensorHolder) and node.component == node2.component:
+                assert not any(isinstance(n, Loop) for n in mapping[i + 1 : j]), (
+                    f"Copy Einsum storage nodes must be back-to-back for each memory "
+                    f"level. {node.component} storage nodes have a loop between."
+                )
+
+    # Only moving tensors between backing storage(s), don't care about the others
+    backing_index = 0
+    for i, node in enumerate(mapping):
+        if isinstance(node, TensorHolder) and node._backing:
+            backing_index = i
+
+    mapping = [
+        node
+        for i, node in enumerate(mapping)
+        if i <= backing_index or not isinstance(node, TensorHolder)
+    ]
 
     return Mapping(nodes=mapping), tensor_to_backer_id
 
@@ -283,6 +276,21 @@ def analyze_reuse_and_add_reservations_to_mapping(
             result.add_buffet_stats_and_symbols(cur_result)
             result.add_network_stats(cur_result)
         tensor2mapping[tensor] = cur_mapping
+
+    # For copy Einsums, only move around one tensor (the first input tensor), and have
+    # all the fills/reservations be the min of copied tnesors for that memory (since
+    # it's a copy, they all have the same data so take the min size). We're doing
+    # min_take_zero so that if any data can get to a location without movement (e.g., if
+    # we're moving from DRAM to DRAM), then it costs nothing.
+    if is_copy_operation:
+        source_tensor = einsum.copy_source_tensor()
+        combined: dict[Buffet, BuffetStats] = {}
+        for buffet, stats in result.buffet_stats.items():
+            key = Buffet(source_tensor, buffet.einsum, buffet.level)
+            combined[key] = (
+                stats if key not in combined else combined[key].min_take_zero(stats)
+            )
+        result.buffet_stats = combined
 
     # For copy operations, we mutate the original mapping before doing analysis, so we
     # need to update tensor2mapping using the original mapping.
@@ -1021,16 +1029,16 @@ def analyze_compute(
         computes,
     )
 
-    if info.is_copy_operation:
-        return result_accumulator
-
     tensors = info.all_tensors if info.current_tensor is None else [info.current_tensor]
     for tensor in tensors:
         buffet = Buffet(tensor, einsum, node.component)
         stats = BuffetStats()
-        stats.total_reads_to_parent = 1
-        stats.max_per_parent_reads_to_parent = 1
-        if tensor in info.workload.einsums[einsum].output_tensor_names:
+        is_output = tensor in info.workload.einsums[einsum].output_tensor_names
+        # A copy only writes its outputs. there is no accumulation read
+        if not info.is_copy_operation or not is_output:
+            stats.total_reads_to_parent = 1
+            stats.max_per_parent_reads_to_parent = 1
+        if is_output:
             stats.total_writes_to_parent = 1
             stats.max_per_parent_writes_to_parent = 1
             if skip_initial:

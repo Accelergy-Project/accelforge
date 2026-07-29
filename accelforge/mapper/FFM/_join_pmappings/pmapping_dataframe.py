@@ -382,6 +382,7 @@ class PmappingDataframe:
         compatibility_right: Compatibility,
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
+        do_not_free: set[str] = fzs(),
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
         _is_invalid: bool = False,
@@ -594,7 +595,9 @@ class PmappingDataframe:
         # Remove tensors that were allocated in both branches and got added
         # together.
         shared_to_free = [
-            s for s in shared_tensors if s.above_loop_index <= shared_loop_index
+            s
+            for s in shared_tensors
+            if s.above_loop_index <= shared_loop_index and s.name not in do_not_free
         ]
         reservations_of_live_tensor_not_in_right = [
             compatibility_joined.get_reservation_of_tensor(t)
@@ -606,9 +609,28 @@ class PmappingDataframe:
             for r in reservations_of_live_tensor_not_in_right
             if r.above_loop_index > shared_loop_index
         ]
+
+        # Assert duplicated aliased tensors have the same reservation sizes
+        shared_keys = {(s.resource_name, s.above_loop_index) for s in shared_to_free}
+        free = list(shared_to_free)
+        for d in duplicated_aliased_tensors:
+            key = (d.resource_name, d.above_loop_index)
+            if key in shared_keys:
+                for s in shared_to_free:
+                    if (s.resource_name, s.above_loop_index) == key:
+                        assert (
+                            result.data[tensor2col(s.name)]
+                            == result.data[tensor2col(d.name)]
+                        ).all(), (
+                            f"Duplicated tensors {s.name} and {d.name} in "
+                            f"{d.resource_name} have different reservation sizes"
+                        )
+                continue
+            free.append(d)
+
         result.adjust_reservations(
             alloc=live_to_alloc,
-            free=list(itertools.chain(shared_to_free, duplicated_aliased_tensors)),
+            free=free,
             ignored_resources=ignored_resources,
         )
 
