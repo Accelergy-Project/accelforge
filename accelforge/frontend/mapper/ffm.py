@@ -79,8 +79,8 @@ class FFM(EvalableModel):
     max_fused_loops: float | int = float("inf")
     """ The maximum total number of fused loops in a pmapping. """
 
-    max_loops: float | int = float("inf")
-    """ The maximum total loops in a pmapping. """
+    max_loops_per_spatial: float | int = float("inf")
+    """ The maximum total spatial loops mapped to a fanout in the architecture. """
 
     max_loops_minus_ranks: float | int = float("inf")
     """

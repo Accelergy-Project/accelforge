@@ -2449,10 +2449,14 @@ def _make_tile_shapes(job: "Job"):
         )
 
     rank2symbols = {}
+    spatial_symbol_groups = {}  # lists of the tile shape symbols of loops that map to the same arch fanout
     for node in pmapping.nodes:
         if isinstance(node, (Temporal, Spatial)):
             if node.tile_shape in symbols:
                 rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
+        if isinstance(node, Spatial):
+            key = (node.name, node.component)
+            spatial_symbol_groups[key] = spatial_symbol_groups.get(key, []) + [node.tile_shape]
 
     max_loop_check_groups = [
         (job.spec_one_einsum.mapper.max_fused_loops, all_fused_loops),
@@ -2461,8 +2465,12 @@ def _make_tile_shapes(job: "Job"):
             for x in rank_var_to_fused_loops.values()
         ],
     ]
-
     max_loop_check_groups = [g for g in max_loop_check_groups if g[1]]
+
+    max_loop_check_groups += [
+        (job.spec_one_einsum.mapper.max_loops_per_spatial, spatial_group)
+        for spatial_group in spatial_symbol_groups.values()
+    ]
 
     alt_objectives_first = n_total_objectives > 1
     choices_enumerated = get_tile_shape_choices(
