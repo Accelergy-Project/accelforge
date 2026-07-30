@@ -1967,11 +1967,11 @@
     "n_mappings": 1.0
   },
   "eyeriss|gpt3_6.7B|BATCH_SIZE=1,DECODE=True,N_CACHED_TOKENS=2047,N_NEW_TOKENS=1|fused": {
-    "energy": 0.031553364671354084,
+    "energy": 0.03155336534634049,
     "latency": 1.0545854568481445,
     "energy_per_component": {
-      "('I', 'GlobalBuffer', 'read')": 9.273784626170126e-08,
-      "('I', 'MainMemory', 'write')": 5.24288e-07,
+      "('I', 'GlobalBuffer', 'write')": 9.341283266973147e-08,
+      "('I', 'MainMemory', 'read')": 5.24288e-07,
       "('I', 'MainMemory', 'leak')": 0.0,
       "('I', 'GlobalBuffer', 'leak')": 4.982038781520259e-09,
       "('I', 'InputScratchpad', 'leak')": 1.437707175533376e-09,
@@ -2181,10 +2181,10 @@
       "('FFB', 'MAC')": 0.04194303974509239
     },
     "actions": {
-      "('I', 'GlobalBuffer', 'I_in', 'read')": 1024.0,
-      "('I', 'GlobalBuffer', 'I_in', 'write')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'read')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'write')": 65536.0,
+      "('I', 'GlobalBuffer', 'I_in', 'read')": 0.0,
+      "('I', 'GlobalBuffer', 'I_in', 'write')": 1024.0,
+      "('I', 'MainMemory', 'I_in', 'read')": 65536.0,
+      "('I', 'MainMemory', 'I_in', 'write')": 0.0,
       "('I', 'MAC', 'None', 'compute')": 0.0,
       "('V', 'InputScratchpad', 'I', 'read')": 268435456.0,
       "('V', 'InputScratchpad', 'I', 'write')": 65536.0,
@@ -4000,11 +4000,11 @@
     "n_mappings": 1.0
   },
   "simba|gpt3_6.7B|BATCH_SIZE=1,DECODE=True,N_CACHED_TOKENS=2047,N_NEW_TOKENS=1|fused": {
-    "energy": 0.030040219986931464,
+    "energy": 0.030040220471581187,
     "latency": 1.0400407314300537,
     "energy_per_component": {
-      "('I', 'GlobalBuffer', 'read')": 5.436130088947793e-09,
-      "('I', 'MainMemory', 'write')": 5.24288e-07,
+      "('I', 'GlobalBuffer', 'write')": 5.920779814354882e-09,
+      "('I', 'MainMemory', 'read')": 5.24288e-07,
       "('I', 'MainMemory', 'leak')": 0.0,
       "('I', 'GlobalBuffer', 'leak')": 1.857160120133372e-10,
       "('I', 'InputBuffer', 'leak')": 3.7717326484276725e-10,
@@ -4248,10 +4248,10 @@
       "('FFB', 'MAC')": 2.6214400349999778e-05
     },
     "actions": {
-      "('I', 'GlobalBuffer', 'I_in', 'read')": 65536.0,
-      "('I', 'GlobalBuffer', 'I_in', 'write')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'read')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'write')": 65536.0,
+      "('I', 'GlobalBuffer', 'I_in', 'read')": 0.0,
+      "('I', 'GlobalBuffer', 'I_in', 'write')": 65536.0,
+      "('I', 'MainMemory', 'I_in', 'read')": 65536.0,
+      "('I', 'MainMemory', 'I_in', 'write')": 0.0,
       "('I', 'MAC', 'None', 'compute')": 0.0,
       "('V', 'InputBuffer', 'I', 'read')": 33554432.0,
       "('V', 'InputBuffer', 'I', 'write')": 65536.0,
@@ -5208,11 +5208,11 @@
     "n_mappings": 1.0
   },
   "tpu_v4i|gpt3_175B|BATCH_SIZE=1,DECODE=False,N_NEW_TOKENS=2048|fused": {
-    "energy": 1.174936754034471,
+    "energy": 1.175130027562791,
     "latency": 0.056330591440200806,
     "energy_per_component": {
-      "('I', 'GlobalBuffer', 'read')": 0.00075698798592,
-      "('I', 'MainMemory', 'write')": 0.00283065188352,
+      "('I', 'GlobalBuffer', 'write')": 0.00095026151424,
+      "('I', 'MainMemory', 'read')": 0.00283065188352,
       "('I', 'MainMemory', 'leak')": 0.0,
       "('I', 'GlobalBuffer', 'leak')": 0.0,
       "('I', 'LocalBuffer', 'leak')": 0.0,
@@ -5346,7 +5346,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 8.197336865123361e-05,
-      "('I', 'GlobalBuffer')": 2.4576000214437954e-05,
+      "('I', 'GlobalBuffer')": 4.915200042887591e-05,
       "('I', 'ScalarUnit')": 0.0,
       "('V', 'MainMemory')": 0.0005738135660067201,
       "('V', 'GlobalBuffer')": 0.00039321600343100727,
@@ -5393,10 +5393,10 @@
       "('FFB', 'MAC')": 0.017975589260458946
     },
     "actions": {
-      "('I', 'GlobalBuffer', 'I_in', 'read')": 402653184.0,
-      "('I', 'GlobalBuffer', 'I_in', 'write')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'read')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'write')": 402653184.0,
+      "('I', 'GlobalBuffer', 'I_in', 'read')": 0.0,
+      "('I', 'GlobalBuffer', 'I_in', 'write')": 402653184.0,
+      "('I', 'MainMemory', 'I_in', 'read')": 402653184.0,
+      "('I', 'MainMemory', 'I_in', 'write')": 0.0,
       "('I', 'ScalarUnit', 'None', 'compute')": 0.0,
       "('V', 'LocalBuffer', 'I', 'read')": 38654705664.0,
       "('V', 'LocalBuffer', 'I', 'write')": 6442450944.0,
@@ -5834,11 +5834,11 @@
     "n_mappings": 1.0
   },
   "tpu_v4i|gpt3_175B|BATCH_SIZE=1,DECODE=True,N_CACHED_TOKENS=2047,N_NEW_TOKENS=1|fused": {
-    "energy": 0.20985938712185517,
+    "energy": 0.20985948149369518,
     "latency": 0.006066492758691311,
     "energy_per_component": {
-      "('I', 'GlobalBuffer', 'read')": 3.6962304e-07,
-      "('I', 'MainMemory', 'write')": 1.38215424e-06,
+      "('I', 'GlobalBuffer', 'write')": 4.6399488e-07,
+      "('I', 'MainMemory', 'read')": 1.38215424e-06,
       "('I', 'MainMemory', 'leak')": 0.0,
       "('I', 'GlobalBuffer', 'leak')": 0.0,
       "('I', 'LocalBuffer', 'leak')": 0.0,
@@ -5972,7 +5972,7 @@
     },
     "latency_per_component": {
       "('I', 'MainMemory')": 4.002605891173516e-08,
-      "('I', 'GlobalBuffer')": 1.2000000104706032e-08,
+      "('I', 'GlobalBuffer')": 2.4000000209412065e-08,
       "('I', 'ScalarUnit')": 0.0,
       "('V', 'MainMemory')": 0.0004918802296742797,
       "('V', 'GlobalBuffer')": 4.800000041882413e-08,
@@ -6019,10 +6019,10 @@
       "('FFB', 'MAC')": 8.77714319358347e-06
     },
     "actions": {
-      "('I', 'GlobalBuffer', 'I_in', 'read')": 196608.0,
-      "('I', 'GlobalBuffer', 'I_in', 'write')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'read')": 0.0,
-      "('I', 'MainMemory', 'I_in', 'write')": 196608.0,
+      "('I', 'GlobalBuffer', 'I_in', 'read')": 0.0,
+      "('I', 'GlobalBuffer', 'I_in', 'write')": 196608.0,
+      "('I', 'MainMemory', 'I_in', 'read')": 196608.0,
+      "('I', 'MainMemory', 'I_in', 'write')": 0.0,
       "('I', 'ScalarUnit', 'None', 'compute')": 0.0,
       "('V', 'LocalBuffer', 'I', 'read')": 18874368.0,
       "('V', 'LocalBuffer', 'I', 'write')": 786432.0,

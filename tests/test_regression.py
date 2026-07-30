@@ -168,7 +168,7 @@ def _key(arch, workload, fused):
     )
 
 
-def _run(arch, workload, fused, print_progress: bool = True):
+def _run(arch, workload, fused):
     spec = Spec.from_yaml(
         arch,
         workload["workload"],
@@ -183,7 +183,7 @@ def _run(arch, workload, fused, print_progress: bool = True):
             if isinstance(node, af.arch.Memory):
                 node.tensors.keep = "All"
                 break
-    mappings = spec.map_workload_to_arch(print_progress=print_progress)
+    mappings = spec.map_workload_to_arch(one_pbar_only=True)
     m = mappings[0]
     return cast(
         {
@@ -212,7 +212,7 @@ def generate(fusion_choices=(False, True)):
     from accelforge.util import parallel, delayed, get_n_parallel_jobs
 
     jobs = {
-        key: delayed(_run)(arch, workload, fused, print_progress=not PARALLEL_GENERATE)
+        key: delayed(_run)(arch, workload, fused)
         for key, arch, workload, fused in _cases(fusion_choices)
     }
     n_jobs = 1 if not PARALLEL_GENERATE else get_n_parallel_jobs()
