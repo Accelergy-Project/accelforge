@@ -37,6 +37,7 @@ from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
+    EvalableDict,
     EvalableModel,
     EvalableList,
     EvalsTo,
@@ -641,7 +642,7 @@ class Storage(TensorHolder):
     A Storage :class:`~.TensorHolder` that can hold tensors for reuse.
     """
 
-    binding: EvalableList[Spatial] = []
+    binding: EvalableDict[EinsumName, Spatial] = []
     """
     Spatial loops that make up the binding of the tensor. Should only be used
     if `tensors` only has one tensor.
@@ -657,6 +658,13 @@ class Storage(TensorHolder):
             )
 
         return super()._merge(other)
+
+    @override
+    def compact_str(self):
+        s = super().compact_str()
+        if self.binding:
+            s += f"-{self.binding}"
+        return s
 
 
 class Toll(TensorHolder):

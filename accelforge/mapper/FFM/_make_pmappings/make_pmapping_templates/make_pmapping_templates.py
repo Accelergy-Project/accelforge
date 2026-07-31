@@ -65,7 +65,6 @@ from accelforge.model._looptree.reuse.symbolic import (
     label_fused_loops,
     quick_insert_reservation_nodes,
 )
-from accelforge.util import DONT_CARE
 
 
 def unpack_loops_to_rank_variables(mapping: List[MappingNode]):
@@ -455,7 +454,7 @@ def infer_default_binding(mapping: Mapping, job: Job):
             binding_spatial = node.model_copy()
             rv = binding_spatial.rank_variable
             if rv in irrelevant_rvs:
-                binding_spatial.rank_variable = DONT_CARE
+                raise NotImplementedError()
             else:
                 ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
                 assert len(ranks) == 1

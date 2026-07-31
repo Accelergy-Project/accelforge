@@ -17,7 +17,7 @@ from accelforge.frontend.mapping import (
     TilePattern,
     Loop as MappingLoop,
 )
-from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_DUPLICATE
+from accelforge.frontend.renames import Rank, RankVariable, TensorName
 from accelforge.frontend.workload import Einsum, Workload
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
@@ -29,7 +29,7 @@ from accelforge.mapper.FFM._pareto_df.df_convention import (
     iterations2col,
 )
 
-from accelforge.util import _expfmt, fzs, oset, DONT_CARE, Permutation, DontCare
+from accelforge.util import _expfmt, fzs, oset, Permutation
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -61,21 +61,21 @@ def _update_rename_dict(
 
 @dataclass(frozen=True, order=True, eq=True)
 class Loop(Updatable):
-    rank_name: Rank | DontCare
+    rank_name: Rank
     tile_pattern: TilePattern | None
     is_spatial: bool
     # The architecture spatial dimension (e.g. "X", "Y") this loop fans out over.
     spatial_dim: str | None = None
 
     def __post_init__(self):
-        assert isinstance(self.rank_name, (Rank, DontCare))
+        assert isinstance(self.rank_name, Rank)
         assert isinstance(self.tile_pattern, Number | TilePattern | str | None)
         assert isinstance(self.is_spatial, bool)
         assert isinstance(self.spatial_dim, str | None)
         assert isinstance(
             self.tile_pattern.initial_tile_shape,
             Number | str | None,
-        )
+        ), f"instead is {self.tile_pattern.initial_tile_shape}"
         assert isinstance(
             self.tile_pattern.tile_shape,
             Number | str | None,
@@ -87,9 +87,13 @@ class Loop(Updatable):
         )
 
     def __str__(self):
-        return (
-            "S-" if self.is_spatial else ""
-        ) + f"{self.rank_name}-{self.tile_pattern}"
+        s = ""
+        if self.is_spatial:
+            s += "S-"
+        s += f"{self.rank_name}-{self.tile_pattern}"
+        if self.is_spatial:
+            s += f"-{self.spatial_dim}"
+        return s
 
     def pydot_str(self):
         if self.is_spatial:
@@ -239,23 +243,8 @@ class TensorReservation(Updatable):
             new_loop = []
             for compat_loop, mapping_loop in zip(updated_loops.physical_spatial_loops, reservation_node.binding):
                 mapping_tile_pattern = mapping_loop.tile_pattern._symbol2str()
-                """
-                A DONT_CARE binding loop arises from a spatial loop over an irrelevant rank variable,
-                denoting that any tensor rank may be partitioned without changing amount of traffic.
-                Using a DONT_CARE loop means we only have to evaluate those mappings once instead of
-                generating a bunch of bindings with the same model result over and over.
-
-                A DONT_CARE binding loop is compatible with another binding loop over *any* tensor rank
-                with *any* shape. However, the number of iterations must match, thus the code below.
-                """
-                if compat_loop.rank_name is DONT_CARE:
-                    new_compat_tile_pattern = TilePattern(
-                        tile_shape=DONT_CARE,
-                        initial_tile_shape=DONT_CARE,
-                        calculated_n_iterations=mapping_tile_pattern.calculated_n_iterations,
-                    )
-                else:
-                    new_compat_tile_pattern = mapping_tile_pattern
+                raise NotImplementedError()
+                new_compat_tile_pattern = mapping_tile_pattern
                 new_loop.append(compat_loop.update(tile_pattern=new_compat_tile_pattern))
             return updated_loops.update(physical_spatial_loops=tuple(new_loop))
         else:
