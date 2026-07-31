@@ -1,0 +1,43 @@
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    actions:
+    - name: read
+      energy: 1
+      throughput: {{ MM_READ_THROUGHPUT | default("inf") }}
+      latency: {{ MM_READ_LATENCY | default(0) }}
+    - name: write
+      energy: 1
+      throughput: {{ MM_WRITE_THROUGHPUT | default("inf") }}
+      latency: {{ MM_WRITE_LATENCY | default(0) }}
+
+  - !Memory
+    name: GlobalBuffer
+    size: inf
+    leak_power: 0
+    area: 0
+    tensors: {keep: All}
+    actions:
+    - name: read
+      energy: 1
+      throughput: {{ GB_READ_THROUGHPUT | default("inf") }}
+      latency: {{ GB_READ_LATENCY | default(0) }}
+    - name: write
+      energy: 1
+      throughput: {{ GB_WRITE_THROUGHPUT | default("inf") }}
+      latency: {{ GB_WRITE_LATENCY | default(0) }}
+
+  - !Compute
+    name: MAC
+    leak_power: 0
+    area: 0
+    actions:
+    - name: compute
+      energy: 1
+      throughput: {{ COMPUTE_THROUGHPUT | default(1) }}
+      latency: {{ COMPUTE_LATENCY | default(0) }}

@@ -1341,7 +1341,7 @@ class Network(Component, Leaf):
 
     actions: EvalableList[Action] = NETWORK_ACTIONS
 
-    total_latency: str | int | float | None = "max_link_traffic/actions['hop'].throughput"
+    total_latency: str | int | float = "max_link_traffic/actions['hop'].throughput"
     """
     Models latency as bandwidth-bound, which means that the traffic over the most
     congested link dominates the overall communication latency. Note that max_hops *

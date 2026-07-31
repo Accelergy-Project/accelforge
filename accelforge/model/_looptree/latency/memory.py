@@ -136,9 +136,23 @@ def component_latency(
     flattened_arch: FlattenedArch,
     mapping: Mapping,
     spec: Spec,
+    per_level_components: oset = oset(),
 ):
+    """
+    Returns (component latency, per-level component latency).
+
+    The per-level dict covers components in per_level_components, mapping each to
+    {n_loops_above: latency of the actions at that many loops above plus the latency of
+    actions lower in the tree}. Each level includes the levels below it, so the
+    shallowest level is the component's whole latency. Levels must be completed before
+    moving to other branches of the LoopTree, but may be overlapped with the latencies
+    of other branches below the current level.
+    """
     component_to_actions: dict[str, dict[str, float]] = defaultdict(
         lambda: defaultdict(lambda: 0)
+    )
+    component_to_level_actions: dict[str, dict[int, dict[str, float]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(lambda: 0))
     )
     # Holds ``keywords" that do not map neatly to actions, e.g., max_hops for network
     component_to_keywords: dict[str, dict[str, float]] = defaultdict(
@@ -160,9 +174,18 @@ def component_latency(
             actions[action.name] += 0
 
         if isinstance(name2component[component], TensorHolder):
-            actions["read"] += buffet_stats.net_max_per_unit_actions("read")
-            if not isinstance(name2component[component], arch.Toll):
-                actions["write"] += buffet_stats.net_max_per_unit_actions("write")
+            reads = buffet_stats.net_max_per_unit_actions("read")
+            writes = buffet_stats.net_max_per_unit_actions("write")
+            actions["read"] += reads
+            include_writes = not isinstance(name2component[component], arch.Toll)
+            n_loops_above = buffet_stats.n_loops_above
+            if include_writes:
+                actions["write"] += writes
+            if component in per_level_components:
+                level_actions = component_to_level_actions[component][n_loops_above]
+                level_actions["read"] += reads
+                if include_writes:
+                    level_actions["write"] += writes
         elif isinstance(name2component[component], arch.Compute):
             pass
         else:
@@ -191,30 +214,25 @@ def component_latency(
             *network_to_max_link_traffic[component].values()
         )
         keywords["max_hops"] = MaxGeqZero(*network_to_max_hops[component])
+        actions = component_to_actions[component]
+        for action in name2component[component].actions:
+            actions[action.name] = 0
 
     longest_compute_latency = Max(
         0, *[s.max_latency for s in looptree_results.compute_stats.values()]
     )
     component_to_actions[compute_obj.name]["compute"] = longest_compute_latency
 
-    new_component_to_actions: dict[str, list] = {}
     for component, action_counts in component_to_actions.items():
         component_obj = name2component[component]
-        scale = getattr(component_obj, "actions_scale", 1)
         for action_name in action_counts:
             if action_name not in component_obj.actions:
                 raise ValueError(
                     f"Action {action_name} not found in component {component}"
                 )
-        cur_actions = EvalableList()
-        for a in component_obj.actions:
-            a = a.model_copy()
-            a._set_n_calls(action_counts.get(a.name, 0) * scale)
-            cur_actions.append(a)
-        new_component_to_actions[component] = cur_actions
-    component_to_actions = new_component_to_actions
 
     component_latency = {}
+    component_level_latency = {}
 
     arch_vars = dict(spec.arch.variables) if spec.arch.variables else {}
     symbol_table_base = {  # TODO: Make a global symbol table initialization function
@@ -235,20 +253,39 @@ def component_latency(
             continue
         component_obj = name2component[component]
         dump = component_obj.shallow_model_dump(include_None=True)
-        # Replace serialized `actions` dump with local Action copies that carry
-        # the correct n_calls for this job, so formulas can access `a.n_calls`,
-        # `a.throughput`, etc. without mutating the shared spec state.
-        if component in component_to_actions:
-            dump["actions"] = component_to_actions[component]
         if component in component_to_keywords:
             dump |= component_to_keywords[component]
-        symbol_table = {**symbol_table_base, **dump}
-        if component_obj.total_latency is not None:
-            component_latency[component] = eval_expression(
+
+        def eval_latency(action_counts):
+            symbol_table = {**symbol_table_base, **dump}
+            cur_actions = EvalableList()
+            for action, count in action_counts.items():
+                a = component_obj.actions[action].model_copy()
+                a._set_n_calls(count * component_obj.actions_scale)
+                cur_actions.append(a)
+            symbol_table["actions"] = cur_actions
+
+            return eval_expression(
                 component_obj.total_latency,
                 symbol_table,
                 attr_name="latency",
                 location=component,
             )
 
-    return component_latency
+        counts = component_to_actions[component]
+        if component in component_to_level_actions:
+            actions = component_to_level_actions[component]
+            # Evaluate on running action totals from the deepest level up so each
+            # level's latency includes the levels below it and the shallowest level
+            # is the whole latency.
+            cumulative = defaultdict(lambda: 0)
+            per_level = component_level_latency[component] = {}
+            for level, cur_actions in sorted(actions.items(), reverse=True):
+                for action, count in cur_actions.items():
+                    cumulative[action] += count
+                per_level[level] = eval_latency(cumulative)
+            component_latency[component] = per_level[min(per_level)]
+        else:
+            component_latency[component] = eval_latency(counts)
+
+    return component_latency, component_level_latency

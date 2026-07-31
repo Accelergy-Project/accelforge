@@ -419,7 +419,6 @@ def get_memories_to_track(
                     always_below.add(reservation_key.name)
 
     total_sizes = {}
-    ignored_resources = oset()
 
     for _, einsum_pmapping_groups in pmapping_groups.items():
         max_sizes = {}
@@ -440,10 +439,6 @@ def get_memories_to_track(
                         always_below.remove(tensor.resource_name)
                 size = s.mappings.data[col].max()
                 max_sizes[name] = max(max_sizes.get(name, 0), size)
-
-                # nloops < 0 means that the reservation will live through all Einsums
-                if nloops < 0:
-                    ignored_resources.add(name)
 
         for name, size in max_sizes.items():
             total_sizes[name] = total_sizes.get(name, 0) + size
@@ -636,7 +631,8 @@ def join_pmappings(
             print_progress=print_progress,
         )
         einsum_pmappings.pmapping_groups = PmappingGroup.group(
-            einsum_pmappings.pmapping_groups, left_tensors,
+            einsum_pmappings.pmapping_groups,
+            left_tensors,
         )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         step_time = time.time() - t0
@@ -997,6 +993,10 @@ def join_pmappings(
     mappings = s_final[0].mappings
     mappings.limit_capacity(next_shared_loop_index=-1, finished=True)
     mappings.free_to_loop_index(-2)
+    assert not mappings._make_latencies(), (
+        f"Component latency columns were not folded into the total latency: "
+        f"{mappings._make_latencies()}"
+    )
     mappings.make_pareto()
 
     timer.log_total_time()

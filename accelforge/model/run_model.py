@@ -19,6 +19,7 @@ from accelforge.model._looptree.latency.memory import (
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
     reservation2col,
+    complatency2col,
     tensor2col,
     firstlatency2col,
     action2col,
@@ -47,7 +48,13 @@ def run_model(
         job, add_reservations=add_reservations
     )
 
-    latency = component_latency(reuse, job.flattened_arch, pmapping, spec)
+    latency, latency_per_level = component_latency(
+        reuse,
+        job.flattened_arch,
+        pmapping,
+        spec,
+        per_level_components=oset(job.components_track_latency),
+    )
     overall_latency = max_nonzero(*latency.values())
 
     # try:
@@ -223,18 +230,30 @@ def run_model(
         for component, cur_latency in latency.items():
             df[f"component_latency<SEP>{component}"] = cur_latency * n_instances
 
+        # Components shared across Einsums get per-level latency columns so joining can
+        # sum their busy time across Einsums and let it overlap with the other Einsums'
+        # latency. Their latency is folded into Total<SEP>latency at joining time
+        # instead of here.
+        for component, level_latency in latency_per_level.items():
+            for level, cur_latency in level_latency.items():
+                df[complatency2col(component, level)] = cur_latency * n_instances
+
         # Total latency of each component is its own total_latency plus the worst
         # communication latency to reach it.
         comm_latency = communication_latency(
             reuse,
             job.flattened_arch,
             tensor_to_backing,
-            workload.einsums[job.einsum_name].output_tensor_names
+            workload.einsums[job.einsum_name].output_tensor_names,
         )
-        per_component_total = [
-            latency.get(component, 0) + comm_latency.get(component, 0)
-            for component in oset(latency) | oset(comm_latency)
-        ]
+        per_component_total = []
+        for component in oset(latency) | oset(comm_latency):
+            l = comm_latency.get(component, 0)
+            if component not in latency_per_level:
+                l += latency.get(component, 0)
+            if not isinstance(l, Number) or l != 0:
+                per_component_total.append(l)
+
         df["Total<SEP>latency"] = max_nonzero(*per_component_total) * n_instances
         # For first latency, we'll follow the convention of treating compute
         # as a component, similarly to memory (see below).
@@ -260,7 +279,7 @@ def run_model(
     # =================================================================================
     per_memory_spatial_usage_df = {}
     for memory, occupancies in total_occupancy.items():
-        ignored = job.ignored_resources is not None and memory in job.ignored_resources
+        ignored = memory in job.ignored_resources
         key = f"usage<SEP>memory<SEP>{memory}"
         if not ignored:
             per_memory_spatial_usage_df[key] = (

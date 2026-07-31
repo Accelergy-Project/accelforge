@@ -175,15 +175,17 @@ def evaluate_mapping(
         job.memories_track_all = [
             m.name for m in flattened_arch if isinstance(m, Memory)
         ]
+        job.components_track_latency = oset(
+            m.name for m in flattened_arch if isinstance(m, arch.TensorHolder)
+        )
+        job.ignored_resources = oset()
 
         job.fusable_tensors = fusable_tensors & oset(job.tensor_to_relevancy)
         einsum = cur_spec.workload.einsums[job.einsum_name]
 
         infer_default_binding(job.mapping, job)
 
-        _, df, _, _, tensor2mapping, _ = run_model(
-            job, add_reservations=True
-        )
+        _, df, _, _, tensor2mapping, _ = run_model(job, add_reservations=True)
 
         # Calculate iteration counts and rank columns
         _clean_energy_columns(df, job.metrics)

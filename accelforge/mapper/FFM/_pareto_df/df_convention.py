@@ -132,6 +132,26 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
 
 
 ReservationKey = namedtuple("ReservationKey", ["name", "nloops"])
+ComponentLatencyKey = namedtuple("ComponentLatencyKey", ["name", "nloops"])
+
+
+@dict_cached
+def col2complatency(x: str) -> ComponentLatencyKey | None:
+    """
+    Format: component_latency name nloops. Distinct from the 2-part
+    component_latency<SEP>name columns, these are specific to a loop level and may be
+    pushed to work during earlier Einsums 
+    """
+    parts = x.split(SEP)
+    if len(parts) != 3 or parts[0] != "component_latency":
+        return None
+    return ComponentLatencyKey(parts[1], int(parts[2]))
+
+
+@dict_cached
+def complatency2col(name: str, nloops: int) -> str:
+    """Format: component_latency name nloops"""
+    return f"component_latency<SEP>{name}<SEP>{nloops}"
 
 
 @dict_cached
@@ -295,7 +315,11 @@ def is_objective_col(c):
 
 
 def col_used_in_pareto(c):
-    return col2reservation(c) is not None or is_objective_col(c)
+    return (
+        col2reservation(c) is not None
+        or col2complatency(c) is not None
+        or is_objective_col(c)
+    )
 
 
 def col_used_in_joining(c):

@@ -14,8 +14,10 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     MAPPING_COLUMN,
     PmappingDataframe,
+    col2complatency,
     col2reservation,
     col_used_in_pareto,
+    complatency2col,
     is_reservation_col,
     makepareto,
     tensor2col,
@@ -56,28 +58,35 @@ def shift_reservations_by_null_loop_indices(
     target2newabovename = {}
     dropcols = []
     for c in mappings.columns:
-        if not is_reservation_col(c):
+        if is_reservation_col(c):
+            key, make_col = col2reservation(c), reservation2col
+        elif (key := col2complatency(c)) is not None:
+            make_col = complatency2col
+        else:
             continue
-        reservation = col2reservation(c)
-        name = reservation.name
-        above = reservation.nloops
+        above = key.nloops
         new_above = above - sum(above > i for i in null_loop_indices)
-        target = reservation2col(name, new_above)
+        target = make_col(key.name, new_above)
         if target in target2newabovename:
-            if above > target2newabovename[target][1]:
-                dropcols.append(reservation2col(*target2newabovename[target]))
-                target2newabovename[target] = (name, above)
+            # On a collision, keep the column that includes the other: the deeper one
+            # for reservations, the shallower one for latencies.
+            keep_new = above > target2newabovename[target][1]
+            if not is_reservation_col(c):
+                keep_new = not keep_new
+            if keep_new:
+                dropcols.append(target2newabovename[target][0])
+                target2newabovename[target] = (c, above)
             else:
                 dropcols.append(c)
         else:
-            target2newabovename[target] = (name, above)
+            target2newabovename[target] = (c, above)
 
     if dropcols:
         drop_set = set(dropcols)
         mappings = mappings[[c for c in mappings.columns if c not in drop_set]]
     renames = {}
-    for target, (name, above) in target2newabovename.items():
-        renames[reservation2col(name, above)] = target
+    for target, (source, _) in target2newabovename.items():
+        renames[source] = target
     mappings = mappings.rename(columns=renames)
     if len(mappings.columns) != len(mappings.columns.unique()):
         raise ValueError(f"Duplicate columns: {mappings.columns}")

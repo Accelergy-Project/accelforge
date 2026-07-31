@@ -67,6 +67,7 @@ class Job:
     memories_track_all: list[str] | None = None
     memories_track_pmappings_only: list[str] | None = None
     ignored_resources: set[str] | None = None
+    components_track_latency: set[str] | None = None
     time_limit: float | int = float("inf")
     memory_limit: float | int = float("inf")
     messages: list[str] = field(default_factory=list)
