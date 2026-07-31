@@ -157,9 +157,9 @@ class TestFFM(unittest.TestCase):
         f = FFM()
         self.assertEqual(f.max_fused_loops, float("inf"))
 
-    def test_max_loops_per_spatial_default_inf(self):
+    def test_max_loops_per_spatial_dimension_default_inf(self):
         f = FFM()
-        self.assertEqual(f.max_loops_per_spatial, float("inf"))
+        self.assertEqual(f.max_loops_per_spatial_dimension, float("inf"))
 
     def test_max_loops_minus_ranks_default_inf(self):
         f = FFM()

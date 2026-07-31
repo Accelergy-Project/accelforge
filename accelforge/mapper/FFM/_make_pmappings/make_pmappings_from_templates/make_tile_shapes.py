@@ -2468,7 +2468,7 @@ def _make_tile_shapes(job: "Job"):
     max_loop_check_groups = [g for g in max_loop_check_groups if g[1]]
 
     max_loop_check_groups += [
-        (job.spec_one_einsum.mapper.max_loops_per_spatial, spatial_group)
+        (job.spec_one_einsum.mapper.max_loops_per_spatial_dimension, spatial_group)
         for spatial_group in spatial_symbol_groups.values()
     ]
 
