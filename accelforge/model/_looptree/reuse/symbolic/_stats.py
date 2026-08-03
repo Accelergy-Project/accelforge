@@ -44,7 +44,8 @@ class ActionCounts(dict):
 
     def __missing__(self, key):
         return 0
-    
+
+
 def _scale(value: Any, factor: Any) -> Any:
     if isinstance(value, ActionCounts):
         return ActionCounts({k: v * factor for k, v in value.items()})
@@ -78,11 +79,25 @@ class BuffetStats:
     max_occupancy: Any = field(default=0)
     _n_loops_above: int = field(default=0)
 
-    # These are used to calculate energy and latency. Keyed by action name.
-    total_actions: ActionCounts = field(default_factory=ActionCounts)
-    max_per_unit_actions: ActionCounts = field(default_factory=ActionCounts)
-    total_skipped_first_actions: ActionCounts = field(default_factory=ActionCounts)
-    min_per_unit_skipped_first_actions: ActionCounts = field(
+    # These are used to calculate energy and latency. Keyed by action name and
+    # split by which side of the storage the data moves on: exchanges with the
+    # parent (fills in, drains out) versus exchanges with the child or peers.
+    # By construction, skipped-first writes are parent-side and skipped-first
+    # reads child-side. total_actions and max_per_unit_actions are the sums.
+    total_actions_to_parent: ActionCounts = field(default_factory=ActionCounts)
+    total_actions_to_child: ActionCounts = field(default_factory=ActionCounts)
+    max_per_unit_actions_to_parent: ActionCounts = field(default_factory=ActionCounts)
+    max_per_unit_actions_to_child: ActionCounts = field(default_factory=ActionCounts)
+    total_skipped_first_actions_to_parent: ActionCounts = field(
+        default_factory=ActionCounts
+    )
+    total_skipped_first_actions_to_child: ActionCounts = field(
+        default_factory=ActionCounts
+    )
+    min_per_unit_skipped_first_actions_to_parent: ActionCounts = field(
+        default_factory=ActionCounts
+    )
+    min_per_unit_skipped_first_actions_to_child: ActionCounts = field(
         default_factory=ActionCounts
     )
 
@@ -92,6 +107,36 @@ class BuffetStats:
 
     # Number of temporal iterations above this buffet's storage node.
     iterations_above: Any = field(default=1)
+
+    @property
+    def total_actions(self) -> ActionCounts:
+        return _combine(
+            self.total_actions_to_parent, self.total_actions_to_child, operator.add
+        )
+
+    @property
+    def max_per_unit_actions(self) -> ActionCounts:
+        return _combine(
+            self.max_per_unit_actions_to_parent,
+            self.max_per_unit_actions_to_child,
+            operator.add,
+        )
+
+    @property
+    def total_skipped_first_actions(self) -> ActionCounts:
+        return _combine(
+            self.total_skipped_first_actions_to_parent,
+            self.total_skipped_first_actions_to_child,
+            operator.add,
+        )
+
+    @property
+    def min_per_unit_skipped_first_actions(self) -> ActionCounts:
+        return _combine(
+            self.min_per_unit_skipped_first_actions_to_parent,
+            self.min_per_unit_skipped_first_actions_to_child,
+            operator.add,
+        )
 
     @property
     def n_loops_above(self) -> int:
@@ -134,8 +179,10 @@ class BuffetStats:
         for k, v in new.__dict__.items():
             if not k.startswith(("total_", "max_", "min_")):
                 continue
-            if "parent" in k and reuse_parent_accesses:
-                continue  # If parent accesses are reused, no need to multiply
+            # If parent accesses are reused, no need to multiply. Action count
+            # dicts always scale.
+            if "parent" in k and "actions" not in k and reuse_parent_accesses:
+                continue
             if "per_unit" in k:
                 continue  # Spatial fanout doesn't affect per-unit stats
             if k == "max_occupancy":
@@ -195,6 +242,32 @@ class BuffetStats:
             {a: self.net_max_per_unit_actions(a) for a in self.max_per_unit_actions}
         )
 
+    def net_max_per_unit_actions_to_parent(self, action: str | None = None) -> Any:
+        if action is not None:
+            return (
+                self.max_per_unit_actions_to_parent[action]
+                - self.min_per_unit_skipped_first_actions_to_parent[action]
+            )
+        return ActionCounts(
+            {
+                a: self.net_max_per_unit_actions_to_parent(a)
+                for a in self.max_per_unit_actions_to_parent
+            }
+        )
+
+    def net_max_per_unit_actions_to_child(self, action: str | None = None) -> Any:
+        if action is not None:
+            return (
+                self.max_per_unit_actions_to_child[action]
+                - self.min_per_unit_skipped_first_actions_to_child[action]
+            )
+        return ActionCounts(
+            {
+                a: self.net_max_per_unit_actions_to_child(a)
+                for a in self.max_per_unit_actions_to_child
+            }
+        )
+
     @classmethod
     def blank(cls):
         stats = cls()
@@ -209,10 +282,6 @@ class ComputeStats:
     max_per_unit_ops: Any = field(default=0)
     # "max" below refers to the longest latency of any iteration
     max_latency: Any = field(default=0)
-    # Mapping from the loop-index (0 at top) to the latency of the first
-    # iteration of that loop. "Max" because we may have loops above that and we
-    # will take the maximum of the firsts.
-    max_first_latency: dict[int, Any] = field(default_factory=dict)
 
     def repeat_temporal(self, factor: int) -> "ComputeStats":
         new = copy.copy(self)
@@ -223,7 +292,6 @@ class ComputeStats:
         new.total_ops = new.total_ops * factor
         new.max_per_unit_ops = new.max_per_unit_ops * factor
         new.max_latency = new.max_latency * factor
-        # NOTE: max_first_latency does not change
         return new
 
     def repeat_spatial(self, factor: int) -> "ComputeStats":
@@ -240,22 +308,12 @@ class ComputeStats:
         new.total_ops += other.total_ops
         new.max_per_unit_ops += other.max_per_unit_ops
         new.max_latency += other.max_latency
-        # max_first_latency is only ever updated across loops ABOVE the loop
-        # for which we calculated that first latency, so we should MAX
-        new.max_first_latency = max_dict(
-            self.max_first_latency, other.max_first_latency
-        )  # FIRST LATENCY
         return new
 
     def combine_temporal(self, other: "ComputeStats"):
         self.total_ops += other.total_ops
         self.max_per_unit_ops += other.max_per_unit_ops
         self.max_latency += other.max_latency
-        # max_first_latency is only ever updated across loops ABOVE the loop
-        # for which we calculated that first latency, so we should MAX
-        self.max_first_latency = max_dict(
-            self.max_first_latency, other.max_first_latency
-        )  # FIRST LATENCY
 
     def combine_spatial(self, other: "ComputeStats"):
         self.total_ops += other.total_ops
@@ -263,11 +321,6 @@ class ComputeStats:
             self.max_per_unit_ops, other.max_per_unit_ops
         )
         self.max_latency = max_nonzero(self.max_latency, other.max_latency)
-        # max_first_latency is only ever updated across loops ABOVE the loop
-        # for which we calculated that first latency, so we should MAX
-        self.max_first_latency = max_dict(
-            self.max_first_latency, other.max_first_latency
-        )  # FIRST LATENCY
 
 
 @dataclass

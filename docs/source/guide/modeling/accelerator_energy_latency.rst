@@ -43,14 +43,15 @@ is set to a different value.
 Calculating Latency from a Pmapping
 -----------------------------------
 
-The total latency of a component, defined in the class's
-:py:obj:`~accelforge.frontend.arch.Component.total_latency` field, is a Python
-expression that is evaluated using the component's actions.
+The latency of a component is the sum, over its actions, of the action count (times the
+component's :py:attr:`~accelforge.frontend.arch.Component.actions_scale`) divided by the
+action's :py:attr:`~accelforge.frontend.arch.Action.throughput`. Network components have
+their latency limited by their most-congested link.
 
-The :py:obj:`~accelforge.frontend.arch.Component.total_latency` field is:
-
-.. include-docstring:: accelforge.frontend.arch.Component.total_latency
-   :decapitalize:
+A :py:class:`~accelforge.frontend.arch.Memory` with
+:py:attr:`~accelforge.frontend.arch.Memory.separate_read_write_ports` set is treated as
+two components for latency, "{name} (read)" and "{name} (write)", which may overlap in
+time; otherwise one shared port serializes reads and writes.
 
 
 Calculating Area and Leak Power

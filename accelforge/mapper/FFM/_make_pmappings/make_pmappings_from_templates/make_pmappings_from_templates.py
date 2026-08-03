@@ -46,6 +46,7 @@ from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     SameTemplateJobs,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    is_energy_col,
     is_fused_loop_col,
     is_n_iterations_col,
 )
@@ -413,7 +414,7 @@ def make_pmappings_from_templates(
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
         mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
 
-        energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
+        energy_cols = [c for c in mappings.columns if is_energy_col(c)]
         if (mappings[energy_cols] < 0).any(axis=None):
             mapping_with_negative_energy = mappings[
                 (mappings[energy_cols] < 0).any(axis=1)

@@ -138,20 +138,20 @@ ComponentLatencyKey = namedtuple("ComponentLatencyKey", ["name", "nloops"])
 @dict_cached
 def col2complatency(x: str) -> ComponentLatencyKey | None:
     """
-    Format: component_latency name nloops. Distinct from the 2-part
-    component_latency<SEP>name columns, these are specific to a loop level and may be
-    pushed to work during earlier Einsums 
+    Format: level_latency component_name nloops. One column per (component, loop level).
+    Unlike component_latency<SEP>component_name, these are used to calculate total
+    latency because they may be shared across Einsums.
     """
     parts = x.split(SEP)
-    if len(parts) != 3 or parts[0] != "component_latency":
+    if len(parts) != 3 or parts[0] != "level_latency":
         return None
     return ComponentLatencyKey(parts[1], int(parts[2]))
 
 
 @dict_cached
 def complatency2col(name: str, nloops: int) -> str:
-    """Format: component_latency name nloops"""
-    return f"component_latency<SEP>{name}<SEP>{nloops}"
+    """Format: level_latency name nloops"""
+    return f"level_latency<SEP>{name}<SEP>{nloops}"
 
 
 @dict_cached
@@ -209,12 +209,6 @@ def col2iterations(col: str) -> int | None:
 
 
 @dict_cached
-def firstlatency2col(name: str, nloops: int) -> str:
-    """Format: first latency name level"""
-    return f"first_latency<SEP>{name}<SEP>{nloops}"
-
-
-@dict_cached
 def tensor2col(tensor: str) -> str:
     """Format: tensor tensor_name"""
     return f"tensor<SEP>{tensor}"
@@ -232,6 +226,38 @@ def col2nametensor(col: str) -> str | None:
 @dict_cached
 def is_tensor_col(c: str) -> bool:
     return c.startswith("tensor<SEP>")
+
+
+@dict_cached
+def is_action_col(c: str) -> bool:
+    return c.startswith(f"action{SEP}")
+
+
+@dict_cached
+def is_usage_col(c: str) -> bool:
+    return c.startswith(f"usage{SEP}")
+
+
+@dict_cached
+def is_latency_col(c: str) -> bool:
+    return (
+        c == f"Total{SEP}latency"
+        or c.split(SEP)[0] == "component_latency"
+        or col2complatency(c) is not None
+    )
+
+
+@dict_cached
+def is_energy_col(c: str) -> bool:
+    parts = c.split(SEP)
+    if parts[0] == "energy":
+        return True
+    return parts[0] == "Total" and parts[1] in (
+        "energy",
+        "dynamic_energy",
+        "leak_energy",
+        "energy_delay_product",
+    )
 
 
 @dict_cached

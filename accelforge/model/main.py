@@ -60,14 +60,31 @@ def evaluate_mapping(
         specification for that particular Einsum. If provided, then these will be used
         instead of re-parsing the specification.
     """
+    from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
+        clean_compress_and_join_pmappings,
+    )
+
+    return clean_compress_and_join_pmappings(
+        pmappings=_model_pmappings(spec, flattened_arches, evaluated_specs),
+        metrics=spec.model.metrics,
+        print_progress=False,
+        for_model=True,
+    )
+
+
+def _model_pmappings(
+    spec: Spec,
+    flattened_arches: dict[(EinsumName, str), list[arch.Leaf]] | None = None,
+    evaluated_specs: dict[EinsumName, Spec] | None = None,
+):
+    """
+    Run the model on each pmapping, returning ready-to-join per-Einsum pmappings.
+    """
     from accelforge.mapper.FFM._join_pmappings.compatibility import Compatibility
     from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
         PmappingDataframe,
     )
     from accelforge.mapper.FFM._join_pmappings.pmapping_group import PmappingGroup
-    from accelforge.mapper.FFM._join_pmappings.join_pmappings import (
-        clean_compress_and_join_pmappings,
-    )
     from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
     from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
         get_rank_variable_bounds_for_all_einsums,
@@ -175,9 +192,7 @@ def evaluate_mapping(
         job.memories_track_all = [
             m.name for m in flattened_arch if isinstance(m, Memory)
         ]
-        job.components_track_latency = oset(
-            m.name for m in flattened_arch if isinstance(m, arch.TensorHolder)
-        )
+        job.components_track_latency = oset(m.name for m in flattened_arch)
         job.ignored_resources = oset()
 
         job.fusable_tensors = fusable_tensors & oset(job.tensor_to_relevancy)
@@ -235,20 +250,15 @@ def evaluate_mapping(
         if einsum_name in einsum2pmappings
     }
 
-    return clean_compress_and_join_pmappings(
-        pmappings=MultiEinsumPmappings(
-            spec=spec,
-            einsum2pmappings=einsum2pmappings,
-            pmapping_objects=pmapping_objects,
-            einsum2jobs=einsum2jobs,
-            can_combine_multiple_runs=False,
-            einsums_with_pmappings_generated=oset(spec.workload.einsum_names),
-            flattened_arches=flattened_arches,
-            evaluated_specs=evaluated_specs,
-        ),
-        metrics=spec.model.metrics,
-        print_progress=False,
-        for_model=True,
+    return MultiEinsumPmappings(
+        spec=spec,
+        einsum2pmappings=einsum2pmappings,
+        pmapping_objects=pmapping_objects,
+        einsum2jobs=einsum2jobs,
+        can_combine_multiple_runs=False,
+        einsums_with_pmappings_generated=oset(spec.workload.einsum_names),
+        flattened_arches=flattened_arches,
+        evaluated_specs=evaluated_specs,
     )
 
 

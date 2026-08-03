@@ -1,7 +1,7 @@
 from numbers import Number
 from sympy import Symbol
 import accelforge.frontend.arch as arch
-from accelforge.frontend.mapping import TensorHolder, Toll
+from accelforge.frontend.mapping import Loop, TensorHolder, Toll
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.model._looptree.reuse import symbolic
 from accelforge.util._frozenset import oset
@@ -21,7 +21,6 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     reservation2col,
     complatency2col,
     tensor2col,
-    firstlatency2col,
     action2col,
     energy2col,
 )
@@ -48,12 +47,27 @@ def run_model(
         job, add_reservations=add_reservations
     )
 
+    tensor_to_backing = {}
+    n_shared_loops = 0
+    n_loops = 0
+    for node in pmapping.nodes:
+        if isinstance(node, Loop):
+            n_loops += 1
+        elif isinstance(node, TensorHolder):
+            for tensor in node.tensors:
+                if tensor not in tensor_to_backing:
+                    tensor_to_backing[tensor] = node.component
+                    if tensor in job.fusable_tensors:
+                        n_shared_loops = n_loops
+
+    private_level = n_shared_loops
+
     latency, latency_per_level = component_latency(
         reuse,
         job.flattened_arch,
         pmapping,
-        spec,
         per_level_components=oset(job.components_track_latency),
+        n_shared_loops=n_shared_loops,
     )
     overall_latency = max_nonzero(*latency.values())
 
@@ -110,7 +124,7 @@ def run_model(
                     )
                 scaled_usage = usage * s.usage_scale
                 spatial_usage[node.name, s.name] = scaled_usage
-                s = f"usage<SEP>spatial<SEP>{node.name}<SEP>{s.name}"
+                s = reservation2col(f"{node.name} {s.name}", private_level)
                 spatial_usage_df[s] = scaled_usage
 
     component_to_non_power_gated_porp, _ = spec.arch._power_gating(
@@ -125,12 +139,6 @@ def run_model(
     energy = compute_energy_from_actions(
         spec, actions, overall_latency, component_to_non_power_gated_porp
     )
-
-    tensor_to_backing = {}
-    for node in pmapping.nodes:
-        if isinstance(node, TensorHolder):
-            for tensor in node.tensors:
-                tensor_to_backing.setdefault(tensor, node.component)
 
     # A Toll is a pass-through and must never be the outermost level backing a tensor —
     # that would leave no real Memory holding it.
@@ -190,10 +198,10 @@ def run_model(
             continue
         size = memory_to_size[memory]
         running_total = 0
-        for n_loop in sorted(n_loop_options):
-            if n_loop in occupancies:
-                running_total += occupancies[n_loop]
-                df[reservation2col(memory, n_loop)] = running_total / size
+        for n_loop, occupancy in sorted(occupancies.items()):
+            running_total += occupancy
+            col = reservation2col(memory, int(min(n_loop, private_level)))
+            df[col] = running_total / size
         if isinstance(running_total, Number) and running_total > size:
             raise InvalidMappingError(
                 f"The mapping uses {running_total} bits of {memory} but its size is "
@@ -246,6 +254,7 @@ def run_model(
             tensor_to_backing,
             workload.einsums[job.einsum_name].output_tensor_names,
         )
+
         per_component_total = []
         for component in oset(latency) | oset(comm_latency):
             l = comm_latency.get(component, 0)
@@ -255,13 +264,6 @@ def run_model(
                 per_component_total.append(l)
 
         df["Total<SEP>latency"] = max_nonzero(*per_component_total) * n_instances
-        # For first latency, we'll follow the convention of treating compute
-        # as a component, similarly to memory (see below).
-        for compute_level, stats in reuse.compute_stats.items():  # FIRST LATENCY
-            for idx, max_first_latency in stats.max_first_latency.items():
-                df[firstlatency2col(compute_level.level, idx)] = (
-                    max_first_latency * n_instances
-                )
 
     # =================================================================================
     # Energy
@@ -280,7 +282,7 @@ def run_model(
     per_memory_spatial_usage_df = {}
     for memory, occupancies in total_occupancy.items():
         ignored = memory in job.ignored_resources
-        key = f"usage<SEP>memory<SEP>{memory}"
+        key = reservation2col(memory, private_level)
         if not ignored:
             per_memory_spatial_usage_df[key] = (
                 sum(occupancies.values()) / memory_to_size[memory]

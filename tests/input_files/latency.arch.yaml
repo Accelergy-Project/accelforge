@@ -5,6 +5,7 @@ arch:
     size: inf
     leak_power: 0
     area: 0
+    separate_read_write_ports: {{ MM_SEPARATE_PORTS | default(False) }}
     tensors: {keep: All}
     actions:
     - name: read

@@ -23,6 +23,15 @@ from accelforge.frontend.mapping import (
 )
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    SEP,
+    col2complatency,
+    col2reservation,
+    is_action_col,
+    is_energy_col,
+    is_objective_col,
+    is_usage_col,
+    is_latency_col,
+    is_tensor_col,
     stride2col,
     initial2col,
     iterations2col,
@@ -2052,9 +2061,8 @@ def makesymbol(name: str):
 def make_keep_symbols(pmapping: Mapping) -> set[Symbol]:
     keep_symbols = oset()
     for node in pmapping.nodes:
-        if (
-            (isinstance(node, Loop) and node._fused)
-            or (isinstance(node, Spatial) and node._shared_tensor_binding)
+        if (isinstance(node, Loop) and node._fused) or (
+            isinstance(node, Spatial) and node._shared_tensor_binding
         ):
             if isinstance(node.initial_tile_shape, Symbol):
                 keep_symbols.add(node.initial_tile_shape)
@@ -2327,21 +2335,19 @@ def _make_tile_shapes(job: "Job"):
     # ==================================================================================
     # Memory usage and usage constraints.
     # ==================================================================================
+    # Each resource's usage is its reservation at the first level other Einsums
+    # can never share (the reservation with the most loops). Only that one gets
+    # max_value=1: shallower reservation columns are running subsets of it.
     for k, v in {**per_memory_usage_df, **usage_df}.items():
         # If we only track for pmappings, we only care if it's valid. If we track for
         # all, we care about the value too.
 
-        split = k.split("<SEP>")
-        assert split[0] == "usage", f"invalid {split}"
-        if split[1] == "spatial":
-            assert len(split) == 4
-        elif split[1] == "memory":
-            assert len(split) == 3
-        else:
-            assert False, f"invalid {split}"
+        reservation = col2reservation(k)
+        assert reservation is not None, f"invalid usage column {k}"
+        resource = reservation.name
 
         only_care_if_valid = False
-        if split[2] in job.memories_track_pmappings_only:
+        if resource in job.memories_track_pmappings_only:
             only_care_if_valid = True
 
         # TODO: Update check to see if we may be sharing usage with other
@@ -2364,7 +2370,7 @@ def _make_tile_shapes(job: "Job"):
         # with a different number of objectives).
 
         absolute_tolerance = tolerance
-        if split[-1] not in job.memories_track_pmappings_only:
+        if resource not in job.memories_track_pmappings_only:
             absolute_tolerance /= job.workload_n_einsums
 
         objectives.append(
@@ -2388,13 +2394,17 @@ def _make_tile_shapes(job: "Job"):
         component_name,
         name,
     ), constraint in job.constraints.min_usage_constraints.items():
-        usage_key = f"usage<SEP>spatial<SEP>{component_name}<SEP>{name}"
-        if usage_key not in usage_df:
-            continue
+        n = f"{component_name} {name}"
+        rcols = [(k, col2reservation(k)) for k in usage_df]
+        matches = [r for r in rcols if r[1] is not None and r[1].name == n]
+        assert matches, (
+            f"min_usage constraint on {component_name} {name} matches no usage "
+            f"column; have {sorted(usage_df)}"
+        )
         objectives.append(
             Objective(
                 name=f"min_usage_{component_name}_{name}",
-                formula=usage_df[usage_key],
+                formula=usage_df[max(matches, key=lambda x: x[1].nloops)[0]],
                 symbols=symbols,
                 only_care_if_valid=True,
                 min_value=constraint.min_usage,
@@ -2423,15 +2433,37 @@ def _make_tile_shapes(job: "Job"):
     # transformation of the values between these steps, so error doesn't stack (it's
     # just doing the same pruning, perhaps with a different number of objectives).
     for k, v in symbolic_df.items():
-        if "Total" not in k:
+        # Objectives (total latency, total energy)
+        if is_objective_col(k):
+            pass
+        # Per-component latencies. Include as separate objectives since they may be
+        # overlapped during joining
+        elif col2complatency(k) is not None:
+            pass
+        # Handled by reservations above
+        elif col2reservation(k) is not None:
             continue
+        # Reservation sizes for allocs&frees in joining. The same for all pmappings with
+        # a compatibility, so ignore here
+        elif is_tensor_col(k):
+            continue
+        # For model. Skip.
+        elif (
+            is_latency_col(k) or is_action_col(k) or is_energy_col(k) or is_usage_col(k)
+        ):
+            continue
+        else:
+            raise ValueError(
+                f"Column {k} is not handled by the tile-shape search objective "
+                f"selection. Add it above as an objective (pass) or not (continue)."
+            )
 
         objectives.append(
             Objective(
                 name=k,
                 formula=v,
                 symbols=symbols,
-                terms_do_not_cross_zero="energy" in k or "latency" in k,
+                terms_do_not_cross_zero=is_energy_col(k) or is_latency_col(k),
                 tolerance=job.objective_tolerance,
             )
         )
@@ -2500,11 +2532,11 @@ def _make_tile_shapes(job: "Job"):
     t0 = time.time()
     for key in compiled_df:
         df[key] = call_compiled_objective(compiled_df[key], *choices_float.T)
-        if "latency" in key and "first_latency" not in key:
+        if is_latency_col(key):
             val = [df[key]] if isinstance(df[key], Number) else df[key]
             if any(l < 0 for l in val):
                 raise ValueError(f"Negative latency for {key}: {val}")
-        if "energy" in key:
+        if is_energy_col(key):
             arr = df[key]
             if isinstance(arr, Number):
                 if arr < 0:
@@ -2531,7 +2563,7 @@ def _make_tile_shapes(job: "Job"):
         df = pd.DataFrame(df, columns=df.keys(), index=[0])
     assert not df.isna().any().any()
 
-    energy_cols = [c for c in df.columns if "energy" in c]
+    energy_cols = [c for c in df.columns if is_energy_col(c)]
     if (df[energy_cols] < 0).any(axis=None):
         for col in energy_cols:
             series = df[col]

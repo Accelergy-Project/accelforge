@@ -23,7 +23,7 @@ arch:
   - !Memory
     name: GlobalBuffer
     size: 1024*1024*128*8 # 128MB
-    total_latency: max(a.n_calls / a.throughput for a in actions) # Separate ports
+    separate_read_write_ports: True
     leak_power: 0
     area: 112e-6 # From paper fig. 6
     actions:

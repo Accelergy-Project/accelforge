@@ -113,35 +113,6 @@ class Action(EvalableModel):
     that are known to the component model, but not accelforge, such as clock
     frequency."""
 
-    _n_calls: int | float = PrivateAttr(default=0)
-    """
-    How many times this action is performed in the current Einsum. DO NOT SET THIS
-    VALUE. Used by the model.
-    """
-
-    _model_running: bool = PrivateAttr(default=False)
-    """ Guard: True only while the model is actively populating ``_n_calls``. Reading
-    ``n_calls`` outside of that window raises. Set via ``_set_n_calls``. """
-
-    @property
-    def n_calls(self) -> int | float:
-        """
-        The number of times this action is performed in the current Einsum. When
-        accessed through the total_latency expression, returns the number of calls of
-        this action in the current Einsum.
-        """
-        if not self._model_running:
-            raise RuntimeError(
-                f"Action {self.name!r}.n_calls is only valid while the model is "
-                f"running; access it from a Component.total_latency expression rather "
-                f"than directly."
-            )
-        return self._n_calls
-
-    def _set_n_calls(self, value: int | float) -> None:
-        self._n_calls = value
-        self._model_running = True
-
     def _attributes_for_component_model(self) -> dict[str, Any]:
         return {
             **self.shallow_model_dump(),
@@ -295,25 +266,27 @@ class Component(Spatialable):
     component's energy and latency.
     """
 
-    total_latency: str | int | float = "sum(a.n_calls / a.throughput for a in actions)"
+    total_latency: Any = None
     """
-    An expression representing the total latency of this component in seconds. This is
-    used to calculate the latency of a given Einsum. Special variables available are the
-    following:
-
-    - `min`: The minimum value of all arguments to the expression.
-    - `max`: The maximum value of all arguments to the expression.
-    - `sum`: The sum of all arguments to the expression.
-    - `actions`: The list of ``Action`` objects for this component. Action attributes
-      include n_calls as well as all generally-available action attributes.
-
-    Additionally, all component attributes are availble as variables, and all other
-    functions generally available in parsing. Note this expression is evaluated after
-    other component attributes are evaluated.
-
-    For example, the following expression takes the max bound across separate ports:
-    ``max(a.n_calls / a.throughput for a in actions)``.
+    REMOVED. A component's latency is the sum, over its actions, of the action
+    count divided by the action's ``throughput``. Set per-action ``throughput``
+    to control latency. For a storage with separate read and write ports, set
+    ``separate_read_write_ports: True`` instead of a max-over-ports expression.
     """
+
+    @field_validator("total_latency")
+    @classmethod
+    def _total_latency_removed(cls, v):
+        if v is not None:
+            raise ValueError(
+                "total_latency was removed. A component's latency is the sum over "
+                "its actions of the action count divided by the action's "
+                "throughput, so set per-action `throughput` attributes instead. "
+                "For a storage with separate read and write ports, set "
+                "`separate_read_write_ports: True` to model read and write latency "
+                "independently."
+            )
+        return v
 
     latency_scale: EvalsTo[int | float] = 1
     """
@@ -1199,6 +1172,13 @@ class Memory(TensorHolder):
     actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
 
+    separate_read_write_ports: EvalsTo[bool] = False
+    """
+    If True, reads and writes use independent ports: for latency, this memory is
+    treated as two components, "{name} (read)" and "{name} (write)", which may
+    overlap in time. If False, reads and writes are serialized.
+    """
+
     _n_physical: NoParse[int] = 1
     """
     Number of physical units bound to this memory level.
@@ -1341,18 +1321,12 @@ class Network(Component, Leaf):
 
     actions: EvalableList[Action] = NETWORK_ACTIONS
 
-    total_latency: str | int | float = "max_link_traffic/actions['hop'].throughput"
+    total_latency: None = None
     """
-    Models latency as bandwidth-bound, which means that the traffic over the most
-    congested link dominates the overall communication latency. Note that max_hops *
-    actions['hop'].latency will already be included in wind-up and wind-down of the
-    network.
-
-    Keywords:
-    
-    - `max_hops` returns the number of hops in the longest route. 
-    - `max_link_traffic` returns the amount of traffic (in bits) over the most congested
-      link.
+    REMOVED. A network's latency is bandwidth-bound: the traffic over the most
+    congested link divided by the hop action's ``throughput``. Wind-up/down uses
+    max_hops * the hop action's ``latency``. Setting this attribute raises an
+    error.
     """
 
     bits_per_value: EvalsTo[dict] = {}

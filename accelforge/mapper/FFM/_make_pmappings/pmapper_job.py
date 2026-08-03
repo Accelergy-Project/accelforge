@@ -65,9 +65,12 @@ class Job:
 
     compatibility: Compatibility | None = None
     memories_track_all: list[str] | None = None
+    """ Memories to track for reservations that may be shared accross pmappings."""
     memories_track_pmappings_only: list[str] | None = None
+    """ Memories to track for reservations that are never shared accross pmappings."""
     ignored_resources: set[str] | None = None
     components_track_latency: set[str] | None = None
+    """ Components whose latency may be shared across pmappings """
     time_limit: float | int = float("inf")
     memory_limit: float | int = float("inf")
     messages: list[str] = field(default_factory=list)
@@ -75,6 +78,7 @@ class Job:
     tensor_to_relevancy: (
         dict[TensorName, dict[RankVariable, Relevant | PartiallyRelevant]] | None
     ) = None
+    """ Tensor --> dict of rank variables: relevancy"""
 
     n_total_pmappings: int = 1
     n_valid_pmappings: int = 1

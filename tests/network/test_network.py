@@ -111,10 +111,9 @@ class TestModelMesh(TestCase):
             * KN
             * BITS_PER_VALUE,
         )
-        # PeArray is bandwidth-bound at 1 bit/s: its most congested link carries
-        # T0 (3 * 64) + W0 (3 * 128) + T1 (256) = 832 bits. Wind-up/down adds the
-        # 2 MacArray hops each way (PeArray hops have zero latency).
-        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 832 + 4)
+        # PeArray is bandwidth-bound at 1 bit/s: its most congested link carries T0 (3 *
+        # 64) + W0 (3 * 128) + T1 (256) = 832 bits.
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 832)
 
     def test_hierarchical(self):
         M = 8

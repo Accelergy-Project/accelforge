@@ -582,16 +582,26 @@ class TestLatencyScale(unittest.TestCase):
         )
         self.assertEqual(c.throughput_scale, 0.5)
 
-    def test_component_total_latency_default(self):
+    def test_component_total_latency_removed(self):
         c = Compute(
             name="MAC",
             leak_power=0,
             area=0,
             actions=[{"name": "compute", "energy": 1, "throughput": 1, "latency": 0}],
         )
-        # Default total_latency is an expression
-        self.assertIsInstance(c.total_latency, str)
-        self.assertIn("sum", c.total_latency)
+        # total_latency was removed: latency is the inverse-throughput-weighted
+        # sum of action counts, and setting the old attribute errors.
+        self.assertIsNone(c.total_latency)
+        with self.assertRaisesRegex(Exception, "total_latency was removed"):
+            Compute(
+                name="MAC",
+                leak_power=0,
+                area=0,
+                actions=[
+                    {"name": "compute", "energy": 1, "throughput": 1, "latency": 0}
+                ],
+                total_latency="sum(a.n_calls / a.throughput for a in actions)",
+            )
 
 
 # ============================================================================

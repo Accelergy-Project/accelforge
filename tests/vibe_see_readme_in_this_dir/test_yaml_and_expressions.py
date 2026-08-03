@@ -638,19 +638,28 @@ class TestTollParsed(unittest.TestCase):
 
 
 class TestMemoryTotalLatency(unittest.TestCase):
-    """Test that total_latency expression is stored on Memory."""
+    """total_latency was removed: setting it errors, and separate read/write
+    ports are expressed with separate_read_write_ports."""
 
-    def test_total_latency_expression(self):
-        """The TPU GlobalBuffer uses a throughput-based total_latency expression."""
+    def test_total_latency_raises(self):
+        with self.assertRaisesRegex(Exception, "total_latency was removed"):
+            Memory(
+                name="GB",
+                size=1024,
+                leak_power=0,
+                area=0,
+                total_latency="max(a.n_calls / a.throughput for a in actions)",
+            )
+
+    def test_separate_read_write_ports(self):
+        """The TPU GlobalBuffer models its separate ports with the attribute."""
         arch_path = EXAMPLES_DIR / "arches" / "tpu_v4i.yaml"
         wl_path = EXAMPLES_DIR / "workloads" / "basic" / "three_matmuls_annotated.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML not found")
         spec = Spec.from_yaml(arch_path, wl_path)
         gb = spec.arch.find("GlobalBuffer")
-        self.assertEqual(
-            gb.total_latency, "max(a.n_calls / a.throughput for a in actions)"
-        )
+        self.assertTrue(gb.separate_read_write_ports)
 
 
 class TestEnabledField(unittest.TestCase):
