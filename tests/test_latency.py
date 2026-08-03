@@ -7,7 +7,10 @@ All tests use the matmul-chain workload with M = KN = 4 and 8 bits per value, so
 Einsum does 64 MACs and each tensor is 128 bits.
 """
 
+import copy
 import unittest
+
+import pandas as pd
 from pathlib import Path
 
 import accelforge as af
@@ -19,16 +22,20 @@ INPUT_FILES_DIR = TESTS_DIR / "input_files"
 LATENCY_ARCH = INPUT_FILES_DIR / "latency.arch.yaml"
 NETWORKED_ARCH = INPUT_FILES_DIR / "networked_latency.arch.yaml"
 NETWORKED_MAPPING = INPUT_FILES_DIR / "fused_matmuls_to_networked.mapping.yaml"
+WEIGHTS_INSIDE_MAPPING = INPUT_FILES_DIR / "fused_matmuls_weights_inside.mapping.yaml"
 
 
-def total_latency(arch, mapping, n_einsums, **jinja):
-    spec = Spec.from_yaml(
+def make_spec(arch, mapping, n_einsums, **jinja):
+    return Spec.from_yaml(
         af.examples.workloads.basic.matmuls,
         arch,
         mapping,
         jinja_parse_data={"N_EINSUMS": n_einsums, "M": 4, "KN": 4, **jinja},
     )
-    result = evaluate_mapping(spec)
+
+
+def total_latency(arch, mapping, n_einsums, **jinja):
+    result = evaluate_mapping(make_spec(arch, mapping, n_einsums, **jinja))
     return result.data.iloc[0]
 
 
@@ -107,9 +114,11 @@ class TestSharedMemoryOverlap(unittest.TestCase):
         """When a compute-bound Einsum is fused with a memory-bound Einsum, the shared
         memory's busy time is summed across the Einsums and overlapped with their
         compute: the total is the max of the two, not the sum of per-Einsum maxes.
-        The tensors at MainMemory are backed above the shared m loop, so their
-        reservations are co-resident and their transfers may fill any slice of the
-        fused execution."""
+        A MainMemory transfer runs while the GlobalBuffer reservation on its other
+        end is alive: the weights' GlobalBuffer staging is above the shared m loop,
+        so their reads may fill any slice of the fused execution, while T0/T2's
+        GlobalBuffer reservations live below it, confining that traffic to its own
+        Einsum. MainMemory's total busy time still bounds the total either way."""
         row = total_latency(
             LATENCY_ARCH,
             af.examples.mappings.fused_matmuls_to_simple,
@@ -129,6 +138,167 @@ class TestSharedMemoryOverlap(unittest.TestCase):
         # max(320 + 320, 256 + 1408) = 1664: Matmul0's MainMemory slack absorbs part
         # of Matmul1's traffic. Summing per-Einsum maxes would give 320 + 1408 = 1728.
         self.assertEqual(row["Total<SEP>latency"], 1664)
+
+    def test_separate_read_write_ports(self):
+        """With separate MainMemory ports, reads and writes are independent
+        components that may overlap: W1's reads no longer serialize behind T2's
+        writeback, saving their 64 bit-times versus the shared port's 1664."""
+        row = total_latency(
+            LATENCY_ARCH,
+            af.examples.mappings.fused_matmuls_to_simple,
+            2,
+            MM_READ_THROUGHPUT=1,
+            MM_WRITE_THROUGHPUT=0.1,
+            COMPUTE_THROUGHPUT=0.2,
+            MM_SEPARATE_PORTS=True,
+        )
+        self.assertEqual(
+            row["Matmul0<SEP>component_latency<SEP>MainMemory (read)"], 256
+        )
+        self.assertEqual(
+            row["Matmul1<SEP>component_latency<SEP>MainMemory (read)"], 128
+        )
+        self.assertEqual(
+            row["Matmul1<SEP>component_latency<SEP>MainMemory (write)"], 1280
+        )
+        # T2's writes go to its GlobalBuffer staging below the fused m loop, so
+        # the write port's 1280 is confined to Matmul1's block and sets its
+        # width; the shareable reads (256 + 128 = 384) and the MACs (320 + 320)
+        # hide beneath it. 320 + 1280 = 1600.
+        self.assertEqual(row["Total<SEP>latency"], 1600)
+
+    def test_transfer_needs_deeper_reservation(self):
+        """With every GlobalBuffer staging below the fused m loop, MainMemory
+        transfers can only run during their own Einsum's per-iteration windows, so
+        each Einsum's MainMemory traffic is confined to its block and the overlap
+        credit above is lost. Matmul0 is compute-bound (320 vs reading T0 once and
+        W0 per m iteration: (128 + 4 x 128) / 4 = 160); Matmul1's writeback still
+        dominates its block (128 + 1280 = 1408). 320 + 1408 = 1728, though
+        MainMemory is only busy for 160 + 1408 = 1568 of it."""
+        row = total_latency(
+            LATENCY_ARCH,
+            WEIGHTS_INSIDE_MAPPING,
+            2,
+            MM_READ_THROUGHPUT=4,
+            MM_WRITE_THROUGHPUT=0.1,
+            COMPUTE_THROUGHPUT=0.2,
+        )
+        self.assertEqual(row["Total<SEP>latency"], 1728)
+
+
+class TestLatencyTimeline(unittest.TestCase):
+    """_latency_timeline asserts internally that its total matches the model's
+    Total<SEP>latency, so each call here also cross-checks the layout math."""
+
+    def test_timeline_totals(self):
+        from accelforge.plotting.latency import _latency_timeline
+
+        scenarios = [
+            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 1, 463),
+            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 2, 725),
+            (NETWORKED_ARCH, NETWORKED_MAPPING, 2, 5000),
+        ]
+        jinja = {
+            "MM_READ_LATENCY": 100,
+            "MM_WRITE_LATENCY": 200,
+            "GB_READ_LATENCY": 10,
+            "GB_WRITE_LATENCY": 20,
+            "COMPUTE_LATENCY": 3,
+            "MAC_TILE": 1,
+            "HOP_LATENCY": 100,
+        }
+        for arch, mapping, n_einsums, expected in scenarios:
+            blocks, _, total = _latency_timeline(
+                make_spec(arch, mapping, n_einsums, **jinja)
+            )
+            self.assertEqual(total, expected)
+            self.assertEqual(len(blocks), n_einsums)
+
+    def test_timeline_overlap_layout(self):
+        """The layout from test_fused_memory_bound_overlaps_compute, bar by bar.
+        T0/T2 traffic sits at level 1 (their GlobalBuffer reservations live below
+        the fused m loop, confining it to its own Einsum's block); weight reads sit
+        at level 0 and may fill slack anywhere. Matmul1's T2 writeback fills its
+        block, and MainMemory's total busy time (256 + 1408 = 1664) sets the end."""
+        from accelforge.plotting.latency import _latency_timeline
+
+        blocks, bars, total = _latency_timeline(
+            make_spec(
+                LATENCY_ARCH,
+                af.examples.mappings.fused_matmuls_to_simple,
+                2,
+                MM_READ_THROUGHPUT=1,
+                MM_WRITE_THROUGHPUT=0.1,
+                COMPUTE_THROUGHPUT=0.2,
+            )
+        )
+        self.assertEqual(total, 1664)
+        self.assertEqual(
+            [(b.einsum, b.start, b.end) for b in blocks],
+            [("Matmul0", 0, 320), ("Matmul1", 320, 1664)],
+        )
+        mm = [
+            (b.einsum, b.level, b.start, b.end)
+            for b in bars
+            if b.component == "MainMemory"
+        ]
+        self.assertEqual(
+            sorted(mm),
+            [
+                ("Matmul0", 0, 128, 256),  # W0 reads, shareable
+                ("Matmul0", 1, 0, 128),  # T0 reads, private
+                # W1 reads, shareable; right-aligned to the 1664 deadline
+                ("Matmul1", 0, 1536, 1664),
+                ("Matmul1", 1, 320, 1600),  # T2 writeback, private
+            ],
+        )
+        # Compute has its own lane now, and nothing else (communication is zero
+        # here) is left for the Other lane.
+        mac = [(b.einsum, b.start, b.end) for b in bars if b.component == "MAC"]
+        self.assertEqual(mac, [("Matmul0", 0, 320), ("Matmul1", 320, 640)])
+        self.assertEqual([b for b in bars if b.component is None], [])
+
+    def test_plot_latency(self):
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        from accelforge.plotting.latency import plot_latency
+
+        fig, _ = plot_latency(
+            make_spec(
+                LATENCY_ARCH,
+                af.examples.mappings.fused_matmuls_to_simple,
+                2,
+                MM_READ_THROUGHPUT=1,
+                MM_WRITE_THROUGHPUT=0.1,
+                COMPUTE_THROUGHPUT=0.2,
+            )
+        )
+        plt.close(fig)
+
+    def test_timeline_matches_mapper_output(self):
+        """Timelines built from mapper results match the mapper-reported latency
+        (and, via the internal assert, a fresh model evaluation)."""
+        from accelforge.plotting.latency import _latency_timeline
+
+        spec = Spec.from_yaml(
+            af.examples.arches.simple,
+            af.examples.workloads.basic.matmuls,
+            jinja_parse_data={"N_EINSUMS": 2, "M": 16, "KN": 16},
+        )
+        spec.mapper.metrics = af.mapper.Metrics.LATENCY
+        result = spec.map_workload_to_arch(print_progress=False)
+        two = copy.copy(result)
+        two.data = pd.concat([result.data, result.data])
+        with self.assertRaises(ValueError):
+            _latency_timeline(spec, two)
+        for i in range(len(result.data)):
+            one = copy.copy(result)
+            one.data = result.data.iloc[[i]]
+            _, _, total = _latency_timeline(spec, one)
+            self.assertEqual(total, result.data["Total<SEP>latency"].iloc[i])
 
 
 if __name__ == "__main__":
