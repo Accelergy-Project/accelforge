@@ -4,7 +4,7 @@ import time
 
 from accelforge._accelerated_imports import pandas as pd
 
-from paretoset import paretoset
+# from paretoset import paretoset
 from joblib import delayed
 from sympy import factorint
 
