@@ -131,7 +131,7 @@ class OptimalityThresholder:
                 if k not in edp_mapping.columns:
                     nondominated |= True
                 else:
-                    nondominated |= edp_mapping[k] <= v
+                    nondominated |= edp_mapping[k] <= v * (1 + 1e-5)
             nondominated_by_all &= nondominated
 
         if self._pmapping_row_filter_function is not None:
@@ -996,6 +996,10 @@ def join_pmappings(
     assert not mappings._make_latencies(), (
         f"Component latency columns were not folded into the total latency: "
         f"{mappings._make_latencies()}"
+    )
+    assert not any(mappings._make_commlatencies().values()), (
+        f"Descent/ascent latency columns were not folded into the total latency: "
+        f"{mappings._make_commlatencies()}"
     )
     mappings.make_pareto()
 

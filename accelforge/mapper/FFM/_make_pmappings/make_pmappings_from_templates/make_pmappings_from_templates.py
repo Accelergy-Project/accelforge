@@ -46,6 +46,8 @@ from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     SameTemplateJobs,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2commlatency,
+    commlatency2col,
     is_energy_col,
     is_fused_loop_col,
     is_n_iterations_col,
@@ -54,41 +56,49 @@ from accelforge.util._mathfuncs import _count_factorizations
 
 
 def shift_reservations_by_null_loop_indices(
-    mappings: pd.DataFrame, null_loop_indices: set[int]
+    mappings: pd.DataFrame, null_loop_indices: set[int], n_loops: int = 0
 ):
-    target2newabovename = {}
-    dropcols = []
+    def shift(level):
+        return level - sum(level > i for i in null_loop_indices)
+
+    non_null_loops = [i for i in range(n_loops) if i not in null_loop_indices]
+
+    # Group columns by the column they land on once the null loops are removed.
+    target2sources = {}
     for c in mappings.columns:
         if is_reservation_col(c):
-            key, make_col = col2reservation(c), reservation2col
+            key = col2reservation(c)
+            target = reservation2col(key.name, shift(key.nloops))
         elif (key := col2complatency(c)) is not None:
-            make_col = complatency2col
+            target = complatency2col(key.name, shift(key.nloops))
+        elif (key := col2commlatency(c)) is not None:
+            # A wind-up pours into the outermost remaining loop at or below its
+            # own or, with none remaining, is private and pours into the total.
+            remaining = [i for i in non_null_loops if i >= key.nloops]
+            if remaining:
+                target = commlatency2col(key.direction, shift(min(remaining)))
+            else:
+                target = "Total<SEP>latency"
         else:
             continue
-        above = key.nloops
-        new_above = above - sum(above > i for i in null_loop_indices)
-        target = make_col(key.name, new_above)
-        if target in target2newabovename:
-            # On a collision, keep the column that includes the other: the deeper one
-            # for reservations, the shallower one for latencies.
-            keep_new = above > target2newabovename[target][1]
-            if not is_reservation_col(c):
-                keep_new = not keep_new
-            if keep_new:
-                dropcols.append(target2newabovename[target][0])
-                target2newabovename[target] = (c, above)
-            else:
-                dropcols.append(c)
-        else:
-            target2newabovename[target] = (c, above)
+        target2sources.setdefault(target, []).append((key.nloops, c))
 
-    if dropcols:
-        drop_set = set(dropcols)
-        mappings = mappings[[c for c in mappings.columns if c not in drop_set]]
     renames = {}
-    for target, (source, _) in target2newabovename.items():
-        renames[source] = target
+    for target, sources in target2sources.items():
+        # Wind-ups are serialized --> sum
+        if col2commlatency(target) is not None or target == "Total<SEP>latency":
+            for _, c in sources:
+                if c != target:
+                    mappings[target] = mappings.get(target, 0) + mappings.pop(c)
+        else:
+            # Reservation/latency columns include one another, so keep the one that
+            # includes the rest: the deepest reservation (cumulative downward) or the
+            # shallowest latency (cumulative upward).
+            _, keep = (max if is_reservation_col(target) else min)(sources)
+            renames[keep] = target
+            mappings = mappings.drop(columns=[c for _, c in sources if c != keep])
     mappings = mappings.rename(columns=renames)
+
     if len(mappings.columns) != len(mappings.columns.unique()):
         raise ValueError(f"Duplicate columns: {mappings.columns}")
     return mappings
@@ -412,7 +422,11 @@ def make_pmappings_from_templates(
         )
         for k, v in symbol_renames.items():
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
-        mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
+        mappings = shift_reservations_by_null_loop_indices(
+            mappings,
+            null_loop_indices,
+            n_loops=compatibility.n_loops + len(null_loop_indices),
+        )
 
         energy_cols = [c for c in mappings.columns if is_energy_col(c)]
         if (mappings[energy_cols] < 0).any(axis=None):

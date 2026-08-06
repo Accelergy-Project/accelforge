@@ -24,6 +24,7 @@ from accelforge.frontend.mapping import (
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     SEP,
+    col2commlatency,
     col2complatency,
     col2reservation,
     is_action_col,
@@ -2440,6 +2441,10 @@ def _make_tile_shapes(job: "Job"):
         # overlapped during joining
         elif col2complatency(k) is not None:
             pass
+        # Descent/ascent latency columns are identical for all pmappings within a
+        # compatibility
+        elif col2commlatency(k) is not None:
+            continue
         # Handled by reservations above
         elif col2reservation(k) is not None:
             continue

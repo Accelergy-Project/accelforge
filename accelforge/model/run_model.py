@@ -20,6 +20,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
     reservation2col,
     complatency2col,
+    commlatency2col,
     tensor2col,
     action2col,
     energy2col,
@@ -246,24 +247,29 @@ def run_model(
             for level, cur_latency in level_latency.items():
                 df[complatency2col(component, level)] = cur_latency * n_instances
 
-        # Total latency of each component is its own total_latency plus the worst
-        # communication latency to reach it.
-        comm_latency = communication_latency(
+        # The total latency is the sum of the Einsum's wind-up/down delay and the
+        # slowest component's busy time. Fused-loop-crossing descent and ascent
+        # latencies get their own columns because they may be overlapped with other
+        # Einsums.
+        einsum_delay, ascent_descent_latency = communication_latency(
             reuse,
             job.flattened_arch,
             tensor_to_backing,
             workload.einsums[job.einsum_name].output_tensor_names,
+            n_fused=n_shared_loops,
         )
+        for direction, per_level in ascent_descent_latency.items():
+            for level, cur_latency in per_level.items():
+                df[commlatency2col(direction, level)] = cur_latency * n_instances
 
         per_component_total = []
-        for component in oset(latency) | oset(comm_latency):
-            l = comm_latency.get(component, 0)
+        for component, l in latency.items():
             if component not in latency_per_level:
-                l += latency.get(component, 0)
-            if not isinstance(l, Number) or l != 0:
-                per_component_total.append(l)
+                if not isinstance(l, Number) or l != 0:
+                    per_component_total.append(l)
 
-        df["Total<SEP>latency"] = max_nonzero(*per_component_total) * n_instances
+        slowest = max_nonzero(*per_component_total)
+        df["Total<SEP>latency"] = (slowest + einsum_delay) * n_instances
 
     # =================================================================================
     # Energy

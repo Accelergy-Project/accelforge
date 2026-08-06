@@ -59,17 +59,20 @@ class TestCommunicationLatency(unittest.TestCase):
             GB_WRITE_LATENCY=20,
             COMPUTE_LATENCY=3,
         )
-        # The worst input reaches compute in one MainMemory read + one GlobalBuffer
-        # write + read (100 + 20 + 10 = 130). The output follows with one MAC (3),
-        # winds back up through the GlobalBuffer (20 + 10 = 30), and is read-modify-
-        # written at MainMemory (100 + 200 = 300). 130 + 3 + 30 + 300 = 463, which
-        # dominates the 64-cycle compute steady state.
-        self.assertEqual(row["Total<SEP>latency"], 463)
+        # Each storage's connection is one of each action it performs. The worst
+        # input reaches compute in one MainMemory read + one GlobalBuffer write +
+        # read (100 + 20 + 10 = 130). The output follows: one MAC (3), the
+        # GlobalBuffer's write + read (30), and the MainMemory write (200; the
+        # first tile has nothing to read-modify, so its read is skipped).
+        # 130 + 3 + 30 + 200 = 363, which dominates the 64-cycle compute steady
+        # state.
+        self.assertEqual(row["Total<SEP>latency"], 363)
 
     def test_fused_repays_communication_latency_each_switch(self):
-        """Fused Einsums exchange their intermediate tensor through the shared buffer
-        once per shared-loop iteration, and the communication latency of that exchange
-        is paid on every switch."""
+        """The exchange of the intermediate through the shared buffer happens below
+        the fused loop and is paid on every switch; the weights' fills and the
+        output's drain cross the fused loop, so they are paid once for the whole
+        fused group (descent/ascent latency), bounded by the slowest Einsum."""
         row = total_latency(
             LATENCY_ARCH,
             af.examples.mappings.fused_matmuls_to_simple,
@@ -80,12 +83,16 @@ class TestCommunicationLatency(unittest.TestCase):
             GB_WRITE_LATENCY=20,
             COMPUTE_LATENCY=3,
         )
-        # T1 is backed at the GlobalBuffer below the fused m loop, so its wind-down
-        # repeats for each of the 4 m iterations. Matmul0: worst input 130, then
-        # (one MAC + GlobalBuffer write + read = 33) x 4 iterations = 262. Matmul1
-        # is the unfused 463 from above (T1's inputs wind down 30 x 4 = 120 < 130
-        # from MainMemory). 262 + 463 = 725.
-        self.assertEqual(row["Total<SEP>latency"], 725)
+        # Storages above the fused m loop are reserved once and can pre-send
+        # ahead of it, so their connections are paid once (descent/ascent, maxed
+        # across Einsums); storages below repeat for each of the 4 m iterations
+        # via the Einsum delay. Matmul0: T0's and T1's GlobalBuffer connections
+        # (write + read = 30 each) plus one MAC: (30 + 3 + 30) x 4 = 252.
+        # Matmul1 mirrors it with T1's and T2's GlobalBuffer connections:
+        # (30 + 3 + 30) x 4 = 252. Paid once: the inputs' MainMemory reads
+        # (descent, max = 100) and T2's MainMemory write (ascent, 200; the first
+        # tile skips the read-modify-write read). 252 + 252 + 100 + 200 = 804.
+        self.assertEqual(row["Total<SEP>latency"], 804)
 
     def test_fused_through_slow_interconnect(self):
         """Two Einsums fused through networks pay the hop latency of the intermediate
@@ -93,11 +100,10 @@ class TestCommunicationLatency(unittest.TestCase):
         mesh_hops = 4  # All 4 Scratchpad positions are used: 4 hops on the PeArray
         switch_hops = 1  # The all-to-all MacArray is one hop for any route
         down = mesh_hops + switch_hops  # backing -> compute, and compute -> backing
-        # Matmul0: inputs wind down from MainMemory once (5 hops), then T1 winds up
-        # to its GlobalBuffer backing below the fused m loop on every one of the 4
-        # iterations: 5 + 5 x 4 = 25. Matmul1 mirrors it: T1 winds down 5 x 4 = 20,
-        # then T2 winds up to MainMemory once: 20 + 5 = 25.
-        expected = 2 * (down + down * 4)
+        # Each Einsum's delay is its slowest input's wind-down plus its output's
+        # wind-up (5 hops each way), repeated for each of the 4 iterations of the
+        # fused loop above the intermediate's GlobalBuffer backing.
+        expected = 2 * (down + down) * 4
         for hop_latency in [0, 1, 100]:
             row = total_latency(
                 NETWORKED_ARCH,
@@ -194,9 +200,9 @@ class TestLatencyTimeline(unittest.TestCase):
         from accelforge.plotting.latency import _latency_timeline
 
         scenarios = [
-            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 1, 463),
-            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 2, 725),
-            (NETWORKED_ARCH, NETWORKED_MAPPING, 2, 5000),
+            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 1, 363),
+            (LATENCY_ARCH, af.examples.mappings.fused_matmuls_to_simple, 2, 804),
+            (NETWORKED_ARCH, NETWORKED_MAPPING, 2, 8000),
         ]
         jinja = {
             "MM_READ_LATENCY": 100,

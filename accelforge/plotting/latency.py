@@ -8,7 +8,10 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 
 from accelforge.mapper.FFM import Mappings
-from accelforge.mapper.FFM._pareto_df.df_convention import col2complatency
+from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2commlatency,
+    col2complatency,
+)
 from accelforge.util import oset
 
 _Block = namedtuple("_Block", ["einsum", "start", "end"])
@@ -58,14 +61,19 @@ def _latency_timeline(
     privates = []
     inclusives = []
     excls = []
+    comms = []  # per Einsum: {(direction, level): wind-up/down latency}
     for group in groups:
         row = group.mappings.data.iloc[0]
         privates.append(row["Total<SEP>latency"])
         inclusive = defaultdict(dict)
+        comm = {}
         for col in group.mappings.data.columns:
             if (key := col2complatency(col)) is not None:
                 inclusive[key.name][key.nloops] = row[col]
+            elif (key := col2commlatency(col)) is not None:
+                comm[key] = row[col]
         inclusives.append(inclusive)
+        comms.append(comm)
         excl = {}
         for component, by_level in inclusive.items():
             levels = sorted(by_level)
@@ -114,14 +122,18 @@ def _latency_timeline(
 
     total = 0.0
     ends = []
+    winds = []  # per block: wind-up/down added at its end
     pool = defaultdict(dict)  # component -> {level: latency summed across Einsums}
+    comm_pool = {}  # (direction, level) -> wind-up/down maxed across Einsums
     for i in range(n):
         width = privates[i]
         for cols in inclusives[i].values():
             done = [l for l in cols if l > keeps[i]]
             if done:
                 width = max(width, cols[min(done)])
-        total += width
+        # Wind-up/down of unshared fused loops serializes with the busy time.
+        wind = sum(v for (_, l), v in comms[i].items() if l > keeps[i])
+        total += width + wind
         for component, cols in inclusives[i].items():
             kept = {l: v for l, v in cols.items() if l <= keeps[i]}
             mine = pool[component]
@@ -129,19 +141,32 @@ def _latency_timeline(
                 l: at_or_below(mine, l) + at_or_below(kept, l)
                 for l in set(mine) | set(kept)
             }
+        # Shared fused loops' wind-up/down is maxed across the Einsums filling
+        # them, then added when the loop is freed.
+        for key, v in comms[i].items():
+            if key[1] <= keeps[i]:
+                comm_pool[key] = max(comm_pool.get(key, 0), v)
         for cols in pool.values():
             done = [l for l in cols if l > settles[i]]
             if done:
                 total = max(total, cols[min(done)])
             for l in done:
                 del cols[l]
+        for key in list(comm_pool):
+            if key[1] > settles[i]:
+                folded = comm_pool.pop(key)
+                total += folded
+                wind += folded
         ends.append(total)
+        winds.append(wind)
 
     def floor(level, i):
         return max((ends[j] for j in range(i) if settles[j] < level), default=0.0)
 
     def deadline(level, i):
-        return next((ends[j] for j in range(i, n) if settles[j] < level), ends[-1])
+        # Busy time must finish before the wind-up/down at its deadline block's end.
+        j = next((j for j in range(i, n) if settles[j] < level), n - 1)
+        return ends[j] - winds[j]
 
     busy = defaultdict(list)  # component -> sorted (start, end) of placed bars
 
@@ -167,6 +192,9 @@ def _latency_timeline(
             bars.append(
                 _Bar(None, None, einsum, block_start, block_start + privates[i], False)
             )
+        # Wind-up/down folded at this block's end serializes after its busy time.
+        if winds[i] > 0:
+            bars.append(_Bar(None, None, einsum, ends[i] - winds[i], ends[i], False))
 
     # Latency deeper than keep is private to its Einsum's block; co-resident
     # latency may fill slack anywhere in its co-residency window (down to the
@@ -185,7 +213,9 @@ def _latency_timeline(
                             component, floor(level, i), amount, deadline(level, i)
                         )
                     else:
-                        start = place(component, blocks[i].start, amount, ends[i])
+                        start = place(
+                            component, blocks[i].start, amount, ends[i] - winds[i]
+                        )
                     bars.append(
                         _Bar(component, level, einsum, start, start + amount, shared)
                     )
@@ -221,6 +251,13 @@ def plot_latency(
         spec.mapping.
     ax:
         The axes to plot on. If not given, creates a new figure and axes.
+
+    Returns
+    -------
+    fig:
+        The figure containing the plot.
+    ax:
+        The axes containing the plot.
     """
     blocks, bars, total = _latency_timeline(spec, mappings)
 

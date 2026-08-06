@@ -226,6 +226,8 @@ class PmappingDataframe:
                     source = get_latency_or_below(name, nloops + 1, latencies)
                     if source is not None:
                         latency_targets.append((nloops, source, below))
+                elif col2commlatency(below) is not None:
+                    pass
                 else:
                     raise ValueError(f"{below} is not a valid reservation column")
 
@@ -287,6 +289,14 @@ class PmappingDataframe:
                 latencies.setdefault(key.name, oset()).add(key.nloops)
                 assert key.nloops >= -1
         return latencies
+
+    def _make_commlatencies(self) -> dict[str, oset]:
+        """Fused loop levels with a "descent" or "ascent" column."""
+        levels = {"descent": oset(), "ascent": oset()}
+        for c in self.data.columns:
+            if (key := col2commlatency(c)) is not None:
+                levels[key.direction].add(key.nloops)
+        return levels
 
     def clear_fused_loop_symbols(self):
         dropcols = [c for c in self.data.columns if is_fused_loop_col(c)]
@@ -388,6 +398,15 @@ class PmappingDataframe:
                 self.data, "Total<SEP>latency", complatency2col(component, min(done))
             )
             drop_columns += [complatency2col(component, l) for l in done]
+
+        # Wind-up/down times serialize with the freed window's busy time, so add them
+        # after the maxes above.
+        for direction, levels in self._make_commlatencies().items():
+            for level in levels:
+                if level > loop_index:
+                    col = commlatency2col(direction, level)
+                    self.data["Total<SEP>latency"] += self.data[col]
+                    drop_columns.append(col)
 
         self._data = self.data.drop(columns=drop_columns)
 
@@ -679,13 +698,18 @@ class PmappingDataframe:
                     if source is not None:
                         add_to_col(df, target, source)
 
-        # For everything else: Simple add
+        # Most other things: Simple add. Descent/ascent wind-up latencies are maxed
+        # because they can be paid in parallel across all Einsums that are
+        # descending/ascending together.
         dropcols = [c for c in df.columns if c.endswith("_RIGHT_MERGE")]
         for source in dropcols:
             target = source[: -len("_RIGHT_MERGE")]
             if is_tensor_col(target):
                 continue
             if col2complatency(target) is not None:
+                continue
+            if col2commlatency(target) is not None:
+                max_to_col(df, target, source)
                 continue
             if not col_used_in_pareto(target):
                 raise ValueError(f"{target} is not used in pareto")

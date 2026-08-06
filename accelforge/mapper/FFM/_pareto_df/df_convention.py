@@ -133,6 +133,7 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
 
 ReservationKey = namedtuple("ReservationKey", ["name", "nloops"])
 ComponentLatencyKey = namedtuple("ComponentLatencyKey", ["name", "nloops"])
+CommLatencyKey = namedtuple("CommLatencyKey", ["direction", "nloops"])
 
 
 @dict_cached
@@ -152,6 +153,25 @@ def col2complatency(x: str) -> ComponentLatencyKey | None:
 def complatency2col(name: str, nloops: int) -> str:
     """Format: level_latency name nloops"""
     return f"level_latency<SEP>{name}<SEP>{nloops}"
+
+
+@dict_cached
+def col2commlatency(x: str) -> CommLatencyKey | None:
+    """Format: (descent_latency | ascent_latency) nloops. The time it takes for
+    computation to move down (or up) the LoopTree across fused loops."""
+    parts = x.split(SEP)
+    if len(parts) != 2 or parts[0] not in ("descent_latency", "ascent_latency"):
+        return None
+    if not parts[1].isdigit():  # e.g. merge-suffixed copies of the column
+        return None
+    return CommLatencyKey(parts[0][: -len("_latency")], int(parts[1]))
+
+
+@dict_cached
+def commlatency2col(direction: str, nloops: int) -> str:
+    """Format: (descent_latency | ascent_latency) nloops"""
+    assert direction in ("descent", "ascent")
+    return f"{direction}_latency{SEP}{nloops}"
 
 
 @dict_cached
@@ -344,6 +364,7 @@ def col_used_in_pareto(c):
     return (
         col2reservation(c) is not None
         or col2complatency(c) is not None
+        or col2commlatency(c) is not None
         or is_objective_col(c)
     )
 

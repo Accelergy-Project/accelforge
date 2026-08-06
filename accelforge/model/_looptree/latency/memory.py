@@ -42,66 +42,106 @@ def communication_latency(
     flattened_arch: FlattenedArch,
     tensor_to_backing: dict[str, str],
     output_tensors,
-) -> dict[str, object]:
+    n_fused: int = 0,
+) -> tuple[object, dict[str, dict[int, object]]]:
     """
-    Communication latency per component: the time to move one tile of each tensor to
-    that level. Inputs travel from their backing storage down; outputs are produced
-    after the worst input reaches compute, then travel from compute up. Each level on
-    the path charges one call of each action it performs for the tensor; each network
-    on the path charges its longest route. The whole path repeats once per temporal
-    iteration above the backing storage. Returns, for each component, the worst
-    communication latency over all tensors.
+    Communication latency, split at the fused loops.
+
+    Each tensor's path is a chain of connection latencies, one into each storage.
+    Connections that cross loops are paid for each loop iteration, and are returned as
+    descent (inputs moving down) or ascent (outputs moving up) latencies. These are
+    multiplied by the number of iterations above the destination.
+
+    The rest of each path is lumped into the Einsum delay: the slowest input winds down
+    to compute, a computation runs, and the result winds up to the slowest output, all
+    repeating once per iteration of the deepest backing storage.
+
+    Returns (Einsum delay, {"descent" | "ascent": {level: latency}}).
     """
     name2component = {n.name: n for n in flattened_arch}
     name2index = {n.name: i for i, n in enumerate(flattened_arch)}
+    compute = flattened_arch[-1]
+
+    def connection_latencies(stats):
+        """
+        Pay latency for one action from every storage node. Once a buffet stats
+        (reservation) is available, it can immediately receive data from above & start
+        sending data to below. Per-level latency assumes that we can pre-send to a level
+        below once this level is available, assuming that it arrives at the next level
+        as soon as that level is available.
+        """
+        stats = sorted(stats, key=lambda c: name2index[c[0]])
+        connections = []
+        connection_latency = 0
+        for i, (level, s) in enumerate(stats):
+            if isinstance(s, NetworkStats):
+                connection_latency += (
+                    s.max_hops * name2component[level].actions["hop"].latency
+                )
+            elif isinstance(s, BuffetStats):
+                actions = name2component[level].actions
+                for action, count in s.net_total_actions().items():
+                    if not isinstance(count, Number) or count != 0:
+                        connection_latency += actions[action].latency
+                connections.append((level, s, connection_latency))
+                connection_latency = 0
+            else:
+                raise ValueError(f"Unknown stats type: {type(s)}")
+        return connections, connection_latency
 
     tensor_stats = {}
     for b, s in reuse.buffet_stats.items():
-        tensor_stats.setdefault(b.tensor, []).append((b.level, s))
+        if b.level != compute.name:
+            tensor_stats.setdefault(b.tensor, []).append((b.level, s))
     for n, s in reuse.network_stats.items():
         tensor_stats.setdefault(n.tensor, []).append((n.component, s))
 
-    communication = defaultdict(list)
-    worst_input_to_compute = 0
-    # Inputs first: outputs build on the worst input's arrival at compute.
-    tensor_order = sorted(tensor_stats, key=lambda t: t in output_tensors)
-    for tensor in tensor_order:
-        stats = tensor_stats[tensor]
+    per_level_latencies = {"descent": defaultdict(list), "ascent": defaultdict(list)}
+    slowest_input, slowest_output = 0, 0
+    backing = []
+
+    for tensor, stats in tensor_stats.items():
         is_output = tensor in output_tensors
-        stats.sort(key=lambda c: name2index[c[0]], reverse=is_output)
-        backing = tensor_to_backing[tensor]
+        cur_latencies = per_level_latencies["ascent" if is_output else "descent"]
 
-        cur_latency = 0
-        iterations = None
-        tensor_latency = {}
-        for level, stats in stats:
-            if isinstance(stats, BuffetStats):
-                if level == backing:
-                    iterations = stats.iterations_above
-                cur_latency += sum(
-                    name2component[level].actions[action].latency
-                    for action, count in stats.total_actions.items()
-                    if not isinstance(count, Number) or count != 0
-                )
-                tensor_latency[level] = cur_latency
-            elif isinstance(stats, NetworkStats):
-                cur_latency += (
-                    stats.max_hops * name2component[level].actions["hop"].latency
-                )
-                tensor_latency[level] = cur_latency
+        connections, into_compute = connection_latencies(stats)
+        cumulative_latency = into_compute
+        for level, s, connection_latency in connections:
+            if level == tensor_to_backing.get(tensor):
+                backing.append(s)
+
+            # < n_fused -> track each level independently
+            if s.n_loops_above < n_fused:
+                nloops = max(0, s.n_loops_above)
+                cur_latencies[nloops].append(connection_latency * s.iterations_above)
+
+            # >= n_fused -> lump all levels together. We can start once our
+            # longest-latency input arrives at compute, does a computation, and then
+            # goes back up to the longest-latency output.
             else:
-                raise ValueError(f"Unknown stats type: {type(stats)}")
+                cumulative_latency += connection_latency
 
-        assert iterations is not None, f"Tensor {tensor} has no backing storage"
-        start = worst_input_to_compute if is_output else 0
-        for level in tensor_latency:
-            communication[level].append(start + tensor_latency[level] * iterations)
-        if not is_output:
-            worst_input_to_compute = max_nonzero(
-                worst_input_to_compute, cur_latency * iterations
-            )
+        if is_output:
+            slowest_output = max_nonzero(slowest_output, cumulative_latency)
+        else:
+            slowest_input = max_nonzero(slowest_input, cumulative_latency)
 
-    return {level: max_nonzero(*vals) for level, vals in communication.items()}
+    compute_latency = compute.actions["compute"].latency
+    if backing:
+        deepest_backing = max(backing, key=lambda s: s.n_loops_above)
+        fused_iterations = deepest_backing.iterations_above
+    else:
+        fused_iterations = 1
+    einsum_delay = slowest_input + slowest_output + compute_latency
+    einsum_delay *= fused_iterations
+
+    return (
+        einsum_delay,
+        {
+            direction: {level: max_nonzero(*vals) for level, vals in per.items()}
+            for direction, per in per_level_latencies.items()
+        },
+    )
 
 
 def component_latency(
