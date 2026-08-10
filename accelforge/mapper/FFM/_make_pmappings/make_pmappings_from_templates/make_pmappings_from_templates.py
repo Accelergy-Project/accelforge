@@ -97,25 +97,27 @@ def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
         return [f"{einsum_name}<SEP>{c}" if isinstance(c, str) else c for c in cols]
 
 
-def get_fused_loop_indices(
+def _get_non_degenerate_loops(
     df: pd.DataFrame,
-    compatibility: Compatibility,
+    n_iterations: list,
     einsum_name: EinsumName,
-    return_as_int: bool = False,
-) -> pd.Series | int:
+    return_as_int: bool,
+) -> pd.Series | int | list[bool]:
     """
-    If `return_as_int`
+    For each loop bound in `n_iterations`, whether the loop is non-degenerate (i.e.,
+    its bound is not one).
+
+    If `return_as_int`, the flags are packed into one integer (or an integer Series
+    if any of them is data-dependent) that can be grouped on. Otherwise, a list of
+    per-loop booleans is returned; this requires that each flag is the same for
+    every row of `df`.
     """
     result = []
-
-    loops = compatibility.loops
-    for i, loop in enumerate(loops):
-        col = loop.tile_pattern.calculated_n_iterations
-        assert col is not None, f"Loop {loop} has no calculated n_iterations"
+    for col in n_iterations:
+        if isinstance(col, sympy.Symbol):
+            col = col.name
         if isinstance(col, str):
             col = df[f"{einsum_name}<SEP>{col}"]
-        elif isinstance(col, sympy.Symbol):
-            col = df[f"{einsum_name}<SEP>{col.name}"]
         result.append(col != 1)
 
     if return_as_int:
@@ -126,10 +128,44 @@ def get_fused_loop_indices(
     else:
         r2 = []
         for b in result:
-            if len(b.unique()) > 1:
-                raise ValueError(f"This won't work if there's more than one")
-            r2.append(b.iloc[0])
+            if isinstance(b, pd.Series):
+                if len(b.unique()) > 1:
+                    raise ValueError(f"This won't work if there's more than one")
+                b = b.iloc[0]
+            r2.append(b)
         return r2
+
+
+def get_fused_loop_indices(
+    df: pd.DataFrame,
+    compatibility: Compatibility,
+    einsum_name: EinsumName,
+    return_as_int: bool = False,
+) -> pd.Series | int:
+    n_iterations = []
+    for loop in compatibility.loops:
+        col = loop.tile_pattern.calculated_n_iterations
+        assert col is not None, f"Loop {loop} has no calculated n_iterations"
+        n_iterations.append(col)
+    return _get_non_degenerate_loops(df, n_iterations, einsum_name, return_as_int)
+
+
+def get_non_degenerate_physical_spatial_loops(
+    df: pd.DataFrame,
+    compatibility: Compatibility,
+    einsum_name: EinsumName,
+    return_as_int: bool = False,
+) -> pd.Series | int | list[bool]:
+    """
+    Same as `get_fused_loop_indices`, but for the physical spatial (binding) loops
+    of physically distributed storages.
+    """
+    return _get_non_degenerate_loops(
+        df,
+        compatibility.physical_spatial_loop_iterations(),
+        einsum_name,
+        return_as_int,
+    )
 
 
 def _count_loops(job: Job) -> tuple[list[int], list[int], dict[str, int]]:
@@ -370,7 +406,10 @@ def make_pmappings_from_templates(
     df["fused_loop_indices"] = get_fused_loop_indices(
         df, job0.compatibility, einsum_name, return_as_int=True
     )
-    groups = list(df.groupby(["fused_loop_indices"]))
+    df["physical_spatial_loop_indices"] = get_non_degenerate_physical_spatial_loops(
+        df, job0.compatibility, einsum_name, return_as_int=True
+    )
+    groups = list(df.groupby(["fused_loop_indices", "physical_spatial_loop_indices"]))
     total_pmappings_per_group = sum(
         j.n_total_pmappings for j in jobs_with_similar_compatibilities
     ) / len(groups)
@@ -395,10 +434,24 @@ def make_pmappings_from_templates(
             i for i in range(compatibility.n_loops) if i not in fused_loop_indices
         )
 
-        dropcols = ["fused_loop_indices"]
+        null_physical_spatial_loops = {
+            n
+            for n, non_degenerate in zip(
+                compatibility.physical_spatial_loop_iterations(),
+                get_non_degenerate_physical_spatial_loops(
+                    mappings, compatibility, einsum_name
+                ),
+            )
+            if not non_degenerate
+        }
+
+        dropcols = ["fused_loop_indices", "physical_spatial_loop_indices"]
         mappings = mappings.drop(columns=dropcols)
 
         compatibility = compatibility.drop_loop_indices(null_loop_indices)
+        compatibility = compatibility.drop_physical_spatial_loops(
+            null_physical_spatial_loops
+        )
 
         symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
             einsum_name

@@ -17,7 +17,7 @@ from accelforge.frontend.mapping import (
     TilePattern,
     Loop as MappingLoop,
 )
-from accelforge.frontend.renames import Rank, RankVariable, TensorName
+from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_ANY
 from accelforge.frontend.workload import Einsum, Workload
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,
@@ -240,12 +240,16 @@ class TensorReservation(Updatable):
             ),
         )
         if len(self.physical_spatial_loops) > 0:
+            assert len(updated_loops.physical_spatial_loops) == len(
+                reservation_node.binding
+            ), (
+                f"Physical spatial loops {updated_loops.physical_spatial_loops} do not "
+                f"match binding {reservation_node.binding}"
+            )
             new_loop = []
             for compat_loop, mapping_loop in zip(updated_loops.physical_spatial_loops, reservation_node.binding):
                 mapping_tile_pattern = mapping_loop.tile_pattern._symbol2str()
-                raise NotImplementedError()
-                new_compat_tile_pattern = mapping_tile_pattern
-                new_loop.append(compat_loop.update(tile_pattern=new_compat_tile_pattern))
+                new_loop.append(compat_loop.update(tile_pattern=mapping_tile_pattern))
             return updated_loops.update(physical_spatial_loops=tuple(new_loop))
         else:
             return updated_loops
@@ -262,6 +266,15 @@ class TensorReservation(Updatable):
     def drop_loop_indices(self, loop_indices: set[int]) -> "TensorReservation":
         loops = tuple(l for i, l in enumerate(self.loops) if i not in loop_indices)
         return self.update(loops=loops)
+
+    def drop_physical_spatial_loops(self, n_iterations: set) -> "TensorReservation":
+        return self.update(
+            physical_spatial_loops=tuple(
+                l
+                for l in self.physical_spatial_loops
+                if l.tile_pattern.calculated_n_iterations not in n_iterations
+            )
+        )
 
     def _prepend_symbols(self, prepend: str) -> "TensorReservation":
         return self.update(
@@ -755,6 +768,33 @@ class Compatibility(Updatable):
             tensors=tensors,
             splits=splits,
             reservation_indices=reservation_indices,
+        )
+
+    def physical_spatial_loop_iterations(self) -> list[str | int | None]:
+        """
+        The distinct `calculated_n_iterations` of all physical spatial (binding)
+        loops, in a deterministic order. A spatial loop that binds more than one
+        storage yields the same value for each of them; it appears only once.
+        """
+        result = []
+        for t in sorted(self.tensors, key=lambda t: (t.name, t.resource_name)):
+            for l in t.physical_spatial_loops:
+                n = l.tile_pattern.calculated_n_iterations
+                if n not in result:
+                    result.append(n)
+        return result
+
+    def drop_physical_spatial_loops(self, n_iterations: set) -> "Compatibility":
+        """
+        Drop the physical spatial loops whose `calculated_n_iterations` is in
+        `n_iterations`. Used to drop loops with a bound of one, which neither
+        partition nor replicate the tensor across the physical instances of a
+        distributed memory.
+        """
+        return self.update(
+            tensors=fzs(
+                t.drop_physical_spatial_loops(n_iterations) for t in self.tensors
+            )
         )
 
     def _prepend_symbols(self, prepend: str) -> "Compatibility":

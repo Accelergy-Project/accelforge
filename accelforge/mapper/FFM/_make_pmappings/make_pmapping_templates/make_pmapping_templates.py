@@ -23,7 +23,7 @@ from accelforge.frontend.mapping import (
     TensorHolder,
     Temporal,
 )
-from accelforge.frontend.renames import Rank
+from accelforge.frontend.renames import Rank, RANK_ANY
 from accelforge.frontend.spec import Spec
 from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import (
@@ -434,32 +434,38 @@ def iterate_mappings_constraints(
 def infer_default_binding(mapping: Mapping, job: Job):
     """
     Insert a non-duplicating binding for distributed memories.
+
+    Spatial loops below a block of Storage nodes bind every distributed storage in
+    the block; a Storage node appearing after spatial loops starts a new block.
     """
-    last_distributed_storage = None
-    irrelevant_rvs = None
+    active_storages: list[tuple[Storage, TensorName, set]] = []
+    spatial_seen = False
     for node in mapping.nodes:
         if isinstance(node, Storage):
-            last_distributed_storage = None
-            irrelevant_rvs = None
+            if spatial_seen:
+                active_storages = []
+                spatial_seen = False
             component = node.component_object
             assert isinstance(component, arch.Spatialable), f"{component}"
             if not component._is_distributed():
                 continue
             assert isinstance(component, arch.Memory)
             assert len(node.tensors) == 1
-            last_distributed_storage = node
             tensor = next(iter(node.tensors))
             irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
-        elif isinstance(node, Spatial) and last_distributed_storage is not None:
-            binding_spatial = node.model_copy()
-            rv = binding_spatial.rank_variable
-            if rv in irrelevant_rvs:
-                raise NotImplementedError()
-            else:
-                ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
-                assert len(ranks) == 1
-                binding_spatial.rank_variable = next(iter(ranks))
-            last_distributed_storage.binding.append(binding_spatial)
+            active_storages.append((node, tensor, irrelevant_rvs))
+        elif isinstance(node, Spatial) and active_storages:
+            spatial_seen = True
+            for storage, tensor, irrelevant_rvs in active_storages:
+                binding_spatial = node.model_copy()
+                rv = binding_spatial.rank_variable
+                if rv in irrelevant_rvs:
+                    binding_spatial.rank_variable = RANK_ANY
+                else:
+                    ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
+                    assert len(ranks) == 1
+                    binding_spatial.rank_variable = next(iter(ranks))
+                storage.binding.append(binding_spatial)
 
 
 # =================================================================================================
