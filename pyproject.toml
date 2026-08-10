@@ -19,8 +19,8 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic_core>=2.33.0",
     "ruamel.yaml>=0.18.0",
+    "islpy>=2025",
     "jinja2>=3.1.0",
-    "islpy-barvinok >= 2025.2.5",
     "sympy>=1.14.0",
     "symengine>=0.14.0",
     "numba>=0.61.2",
@@ -48,6 +48,7 @@ dev = [
     "nbconvert",
     "nbformat",
     "ipykernel",
+    "islpy-barvinok >= 2025.2.5",
 ]
 
 # Warn when modules, classes, methods, or functions lack docstrings (run: pydocstyle .)

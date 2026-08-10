@@ -170,6 +170,13 @@ class MappingNode(EvalableModel):
                     nodes.extend(node.get_nodes_of_type(types))
         return nodes
 
+    def get_all_children(self) -> list["MappingNode"]:
+        nodes: list["MappingNode"] = []
+        for node in self._flatten():
+            if node is not self:
+                nodes.append(node)
+        return nodes
+
     def _flatten(self) -> list["MappingNode"]:
         if isinstance(self, MappingNodeWithChildren):
             result = [self]
@@ -766,8 +773,9 @@ class MappingNodeWithChildren(MappingNode):
 
     @override
     def _get_backers(self) -> list[TensorHolder]:
+        """Returns all backers among children of this node."""
         backing = []
-        for child in self.nodes:
+        for child in self.get_all_children():
             if isinstance(child, TensorHolder) and child._backing:
                 backing.append(child)
             elif isinstance(child, MappingNodeWithChildren):
@@ -1056,6 +1064,12 @@ class Nested(MappingNodeWithChildren):
         return self.nodes[0]._render_node_name()
 
     def _get_n_shared_loops(self, other: "Nested") -> int:
+        """
+        Return the number of loops in `self` above backers of shared tensors. These
+        backers are assumed to be at the top segment (not under any split). When
+        used to determine number of shared loops, one must be certain that the
+        loops are indeed the same since this method does not check that.
+        """
         my_backing = oset(
             (t, s.component) for s in self._get_backers() for t in s._backing
         )
@@ -1068,26 +1082,17 @@ class Nested(MappingNodeWithChildren):
             return 0
 
         n_shared_loops = 0
-        for i, node in enumerate(self.nodes):
+        for node in self.nodes:
             if isinstance(node, Loop):
                 n_shared_loops += 1
-            if (
+            elif (
                 isinstance(node, Reservation)
                 and (node.purpose, node.resource) in shared_backing
             ):
-                return n_shared_loops
-            if isinstance(node, Split):
-                for child in node.nodes:
-                    max_child_n_shared_loops = 0
-                    try:
-                        max_child_n_shared_loops = max(
-                            max_child_n_shared_loops, child._get_n_shared_loops(other)
-                        )
-                    except ValueError:
-                        pass
-                    return max_child_n_shared_loops + n_shared_loops
-
-        raise ValueError("BUG")
+                shared_backing.remove((node.purpose, node.resource))
+                if len(shared_backing) == 0:
+                    return n_shared_loops
+        return n_shared_loops
 
     def _break_into_reorderable_groups(
         self, stop_at_n_loops: int

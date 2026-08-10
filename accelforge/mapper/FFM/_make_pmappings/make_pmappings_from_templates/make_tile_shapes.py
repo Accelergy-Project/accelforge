@@ -929,21 +929,31 @@ def check_loops(
     max_loop_check_groups: list[tuple[Number, list[Symbol]]],
     what_tiles_symbol: SymbolRelations,
 ):
+    def known_or_int(x: Symbol | int):
+        return isinstance(x, int) or isinstance(x, Symbol) and x in symbols_enumerated
+
     def get_size(x: Symbol | int):
-        if isinstance(x, Symbol) and x in symbols_enumerated:
+        if isinstance(x, Symbol):
             return choices_enumerated[:, symbols_enumerated.index(x)]
-        elif isinstance(x, Symbol):
-            return what_tiles_symbol.get_max_size(x)
-        else:
+        elif isinstance(x, int):
             return x
+        raise TypeError(f"cannot get_size object of type: {type(x)}")
 
     def has_fanout(x: Symbol | int):
-        try:
-            outer = get_size(what_tiles_symbol.get_outer_tiles(x))
-        except ValueError:
+        # A loop exists iff the tile shape differs from the one just outside it. Only
+        # count loops for which we can prove that here: if either tile shape is not
+        # enumerated yet, the two may still be chosen equal, and guessing a size for
+        # the un-enumerated one would prune choices that are still valid. Every group
+        # is fully enumerated by the time enumeration finishes, so the count becomes
+        # exact before we return any tile shapes.
+        if isinstance(x, int):
             return False
-        inner = get_size(x)
-        return outer != inner
+        elif isinstance(x, Symbol):
+            outer = what_tiles_symbol.get_outer_tiles(x)
+            if not known_or_int(x) or not known_or_int(outer):
+                return False
+            return get_size(outer) != get_size(x)
+        raise TypeError("cannot if has_fanout an object of type: {type(x)}")
 
     for limit, group in max_loop_check_groups:
         if len(group) <= limit:
