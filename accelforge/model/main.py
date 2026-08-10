@@ -141,9 +141,9 @@ def evaluate_mapping(
         job.initial_delta_choices = get_initial_delta_choices(
             job.einsum_name, spec.workload
         )
-        pmapping.split_reservations()
-        pmapping.split_loop_with_multiple_rank_variables(job.einsum_name)
-        pmapping.split_tensor_holders_with_multiple_tensors()
+        pmapping._split_reservations()
+        pmapping._split_loop_with_multiple_rank_variables(job.einsum_name)
+        pmapping._split_tensor_holders_with_multiple_tensors()
         _add_backing_to_tensor_holders(pmapping)
 
         job.mapping = pmapping
@@ -155,9 +155,9 @@ def evaluate_mapping(
                 job.einsum_name
             ].tensor_names
         }
-        pmapping.clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
-        pmapping.clear_reservations()
-        pmapping.clear_bindings()
+        pmapping._clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
+        pmapping._clear_reservations()
+        pmapping._clear_bindings()
 
         # component_objects are can become stale from mapper to here
         # if calling just model, they are unset
