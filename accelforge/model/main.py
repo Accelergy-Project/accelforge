@@ -76,7 +76,7 @@ def evaluate_mapping(
         run_model,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
-        infer_default_binding,
+        apply_binding,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
         _calculate_iterations_and_rank_columns,
@@ -157,7 +157,6 @@ def evaluate_mapping(
         }
         pmapping.clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
         pmapping.clear_reservations()
-        pmapping.clear_bindings()
 
         # component_objects are can become stale from mapper to here
         # if calling just model, they are unset
@@ -179,7 +178,10 @@ def evaluate_mapping(
         job.fusable_tensors = fusable_tensors & oset(job.tensor_to_relevancy)
         einsum = cur_spec.workload.einsums[job.einsum_name]
 
-        infer_default_binding(job.mapping, job)
+        # Keep the binding the mapping already has, if any, so that a mapping found by
+        # the mapper is modeled with the binding the mapper chose for it. Otherwise
+        # (e.g. a mapping written by hand), use the locally-optimal binding.
+        apply_binding(job.mapping, job, job.mapping.get_binding_ranks())
 
         _, df, _, _, tensor2mapping, _ = run_model(
             job, add_reservations=True

@@ -29,15 +29,14 @@ from typing import (
     Union,
     override,
 )
-from collections.abc import Set
+from collections.abc import Iterable, Set
 from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
-from accelforge.frontend.renames import EinsumName, TensorName
+from accelforge.frontend.renames import EinsumName, Rank, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
-    EvalableDict,
     EvalableModel,
     EvalableList,
     EvalsTo,
@@ -171,6 +170,9 @@ class MappingNode(EvalableModel):
             if node is not self:
                 nodes.append(node)
         return nodes
+
+    def has_binding(self) -> bool:
+        return False
 
     def _flatten(self) -> list["MappingNode"]:
         if isinstance(self, MappingNodeWithChildren):
@@ -344,7 +346,7 @@ class Loop(MappingNode):
 
     """
 
-    tile_shape: EvalsTo[sympy.Symbol | sympy.Expr | int | str] = "symbol"
+    tile_shape: EvalsTo[sympy.Symbol | sympy.Expr | int | str | None] = "symbol"
     """
     The (common) tile shape of the iteration. For example, if the iteration
     space is range(6) and the tile shape is 3, then we create and iterate over
@@ -359,6 +361,9 @@ class Loop(MappingNode):
     to tell the model to create a sympy symbol to use as the tile shape. Any
     other string may be specified to explicitly request a variable name (later
     converted to a sympy variable).
+
+    In general, the tile shape should be specified. However, the tile shape can
+    be None if the mapping is constructed piecemeal (e.g., by the mapper).
     """
 
     initial_tile_shape: EvalsTo[sympy.Symbol | sympy.Expr | int | str | None] = None
@@ -649,11 +654,17 @@ class Storage(TensorHolder):
     A Storage :class:`~.TensorHolder` that can hold tensors for reuse.
     """
 
-    binding: EvalableDict[EinsumName, Spatial] = []
+    binding: EvalableList[Spatial] = []
     """
-    Spatial loops that make up the binding of the tensor. Should only be used
-    if `tensors` only has one tensor.
+    Spatial loops that make up the binding of the tensor: one per spatial loop below
+    this Storage, each binding a rank of the tensor (or ANY, meaning that the tensor is
+    replicated across that spatial dimension). Should only be used if `tensors` only has
+    one tensor.
     """
+
+    @override
+    def has_binding(self):
+        return len(self.binding) > 0
 
     def _merge(self, other: "Storage") -> "Storage":
         if not isinstance(other, Storage):
@@ -672,6 +683,45 @@ class Storage(TensorHolder):
         if self.binding:
             s += f"-{self.binding}"
         return s
+
+
+def iter_binding_blocks(
+    nodes: "Iterable[MappingNode]",
+) -> list[tuple[Storage, list["Spatial"]]]:
+    """
+    Iterate over :class:`~.Storage` node of physically-distributed memories
+    with the Spatial loops that bind it.
+
+    Spatial loops below a block of Storage nodes bind every distributed Storage
+    in the block; a Storage node appearing after spatial loops starts a new
+    block. Blocks are returned in the order in which their Storage nodes appear
+    top to bottom.
+    """
+    blocks: list[tuple[Storage, list[Spatial]]] = []
+    active: list[tuple[Storage, list[Spatial]]] = []
+    spatial_seen = False
+    for node in nodes:
+        if isinstance(node, Storage):
+            if spatial_seen:
+                active = []
+                spatial_seen = False
+            component = node.component_object
+            assert isinstance(component, arch.Spatialable), f"{component}"
+            if not component._is_distributed():
+                continue
+            assert isinstance(component, arch.Memory)
+            assert len(node.tensors) == 1, (
+                f"Binding is per-tensor, but {node.compact_str()} holds "
+                f"{len(node.tensors)} tensors."
+            )
+            block = (node, [])
+            active.append(block)
+            blocks.append(block)
+        elif isinstance(node, Spatial) and active:
+            spatial_seen = True
+            for _, spatials in active:
+                spatials.append(node)
+    return blocks
 
 
 class Toll(TensorHolder):
@@ -806,6 +856,10 @@ class MappingNodeWithChildren(MappingNode):
                 found = False
                 for n in new_nodes[::-1]:
                     if isinstance(n, TensorHolder) and n.component == node.component:
+                        # A binding is per-tensor, so a Storage that has one is kept
+                        # separate from the other tensors of its component.
+                        if n.has_binding() or node.has_binding():
+                            break
                         n.tensors.extend(
                             n2 for n2 in node.tensors if n2 not in n.tensors
                         )
@@ -1708,6 +1762,21 @@ class Mapping(Nested):
         for node in self.nodes:
             if isinstance(node, Storage):
                 node.binding = EvalableList()
+
+    def get_binding_ranks(self) -> list[list[Rank]] | None:
+        """
+        The ranks bound by each physically-distributed Storage node, in the order given
+        by :func:`~.iter_binding_blocks`. Returns None if this Mapping does not have a
+        binding.
+        """
+        blocks = iter_binding_blocks(self.nodes)
+        if not any(storage.binding for storage, _ in blocks):
+            return None
+        if any(len(storage.binding) != len(spatials) for storage, spatials in blocks):
+            return None
+        return [
+            [loop.rank_variable for loop in storage.binding] for storage, _ in blocks
+        ]
 
     def split_tensor_holders_with_multiple_tensors(self):
         new_nodes = []

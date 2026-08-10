@@ -36,7 +36,9 @@ from accelforge.util import _expfmt, fzs, oset, Permutation
 #    next-innermost...
 # 2. All loops above any shared tensor are co-tiled and must match between PmappingGroups.
 # 3. Spatial loops *below* a physically-distributed storage (i.e., the data binding)
-#    must match. These are in TensorReservations.physical_spatial_loops.
+#    must match in the rank they bind and in their number of iterations, but not in
+#    their tile shape (the bound ranks may have different shapes). These are in
+#    TensorReservations.physical_spatial_loops.
 
 T = TypeVar("T", bound="Updatable")
 
@@ -192,7 +194,9 @@ class TensorReservation(Updatable):
     resource_name: str
     persistent: bool = False
     # Spatial loops *below* this storage that distribute the tensor across physical
-    # instances
+    # instances. Each has the rank it binds and the number of iterations of the spatial
+    # loop it comes from; its tile shape is unset because the bound rank's shape may
+    # differ from the shape of the rank variable that the spatial loop tiles.
     physical_spatial_loops: tuple[Loop] = ()
 
     def __post_init__(self):

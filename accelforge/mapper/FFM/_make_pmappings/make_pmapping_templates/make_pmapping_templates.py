@@ -22,8 +22,10 @@ from accelforge.frontend.mapping import (
     Storage,
     TensorHolder,
     Temporal,
+    iter_binding_blocks,
 )
 from accelforge.frontend.renames import Rank, RANK_ANY
+from accelforge.util._basetypes import EvalableList
 from accelforge.frontend.spec import Spec
 from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
 from accelforge.frontend._workload_isl._symbolic import (
@@ -431,41 +433,159 @@ def iterate_mappings_constraints(
                         return
 
 
-def infer_default_binding(mapping: Mapping, job: Job):
+# =================================================================================================
+# Bindings
+# =================================================================================================
+def default_binding_ranks(
+    tensor: TensorName, spatials: list[Spatial], job: Job
+) -> list[Rank]:
     """
-    Insert a non-duplicating binding for distributed memories.
+    The locally-optimal, non-duplicating binding of `tensor` to the spatial loops
+    `spatials`: partition the tensor along the rank that each spatial loop's rank
+    variable projects into, and replicate it (RANK_ANY) if the loop's rank variable
+    does not index the tensor.
+    """
+    irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
+    rank_variable2ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks
+    ranks = []
+    for loop in spatials:
+        rv = loop.rank_variable
+        if rv in irrelevant_rvs:
+            ranks.append(RANK_ANY)
+        else:
+            rv_ranks = rank_variable2ranks[rv]
+            assert len(rv_ranks) == 1
+            ranks.append(next(iter(rv_ranks)))
+    return ranks
 
-    Spatial loops below a block of Storage nodes bind every distributed storage in
-    the block; a Storage node appearing after spatial loops starts a new block.
+
+def binding_rank_options(
+    tensor: TensorName, spatials: list[Spatial], job: Job
+) -> list[list[Rank]]:
     """
-    active_storages: list[tuple[Storage, TensorName, set]] = []
-    spatial_seen = False
-    for node in mapping.nodes:
-        if isinstance(node, Storage):
-            if spatial_seen:
-                active_storages = []
-                spatial_seen = False
-            component = node.component_object
-            assert isinstance(component, arch.Spatialable), f"{component}"
-            if not component._is_distributed():
-                continue
-            assert isinstance(component, arch.Memory)
-            assert len(node.tensors) == 1
-            tensor = next(iter(node.tensors))
-            irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
-            active_storages.append((node, tensor, irrelevant_rvs))
-        elif isinstance(node, Spatial) and active_storages:
-            spatial_seen = True
-            for storage, tensor, irrelevant_rvs in active_storages:
-                binding_spatial = node.model_copy()
-                rv = binding_spatial.rank_variable
-                if rv in irrelevant_rvs:
-                    binding_spatial.rank_variable = RANK_ANY
-                else:
-                    ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks[rv]
-                    assert len(ranks) == 1
-                    binding_spatial.rank_variable = next(iter(ranks))
-                storage.binding.append(binding_spatial)
+    The ranks that each binding loop of `tensor` may take. A binding loop may partition
+    the tensor along any of the tensor's ranks, or replicate it (RANK_ANY). The
+    locally-optimal choice (see `default_binding_ranks`) comes first for each loop, so
+    the first combination of the options is the default binding.
+    """
+    all_ranks = list(job.einsum.tensor_accesses[tensor].ranks) + [RANK_ANY]
+    return [
+        [default] + [r for r in all_ranks if r != default]
+        for default in default_binding_ranks(tensor, spatials, job)
+    ]
+
+
+def iter_binding_choices(
+    mapping: Mapping,
+    job: Job,
+    explore: bool = False,
+    max_rank_changes: float | int = 1,
+    max_choices: float | int = float("inf"),
+) -> Iterator[list[list[Rank]]]:
+    """
+    Iterate over the bindings of the physically-distributed storages of `mapping`. Each
+    yielded choice gives, for each block of `iter_binding_blocks` in order, the rank
+    bound by each of that block's binding loops.
+
+    Every choice has one binding loop per spatial loop binding the storage, and the
+    binding loops take their iteration counts from those spatial loops (see
+    `insert_sympy_symbols`), so bindings differ only in the ranks they bind.
+
+    There are exponentially many bindings, so they are yielded in order of increasing
+    number of loops that bind a rank other than the locally-optimal one: the
+    locally-optimal binding comes first, then the bindings that change one loop, and so
+    on up to `max_rank_changes` changes and `max_choices` bindings in total.
+    """
+    blocks = iter_binding_blocks(mapping.nodes)
+    block_lengths = [len(spatials) for _, spatials in blocks]
+
+    def split(flat: list[Rank]) -> list[list[Rank]]:
+        """Re-split one flat list of per-loop ranks into per-block ranks."""
+        out, i = [], 0
+        for length in block_lengths:
+            out.append(flat[i : i + length])
+            i += length
+        return out
+
+    # One list of candidate ranks per binding loop, the locally-optimal rank first.
+    options: list[list[Rank]] = list(
+        itertools.chain(
+            *[
+                binding_rank_options(storage.tensor, spatials, job)
+                for storage, spatials in blocks
+            ]
+        )
+    )
+    default = [o[0] for o in options]
+
+    if not explore or not options:
+        yield split(default)
+        return
+
+    n_yielded = 0
+    max_rank_changes = min(max_rank_changes, len(options))
+    for n_changes in range(int(max_rank_changes) + 1):
+        for positions in itertools.combinations(range(len(options)), n_changes):
+            # [1:] because the locally-optimal rank of a loop is not a change to it.
+            for ranks in itertools.product(*[options[p][1:] for p in positions]):
+                if n_yielded >= max_choices:
+                    logging.info(
+                        f"Stopped after exploring {n_yielded} bindings of a pmapping "
+                        f"template. Raise max_binding_options_per_pmapping_template to "
+                        f"explore more."
+                    )
+                    return
+                choice = list(default)
+                for position, rank in zip(positions, ranks):
+                    choice[position] = rank
+                n_yielded += 1
+                yield split(choice)
+
+
+def apply_binding(
+    mapping: Mapping, job: Job, ranks: list[list[Rank]] | None = None
+) -> None:
+    """
+    Bind the tensor of every physically-distributed storage of `mapping` to the spatial
+    loops below it. `ranks` gives the rank bound by each binding loop of each block of
+    `iter_binding_blocks`, as yielded by `iter_binding_choices`; if it is None, the
+    locally-optimal binding is used. Any binding already on the mapping is replaced.
+
+    A binding loop takes only the spatial dimension and the number of iterations of the
+    spatial loop it comes from, not its tile shape. The shape of the bound rank may
+    differ from the shape of the rank variable that the spatial loop tiles. Thus,
+    the tile shapes are cleared.
+    """
+    for i, (storage, spatials) in enumerate(iter_binding_blocks(mapping.nodes)):
+        tensor = storage.tensor
+        block_ranks = (
+            default_binding_ranks(tensor, spatials, job) if ranks is None else ranks[i]
+        )
+        assert len(block_ranks) == len(spatials), (
+            f"Binding of {tensor} in {storage.component} has {len(block_ranks)} loops, "
+            f"but the storage is bound by {len(spatials)} spatial loops."
+        )
+        binding = EvalableList()
+        for loop, rank in zip(spatials, block_ranks):
+            binding_spatial = loop.model_copy()
+            binding_spatial.rank_variable = rank
+            binding_spatial.tile_shape = None
+            binding_spatial.initial_tile_shape = None
+            binding.append(binding_spatial)
+        storage.binding = binding
+
+
+def _copy_mapping(mapping: Mapping) -> Mapping:
+    """
+    A copy of `mapping` whose nodes may be given a different binding without affecting
+    `mapping`. The nodes themselves are shallow copies, matching how templates are built
+    in `iterate_mappings_constraints`; `apply_binding` replaces the binding list of each
+    Storage node rather than mutating it, so the copies do not share bindings.
+    """
+    new = Mapping(nodes=[copy.copy(n) for n in mapping.nodes])
+    new._n_loop_orders = mapping._n_loop_orders
+    new._template_index = mapping._template_index
+    return new
 
 
 # =================================================================================================
@@ -496,6 +616,7 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         )
 
     jobs = SameEinsumJobs()
+    mapper = job.spec_one_einsum.mapper
     only_output_index = job.spec_one_einsum.mapper._only_output_pmapping_with_index
     if isinstance(only_output_index, dict):
         only_output_index = only_output_index.get(job.einsum_name, None)
@@ -506,20 +627,38 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
         if isinstance(only_output_index, set) and i not in only_output_index:
             continue
 
-        infer_default_binding(mapping, job)
-
-        new_job = copy.copy(job)
-        new_job.mapping = mapping
-        new_job.mapping._template_index = i
-        new_job.constraints = constraints
-        new_job.job_id = uuid.uuid4()
-        new_job.rank_variable_bounds = job.rank_variable_bounds
-        mapping_with_reservations = quick_insert_reservation_nodes(new_job)
-        new_job.compatibility = Compatibility.from_mapping(
-            mapping_with_reservations,
-            new_job.fusable_tensors,
-            new_job.einsum,
+        # Each binding of the physically-distributed storages is its own template. The
+        # first one is the locally-optimal binding, which is the only one if bindings
+        # are not being explored. The copies are all taken before any of the templates
+        # below is processed, because processing one may mutate its nodes.
+        binding_choices = list(
+            iter_binding_choices(
+                mapping,
+                job,
+                mapper.explore_bindings,
+                mapper.max_binding_rank_changes,
+                mapper.max_binding_options_per_pmapping_template,
+            )
         )
-        jobs.append(new_job)
+        bound_mappings = [mapping] + [
+            _copy_mapping(mapping) for _ in binding_choices[1:]
+        ]
+
+        for bound_mapping, binding_ranks in zip(bound_mappings, binding_choices):
+            apply_binding(bound_mapping, job, binding_ranks)
+
+            new_job = copy.copy(job)
+            new_job.mapping = bound_mapping
+            new_job.mapping._template_index = i
+            new_job.constraints = constraints
+            new_job.job_id = uuid.uuid4()
+            new_job.rank_variable_bounds = job.rank_variable_bounds
+            mapping_with_reservations = quick_insert_reservation_nodes(new_job)
+            new_job.compatibility = Compatibility.from_mapping(
+                mapping_with_reservations,
+                new_job.fusable_tensors,
+                new_job.einsum,
+            )
+            jobs.append(new_job)
 
     return jobs

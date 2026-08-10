@@ -25,6 +25,7 @@ from accelforge.frontend.mapping import (
     Loop,
     TensorHolder,
     Toll,
+    iter_binding_blocks,
 )
 from accelforge.frontend.workload import (
     Workload,
@@ -515,7 +516,7 @@ def label_shared_tensor_binding_loops(
     fusable_tensors: set[TensorName]
 ):
     # Spatial loops below a block of TensorHolders are binding loops of every
-    # distributed tensor holder in the block (mirrors infer_default_binding).
+    # distributed tensor holder in the block (mirrors iter_binding_blocks).
     found_distributed = False
     spatial_seen = False
     for node in mapping:
@@ -1134,35 +1135,26 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
 
         loop_idx += 1
 
-    # TODO: the current assumption is that the binding defaults to the locally
-    # optimal one, and the rank variables are already set from the pmapping
-    # templates. All we have to do here is ensure the same symbol is used
-    # in the binding loops as the spatial loops they are generated from.
-
-    # Like the block-based walk in infer_default_binding: spatial loops below a
-    # block of Storage nodes bind every distributed storage in the block.
-    active_storages = []
-    spatial_seen = False
-    loop_idx = 0
-    for node in mapping:
-        if isinstance(node, Storage):
-            if spatial_seen:
-                active_storages = []
-                spatial_seen = False
-                loop_idx = 0
-            component = node.component_object
-            assert isinstance(component, arch.Memory)
-            if not component._is_distributed():
-                continue
-            assert len(node.tensors) == 1
-            active_storages.append(node)
-        elif isinstance(node, Spatial) and active_storages:
-            spatial_seen = True
-            for storage in active_storages:
-                binding_loop = storage.binding[loop_idx]
-                binding_loop.initial_tile_shape = node.initial_tile_shape
-                binding_loop.tile_shape = node.tile_shape
-                binding_loop.calculated_n_iterations = node.calculated_n_iterations
-            loop_idx += 1
+    # The ranks bound by the binding loops are already chosen by the pmapping template
+    # (see `apply_binding`). All we have to do here is give each binding loop the
+    # iteration count of the spatial loop it was generated from: the spatial loop fans
+    # out over N physical instances, so the binding splits the tensor N ways along the
+    # rank it binds.
+    #
+    # A binding loop matches its spatial loop in the number of iterations ONLY; it does
+    # NOT share the spatial loop's tile shape. The spatial loop tiles its rank variable,
+    # while the binding loop splits the tensor along the rank it binds, and the two may
+    # have different shapes. So, the tile shape of a binding loop is left unset;
+    # it is implied by the shape of the bound rank (at this # storage) and the
+    # iteration count.
+    for storage, spatials in iter_binding_blocks(mapping):
+        assert len(storage.binding) == len(spatials), (
+            f"Binding of {storage.compact_str()} has {len(storage.binding)} loops, but "
+            f"the storage is bound by {len(spatials)} spatial loops."
+        )
+        for binding_loop, node in zip(storage.binding, spatials):
+            binding_loop.initial_tile_shape = None
+            binding_loop.tile_shape = None
+            binding_loop.calculated_n_iterations = node.calculated_n_iterations
 
     return symbols
