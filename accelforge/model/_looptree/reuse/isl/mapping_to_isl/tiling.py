@@ -345,8 +345,9 @@ def consumer_based_tile_shape_inference(
 
         # For each tensor read by this einsum, tile that tensor's producers.
         for tensor in workload.einsums[einsum].input_tensor_names:
+            # The einsums that write `tensor` -- its producers in this workload.
             producer_einsums: oset[EinsumName] = oset(
-                [e for e in workload.einsums[einsum].output_tensor_names]
+                [e.name for e in workload.einsums if tensor in e.output_tensor_names]
             )
             if len(producer_einsums) > 1:
                 raise NotImplementedError(

@@ -1,6 +1,5 @@
 """
-TODO:   Is this file still necessary? It is referenced elsewhere but is no longer
-        the format we are looking for.
+Deserializes LoopTree reuse-analysis output into ISL objects.
 """
 
 from dataclasses import dataclass, field
