@@ -1,0 +1,53 @@
+accelforge.frontend.arch package
+================================
+
+Submodules
+----------
+
+accelforge.frontend.arch.arch module
+------------------------------------
+
+.. automodule:: accelforge.frontend.arch.arch
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.arch.components module
+------------------------------------------
+
+.. automodule:: accelforge.frontend.arch.components
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.arch.constraints module
+-------------------------------------------
+
+.. automodule:: accelforge.frontend.arch.constraints
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.arch.spatialable module
+-------------------------------------------
+
+.. automodule:: accelforge.frontend.arch.spatialable
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+accelforge.frontend.arch.structure module
+-----------------------------------------
+
+.. automodule:: accelforge.frontend.arch.structure
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: accelforge.frontend.arch
+   :members:
+   :show-inheritance:
+   :undoc-members:
