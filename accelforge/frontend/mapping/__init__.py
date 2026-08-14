@@ -1,4 +1,5 @@
 from .mapping import *
+from ._util import drop_binding_loops_for_removed_spatials, iter_binding_blocks
 
 __all__ = [
     "Compute",
@@ -20,4 +21,7 @@ __all__ = [
     "TensorName",
     "TilePattern",
     "Toll",
+
+    "drop_binding_loops_for_removed_spatials",
+    "iter_binding_blocks",
 ]

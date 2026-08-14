@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, override
 
 from accelforge.frontend.mapping import Spatial
 from accelforge.frontend.arch.components import TopologySpec
@@ -11,8 +11,14 @@ from accelforge.frontend._workload_isl._symbolic import (
     PartiallyRelevant,
 )
 
-from accelforge.util._sympy.broadcast_max import max_nonzero, min_nonzero
+from accelforge.util._sympy.broadcast_max import (
+    MaxGeqZero,
+    max_nonzero,
+    min_nonzero,
+    min_take_zero,
+)
 
+from ._binding import binding_is_local
 from ._common import AnalysisInfo
 from ._stats import NetworkStats, SymbolicAnalysisOutput
 
@@ -28,6 +34,110 @@ class PerLoopTransferCost:
     """Hops added to the longest route by this spatial loop."""
     max_traffic: Any
     """Maximum traffic (in actions) on any single link along this dimension."""
+
+
+@dataclass
+class PhysicalLayout:
+    n_dsts: Any
+    """Destinations along this dimension, i.e. iterations of the spatial loop."""
+    delta_between_dsts: Any
+    """Array coordinates between neighbouring destinations."""
+
+    @property
+    def n_dsts_per_src(self):
+        raise NotImplementedError()
+
+    @property
+    def is_fully_local(self):
+        """Whether dst and src completely overlap."""
+        return min_take_zero(self.n_dsts_per_src - 1, 1)
+
+
+class SingularLayout(PhysicalLayout):
+    @property
+    def n_srcs(self):
+        return 1
+
+    @override
+    @property
+    def n_dsts_per_src(self):
+        return self.n_dsts
+
+
+@dataclass
+class DistributedLayout(PhysicalLayout):
+    """How the physical instances of a distributed source line up with the
+    destinations of one spatial loop, along one dimension.
+
+    Both are evenly spaced across the same span of array coordinates: the
+    destinations ``last_fanout`` apart, the instances ``physical_stride`` apart.
+    One destination per instance therefore sits with it and can read from it
+    without going onto the network at all.
+    """
+
+    n_dsts: Any
+    """Destinations along this dimension, i.e. iterations of the spatial loop."""
+    delta_between_dsts: Any
+    """Array coordinates between neighbouring destinations."""
+    n_srcs: Any
+    """Physical instances of the source memory taking part."""
+    delta_between_srcs: Any
+    """Array coordinates between neighbouring instances."""
+
+    @property
+    def n_dsts_per_src(self):
+        if self.delta_between_srcs == 1:
+            return 1
+        else:
+            return min_nonzero(
+                # If delta_between_dsts > delta_between_srcs, then we set to 1.
+                max_nonzero(self.delta_between_srcs / self.delta_between_dsts, 1),
+                self.n_dsts,
+            )
+
+    @property
+    def single_instance(self) -> bool:
+        """Whether only one instance is active. It then holds everything there is
+        to hold, however the mapping binds the tensor, so there is nothing to
+        scatter across. False when the count is a symbol the model cannot resolve
+        here, which leaves the general formulas to handle it."""
+        return self.n_srcs == 1
+
+    @property
+    def destination_span(self):
+        """Array coordinates from the first destination to the last."""
+        return multicast_cost(self.n_dsts, self.delta_between_dsts)
+
+    @property
+    def instance_span(self):
+        """Array coordinates from the first source instance to the last. Longer
+        than the destinations' span when the source is distributed more finely
+        than the spatial loop fans out."""
+        return multicast_cost(self.n_srcs, self.delta_between_srcs)
+
+
+type PhysicalLayout = SingularLayout | DistributedLayout
+
+
+def physical_layout(
+    src_component, dim_name, shape_repeats, last_fanout
+) -> PhysicalLayout:
+    """The :class:`PhysicalLayout` of ``src_component`` along ``dim_name``, or
+    None if it has only one instance there and so holds everything wherever the
+    mapping says its tensor is bound."""
+    if src_component._get_physical_fanout_along(dim_name) <= 1:
+        return SingularLayout(
+            n_dsts=shape_repeats,
+            delta_between_dsts=last_fanout,
+        )
+
+    physical_stride = src_component._get_physical_stride_along(dim_name)
+    return DistributedLayout(
+        n_dsts=shape_repeats,
+        delta_between_dsts=last_fanout,
+        n_srcs=ratio_geq_one(shape_repeats * last_fanout, physical_stride),
+        delta_between_srcs=physical_stride,
+    )
 
 
 class TopologyModel(ABC):
@@ -71,6 +181,7 @@ class TopologyModel(ABC):
         volume,
         src_component,
         dim_name: str,
+        data_is_local: bool = True,
     ) -> PerLoopTransferCost:
         """Return the :class:`PerLoopTransferCost` for moving ``volume`` of data across one
         spatial loop.
@@ -85,6 +196,13 @@ class TopologyModel(ABC):
             src_component: The flattened-arch component sourcing the data, used
                 to query physical fanout/stride.
             dim_name: The name of the spatial dimension (e.g., ``X`` or ``Y``).
+            data_is_local: Whether the source instance nearest a destination is
+                the one holding what that destination asks for, which is what the
+                locally-optimal binding buys (see :mod:`._binding`). When False,
+                the mapping binds the tensor along some other rank, so each
+                destination's data is spread in equal parts over every instance
+                and has to be delivered from all of them. Only meaningful when
+                the source is physically distributed along ``dim_name``.
         """
         raise NotImplementedError
 
@@ -94,71 +212,156 @@ class MeshTopologyModel(TopologyModel):
 
     Data travels along one axis of the mesh. Multicast delivers a value to every
     point along the dimension; unicast delivers a distinct value to each point.
-    When the source is physically distributed, data is bound as locally as
-    possible across the physical buffers.
+
+    When the source is physically distributed, the binding decides how far the
+    data has to travel. A locally-bound source serves each destination from the
+    instance it sits among, so the line breaks into independent groups; one bound
+    along another rank has to serve every destination from every instance, and
+    the mesh pays the distance to each.
+
+    The closed forms are exact against an enumeration of the traffic whenever the
+    destinations and the instances share a spacing. Where they do not, the
+    scattered ones thin one evenly-spaced grid onto the other and under-count by
+    a few percent at the boundary; see ``TestMeshAgainstBruteForce``.
     """
 
     def per_loop_transfer_cost(
         self,
-        relevancy,
-        *,
+        src_bound_rank,
+        dst_relevancy,
         shape_repeats,
         last_fanout,
         volume,
         src_component,
         dim_name,
     ) -> PerLoopTransferCost:
-        if isinstance(relevancy, Irrelevant):
-            # The volume travels through link by link in one axis of the mesh
-            # Distributed or not, the amount of total cost is the same.
-            # However, the accesses now come from different physical memories
-            total_cost = multicast_cost(shape_repeats, last_fanout) * volume
-            max_hops = shape_repeats * last_fanout
-            max_traffic = volume
-        elif isinstance(relevancy, Relevant):
-            # If distributed, then we bind data as locally as possible in the
-            # physical buffers
-            if src_component._get_physical_fanout_along(dim_name) > 1:
-                physical_stride = src_component._get_physical_stride_along(dim_name)
+        layout = physical_layout(src_component, dim_name, shape_repeats, last_fanout)
+        data_is_local = binding_is_local(src_bound_rank, dst_relevancy)
 
-                if physical_stride == 1:
-                    # Fast special case path
-                    # Assumptions:
-                    #   shape_repeats >= 1
-                    #   last_fanout >= 1
-                    n_dsts_per_physical = 1
-                else:
-                    n_dsts_per_physical = min_nonzero(
-                        # if last_fanout > physical_stride, set n_dst to 1, which results in 0 hops
-                        # later (which is correct because the set of destinations always overlap
-                        # the set of sources).
-                        max_nonzero(physical_stride / last_fanout, 1),
-                        shape_repeats,
+        match dst_relevancy, layout:
+            case Irrelevant(), SingularLayout():
+                # The volume travels through link by link in one axis of the mesh
+                # Distributed or not, the amount of total cost is the same.
+                # However, the accesses now come from different physical memories
+                total_cost = multicast_cost(layout.n_dsts, layout.delta_between_dsts) * volume
+                max_hops = (layout.n_dsts - 1) * layout.delta_between_dsts
+                max_traffic = volume * layout.is_fully_local
+            case Irrelevant(), DistributedLayout():
+                if data_is_local:
+                    # Every instance holds the whole tile, so none of them has to send
+                    # past the destinations it sits among: the line breaks up into
+                    # n_physical independent multicasts of n_dsts_per_physical points.
+                    total_cost, max_hops, max_traffic = self._local_multicast(
+                        layout, volume
                     )
-
-                n_activated_physical = ratio_geq_one(
-                    shape_repeats * last_fanout, physical_stride
-                )
-                total_cost = (
-                    n_activated_physical
-                    * unicast_cost(n_dsts_per_physical, last_fanout)
-                    * volume
-                )
-                max_hops = min_nonzero(
-                    (n_dsts_per_physical - 1) * last_fanout, physical_stride
-                )
-                max_traffic = (n_dsts_per_physical - 1) * volume
-            else:
-                total_cost = unicast_cost(shape_repeats, last_fanout) * volume
-                max_hops = shape_repeats * last_fanout
-                max_traffic = (shape_repeats - 1) * volume
-        elif isinstance(relevancy, PartiallyRelevant):
-            raise NotImplementedError()
-        else:
-            raise RuntimeError(f"unhandled relevancy type {relevancy}")
+                else:
+                    total_cost, max_hops, max_traffic = self._scattered_multicast(
+                        layout, volume
+                    )
+            case Relevant(), SingularLayout():
+                total_cost = unicast_cost(layout.n_dsts, layout.delta_between_dsts) * volume
+                max_hops = (layout.n_dsts-1) * layout.delta_between_dsts
+                max_traffic = (layout.n_dsts - 1) * volume
+            case Relevant(), DistributedLayout():
+                if data_is_local or layout.single_instance:
+                    total_cost, max_hops, max_traffic = self._local_unicast(
+                        layout, volume
+                    )
+                else:
+                    total_cost, max_hops, max_traffic = self._scattered_unicast(
+                        layout, volume
+                    )
+            case PartiallyRelevant(), _:
+                raise NotImplementedError(f"Partially relevant binding unimplemented")
+            case _, _:
+                raise RuntimeError(f"unhandled relevancy type {dst_relevancy}")
 
         return PerLoopTransferCost(
             total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic
+        )
+
+    @staticmethod
+    def _local_multicast(layout: "PhysicalLayout", volume):
+        """Hand every destination the same tile, from the instance it sits among.
+
+        Each instance holds a whole copy, so it multicasts to its own
+        destinations and no further. Returns ``(total_cost, max_hops,
+        max_traffic)``.
+        """
+        span = multicast_cost(layout.n_dsts_per_src, layout.delta_between_dsts)
+        return (
+            layout.n_srcs * span * volume,
+            span,
+            layout.is_fully_local * volume,
+        )
+
+    @staticmethod
+    def _scattered_multicast(layout: "PhysicalLayout", volume):
+        """Hand every destination the same tile, from a source partitioned along
+        one of the tensor's ranks rather than replicated.
+
+        Every instance then holds a ``1 / n_physical`` share that every
+        destination needs, so each multicasts its share across all of them.
+        n_physical multicasts of a 1/n_physical share is the same wire as one
+        multicast of the whole tile -- analysis.ipynb makes the same point the
+        other way round, that on a mesh an all-gather and a broadcast cost the
+        same. Returns ``(total_cost, max_hops, max_traffic)``.
+        """
+        # An instance sitting outside the destinations has to reach across the
+        # gap as well. Averaged over the instances that do, the gap contributes
+        # its own length again in the same proportion as the instances that
+        # overshoot -- hence the square.
+        overshoot = MaxGeqZero(layout.instance_span - layout.destination_span)
+        reach = layout.destination_span + overshoot**2 / (
+            2 * max_nonzero(layout.instance_span, 1)
+        )
+        return (
+            reach * volume,
+            (layout.n_dsts - 1) * layout.delta_between_dsts,
+            volume,
+        )
+
+    @staticmethod
+    def _local_unicast(layout: "PhysicalLayout", volume):
+        """Hand every destination its own tile, from the instance it sits among.
+
+        Returns ``(total_cost, max_hops, max_traffic)``.
+        """
+        n_dsts = layout.n_dsts_per_src
+        return (
+            layout.n_srcs * unicast_cost(n_dsts, layout.delta_between_dsts) * volume,
+            min_nonzero((n_dsts - 1) * layout.delta_between_dsts, layout.delta_between_srcs),
+            (n_dsts - 1) * volume,
+        )
+
+    @staticmethod
+    def _scattered_unicast(layout: "PhysicalLayout", volume):
+        """Hand every destination its own tile, from a source partitioned along a
+        rank other than the one the destinations are spread over.
+
+        A destination's tile then straddles all ``n_physical`` instances in equal
+        parts, so instead of reading ``volume`` from the instance it sits with it
+        collects ``volume / n_physical`` from every one of them, and the mesh pays
+        the distance to each. Returns ``(total_cost, max_hops, max_traffic)``.
+        """
+        # Destinations and instances are two evenly-spaced grids over the same
+        # span, so the sum of the distances between every pair of them is the
+        # pairwise sum over the finer of the two grids, thinned by how sparse each
+        # set is on it. Exact when one spacing divides the other, which is how the
+        # analyzer lays them out.
+        n_grid = max_nonzero(layout.n_dsts, layout.n_srcs)
+        spacing = min_nonzero(layout.delta_between_dsts, layout.delta_between_srcs)
+        between_all_pairs = pairwise_cost(n_grid, spacing)
+
+        return (
+            # ...times a chunk each, of which every destination collects n_physical.
+            between_all_pairs * layout.n_dsts * volume / n_grid**2,
+            # The farthest chunk crosses the whole span.
+            multicast_cost(n_grid, spacing),
+            # The middle link separates about half the instances from about half
+            # the destinations, and carries a chunk for each such pair in each
+            # direction: (n_physical / 2)(shape_repeats / 2) chunks.
+            layout.n_dsts * volume / 4,
         )
 
 
@@ -166,10 +369,17 @@ class AllToAllTopologyModel(TopologyModel):
     """Cost model for an all-to-all network using a switch (e.g. NVLink).
 
     Every node connects to every other node through a switch, so any
-    source reaches any destination in one hop regardless of
+    source reaches any destination in one hop regardless of distance. Distance
+    therefore never enters the cost, and neither does ``last_fanout`` except to
+    work out which instance of the source a destination sits with.
 
-    Physical stride is irrelevant, so ``last_fanout`` and physical distribution
-    are not used.
+    What does matter is how much of what a destination asks for it can read
+    without touching the switch at all. Every unit that has to cross costs one
+    traversal, so the cost is simply the volume delivered minus the volume that
+    was already next door -- which is where the binding comes in: a locally-bound
+    source hands a co-located destination its whole tile, while a source
+    partitioned along another rank hands it only the one share of it that this
+    instance happens to hold.
     """
 
     HOPS_PER_TRANSFER = 1
@@ -179,8 +389,8 @@ class AllToAllTopologyModel(TopologyModel):
 
     def per_loop_transfer_cost(
         self,
-        relevancy,
-        *,
+        src_bound_rank,
+        dst_relevancy,
         shape_repeats,
         last_fanout,
         volume,
@@ -188,31 +398,61 @@ class AllToAllTopologyModel(TopologyModel):
         dim_name,
     ) -> PerLoopTransferCost:
         hops = self.HOPS_PER_TRANSFER
+        data_is_local = binding_is_local(src_bound_rank, dst_relevancy)
 
-        # n - 1 other instances each receive the data across the switch. The
-        # source already holds it (the set of destinations overlaps the set of
-        # sources), so it needs no transfer to itself.
-        n_dsts = shape_repeats - 1
+        layout = physical_layout(src_component, dim_name, shape_repeats, last_fanout)
+        if layout is None:
+            # A single instance holds the whole tile and serves every destination.
+            n_physical = 1
+            n_dsts_per_physical = shape_repeats
+            data_is_local = True
+        else:
+            n_physical = layout.n_srcs
+            n_dsts_per_physical = layout.n_dsts_per_src
 
-        if isinstance(relevancy, (Irrelevant, Relevant)):
+        # One destination per instance sits with it, and reads whatever that
+        # instance holds for it without going near the switch.
+        n_co_located = min_nonzero(shape_repeats, n_physical)
+        if data_is_local:
+            # Such a destination finds its whole tile in the instance it sits with.
+            delivered_locally = n_co_located
+        else:
+            # Its tile is spread over every instance instead, so all it finds next
+            # door is the one share of it that instance holds.
+            delivered_locally = n_co_located / n_physical
+
+        # Both counted in units of `volume`: what the destinations ask for between
+        # them, less what never has to cross.
+        crossing = shape_repeats - delivered_locally
+        # 1 while anything crosses at all, 0 once every read is local.
+        crosses_at_all = min_take_zero(crossing, 1)
+
+        if isinstance(dst_relevancy, (Irrelevant, Relevant)):
             # Same delivery count (and hence energy) whether the data is shared
-            # (multicast) or distinct per instance (unicast): each of the n - 1
-            # destinations is one switch traversal away.
-            total_cost = n_dsts * hops * volume
+            # (multicast) or distinct per instance (unicast): whatever a
+            # destination cannot read locally is one switch traversal away,
+            # wherever it comes from.
+            total_cost = crossing * hops * volume
             # Every route is a single switch traversal, independent of distance.
-            max_hops = hops
-            if isinstance(relevancy, Irrelevant):
+            max_hops = crosses_at_all * hops
+            if isinstance(dst_relevancy, Irrelevant):
                 # Multicast: the switch replicates, so each link carries the
                 # value at most once.
-                max_traffic = volume
+                max_traffic = crosses_at_all * volume
+            elif data_is_local:
+                # Unicast: an instance's uplink to the switch carries a distinct
+                # message for each destination it serves but does not sit with,
+                # making it the most congested link.
+                max_traffic = (n_dsts_per_physical - 1) * volume
             else:
-                # Unicast: the source's uplink to the switch carries all n - 1
-                # distinct messages, making it the most congested link.
-                max_traffic = n_dsts * volume
-        elif isinstance(relevancy, PartiallyRelevant):
+                # Unicast from a source partitioned along another rank: an
+                # instance's uplink carries its one share of the tile for every
+                # destination except the one it sits with.
+                max_traffic = (shape_repeats - 1) * volume / n_physical
+        elif isinstance(dst_relevancy, PartiallyRelevant):
             raise NotImplementedError()
         else:
-            raise RuntimeError(f"unhandled relevancy type {relevancy}")
+            raise RuntimeError(f"unhandled relevancy type {dst_relevancy}")
 
         return PerLoopTransferCost(
             total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic
@@ -295,13 +535,16 @@ class NetworkAnalyzer:
             topology_model = self._get_topology_model(
                 network, flattened_arch[network.component].topology
             )
+            src_bound_rank = self.info.bindings.rank_by_loop.get((id(self.node), network.source.level, network.tensor)),
             per_loop_transfer_cost = topology_model.per_loop_transfer_cost(
+                src_bound_rank,
                 relevancy,
                 shape_repeats=shape_repeats,
                 last_fanout=last_fanout,
                 volume=volume,
                 src_component=src_component,
                 dim_name=self.node.name,
+                data_is_local=self._data_is_local(network, relevancy),
             )
 
             overall_max_hops = topology_model.accumulate_max_hops(
@@ -326,6 +569,17 @@ class NetworkAnalyzer:
         for model in self.topology_models.values():
             overall_max_hops.update(model.overall_max_hops)
         return overall_max_hops
+
+    def _data_is_local(self, network, relevancy) -> bool:
+        """Whether this spatial loop's destinations can each read what they need
+        from the instance of the source memory next to them, which is what the
+        locally-optimal binding buys and what the transfer models assume by
+        default. See :mod:`._binding`.
+        """
+        bound_rank = self.info.bindings.rank_by_loop.get(
+            (id(self.node), network.source.level, network.tensor)
+        )
+        return binding_is_local(bound_rank, relevancy)
 
     def _get_data_volume(self, network, child_shape):
         info = self.info
@@ -358,6 +612,13 @@ def unicast_cost(n_dsts, stride):
     # Cost of unicast is the cost of delivering to each point in
     # the dimension with shape as stride
     return arithmetic_sum(n_dsts - 1) * stride
+
+
+def pairwise_cost(n_dsts, stride):
+    """Total hops of one unit of data travelling between every pair of
+    `n_dsts` points along a dimension, i.e. `sum |i - j| * stride`, which equals
+    `n(n^2 - 1) / 3 * stride`."""
+    return n_dsts * (n_dsts**2 - 1) / 3 * stride
 
 
 def arithmetic_sum(n):

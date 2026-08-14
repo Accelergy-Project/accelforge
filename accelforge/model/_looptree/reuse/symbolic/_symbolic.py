@@ -59,6 +59,7 @@ from ._common import (
     SequenceOfRepatedvalues,
     RepeatedValue,
 )
+from ._binding import index_bindings
 from ._stats import ComputeStats, BuffetStats, NetworkStats, SymbolicAnalysisOutput
 from ._network import NetworkAnalyzer
 from accelforge.util.indent import print
@@ -114,7 +115,6 @@ def convert_to_copy(
     mapping = list(mapping.nodes)
 
     mapping = copy.deepcopy(mapping)
-
 
     for node in mapping:
         if isinstance(node, TensorHolder):
@@ -235,6 +235,10 @@ def analyze_reuse_and_add_reservations_to_mapping(
     result = None
     precomputed_iterations = {}
 
+    # Indexed once here rather than per tensor, because the per-tensor mappings
+    # below reuse these node objects.
+    bindings = index_bindings(mapping.nodes)
+
     tensor2mapping = {}
     for tensor in [None] + sorted(tensors):
         rvs = einsum.tensor2rank_variables.get(
@@ -256,6 +260,7 @@ def analyze_reuse_and_add_reservations_to_mapping(
             tensor_to_backer_id=tensor_to_backer_id,
             is_copy_operation=is_copy_operation,
             job=job,
+            bindings=bindings,
             data_movement_connections=DataMovementConnections.from_pmapping(
                 cur_mapping.nodes
             ),
@@ -512,31 +517,18 @@ def label_fused_loops(mapping: List[MappingNode], fusable_tensors: set[TensorNam
 
 
 def label_shared_tensor_binding_loops(
-    mapping: List[MappingNode],
-    fusable_tensors: set[TensorName]
+    mapping: List[MappingNode], fusable_tensors: set[TensorName]
 ):
-    # Spatial loops below a block of TensorHolders are binding loops of every
-    # distributed tensor holder in the block (mirrors iter_binding_blocks).
-    found_distributed = False
-    spatial_seen = False
-    for node in mapping:
-        if isinstance(node, TensorHolder):
-            if spatial_seen:
-                found_distributed = False
-                spatial_seen = False
-            component = node.component_object
-            found_distributed = found_distributed or (
-                len(node._backing & fusable_tensors) > 0
-                and
-                isinstance(component, arch.Memory)
-                and
-                component._is_distributed()
-            )
+    # A binding loop is exactly a loop that iter_binding_blocks pairs with a
+    # distributed Storage, so use it here. Spatial loops of another spatial component
+    # (e.g., reuse-only fanouts) sit in the same region of the mapping but do not
+    # distribute the tensor, and Compatibility.from_mapping does not carry them. If we
+    # labeled them, they would get n_iterations columns that nothing renames.
+    for storage, spatials in iter_binding_blocks(mapping):
+        if not (storage._backing & fusable_tensors):
             continue
-        if isinstance(node, Spatial):
-            spatial_seen = True
-            if found_distributed:
-                node._shared_tensor_binding = True
+        for spatial in spatials:
+            spatial._shared_tensor_binding = True
 
     return mapping
 
@@ -736,6 +728,28 @@ def analyze_spatial(node_idx, current_shape, info: AnalysisInfo):
     return result_accumulator
 
 
+def replicated_binding_iterations(
+    component: str, tensor: TensorName, info: AnalysisInfo
+) -> dict[str, Any]:
+    """
+    How many times over the binding of `tensor` in `component` replicates it
+    along each spatial dimension: the product of the iteration counts of the
+    binding loops that bind :data:`~accelforge.frontend.renames.RANK_ANY` rather
+    than a rank. Dimensions that the binding partitions along are absent, i.e.
+    they replicate once.
+    """
+    replication: dict[str, Any] = {}
+    for spatial_id, dim in info.bindings.replicating_loops.get((component, tensor), ()):
+        # Recorded for every loop by the first (tensor=None) analysis pass, which
+        # is the only place the model's iteration counts and this mapping's loop
+        # identities are both available.
+        iterations = info.precomputed_iterations.get(spatial_id)
+        if iterations is None:
+            continue
+        replication[dim] = replication.get(dim, 1) * iterations
+    return replication
+
+
 def analyze_storage(
     node_idx: int,
     current_shape: dict[str, int],
@@ -856,6 +870,7 @@ def analyze_storage(
         # =======================
         # For distributed buffers
         n_active_physical_units = 1
+        n_units_holding_the_tile = 1
         if child is not None:
             next_spatial = flattened_arch.first_below(
                 node.component,
@@ -863,19 +878,28 @@ def analyze_storage(
                 default=None,
             )
             if component_object._is_distributed() and next_spatial is not None:
+                replication = replicated_binding_iterations(
+                    node.component, tensor, info
+                )
                 for (b, e), dim_fanout in child_result.fanout.items():
                     if b != next_spatial.name:
                         continue
                     for d in dim_fanout:
                         if not component_object._has_physical_dim(d):
                             continue
-                        n_active_physical_units *= dim_fanout[
-                            d
-                        ] / component_object._get_physical_stride_along(d)
+                        stride = component_object._get_physical_stride_along(d)
+                        n_active_physical_units *= dim_fanout[d] / stride
+                        # A physical unit holds a slice of the tile only along the
+                        # dimensions that the binding partitions the tensor along.
+                        # Where the binding replicates instead, every unit holds
+                        # the whole thing, so fewer of them share the tile.
+                        n_units_holding_the_tile *= dim_fanout[d] / max_nonzero(
+                            replication.get(d, 1), stride
+                        )
 
         # ==========================
         # Recalculate usage of distributed buffers
-        stats.max_occupancy /= n_active_physical_units
+        stats.max_occupancy /= n_units_holding_the_tile
 
         # ==========================
         # Data exchanges with parent
@@ -1150,7 +1174,7 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
     for storage, spatials in iter_binding_blocks(mapping):
         assert len(storage.binding) == len(spatials), (
             f"Binding of {storage.compact_str()} has {len(storage.binding)} loops, but "
-            f"the storage is bound by {len(spatials)} spatial loops."
+            f"found only {len(spatials)} spatial loops."
         )
         for binding_loop, node in zip(storage.binding, spatials):
             binding_loop.initial_tile_shape = None

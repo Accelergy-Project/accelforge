@@ -1,10 +1,14 @@
 from unittest import TestCase
 
 from accelforge.frontend.arch.components import TopologySpec
+from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend._workload_isl._symbolic import (
     Irrelevant,
     PartiallyRelevant,
     Relevant,
+)
+from accelforge.model._looptree.reuse.symbolic._binding import (
+    binding_is_local,
 )
 from accelforge.model._looptree.reuse.symbolic._network import (
     AllToAllTopologyModel,
@@ -39,6 +43,7 @@ class TestMeshTopologyModel(TestCase):
 
     def _cost(self, relevancy, *, n, stride, volume=10, src=None):
         return MeshTopologyModel().per_loop_transfer_cost(
+            RANK_DUPLICATE,
             relevancy,
             shape_repeats=n,
             last_fanout=stride,
@@ -57,7 +62,7 @@ class TestMeshTopologyModel(TestCase):
         n, stride, volume = 4, 2, 10
         cost = self._cost(Irrelevant(), n=n, stride=stride, volume=volume)
         self.assertEqual(cost.total_cost, (n - 1) * stride * volume)
-        self.assertEqual(cost.max_hops, n * stride)
+        self.assertEqual(cost.max_hops, (n - 1) * stride)
         self.assertEqual(cost.max_traffic, volume)
 
     def test_unicast(self):
@@ -67,7 +72,7 @@ class TestMeshTopologyModel(TestCase):
         n, stride, volume = 4, 2, 10
         cost = self._cost(Relevant("n0"), n=n, stride=stride, volume=volume)
         self.assertEqual(cost.total_cost, sum(range(n)) * stride * volume)
-        self.assertEqual(cost.max_hops, n * stride)
+        self.assertEqual(cost.max_hops, (n - 1) * stride)
         self.assertEqual(cost.max_traffic, (n - 1) * volume)
 
     def test_unicast_distributed_binds_locally(self):
@@ -99,6 +104,7 @@ class TestAllToAllTopologyModel(TestCase):
         # last_fanout is deliberately large and arbitrary: an all-to-all switch
         # must ignore physical stride entirely.
         return AllToAllTopologyModel().per_loop_transfer_cost(
+            "m0", # stand-in rank different from the dst rank n0 (see below)
             relevancy,
             shape_repeats=n,
             last_fanout=last_fanout,
@@ -152,8 +158,8 @@ class TestAllToAllTopologyModel(TestCase):
             src_component=_NoDistribution(),
             dim_name="X",
         )
-        a2a = AllToAllTopologyModel().per_loop_transfer_cost(Relevant("n0"), **kwargs)
-        mesh = MeshTopologyModel().per_loop_transfer_cost(Relevant("n0"), **kwargs)
+        a2a = AllToAllTopologyModel().per_loop_transfer_cost("m0", Relevant("n0"), **kwargs)
+        mesh = MeshTopologyModel().per_loop_transfer_cost("m0", Relevant("n0"), **kwargs)
 
         self.assertEqual(a2a.total_cost, (n - 1) * volume)
         self.assertEqual(mesh.total_cost, sum(range(n)) * stride * volume)
@@ -166,3 +172,351 @@ class TestAllToAllTopologyModel(TestCase):
         h = AllToAllTopologyModel.HOPS_PER_TRANSFER
         self.assertEqual(model.accumulate_max_hops("net", h), h)
         self.assertEqual(model.accumulate_max_hops("net", h), 2 * h)
+
+
+class TestBindingIsLocal(TestCase):
+    """Whether a destination can read what it needs from the source instance
+    next to it, which is what the transfer models charge for."""
+
+    def _local(self, bound, relevancy):
+        return binding_is_local(bound, relevancy)
+
+    def test_matching_binding_is_local(self):
+        self.assertTrue(self._local("N0", Relevant("N0")))
+        self.assertTrue(self._local(RANK_DUPLICATE, Irrelevant()))
+
+    def test_absent_binding_is_local(self):
+        # A mapping with no binding is modelled as the locally-optimal one.
+        self.assertTrue(self._local(None, Relevant("N0")))
+
+    def test_replicated_source_is_local(self):
+        # Every instance holds the whole tile, so it holds any slice of it.
+        self.assertTrue(self._local(RANK_DUPLICATE, Relevant("N0")))
+
+    def test_partitioned_along_the_wrong_rank_is_not_local(self):
+        self.assertFalse(self._local("M", Relevant("N0")))
+
+
+class TestMeshScatteredDelivery(TestCase):
+    """Delivering distinct data to each destination from a source partitioned
+    along a rank other than the one the destinations are spread over. Each
+    destination's tile then straddles every instance, so it is collected from all
+    of them instead of read from the one next door."""
+
+    def _cost(self, *, n=4, last_fanout=1, volume=32, fanout=4, stride=1, local=False):
+        if local:
+            src_rank = RANK_DUPLICATE
+        else:
+            src_rank = "m0" # stand in rank different than n0 (see below)
+        return MeshTopologyModel().per_loop_transfer_cost(
+            src_rank,
+            Relevant("n0"),
+            shape_repeats=n,
+            last_fanout=last_fanout,
+            volume=volume,
+            src_component=_Distributed(fanout=fanout, stride=stride),
+            dim_name="X",
+        )
+
+    def test_one_instance_per_destination(self):
+        # n instances a unit apart, one per destination: each destination pulls
+        # volume/n from each, so the total is the sum of |i - j| over all pairs
+        # times a chunk -- (n^2 - 1)/3 * volume, the closed form in analysis.ipynb.
+        n, volume = 4, 32
+        cost = self._cost(n=n, volume=volume)
+        self.assertAlmostEqual(cost.total_cost, (n**2 - 1) * volume / 3)
+        self.assertEqual(cost.max_hops, n - 1)
+        self.assertAlmostEqual(cost.max_traffic, n * volume / 4)
+
+    def test_matches_brute_force_hops(self):
+        # sum over (instance, destination) pairs of distance * (volume / n).
+        for n in range(1, 9):
+            volume = 24
+            expected = sum(abs(i - j) * volume / n for i in range(n) for j in range(n))
+            self.assertAlmostEqual(
+                self._cost(n=n, volume=volume, fanout=n).total_cost,
+                expected,
+                msg=f"n={n}",
+            )
+
+    def test_costs_more_than_a_local_binding(self):
+        local = self._cost(local=True)
+        scattered = self._cost(local=False)
+        self.assertGreater(scattered.total_cost, local.total_cost)
+        self.assertGreater(scattered.max_hops, local.max_hops)
+
+    def test_one_instance_degrades_to_plain_unicast(self):
+        # With a single instance there is nothing to scatter over: whatever the
+        # mapping claims the binding is, the delivery is the ordinary unicast.
+        n, last_fanout, volume = 4, 2, 10
+        scattered = self._cost(
+            n=n,
+            last_fanout=last_fanout,
+            volume=volume,
+            fanout=2,
+            stride=n * last_fanout,
+        )
+        self.assertAlmostEqual(
+            scattered.total_cost, sum(range(n)) * last_fanout * volume
+        )
+
+    def test_scales_with_distance_between_instances(self):
+        near = self._cost(n=4, last_fanout=1, fanout=4, stride=1)
+        far = self._cost(n=8, last_fanout=2, fanout=4, stride=2)
+        self.assertGreater(far.total_cost, near.total_cost)
+
+    def test_irrelevant_loops_are_binding_sensitive_too(self):
+        # All destinations want the whole tile, and here every one of them sits
+        # with an instance. Replicated, each reads its copy without moving
+        # anything. Partitioned, each of the n instances has to multicast the 1/n
+        # share it holds the length of the line -- which comes to the same wire as
+        # one multicast of the whole tile, so the cost of partitioning here is a
+        # whole broadcast. (analysis.ipynb makes the same point the other way
+        # round: on a mesh an all-gather and a broadcast are the same length.)
+        n, last_fanout, volume = 4, 1, 32
+        kwargs = dict(
+            shape_repeats=n,
+            last_fanout=last_fanout,
+            volume=volume,
+            src_component=_Distributed(fanout=n, stride=last_fanout),
+            dim_name="X",
+        )
+        local = MeshTopologyModel().per_loop_transfer_cost(
+            RANK_DUPLICATE, Irrelevant(), **kwargs,
+        )
+        # m0 is stand-in rank
+        scattered = MeshTopologyModel().per_loop_transfer_cost(
+            "m0", Irrelevant(), **kwargs,
+        )
+        self.assertEqual(local.total_cost, 0)
+        self.assertEqual(scattered.total_cost, (n - 1) * last_fanout * volume)
+
+
+def _switch_crossing_volume(n, last_fanout, n_physical, stride, volume, local):
+    """Brute-force ground truth for a switch: enumerate every (destination,
+    source instance) pair and count what has to cross. A unit crosses unless the
+    destination sits exactly on the instance holding it, and distance never
+    matters, so this is the whole cost model."""
+    destinations = [j * last_fanout for j in range(n)]
+    instances = {i * stride for i in range(n_physical)}
+    crossing = 0.0
+    for position in destinations:
+        if local:
+            # The destination's whole tile is in the one instance holding it,
+            # free only if that instance is right here.
+            crossing += 0 if position in instances else volume
+        else:
+            # A 1/n_physical share from every instance; the local one is free.
+            for instance in instances:
+                crossing += 0 if position == instance else volume / n_physical
+    return crossing
+
+
+class TestAllToAllHonoursCoLocation(TestCase):
+    """A switch charges one traversal per unit that has to cross it, so what a
+    destination can read from the instance it sits with is free -- and how much
+    that is depends on the binding."""
+
+    def _cost(self, relevancy, *, n, last_fanout, fanout, stride, volume, local):
+        if local:
+            src_rank = RANK_DUPLICATE
+        else:
+            src_rank = "m0"
+        return AllToAllTopologyModel().per_loop_transfer_cost(
+            src_rank,
+            relevancy,
+            shape_repeats=n,
+            last_fanout=last_fanout,
+            volume=volume,
+            src_component=_Distributed(fanout=fanout, stride=stride),
+            dim_name="X",
+        )
+
+    def test_one_instance_per_destination(self):
+        # Four PEs, one buffer instance each, each PE wanting 4 values of a 4x4
+        # tensor. Bound along the rank the loop spreads over, every PE reads its
+        # row from its own instance and the switch is never touched. Bound along
+        # the other rank, each PE's row has one element in each instance, so it
+        # pulls 3 of its 4 across: 12 element-transfers in all.
+        common = dict(n=4, last_fanout=1, fanout=4, stride=1, volume=4)
+        self.assertEqual(self._cost(Relevant("N0"), **common, local=True).total_cost, 0)
+        self.assertEqual(
+            self._cost(Relevant("N0"), **common, local=False).total_cost, 12
+        )
+
+    def test_nothing_crossing_costs_no_latency_either(self):
+        cost = self._cost(
+            Relevant("N0"), n=4, last_fanout=1, fanout=4, stride=1, volume=4, local=True
+        )
+        self.assertEqual(cost.max_hops, 0)
+        self.assertEqual(cost.max_traffic, 0)
+
+    def test_undistributed_source_is_unaffected_by_the_binding(self):
+        # One instance holds everything, so there is no other rank to bind along
+        # and the cost is the familiar "n - 1 destinations, one traversal each".
+        n, volume = 5, 10
+        for local in (True, False):
+            if local:
+                src_rank = RANK_DUPLICATE
+            else:
+                src_rank = "m0"
+            cost = AllToAllTopologyModel().per_loop_transfer_cost(
+                src_rank,
+                Relevant("n0"),
+                shape_repeats=n,
+                last_fanout=1,
+                volume=volume,
+                src_component=_NoDistribution(),
+                dim_name="X",
+            )
+            self.assertEqual(cost.total_cost, (n - 1) * volume)
+            self.assertEqual(cost.max_hops, AllToAllTopologyModel.HOPS_PER_TRANSFER)
+
+    def test_matches_brute_force_over_array_geometries(self):
+        volume = 12.0
+        checked = 0
+        for n in (1, 2, 4, 8):
+            for last_fanout in (1, 2, 4):
+                for stride in (1, 2, 4, 8):
+                    n_physical = max(n * last_fanout // stride, 1)
+                    # The instances have to span the fanout for the geometry to
+                    # be one the analyzer could hand us.
+                    if n_physical * stride != max(n * last_fanout, stride):
+                        continue
+                    for local in (True, False):
+                        for relevancy in (Relevant("N0"), Irrelevant()):
+                            cost = self._cost(
+                                relevancy,
+                                n=n,
+                                last_fanout=last_fanout,
+                                fanout=n_physical,
+                                stride=stride,
+                                volume=volume,
+                                local=local,
+                            )
+                            self.assertAlmostEqual(
+                                cost.total_cost,
+                                _switch_crossing_volume(
+                                    n, last_fanout, n_physical, stride, volume, local
+                                ),
+                                msg=f"n={n} fanout={last_fanout} P={n_physical} "
+                                f"stride={stride} local={local}",
+                            )
+                            checked += 1
+        self.assertGreater(checked, 40, "the sweep degenerated")
+
+
+def _mesh_hops(n, last_fanout, n_physical, stride, volume, local, irrelevant):
+    """Brute-force ground truth for the mesh: place the destinations and the
+    source instances on the line and add up the links every delivery crosses.
+
+    An instance serves the sub-array beneath it, so the destinations whose
+    coordinates fall within its stride are the ones it sits among.
+    """
+    destinations = [j * last_fanout for j in range(n)]
+    instances = [i * stride for i in range(n_physical)]
+    chunk = volume / n_physical
+
+    def span(positions):
+        # A multicast streams from end to end of the range it covers, crossing
+        # each link in it exactly once.
+        return max(positions) - min(positions)
+
+    if not local:
+        if irrelevant:
+            # Every destination wants the whole tile, and each instance holds a
+            # share of it that all of them need.
+            return sum(span(destinations + [q]) * chunk for q in instances)
+        # Every (destination, instance) pair exchanges one chunk.
+        return sum(abs(p - q) * chunk for p in destinations for q in instances)
+
+    served = {q: [] for q in instances}
+    for p in destinations:
+        served[instances[min(p // stride, n_physical - 1)]].append(p)
+    if irrelevant:
+        return sum(span(mine + [q]) * volume for q, mine in served.items() if mine)
+    return sum(abs(p - q) * volume for q, mine in served.items() for p in mine)
+
+
+class TestMeshAgainstBruteForce(TestCase):
+    """The mesh cost model against an enumeration of the actual traffic, swept
+    over array geometries.
+
+    It is exact wherever the destinations and the source instances share a
+    spacing, which is the usual case. Where the source is distributed at a
+    different granularity from the one the loop fans out at, the closed forms
+    thin one evenly-spaced grid onto the other and lose a few percent at the
+    boundary -- always by under-counting, and only when the data is scattered.
+    """
+
+    GEOMETRIES = [
+        (n, last_fanout, stride)
+        for n in (1, 2, 4, 8)
+        for last_fanout in (1, 2, 4)
+        for stride in (1, 2, 4, 8)
+        # The instances have to span the fanout for the geometry to be one the
+        # analyzer could hand us.
+        if max(n * last_fanout // stride, 1) * stride == max(n * last_fanout, stride)
+    ]
+
+    def _check(self, n, last_fanout, stride, local, irrelevant):
+        n_physical = max(n * last_fanout // stride, 1)
+        volume = 12.0
+        if local:
+            src_rank = RANK_DUPLICATE
+        else:
+            # stand in rank
+            src_rank = "m0"
+        got = MeshTopologyModel().per_loop_transfer_cost(
+            src_rank,
+            Irrelevant() if irrelevant else Relevant("N0"),
+            shape_repeats=n,
+            last_fanout=last_fanout,
+            volume=volume,
+            src_component=_Distributed(fanout=n_physical, stride=stride),
+            dim_name="X",
+        )
+        want = _mesh_hops(n, last_fanout, n_physical, stride, volume, local, irrelevant)
+        return got.total_cost, want
+
+    def test_local_delivery_is_exact(self):
+        # Every destination reads from the instance it sits among, so the line
+        # breaks into independent groups and the closed forms are the truth.
+        for n, last_fanout, stride in self.GEOMETRIES:
+            for irrelevant in (True, False):
+                got, want = self._check(n, last_fanout, stride, True, irrelevant)
+                self.assertAlmostEqual(
+                    got,
+                    want,
+                    msg=f"n={n} fanout={last_fanout} stride={stride} "
+                    f"irrelevant={irrelevant}",
+                )
+
+    def test_scattered_delivery_is_exact_on_a_matched_grid(self):
+        checked = 0
+        for n, last_fanout, stride in self.GEOMETRIES:
+            if last_fanout != stride:
+                continue
+            for irrelevant in (True, False):
+                got, want = self._check(n, last_fanout, stride, False, irrelevant)
+                self.assertAlmostEqual(
+                    got,
+                    want,
+                    msg=f"n={n} spacing={stride} irrelevant={irrelevant}",
+                )
+                checked += 1
+        self.assertGreater(checked, 10, "the sweep degenerated")
+
+    def test_scattered_delivery_never_over_counts(self):
+        # Measured worst case: 4.5% low, or 17% for a single-iteration loop,
+        # where the one destination sits at the end of the line rather than
+        # spread along it.
+        for n, last_fanout, stride in self.GEOMETRIES:
+            for irrelevant in (True, False):
+                got, want = self._check(n, last_fanout, stride, False, irrelevant)
+                where = (
+                    f"n={n} fanout={last_fanout} stride={stride} "
+                    f"irrelevant={irrelevant}"
+                )
+                self.assertLessEqual(got, want + 1e-9, msg=where)
+                self.assertGreaterEqual(got, want * (0.83 - 1e-9), msg=where)

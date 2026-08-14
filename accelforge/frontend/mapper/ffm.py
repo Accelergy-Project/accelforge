@@ -138,40 +138,14 @@ class FFM(EvalableModel):
     are so many templates being generated?).
     """
 
-    explore_bindings: bool = False
+    max_binding_rank_changes: float | int = 0
     """
-    If True, the mapper explores how the tensor in each physically-distributed memory is
-    bound to the physical instances of that memory, generating one pmapping template per
-    binding.
+    By default, a binding that results in minimum memory usage and movement over
+    network (in that order) per Einsum is used, referred to as "locally-optimal."
 
-    If False, only the locally-optimal binding is used: partition along the rank that
-    the spatial loop's rank variable projects into, and replicate otherwise. This is the
-    best binding for the Einsum in isolation, but a tensor shared between Einsums can
-    only be fused if the Einsums agree on its binding, so exploring bindings may be
-    needed to fuse Einsums whose locally-optimal bindings disagree.
-
-    The number of bindings is exponential in the number of binding loops, so bindings
-    are explored in order of increasing distance from the locally-optimal one. See
-    max_binding_rank_changes and max_binding_options_per_pmapping_template to bound how
-    many are explored.
-    """
-
-    max_binding_rank_changes: float | int = 1
-    """
-    When explore_bindings is True, the maximum number of binding loops of a pmapping
-    template that may bind a rank other than the one the locally-optimal binding gives
-    them. 1 (the default) explores every binding that differs from the locally-optimal
-    one in a single spatial dimension of a single distributed memory, which is enough to
-    fuse two Einsums whose locally-optimal bindings disagree in one place. Set to
-    float("inf") to explore all bindings.
-    """
-
-    max_binding_options_per_pmapping_template: float | int = float("inf")
-    """
-    The maximum number of bindings explored per pmapping template when explore_bindings
-    is True. Bindings are explored in order of increasing number of ranks changed from
-    the locally-optimal binding, which is always explored first, so this drops the
-    bindings that are furthest from the locally-optimal one.
+    If non-zero, `max_binding_rank_changes` sets the maximum number of binding
+    loops of a pmapping template that may bind a rank other than the one the
+    locally-optimal binding gives them. Set to float("inf") to explore all bindings.
     """
 
     explore_imperfect_spatial_loops: bool = False

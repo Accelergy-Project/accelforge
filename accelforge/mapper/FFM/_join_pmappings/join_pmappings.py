@@ -72,9 +72,6 @@ class JoiningTimer:
         logger.info(f"============================\n")
 
 
-joining_log = open("joining_log.txt", "w")
-
-
 def _apply_edp_columns(df: pd.DataFrame, metrics: Metrics) -> pd.DataFrame:
     if not metrics & Metrics.ENERGY_DELAY_PRODUCT:
         return df
@@ -761,10 +758,6 @@ def join_pmappings(
         # ======================================================================
         combined: list[PmappingGroup] = []
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
-
-        joining_log.write(f"Left keys\n")
-        for k in left:
-            joining_log.write(f" {k}\n")
 
         for k in left:
             found = False

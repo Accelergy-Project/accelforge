@@ -94,6 +94,7 @@ class Spatial(EvalableModel):
 
 
 class _PhysicalSpatial(EvalableModel):
+    """Physical spatial information filled in after a spec is flattened."""
     name: str
     """
     The name of the dimension over which this spatial fanout is occurring (e.g., X or Y).
@@ -125,6 +126,12 @@ class Spatialable(EvalableModel):
     The physical spatial fanout of this node. Should only have a value for a
     flattened arch. Otherwise, the `spatial` attribute is authoritative.
     """
+
+    _physical_spatial_component: str | None = None
+    """
+    The name of the spatial array in the original unflattened spec.
+    """
+
 
     def get_fanout(self) -> int:
         """The spatial fanout of this node."""

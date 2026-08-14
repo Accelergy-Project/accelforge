@@ -359,6 +359,7 @@ class Array(Branch, Spatialable):
                             )
                             for s in node.spatial
                         ]
+                        node._physical_spatial_component = self.name
                         node.spatial = EvalableList()
                     nodes.append(node)
                 else:

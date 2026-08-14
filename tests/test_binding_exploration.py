@@ -1,14 +1,14 @@
 """
 Tests for exploring the binding of a tensor to the physical instances of a
-physically-distributed memory (see FFM.explore_bindings).
+physically-distributed memory.
 """
 
 import unittest
 from pathlib import Path
 
 import accelforge as af
-from accelforge.frontend.mapping import Storage, iter_binding_blocks
-from accelforge.frontend.renames import RANK_ANY
+from accelforge.frontend.mapping import Loop, Spatial, Storage, iter_binding_blocks
+from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend.spec import Spec
 from accelforge.mapper import Metrics
 from accelforge.mapper.FFM._make_pmappings.make_pmappings import get_jobs
@@ -39,6 +39,19 @@ def _get_jobs(**mapper_settings) -> dict:
     )
 
 
+def _first_job_with_binding():
+    """The first job whose mapping has a bound, physically-distributed Storage."""
+    for compatibility2jobs in _get_jobs().values():
+        for job_list in compatibility2jobs.values():
+            for job in job_list:
+                if any(
+                    isinstance(node, Storage) and node.binding
+                    for node in job.mapping.nodes
+                ):
+                    return job
+    raise AssertionError("No job of the fixture has a binding.")
+
+
 def _bindings_of(job) -> tuple:
     """The (component, tensor, bound ranks) of every bound Storage node of a job."""
     return tuple(
@@ -50,7 +63,7 @@ def _bindings_of(job) -> tuple:
 
 class TestBindingExploration(unittest.TestCase):
     def test_default_binding_is_the_only_one_if_not_exploring(self):
-        jobs = _get_jobs(explore_bindings=False)
+        jobs = _get_jobs()
         for einsum_name, compatibility2jobs in jobs.items():
             for job_list in compatibility2jobs.values():
                 for job in job_list:
@@ -75,7 +88,7 @@ class TestBindingExploration(unittest.TestCase):
                         )
                         for spatial, bound in zip(spatials, node.binding):
                             expected = (
-                                RANK_ANY
+                                RANK_DUPLICATE
                                 if spatial.rank_variable in irrelevant
                                 else next(
                                     iter(rank_variable2ranks[spatial.rank_variable])
@@ -84,8 +97,8 @@ class TestBindingExploration(unittest.TestCase):
                             self.assertEqual(bound.rank_variable, expected)
 
     def test_exploring_bindings_adds_templates_and_compatibilities(self):
-        without = _get_jobs(explore_bindings=False)
-        with_ = _get_jobs(explore_bindings=True)
+        without = _get_jobs()
+        with_ = _get_jobs(max_binding_rank_changes=1)
 
         for einsum_name in without:
             n_without = sum(len(j) for j in without[einsum_name].values())
@@ -113,7 +126,7 @@ class TestBindingExploration(unittest.TestCase):
 
     def test_explored_bindings_are_valid(self):
         for einsum_name, compatibility2jobs in _get_jobs(
-            explore_bindings=True
+            max_binding_rank_changes=1
         ).items():
             for job_list in compatibility2jobs.values():
                 for job in job_list:
@@ -122,7 +135,7 @@ class TestBindingExploration(unittest.TestCase):
                         self.assertEqual(len(storage.binding), len(spatials))
                         allowed = set(
                             job.einsum.tensor_accesses[storage.tensor].ranks
-                        ) | {RANK_ANY}
+                        ) | {RANK_DUPLICATE}
                         for spatial, bound in zip(spatials, storage.binding):
                             # ...binding a rank of the tensor being bound...
                             self.assertIn(bound.rank_variable, allowed)
@@ -138,32 +151,88 @@ class TestBindingExploration(unittest.TestCase):
                             self.assertIsNone(bound.initial_tile_shape)
 
     def test_max_binding_rank_changes(self):
-        one_change = _get_jobs(explore_bindings=True, max_binding_rank_changes=1)
-        two_changes = _get_jobs(explore_bindings=True, max_binding_rank_changes=2)
+        one_change = _get_jobs(max_binding_rank_changes=1)
+        two_changes = _get_jobs(max_binding_rank_changes=2)
         for einsum_name in one_change:
             self.assertGreater(
                 sum(len(j) for j in two_changes[einsum_name].values()),
                 sum(len(j) for j in one_change[einsum_name].values()),
             )
 
-    def test_max_binding_options_per_pmapping_template(self):
-        capped = _get_jobs(
-            explore_bindings=True, max_binding_options_per_pmapping_template=3
+    def test_beautify_loops_drops_the_binding_of_a_removed_spatial_loop(self):
+        """
+        Beautifying a mapping drops the loops that run a single iteration. A binding
+        is one loop per spatial loop below its Storage, so a dropped spatial loop
+        has to take its binding loop with it; otherwise nothing downstream can tell
+        which binding loop belongs to which spatial loop.
+        """
+        job = _first_job_with_binding()
+        mapping = job.mapping
+        bounds = job.rank_variable_bounds
+
+        # A loop is beautified away when it tiles its rank variable no finer than the
+        # loop above it does, so giving every loop the full rank bound removes them
+        # all. The two spatial loops of `m` are the exceptions: each tiles finer than
+        # the loop above it, so both survive.
+        m_spatials = [
+            node
+            for node in mapping.nodes
+            if isinstance(node, Spatial) and node.rank_variable == "m"
+        ]
+        self.assertEqual(len(m_spatials), 2, "Fixture changed.")
+        for node in mapping.nodes:
+            if isinstance(node, Loop):
+                node.tile_shape = bounds[node.rank_variable]
+        m_spatials[0].tile_shape = bounds["m"] // 2
+        m_spatials[1].tile_shape = bounds["m"] // 4
+
+        kept = {id(node) for node in m_spatials}
+        expected = {
+            id(storage): [
+                bound
+                for bound, spatial in zip(storage.binding, spatials)
+                if id(spatial) in kept
+            ]
+            for storage, spatials in iter_binding_blocks(mapping.nodes)
+        }
+        self.assertTrue(any(expected.values()), "Fixture has no binding to prune.")
+
+        mapping._beautify_loops(bounds)
+
+        blocks = iter_binding_blocks(mapping.nodes)
+        self.assertTrue(blocks, "Beautifying removed the bound storages themselves.")
+        for storage, spatials in blocks:
+            # One binding loop per spatial loop, still...
+            self.assertEqual(len(storage.binding), len(spatials))
+            self.assertEqual([node.rank_variable for node in spatials], ["m", "m"])
+            # ...and the ones that were dropped are the ones whose spatial loop was.
+            self.assertEqual(list(storage.binding), expected[id(storage)])
+
+    def test_mapper_evaluates_mappings_with_single_iteration_spatial_loops(self):
+        """
+        A mapping whose spatial loops are beautified away must still be modelable:
+        `map_workload_to_arch` models every mapping it chooses in detail, and the
+        model needs each binding to line up with the spatial loops that remain.
+        """
+        # One loop per spatial dimension makes single-iteration spatial loops the
+        # norm, so the mappings the mapper returns have some to drop.
+        spec = _make_spec(max_loops_per_spatial_dimension=1)
+        result = spec.map_workload_to_arch(print_progress=False)
+        self.assertTrue(len(result))
+        self.assertTrue(
+            any(
+                isinstance(node, Storage) and node.binding
+                for node in result.mapping(0).nodes
+            ),
+            "The mapper returned a mapping with no binding.",
         )
-        uncapped = _get_jobs(explore_bindings=False)
-        for einsum_name in capped:
-            n_capped = sum(len(j) for j in capped[einsum_name].values())
-            n_templates = sum(len(j) for j in uncapped[einsum_name].values())
-            self.assertEqual(n_capped, 3 * n_templates)
 
     def test_mapper_keeps_the_binding_it_chose(self):
         """
         A mapping found by the mapper must be modeled with the binding the mapper chose
         for it, not with the locally-optimal binding.
         """
-        spec = _make_spec(
-            explore_bindings=True, max_binding_options_per_pmapping_template=2
-        )
+        spec = _make_spec(max_binding_rank_changes=1)
         result = spec.map_workload_to_arch(print_progress=False)
         mapping = result.mapping(0)
         bindings = {

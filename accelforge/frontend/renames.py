@@ -15,10 +15,10 @@ RankVariable: TypeAlias = str
 Rank: TypeAlias = str
 EinsumName: TypeAlias = str
 
-RANK_ANY: Rank = "ANY"
+RANK_DUPLICATE: Rank = "DUPLICATE"
 """ Sentinel rank name for binding loops over rank variables that do not index the
-bound tensor; such a loop replicates rather than partitions the tensor across the
-physical instances of a distributed memory. """
+bound tensor; such a loop duplicates the tensor across the physical instances of
+the distributed memory. """
 
 class Rename(EvalableModel):
     """

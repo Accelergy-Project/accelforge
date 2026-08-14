@@ -9,6 +9,7 @@ from accelforge.frontend.workload import (
     TensorName,
 )
 from accelforge.frontend._workload_isl._symbolic import Irrelevant
+from accelforge.model._looptree.reuse.symbolic._binding import BindingLookups
 from accelforge.model._looptree.reuse.symbolic.mapping_utils import (
     DataMovementConnections,
 )
@@ -43,6 +44,11 @@ class AnalysisInfo:
     simple_rank_variables: set = field(default_factory=set)
 
     tensor_to_reservation_backer_id: dict[TensorName, int] = field(default_factory=dict)
+
+    # How the mapping binds each physically-distributed memory's tensor to its
+    # physical instances; see `_binding.index_bindings`. Blank if the mapping has
+    # no binding, which the analysis reads as the locally-optimal one.
+    bindings: BindingLookups = field(default_factory=BindingLookups)
 
     data_movement_connections: DataMovementConnections = None
 

@@ -681,47 +681,8 @@ class Storage(TensorHolder):
     def compact_str(self):
         s = super().compact_str()
         if self.binding:
-            s += f"-{self.binding}"
+            s += f"-[{" ".join(b.compact_str() for b in self.binding)}]"
         return s
-
-
-def iter_binding_blocks(
-    nodes: "Iterable[MappingNode]",
-) -> list[tuple[Storage, list["Spatial"]]]:
-    """
-    Iterate over :class:`~.Storage` node of physically-distributed memories
-    with the Spatial loops that bind it.
-
-    Spatial loops below a block of Storage nodes bind every distributed Storage
-    in the block; a Storage node appearing after spatial loops starts a new
-    block. Blocks are returned in the order in which their Storage nodes appear
-    top to bottom.
-    """
-    blocks: list[tuple[Storage, list[Spatial]]] = []
-    active: list[tuple[Storage, list[Spatial]]] = []
-    spatial_seen = False
-    for node in nodes:
-        if isinstance(node, Storage):
-            if spatial_seen:
-                active = []
-                spatial_seen = False
-            component = node.component_object
-            assert isinstance(component, arch.Spatialable), f"{component}"
-            if not component._is_distributed():
-                continue
-            assert isinstance(component, arch.Memory)
-            assert len(node.tensors) == 1, (
-                f"Binding is per-tensor, but {node.compact_str()} holds "
-                f"{len(node.tensors)} tensors."
-            )
-            block = (node, [])
-            active.append(block)
-            blocks.append(block)
-        elif isinstance(node, Spatial) and active:
-            spatial_seen = True
-            for _, spatials in active:
-                spatials.append(node)
-    return blocks
 
 
 class Toll(TensorHolder):
@@ -1351,6 +1312,23 @@ class Nested(MappingNodeWithChildren):
                 tile_shape=safe_int_cast(node.tile_pattern.tile_shape),
             )
 
+        # A binding pairs one loop with each spatial loop below its Storage, so the
+        # spatial loops we're about to drop have to take their binding loops with
+        # them. A dropped loop runs one iteration, so its binding loop splits the
+        # tensor one way (or replicates it once): dropping it changes nothing but
+        # the length of the binding. This must happen before the nodes go away,
+        # while the pairing can still be recovered.
+        removed_spatials = {
+            id(self.nodes[i]) for i in to_remove if isinstance(self.nodes[i], Spatial)
+        }
+        if removed_spatials:
+            # Local import: `_util` imports from this module.
+            from accelforge.frontend.mapping._util import (
+                drop_binding_loops_for_removed_spatials,
+            )
+
+            drop_binding_loops_for_removed_spatials(self.nodes, removed_spatials)
+
         self.nodes = [node for i, node in enumerate(self.nodes) if i not in to_remove]
 
     @override
@@ -1762,21 +1740,6 @@ class Mapping(Nested):
         for node in self.nodes:
             if isinstance(node, Storage):
                 node.binding = EvalableList()
-
-    def get_binding_ranks(self) -> list[list[Rank]] | None:
-        """
-        The ranks bound by each physically-distributed Storage node, in the order given
-        by :func:`~.iter_binding_blocks`. Returns None if this Mapping does not have a
-        binding.
-        """
-        blocks = iter_binding_blocks(self.nodes)
-        if not any(storage.binding for storage, _ in blocks):
-            return None
-        if any(len(storage.binding) != len(spatials) for storage, spatials in blocks):
-            return None
-        return [
-            [loop.rank_variable for loop in storage.binding] for storage, _ in blocks
-        ]
 
     def split_tensor_holders_with_multiple_tensors(self):
         new_nodes = []

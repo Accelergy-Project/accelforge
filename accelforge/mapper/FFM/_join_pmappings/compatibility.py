@@ -17,7 +17,7 @@ from accelforge.frontend.mapping import (
     TilePattern,
     Loop as MappingLoop,
 )
-from accelforge.frontend.renames import Rank, RankVariable, TensorName, RANK_ANY
+from accelforge.frontend.renames import Rank, RankVariable, TensorName
 from accelforge.frontend.workload import Einsum, Workload
 from accelforge.mapper.FFM._pareto_df.df_convention import (
     is_fused_loop_col,

@@ -299,7 +299,7 @@ def col_used_in_pareto(c):
 
 
 def col_used_in_joining(c):
-    assert not c.startswith("n_iterations"), "Improperly formatted n_iterations column"
+    assert not c.startswith("n_iterations"), f"Improperly formatted n_iterations column: {c}"
     return (
         col_used_in_pareto(c)
         or is_fused_loop_col(c)

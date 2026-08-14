@@ -47,6 +47,9 @@ class FlattenedArch:
         for node in self.nodes:
             yield node
 
+    def __str__(self):
+        return f"FlattenedArch([{', '.join(node.compact_str() for node in self.nodes)}])"
+
     def index(self, name: str):
         for i, node in enumerate(self.nodes):
             if node.name == name:

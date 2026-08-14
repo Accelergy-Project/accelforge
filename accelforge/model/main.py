@@ -76,7 +76,7 @@ def evaluate_mapping(
         run_model,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
-        apply_binding,
+        apply_default_binding_if_unspecified,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
         _calculate_iterations_and_rank_columns,
@@ -181,7 +181,7 @@ def evaluate_mapping(
         # Keep the binding the mapping already has, if any, so that a mapping found by
         # the mapper is modeled with the binding the mapper chose for it. Otherwise
         # (e.g. a mapping written by hand), use the locally-optimal binding.
-        apply_binding(job.mapping, job, job.mapping.get_binding_ranks())
+        apply_default_binding_if_unspecified(job.mapping, job)
 
         _, df, _, _, tensor2mapping, _ = run_model(
             job, add_reservations=True

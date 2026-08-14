@@ -24,7 +24,7 @@ from accelforge.frontend.mapping import (
     Temporal,
     iter_binding_blocks,
 )
-from accelforge.frontend.renames import Rank, RANK_ANY
+from accelforge.frontend.renames import Rank, RANK_DUPLICATE
 from accelforge.util._basetypes import EvalableList
 from accelforge.frontend.spec import Spec
 from accelforge.frontend._workload_isl._isl import get_rank_variable_bounds
@@ -451,7 +451,7 @@ def default_binding_ranks(
     for loop in spatials:
         rv = loop.rank_variable
         if rv in irrelevant_rvs:
-            ranks.append(RANK_ANY)
+            ranks.append(RANK_DUPLICATE)
         else:
             rv_ranks = rank_variable2ranks[rv]
             assert len(rv_ranks) == 1
@@ -468,7 +468,7 @@ def binding_rank_options(
     locally-optimal choice (see `default_binding_ranks`) comes first for each loop, so
     the first combination of the options is the default binding.
     """
-    all_ranks = list(job.einsum.tensor_accesses[tensor].ranks) + [RANK_ANY]
+    all_ranks = list(job.einsum.tensor_accesses[tensor].ranks) + [RANK_DUPLICATE]
     return [
         [default] + [r for r in all_ranks if r != default]
         for default in default_binding_ranks(tensor, spatials, job)
@@ -478,23 +478,12 @@ def binding_rank_options(
 def iter_binding_choices(
     mapping: Mapping,
     job: Job,
-    explore: bool = False,
-    max_rank_changes: float | int = 1,
-    max_choices: float | int = float("inf"),
+    max_rank_changes: float | int
 ) -> Iterator[list[list[Rank]]]:
     """
     Iterate over the bindings of the physically-distributed storages of `mapping`. Each
     yielded choice gives, for each block of `iter_binding_blocks` in order, the rank
     bound by each of that block's binding loops.
-
-    Every choice has one binding loop per spatial loop binding the storage, and the
-    binding loops take their iteration counts from those spatial loops (see
-    `insert_sympy_symbols`), so bindings differ only in the ranks they bind.
-
-    There are exponentially many bindings, so they are yielded in order of increasing
-    number of loops that bind a rank other than the locally-optimal one: the
-    locally-optimal binding comes first, then the bindings that change one loop, and so
-    on up to `max_rank_changes` changes and `max_choices` bindings in total.
     """
     blocks = iter_binding_blocks(mapping.nodes)
     block_lengths = [len(spatials) for _, spatials in blocks]
@@ -518,43 +507,27 @@ def iter_binding_choices(
     )
     default = [o[0] for o in options]
 
-    if not explore or not options:
+    if max_rank_changes <= 0 or not options:
         yield split(default)
         return
 
-    n_yielded = 0
     max_rank_changes = min(max_rank_changes, len(options))
     for n_changes in range(int(max_rank_changes) + 1):
         for positions in itertools.combinations(range(len(options)), n_changes):
             # [1:] because the locally-optimal rank of a loop is not a change to it.
             for ranks in itertools.product(*[options[p][1:] for p in positions]):
-                if n_yielded >= max_choices:
-                    logging.info(
-                        f"Stopped after exploring {n_yielded} bindings of a pmapping "
-                        f"template. Raise max_binding_options_per_pmapping_template to "
-                        f"explore more."
-                    )
-                    return
                 choice = list(default)
                 for position, rank in zip(positions, ranks):
                     choice[position] = rank
-                n_yielded += 1
                 yield split(choice)
 
 
 def apply_binding(
-    mapping: Mapping, job: Job, ranks: list[list[Rank]] | None = None
+    mapping: Mapping, job: Job, ranks: list[list[Rank]]
 ) -> None:
     """
-    Bind the tensor of every physically-distributed storage of `mapping` to the spatial
-    loops below it. `ranks` gives the rank bound by each binding loop of each block of
-    `iter_binding_blocks`, as yielded by `iter_binding_choices`; if it is None, the
-    locally-optimal binding is used. Any binding already on the mapping is replaced.
-
-    A binding loop takes only the spatial dimension and the number of iterations of the
-    spatial loop it comes from, not its tile shape. The shape of the bound rank may
-    differ from the shape of the rank variable that the spatial loop tiles. Thus,
-    the tile shapes are cleared.
+    Sets binding in storage nodes in the mapping to `ranks`, which is specified
+    in the same order as `iter_binding_blocks` would return.
     """
     for i, (storage, spatials) in enumerate(iter_binding_blocks(mapping.nodes)):
         tensor = storage.tensor
@@ -565,6 +538,22 @@ def apply_binding(
             f"Binding of {tensor} in {storage.component} has {len(block_ranks)} loops, "
             f"but the storage is bound by {len(spatials)} spatial loops."
         )
+        binding = EvalableList()
+        for loop, rank in zip(spatials, block_ranks):
+            binding_spatial = loop.model_copy()
+            binding_spatial.rank_variable = rank
+            binding_spatial.tile_shape = None
+            binding_spatial.initial_tile_shape = None
+            binding.append(binding_spatial)
+        storage.binding = binding
+
+
+def apply_default_binding_if_unspecified(mapping: Mapping, job: Job) -> None:
+    for i, (storage, spatials) in enumerate(iter_binding_blocks(mapping.nodes)):
+        tensor = storage.tensor
+        if len(storage.binding) > 0:
+            continue
+        block_ranks = default_binding_ranks(tensor, spatials, job)
         binding = EvalableList()
         for loop, rank in zip(spatials, block_ranks):
             binding_spatial = loop.model_copy()
@@ -635,9 +624,7 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
             iter_binding_choices(
                 mapping,
                 job,
-                mapper.explore_bindings,
                 mapper.max_binding_rank_changes,
-                mapper.max_binding_options_per_pmapping_template,
             )
         )
         bound_mappings = [mapping] + [
