@@ -544,7 +544,6 @@ class NetworkAnalyzer:
                 volume=volume,
                 src_component=src_component,
                 dim_name=self.node.name,
-                data_is_local=self._data_is_local(network, relevancy),
             )
 
             overall_max_hops = topology_model.accumulate_max_hops(
@@ -569,17 +568,6 @@ class NetworkAnalyzer:
         for model in self.topology_models.values():
             overall_max_hops.update(model.overall_max_hops)
         return overall_max_hops
-
-    def _data_is_local(self, network, relevancy) -> bool:
-        """Whether this spatial loop's destinations can each read what they need
-        from the instance of the source memory next to them, which is what the
-        locally-optimal binding buys and what the transfer models assume by
-        default. See :mod:`._binding`.
-        """
-        bound_rank = self.info.bindings.rank_by_loop.get(
-            (id(self.node), network.source.level, network.tensor)
-        )
-        return binding_is_local(bound_rank, relevancy)
 
     def _get_data_volume(self, network, child_shape):
         info = self.info
