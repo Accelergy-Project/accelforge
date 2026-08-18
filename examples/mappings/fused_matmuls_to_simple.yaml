@@ -1,30 +1,38 @@
 mapping:
   nodes:
   - !Storage
-    tensors: [T0, T{{N_EINSUMS}}]
+    tensors:
+    - T0
+    - T{{N_EINSUMS}}
+    {% for i in range(N_EINSUMS) %}
+    - W{{i}}
+    {% endfor %}
     component: MainMemory
-  {% for i in range(N_EINSUMS) %}
   - !Storage
-    tensors: [W{{i}}]
-    component: MainMemory
-  {% endfor %}
-  {% for i in range(N_EINSUMS) %}
-  - !Storage
-    tensors: [W{{i}}]
+    tensors:
+    {% for i in range(N_EINSUMS) %}
+    - W{{i}}
+    {% endfor %}
     component: GlobalBuffer
-  {% endfor %}
   - !Temporal
     rank_variable: m
     tile_shape: 1
+  - !Storage
+    tensors:
+    - T0
+    - T{{N_EINSUMS}}
+    component: GlobalBuffer
+  {% for i in range(1, N_EINSUMS) %}
+  - !Storage
+    tensors: [T{{i}}]
+    component: GlobalBuffer
+  {% endfor %}
   {% if N_EINSUMS > 1 %}
   - !Sequential
     nodes:
     {% for i in range(N_EINSUMS) %}
     - !Nested
       nodes:
-      - !Storage
-        tensors: [T{{i}}, T{{i+1}}]
-        component: GlobalBuffer
       - !Temporal
         rank_variable: n{{i}}
         tile_shape: 1
