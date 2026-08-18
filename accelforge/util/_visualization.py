@@ -36,7 +36,7 @@ class ColorMap:
         self.color_list = self._make_color_map(len(keys))
         self.color_map = {key: self.color_list[i] for i, key in enumerate(keys)}
 
-    def format_list(self, items: list[str]) -> str:
+    def format_list(self, items: list[str], suffix: str = None) -> str:
         result = ['<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0"><TR>']
         for i, item in enumerate(items):
             start = '<TD ALIGN="CENTER">'  # if i < len(items) - 1 else f'</TR><TR><TD ALIGN="CENTER" COLSPAN="100">'
@@ -44,6 +44,13 @@ class ColorMap:
                 start = f'<TD ALIGN="CENTER" BORDER="5" COLOR="{self.color_map[item]}">'
             end = "</TD>"
             result.append(f"{start}{item}{end}")
+        if suffix:
+            # An annotation that rides along in the same row, so it costs the node
+            # no extra height. Smaller and grayer than the text it annotates.
+            result.append(
+                f'<TD ALIGN="CENTER"><FONT POINT-SIZE="10" COLOR="#555555">'
+                f"{suffix}</FONT></TD>"
+            )
         result.append("</TR></TABLE>>")
         return "".join(result)
 

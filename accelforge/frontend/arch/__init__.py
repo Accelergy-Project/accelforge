@@ -1,4 +1,5 @@
 from .arch import Arch
+from .binding_constraints import BindingConstraints
 from .spatialable import *
 from .structure import *
 from .components import *
@@ -21,6 +22,7 @@ Network.model_rebuild()
 __all__ = [
     "Action",
     "Arch",
+    "BindingConstraints",
     "ArchNode",
     "ArchNodes",
     "Branch",

@@ -19,6 +19,7 @@ from hwcomponents import (
     get_model,
 )
 
+from accelforge.frontend.arch.binding_constraints import BindingConstraints
 from accelforge.util._migration import LATENCY_TO_THROUGHPUT_MIGRATION
 
 
@@ -1183,6 +1184,13 @@ class Memory(TensorHolder):
 
     actions: EvalableList[TensorHolderAction] = MEMORY_ACTIONS
     """ The actions that this `Memory` can perform. """
+
+    binding: BindingConstraints = BindingConstraints()
+    """
+    Which bindings of this memory the mapper may explore. Only meaningful for a
+    physically-distributed memory (one with a spatial fanout of its own)
+    The default only allows locally-optimal binding.
+    """
 
     _n_physical: NoParse[int] = 1
     """

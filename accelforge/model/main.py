@@ -77,6 +77,7 @@ def evaluate_mapping(
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
         apply_default_binding_if_unspecified,
+        validate_binding,
     )
     from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_tile_shapes import (
         _calculate_iterations_and_rank_columns,
@@ -182,6 +183,10 @@ def evaluate_mapping(
         # the mapper is modeled with the binding the mapper chose for it. Otherwise
         # (e.g. a mapping written by hand), use the locally-optimal binding.
         apply_default_binding_if_unspecified(job.mapping, job)
+        # A mapping found by the mapper satisfies the constraints by construction; one
+        # written by hand may not, and modeling it anyway would answer a question the
+        # constraints say was not asked.
+        validate_binding(job.mapping, job)
 
         _, df, _, _, tensor2mapping, _ = run_model(
             job, add_reservations=True

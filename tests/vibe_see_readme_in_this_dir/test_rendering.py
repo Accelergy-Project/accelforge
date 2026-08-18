@@ -25,6 +25,7 @@ from accelforge.frontend.arch import (
     Toll,
     Leaf,
 )
+from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend.mapping.mapping import (
     Mapping,
     Temporal,
@@ -333,6 +334,68 @@ class TestMappingRender(unittest.TestCase):
         mapping = self._make_mapping()
         graph = mapping.render_pydot(with_tile_shape=False)
         self.assertIsInstance(graph, pydot.Dot)
+
+    def _make_bound_mapping(self):
+        """A Storage bound to a 2D array: partitioned along M on X, replicated on Y."""
+
+        def binding_loop(name, rank):
+            return Spatial(
+                rank_variable=rank,
+                name=name,
+                component="Array",
+                tile_shape=None,
+                initial_tile_shape=None,
+            )
+
+        return Mapping(
+            nodes=[
+                Storage(
+                    tensors=["A"],
+                    component="Buf",
+                    binding=[
+                        binding_loop("X", "M"),
+                        binding_loop("Y", RANK_DUPLICATE),
+                    ],
+                ),
+                Spatial(rank_variable="m", name="X", component="Array", tile_shape=1),
+                Spatial(rank_variable="n", name="Y", component="Array", tile_shape=1),
+                MappingCompute(einsum="E", component="MAC"),
+            ]
+        )
+
+    def _storage_label(self, mapping, graph):
+        storage = mapping.nodes[0]
+        (node,) = graph.get_node(storage._render_node_name())
+        return node.get_label()
+
+    def test_render_shows_binding(self):
+        mapping = self._make_bound_mapping()
+        label = self._storage_label(mapping, mapping.render_pydot())
+        self.assertIn("bind X:M, Y:*", label)
+
+    def test_render_binding_adds_no_rows_to_the_storage_node(self):
+        # Compactness: the binding rides along in the row the Storage already has,
+        # so it costs the node no extra height.
+        mapping = self._make_bound_mapping()
+        label = self._storage_label(mapping, mapping.render_pydot())
+        self.assertEqual(label.count("<TR>"), 1)
+
+    def test_render_omits_binding_when_there_is_none(self):
+        mapping = self._make_mapping()
+        label = self._storage_label(mapping, mapping.render_pydot())
+        self.assertNotIn("bind", label)
+
+    def test_render_binding_reaches_the_svg(self):
+        svg = str(self._make_bound_mapping().render())
+        self.assertIn("bind X:M, Y:*", svg)
+
+    def test_binding_in_compact_str(self):
+        mapping = self._make_bound_mapping()
+        self.assertEqual(mapping.nodes[0].compact_str(), "[A in Buf]-bind[X:M, Y:*]")
+
+    def test_binding_in_str(self):
+        mapping = self._make_bound_mapping()
+        self.assertEqual(str(mapping.nodes[0]), "Buf reuses A (bind X:M, Y:*)")
 
     def test_render_nested_mapping(self):
         mapping = Mapping(

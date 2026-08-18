@@ -16,7 +16,7 @@ from accelforge.examples import examples
 from accelforge.util.exceptions import EvaluationError
 
 from accelforge.frontend.variables import Variables
-from accelforge.frontend.arch import Arch
+from accelforge.frontend.arch import Arch, BindingConstraints
 from accelforge.frontend.config import Config
 from accelforge.frontend.mapping import Mapping
 from accelforge.frontend.renames import Renames
@@ -35,6 +35,7 @@ __all__ = [
     "workload",
     # Main classes
     "Arch",
+    "BindingConstraints",
     "Config",
     "Mapping",
     "Metrics",

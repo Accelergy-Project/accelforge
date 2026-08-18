@@ -34,7 +34,7 @@ from pydantic import ConfigDict, Discriminator, Tag, computed_field
 import sympy
 
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
-from accelforge.frontend.renames import EinsumName, Rank, TensorName
+from accelforge.frontend.renames import EinsumName, Rank, RANK_DUPLICATE, TensorName
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
     EvalableModel,
@@ -666,6 +666,23 @@ class Storage(TensorHolder):
     def has_binding(self):
         return len(self.binding) > 0
 
+    def _binding_str(self) -> str:
+        """
+        A compact, one-line rendering of this Storage's binding: the rank that each
+        spatial loop below this Storage partitions the tensor along, keyed by the
+        spatial dimension of that loop, with ``*`` where the tensor is replicated
+        instead of partitioned. For example ``X:*, Y:N0``.
+        """
+        parts = []
+        for loop in self.binding:
+            rank = loop.rank_variable
+            if isinstance(rank, (set, frozenset)):
+                rank = ",".join(sorted(rank))
+            if rank == RANK_DUPLICATE:
+                rank = "*"
+            parts.append(f"{loop.name}:{rank}")
+        return ", ".join(parts)
+
     def _merge(self, other: "Storage") -> "Storage":
         if not isinstance(other, Storage):
             raise ValueError(f"Expected Storage, got {type(other)}")
@@ -681,8 +698,18 @@ class Storage(TensorHolder):
     def compact_str(self):
         s = super().compact_str()
         if self.binding:
-            s += f"-[{" ".join(b.compact_str() for b in self.binding)}]"
+            s += f"-bind[{self._binding_str()}]"
         return s
+
+    def __str__(self, color_map: ColorMap = None) -> str:
+        binding = self._binding_str()
+        if color_map is not None:
+            format_list = [f"{self.component} reuses"] + list(self.tensors)
+            return color_map.format_list(
+                format_list, suffix=f"bind {binding}" if binding else None
+            )
+        s = super().__str__()
+        return f"{s} (bind {binding})" if binding else s
 
 
 class Toll(TensorHolder):

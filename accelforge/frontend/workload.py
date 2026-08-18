@@ -1088,6 +1088,32 @@ class Workload(EvalableModel):
         return oset(TensorName(t.name) for e in self.einsums for t in e.tensor_accesses)
 
     @property
+    def input_tensor_names(self) -> set[TensorName]:
+        """Returns the names of all input tensors in the workload."""
+        ever_input_tensors = oset(
+            TensorName(t.name)
+            for e in self.einsums for t in e.tensor_accesses if not t.output
+        )
+        ever_output_tensors = oset(
+            TensorName(t.name)
+            for e in self.einsums for t in e.tensor_accesses if t.output
+        )
+        return ever_input_tensors - ever_output_tensors
+
+    @property
+    def output_tensor_names(self) -> set[TensorName]:
+        """Returns the names of all output tensors in the workload."""
+        ever_input_tensors = oset(
+            TensorName(t.name)
+            for e in self.einsums for t in e.tensor_accesses if not t.output
+        )
+        ever_output_tensors = oset(
+            TensorName(t.name)
+            for e in self.einsums for t in e.tensor_accesses if t.output
+        )
+        return ever_output_tensors - ever_input_tensors
+
+    @property
     def rank_variables(self) -> set[RankVariable]:
         """Returns the names of all rank variables in the workload."""
         return oset(RankVariable(r) for e in self.einsums for r in e.rank_variables)
@@ -1317,7 +1343,7 @@ class Workload(EvalableModel):
             return sum(get_operation_space_size(self, e) for e in self.einsum_names)
         return get_operation_space_size(self, einsum_name)
 
-    def get_compute_intensity(self, einsum_name: str) -> float:
+    def get_compute_intensity(self, einsum_name: str | None = None) -> float:
         """
         Returns the compute intensity of the given Einsum, defined as the number of
         computes divided by the total number of tensor elements.
@@ -1332,6 +1358,11 @@ class Workload(EvalableModel):
         float
             The compute intensity in #computes / #tensor elements.
         """
+        if einsum_name is None:
+            return self.n_computes() / sum(
+                self.get_tensor_size(tensor)
+                for tensor in self.input_tensor_names | self.output_tensor_names
+            )
         return self.n_computes(einsum_name) / sum(
             self.get_tensor_size(tensor)
             for tensor in self.einsums[einsum_name].tensor_names

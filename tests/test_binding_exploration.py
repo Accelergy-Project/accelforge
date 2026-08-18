@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 import accelforge as af
+from accelforge.frontend.arch import BindingConstraints
 from accelforge.frontend.mapping import Loop, Spatial, Storage, iter_binding_blocks
 from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend.spec import Spec
@@ -16,7 +17,12 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings import get_jobs
 ARCH = Path(__file__).parent / "input_files" / "distributed_binding.arch.yaml"
 
 
-def _make_spec(**mapper_settings) -> Spec:
+# The only physically-distributed memory of the fixture, and so the only one whose
+# binding constraints the mapper consults.
+DISTRIBUTED_MEMORY = "SharedBuffer"
+
+
+def _make_spec(binding: BindingConstraints | None = None, **mapper_settings) -> Spec:
     spec = Spec.from_yaml(
         ARCH,
         af.examples.workloads.basic.matmuls,
@@ -24,6 +30,9 @@ def _make_spec(**mapper_settings) -> Spec:
     )
     for k, v in mapper_settings.items():
         setattr(spec.mapper, k, v)
+    # Binding constraints live on the memory they constrain.
+    if binding is not None:
+        spec.arch[DISTRIBUTED_MEMORY].binding = binding
     return spec
 
 
@@ -98,7 +107,7 @@ class TestBindingExploration(unittest.TestCase):
 
     def test_exploring_bindings_adds_templates_and_compatibilities(self):
         without = _get_jobs()
-        with_ = _get_jobs(max_binding_rank_changes=1)
+        with_ = _get_jobs(binding=BindingConstraints(max_binding_rank_changes=1))
 
         for einsum_name in without:
             n_without = sum(len(j) for j in without[einsum_name].values())
@@ -126,7 +135,7 @@ class TestBindingExploration(unittest.TestCase):
 
     def test_explored_bindings_are_valid(self):
         for einsum_name, compatibility2jobs in _get_jobs(
-            max_binding_rank_changes=1
+            binding=BindingConstraints(max_binding_rank_changes=1)
         ).items():
             for job_list in compatibility2jobs.values():
                 for job in job_list:
@@ -151,8 +160,8 @@ class TestBindingExploration(unittest.TestCase):
                             self.assertIsNone(bound.initial_tile_shape)
 
     def test_max_binding_rank_changes(self):
-        one_change = _get_jobs(max_binding_rank_changes=1)
-        two_changes = _get_jobs(max_binding_rank_changes=2)
+        one_change = _get_jobs(binding=BindingConstraints(max_binding_rank_changes=1))
+        two_changes = _get_jobs(binding=BindingConstraints(max_binding_rank_changes=2))
         for einsum_name in one_change:
             self.assertGreater(
                 sum(len(j) for j in two_changes[einsum_name].values()),
@@ -232,7 +241,7 @@ class TestBindingExploration(unittest.TestCase):
         A mapping found by the mapper must be modeled with the binding the mapper chose
         for it, not with the locally-optimal binding.
         """
-        spec = _make_spec(max_binding_rank_changes=1)
+        spec = _make_spec(binding=BindingConstraints(max_binding_rank_changes=1))
         result = spec.map_workload_to_arch(print_progress=False)
         mapping = result.mapping(0)
         bindings = {

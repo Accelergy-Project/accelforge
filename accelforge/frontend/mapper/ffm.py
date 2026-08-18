@@ -138,16 +138,6 @@ class FFM(EvalableModel):
     are so many templates being generated?).
     """
 
-    max_binding_rank_changes: float | int = 0
-    """
-    By default, a binding that results in minimum memory usage and movement over
-    network (in that order) per Einsum is used, referred to as "locally-optimal."
-
-    If non-zero, `max_binding_rank_changes` sets the maximum number of binding
-    loops of a pmapping template that may bind a rank other than the one the
-    locally-optimal binding gives them. Set to float("inf") to explore all bindings.
-    """
-
     explore_imperfect_spatial_loops: bool = False
     """
     If True, spatial loop bounds may not perfectly divide the full rank shape. This

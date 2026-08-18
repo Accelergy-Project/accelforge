@@ -24,7 +24,7 @@ workload:
     G:  {{N_HIDDEN_DIMS}}         # Model hidden dim, projection output
 
   bits_per_value: {All: 8}
-  persistent_tensors: weight - Intermediates
+  persistent_tensors: (weight - Intermediates) | K | V
 
   einsums:
   # Optionally copy the input tensor onto the accelerator

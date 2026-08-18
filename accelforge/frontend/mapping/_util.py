@@ -58,6 +58,31 @@ def iter_binding_blocks(
     return blocks
 
 
+def binding_summary(
+    nodes: "Iterable[MappingNode]",
+) -> dict[tuple[str, str], dict[str, str]]:
+    """
+    The binding of every bound :class:`~.Storage` of a mapping, as
+    ``{(component, tensor): {spatial dimension: bound rank}}``. ``DUPLICATE`` as a rank
+    means the tensor is replicated across that dimension rather than partitioned.
+
+    Intended for reporting and for comparing the bindings that different mapper
+    configurations choose. A dimension that binds a storage more than once (more than
+    one spatial loop over the same dimension) appears once per loop, suffixed with the
+    index of the loop.
+    """
+    summary: dict[tuple[str, str], dict[str, str]] = {}
+    for node in nodes:
+        if not isinstance(node, Storage) or not node.binding:
+            continue
+        per_dimension: dict[str, str] = {}
+        for i, loop in enumerate(node.binding):
+            key = loop.name if loop.name not in per_dimension else f"{loop.name}[{i}]"
+            per_dimension[key] = loop.rank_variable
+        summary[(node.component, node.tensor)] = per_dimension
+    return summary
+
+
 def drop_binding_loops_for_removed_spatials(
     nodes: "Iterable[MappingNode]", removed: set[int]
 ) -> None:

@@ -2,7 +2,7 @@ from accelforge.frontend.mapping.mapping import MappingNode
 
 
 import copy
-from collections import defaultdict
+from collections import Counter, defaultdict
 import itertools
 import logging
 from typing import Any, Iterator, List
@@ -24,6 +24,7 @@ from accelforge.frontend.mapping import (
     Temporal,
     iter_binding_blocks,
 )
+from accelforge.frontend.arch.binding_constraints import BindingConstraints
 from accelforge.frontend.renames import Rank, RANK_DUPLICATE
 from accelforge.util._basetypes import EvalableList
 from accelforge.frontend.spec import Spec
@@ -436,57 +437,105 @@ def iterate_mappings_constraints(
 # =================================================================================================
 # Bindings
 # =================================================================================================
+def binding_constraints_for(job: Job, component: str) -> BindingConstraints:
+    """
+    The binding constraints of the memory named `component`. They come from the
+    flattened arch, so their tensor set expressions are already evaluated against this
+    job's Einsum.
+    """
+    return job.flattened_arch[component].binding
+
+
+def _tensor_ranks(tensor: TensorName, job: Job) -> list[Rank]:
+    return list(job.einsum.tensor_accesses[tensor].ranks)
+
+
 def default_binding_ranks(
-    tensor: TensorName, spatials: list[Spatial], job: Job
-) -> list[Rank]:
+    storage: Storage, spatials: list[Spatial], job: Job
+) -> list[Rank] | None:
     """
-    The locally-optimal, non-duplicating binding of `tensor` to the spatial loops
-    `spatials`: partition the tensor along the rank that each spatial loop's rank
-    variable projects into, and replicate it (RANK_ANY) if the loop's rank variable
-    does not index the tensor.
+    The locally-optimal binding of `storage`'s tensor to the spatial loops `spatials`:
+    partition the tensor along the rank that each spatial loop's rank variable projects
+    into, and replicate it (RANK_DUPLICATE) if the loop's rank variable does not index
+    the tensor.
+
+    The binding constraints in force for `storage` may forbid that rank for some loop.
+    Such a loop instead takes the first rank the constraints do allow it, preferring one
+    that no other loop of this binding already partitions -- which spreads the tensor
+    over the spatial dimensions rather than piling it onto one rank. The result is a
+    valid, deterministic binding rather than a provably optimal one, and it is the
+    binding that `max_binding_rank_changes` counts changes against.
+
+    Returns None if no binding of `storage` satisfies the constraints.
     """
+    tensor = storage.tensor
+    constraints = binding_constraints_for(job, storage.component)
     irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
     rank_variable2ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks
-    ranks = []
+    tensor_ranks = _tensor_ranks(tensor, job)
+
+    ranks: list[Rank] = []
     for loop in spatials:
+        allowed = constraints.allowed_ranks(tensor, loop.name, tensor_ranks)
         rv = loop.rank_variable
         if rv in irrelevant_rvs:
-            ranks.append(RANK_DUPLICATE)
+            preferred = RANK_DUPLICATE
         else:
             rv_ranks = rank_variable2ranks[rv]
             assert len(rv_ranks) == 1
-            ranks.append(next(iter(rv_ranks)))
+            preferred = next(iter(rv_ranks))
+
+        order = (
+            [preferred]
+            + [r for r in allowed if r != preferred and r not in ranks]
+            + [r for r in allowed if r != preferred and r in ranks]
+        )
+        for rank in order:
+            if rank in allowed:
+                ranks.append(rank)
+                break
+        else:
+            return None
     return ranks
 
 
 def binding_rank_options(
-    tensor: TensorName, spatials: list[Spatial], job: Job
-) -> list[list[Rank]]:
+    storage: Storage, spatials: list[Spatial], job: Job
+) -> list[list[Rank]] | None:
     """
-    The ranks that each binding loop of `tensor` may take. A binding loop may partition
-    the tensor along any of the tensor's ranks, or replicate it (RANK_ANY). The
-    locally-optimal choice (see `default_binding_ranks`) comes first for each loop, so
+    The ranks that each binding loop of `storage`'s tensor may take. A binding loop may
+    partition the tensor along any of the tensor's ranks, or replicate it
+    (RANK_DUPLICATE), except as the binding constraints in force for `storage` restrict
+    it. The default choice (see `default_binding_ranks`) comes first for each loop, so
     the first combination of the options is the default binding.
+
+    Returns None if no binding of `storage` satisfies the constraints.
     """
-    all_ranks = list(job.einsum.tensor_accesses[tensor].ranks) + [RANK_DUPLICATE]
+    tensor = storage.tensor
+    constraints = binding_constraints_for(job, storage.component)
+    tensor_ranks = _tensor_ranks(tensor, job)
+
+    default = default_binding_ranks(storage, spatials, job)
+    if default is None:
+        return None
     return [
-        [default] + [r for r in all_ranks if r != default]
-        for default in default_binding_ranks(tensor, spatials, job)
+        [d] + [r for r in constraints.allowed_ranks(tensor, loop.name, tensor_ranks) if r != d]
+        for loop, d in zip(spatials, default)
     ]
 
 
-def iter_binding_choices(
-    mapping: Mapping,
-    job: Job,
-    max_rank_changes: float | int
-) -> Iterator[list[list[Rank]]]:
+def iter_binding_choices(mapping: Mapping, job: Job) -> Iterator[list[list[Rank]]]:
     """
-    Iterate over the bindings of the physically-distributed storages of `mapping`. Each
-    yielded choice gives, for each block of `iter_binding_blocks` in order, the rank
-    bound by each of that block's binding loops.
+    Iterate over the bindings of the physically-distributed storages of `mapping` that
+    satisfy the binding constraints. Each yielded choice gives, for each block of
+    `iter_binding_blocks` in order, the rank bound by each of that block's binding loops.
+
+    Yields nothing if the constraints admit no binding of `mapping`, in which case the
+    caller must drop the template: there is no binding it could be modeled with.
     """
     blocks = iter_binding_blocks(mapping.nodes)
     block_lengths = [len(spatials) for _, spatials in blocks]
+    constraints = [binding_constraints_for(job, s.component) for s, _ in blocks]
 
     def split(flat: list[Rank]) -> list[list[Rank]]:
         """Re-split one flat list of per-loop ranks into per-block ranks."""
@@ -496,25 +545,38 @@ def iter_binding_choices(
             i += length
         return out
 
-    # One list of candidate ranks per binding loop, the locally-optimal rank first.
-    options: list[list[Rank]] = list(
-        itertools.chain(
-            *[
-                binding_rank_options(storage.tensor, spatials, job)
-                for storage, spatials in blocks
-            ]
-        )
-    )
+    # One list of candidate ranks per binding loop, the default rank first.
+    per_block = [
+        binding_rank_options(storage, spatials, job) for storage, spatials in blocks
+    ]
+    if any(o is None for o in per_block):
+        return
+    options: list[list[Rank]] = list(itertools.chain(*per_block))
     default = [o[0] for o in options]
 
-    if max_rank_changes <= 0 or not options:
+    if not options:
         yield split(default)
         return
 
-    max_rank_changes = min(max_rank_changes, len(options))
-    for n_changes in range(int(max_rank_changes) + 1):
+    # Each memory bounds how many of its own binding loops may change, and the template
+    # as a whole may not change more than the most permissive of them. Budgeting per
+    # memory instead would multiply the budgets together across memories, blowing up the
+    # number of templates by orders of magnitude on an architecture with several
+    # distributed memories.
+    budgets = [c.max_binding_rank_changes for c in constraints]
+    block_of = [b for b, length in enumerate(block_lengths) for _ in range(length)]
+    total_budget = min(max(budgets), len(options))
+
+    if total_budget <= 0:
+        yield split(default)
+        return
+
+    for n_changes in range(int(total_budget) + 1):
         for positions in itertools.combinations(range(len(options)), n_changes):
-            # [1:] because the locally-optimal rank of a loop is not a change to it.
+            changes_per_block = Counter(block_of[p] for p in positions)
+            if any(n > budgets[b] for b, n in changes_per_block.items()):
+                continue
+            # [1:] because the default rank of a loop is not a change to it.
             for ranks in itertools.product(*[options[p][1:] for p in positions]):
                 choice = list(default)
                 for position, rank in zip(positions, ranks):
@@ -522,46 +584,91 @@ def iter_binding_choices(
                 yield split(choice)
 
 
+def _set_binding(storage: Storage, spatials: list[Spatial], ranks: list[Rank]) -> None:
+    """Give `storage` a binding that names `ranks`, one per loop of `spatials`."""
+    assert len(ranks) == len(spatials), (
+        f"Binding of {storage.tensor} in {storage.component} has {len(ranks)} loops, "
+        f"but the storage is bound by {len(spatials)} spatial loops."
+    )
+    binding = EvalableList()
+    for loop, rank in zip(spatials, ranks):
+        binding_spatial = loop.model_copy()
+        binding_spatial.rank_variable = rank
+        binding_spatial.tile_shape = None
+        binding_spatial.initial_tile_shape = None
+        binding.append(binding_spatial)
+    storage.binding = binding
+
+
+def _default_binding_ranks_or_raise(
+    storage: Storage, spatials: list[Spatial], job: Job
+) -> list[Rank]:
+    ranks = default_binding_ranks(storage, spatials, job)
+    if ranks is None:
+        raise ValueError(
+            f"No binding of {storage.tensor} in {storage.component} satisfies "
+            f"{storage.component}.binding. The memory is bound by "
+            f"{len(spatials)} spatial loops "
+            f"({', '.join(l.name for l in spatials)}) and the tensor has ranks "
+            f"{_tensor_ranks(storage.tensor, job)}."
+        )
+    return ranks
+
+
 def apply_binding(
-    mapping: Mapping, job: Job, ranks: list[list[Rank]]
+    mapping: Mapping, job: Job, ranks: list[list[Rank]] | None
 ) -> None:
     """
     Sets binding in storage nodes in the mapping to `ranks`, which is specified
-    in the same order as `iter_binding_blocks` would return.
+    in the same order as `iter_binding_blocks` would return. If `ranks` is None, the
+    default binding of each storage is used.
     """
     for i, (storage, spatials) in enumerate(iter_binding_blocks(mapping.nodes)):
-        tensor = storage.tensor
         block_ranks = (
-            default_binding_ranks(tensor, spatials, job) if ranks is None else ranks[i]
+            _default_binding_ranks_or_raise(storage, spatials, job)
+            if ranks is None
+            else ranks[i]
         )
-        assert len(block_ranks) == len(spatials), (
-            f"Binding of {tensor} in {storage.component} has {len(block_ranks)} loops, "
-            f"but the storage is bound by {len(spatials)} spatial loops."
-        )
-        binding = EvalableList()
-        for loop, rank in zip(spatials, block_ranks):
-            binding_spatial = loop.model_copy()
-            binding_spatial.rank_variable = rank
-            binding_spatial.tile_shape = None
-            binding_spatial.initial_tile_shape = None
-            binding.append(binding_spatial)
-        storage.binding = binding
+        _set_binding(storage, spatials, block_ranks)
 
 
 def apply_default_binding_if_unspecified(mapping: Mapping, job: Job) -> None:
-    for i, (storage, spatials) in enumerate(iter_binding_blocks(mapping.nodes)):
-        tensor = storage.tensor
+    for storage, spatials in iter_binding_blocks(mapping.nodes):
         if len(storage.binding) > 0:
             continue
-        block_ranks = default_binding_ranks(tensor, spatials, job)
-        binding = EvalableList()
-        for loop, rank in zip(spatials, block_ranks):
-            binding_spatial = loop.model_copy()
-            binding_spatial.rank_variable = rank
-            binding_spatial.tile_shape = None
-            binding_spatial.initial_tile_shape = None
-            binding.append(binding_spatial)
-        storage.binding = binding
+        _set_binding(
+            storage, spatials, _default_binding_ranks_or_raise(storage, spatials, job)
+        )
+
+
+def validate_binding(mapping: Mapping, job: Job) -> None:
+    """
+    Raise if any binding of `mapping` violates the binding constraints in force. Called
+    on mappings that the mapper did not build, so that a mapping and the constraints it
+    is evaluated under cannot silently disagree.
+    """
+    problems: list[str] = []
+    for storage, spatials in iter_binding_blocks(mapping.nodes):
+        # A binding may have fewer loops than the storage has spatial loops if the
+        # mapping has not been given one yet; `_beautify_loops` keeps the two in step.
+        if len(storage.binding) != len(spatials):
+            continue
+        constraints = binding_constraints_for(job, storage.component)
+        for problem in constraints.violations(
+            storage.tensor,
+            [loop.name for loop in storage.binding],
+            [loop.rank_variable for loop in storage.binding],
+            _tensor_ranks(storage.tensor, job),
+        ):
+            problems.append(
+                f"The binding of {storage.tensor} in {storage.component} is invalid: "
+                f"{problem}."
+            )
+    if problems:
+        raise ValueError(
+            "The mapping violates the binding constraints of the architecture:\n\t"
+            + "\n\t".join(problems)
+        )
 
 
 def _copy_mapping(mapping: Mapping) -> Mapping:
@@ -610,6 +717,8 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
     if isinstance(only_output_index, dict):
         only_output_index = only_output_index.get(job.einsum_name, None)
 
+    n_dropped_by_binding_constraints = 0
+
     for i, (mapping, constraints, symbol_table) in enumerate(mappings_constraints):
         if only_output_index is not None and i != only_output_index:
             continue
@@ -617,16 +726,18 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
             continue
 
         # Each binding of the physically-distributed storages is its own template. The
-        # first one is the locally-optimal binding, which is the only one if bindings
-        # are not being explored. The copies are all taken before any of the templates
-        # below is processed, because processing one may mutate its nodes.
+        # first one is the default binding, which is the only one if bindings are not
+        # being explored. The copies are all taken before any of the templates below is
+        # processed, because processing one may mutate its nodes.
         binding_choices = list(
-            iter_binding_choices(
-                mapping,
-                job,
-                mapper.max_binding_rank_changes,
-            )
+            iter_binding_choices(mapping, job)
         )
+        if not binding_choices:
+            # The constraints admit no binding of this template, so there is no
+            # mapping here to model. Counted so that a constraint that removes
+            # mappings outright does not look like one that had no effect.
+            n_dropped_by_binding_constraints += 1
+            continue
         bound_mappings = [mapping] + [
             _copy_mapping(mapping) for _ in binding_choices[1:]
         ]
@@ -647,5 +758,13 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
                 new_job.einsum,
             )
             jobs.append(new_job)
+
+    if n_dropped_by_binding_constraints:
+        logging.warning(
+            f"Binding constraints dropped "
+            f"{n_dropped_by_binding_constraints} pmapping template(s) of Einsum "
+            f"{job.einsum_name} on compute {compute_name}: no binding of those "
+            f"templates satisfies the constraints. {len(jobs)} template(s) remain."
+        )
 
     return jobs
