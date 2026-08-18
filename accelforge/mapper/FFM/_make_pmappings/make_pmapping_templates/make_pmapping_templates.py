@@ -499,15 +499,41 @@ def default_binding_ranks(
     return ranks
 
 
+def _binding_rank_classes(
+    allowed: list[Rank], default: Rank
+) -> list[tuple[Rank, ...]]:
+    """
+    `allowed` grouped into the classes of ranks that a binding loop is modeled
+    identically for, the class of `default` first and each class's representative first
+    within it.
+
+    A loop that partitions its tensor along a rank other than the locally-optimal one
+    hands every instance the same 1/fanout share of the tile and the same scattered
+    delivery to serve it, whichever of those ranks it picks, so the mapper models one of
+    them and lets it stand for the rest. RANK_DUPLICATE is not one of them: replicating
+    puts a whole copy in every instance, which costs capacity that a partition does not
+    and saves the delivery that a partition pays for.
+    """
+    classes = [(default,)]
+    if default != RANK_DUPLICATE and RANK_DUPLICATE in allowed:
+        classes.append((RANK_DUPLICATE,))
+    partitions = [r for r in allowed if r != default and r != RANK_DUPLICATE]
+    if partitions:
+        classes.append(tuple(partitions))
+    return classes
+
+
 def binding_rank_options(
     storage: Storage, spatials: list[Spatial], job: Job
-) -> list[list[Rank]] | None:
+) -> list[list[tuple[Rank, ...]]] | None:
     """
-    The ranks that each binding loop of `storage`'s tensor may take. A binding loop may
-    partition the tensor along any of the tensor's ranks, or replicate it
-    (RANK_DUPLICATE), except as the binding constraints in force for `storage` restrict
-    it. The default choice (see `default_binding_ranks`) comes first for each loop, so
-    the first combination of the options is the default binding.
+    The classes of ranks that each binding loop of `storage`'s tensor may take. A
+    binding loop may partition the tensor along any of the tensor's ranks, or replicate
+    it (RANK_DUPLICATE), except as the binding constraints in force for `storage`
+    restrict it; `_binding_rank_classes` collects the ones that model alike, so a loop
+    offers one option per class rather than one per rank. The default choice (see
+    `default_binding_ranks`) is the first class of each loop, so the first combination
+    of the options is the default binding.
 
     Returns None if no binding of `storage` satisfies the constraints.
     """
@@ -519,16 +545,68 @@ def binding_rank_options(
     if default is None:
         return None
     return [
-        [d] + [r for r in constraints.allowed_ranks(tensor, loop.name, tensor_ranks) if r != d]
+        _binding_rank_classes(
+            constraints.allowed_ranks(tensor, loop.name, tensor_ranks), d
+        )
         for loop, d in zip(spatials, default)
     ]
 
 
-def iter_binding_choices(mapping: Mapping, job: Job) -> Iterator[list[list[Rank]]]:
+def binding_representatives(
+    choice: list[list[tuple[Rank, ...]]]
+) -> list[list[Rank]]:
+    """The rank each binding loop of `choice` actually binds: its class's first."""
+    return [[ranks[0] for ranks in block] for block in choice]
+
+
+def binding_rank_aliases(
+    mapping: Mapping, choice: list[list[tuple[Rank, ...]]]
+) -> dict[tuple[TensorName, str, int], tuple[Rank, ...]]:
+    """
+    Per binding loop, the ranks that the representative `mapping` was bound to stands
+    for -- the ranks this template's compatibilities are expanded over once it has been
+    modeled. Loops whose class holds one rank are left out: they bind what they bind and
+    there is nothing to expand.
+
+    A loop is named by its tensor, the memory holding it, and its position in that
+    storage's binding. Position, because a memory with several spatial loops over one
+    dimension binds a rank for each of them and the dimension name alone would name them
+    all at once; and `Compatibility.from_mapping` walks the same binding in the same
+    order, so the position carries over.
+    """
+    aliases: dict[tuple[TensorName, str, int], tuple[Rank, ...]] = {}
+    seen: set[tuple[TensorName, str]] = set()
+    for (storage, spatials), block in zip(iter_binding_blocks(mapping.nodes), choice):
+        for i, (loop, ranks) in enumerate(zip(spatials, block)):
+            if len(ranks) > 1:
+                # A tensor held twice in one memory would make (tensor, memory, index)
+                # name two loops at once. Nothing downstream could tell them apart, so
+                # say so here rather than expand one loop's ranks onto the other's.
+                assert (storage.tensor, storage.component) not in seen, (
+                    f"{storage.tensor} is held more than once in "
+                    f"{storage.component}, so its binding loops cannot be named "
+                    f"by (tensor, memory, index)."
+                )
+                aliases[(storage.tensor, storage.component, i)] = tuple(ranks)
+        seen.add((storage.tensor, storage.component))
+    return aliases
+
+
+def iter_binding_choices(
+    mapping: Mapping, job: Job
+) -> Iterator[list[list[tuple[Rank, ...]]]]:
     """
     Iterate over the bindings of the physically-distributed storages of `mapping` that
     satisfy the binding constraints. Each yielded choice gives, for each block of
-    `iter_binding_blocks` in order, the rank bound by each of that block's binding loops.
+    `iter_binding_blocks` in order, the class of ranks each of that block's binding
+    loops may bind: the loop binds the class's representative, and the ranks behind it
+    are expanded into their own compatibilities once the template has been modeled.
+    Ranks that model alike therefore cost one template between them, not one each.
+
+    Only the storages of shared tensors -- those this Einsum passes to or receives from
+    another one -- are explored. The binding of a tensor that only this Einsum touches
+    is nobody else's business: no other Einsum has to agree with it, so it always takes
+    its locally-optimal binding rather than multiplying the templates.
 
     Yields nothing if the constraints admit no binding of `mapping`, in which case the
     caller must drop the template: there is no binding it could be modeled with.
@@ -545,7 +623,7 @@ def iter_binding_choices(mapping: Mapping, job: Job) -> Iterator[list[list[Rank]
             i += length
         return out
 
-    # One list of candidate ranks per binding loop, the default rank first.
+    # One list of candidate rank classes per binding loop, the default class first.
     per_block = [
         binding_rank_options(storage, spatials, job) for storage, spatials in blocks
     ]
@@ -565,22 +643,35 @@ def iter_binding_choices(mapping: Mapping, job: Job) -> Iterator[list[list[Rank]
     # distributed memories.
     budgets = [c.max_binding_rank_changes for c in constraints]
     block_of = [b for b, length in enumerate(block_lengths) for _ in range(length)]
-    total_budget = min(max(budgets), len(options))
+
+    # Only the binding loops of a shared tensor are explored; the rest keep the default.
+    shared = job.fusable_tensors or set()
+    explorable = [
+        p
+        for p in range(len(options))
+        if blocks[block_of[p]][0].tensor in shared and len(options[p]) > 1
+    ]
+    # The budget of a memory whose tensor is not explored buys nothing, so the total
+    # comes from the memories that are.
+    explorable_blocks = {block_of[p] for p in explorable}
+    total_budget = min(
+        max((budgets[b] for b in explorable_blocks), default=0), len(explorable)
+    )
 
     if total_budget <= 0:
         yield split(default)
         return
 
     for n_changes in range(int(total_budget) + 1):
-        for positions in itertools.combinations(range(len(options)), n_changes):
+        for positions in itertools.combinations(explorable, n_changes):
             changes_per_block = Counter(block_of[p] for p in positions)
             if any(n > budgets[b] for b, n in changes_per_block.items()):
                 continue
-            # [1:] because the default rank of a loop is not a change to it.
-            for ranks in itertools.product(*[options[p][1:] for p in positions]):
+            # [1:] because the default class of a loop is not a change to it.
+            for classes in itertools.product(*[options[p][1:] for p in positions]):
                 choice = list(default)
-                for position, rank in zip(positions, ranks):
-                    choice[position] = rank
+                for position, rank_class in zip(positions, classes):
+                    choice[position] = rank_class
                 yield split(choice)
 
 
@@ -742,11 +833,18 @@ def make_pmapping_templates(job: Job, print_progress: bool = True) -> SameEinsum
             _copy_mapping(mapping) for _ in binding_choices[1:]
         ]
 
-        for bound_mapping, binding_ranks in zip(bound_mappings, binding_choices):
-            apply_binding(bound_mapping, job, binding_ranks)
+        for bound_mapping, binding_choice in zip(bound_mappings, binding_choices):
+            apply_binding(
+                bound_mapping, job, binding_representatives(binding_choice)
+            )
 
             new_job = copy.copy(job)
             new_job.mapping = bound_mapping
+            # The ranks this template's binding stands for. Its compatibility names the
+            # representative; the siblings get theirs once the template is modeled.
+            new_job.binding_rank_aliases = binding_rank_aliases(
+                bound_mapping, binding_choice
+            )
             new_job.mapping._template_index = i
             new_job.constraints = constraints
             new_job.job_id = uuid.uuid4()

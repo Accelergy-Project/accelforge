@@ -271,6 +271,23 @@ class TensorReservation(Updatable):
         loops = tuple(l for i, l in enumerate(self.loops) if i not in loop_indices)
         return self.update(loops=loops)
 
+    def rebind_physical_spatial_loops(
+        self, index2rank: dict[int, Rank]
+    ) -> "TensorReservation":
+        """
+        This reservation with the binding loop at each position of `index2rank` binding
+        that rank instead of the one it names now. Positions index the binding as the
+        mapping wrote it, so this has to run before degenerate binding loops are dropped.
+        """
+        if not self.physical_spatial_loops:
+            return self
+        return self.update(
+            physical_spatial_loops=tuple(
+                l.update(rank_name=index2rank[i]) if i in index2rank else l
+                for i, l in enumerate(self.physical_spatial_loops)
+            )
+        )
+
     def drop_physical_spatial_loops(self, n_iterations: set) -> "TensorReservation":
         return self.update(
             physical_spatial_loops=tuple(
@@ -787,6 +804,36 @@ class Compatibility(Updatable):
                 if n not in result:
                     result.append(n)
         return result
+
+    def rebind_physical_spatial_loops(
+        self, assignment: dict[tuple[TensorName, str, int], Rank]
+    ) -> "Compatibility":
+        """
+        This compatibility with the binding loops named by `assignment`, keyed by
+        (tensor, memory, position in that storage's binding), binding those ranks
+        instead. Used to expand a template that was modeled for one rank into the
+        compatibilities of every rank it was modeled the same for: the numbers are
+        identical, but each rank is a different thing for a neighboring Einsum to agree
+        with.
+
+        Positions are the ones the mapping's binding has, so this must be applied before
+        the degenerate binding loops of a group are dropped.
+        """
+        per_tensor: dict[tuple[TensorName, str], dict[int, Rank]] = {}
+        for (tensor, resource, index), rank in assignment.items():
+            per_tensor.setdefault((tensor, resource), {})[index] = rank
+        return self.update(
+            tensors=fzs(
+                (
+                    t.rebind_physical_spatial_loops(
+                        per_tensor[(t.name, t.resource_name)]
+                    )
+                    if (t.name, t.resource_name) in per_tensor
+                    else t
+                )
+                for t in self.tensors
+            )
+        )
 
     def drop_physical_spatial_loops(self, n_iterations: set) -> "Compatibility":
         """

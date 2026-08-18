@@ -39,6 +39,10 @@ class BindingConstraints(EvalableModel):
     loops of a pmapping template that may bind a rank other than the one the
     locally-optimal binding gives them. Set to float("inf") to explore all bindings.
 
+    Only the bindings of shared tensors -- those passed between Einsums -- are explored.
+    A tensor that only one Einsum touches has no other Einsum to agree with, so its
+    binding is always the locally-optimal one no matter what this is set to.
+
     Changes are counted against the locally-optimal binding *that satisfies* the rest of
     these constraints, which may not be the unconstrained locally-optimal one.
 

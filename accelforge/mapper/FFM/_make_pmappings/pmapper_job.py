@@ -60,6 +60,15 @@ class Job:
     fusable_tensors: set[TensorName] | None = None
     flattened_arch: FlattenedArch | None = None
 
+    binding_rank_aliases: dict[tuple[TensorName, str], tuple[Rank, ...]] | None = None
+    """
+    Per (tensor, spatial dimension), the ranks that this template's binding stands for.
+    A binding loop is modeled the same whichever non-locally-optimal rank it partitions
+    along, so the mapper models one of them and expands the rest into their own
+    compatibilities afterwards. Empty or None when every binding loop binds a rank that
+    stands only for itself.
+    """
+
     einsum_name: EinsumName | None = None
     """If the Job is for a single einsum, this is the einsum name."""
 

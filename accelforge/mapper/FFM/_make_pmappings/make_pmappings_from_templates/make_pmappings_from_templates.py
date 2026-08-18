@@ -1,11 +1,19 @@
 import copy
+import itertools
 import math
 from accelforge._accelerated_imports import pandas as pd
-from uuid import UUID
+from uuid import UUID, uuid4
 from collections import defaultdict
 
 import sympy
-from accelforge.frontend.mapping import Loop, Mapping, Spatial, Temporal
+from accelforge.frontend.mapping import (
+    Loop,
+    Mapping,
+    Spatial,
+    Temporal,
+    iter_binding_blocks,
+)
+from accelforge.util._basetypes import EvalableList
 from accelforge.frontend.workload import EinsumName
 from accelforge.util._frozenset import oset
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
@@ -258,6 +266,69 @@ def assert_all_jobs_have_same_symbols(
     ), "All jobs must have the same symbols for compatibility n_iterations"
 
 
+def _binding_expansions(
+    aliases: dict[tuple[str, str, int], tuple[str, ...]]
+) -> list[dict[tuple[str, str, int], str]]:
+    """
+    Every concrete binding that a template's representative stands for, the one the
+    template was actually modeled with first. One entry, and an empty one, when the
+    template's binding stands only for itself.
+    """
+    if not aliases:
+        return [{}]
+    keys = sorted(aliases)
+    return [
+        dict(zip(keys, combination))
+        for combination in itertools.product(*[aliases[k] for k in keys])
+    ]
+
+
+def _rebind_mapping_column(
+    mappings: "pd.DataFrame",
+    einsum_name: EinsumName,
+    assignment: dict[tuple[str, str, int], str],
+    pmapping_objects: dict[UUID, Mapping],
+) -> "pd.DataFrame":
+    """
+    A copy of `mappings` whose rows point at rebound copies of the mappings they point
+    at now, registering each copy in `pmapping_objects` under a fresh id. The rows carry
+    an id rather than a mapping, and the join resolves it back through
+    `pmapping_objects`, so an expanded row needs a mapping of its own to resolve to --
+    otherwise it would report the binding the template was modeled with rather than the
+    one its compatibility was expanded to.
+    """
+    column = f"{einsum_name}<SEP>{MAPPING_COLUMN}"
+    rebound_ids = {}
+    for job_id in mappings[column].unique():
+        mapping = pmapping_objects.get(job_id)
+        if mapping is None:
+            continue
+
+        new_mapping = Mapping(nodes=[copy.copy(n) for n in mapping.nodes])
+        new_mapping._n_loop_orders = mapping._n_loop_orders
+        new_mapping._template_index = mapping._template_index
+        for storage, _ in iter_binding_blocks(new_mapping.nodes):
+            rebound = EvalableList()
+            changed = False
+            for i, loop in enumerate(storage.binding):
+                rank = assignment.get((storage.tensor, storage.component, i))
+                if rank is not None and rank != loop.rank_variable:
+                    loop = loop.model_copy()
+                    loop.rank_variable = rank
+                    changed = True
+                rebound.append(loop)
+            if changed:
+                storage.binding = rebound
+
+        rebound_id = uuid4()
+        pmapping_objects[rebound_id] = new_mapping
+        rebound_ids[job_id] = rebound_id
+
+    mappings = mappings.copy()
+    mappings[column] = mappings[column].map(lambda i: rebound_ids.get(i, i))
+    return mappings
+
+
 def make_pmappings_from_templates(
     jobs_with_similar_compatibilities: SameTemplateJobs,
 ) -> tuple[EinsumName, list[PmappingGroup], dict[UUID, Mapping]]:
@@ -403,6 +474,17 @@ def make_pmappings_from_templates(
     assert_all_jobs_have_same_symbols(jobs_with_similar_compatibilities)
     # Otherwise, following logic fails
 
+    # Every job here shares a compatibility, and `_allocate_jobs` hands this function
+    # one job at a time, so one set of aliases covers the call. Asserted rather than
+    # handled per-job: if that ever stops holding, expanding one job's aliases over
+    # another job's rows would quietly give those rows a binding they were not modeled
+    # for.
+    binding_rank_aliases = job0.binding_rank_aliases or {}
+    assert all(
+        (j.binding_rank_aliases or {}) == binding_rank_aliases
+        for j in jobs_with_similar_compatibilities
+    ), "Jobs of one compatibility disagree on which ranks their binding stands for."
+
     df["fused_loop_indices"] = get_fused_loop_indices(
         df, job0.compatibility, einsum_name, return_as_int=True
     )
@@ -448,14 +530,20 @@ def make_pmappings_from_templates(
         dropcols = ["fused_loop_indices", "physical_spatial_loop_indices"]
         mappings = mappings.drop(columns=dropcols)
 
-        compatibility = compatibility.drop_loop_indices(null_loop_indices)
-        compatibility = compatibility.drop_physical_spatial_loops(
-            null_physical_spatial_loops
-        )
+        def _for_this_group(c: Compatibility):
+            """
+            `c` as this group sees it: the loops this group's rows do not use dropped,
+            and the symbols named for this Einsum. None of it depends on which rank a
+            binding loop binds, so an expanded compatibility takes exactly these steps
+            too -- and takes them from the binding the mapping wrote, since dropping
+            degenerate binding loops is what makes a loop's position stop matching.
+            """
+            c = c.drop_loop_indices(null_loop_indices)
+            c = c.drop_physical_spatial_loops(null_physical_spatial_loops)
+            return c.make_fused_loop_symbols(einsum_name)
 
-        symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
-            einsum_name
-        )
+        base_compatibility = compatibility
+        symbol_renames, compatibility = _for_this_group(compatibility)
         for k, v in symbol_renames.items():
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
         mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
@@ -499,6 +587,36 @@ def make_pmappings_from_templates(
                 absolute_resource_usage_tolerance=absolute_resource_usage_tolerance,
             )
         pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
+
+        # The template was modeled once for a rank that stands for several. Each of the
+        # others gets the same numbers under its own compatibility -- a different thing
+        # for a neighboring Einsum to agree with -- without being modeled again. An
+        # expansion whose compatibility comes out unchanged (its binding loop was
+        # degenerate and dropped above) really would be a duplicate, so it is skipped.
+        seen_compatibilities = {compatibility}
+        for assignment in _binding_expansions(binding_rank_aliases)[1:]:
+            _, expanded = _for_this_group(
+                base_compatibility.rebind_physical_spatial_loops(assignment)
+            )
+            if expanded in seen_compatibilities:
+                continue
+            seen_compatibilities.add(expanded)
+            expanded_mappings = PmappingDataframe(
+                # From the rows the representative ended up with, not the ones it
+                # started with, so that an expansion carries exactly what was modeled
+                # and survived the Pareto pass just above.
+                _rebind_mapping_column(
+                    partial_mappings.data, einsum_name, assignment, pmapping_objects
+                ),
+                next_shared_loop_index=next_shared_loop_index_this_group,
+                n_total_pmappings=total_pmappings_per_group,
+                n_valid_pmappings=valid_pmappings_per_group,
+                ignored_resources=job.ignored_resources
+                | oset(job.memories_track_pmappings_only),
+                skip_pareto=True,
+                drop_valid_reservations=False,
+            )
+            pmapping_groups.append(PmappingGroup(expanded, expanded_mappings))
 
     # Defragment to speed up pickling
     for pg in pmapping_groups:

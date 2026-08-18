@@ -158,7 +158,6 @@ def evaluate_mapping(
         }
         pmapping._clear_irrelevant_reservations(oset(job.tensor_to_relevancy))
         pmapping._clear_reservations()
-        pmapping._clear_bindings()
 
         # component_objects are can become stale from mapper to here
         # if calling just model, they are unset
