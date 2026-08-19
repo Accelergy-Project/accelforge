@@ -13,7 +13,8 @@ from accelforge.util._frozenset import oset
 from accelforge.util.parallel import parallel
 
 from accelforge.mapper.FFM._pareto_df.df_convention import (
-    col2reservation,
+    col2reservationiters,
+    col2reservationsize,
     col_used_in_pareto,
     is_fused_loop_col,
     is_n_iterations_col,
@@ -255,9 +256,12 @@ def makepareto(
         elif c in split_by_cols_set:
             to_pareto.append(series)
             goals.append("diff")
+        elif c in columns_set and col2reservationiters(c) is not None:
+            to_pareto.append(series)
+            goals.append("diff")
         elif c in columns_set:
             x = series
-            if col2reservation(c) is not None:
+            if col2reservationsize(c) is not None:
                 x = multi_round(
                     x, resource_usage_tolerance, absolute_resource_usage_tolerance
                 )

@@ -23,6 +23,8 @@ from accelforge.frontend.mapping import (
 )
 from accelforge.mapper.FFM._make_pmappings.pmapper_job import Job
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2reservationsize,
+    reservationkey2iterscol,
     stride2col,
     initial2col,
     iterations2col,
@@ -2120,6 +2122,7 @@ def _calculate_iterations_and_rank_columns(
     pmapping: list[MappingNode], job: "Job", df: pd.DataFrame, shape: dict[str, int]
 ):
     loops = [n for n in pmapping if isinstance(n, Loop)]
+    ids = job.mapping._get_node_ids()
 
     ranks_with_tile_pattern = job.ranks_with_tile_pattern
 
@@ -2159,7 +2162,7 @@ def _calculate_iterations_and_rank_columns(
 
         # NOTE: The concept of having one "n_iterations" is precarious when imperfect
         # factorization in involved
-        df[iterations2col(nloops)] = np.ceil(
+        df[iterations2col(ids[id(n)])] = np.ceil(
             (outer_initial - rank_var_initial) / rank_var_stride + 1
         )
         # df[f"lower_iterations<SEP>{nloops}"] = outer_stride - rank_var_initial
@@ -2171,18 +2174,21 @@ def _calculate_iterations_and_rank_columns(
             projections = get_projection_expr(einsum, tensor)
             for rank, expr in projections.items():
 
-                if (
-                    ranks_with_tile_pattern is not None
-                    and rank not in ranks_with_tile_pattern
-                ):
-                    continue
-
                 free_symbols = tuple(sorted(expr.free_symbols, key=str))
                 free_symbols_str = tuple(symbol.name for symbol in free_symbols)
                 if n.rank_variable not in free_symbols_str:
                     continue
 
                 rank_stride = expr.coeff(n.rank_variable) * rank_var_stride
+                df[stride2col(rank, ids[id(n)])] = rank_stride
+
+                # Initial tile shapes only carry information when the rank has
+                # multiple initial delta choices
+                if (
+                    ranks_with_tile_pattern is not None
+                    and rank not in ranks_with_tile_pattern
+                ):
+                    continue
 
                 args = []
                 for free_rank_var in free_symbols:
@@ -2192,8 +2198,32 @@ def _calculate_iterations_and_rank_columns(
                         args.append(shape[free_rank_var.name])
                 rank_initial = lambdify(free_symbols, expr)(*args)
 
-                df[stride2col(rank, nloops)] = rank_stride
-                df[initial2col(rank, nloops)] = rank_initial
+                df[initial2col(rank, ids[id(n)])] = rank_initial
+
+    for key in list(df):
+        if (reservation := col2reservationsize(key)) is None:
+            continue
+        above_n_loops = reservation.index
+        if above_n_loops == -1:
+            result = 0
+        else:
+            result = 1
+            for l in loops[:above_n_loops]:
+                # Above unfused loops -> private to this reservation & lumped together
+                if l._fused:
+                    result *= df[iterations2col(ids[id(l)])]
+        df[reservationkey2iterscol(reservation)] = result
+
+    # prod(# iterations) of all fused loops above each tensor's backing holder
+    n_iterations_above = 1
+    tensors_remaining = set(job.fusable_tensors)
+    for n in pmapping:
+        if isinstance(n, Loop) and n._fused:
+            n_iterations_above = n_iterations_above * df[iterations2col(ids[id(n)])]
+        if isinstance(n, TensorHolder):
+            for tensor in oset(n.tensors) & tensors_remaining:
+                tensors_remaining.discard(tensor)
+                df[iterations2col(tensor)] = n_iterations_above
 
 
 def _make_tile_shapes(job: "Job"):

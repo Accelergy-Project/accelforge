@@ -1,23 +1,32 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import copy
 import functools
 import itertools
 
-from typing import Any, Callable, Iterable
+from numbers import Number
+from typing import Any, Callable, Iterable, NamedTuple
 
+from pandas import DataFrame, Series
 import sympy
 
 from accelforge.frontend.mapping import Nested, TilePattern
 from accelforge.frontend.mapping import Loop as MappingLoop
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
-    Loop,
     TensorReservation,
+    _symbol_values,
 )
-from accelforge.util import _fillna_and__numeric_cast, _numeric_cast
+from accelforge.mapper.FFM._join_pmappings.reservation_dataframe import (
+    ReservationData,
+    ReservationDataFrame,
+    _reservation_size_above,
+    _reservation_size_at_or_above,
+)
+from accelforge.mapper.FFM._pareto_df.df_convention import _RIGHT_RESERVATION_OFFSET
+from accelforge.util import _fillna_and_numeric_cast, _numeric_cast
 from accelforge.util._frozenset import fzs, oset
 
-from accelforge._accelerated_imports import pd
+from accelforge._accelerated_imports import pd, np
 
 from accelforge.mapper.FFM._pareto_df.df_convention import *
 from accelforge.mapper.FFM._pareto_df.pareto import makepareto
@@ -55,101 +64,179 @@ def error_check_wrapper(func):
     return wrapper
 
 
-def reduce_precision(data: pd.DataFrame) -> pd.DataFrame:
-    data = _numeric_cast(data)
-
-    # def _reduce_precision(c: str, s: pd.Series) -> pd.Series:
-    #     # If it's an int type, check the range. If within range of 8b change to 8b. If
-    #     # within the range of 16b change to 16b...
-
-    #     # If it's a float, cast to NUMPY_FLOAT_TYPE
-    #     if pd.api.types.is_float_dtype(s) and s.dtype != NUMPY_FLOAT_TYPE:
-    #         return s.astype(NUMPY_FLOAT_TYPE)
-
-    #     if not is_fused_loop_col(c):
-    #         return s
-
-    #     # Get the range of the column
-    #     min_val = s.min()
-    #     if min_val < 0:
-    #         return s
-
-    #     max_val = s.max()
-    #     if max_val <= 2**8 - 1 and s.dtype != np.uint8:
-    #         return s.astype(np.uint8)
-    #     elif max_val <= 2**16 - 1 and s.dtype != np.uint16:
-    #         return s.astype(np.uint16)
-    #     elif max_val <= 2**32 - 1 and s.dtype != np.uint32:
-    #         return s.astype(np.uint32)
-    #     return s
-
-    # for c in data.columns:
-    #     data.loc[:, c] = _reduce_precision(c, data.loc[:, c])
-
-    return data
+_MATCH_COL = "__match_col<SEP>"
+_MATCH_GROUP = "__match_group<SEP>"
+_LEFT_GROUP = _MATCH_GROUP + "left"
+_RIGHT_GROUP = _MATCH_GROUP + "right"
 
 
-def get_reservation_or_parent(
-    name: str,
-    level: int,
-    l_reservations: dict[str, set[int]],
-    r_reservations: dict[str, set[int]],
-    left: bool = False,
-    return_name_level_left: bool = False,
-) -> str | tuple[str, int, bool] | None:
-    reservations = l_reservations if left else r_reservations
-    if (reservations := reservations.get(name, None)) is not None:
-        while level >= -1:
-            if level in reservations:
-                if return_name_level_left:
-                    return name, level, left
-                return reservation2col(name, level, left)
-            # The parent of left nodes are right nodes, so if we don't find a
-            # left node immediately then we're back on the right nodes
-            reservations = r_reservations.get(name, oset())
-            left = False
-            level -= 1
-    return None
+TensorPairConstraint = namedtuple(
+    "TensorPairConstraint",
+    [
+        "valid_combinations",
+        "shape_symbols_a",
+        "shape_symbols_b",
+        "is_left_a",
+        "is_left_b",
+    ],
+)
+
+
+def _match_dtypes(frame: DataFrame, ref: DataFrame) -> DataFrame:
+    for c in frame.columns:
+        if c not in ref.columns or frame[c].dtype == ref[c].dtype:
+            continue
+        # None slots can't cast to integers; such rows never match anyway.
+        if ref[c].dtype.kind in "iu" and frame[c].isna().any():
+            frame = frame[frame[c].notna()]
+        frame = frame.assign(**{c: frame[c].astype(ref[c].dtype)})
+    return frame
+
+
+def _dfify_group(values: dict[str, Any], index: pd.Series, group_id_col: str) -> tuple[np.ndarray, DataFrame]:
+    keys = DataFrame(values, index=index)
+    if values:
+        cols = list(keys.columns)
+        gid = keys.groupby(cols, sort=False, dropna=False).ngroup().values
+    else:
+        gid = np.zeros(len(index), dtype=np.int64)
+    keys[group_id_col] = gid
+    return gid, keys.drop_duplicates(group_id_col)
+
+
+def _constrained_match(
+    ld: DataFrame,
+    rd: DataFrame,
+    match_columns: list[tuple[str, str]],
+    tensor_pair_constraints: list[TensorPairConstraint],
+) -> tuple[DataFrame, DataFrame, TensorPairConstraint]:
+    """
+    For two DataFrames, return each side's per-row group ids and the (left group,
+    right group) id pairs satisfying the match columns and the constraints.
+    """
+    # One key column per match column pair and per constrained shape. Constraints
+    # reading the same shape share a key column, so merges intersect on it.
+    l_match_cols, r_match_cols = {}, {}
+
+    # Match match_columns. These are matches between the left shapes & right shapes
+    for i, (a, b) in enumerate(match_columns):
+        key = f"{_MATCH_COL}eq{i}"
+        l_match_cols[key] = _symbol_values(a, ld).values
+        r_match_cols[key] = _symbol_values(b, rd).values
+
+    created_cols_cache = {}
+    def get_match_col(is_left: bool, symbol) -> str:
+        col_default = f"{_MATCH_COL}{len(created_cols_cache)}"
+        match_col = created_cols_cache.setdefault((is_left, symbol), col_default)
+        columns = l_match_cols if is_left else r_match_cols
+        if match_col not in columns:
+            df = ld if is_left else rd
+            columns[match_col] = _symbol_values(symbol, df).values
+        return match_col
+
+    # Match with tensor_pair_constraints. These record all valid combinations of two
+    # tensors that appear in these Einsums
+    valid_shape_combos = []
+    for c in tensor_pair_constraints:
+        columns = [
+            get_match_col(is_left, s)
+            for is_left, symbols in (
+                (c.is_left_a, c.shape_symbols_a),
+                (c.is_left_b, c.shape_symbols_b),
+            )
+            for s in symbols
+        ]
+        combos = c.valid_combinations.set_axis(columns, axis="columns")
+        assert not combos.columns.duplicated().any(), f"Duplicate columns in {c}"
+        valid_shape_combos.append(combos)
+
+    l_match_df, l_unique = _dfify_group(l_match_cols, ld.index, _LEFT_GROUP)
+    r_match_df, r_unique = _dfify_group(r_match_cols, rd.index, _RIGHT_GROUP)
+    
+    # Algorithm below:
+    #
+    # First, we'll only work with unique shapes, not all rows, to reduce combinatorial
+    # explosion.
+    #
+    # Next, one equivalent algorithm we could do is to join left x right then, for each
+    # of our constraints, filter out rows that don't match. 
+    # 
+    # This is equivalent to:
+    #
+    #   left x right x constraints[0] x constraints[1] x ... 
+    #
+    # where the cross with constraints is just a filter since there may only be one
+    # valid combo.
+    #
+    # We'll rearrange this to do the cross products in order of (most shared columns ->
+    # least shared columns) to maximize pruning potential as we go.
+
+    to_cross = []
+    for combos in valid_shape_combos:
+        l_cols = [c for c in combos.columns if c in l_unique.columns]
+        r_cols = [c for c in combos.columns if c in r_unique.columns]
+        # Earlier code should have filtered only constratins that cross sides.
+        # One-Einsum is already done in an initial filter, and every left combination
+        # should be handled in previous steps. Only two-sided constraints should be
+        # passed here. 
+        assert l_cols and r_cols, f"No columns on one side"
+
+        # Filter only combinations that occur on both sides        
+        combos = _match_dtypes(_match_dtypes(combos, l_unique), r_unique)
+        combos = combos.merge(l_unique[l_cols].drop_duplicates(), on=l_cols)
+        combos = combos.merge(r_unique[r_cols].drop_duplicates(), on=r_cols)
+        to_cross.append(combos)
+
+    to_cross.extend([l_unique, r_unique])
+    
+    def _cross(a: DataFrame, b: DataFrame) -> DataFrame:
+        cols = [c for c in a.columns if c in b.columns]
+        return a.merge(b, on=cols) if cols else a.merge(b, how="cross")
+    
+    def _priority(a: DataFrame, b: DataFrame) -> tuple[int, int]:
+        return len(set(a.columns) & set(b.columns)), -len(a) * len(b)
+
+    while len(to_cross) > 1:
+        i, j = max(
+            itertools.combinations(range(len(to_cross)), 2),
+            key=lambda ij: _priority(to_cross[ij[0]], to_cross[ij[1]]),
+        )
+        to_cross.append(_cross(to_cross.pop(j), to_cross.pop(i)))
+
+    return (
+        l_match_df,
+        r_match_df,
+        to_cross[0][[_LEFT_GROUP, _RIGHT_GROUP]].drop_duplicates(),
+    )
 
 
 class PmappingDataframe:
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: ReservationDataFrame,
         n_total_pmappings: float,
         n_valid_pmappings: float,
         ignored_resources: set[str],
         drop_valid_reservations: bool,
         skip_pareto: bool = False,
-        fill_reservation_cols: set | str = fzs(),
         check_above_subset_below: bool = CHECK_CORRECTNESS,
-        max_right_to_left: bool = False,
-        next_shared_loop_index: int = None,
+        sort_and_merge_reservations: bool = False,
         excess_resource_tolerance: float = 0,
     ):
-        self._data: pd.DataFrame = reduce_precision(data)
-        self._prev_free_to_loop_index = None
+        self._data: ReservationDataFrame = _numeric_cast(data)
+        self._prev_freed_to = None
         self.n_total_pmappings: float = n_total_pmappings
         self.n_valid_pmappings: float = n_valid_pmappings
         self.drop_valid_reservations: bool = drop_valid_reservations
         self.excess_resource_tolerance: float = excess_resource_tolerance
 
-        if next_shared_loop_index is not None:
+        if sort_and_merge_reservations:
             assert (
                 ignored_resources is not None
-            ), "ignored_resources must be set if next_shared_loop_index is set"
-            self.free_to_loop_index(next_shared_loop_index)
-            self.limit_capacity(
-                next_shared_loop_index=next_shared_loop_index,
-                ignored_resources=ignored_resources,
-            )
+            ), "ignored_resources must be set if sort_and_merge_reservations is set"
+            self.drop_redundant_reservations()
+            self.limit_capacity(ignored_resources=ignored_resources)
 
-        if fill_reservation_cols:  # Affects PmappingDataframe so must go before
-            self.fill_reservation_cols(fill_reservation_cols)
-        if check_above_subset_below:
-            self.check_above_subset_below()
-        if max_right_to_left:  # Affects PmappingDataframe so must go before
-            self.max_right_to_left()
         if check_above_subset_below:
             self.check_above_subset_below()
 
@@ -170,78 +257,18 @@ class PmappingDataframe:
         new.data.rename(columns=renames, inplace=True)
         return new
 
-    @error_check_wrapper
-    def fill_reservation_cols(self, columns: set | str):
-        l_reservations, r_reservations = self._make_reservations()
-        targets = []
-        if columns == "auto":
-            for left, reservations_dict in [
-                (True, l_reservations),
-                (False, r_reservations),
-            ]:
-                for resource, reservations in reservations_dict.items():
-                    for r in sorted(reservations):
-                        above = get_reservation_or_parent(
-                            resource, r - 1, l_reservations, r_reservations
-                        )
-                        if above is not None:
-                            below = reservation2col(resource, r, left=left)
-                            targets.append((r, above, below))
-        else:
-            for below in columns:
-                if (name_nloops := col2reservation(below)) is None:
-                    raise ValueError(f"{below} is not a valid reservation column")
-                name, nloops = name_nloops.name, name_nloops.nloops
-                above = get_reservation_or_parent(
-                    name, nloops - 1, l_reservations, r_reservations
-                )
-                if above is not None:
-                    targets.append((nloops, above, below))
-
-        # Sort so we go from top to bottom. Needed in case we have to max 0->1
-        # then 1->2
-        for _, above, below in sorted(targets, key=lambda x: x[0]):
-            assert (
-                above in self.data.columns
-            ), f"Missing column {above}. Have columns:\n\t" + "\n\t".join(
-                list(self.data.columns)
-            )
-            assert (
-                below in self.data.columns
-            ), f"Missing column {below}. Have columns:\n\t" + "\n\t".join(
-                list(self.data.columns)
-            )
-            max_to_col(self.data, below, above)
-
-    @error_check_wrapper
-    def max_right_to_left(self):
-        l_reservations, r_reservations = self._make_reservations()
-        for resource, reservations in l_reservations.items():
-            for r in reservations:
-                if r in r_reservations.get(resource, oset()):
-                    source = reservation2col(resource, r)
-                    target = reservation2col(resource, r, left=True)
-                    max_to_col(self.data, target, source)
-
     @property
-    def data(self) -> pd.DataFrame:
+    def data(self) -> DataFrame:
         return self._data
 
-    @error_check_wrapper
-    def _make_reservations(self) -> tuple[dict[str, set[int]], dict[str, set[int]]]:
-        """
-        Create a dictionary of reservations for each resource.
-        The dictionary keys are the resource names and the values are lists
-        of column names for each loop index.
-        """
-        l_reservations, r_reservations = {}, {}
-        for c in self.data.columns:
-            if (key := col2reservation(c)) is not None:
-                target = l_reservations if is_left_col(c) else r_reservations
-                target.setdefault(key.name, oset()).add(key.nloops)
-                assert key.nloops >= -1
-
-        return l_reservations, r_reservations
+    def drop_redundant_reservations(self) -> bool:
+        if len(self.data) == 0:
+            return False
+        self._data = (df := ReservationDataFrame(self._data))
+        df.sort_reservations()
+        if (changed := df.drop_redundant_data()):
+            self.make_pareto()
+        return changed
 
     def clear_fused_loop_symbols(self):
         dropcols = [c for c in self.data.columns if is_fused_loop_col(c)]
@@ -251,12 +278,14 @@ class PmappingDataframe:
         self.make_pareto()
 
     @error_check_wrapper
-    def free_to_loop_index(self, loop_index: int) -> bool:
+    def free_to_reservations(
+        self, compatibility: Compatibility, shift_bottom_left: bool
+    ) -> bool:
         """
            A  B
             / | --- 0
            C  D
-            / | --- 1  < Shared Loop Index
+            / | --- 1  < Deepest live backing
            E  F
             / | --- 2
            G  H
@@ -264,76 +293,31 @@ class PmappingDataframe:
            A  B
             / | --- 0
            C  D
-              | --- 1  < Shared Loop Index
+              | --- 1  < Deepest live backing
           max(E,G,H)
-        We skip incorporating E into the max because its reservations are
-        already incorporated into F and G.
+        
+        Returns True if new pruning opportunities may be found after freeing.
         """
-        if loop_index == self._prev_free_to_loop_index:
+        if compatibility is self._prev_freed_to and not shift_bottom_left:
             return False
-        self._prev_free_to_loop_index = loop_index
+        self._prev_freed_to = compatibility
+        if len(self.data) == 0 or not self.has_reservations():
+            return False
 
-        drop_columns = []
-        l_reservations, r_reservations = self._make_reservations()
-        for resource in oset(l_reservations) | oset(r_reservations):
-            max_columns = []
-            cur_l_reservations = l_reservations.get(resource, oset())
-            cur_r_reservations = r_reservations.get(resource, oset())
-            left_big_enough = [l for l in cur_l_reservations if l >= loop_index + 1]
-            right_big_enough = [
-                r for r in cur_r_reservations if r >= loop_index + 2
-            ]  # + 1 is target
+        free_to = self._compatibility_iters_above(compatibility)
+        return self._free_more_than_iters_above(free_to, shift_bottom_left)
 
-            if len(right_big_enough) > 1:  # All ones above the last are subsets
-                right_biggest = max(right_big_enough)
-                right_big_enough.remove(right_biggest)
-                drop_columns += [reservation2col(resource, r) for r in right_big_enough]
-                right_big_enough = [right_biggest]
+    def free_all_reservations(self):
+        self._prev_freed_to = None
+        self._free_more_than_iters_above(0, shift_bottom_left=False)
 
-            max_columns = [reservation2col(resource, r) for r in right_big_enough] + [
-                reservation2col(resource, l, left=True) for l in left_big_enough
-            ]
-
-            if not max_columns:
-                continue
-
-            target = reservation2col(resource, loop_index + 1)
-            if target in self.data:
-                max_columns.append(target)
-
-            if len(max_columns) == 1:
-                self.data.rename(columns={max_columns[0]: target}, inplace=True)
-            else:
-                for c in max_columns:
-                    max_to_col(self.data, target, c)
-                drop_columns += [m for m in max_columns if m != target]
-        self._data = self.data.drop(columns=drop_columns)
-
-        return len(drop_columns) != 0
-
-    @error_check_wrapper
-    def shift_bottom_reservation_left(self, bottom_loop_index: int):
-        """
-        Shifts the bottom reservation from right to left.
-        Example:
-            Before:                After:
-            A  B                   A  B
-             / | --- 0             / | --- 0
-            C  D                  C  D
-               | --- 1             /   --- 1
-               E                  E
-        """
-        _l_reservations, r_reservations = self._make_reservations()
-        for resource in r_reservations:
-            if bottom_loop_index + 1 not in r_reservations[resource]:
-                continue
-            source = reservation2col(resource, bottom_loop_index + 1)
-            target = reservation2col(resource, bottom_loop_index + 1, left=True)
-            if target in self.data:
-                max_to_col(self.data, target, source)
-                self.data.drop(columns=[source], inplace=True)
-            else:
-                self.data.rename(columns={source: target}, inplace=True)
+    def _free_more_than_iters_above(self, threshold, shift_bottom_left: bool) -> bool:
+        df = ReservationDataFrame(self.data)
+        n_columns = len(df.columns)
+        df.sort_reservations()
+        changed = df.free_to_iters_above(threshold, shift_bottom_left)
+        self._data = df
+        return changed or len(self.data.columns) != n_columns
 
     @staticmethod
     def _get_target_path(suffix: str = None) -> str:
@@ -347,32 +331,6 @@ class PmappingDataframe:
             i += 1
         return os.path.join(f, f"test_{i}{suffix}.png")
 
-    def get_max_loop_index(self):
-        l_reservations, r_reservations = self._make_reservations()
-        return max(
-            max(
-                (max(r, default=-1) for r in r_reservations.values()),
-                default=-1,
-            ),
-            max(
-                (max(r, default=-1) for r in l_reservations.values()),
-                default=-1,
-            ),
-        )
-
-    def get_min_loop_index(self):
-        l_reservations, r_reservations = self._make_reservations()
-        return min(
-            min(
-                (min(r, default=1000000) for r in r_reservations.values()),
-                default=1000000,
-            ),
-            min(
-                (min(r, default=1000000) for r in l_reservations.values()),
-                default=1000000,
-            ),
-        )
-
     @error_check_wrapper
     def merge_next(
         self,
@@ -382,10 +340,10 @@ class PmappingDataframe:
         compatibility_right: Compatibility,
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
+        left_loop_to_right_loop: list[tuple],
+        tensor_pair_constraints: list[TensorPairConstraint] | None = None,
         do_not_free: set[str] = fzs(),
-        _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
-        _force_allow_invalid_only_for_runtime_test: bool = False,
-        _is_invalid: bool = False,
+        _pmapping_row_filter_function: Callable[[Series], bool] | None = None,
     ) -> "PmappingDataframe":
         """
            A  B            A2
@@ -406,89 +364,114 @@ class PmappingDataframe:
         """
         live_tensors = compatibility_joined.tensor_names
         shared_loop_index = compatibility_left.n_loops - 1
-        next_shared_loop_index = compatibility_joined.n_loops - 1
 
-        self.free_to_loop_index(shared_loop_index)
-        self.shift_bottom_reservation_left(shared_loop_index)
+        self.free_to_reservations(compatibility_left, shift_bottom_left=True)
 
         shared_tensor_names = (
             compatibility_left.tensor_names & compatibility_right.tensor_names
         )
-        shared_tensors = [
-            compatibility_left.get_reservation_of_tensor(s) for s in shared_tensor_names
-        ]
-        left_match, right_match = [], []
+
+        from accelforge.mapper.FFM._join_pmappings.compatibility import Loop
+
+        match_columns = []
         make_empty_result = False
 
-        def check_match(la: Loop, lb: Loop, param: str):
-            a, b = getattr(la.tile_pattern, param), getattr(lb.tile_pattern, param)
+        def check_match(a: str | Number, b: str | Number):
             if isinstance(a, str) and isinstance(b, str):
-                if a in left_match and b in left_match:
-                    return
-                left_match.append(a)
-                right_match.append(b)
+                if (a, b) not in match_columns:
+                    match_columns.append((a, b))
             elif a != b:
-                raise ValueError(f"Mismatch in {param}: {a} != {b}")
+                raise ValueError(f"Mismatch {a} != {b}")
 
         try:
             for s in shared_tensor_names:
                 ta = compatibility_left.get_reservation_of_tensor(s)
                 tb = compatibility_right.get_reservation_of_tensor(s)
-                for la, lb in zip(ta.loops, tb.loops):
-                    check_match(la, lb, "initial_tile_shape")
-                    check_match(la, lb, "tile_shape")
-                for la, lb in zip(ta.physical_spatial_loops, tb.physical_spatial_loops):
-                    check_match(la, lb, "initial_tile_shape")
-                    check_match(la, lb, "tile_shape")
-                    check_match(la, lb, "calculated_n_iterations")
-
-            for la, lb in zip(compatibility_left.loops, compatibility_right.loops):
-                check_match(la, lb, "calculated_n_iterations")
-
+                symbols_l = ta.compatibility_shape_symbols()
+                symbols_r = tb.compatibility_shape_symbols()
+                assert len(symbols_l) == len(symbols_r)
+                for sl, sb in zip(symbols_l, symbols_r):
+                    check_match(sl, sb)
         except ValueError as e:
             make_empty_result = True
 
-        right_df_l_reservations, right_df_r_reservations = right._make_reservations()
-        assert not right_df_l_reservations, f"{right_df_l_reservations} is not None"
+        paired_columns = []
+        for a, b in left_loop_to_right_loop:
+            if isinstance(a, str) and isinstance(b, str):
+                paired_columns.append((a, b))
+            elif a != b:
+                raise ValueError(f"Mismatch in {a}, {b}")
 
-        l_reservations, r_reservations = self._make_reservations()
+        for datas in ReservationDataFrame(right.data)._get_all_reservations().values():
+            for r in datas:
+                assert r.left_col is None, f"Right side has left reservations: {r}"
 
-        for resource, reservations in r_reservations.items():
-            n_reservations = max(reservations, default=-1)
-            assert (
-                n_reservations <= shared_loop_index
-            ), f"{resource}: {reservations} > {shared_loop_index}"
-
-        for resource, reservations in l_reservations.items():
-            n_reservations = max(reservations, default=-1)
-            assert (
-                n_reservations <= shared_loop_index + 1
-            ), f"{resource}: {reservations} > {shared_loop_index}"
-
-        max_nloops = max(
-            shared_loop_index, self.get_max_loop_index(), right.get_max_loop_index()
-        )
-        min_nloops = min(self.get_min_loop_index(), right.get_min_loop_index())
-
-        sd, rd = self.data, right.data
+        ld, rd = self.data, right.data
         if make_empty_result:
-            sd = sd.iloc[0:0]
+            ld = ld.iloc[0:0]
             rd = rd.iloc[0:0]
 
-        # _force_allow_invalid_only_for_runtime_test -> only merge matched ones
-        if left_match and not _force_allow_invalid_only_for_runtime_test:
+        # Renumber right side's reservations so they don't collide with the left side's
+        renames = {}
+        offs = lambda x: x._replace(index=x.index + _RIGHT_RESERVATION_OFFSET)
+        for c in rd.columns:
+            renames[c] = update_reservation_col(c, offs)
+        renames = {k: v for k, v in renames.items() if k != v}
+        if renames:
+            rd = rd.rename(columns=renames)
+
+        left_columns = oset(ld.columns)
+        if tensor_pair_constraints:
+            left_group_id, right_group_id, match = _constrained_match(
+                ld, rd, match_columns, tensor_pair_constraints
+            )
+            df = (
+                ld.assign(**{_LEFT_GROUP: left_group_id})
+                .merge(match, on=_LEFT_GROUP)
+                .merge(
+                    rd.assign(**{_RIGHT_GROUP: right_group_id}),
+                    on=_RIGHT_GROUP,
+                    suffixes=["", "_RIGHT_MERGE"],
+                )
+            )
+        elif match_columns:
             df = pd.merge(
-                sd,
+                ld,
                 rd,
                 how="inner",
-                left_on=left_match,
-                right_on=right_match,
+                left_on=[a for a, _ in match_columns],
+                right_on=[b for _, b in match_columns],
                 suffixes=["", "_RIGHT_MERGE"],
             )
         else:
-            df = pd.merge(sd, rd, how="cross", suffixes=["", "_RIGHT_MERGE"])
+            df = pd.merge(ld, rd, how="cross", suffixes=["", "_RIGHT_MERGE"])
 
-        df = reduce_precision(df)
+        dropcols = [c for c in df.columns if c.startswith(_MATCH_GROUP)]
+        if dropcols:
+            df = df.drop(columns=dropcols)
+
+        # TODO: We're going to be replacing this with the loops-match algo
+        if paired_columns and len(df):
+            mask = np.ones(len(df), dtype=bool)
+            for a, b in paired_columns:
+                if b in left_columns:
+                    b = f"{b}_RIGHT_MERGE"
+                mask &= df[a].values == df[b].values
+            if not mask.all():
+                df = df[mask].reset_index(drop=True)
+
+        df = _numeric_cast(df)
+
+        # Pre-calculate bc we're going to be dropping some of the iterations columns
+        # before we use this
+        iters_above = {
+            t: self._tensor_reservation_iters_above(t, df)
+            for t in itertools.chain(
+                compatibility_left.tensors,
+                compatibility_right.tensors,
+                compatibility_joined.tensors,
+            )
+        }
 
         # Drop all fused loop columns that are not used anymore
         remaining_symbols = compatibility_joined.symbols()
@@ -504,72 +487,33 @@ class PmappingDataframe:
         n_total_pmappings *= scale_by
         n_valid_pmappings *= scale_by
 
-        # Make sure everything is done in increasing loop order so we don't have
-        # read-after-write hazards
-        for nloops in range(max_nloops, min_nloops - 1, -1):
+        # Merge the two sides' reservations. To keep things inclusive, each side must
+        # include reservations from the other side.
+        df = ReservationDataFrame(df)
+        for datas in df._get_all_reservations().values():
+            from_left = [r for r in datas if r.index < _RIGHT_RESERVATION_OFFSET]
+            from_right = [r for r in datas if r.index >= _RIGHT_RESERVATION_OFFSET]
+            writes = {}
+            # Rights live at the same time --> at-or-above
+            for r in from_right:
+                parent = _reservation_size_at_or_above(from_left, r.iters_above)
+                writes[r.right_col] = r.right + parent
+                assert r.left_col is None, "Right side has left reservations"
+            for r in from_left:
+                parent = _reservation_size_at_or_above(from_right, r.iters_above)
+                writes[r.right_col] = r.right + parent
 
-            def iter_reservations(reservations_dict):
-                for resource in reservations_dict:
-                    if nloops in reservations_dict[resource]:
-                        yield resource
+                # Left-of-left is dead --> not alive at current level, but still alive
+                # at the same time as things above its level (which were alive in the
+                # past when left was still around)
+                if r.left_col is not None:
+                    parent = _reservation_size_above(from_right, r.iters_above)
+                    writes[r.left_col] = r.left + parent
+            for col, values in writes.items():
+                df.loc[:, col] = values
 
-            # For the RIGHT tree, RIGHT reservations: If there is no matching node in
-            # the left tree, add the above-this-level reservation from the left tree. If
-            # there is a matching node in the left tree, then we'll add this node to it
-            # in the next step.
-            for resource in iter_reservations(right_df_r_reservations):
-                if (
-                    source := get_reservation_or_parent(
-                        resource, nloops - 1, l_reservations, r_reservations
-                    )
-                ) is None:
-                    continue
-                target = reservation2col(resource, nloops)
-                # If there's a merged version column, then it's in both trees
-                if target + "_RIGHT_MERGE" in df:
-                    continue
-                add_to_col(df, target, source)
-            # For LEFT tree, LEFT reservations: Add the immediately-above
-            # reservation from the right tree.
-            for resource in iter_reservations(l_reservations):
-                if (
-                    source := get_reservation_or_parent(
-                        resource,
-                        nloops - 1,
-                        right_df_l_reservations,
-                        right_df_r_reservations,
-                    )
-                ) is None:
-                    continue
-                right_merge_source = source + "_RIGHT_MERGE"
-                target = reservation2col(resource, nloops, left=True)
-                if source is not None:
-                    add_to_col(
-                        df,
-                        target,
-                        right_merge_source if right_merge_source in df else source,
-                    )
-            # For LEFT tree, RIGHT reservations: Add the same-level reservation from the
-            # right tree. This will double-count reservations that are in both branches,
-            # so we remove them later.
-            for resource in iter_reservations(r_reservations):
-                if (
-                    source := get_reservation_or_parent(
-                        resource,
-                        nloops,
-                        right_df_l_reservations,
-                        right_df_r_reservations,
-                    )
-                ) is None:
-                    continue
-                right_merge_source = source + "_RIGHT_MERGE"
-                target = reservation2col(resource, nloops)
-                if source is not None:
-                    add_to_col(
-                        df,
-                        target,
-                        right_merge_source if right_merge_source in df else source,
-                    )
+        df = ReservationDataFrame(df)
+        df.set_reservation_column_numbers()
 
         # For everything else: Simple add
         dropcols = [c for c in df.columns if c.endswith("_RIGHT_MERGE")]
@@ -579,7 +523,7 @@ class PmappingDataframe:
                 continue
             if not col_used_in_pareto(target):
                 raise ValueError(f"{target} is not used in pareto")
-            if col2reservation(target) is None:
+            if not is_reservation_col(target):
                 add_to_col(df, target, source)
 
         df = df.drop(columns=dropcols)
@@ -592,13 +536,12 @@ class PmappingDataframe:
             ignored_resources=self.ignored_resources,
             drop_valid_reservations=self.drop_valid_reservations,
         )
-        # Remove tensors that were allocated in both branches and got added
-        # together.
-        shared_to_free = [
-            s
-            for s in shared_tensors
-            if s.above_loop_index <= shared_loop_index and s.name not in do_not_free
-        ]
+        # Remove tensors that were allocated in both branches and got added together.
+        shared_to_free = []
+        for name in compatibility_left.tensor_names & compatibility_right.tensor_names:
+            s = compatibility_left.get_reservation_of_tensor(name)
+            if s.above_loop_index <= shared_loop_index and s.name not in do_not_free:
+                shared_to_free.append(s)
         reservations_of_live_tensor_not_in_right = [
             compatibility_joined.get_reservation_of_tensor(t)
             for t in compatibility_joined.tensor_names
@@ -632,6 +575,7 @@ class PmappingDataframe:
             alloc=live_to_alloc,
             free=free,
             ignored_resources=ignored_resources,
+            iters_above=iters_above,
         )
 
         dead_tensor_cols = [
@@ -645,35 +589,31 @@ class PmappingDataframe:
             result.check_above_subset_below(live_tensors)
             result.check_reservations(live_tensors)
 
-        result.free_to_loop_index(next_shared_loop_index)
+        result.free_to_reservations(compatibility_joined, shift_bottom_left=False)
         if not CHECK_CORRECTNESS:
-            result.limit_capacity(
-                next_shared_loop_index, ignored_resources=ignored_resources
-            )
-        result.max_right_to_left()
+            result.limit_capacity(ignored_resources=ignored_resources)
+        result.drop_redundant_reservations()
         if _pmapping_row_filter_function is not None:
             result = result.filter_rows(_pmapping_row_filter_function)
         result.make_pareto()
 
-        # This join was invalid (we only ran it for runtime measurement). Clear all the
-        # mappings.
-        if _is_invalid:
-            result._data = result.data.iloc[0:0]
+        return result
 
-        # If we're running _force_allow_invalid_only_for_runtime_test, we don't want to
-        # have all those invalid combinations, so return the actual merge result.
-        elif _force_allow_invalid_only_for_runtime_test:
-            return self.merge_next(
-                right,
-                duplicated_aliased_tensors,
-                compatibility_left,
-                compatibility_right,
-                compatibility_joined,
-                ignored_resources,
-                _pmapping_row_filter_function,
-                _force_allow_invalid_only_for_runtime_test=False,
-            )
+    def _tensor_reservation_iters_above(
+        self, t: TensorReservation, df: DataFrame = None
+    ):
+        df = self.data if df is None else df
+        if t.persistent:
+            return 0
+        result = 1
+        for l in t.iter_fused_loops():
+            result = result * df[l.tile_pattern.calculated_n_iterations]
+        return result
 
+    def _compatibility_iters_above(self, compatibility: Compatibility):
+        result = 1
+        for t in compatibility.tensors:
+            result = np.maximum(result, self._tensor_reservation_iters_above(t))
         return result
 
     @error_check_wrapper
@@ -682,65 +622,31 @@ class PmappingDataframe:
         resource: str,
         alloc: Iterable[TensorReservation],
         free: Iterable[TensorReservation],
+        iters_above: dict[TensorReservation, Any],
     ):
         alloc, free = list(alloc), list(free)
-        # Iterate through each reservation and level
-        targets = defaultdict(int)
+        if len(self.data) == 0:
+            return
 
-        l_reservations, r_reservations = self._make_reservations()
-
-        # Must allocate at the above_loop_index level
-        for t in itertools.chain(alloc, free):
-            r_reservations.setdefault(resource, oset()).add(t.above_loop_index)
+        df = ReservationDataFrame(self.data)
 
         for t, negate in [(t, False) for t in alloc] + [(t, True) for t in free]:
-            size = self.data[tensor2col(t.name)]
-            size = -size if negate else size
-            targets[t.above_loop_index, False] += size
-            # Allocate at any levels below the above_loop_index level
-            for level in r_reservations[resource]:
-                if level > t.above_loop_index:
-                    targets[level, False] += size
-            for level in l_reservations.get(resource, oset()):
-                if level > t.above_loop_index:
-                    targets[level, True] += size
-
-        # Now apply the allocations. Sort so we go from top to bottom in case
-        # there are maxes that propagate down.
-        for (level, left), size in sorted(
-            targets.items(), key=lambda x: x[0], reverse=True
-        ):
-            target = reservation2col(resource, level, left=left)
-            if target in self.data:
-                add_to_col(self.data, target, size)
-                continue
-
-            # We're creating a new column, so copy allocations from any parents
-            source = get_reservation_or_parent(
-                resource, level - 1, l_reservations, r_reservations
+            df.alloc_resource(
+                resource,
+                size=self.data[tensor2col(t.name)] * (-1 if negate else 1),
+                n_iters_above=iters_above[t],
             )
-            if source:
-                assert (
-                    source in self.data.columns
-                ), f"{source} not in {sorted(self.data.columns)}"
-                add_to_col(self.data, target, source)
-                add_to_col(self.data, target, size)
-            else:
-                self.data[target] = size
 
-            # We made a new column! Update our reservations so future iterations
-            # know about it.
-            l_reservations, r_reservations = self._make_reservations()
-
-            # Assert all reservations are >= 0
-            assert (self.data[target] >= 0).all(), f"Negative reservation: {target}"
+        for r in df._get_all_reservations().get(resource, []):
+            assert (df[r.right_col] >= 0).all(), f"Negative reservation: {r.right_col}"
 
     @error_check_wrapper
     def adjust_reservations(
         self,
         alloc: Iterable[TensorReservation],
         free: Iterable[TensorReservation],
-        ignored_resources: set[str] = oset(),
+        ignored_resources: set[str],
+        iters_above: dict[TensorReservation, Any],
     ):
         alloc, free = list(alloc), list(free)
         all_resources = oset(t.resource_name for t in alloc) | oset(
@@ -754,7 +660,9 @@ class PmappingDataframe:
             cur_alloc = [t for t in alloc if t.resource_name == resource]
             cur_free = [t for t in free if t.resource_name == resource]
             if cur_alloc or cur_free:
-                self._adjust_reservations_one_resource(resource, cur_alloc, cur_free)
+                self._adjust_reservations_one_resource(
+                    resource, cur_alloc, cur_free, iters_above
+                )
 
     @staticmethod
     def concat(
@@ -765,22 +673,20 @@ class PmappingDataframe:
         if len(paretos) == 1:
             return paretos[0]
 
-        required_cols = oset.union(*[oset(p.data.columns) for p in paretos])
-        shared_cols = oset.intersection(*[oset(p.data.columns) for p in paretos])
-        fill_cols = required_cols - shared_cols
-        fill_cols = [c for c in fill_cols if col_used_in_pareto(c)]
-
         concatenated = pd.concat([p.data for p in paretos]).reset_index(drop=True)
+        concatenated = ReservationDataFrame(concatenated)
+        concatenated.fill_missing_rows()
 
         p = PmappingDataframe(
-            _fillna_and__numeric_cast(concatenated, 0),
-            skip_pareto=len(paretos) == 1 or skip_pareto,
-            fill_reservation_cols=fill_cols,
+            _fillna_and_numeric_cast(concatenated, 0),
+            skip_pareto=True,
             n_total_pmappings=sum(p.n_total_pmappings for p in paretos),
             n_valid_pmappings=sum(p.n_valid_pmappings for p in paretos),
             ignored_resources=next(iter(paretos)).ignored_resources,
             drop_valid_reservations=next(iter(paretos)).drop_valid_reservations,
         )
+        if not (p.drop_redundant_reservations() or skip_pareto):
+            p.make_pareto()
         return p
 
     def update(
@@ -827,20 +733,18 @@ class PmappingDataframe:
 
     def limit_capacity(
         self,
-        next_shared_loop_index: int = None,
         ignored_resources: set[str] = oset(),
         finished: bool = False,
     ):
         dropcols = []
-        l_reservations, r_reservations = self._make_reservations()
+        reservations = ReservationDataFrame(self.data)._get_all_reservations()
         tolerance = self.excess_resource_tolerance
-        for resource in sorted(oset(r_reservations) | oset(l_reservations)):
-            # Right reservations: Only check the greatest-index level. If a loop
-            # is 0 and the next shared loop index is -1, then we can drop the
-            # column.
-            right_loops = r_reservations.get(resource, oset())
-            for l in list(right_loops):
-                col = reservation2col(resource, l)
+        for resource, datas in sorted(reservations.items()):
+            r = datas[-1]  # Only check the greatest-index level
+            size_cols = [r.right_col]
+            if r.left_col is not None:
+                size_cols.append(r.left_col)
+            for col in size_cols:
                 if (
                     DEBUG_PRINT_NO_VALID
                     and sum(self.data[col] <= 1 + tolerance) == 0
@@ -853,48 +757,21 @@ class PmappingDataframe:
                     for col2 in self.data.columns:
                         print(f"{col2}: {list[Any](self.data[col2])}")
                 self._data = self.data[self.data[col] <= 1 + tolerance]
-                if (
-                    l <= 0
-                    and next_shared_loop_index == -1
-                    # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
-                    # tensors may get saved later and would live at the same time as
-                    # these reservations.
-                    and finished
-                    and self.drop_valid_reservations
-                    and resource not in ignored_resources
-                    and (tolerance == 0 or not any(self.data[col] > 1))
-                ):
-                    right_loops.discard(l)
-                    dropcols.append(col)
-
-            # Left reservations: Check all levels. If a loop is 0,
-            # then we can drop the column.
-            left_loops = l_reservations.get(resource, oset())
-            for l in list(left_loops):
-                col = reservation2col(resource, l, left=True)
-                if (
-                    DEBUG_PRINT_NO_VALID
-                    and sum(self.data[col] <= 1 + tolerance) == 0
-                    and len(self.data) == 1
-                    and tolerance == 0
-                ):
-                    print(
-                        f"Resource {resource} has no valid reservations. Failed for {col}: {next(iter(self.data[col]))} <= {1 + tolerance}: {next(iter(self.data[col])) <= 1 + tolerance}"
-                    )
-                    for col2 in self.data.columns:
-                        print(f"{col2}: {list[Any](self.data[col2])}")
-                self._data = self.data[self.data[col] <= 1 + tolerance]
-                if (
-                    l <= 0
-                    # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
-                    # tensors may get saved later.
-                    and finished
-                    and self.drop_valid_reservations
-                    and resource not in ignored_resources
-                    and (tolerance == 0 or not any(self.data[col] > 1))
-                ):
-                    left_loops.discard(l)
-                    dropcols.append(col)
+            if (
+                # CAN'T DROP RESERVATIONS UNTIL WE'RE FINISHED JOINING. Persistent
+                # tensors may get saved later and would live at the same time as these
+                # reservations.
+                finished
+                and self.drop_valid_reservations
+                and resource not in ignored_resources
+                and (
+                    tolerance == 0
+                    or not any(self.data[col].max() > 1 for col in size_cols)
+                )
+            ):
+                # If we're finished, there should only be 1 level
+                assert len(datas) == 1
+                dropcols += size_cols + [r.iters_above_col]
 
         self._data = self.data.drop(columns=dropcols)
 
@@ -927,42 +804,18 @@ class PmappingDataframe:
             return self.update(data=new_data, skip_pareto=True)
 
     def has_reservations(self):
-        return any(col2reservation(c) is not None for c in self.data.columns)
+        return any(col2reservationsize(c) is not None for c in self.data.columns)
 
     # ============================================================================
     # Checking functions
     # ============================================================================
     def check_above_subset_below(self, live_tensors: set[str] = fzs()):
         assert not self.data.isnull().values.any(), f"NaN in {self.data}"
-        targets = []
-        l_reservations, r_reservations = self._make_reservations()
-        for left, reservations_dict in [
-            (True, l_reservations),
-            (False, r_reservations),
-        ]:
-            for resource, reservations in reservations_dict.items():
-                for r in reservations:
-                    above = get_reservation_or_parent(
-                        resource, r - 1, l_reservations, r_reservations
-                    )
-                    if above is not None:
-                        below = reservation2col(resource, r, left=left)
-                        targets.append((above, below))
-
-        for above, below in targets:
-            if (self.data[below] < self.data[above]).any():
-                first_failing_index = (self.data[below] < self.data[above]).idxmax()
-                fail_row = self.data.iloc[first_failing_index]
-                error = f"""
-                {below} column is less than {above} column. A reservation at
-                a level should include all reservations above it. There were {len(fail_row)} rows
-                with this error. One example: {fail_row}
-                """
-                self.fail(first_failing_index, live_tensors)
-                raise ValueError(error)
+        if len(self.data) != 0:
+            ReservationDataFrame(self.data).assert_reservations_ordered()
 
     def filter_rows(
-        self, _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None
+        self, _pmapping_row_filter_function: Callable[[Series], bool] | None = None
     ) -> "PmappingDataframe":
         if _pmapping_row_filter_function is None:
             return self.copy()
@@ -1006,11 +859,11 @@ class PmappingDataframe:
     #             if str(k) == "0":
     #                 continue
     #             if col not in self.data.columns:
-    #                 got = r[[c for c in self.data.columns if col2reservation(c) is not None]]
+    #                 got = r[[c for c in self.data.columns if col2reservationsize(c) is not None]]
     #                 self.fail(i, live_tensors)
     #                 raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
     #             if r[col] != v:
-    #                 got = r[[c for c in self.data.columns if col2reservation(c) is not None]]
+    #                 got = r[[c for c in self.data.columns if col2reservationsize(c) is not None]]
     #                 self.fail(i, live_tensors)
     #                 looptree = mappings2reservationtree(
     #                     r[MAPPING_COLUMN],
@@ -1060,7 +913,7 @@ class PmappingDataframe:
 
 
 def row2pmappings(
-    row: pd.Series,
+    row: Series,
     einsum_names: list[str],
     rank_variable_bounds: dict[str, dict[str, int]],
 ) -> list[Nested]:

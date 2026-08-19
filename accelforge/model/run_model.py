@@ -15,7 +15,7 @@ from accelforge.model._looptree.energy import (
 from accelforge.model._looptree.latency.memory import component_latency
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     memory_usage2col,
-    reservation2col,
+    reservation2sizecol,
     tensor2col,
     firstlatency2col,
     action2col,
@@ -173,10 +173,10 @@ def run_model(
             continue
         size = memory_to_size[memory]
         running_total = 0
-        for n_loop in sorted(n_loop_options):
-            if n_loop in occupancies:
-                running_total += occupancies[n_loop]
-                df[reservation2col(memory, n_loop)] = running_total / size
+        for below_n_loops in sorted(n_loop_options):
+            if below_n_loops in occupancies:
+                running_total += occupancies[below_n_loops]
+                df[reservation2sizecol(memory, below_n_loops)] = running_total / size
         if isinstance(running_total, Number) and running_total > size:
             raise InvalidMappingError(
                 f"The mapping uses {running_total} bits of {memory} but its size is "

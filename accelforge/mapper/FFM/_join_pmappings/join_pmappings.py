@@ -1,7 +1,9 @@
 from copy import deepcopy
+from accelforge.frontend.renames import TensorName
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
-    CompatibilityDiff,
+    TensorReservation,
+    _reservation_structure,
 )
 from collections import defaultdict
 import itertools
@@ -24,6 +26,7 @@ from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
     get_rank_variable_bounds_for_all_einsums,
 )
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
+    TensorPairConstraint,
     row2pmappings,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import (
@@ -37,10 +40,15 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     PmappingGroup,
     Compatibility,
 )
-from accelforge.mapper.FFM._pareto_df.df_convention import col2reservation
+from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2reservationiters,
+    col2reservationsize,
+    reservationkey2iterscol,
+)
 from accelforge.util import (
-    _fillna_and__numeric_cast,
+    _fillna_and_numeric_cast,
     delayed,
+    fzs,
     get_n_parallel_jobs,
     oset,
     parallel,
@@ -175,9 +183,6 @@ def prune_with_tolerance(
     if new_n == prev_n and not is_last:
         return None
 
-    if print_progress:
-        print(f"Dirty joining uses {new_n / prev_n * 100:.2f}% of the pmappings")
-
     return result
 
 
@@ -219,7 +224,6 @@ def join_strategy_2(
             )
             if cur_compressed is None:
                 continue
-
             joined = join_pmappings(
                 cur_compressed,
                 spec,
@@ -304,13 +308,12 @@ def multi_strategy_join(
             resource_usage_tolerance=threshold,
         )
         for c in joined.data.columns:
-            if is_reservation_col(c):
+            key = col2reservationsize(c)
+            if key is not None:
                 maxvalue = joined.data[c].max()
                 if maxvalue > 1:
                     if print_progress:
-                        oversubscribed = (
-                            f"{col2reservation(c).name} ({maxvalue * 100:.2f}%)"
-                        )
+                        oversubscribed = f"{key.name} ({maxvalue * 100:.2f}%)"
                         print(f"Oversubscribed {oversubscribed}. Reducing threshold...")
                     break
         else:
@@ -368,7 +371,7 @@ def clean_compress_and_join_pmappings(
         joined.data[col] = joined.data[col].apply(
             lambda x: pmappings.pmapping_objects[einsum_name][x]
         )
-    joined._data = _fillna_and__numeric_cast(joined.data, 0).reset_index(drop=True)
+    joined._data = _fillna_and_numeric_cast(joined.data, 0).reset_index(drop=True)
     joined._data = joined._data.copy()  # Defrag
 
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(pmappings.spec)
@@ -405,6 +408,187 @@ class PmappingsOneEinsum:
         return self.pmapping_groups[i]
 
 
+def _prefix_concat(*dfs: pd.DataFrame) -> pd.DataFrame:
+    prefixed = [df.add_prefix(f"{i}_") for i, df in enumerate(dfs)]
+    return pd.concat(prefixed, axis=1, copy=False)
+
+
+def make_valid_tensor_combinations(
+    pmgroups: list[PmappingsOneEinsum],
+) -> dict[oset[TensorName], dict[tuple, pd.DataFrame]]:
+    """
+    Returns a dict of {tensor names: {reservation structure: DataFrame of all possible
+    shapes, one row per shape combination}}
+
+    Tensor names, reservation structure, and shapes are all tuples, even if there's just
+    one tensor. All are sorted in increasing tensor name order. Entires include both
+    single tensors and every pair of tensors.
+
+    Omits entries that only appear in one Einsum, since those will trivially be valid.
+    """
+
+    result: dict[oset[TensorName], dict[tuple, pd.DataFrame]] = {}
+    in_gt_one_einsum = set()
+    for einsum_pmappings in pmgroups:
+        einsum_result = {}
+        for pg in einsum_pmappings.pmapping_groups:
+            tensors = sorted(pg.compatibility.tensors, key=lambda t: t.name)
+            tensor2df = {
+                t.name: t._compatibility_values_df(pg.mappings.data) for t in tensors
+            }
+            tensor_choices = list(itertools.combinations(tensors, 2))
+            tensor_choices += [(t,) for t in pg.compatibility.tensors]
+
+            for choice in tensor_choices:
+                choice = sorted(choice, key=lambda t: t.name)
+                tensor_name_key = tuple(t.name for t in choice)
+                structure_key = tuple(_reservation_structure(x) for x in choice)
+                dfs = [tensor2df[t.name] for t in choice]
+
+                catted = _prefix_concat(*dfs).drop_duplicates()
+
+                cur = einsum_result.setdefault(tensor_name_key, {})
+                if structure_key in cur:
+                    cur[structure_key] = pd.concat([cur[structure_key], catted])
+                else:
+                    cur[structure_key] = catted
+
+        for tensor_key, s2valid in einsum_result.items():
+            s2valid = {k: v.drop_duplicates() for k, v in s2valid.items()}
+            # In other Einsums -> only keep matching structures and, for those
+            # structures, only keep matching shapes
+            if tensor_key in result:
+                new = {}
+                for k, v in s2valid.items():
+                    if k in result[tensor_key]:
+                        new[k] = result[tensor_key][k].merge(v)
+                result[tensor_key] = new
+                in_gt_one_einsum.add(tensor_key)
+            # First time we're seeing this/these tensor(s) -> keep all combos
+            else:
+                result[tensor_key] = s2valid
+
+    result = {k: v for k, v in result.items() if k in in_gt_one_einsum}
+
+    return result
+
+
+def filter_compatible_tensor_combos(
+    pmgroups: list[PmappingsOneEinsum],
+    valid_combinations: dict[tuple, dict[tuple, pd.DataFrame]],
+):
+    for einsum_pmappings in pmgroups:
+        cur_groups = einsum_pmappings.pmapping_groups
+        for pg in cur_groups:
+            data = pg.mappings.data
+            reservations = {t.name: t for t in pg.compatibility.tensors}
+            keep = np.ones(len(data), dtype=bool)
+
+            for names, structure2valid in valid_combinations.items():
+                if not all(n in reservations for n in names):
+                    continue
+                if not keep.any():
+                    break
+                cur_reservations = [reservations[n] for n in names]
+
+                # Match on reservation loop structure
+                structure_key = tuple(
+                    _reservation_structure(m) for m in cur_reservations
+                )
+                if structure_key not in structure2valid:
+                    keep[:] = False
+                    break
+
+                # Match on the shapes
+                valid_shapes = structure2valid[structure_key]
+                dfs = [r._compatibility_values_df(data) for r in cur_reservations]
+                catted = _prefix_concat(*dfs)
+
+                keep &= pd.MultiIndex.from_frame(catted).isin(
+                    pd.MultiIndex.from_frame(valid_shapes)
+                )
+
+            if not keep.all():
+                pg.mappings = pg.mappings.update(
+                    data=data[keep].reset_index(drop=True), skip_pareto=True
+                )
+
+        non_null = [g for g in cur_groups if len(g.mappings.data) > 0]
+        einsum_pmappings.pmapping_groups = non_null
+
+
+def _tensor_pair_constraints(
+    left: Compatibility,
+    right: Compatibility,
+    valid_combinations: dict[tuple[str, str], dict[tuple, pd.DataFrame]],
+) -> list[TensorPairConstraint] | None:
+    """
+    For two Compatibilities, return a list of TensorPairConstraints that describe valid
+    combinations of fused tensor shapes. If no valid combinations exist, returns None.
+    """
+    # Shared tensor structure must match or we can't join
+    for t in left.tensor_names & right.tensor_names:
+        left_structure = left.get_reservation_of_tensor(t).loop_structure()
+        right_structure = right.get_reservation_of_tensor(t).loop_structure()
+        if left_structure != right_structure:
+            return None
+
+    # If a reservation is in both, overwriting is OK because joining will ensure that
+    # the shape of all shared tensors is the same.
+    reservations: dict[str, TensorReservation] = {}
+    reservations.update({t.name: t for t in right.tensors})
+    reservations.update({t.name: t for t in left.tensors})
+
+    left_tensors = oset(t.name for t in left.tensors)
+
+    # Pre-filtering should guarantee this
+    for t, reservation in reservations.items():
+        if (t,) in valid_combinations:
+            assert (reservation.loop_structure(),) in valid_combinations[(t,)]
+
+    constraints = []
+    for ta, tb in itertools.combinations(sorted(reservations), 2):
+        ta, tb = sorted((ta, tb))
+        ra, rb = reservations[ta], reservations[tb]
+
+        # Missing entries happen when all combinations are valid
+        if (ta, tb) not in valid_combinations:
+            continue
+
+        # Both came from the same side -> we've checked this in an earlier step or
+        # pre-filtering.
+        is_left = tuple(n in left_tensors for n in (ta, tb))
+        if len(set(is_left)) == 1:
+            continue
+
+        structure2valid = valid_combinations[(ta, tb)]
+        structure_a = reservations[ta].loop_structure()
+        structure_b = reservations[tb].loop_structure()
+
+        # Missing structure -> no valid combinations exist for this choice
+        if (structure_a, structure_b) not in structure2valid:
+            return None
+
+        valid_shapes = structure2valid[(structure_a, structure_b)]
+
+        shape_symbols_a = ra.compatibility_shape_symbols()
+        shape_symbols_b = rb.compatibility_shape_symbols()
+        if not shape_symbols_a and not shape_symbols_b:
+            continue
+
+        constraints.append(
+            TensorPairConstraint(
+                valid_combinations=valid_shapes,
+                shape_symbols_a=shape_symbols_a,
+                shape_symbols_b=shape_symbols_b,
+                is_left_a=is_left[0],
+                is_left_b=is_left[1],
+            )
+        )
+
+    return constraints
+
+
 def get_memories_to_track(
     pmapping_groups: dict[str, list[PmappingGroup]],
     print_progress: bool = True,
@@ -414,7 +598,7 @@ def get_memories_to_track(
     for _, einsum_pmapping_groups in pmapping_groups.items():
         for s in einsum_pmapping_groups:
             for col in s.mappings.data.columns:
-                reservation_key = col2reservation(col)
+                reservation_key = col2reservationsize(col)
                 if reservation_key is not None:
                     always_below.add(reservation_key.name)
 
@@ -424,25 +608,29 @@ def get_memories_to_track(
     for _, einsum_pmapping_groups in pmapping_groups.items():
         max_sizes = {}
         for s in einsum_pmapping_groups:
-            n_fused_loops = s.compatibility.n_loops
-            for col in s.mappings.data.columns:
-                reservation_key = col2reservation(col)
+            data = s.mappings.data
+            n_fused_iters = 1
+            for b in s.compatibility.loops:
+                for l in b.loops:
+                    n_fused_iters *= data[l.tile_pattern.calculated_n_iterations]
+            for col in data.columns:
+                reservation_key = col2reservationsize(col)
                 if reservation_key is None:
                     continue
 
                 name = reservation_key.name
-                nloops = reservation_key.nloops
-                if name in always_below and nloops < n_fused_loops:
+                iters_above = data[reservationkey2iterscol(reservation_key)]
+                if name in always_below and not np.all(n_fused_iters <= iters_above):
                     always_below.remove(name)
                 # Check each of the compatibility's tensors
                 for tensor in s.compatibility.tensors:
                     if tensor.resource_name in always_below:
                         always_below.remove(tensor.resource_name)
-                size = s.mappings.data[col].max()
+                size = data[col].max()
                 max_sizes[name] = max(max_sizes.get(name, 0), size)
 
-                # nloops < 0 means that the reservation will live through all Einsums
-                if nloops < 0:
+                # 0 iters_above above = persistent, lives through all Einsums
+                if np.all(iters_above.values == 0):
                     ignored_resources.add(name)
 
         for name, size in max_sizes.items():
@@ -457,7 +645,7 @@ def get_memories_to_track(
         data = s.mappings.data
         keep_cols = []
         for col in data.columns:
-            name_nloops = col2reservation(col)
+            name_nloops = col2reservationsize(col) or col2reservationiters(col)
             if name_nloops is None or name_nloops[0] not in ignore:
                 keep_cols.append(col)
         run_pareto = len(keep_cols) < len(data.columns)
@@ -569,6 +757,24 @@ def join_pmappings(
     if not pmgroups:
         raise ValueError("No pmappings to join")
 
+    valid_combinations = make_valid_tensor_combinations(pmgroups)
+    # prev_len = {g.einsum_name: sum(len(pg.mappings.data) for pg in g.pmapping_groups) for g in pmgroups}
+    # print(f"Length before filtering: {prev_len}")
+    filter_compatible_tensor_combos(pmgroups, valid_combinations)
+    # new_len = {g.einsum_name: sum(len(pg.mappings.data) for pg in g.pmapping_groups) for g in pmgroups}
+    # print(f"Length after filtering: {new_len}")
+    timer.print_time("Valid tensor combinations")
+
+    _constraints_cache = {}
+
+    def tensor_pair_constraints(
+        a: Compatibility, b: Compatibility
+    ) -> list[TensorPairConstraint] | None:
+        key = (a, b)
+        if key not in _constraints_cache:
+            _constraints_cache[key] = _tensor_pair_constraints(a, b, valid_combinations)
+        return _constraints_cache[key]
+
     # ======================================================================
     # Initial consolidate and group all PmappingGroups
     # ======================================================================
@@ -635,9 +841,6 @@ def join_pmappings(
             pbar_postfix=f" for {einsum_pmappings.einsum_name} ({i+1}/{len(pmgroups)})",
             print_progress=print_progress,
         )
-        einsum_pmappings.pmapping_groups = PmappingGroup.group(
-            einsum_pmappings.pmapping_groups, left_tensors,
-        )
         einsum, prev_einsum = einsum_pmappings.einsum_name, pmgroups[i - 1].einsum_name
         step_time = time.time() - t0
         runtime[f"{prev_einsum} → {einsum}"] = step_time
@@ -661,9 +864,7 @@ def join_pmappings(
     n_iterations = 0
     total_iterations = len(pmgroups)
 
-    def grab_einsum_pmappings() -> (
-        tuple[dict[Compatibility, list[PmappingGroup]], str, set[str]]
-    ):
+    def grab_einsum_pmappings() -> tuple[list[PmappingGroup], str, set[str]]:
         nonlocal n_iterations
         n_iterations += 1
         holder = pmgroups.pop(0)
@@ -714,32 +915,24 @@ def join_pmappings(
             print_progress=print_progress,
         )
 
-        # print_time(f"Combining")
-        # Group left and right into buckets
-        left = PmappingGroup.group(left, right_tensors)
-        # print_time("Grouping")
-
         # =============================================================================
         # If we're multiprocessing and the left side has fewer groups than the number of
         # processes, repeatedly split the largest group in half so that the merge work
         # below can fan out across all workers.
         # =============================================================================
         n_procs = get_n_parallel_jobs()
-        n_groups = sum(len(v) for v in left.values())
-        for _ in range(n_procs - n_groups):
-            best_k, best_i, best_len = None, None, -1
-            for k, vs in left.items():
-                for i, (pg, _perm) in enumerate(vs):
-                    length = len(pg.mappings.data) if pg.mappings is not None else 0
-                    if length > best_len:
-                        best_len = length
-                        best_k, best_i = k, i
-            if best_k is None or best_len < 2:
+        for _ in range(n_procs - len(left)):
+            best_i, best_len = None, -1
+            for i, pg in enumerate(left):
+                length = len(pg.mappings.data) if pg.mappings is not None else 0
+                if length > best_len:
+                    best_len = length
+                    best_i = i
+            if best_i is None or best_len < 2:
                 break  # nothing left worth splitting
-            pg, perm = left[best_k][best_i]
-            first, second = pg.split_in_half()
-            left[best_k][best_i] = (first, perm)
-            left[best_k].append((second, perm))
+            first, second = left[best_i].split_in_half()
+            left[best_i] = first
+            left.append(second)
 
         # ======================================================================
         # Remove dead tensors from left and right. This happens after grouping because
@@ -747,53 +940,34 @@ def join_pmappings(
         # by the normal reservation system). This is in case the tensor lifetime extends
         # beyond the Einsums for which it is used.
         # ======================================================================
-        PmappingGroup.remove_dead_tensors(
-            [s for lr in [left, right] for v in lr.values() for s, _ in v], live_tensors
-        )
+        PmappingGroup.remove_dead_tensors(left + right, live_tensors)
 
         DO_PRINT = False
         DELAY = True
-        # ======================================================================
-        # Merge the left and right buckets.
-        # ======================================================================
+        # =============================================================================
+        # Merge each compatible (left, right) pair
+        # =============================================================================
         combined: list[PmappingGroup] = []
-        combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
-        for k in left:
-            found = False
-            if DO_PRINT:
-                print(f"Left key {k}")
-            for (a, perm_a), (b, perm_b) in itertools.product(
-                left[k], right.get(k, [])
-            ):
-                a: PmappingGroup
-                b: PmappingGroup
-                perm_a: CompatibilityDiff
-                perm_b: CompatibilityDiff
-                key_check = (id(a), id(b))
-                if key_check in combined_ids:
-                    continue
-                combined_ids.add(key_check)
-                found = True
+        for a, b in itertools.product(left, right):
+            a: PmappingGroup
+            b: PmappingGroup
+            constraints = tensor_pair_constraints(a.compatibility, b.compatibility)
+            if constraints is None:
+                continue
+            try:
+                join_options = a.compatibility.merge_next(
+                    b.compatibility,
+                    live_tensors,
+                )
+                if DO_PRINT:
+                    print(f"\t{a.compatibility}        <-->        {b.compatibility}")
+            except ValueError as e:  # Incompatible!
+                continue
 
-                compatibility_a = perm_a.apply(a.compatibility)
-                compatibility_b = perm_b.apply(b.compatibility)
-                try:
-                    compatibility_joined = compatibility_a.merge_next(
-                        compatibility_b,
-                        live_tensors,
-                    )
-                    if DO_PRINT:
-                        print(
-                            f"\t{a.compatibility}        <-->        {b.compatibility}"
-                        )
-                except ValueError as e:  # Incompatible!
-                    # if DO_PRINT:
-                    #     print(f"\tIncompatible: {e}")
-                    continue
+            t0 = time.time()
 
-                t0 = time.time()
-
+            for compatibility_joined, left_loop_to_right_loop in join_options:
                 combined.append(
                     a.merge_next(
                         b,
@@ -801,44 +975,27 @@ def join_pmappings(
                         live_tensors_with_right,
                         aliased_tensors,
                         compatibility_joined=compatibility_joined,
-                        permuted_compatibility_left=compatibility_a,
-                        permuted_compatibility_right=compatibility_b,
+                        left_loop_to_right_loop=left_loop_to_right_loop,
+                        tensor_pair_constraints=constraints,
                         delay=DELAY,
                         _pmapping_row_filter_function=_pmapping_row_filter_function,
                         ignored_resources=ignored_resources,
                     )
                 )
 
-                if DO_PRINT:
-                    # s = f"\t-->\n\t{combined[-1].compatibility}"
-                    # s += f"({len(a.mappings.data)})x({len(b.mappings.data)})"
-                    # print(s)
-                    pass
-            if DO_PRINT and not found:
-                for a, _ in left[k]:
-                    print(f"\tNo match for {a.compatibility}")
-
-        if DO_PRINT:
-            for k in right:
-                if k not in left:
-                    for b, _ in right[k]:
-                        print(f"\tREVERSE: No match for {b.compatibility} using {k}")
-
-        for l in left.values():
-            for s, _ in l:
-                s.mappings = None
-        for r in right.values():
-            for s, _ in r:
-                s.mappings = None
+        for s in left:
+            s.mappings = None
+        for s in right:
+            s.mappings = None
 
         # print_time("Bucket merging")
         def raise_no_match_error():
             estr = f"No match found for any group.\n"
             estr += f"Left compatibility:\n\t" + "\n\t".join(
-                str(c) for c in left.keys()
+                str(s.compatibility) for s in left
             )
             estr += f"\nRight compatibility:\n\t" + "\n\t".join(
-                str(c) for c in right.keys()
+                str(s.compatibility) for s in right
             )
             raise ValueError(estr)
 
@@ -849,10 +1006,10 @@ def join_pmappings(
             estr = f"No match found for any group. Left and right joined successfully, "
             estr += f"but will not be compatible with following Einsums.\n"
             estr += f"Left compatibility:\n\t" + "\n\t".join(
-                str(s.compatibility) for g in left.values() for s, _ in g
+                str(s.compatibility) for s in left
             )
             estr += f"\nRight compatibility:\n\t" + "\n\t".join(
-                str(s.compatibility) for g in right.values() for s, _ in g
+                str(s.compatibility) for s in right
             )
             estr += f"\nCombined compatibility:\n\t" + "\n\t".join(
                 str(s.compatibility) for s in combined
@@ -862,53 +1019,53 @@ def join_pmappings(
             )
             raise ValueError(estr)
 
-        # ======================================================================
-        # Look ahead to the next Einsum and see if any of our groups will not
-        # be able to merge with it. If so, we can drop them immediately.
-        # ======================================================================
-        lookahead_filter = True
-        if lookahead_filter:
-            cur_tensors = left_tensors | right_tensors
-            for next_pmapping_groups in pmgroups:
-                next_right_tensors = next_pmapping_groups.tensor_names
-                if not next_right_tensors & cur_tensors:
-                    continue
-                prev_combined = combined
-                combined = PmappingGroup.group(combined, next_right_tensors)
-                next_keys = oset(
-                    c.clear_dead_tensors(
-                        cur_tensors
-                    ).clear_tile_patterns_and_reservation_indices()
-                    for c in next_pmapping_groups.pmapping_groups
-                )
-                for k in list[Compatibility](combined):
-                    perms = k.make_equivalent_compatibilities()
-                    perms = [
-                        p[0]
-                        .clear_dead_tensors(next_right_tensors)
-                        .clear_tile_patterns_and_reservation_indices()
-                        for p in perms
-                    ]
-                    if not any(p in next_keys for p in perms):
-                        if DO_PRINT:
-                            for b, _ in combined[k]:
-                                print(
-                                    f"\tLOOKAHEAD to {next_pmapping_groups.einsum_name}: No match for {b.compatibility}"
-                                )
-                        del combined[k]
-                if not combined:
-                    PmappingGroup.group(prev_combined, next_right_tensors)
-                    no_match_lookahead_error(prev_combined, next_keys)
+        # # ======================================================================
+        # # Look ahead to the next Einsum and see if any of our groups will not
+        # # be able to merge with it. If so, we can drop them immediately.
+        # # ======================================================================
+        # lookahead_filter = True
+        # if lookahead_filter:
+        #     cur_tensors = left_tensors | right_tensors
+        #     for next_pmapping_groups in pmgroups:
+        #         next_right_tensors = next_pmapping_groups.tensor_names
+        #         if not next_right_tensors & cur_tensors:
+        #             continue
+        #         prev_combined = combined
+        #         combined = PmappingGroup.group(combined, next_right_tensors)
+        #         next_keys = oset(
+        #             c.clear_dead_tensors(
+        #                 cur_tensors
+        #             ).clear_tile_patterns_and_reservation_indices()
+        #             for c in next_pmapping_groups.pmapping_groups
+        #         )
+        #         for k in list[Compatibility](combined):
+        #             perms = k.make_equivalent_compatibilities()
+        #             perms = [
+        #                 p[0]
+        #                 .clear_dead_tensors(next_right_tensors)
+        #                 .clear_tile_patterns_and_reservation_indices()
+        #                 for p in perms
+        #             ]
+        #             if not any(p in next_keys for p in perms):
+        #                 if DO_PRINT:
+        #                     for b, _ in combined[k]:
+        #                         print(
+        #                             f"\tLOOKAHEAD to {next_pmapping_groups.einsum_name}: No match for {b.compatibility}"
+        #                         )
+        #                 del combined[k]
+        #         if not combined:
+        #             PmappingGroup.group(prev_combined, next_right_tensors)
+        #             no_match_lookahead_error(prev_combined, next_keys)
 
-                combined = list(itertools.chain.from_iterable(combined.values()))
-                combined = [c[0] for c in combined]
-                # Remove duplicates
-                id2combined = {id(c): c for c in combined}
-                combined = list(id2combined.values())
-                # print(
-                #     f"Removed {prev_len - len(combined)}/{prev_len} ({len(combined)/prev_len*100:.2f}% remaining)"
-                # )
-                # print_time("Removing mappings that can't be combined later")
+        #         combined = list(itertools.chain.from_iterable(combined.values()))
+        #         combined = [c[0] for c in combined]
+        #         # Remove duplicates
+        #         id2combined = {id(c): c for c in combined}
+        #         combined = list(id2combined.values())
+        #         # print(
+        #         #     f"Removed {prev_len - len(combined)}/{prev_len} ({len(combined)/prev_len*100:.2f}% remaining)"
+        #         # )
+        #         # print_time("Removing mappings that can't be combined later")
 
         if not combined:
             raise_no_match_error()
@@ -995,8 +1152,9 @@ def join_pmappings(
     )
     assert len(s_final) == 1
     mappings = s_final[0].mappings
-    mappings.limit_capacity(next_shared_loop_index=-1, finished=True)
-    mappings.free_to_loop_index(-2)
+    mappings.free_all_reservations()
+    mappings.drop_redundant_reservations()
+    mappings.limit_capacity(finished=True)
     mappings.make_pareto()
 
     timer.log_total_time()

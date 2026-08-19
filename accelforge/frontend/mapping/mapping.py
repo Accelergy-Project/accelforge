@@ -211,28 +211,23 @@ class MappingNode(EvalableModel):
         """Returns a compact string representation of this node."""
         return self.__str__()
 
+PatternSymbol = Literal["symbol"] | sympy.Symbol | int | str | None | sympy.Expr
 
 @dataclass(frozen=True)
 class TilePattern:
-    tile_shape: EvalsTo[
-        Literal["symbol"] | sympy.Symbol | int | str | None | sympy.Expr
-    ] = "symbol"
+    tile_shape: EvalsTo[PatternSymbol] = "symbol"
     """
     The common tile shape of the pattern. This is the number of indices by which
     the tile moves each iteration.
     """
 
-    initial_tile_shape: EvalsTo[
-        Literal["symbol"] | sympy.Symbol | int | None | str | sympy.Expr
-    ] = "symbol"
+    initial_tile_shape: EvalsTo[PatternSymbol] = "symbol"
     """
     The initial tile shape. This is the shape of the tile at the first iteration.
     Subsequent iterations may be smaller if they overlap previous iterations.
     """
 
-    calculated_n_iterations: (
-        Literal["symbol"] | sympy.Symbol | int | None | str | sympy.Expr
-    ) = None
+    calculated_n_iterations: PatternSymbol = None
     """ The number of iterations in the pattern. Do not set this! Used internally by the
     mapper. """
 
@@ -2002,6 +1997,10 @@ class Mapping(Nested):
         # graph.config = config
 
         # return md.Mermaid(graph)
+        
+    def _get_node_ids(self) -> dict[int, MappingNode]:
+        # TODO: Include binding loops in this ID dict too
+        return {id(node): i for i, node in enumerate(self._flatten())}
 
 
 Split.model_rebuild()

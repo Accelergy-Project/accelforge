@@ -1,6 +1,7 @@
 from collections import namedtuple
 import functools
 import re
+from typing import Callable
 from accelforge._accelerated_imports import pandas as pd
 from accelforge.util import NUMPY_FLOAT_TYPE
 from accelforge.util._frozenset import fzs, oset
@@ -131,61 +132,120 @@ def col2energy(colname: str) -> ActionKey | VerboseActionKey:
         raise ValueError(f"bad column name: {colname}")
 
 
-ReservationKey = namedtuple("ReservationKey", ["name", "nloops"])
+ReservationKey = namedtuple(
+    "ReservationKey", ["name", "index", "left"]
+)
 
+# Used for renumbering columns to not collide when joining two dataframes
+_RIGHT_RESERVATION_OFFSET = 1_000_000_000
 
 @dict_cached
-def col2reservation(x: str) -> ReservationKey | None:
-    """Format: reservation name nloops left"""
-    x = partition_col(x, "reservation", 4)
-    if x is None:
+def col2reservationsize(x: str) -> ReservationKey | None:
+    """Format: reservation_size name index left"""
+    p = partition_col(x, "reservation_size", 4)
+    if p is None:
         return None
-    return ReservationKey(x[0], int(x[1]))
+    return ReservationKey(p[0], int(p[1]), p[2] == "left")
 
 
 @dict_cached
-def reservation2col(name: str, nloops: int, left: bool = False) -> str:
-    """Format: reservation name nloops left"""
-    return f"reservation<SEP>{name}<SEP>{nloops}<SEP>" + ("left" if left else "right")
+def col2reservationiters(x: str) -> ReservationKey | None:
+    """Format: reservation_iters_above name index"""
+    p = partition_col(x, "reservation_iters_above", 3)
+    if p is None:
+        return None
+    return ReservationKey(p[0], int(p[1]), False)
 
 
 @dict_cached
-def stride2col(rank_name: Rank, nloops: int) -> str:
-    """Format: stride rank_name nloops"""
-    return f"stride<SEP>{rank_name}<SEP>{nloops}"
+def reservationkey2sizecol(x: ReservationKey, left: bool = None) -> str:
+    return reservation2sizecol(x.name, x.index, x.left if left is None else left)
 
 
 @dict_cached
-def col2stride(col: str) -> tuple[Rank, int] | None:
-    """Format: stride rank_name nloops"""
+def reservationkey2iterscol(x: ReservationKey) -> str:
+    return reservation2iterscol(x.name, x.index)
+
+def assert_valid_index(index: int):
+    # Reservations are ordered linearly, so if one is to exceed
+    # _RIGHT_RESERVATION_OFFSET and cause problems aliasing right and left, one will
+    # certainly exceed half of that. We can't just assert < _RIGHT_RESERVATION_OFFSET
+    # because we'll be adding _RIGHT_RESERVATION_OFFSET to the right side
+    half_offs = _RIGHT_RESERVATION_OFFSET // 2
+    full_offs = _RIGHT_RESERVATION_OFFSET
+    three_halves = half_offs + full_offs
+    if index < full_offs:
+        assert index < half_offs, f"index {index} exceeds max {half_offs}"
+    if index >= full_offs:
+        assert index < three_halves, f"index {index} exceeds max {three_halves}"
+
+@dict_cached
+def reservation2sizecol(name: str, index: int, left: bool = False) -> str:
+    """Format: reservation_size name index left"""
+    assert_valid_index(index)
+
+    lr = "left" if left else "right"
+    return f"reservation_size<SEP>{name}<SEP>{index}<SEP>{lr}"
+
+
+@dict_cached
+def reservation2iterscol(name: str, index: int) -> str:
+    """Format: reservation_iters_above name index"""
+    assert_valid_index(index)
+    return f"reservation_iters_above<SEP>{name}<SEP>{index}"
+
+
+def update_reservation_col(c: str, f: Callable) -> str:
+    key = col2reservationsize(c)
+    if key is not None:
+        key = f(key)
+        return reservation2sizecol(key.name, key.index, key.left)
+    key = col2reservationiters(c)
+    if key is not None:
+        key = f(key)
+        return reservation2iterscol(key.name, key.index)
+    return c
+
+
+@dict_cached
+def stride2col(rank_name: Rank, loop_column: str) -> str:
+    """Format: stride rank_name loop_column"""
+    return f"stride<SEP>{rank_name}<SEP>{loop_column}"
+
+
+@dict_cached
+def col2stride(col: str) -> tuple[Rank, str] | None:
+    """Format: stride rank_name loop_column"""
     x = partition_col(col, "stride", 3)
-    return x[0], int(x[1])
+    return x[0], x[1]
 
 
 @dict_cached
-def initial2col(rank_name: Rank, nloops: int) -> str:
-    """Format: initial rank_name nloops"""
-    return f"initial<SEP>{rank_name}<SEP>{nloops}"
+def initial2col(rank_name: Rank, loop_column: str) -> str:
+    """Format: initial rank_name loop_column"""
+    return f"initial<SEP>{rank_name}<SEP>{loop_column}"
 
 
 @dict_cached
-def col2initial(col: str) -> tuple[Rank, int] | None:
-    """Format: initial rank_name nloops"""
+def col2initial(col: str) -> tuple[Rank, str] | None:
+    """Format: initial rank_name loop_column"""
     x = partition_col(col, "initial", 3)
-    return x[0], int(x[1])
+    return x[0], x[1]
 
 
 @dict_cached
-def iterations2col(nloops: int) -> str:
-    """Format: n_iterations nloops"""
-    return f"n_iterations<SEP>{nloops}"
+def iterations2col(loop_column: str) -> str:
+    """Format: n_iterations loop_column"""
+    return f"n_iterations<SEP>{loop_column}"
 
 
 @dict_cached
-def col2iterations(col: str) -> int | None:
-    """Format: n_iterations nloops"""
-    x = partition_col(col, "n_iterations", 2)
-    return x[0]
+def col2iterations(col: str) -> str | None:
+    """Format: [prefix...] n_iterations loop_column"""
+    parts = col.split(SEP)
+    if "n_iterations" not in parts:
+        return None
+    return parts[parts.index("n_iterations") + 1]
 
 
 @dict_cached
@@ -214,26 +274,14 @@ def is_tensor_col(c: str) -> bool:
     return c.startswith("tensor<SEP>")
 
 
-@dict_cached
-def col2nameloopleft(x: str) -> tuple[str, int, bool] | None:
-    """Format: reservation name level left"""
-    x = partition_col(x, "reservation", 4)
-    if x is None:
-        return None
-    return x[0], x[1], x[2] == "left"
-
-
 def is_reservation_col(x: str) -> bool:
-    return col2reservation(x) is not None
+    return col2reservationsize(x) is not None or col2reservationiters(x) is not None
 
 
 @dict_cached
 def is_left_col(x: str) -> bool:
-    """Format: reservation name level left"""
-    x = partition_col(x, "reservation", 4)
-    if x is None:
-        return False
-    return x[2] == "left"
+    key = col2reservationsize(x)
+    return key is not None and key.left
 
 
 def make_fused_loop_col(s: str) -> str:
@@ -285,7 +333,7 @@ def max_to_col(df, target, source):
 def add_to_col(df, target, source):
     ensure_float_type(df, target, source)
     if isinstance(source, pd.Series):
-        df[target] = df[target] + source
+        df.loc[:, target] = df[target] + source
     else:
         df.loc[:, target] = df[target] + df[source] if target in df else df[source]
 
@@ -295,7 +343,7 @@ def is_objective_col(c):
 
 
 def col_used_in_pareto(c):
-    return col2reservation(c) is not None or is_objective_col(c)
+    return is_reservation_col(c) or is_objective_col(c)
 
 
 def col_used_in_joining(c):

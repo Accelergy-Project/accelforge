@@ -55,7 +55,7 @@ def _count_factorizations(n, imperfect_per_loop: tuple[bool, ...]):
     return sum(_count_factorizations(n // d, others) for d in _divisors(n))
 
 
-def _fillna_and__numeric_cast(df: pd.DataFrame, value: float) -> pd.DataFrame:
+def _fillna_and_numeric_cast(df: pd.DataFrame, value: float) -> pd.DataFrame:
     dtypes = df.dtypes
     for col in [c for c in df.columns if dtypes[c] == object]:
         vals = df[col]

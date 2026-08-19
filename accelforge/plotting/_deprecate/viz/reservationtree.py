@@ -7,7 +7,7 @@ from accelforge.mapper.FFM._join_pmappings.pmapping_group import (
     Loop,
 )
 from accelforge.util import _expfmt, oset
-from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import col2reservation
+from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import col2reservationsize
 from accelforge.util.indent import print
 
 PYDOT_NODE_DEFAULTS = {
@@ -278,7 +278,7 @@ def mappings2reservationtree(
     if add_reservations is not None:
         for einsum, reservations in add_reservations.items():
             for resource, size in dict(reservations).items():
-                reservation = col2reservation(resource)
+                reservation = col2reservationsize(resource)
                 if reservation is None:
                     continue
                 name = reservation.name

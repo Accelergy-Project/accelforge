@@ -1066,6 +1066,7 @@ def analyze_compute(
 
 
 def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
+    ids = job.mapping._get_node_ids()
     loop_idx = 0
     symbols = []
     rank_var_with_initial = oset()
@@ -1121,7 +1122,7 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
         #     node.calculated_n_iterations is None
         # ), "Number of iterations is derived from the model. Do not set it!"
         node.calculated_n_iterations = sympy.symbols(
-            iterations2col(loop_idx), positive=True, integer=True
+            iterations2col(ids[id(node)]), positive=True, integer=True
         )
 
         loop_idx += 1

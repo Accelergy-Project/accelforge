@@ -14,12 +14,12 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import (
     MAPPING_COLUMN,
     PmappingDataframe,
-    col2reservation,
+    col2reservationiters,
+    col2reservationsize,
     col_used_in_pareto,
     is_reservation_col,
     makepareto,
     tensor2col,
-    reservation2col,
 )
 
 from accelforge.frontend.mapper.metrics import Metrics
@@ -44,44 +44,11 @@ from accelforge.mapper.FFM._make_pmappings.pmapper_job import (
     SameTemplateJobs,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import (
+    col2iterations,
     is_fused_loop_col,
     is_n_iterations_col,
 )
 from accelforge.util._mathfuncs import _count_factorizations
-
-
-def shift_reservations_by_null_loop_indices(
-    mappings: pd.DataFrame, null_loop_indices: set[int]
-):
-    target2newabovename = {}
-    dropcols = []
-    for c in mappings.columns:
-        if not is_reservation_col(c):
-            continue
-        reservation = col2reservation(c)
-        name = reservation.name
-        above = reservation.nloops
-        new_above = above - sum(above > i for i in null_loop_indices)
-        target = reservation2col(name, new_above)
-        if target in target2newabovename:
-            if above > target2newabovename[target][1]:
-                dropcols.append(reservation2col(*target2newabovename[target]))
-                target2newabovename[target] = (name, above)
-            else:
-                dropcols.append(c)
-        else:
-            target2newabovename[target] = (name, above)
-
-    if dropcols:
-        drop_set = set(dropcols)
-        mappings = mappings[[c for c in mappings.columns if c not in drop_set]]
-    renames = {}
-    for target, (name, above) in target2newabovename.items():
-        renames[reservation2col(name, above)] = target
-    mappings = mappings.rename(columns=renames)
-    if len(mappings.columns) != len(mappings.columns.unique()):
-        raise ValueError(f"Duplicate columns: {mappings.columns}")
-    return mappings
 
 
 def mapping2fused_loop_cols(mapping: Mapping, einsum_name: EinsumName):
@@ -108,15 +75,15 @@ def get_fused_loop_indices(
     """
     result = []
 
-    loops = compatibility.loops
-    for i, loop in enumerate(loops):
-        col = loop.tile_pattern.calculated_n_iterations
-        assert col is not None, f"Loop {loop} has no calculated n_iterations"
-        if isinstance(col, str):
-            col = df[f"{einsum_name}<SEP>{col}"]
-        elif isinstance(col, sympy.Symbol):
-            col = df[f"{einsum_name}<SEP>{col.name}"]
-        result.append(col != 1)
+    for b in compatibility.loops:
+        for l in b.loops:
+            col = l.tile_pattern.calculated_n_iterations
+            assert col is not None, f"Loop {l} has no calculated n_iterations"
+            if isinstance(col, str):
+                col = df[f"{einsum_name}<SEP>{col}"]
+            elif isinstance(col, sympy.Symbol):
+                col = df[f"{einsum_name}<SEP>{col.name}"]
+            result.append(col != 1)
 
     if return_as_int:
         n = 0
@@ -210,15 +177,14 @@ def multiply_n_pmappings_by_permutations(n_pmappings: int, job: Job) -> int:
 def assert_all_jobs_have_same_symbols(
     jobs_with_similar_compatibilities: SameCompatibilityJobs,
 ):
-    iteration2symbols = []
+    iteration2symbols = defaultdict(oset)
     for j in jobs_with_similar_compatibilities:
         for t in j.compatibility.tensors:
-            for i, l in enumerate(t.loops):
-                if len(iteration2symbols) <= i:
-                    iteration2symbols.append(oset())
-                iteration2symbols[i].add(l.tile_pattern.calculated_n_iterations)
+            for l in t.iter_fused_loops():
+                col = l.tile_pattern.calculated_n_iterations
+                iteration2symbols[col2iterations(col)].add(col)
     assert all(
-        len(s) == 1 for s in iteration2symbols
+        len(s) == 1 for s in iteration2symbols.values()
     ), "All jobs must have the same symbols for compatibility n_iterations"
 
 
@@ -270,8 +236,8 @@ def make_pmappings_from_templates(
         drop_set = set()
         for col in result.columns:
             if is_reservation_col(col):
-                resource = col2reservation(col)[0]
-                if resource in job.memories_track_pmappings_only:
+                key = col2reservationsize(col) or col2reservationiters(col)
+                if key.name in job.memories_track_pmappings_only:
                     drop_set.add(col)
         if drop_set:
             result = result[[c for c in result.columns if c not in drop_set]]
@@ -293,13 +259,12 @@ def make_pmappings_from_templates(
 
     # Creating a PmappingDataframe fills in reservation columns since different pmappings
     # have different ones.
-    next_shared_loop_index = compatibility.n_loops - 1
     df = PmappingDataframe.concat(
         [
             PmappingDataframe(
                 r,
                 skip_pareto=True,
-                next_shared_loop_index=next_shared_loop_index,
+                sort_and_merge_reservations=True,
                 n_total_pmappings=1,  # Unused for now, just making an initial Pareto
                 n_valid_pmappings=1,  # Unused for now, just making an initial Pareto
                 ignored_resources=job.ignored_resources,
@@ -381,31 +346,22 @@ def make_pmappings_from_templates(
     pmapping_groups = []
     for _, mappings in groups:
         compatibility = jwsc.compatibility
-        fused_loop_indices = []
-
-        for i, f in enumerate(
-            get_fused_loop_indices(
-                mappings, compatibility, einsum_name, return_as_int=False
-            )
-        ):
-            if f:
-                fused_loop_indices.append(i)
-
-        null_loop_indices = tuple(
-            i for i in range(compatibility.n_loops) if i not in fused_loop_indices
+        loops = [l for b in compatibility.loops for l in b.loops]
+        fused = get_fused_loop_indices(
+            mappings, compatibility, einsum_name, return_as_int=False
         )
 
         dropcols = ["fused_loop_indices"]
         mappings = mappings.drop(columns=dropcols)
 
-        compatibility = compatibility.drop_loop_indices(null_loop_indices)
+        null_loop_ids = tuple(l.id for l, f in zip(loops, fused) if not f)
+        compatibility = compatibility.drop_loops(null_loop_ids)
 
         symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
             einsum_name
         )
         for k, v in symbol_renames.items():
             mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
-        mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
 
         energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]
         if (mappings[energy_cols] < 0).any(axis=None):
@@ -420,11 +376,10 @@ def make_pmappings_from_templates(
             raise RuntimeError(f"negative energy:\n{msg}")
 
         # Skip pareto because we already did it above
-        next_shared_loop_index_this_group = compatibility.n_loops - 1
         mappings = compatibility.clear_unrelated_columns(mappings)
         partial_mappings = PmappingDataframe(
             mappings,
-            next_shared_loop_index=next_shared_loop_index_this_group,
+            sort_and_merge_reservations=True,
             n_total_pmappings=total_pmappings_per_group,
             n_valid_pmappings=valid_pmappings_per_group,
             ignored_resources=job.ignored_resources
@@ -438,13 +393,6 @@ def make_pmappings_from_templates(
             # because we have full information of live tensors then.
             drop_valid_reservations=False,
         )
-        # If we have fewer fused loops, reservations likely got freed. We can free!
-        if next_shared_loop_index_this_group != next_shared_loop_index:
-            partial_mappings.make_pareto(
-                resource_usage_tolerance=resource_usage_tolerance,
-                objective_tolerance=job0.objective_tolerance,
-                absolute_resource_usage_tolerance=absolute_resource_usage_tolerance,
-            )
         pmapping_groups.append(PmappingGroup(compatibility, partial_mappings))
 
     # Defragment to speed up pickling
