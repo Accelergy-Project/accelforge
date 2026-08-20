@@ -604,9 +604,10 @@ def iter_binding_choices(
     Ranks that model alike therefore cost one template between them, not one each.
 
     Only the storages of shared tensors -- those this Einsum passes to or receives from
-    another one -- are explored. The binding of a tensor that only this Einsum touches
-    is nobody else's business: no other Einsum has to agree with it, so it always takes
-    its locally-optimal binding rather than multiplying the templates.
+    another one -- are explored, and only those their memory's `may_explore_binding`
+    admits. The binding of a tensor that only this Einsum touches is nobody else's
+    business: no other Einsum has to agree with it, so it always takes its
+    locally-optimal binding rather than multiplying the templates.
 
     Yields nothing if the constraints admit no binding of `mapping`, in which case the
     caller must drop the template: there is no binding it could be modeled with.
@@ -644,12 +645,18 @@ def iter_binding_choices(
     budgets = [c.max_binding_rank_changes for c in constraints]
     block_of = [b for b, length in enumerate(block_lengths) for _ in range(length)]
 
-    # Only the binding loops of a shared tensor are explored; the rest keep the default.
+    # A binding loop is explored only if its tensor is shared with another Einsum and
+    # its memory allows that tensor to be explored; the rest keep the default.
     shared = job.fusable_tensors or set()
+
+    def explorable_tensor(block: int) -> bool:
+        tensor = blocks[block][0].tensor
+        return tensor in shared and constraints[block].may_explore(tensor)
+
     explorable = [
         p
         for p in range(len(options))
-        if blocks[block_of[p]][0].tensor in shared and len(options[p]) > 1
+        if explorable_tensor(block_of[p]) and len(options[p]) > 1
     ]
     # The budget of a memory whose tensor is not explored buys nothing, so the total
     # comes from the memories that are.

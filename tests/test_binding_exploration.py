@@ -3,23 +3,93 @@ Tests for exploring the binding of a tensor to the physical instances of a
 physically-distributed memory.
 """
 
+import importlib
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 
 import accelforge as af
 from accelforge.frontend.arch import BindingConstraints
-from accelforge.frontend.mapping import Loop, Spatial, Storage, iter_binding_blocks
+from accelforge.frontend.mapping import (
+    Loop,
+    Spatial,
+    Storage,
+    TilePattern,
+    iter_binding_blocks,
+)
 from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend.spec import Spec
 from accelforge.mapper import Metrics
-from accelforge.mapper.FFM._make_pmappings.make_pmappings import get_jobs
+from accelforge.mapper.FFM._make_pmappings.make_pmapping_templates.make_pmapping_templates import (
+    _binding_rank_classes,
+    default_binding_ranks,
+    iter_binding_choices,
+)
+from accelforge.mapper.FFM._make_pmappings.make_pmappings import (
+    get_jobs,
+    make_pmappings,
+)
+from accelforge.mapper.FFM._make_pmappings.make_pmappings_from_templates.make_pmappings_from_templates import (
+    _binding_expansions,
+)
+from accelforge.mapper.FFM._join_pmappings.compatibility import (
+    Compatibility,
+    Loop as CompatibilityLoop,
+    TensorReservation,
+)
+from accelforge.frontend.renames import Rank
+from accelforge.util._frozenset import fzs
 
 ARCH = Path(__file__).parent / "input_files" / "distributed_binding.arch.yaml"
+
+# The module, not the same-named function the package re-exports: the tests below
+# swap out one of its functions to compare against the unmerged behavior.
+templates_module = importlib.import_module(
+    "accelforge.mapper.FFM._make_pmappings.make_pmapping_templates."
+    "make_pmapping_templates"
+)
 
 
 # The only physically-distributed memory of the fixture, and so the only one whose
 # binding constraints the mapper consults.
 DISTRIBUTED_MEMORY = "SharedBuffer"
+
+
+def _compatibility_with_binding(
+    binding: list[tuple[str, str]], tensor: str = "T1", resource: str = "SharedBuffer"
+) -> Compatibility:
+    """A Compatibility whose only reservation binds `binding`, as (dimension, rank)."""
+    return Compatibility(
+        tensors=fzs(
+            [
+                TensorReservation(
+                    loops=(),
+                    name=tensor,
+                    resource_name=resource,
+                    physical_spatial_loops=tuple(
+                        CompatibilityLoop(
+                            rank_name=Rank(rank),
+                            tile_pattern=TilePattern(calculated_n_iterations=2),
+                            is_spatial=True,
+                            spatial_dim=dimension,
+                        )
+                        for dimension, rank in binding
+                    ),
+                )
+            ]
+        ),
+        # The reservation sits above every loop, so index zero is where it lives.
+        reservation_indices=fzs([0]),
+    )
+
+
+def _binding_of(compatibility: Compatibility) -> list[tuple[str, str]]:
+    """The (dimension, rank) of every binding loop of `compatibility`."""
+    return [
+        (loop.spatial_dim, loop.rank_name)
+        for tensor in compatibility.tensors
+        for loop in tensor.physical_spatial_loops
+    ]
 
 
 def _make_spec(binding: BindingConstraints | None = None, **mapper_settings) -> Spec:
@@ -168,6 +238,29 @@ class TestBindingExploration(unittest.TestCase):
                 sum(len(j) for j in one_change[einsum_name].values()),
             )
 
+    def test_only_shared_tensors_are_explored(self):
+        """
+        A tensor that no other Einsum touches has no one to agree with, so exploring
+        its binding only multiplies templates. Only the shared tensors are explored;
+        every other tensor keeps its locally-optimal binding.
+        """
+        saw_unshared = False
+        for compatibility2jobs in _get_jobs(
+            # Two binding loops per storage in the fixture, so this is every binding.
+            binding=BindingConstraints(max_binding_rank_changes=2)
+        ).values():
+            for job_list in compatibility2jobs.values():
+                for job in job_list:
+                    for storage, spatials in iter_binding_blocks(job.mapping.nodes):
+                        if storage.tensor in job.fusable_tensors:
+                            continue
+                        saw_unshared = True
+                        self.assertEqual(
+                            [l.rank_variable for l in storage.binding],
+                            default_binding_ranks(storage, spatials, job),
+                        )
+        self.assertTrue(saw_unshared, "The fixture binds no unshared tensor.")
+
     def test_beautify_loops_drops_the_binding_of_a_removed_spatial_loop(self):
         """
         Beautifying a mapping drops the loops that run a single iteration. A binding
@@ -259,6 +352,206 @@ class TestBindingExploration(unittest.TestCase):
                     [l.rank_variable for l in node.binding],
                     bindings[(node.component, node.tensor)],
                 )
+
+
+class TestBindingRankClasses(unittest.TestCase):
+    """
+    Which ranks a binding loop is modeled the same for. Partitioning along a rank other
+    than the locally-optimal one costs the same whichever of those ranks it is, so they
+    share a template; replicating does not, so it keeps its own.
+    """
+
+    def test_the_default_comes_first_and_alone(self):
+        classes = _binding_rank_classes(["M", "N", RANK_DUPLICATE], "M")
+        self.assertEqual(classes[0], ("M",))
+
+    def test_other_partitioning_ranks_share_a_class(self):
+        classes = _binding_rank_classes(["M", "N", "K", RANK_DUPLICATE], "M")
+        self.assertIn(("N", "K"), classes)
+
+    def test_duplicate_is_its_own_class(self):
+        # Replicating puts a whole copy in every instance where partitioning gives each
+        # a share, so it is not interchangeable with a partitioning rank.
+        classes = _binding_rank_classes(["M", "N", "K", RANK_DUPLICATE], "M")
+        self.assertIn((RANK_DUPLICATE,), classes)
+
+    def test_a_duplicating_default_leaves_every_rank_in_one_class(self):
+        classes = _binding_rank_classes(["M", "N", RANK_DUPLICATE], RANK_DUPLICATE)
+        self.assertEqual(classes, [(RANK_DUPLICATE,), ("M", "N")])
+
+    def test_every_allowed_rank_is_in_exactly_one_class(self):
+        allowed = ["M", "N", "K", RANK_DUPLICATE]
+        for default in allowed:
+            classes = _binding_rank_classes(allowed, default)
+            flat = [r for c in classes for r in c]
+            self.assertEqual(sorted(flat), sorted(allowed), f"default={default}")
+
+    def test_a_lone_rank_has_nothing_to_share_with(self):
+        self.assertEqual(_binding_rank_classes(["M"], "M"), [("M",)])
+
+
+class TestBindingExpansion(unittest.TestCase):
+    """
+    Collapsing the ranks that model alike into one template must not cost the mapper any
+    binding: each merged rank has to come back as a compatibility of its own once the
+    template has been modeled, because a rank is what a neighboring Einsum agrees with
+    even when it is not what the numbers depend on.
+    """
+
+    EXPLORE = BindingConstraints(max_binding_rank_changes=1)
+
+    @staticmethod
+    def _one_class_per_rank(allowed, default):
+        """How choices were enumerated before equivalent ranks were merged."""
+        return [(default,)] + [(r,) for r in allowed if r != default]
+
+    @contextmanager
+    def _without_merging(self):
+        """
+        Run the body with every rank getting a choice to itself. Only usable on calls
+        made in this process: template generation itself runs in worker processes, which
+        would not see the swap.
+        """
+        original = templates_module._binding_rank_classes
+        templates_module._binding_rank_classes = self._one_class_per_rank
+        try:
+            yield
+        finally:
+            templates_module._binding_rank_classes = original
+
+    def _pmapping_groups_and_jobs(self, **mapper_settings):
+        groups, _, jobs = make_pmappings(
+            _make_spec(**mapper_settings),
+            can_combine_multiple_runs=False,
+            metrics=Metrics.ENERGY,
+            fail_if_no_pmappings_for_einsum=True,
+            print_progress=False,
+        )
+        return groups, jobs
+
+    def test_merging_equivalent_ranks_offers_fewer_choices(self):
+        """
+        The point of the whole thing: a loop that could partition along any of several
+        non-optimal ranks costs one choice between them, not one each.
+        """
+        compared = 0
+        for compatibility2jobs in _get_jobs(binding=self.EXPLORE).values():
+            for job_list in compatibility2jobs.values():
+                for job in job_list:
+                    merged = list(iter_binding_choices(job.mapping, job))
+                    with self._without_merging():
+                        unmerged = list(iter_binding_choices(job.mapping, job))
+                    self.assertLessEqual(len(merged), len(unmerged))
+                    if len(merged) < len(unmerged):
+                        compared += 1
+        self.assertTrue(
+            compared,
+            "No template of the fixture had two ranks to merge, so nothing here "
+            "tested the merge.",
+        )
+
+    def test_expansions_are_every_combination_with_the_modeled_one_first(self):
+        aliases = {("T1", "SharedBuffer", 0): ("M", "N1"),
+                   ("T1", "SharedBuffer", 3): ("K", "L")}
+        expansions = _binding_expansions(aliases)
+        self.assertEqual(len(expansions), 4)
+        # The first is what the template was actually modeled with, so the caller can
+        # keep its group as it stands and expand only the rest.
+        self.assertEqual(
+            expansions[0],
+            {("T1", "SharedBuffer", 0): "M", ("T1", "SharedBuffer", 3): "K"},
+        )
+        self.assertEqual(len(set(map(str, expansions))), 4, "combinations repeat")
+
+    def test_nothing_to_expand_is_one_empty_expansion(self):
+        self.assertEqual(_binding_expansions({}), [{}])
+
+    def test_rebinding_a_compatibility_moves_only_the_loop_it_names(self):
+        """
+        The loop is named by position, not by dimension: a memory with several spatial
+        loops over one dimension binds a rank for each of them, and naming them by
+        dimension would rewrite them all together.
+        """
+        compatibility = _compatibility_with_binding(
+            [("Y", "N1"), ("Y", RANK_DUPLICATE), ("X", "M")]
+        )
+        rebound = compatibility.rebind_physical_spatial_loops(
+            {("T1", "SharedBuffer", 1): Rank("M")}
+        )
+        self.assertEqual(
+            _binding_of(rebound), [("Y", "N1"), ("Y", "M"), ("X", "M")]
+        )
+        # ...and the one it was asked to rewrite really did change.
+        self.assertNotEqual(_binding_of(rebound), _binding_of(compatibility))
+
+    def test_rebinding_leaves_another_tensor_alone(self):
+        compatibility = _compatibility_with_binding([("Y", "N1")], tensor="T2")
+        self.assertEqual(
+            _binding_of(
+                compatibility.rebind_physical_spatial_loops(
+                    {("T1", "SharedBuffer", 0): Rank("M")}
+                )
+            ),
+            [("Y", "N1")],
+        )
+
+    def test_rebinding_leaves_the_same_tensor_in_another_memory_alone(self):
+        compatibility = _compatibility_with_binding([("Y", "N1")], resource="OtherBuffer")
+        self.assertEqual(
+            _binding_of(
+                compatibility.rebind_physical_spatial_loops(
+                    {("T1", "SharedBuffer", 0): Rank("M")}
+                )
+            ),
+            [("Y", "N1")],
+        )
+
+    def test_an_expanded_compatibility_matches_its_mapping(self):
+        """
+        A group's compatibility names the binding of the mapping its rows point at, with
+        the degenerate loops dropped -- so its binding loops are a subsequence of the
+        mapping's. An expansion that rewrote the wrong loop would break that, since
+        several spatial loops of one memory can share a dimension.
+        """
+        groups, pmapping_objects, _ = make_pmappings(
+            _make_spec(binding=self.EXPLORE),
+            can_combine_multiple_runs=False,
+            metrics=Metrics.ENERGY,
+            fail_if_no_pmappings_for_einsum=True,
+            print_progress=False,
+        )
+
+        def is_subsequence(short, long) -> bool:
+            it = iter(long)
+            return all(item in it for item in short)
+
+        checked = 0
+        for einsum_name, group_list in groups.items():
+            for group in group_list:
+                for tensor in group.compatibility.tensors:
+                    if not tensor.physical_spatial_loops:
+                        continue
+                    wanted = [
+                        (l.spatial_dim, l.rank_name)
+                        for l in tensor.physical_spatial_loops
+                    ]
+                    column = f"{einsum_name}<SEP>mapping"
+                    for job_id in group.mappings.data[column].unique():
+                        mapping = pmapping_objects[einsum_name][job_id]
+                        bound = [
+                            (loop.name, loop.rank_variable)
+                            for storage, _ in iter_binding_blocks(mapping.nodes)
+                            if storage.tensor == tensor.name
+                            and storage.component == tensor.resource_name
+                            for loop in storage.binding
+                        ]
+                        self.assertTrue(
+                            is_subsequence(wanted, bound),
+                            f"{einsum_name}: compatibility binds {wanted}, but the "
+                            f"mapping it points at binds {bound}",
+                        )
+                        checked += 1
+        self.assertTrue(checked, "No bound mapping was checked.")
 
 
 if __name__ == "__main__":

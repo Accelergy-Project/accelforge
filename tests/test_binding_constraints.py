@@ -22,16 +22,17 @@ ARCH = Path(__file__).parent / "input_files" / "distributed_binding.arch.yaml"
 DISTRIBUTED_MEMORY = "SharedBuffer"
 
 
-def _make_spec(binding=None, **mapper_settings) -> Spec:
+def _make_spec(binding=None, n_einsums: int = 2, **mapper_settings) -> Spec:
     """
     The fixture spec. `binding` is either one BindingConstraints, which goes on the
     fixture's only physically-distributed memory, or a dict of memory name to the
-    constraints that memory carries.
+    constraints that memory carries. `n_einsums` is how long the chain of matmuls is,
+    which is what decides how many tensors are shared between Einsums.
     """
     spec = Spec.from_yaml(
         ARCH,
         af.examples.workloads.basic.matmuls,
-        jinja_parse_data={"N_EINSUMS": 2, "M": 8, "KN": 8},
+        jinja_parse_data={"N_EINSUMS": n_einsums, "M": 8, "KN": 8},
     )
     for k, v in mapper_settings.items():
         setattr(spec.mapper, k, v)
@@ -42,8 +43,8 @@ def _make_spec(binding=None, **mapper_settings) -> Spec:
     return spec
 
 
-def _get_jobs(**mapper_settings) -> dict:
-    spec = _make_spec(**mapper_settings)
+def _get_jobs(n_einsums: int = 2, **mapper_settings) -> dict:
+    spec = _make_spec(n_einsums=n_einsums, **mapper_settings)
     spec = spec._spec_eval_expressions(eval_arch=False, eval_non_arch=True)
     return get_jobs(
         spec,
@@ -305,6 +306,91 @@ class TestBindingConstraints(unittest.TestCase):
             for (_, tensor), per_dimension in binding_summary(job.mapping.nodes).items():
                 allowed = set(job.einsum.tensor_accesses[tensor].ranks)
                 self.assertTrue(set(per_dimension.values()) <= allowed)
+
+
+class TestMayExploreBinding(unittest.TestCase):
+    """
+    Which tensors `max_binding_rank_changes` may be spent on. Everything else is held at
+    the binding it would have had with no exploration at all, so one tensor's binding can
+    be studied without the rest of the mapspace moving underneath it.
+    """
+
+    @staticmethod
+    def _bindings_of_tensor(jobs: dict, tensor: str) -> set:
+        """Every binding any template gives `tensor`, as (memory, dimension -> rank)."""
+        return {
+            (memory, tuple(sorted(per_dimension.items())))
+            for job in _iter_jobs(jobs)
+            for (memory, bound_tensor), per_dimension in binding_summary(
+                job.mapping.nodes
+            ).items()
+            if bound_tensor == tensor
+        }
+
+    def test_exploring_nothing_is_the_same_as_having_no_budget(self):
+        # The budget is there, but no tensor may spend it.
+        held = _get_jobs(
+            binding=BindingConstraints(
+                max_binding_rank_changes=1, may_explore_binding="Nothing"
+            )
+        )
+        self.assertEqual(_explored_bindings(held), _explored_bindings(_get_jobs()))
+
+    def test_the_named_tensor_is_explored(self):
+        # T1 and T2 are both shared in a three-Einsum chain, so naming one of them is a
+        # real choice rather than the only option.
+        named = _get_jobs(
+            n_einsums=3,
+            binding=BindingConstraints(
+                max_binding_rank_changes=1, may_explore_binding="T1"
+            ),
+        )
+        unexplored = _get_jobs(n_einsums=3)
+        self.assertTrue(
+            self._bindings_of_tensor(named, "T1")
+            - self._bindings_of_tensor(unexplored, "T1"),
+            "The tensor named by may_explore_binding was not explored.",
+        )
+
+    def test_a_tensor_left_out_keeps_its_locally_optimal_binding(self):
+        named = _get_jobs(
+            n_einsums=3,
+            binding=BindingConstraints(
+                max_binding_rank_changes=1, may_explore_binding="T1"
+            ),
+        )
+        unexplored = _get_jobs(n_einsums=3)
+        # T2 is shared, so it would have been explored had it been named.
+        self.assertEqual(
+            self._bindings_of_tensor(named, "T2"),
+            self._bindings_of_tensor(unexplored, "T2"),
+            "A tensor that may not be explored was explored anyway.",
+        )
+
+    def test_naming_a_tensor_does_not_explore_it_if_nobody_shares_it(self):
+        # may_explore_binding bounds exploration; it does not widen it. W0 is named but
+        # no other Einsum touches it, so it stays at its locally-optimal binding.
+        named = _get_jobs(
+            binding=BindingConstraints(
+                max_binding_rank_changes=1, may_explore_binding="W0"
+            )
+        )
+        self.assertEqual(
+            self._bindings_of_tensor(named, "W0"),
+            self._bindings_of_tensor(_get_jobs(), "W0"),
+        )
+
+    def test_may_explore_reads_the_evaluated_set(self):
+        constraints = _evaluate(BindingConstraints(may_explore_binding="T1"))
+        self.assertTrue(constraints.may_explore("T1"))
+        self.assertFalse(constraints.may_explore("T0"))
+
+    def test_may_explore_cannot_be_queried_before_evaluation(self):
+        # As with the other tensor sets: the expression string is not a set of tensors,
+        # and testing membership against it would quietly answer for the wrong ones.
+        with self.assertRaises(ValueError) as ctx:
+            BindingConstraints().may_explore("T0")
+        self.assertIn("may_explore_binding", str(ctx.exception))
 
 
 class TestBindingConstraintsEndToEnd(unittest.TestCase):

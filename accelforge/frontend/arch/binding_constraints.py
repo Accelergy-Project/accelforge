@@ -39,9 +39,10 @@ class BindingConstraints(EvalableModel):
     loops of a pmapping template that may bind a rank other than the one the
     locally-optimal binding gives them. Set to float("inf") to explore all bindings.
 
-    Only the bindings of shared tensors -- those passed between Einsums -- are explored.
-    A tensor that only one Einsum touches has no other Einsum to agree with, so its
-    binding is always the locally-optimal one no matter what this is set to.
+    Only the bindings of shared tensors -- those passed between Einsums -- are explored,
+    and only those of the tensors named by `may_explore_binding`. A tensor that only one
+    Einsum touches has no other Einsum to agree with, so its binding is always the
+    locally-optimal one no matter what this is set to.
 
     Changes are counted against the locally-optimal binding *that satisfies* the rest of
     these constraints, which may not be the unconstrained locally-optimal one.
@@ -49,6 +50,22 @@ class BindingConstraints(EvalableModel):
     When different memories are given different values, a pmapping template may change
     at most the largest of them in total, and at most each memory's own value in that
     memory's binding.
+    """
+
+    may_explore_binding: EvalsTo[InvertibleSet[TensorName]] = "All"
+    """
+    The tensors whose binding `max_binding_rank_changes` may spend its budget on. A
+    tensor left out of this set always takes its locally-optimal binding, however large
+    the budget is, and costs no templates.
+
+    Narrowing this is how one tensor's binding is studied on its own: give the memory a
+    budget and name only that tensor here, and every other tensor is held at the binding
+    it would have had with no exploration at all, so what the mapper reports differs only
+    in the one binding under study.
+
+    This bounds exploration; it does not widen it. A tensor named here is still only
+    explored if it is shared with another Einsum, since a tensor nobody else touches has
+    no other Einsum to agree with.
     """
 
     may_duplicate: EvalsTo[InvertibleSet[TensorName]] = "All"
@@ -108,15 +125,31 @@ class BindingConstraints(EvalableModel):
     # Queries. These need expressions to have been evaluated.
     # =============================================================================
     def _assert_evaluated(self) -> None:
-        if not isinstance(self.may_duplicate, InvertibleSet) or not isinstance(
-            self.must_duplicate, InvertibleSet
-        ):
+        unevaluated = {
+            name: value
+            for name, value in (
+                ("may_duplicate", self.may_duplicate),
+                ("must_duplicate", self.must_duplicate),
+                ("may_explore_binding", self.may_explore_binding),
+            )
+            if not isinstance(value, InvertibleSet)
+        }
+        if unevaluated:
+            described = ", ".join(f"{n}={v!r}" for n, v in unevaluated.items())
             raise ValueError(
                 f"The tensor set expressions of these BindingConstraints have not been "
-                f"evaluated (may_duplicate={self.may_duplicate!r}, "
-                f"must_duplicate={self.must_duplicate!r}). The architecture must be "
-                f"evaluated against an Einsum before its bindings can be queried."
+                f"evaluated ({described}). The architecture must be evaluated against "
+                f"an Einsum before its bindings can be queried."
             )
+
+    def may_explore(self, tensor: TensorName) -> bool:
+        """
+        Whether the mapper may spend `max_binding_rank_changes` on `tensor`'s binding in
+        this memory. False holds it at its locally-optimal binding; it says nothing about
+        which ranks that binding may name, which is `allowed_ranks`.
+        """
+        self._assert_evaluated()
+        return tensor in self.may_explore_binding
 
     def allowed_ranks(
         self, tensor: TensorName, dimension: str, tensor_ranks: Iterable[Rank]
