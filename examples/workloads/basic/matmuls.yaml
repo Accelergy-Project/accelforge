@@ -1,0 +1,37 @@
+# A chain of N_EINSUMS with names following our common convention, which limits N_EINSUMS <= 8.
+# Use matmuls_any_einsums.yaml if you need more than 8 einsums.
+{% set N_EINSUMS = N_EINSUMS | default(4) %}
+
+{% if N_EINSUMS is defined %}
+  {% assert N_EINSUMS <= 8, "N_EINSUMS must be <= 8 for this workload. Use matmuls_any_einsums.yaml if you need more than 8 einsums." %}
+{% endif %}
+
+{% set TENSOR_NAMES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+{%- macro tensor_name(i) -%}
+  {% if i == 0 %}
+    {{- TENSOR_NAMES[8] -}}
+  {% else %}
+    {{- TENSOR_NAMES[i-1] -}}
+  {% endif %}
+{%- endmacro -%}
+
+workload:
+  iteration_space_shape:
+    {% set M = M | default(128) %}
+    {% set KN = KN | default(128) %}
+    m:  0 <= m  < {{M}}                # Input & output tensor rows, weight columns
+    {% for i in range(N_EINSUMS+1) %}
+    n{{tensor_name(i)}}: 0 <= n{{tensor_name(i)}} < {{KN}}       # Input & output columns, weight rows 
+    {% endfor %}
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  {% for i in range(N_EINSUMS) %}
+  - name: Matmul{{tensor_name(i+1)}}
+    tensor_accesses:
+    - {name: {{tensor_name(i)}}, projection: [m, n{{tensor_name(i)}}]}
+    - {name: W{{tensor_name(i+1)}}, projection: [n{{tensor_name(i)}}, n{{tensor_name(i+1)}}]}
+    - {name: {{tensor_name(i+1)}}, projection: [m, n{{tensor_name(i+1)}}], output: True}
+    renames: {weight: W{{tensor_name(i+1)}}, input: {{tensor_name(i)}}, output: {{tensor_name(i+1)}}}
+  {% endfor %}
