@@ -25,7 +25,7 @@ _PF = {"BATCH_SIZE": 1, "DECODE": False, "N_NEW_TOKENS": 256}
 REGRESSION_CASES = {
     af.examples.arches.simple: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -51,7 +51,7 @@ REGRESSION_CASES = {
     ],
     af.examples.arches.eyeriss: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -77,7 +77,7 @@ REGRESSION_CASES = {
     ],
     af.examples.arches.simba: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -103,7 +103,7 @@ REGRESSION_CASES = {
     ],
     af.examples.arches.tpu_v4i: [
         {
-            "workload": af.examples.workloads.basic.matmuls,
+            "workload": af.examples.workloads.basic.matmuls_any_einsums,
             "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64},
         },
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
@@ -128,7 +128,7 @@ REGRESSION_CASES = {
         # {"workload": af.examples.workloads.transformers.gpt.gpt3_6_7B, "jinja_parse_data": {"BATCH_SIZE": 1, "DECODE": True, "N_NEW_TOKENS": 1, "N_CACHED_TOKENS": 2047}},
     ],
     af.examples.arches.snowcat: [
-        {"workload": af.examples.workloads.basic.matmuls, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
+        {"workload": af.examples.workloads.basic.matmuls_any_einsums, "jinja_parse_data": {"N_EINSUMS": 2, "M": 64, "KN": 64}},
         {"workload": af.examples.workloads.basic.matvecs},
         {"workload": af.examples.workloads.basic.three_matmuls_annotated},
         {"workload": af.examples.workloads.cnns.mobilenet.mobilenet_28},
@@ -314,7 +314,7 @@ class TestHWComponentsConsistency(unittest.TestCase):
         for name, arch_path in arches.items():
             spec = Spec.from_yaml(
                 arch_path,
-                af.examples.workloads.basic.matmuls,
+                af.examples.workloads.basic.matmuls_any_einsums,
                 jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
             )
             spec = spec.calculate_component_costs(einsum_name="Matmul0")
@@ -413,7 +413,7 @@ def generate_hwcomponents():
     for name, arch_path in arches.items():
         spec = Spec.from_yaml(
             arch_path,
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
         spec = spec.calculate_component_costs(einsum_name="Matmul0")
