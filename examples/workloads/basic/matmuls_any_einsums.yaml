@@ -1,5 +1,8 @@
 # A chain of N_EINSUMS back-to-back matrix multiplications. Einsum i computes T{i+1} =
 # T{i} * W{i};
+#
+# Unlike matmuls.yaml, this workload has no limit on N_EINSUMS, but by not
+# following our common tensor-naming convention.
 workload:
   iteration_space_shape:
     {% set M = M | default(128) %}
