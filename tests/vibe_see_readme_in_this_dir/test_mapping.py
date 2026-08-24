@@ -541,7 +541,7 @@ class TestMapping(unittest.TestCase):
             ]
         )
         m.nodes[0]._einsum_to_rank_variable["E"] = "m"
-        m.split_loop_with_multiple_rank_variables(einsum_name="E")
+        m._split_loop_with_multiple_rank_variables(einsum_name="E")
         temporals = m.get_nodes_of_type(Temporal)
         self.assertEqual(len(temporals), 1)
         self.assertEqual(temporals[0].rank_variable, "m")
@@ -553,7 +553,7 @@ class TestMapping(unittest.TestCase):
                 Compute(einsum="E", component="MAC"),
             ]
         )
-        m.split_tensor_holders_with_multiple_tensors()
+        m._split_tensor_holders_with_multiple_tensors()
         storages = [n for n in m.nodes if isinstance(n, Storage)]
         self.assertEqual(len(storages), 2)
 

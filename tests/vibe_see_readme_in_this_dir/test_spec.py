@@ -164,14 +164,14 @@ class TestSpecFromYAML(unittest.TestCase):
         self.assertEqual(len(spec.workload.einsums), 3)
 
     def test_load_matmuls_with_jinja(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path, jinja_parse_data={"N_EINSUMS": 2})
         self.assertEqual(len(spec.workload.einsums), 2)
 
     def test_jinja_variables_propagate(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(

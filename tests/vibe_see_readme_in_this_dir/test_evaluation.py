@@ -317,7 +317,7 @@ class TestJinjaEvaluation(unittest.TestCase):
     """Test that Jinja2 templating works during spec evaluation."""
 
     def test_jinja_variable_substitution(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(
@@ -326,7 +326,7 @@ class TestJinjaEvaluation(unittest.TestCase):
         self.assertEqual(len(spec.workload.einsums), 2)
 
     def test_jinja_three_einsums(self):
-        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists():
             self.skipTest(f"YAML file not found: {yaml_path}")
         spec = Spec.from_yaml(yaml_path, jinja_parse_data={"N_EINSUMS": 3})
@@ -358,7 +358,7 @@ class TestMultiFileSpecEval(unittest.TestCase):
 
     def test_load_arch_and_workload(self):
         arch_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not arch_path.exists() or not wl_path.exists():
             self.skipTest("YAML files not found")
         spec = Spec.from_yaml(arch_path, wl_path, jinja_parse_data={"N_EINSUMS": 1})

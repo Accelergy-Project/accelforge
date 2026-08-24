@@ -157,10 +157,16 @@ class Spec(EvalableModel):
             st["workload"] = evaluated_workload
 
             if einsum_name is not None:
-                renames = evaluated_workload.einsums[einsum_name].renames
-                st.update(**{k.name: k.source for k in renames})
+                einsum = evaluated_workload.einsums[einsum_name]
+                st.update(**{k.name: k.source for k in einsum.renames})
+                n_computes = evaluated_workload.n_computes(einsum_name)
+                n_outputs = min(
+                    evaluated_workload.get_tensor_size(t) for t in einsum.output_tensor_names
+                )
+                st["einsum_has_reduction"] = n_computes > n_outputs
             else:
                 st.update(evaluated_workload.empty_renames())
+                st["einsum_has_reduction"] = True
 
             if eval_arch:
                 evaluated_arch, st = self.arch._eval_expressions(st)
