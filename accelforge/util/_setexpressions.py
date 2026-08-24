@@ -26,6 +26,7 @@ class InvertibleSet(BaseModel, Generic[T]):
     space_type: type[T]
     # child_access_name: Optional[str] = None
     element_to_child_space: Optional[dict[str, Any]] = None
+    element_bits_per_value: Optional[dict[str, int]] = None
     _bits_per_value: Optional[int] = None
 
     def __init__(self, *args, **kwargs):
@@ -118,6 +119,7 @@ class InvertibleSet(BaseModel, Generic[T]):
             space_type=self.space_type,
             # child_access_name=self.child_access_name,
             element_to_child_space=self.element_to_child_space,
+            element_bits_per_value=self.element_bits_per_value,
         )
 
     @staticmethod
@@ -190,6 +192,7 @@ class InvertibleSet(BaseModel, Generic[T]):
                 space_type=self.space_type,
                 # child_access_name=self.child_access_name,
                 element_to_child_space=self.element_to_child_space,
+                element_bits_per_value=self.element_bits_per_value,
             )
 
     @property
@@ -294,7 +297,7 @@ def eval_set_expression_dict(
     symbol_table: dict[str, InvertibleSet],
     expected_space: type[T],
     location: str,
-    disjoint: bool=True,
+    disjoint: bool = True,
 ) -> list[tuple[str, "frozenset[T]", Any]]:
     """
     Evaluate a dict whose keys are set expressions, returning an ordered list of
@@ -310,7 +313,7 @@ def eval_set_expression_dict(
         )
 
     evaluated: list[tuple[str, Any, Any]] = []
-    
+
     symbol_table = symbol_table.copy()
     symbol_table["Other"] = symbol_table["All"]
 
@@ -324,7 +327,7 @@ def eval_set_expression_dict(
         ).instance
         symbol_table["Other"] -= ins
         return k, ins, v
-    
+
     eval_order = [i for i in range(len(items)) if i not in others] + others
     for i in eval_order:
         evaluated.append(_eval(i))

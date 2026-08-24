@@ -128,7 +128,7 @@ class TensorAccess(EvalableModel):
     backing_storage_size_scale: float = 1.0
     """ If != 1, then the backing storage size will be scaled by this factor. """
 
-    bits_per_value: int | str | None = None
+    bits_per_value: EvalsTo[int | None] = None
     """ Bits per value for this tensor. """
 
     def model_post_init(self, __context__=None) -> None:
@@ -678,6 +678,7 @@ class Einsum(EvalableModel):
         outputs = self.output_tensor_names
         all_ = inputs | outputs
         persistent = oset(t.name for t in self.tensor_accesses if t.persistent)
+        element_bits = {}
         element_to_child_space = {}
         all_rank_variables = self.rank_variables
         for tensor in self.tensor_names:
@@ -707,6 +708,7 @@ class Einsum(EvalableModel):
             space_type=TensorName,
             child_access_name="rank_variables",
             element_to_child_space=element_to_child_space,
+            element_bits_per_value=element_bits,
         )
         kwargs_rank_variables = dict(
             full_space=all_rank_variables,
@@ -809,7 +811,20 @@ class Einsum(EvalableModel):
                     source_field=f"tensor_accesses[{t.name}].bits_per_value",
                 )
             if t.bits_per_value is None:
-                t.bits_per_value = bits_per_value[t.name]
+                t.bits_per_value = eval_expression(
+                    bits_per_value[t.name],
+                    st,
+                    attr_name=f"bits_per_value[{t.name}]",
+                )
+
+        element_bits.update(
+            {t.name: t.bits_per_value for t in evaluated.tensor_accesses}
+        )
+        for r in evaluated.renames:
+            if isinstance(r.source, InvertibleSet) and all(
+                t in element_bits for t in r.source.instance
+            ):
+                r.source.element_bits_per_value = element_bits
 
         if symbol_table.get("workload_persistent_tensors", None):
             rename_st_with_evaluated = {**st}
@@ -1336,3 +1351,22 @@ class Workload(EvalableModel):
             self.get_tensor_size(tensor)
             for tensor in self.einsums[einsum_name].tensor_names
         )
+
+    def get_per_tensor_compute_intensity(self) -> dict[TensorName, float]:
+        """
+        Returns the compute intensity of each tensor, defined as the sum of the number
+        of computes of each Einsum that accesses the tensor, divided by the number of
+        elements in the tensor.
+
+        Returns
+        -------
+        dict[TensorName, float]
+            The compute intensity of each tensor in #computes / #tensor elements.
+        """
+        return {
+            tensor: sum(
+                self.n_computes(e.name) for e in self.einsums_with_tensor(tensor)
+            )
+            / self.get_tensor_size(tensor)
+            for tensor in self.tensor_names
+        }
