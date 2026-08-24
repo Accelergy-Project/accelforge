@@ -8,6 +8,7 @@ import io
 from typing import Callable, List, Dict, Any, OrderedDict, Tuple
 import ruamel.yaml
 import warnings
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import ReusedAnchorWarning
 from jinja2 import StrictUndefined, Environment, FileSystemLoader, pass_context, nodes
 from jinja2.ext import Extension
@@ -407,8 +408,17 @@ def ordereddict_to_dict(self, dictionary: OrderedDict) -> Dict[str, Any]:
     return self.represent_dict(dictionary)
 
 
+def _update_in_place(values, f):
+    items = values.items() if isinstance(values, dict) else enumerate(values)
+    for k, v in list(items):
+        values[k] = f(v)
+    return values
+
+
 @recursive_mutator_stop
 def recursive_unorder_dict(to_unorder: Dict[str, Any]) -> Dict[str, Any]:
+    if isinstance(to_unorder, (CommentedMap, CommentedSeq)):
+        return _update_in_place(to_unorder, recursive_unorder_dict)
     if isinstance(to_unorder, dict):
         return {k: recursive_unorder_dict(v) for k, v in to_unorder.items()}
     elif isinstance(to_unorder, list):
@@ -418,13 +428,45 @@ def recursive_unorder_dict(to_unorder: Dict[str, Any]) -> Dict[str, Any]:
 
 @recursive_mutator_stop
 def callables2strings(to_convert: Dict[str, Any]) -> Dict[str, Any]:
-    if isinstance(to_convert, dict):
+    if isinstance(to_convert, (CommentedMap, CommentedSeq)):
+        to_convert = _update_in_place(to_convert, callables2strings)
+    elif isinstance(to_convert, dict):
         to_convert = {k: callables2strings(v) for k, v in to_convert.items()}
     elif isinstance(to_convert, list):
         to_convert = [callables2strings(v) for v in to_convert]
     elif isinstance(to_convert, Callable):
         to_convert = str(getattr(to_convert, "_original_expression", to_convert))
     return to_convert
+
+
+def _flow_length(obj) -> float:
+    """
+    Length of obj rendered in flow style on one line, or inf if it can't be (multi-line
+    strings, comments).
+    """
+    ca = getattr(obj, "ca", None)
+    if ca is not None and (ca.comment or ca.items):
+        return float("inf")
+    if isinstance(obj, dict):
+        return 2 + sum(_flow_length(k) + _flow_length(v) + 4 for k, v in obj.items())
+    if isinstance(obj, list):
+        return 2 + sum(_flow_length(v) + 2 for v in obj)
+    s = str(obj)
+    return float("inf") if "\n" in s else len(s)
+
+
+@recursive_mutator_stop
+def compact_flow(obj):
+    """Set flow style on dicts and lists that fit on one line."""
+    if not isinstance(obj, (dict, list)):
+        return obj
+    _update_in_place(obj, compact_flow)
+    if _flow_length(obj) > 100:
+        return obj
+    if not isinstance(obj, (CommentedMap, CommentedSeq)):
+        obj = CommentedMap(obj) if isinstance(obj, dict) else CommentedSeq(obj)
+    obj.fa.set_flow_style()
+    return obj
 
 
 def write_yaml_file(filepath: str, content: Dict[str, Any]) -> None:
@@ -451,7 +493,8 @@ def to_yaml_string(content: Dict[str, Any]) -> str:
     with LockAcquirer():
         dumpstream = io.StringIO()
         get_base_yaml().dump(
-            callables2strings(recursive_unorder_dict(content)), stream=dumpstream
+            compact_flow(callables2strings(recursive_unorder_dict(content))),
+            stream=dumpstream,
         )
         return dumpstream.getvalue()
 
@@ -459,7 +502,8 @@ def to_yaml_string(content: Dict[str, Any]) -> str:
 def get_base_yaml() -> ruamel.yaml.YAML:
     yaml = ruamel.yaml.YAML(typ="rt")
     # yaml.default_flow_style = None
-    yaml.indent(mapping=4, sequence=4, offset=2)
+    yaml.indent(mapping=2, sequence=2, offset=0)
+    yaml.width = 120
     yaml.preserve_quotes = True
 
     def recursive_mutator_stop(func):
