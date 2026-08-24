@@ -731,12 +731,37 @@ def apply_binding(
 
 
 def apply_default_binding_if_unspecified(mapping: Mapping, job: Job) -> None:
+    """
+    Give every distributed Storage of `mapping` a binding, and complete the ones it
+    already has.
+
+    A binding written by hand names the rank each of its loops binds and nothing else:
+    a loop's iteration count is that of the spatial loop it pairs with, and there is no
+    way to write one down. So a binding that is already there keeps its ranks and takes
+    everything else from the spatial loops, exactly as one the mapper builds does. One
+    that does not have a loop per spatial loop is left alone, since there is no telling
+    which of its loops pairs with which.
+    """
     for storage, spatials in iter_binding_blocks(mapping.nodes):
-        if len(storage.binding) > 0:
+        if len(storage.binding) == 0:
+            ranks = _default_binding_ranks_or_raise(storage, spatials, job)
+        elif len(storage.binding) == len(spatials):
+            named = [loop.name for loop in storage.binding if loop.name is not None]
+            expected = [loop.name for loop in spatials]
+            if named and named != expected:
+                raise ValueError(
+                    f"The binding of {storage.tensor} in {storage.component} binds "
+                    f"dimensions {named}, but the spatial loops below it are over "
+                    f"{expected}. A binding is positional: its i-th loop pairs with "
+                    f"the i-th spatial loop below its Storage."
+                )
+            ranks = [loop.rank_variable for loop in storage.binding]
+        else:
+            # A mapping still being built can have a binding that has not caught up
+            # with its spatial loops; `validate_binding` leaves that alone too, and
+            # `_beautify_loops` is what brings the two back into step.
             continue
-        _set_binding(
-            storage, spatials, _default_binding_ranks_or_raise(storage, spatials, job)
-        )
+        _set_binding(storage, spatials, ranks)
 
 
 def validate_binding(mapping: Mapping, job: Job) -> None:

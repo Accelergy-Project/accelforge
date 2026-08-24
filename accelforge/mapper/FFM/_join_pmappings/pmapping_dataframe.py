@@ -9,6 +9,10 @@ import sympy
 
 from accelforge.frontend.mapping import Nested, TilePattern
 from accelforge.frontend.mapping import Loop as MappingLoop
+from accelforge.mapper.FFM._join_pmappings.binding_adapter import (
+    BindingAdaptation,
+    charge_adaptations,
+)
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     Loop,
@@ -383,6 +387,7 @@ class PmappingDataframe:
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
         do_not_free: set[str] = fzs(),
+        binding_adaptations: Iterable[BindingAdaptation] = (),
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
         _is_invalid: bool = False,
@@ -489,6 +494,13 @@ class PmappingDataframe:
             df = pd.merge(sd, rd, how="cross", suffixes=["", "_RIGHT_MERGE"])
 
         df = reduce_precision(df)
+
+        # The two sides disagreed about how some shared tensor is laid out across the
+        # physical instances of the memory holding it, so the data has to be moved from
+        # the left side's binding into the right side's before the right side can read
+        # it. Charged here, while both sides' occupancies of the tensor and both sides'
+        # loop trip counts are still in hand.
+        charge_adaptations(df, binding_adaptations)
 
         # Drop all fused loop columns that are not used anymore
         remaining_symbols = compatibility_joined.symbols()
@@ -670,7 +682,11 @@ class PmappingDataframe:
                 compatibility_right,
                 compatibility_joined,
                 ignored_resources,
-                _pmapping_row_filter_function,
+                # Passed by keyword: `do_not_free` is the next positional parameter,
+                # and this used to hand it the row filter by mistake.
+                do_not_free=do_not_free,
+                binding_adaptations=binding_adaptations,
+                _pmapping_row_filter_function=_pmapping_row_filter_function,
                 _force_allow_invalid_only_for_runtime_test=False,
             )
 

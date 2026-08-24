@@ -535,7 +535,9 @@ class NetworkAnalyzer:
             topology_model = self._get_topology_model(
                 network, flattened_arch[network.component].topology
             )
-            src_bound_rank = self.info.bindings.rank_by_loop.get((id(self.node), network.source.level, network.tensor)),
+            src_bound_rank = self.info.bindings.rank_by_loop.get(
+                (id(self.node), network.source.level, network.tensor)
+            )
             per_loop_transfer_cost = topology_model.per_loop_transfer_cost(
                 src_bound_rank,
                 relevancy,

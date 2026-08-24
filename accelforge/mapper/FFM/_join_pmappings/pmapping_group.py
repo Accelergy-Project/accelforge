@@ -4,6 +4,7 @@ from typing import Any, Callable, Iterable
 from accelforge._accelerated_imports import pandas as pd
 from joblib import delayed
 
+from accelforge.mapper.FFM._join_pmappings.binding_adapter import BindingAdaptation
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 
 from accelforge.mapper.FFM._join_pmappings.compatibility import *
@@ -67,6 +68,7 @@ class PmappingGroup:
         ignored_resources: set[str],
         permuted_compatibility_left: Compatibility,
         permuted_compatibility_right: Compatibility,
+        binding_adaptations: Iterable[BindingAdaptation] = (),
         delay: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
@@ -123,6 +125,7 @@ class PmappingGroup:
             compatibility_right=permuted_compatibility_right,
             compatibility_joined=compatibility_joined,
             do_not_free=do_not_free,
+            binding_adaptations=binding_adaptations,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
             ignored_resources=ignored_resources,
             _force_allow_invalid_only_for_runtime_test=_force_allow_invalid_only_for_runtime_test,

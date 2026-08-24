@@ -16,6 +16,10 @@ from accelforge.frontend.mapper.metrics import Metrics
 from accelforge.frontend.workload import EinsumName
 from accelforge.mapper.FFM.mappings import Mappings
 from accelforge.mapper.FFM.pmappings import MultiEinsumPmappings
+from accelforge.mapper.FFM._join_pmappings.binding_adapter import (
+    BindingAdapters,
+    flattened_arches_of,
+)
 from accelforge.mapper.FFM._join_pmappings.compress_pmappings import (
     compress_einsum2pmappings,
     decompress_pmappings,
@@ -189,6 +193,7 @@ def join_strategy_2(
     for_model: bool,
     _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray] | None = None,
     resource_usage_tolerance: float = 0,
+    binding_adapters: BindingAdapters | None = None,
 ):
     thresholds = [1, 0]
     thresholds = [t for t in thresholds if t > spec.mapper.objective_tolerance]
@@ -226,6 +231,7 @@ def join_strategy_2(
                 _pmapping_row_filter_function=filter_func,
                 print_progress=print_progress,
                 metrics=metrics,
+                binding_adapters=binding_adapters,
             )
             if i < len(thresholds) - 1:
                 filter_func = OptimalityThresholder(
@@ -250,6 +256,7 @@ def multi_strategy_join(
     metrics: Metrics,
     for_model: bool,
     _pmapping_row_filter_function: Callable[[pd.DataFrame], np.ndarray] | None = None,
+    binding_adapters: BindingAdapters | None = None,
 ):
     for _, p in compressed.items():
         for pg in p:
@@ -263,6 +270,7 @@ def multi_strategy_join(
             print_progress=print_progress,
             metrics=metrics,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
+            binding_adapters=binding_adapters,
         )
 
     if metrics & Metrics.RESOURCE_USAGE:
@@ -273,6 +281,7 @@ def multi_strategy_join(
             metrics,
             for_model,
             _pmapping_row_filter_function,
+            binding_adapters=binding_adapters,
         )
 
     resource_usage_thresholds = [
@@ -302,6 +311,7 @@ def multi_strategy_join(
             for_model,
             _pmapping_row_filter_function,
             resource_usage_tolerance=threshold,
+            binding_adapters=binding_adapters,
         )
         for c in joined.data.columns:
             if is_reservation_col(c):
@@ -348,6 +358,9 @@ def clean_compress_and_join_pmappings(
         metrics,
         for_model,
         _pmapping_row_filter_function,
+        binding_adapters=BindingAdapters(
+            pmappings.spec, flattened_arches_of(pmappings)
+        ),
     )
 
     joined = decompress_pmappings(joined, decompress_data)
@@ -501,6 +514,7 @@ def join_pmappings(
     metrics: Metrics = None,
     _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
     print_progress: bool = True,
+    binding_adapters: BindingAdapters | None = None,
 ):
     """
     CONTRACT FOR MAPPINGS GETTING TO THIS POINT:
@@ -759,12 +773,30 @@ def join_pmappings(
         combined: list[PmappingGroup] = []
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
+        # Right buckets whose compatibility differs from a left bucket's only in the
+        # ranks their bindings bind can still be joined, by moving the shared tensor
+        # from the layout the left side leaves it in to the one the right side wants.
+        # Indexed with the bindings set aside, which is the only way to find them.
+        right_by_binding: dict[Compatibility, list[Compatibility]] = defaultdict(list)
+        if binding_adapters:
+            for right_key in right:
+                right_by_binding[right_key.clear_bound_ranks()].append(right_key)
+
         for k in left:
             found = False
             if DO_PRINT:
                 print(f"Left key {k}")
-            for (a, perm_a), (b, perm_b) in itertools.product(
-                left[k], right.get(k, [])
+            right_keys = [k] if k in right else []
+            if binding_adapters:
+                right_keys += [
+                    other
+                    for other in right_by_binding.get(k.clear_bound_ranks(), ())
+                    if other != k
+                ]
+            for k_right, (a, perm_a), (b, perm_b) in (
+                (key, x, y)
+                for key in right_keys
+                for x, y in itertools.product(left[k], right[key])
             ):
                 a: PmappingGroup
                 b: PmappingGroup
@@ -774,10 +806,27 @@ def join_pmappings(
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
-                found = True
 
                 compatibility_a = perm_a.apply(a.compatibility)
                 compatibility_b = perm_b.apply(b.compatibility)
+
+                # The two sides disagree about a binding. Charge for moving the data
+                # into the binding the right side wants, and carry that binding
+                # forward: from here on, that is where the data is.
+                binding_adaptations = ()
+                if k_right != k:
+                    binding_adaptations = binding_adapters.adaptations(
+                        compatibility_a,
+                        compatibility_b,
+                        oset(a.mappings.data.columns) | oset(b.mappings.data.columns),
+                    )
+                    if binding_adaptations is None:
+                        continue
+                    compatibility_a = compatibility_a.adopt_bound_ranks_of(
+                        compatibility_b
+                    )
+
+                found = True
                 try:
                     compatibility_joined = compatibility_a.merge_next(
                         compatibility_b,
@@ -803,6 +852,7 @@ def join_pmappings(
                         compatibility_joined=compatibility_joined,
                         permuted_compatibility_left=compatibility_a,
                         permuted_compatibility_right=compatibility_b,
+                        binding_adaptations=binding_adaptations,
                         delay=DELAY,
                         _pmapping_row_filter_function=_pmapping_row_filter_function,
                         ignored_resources=ignored_resources,
@@ -881,6 +931,15 @@ def join_pmappings(
                     ).clear_tile_patterns_and_reservation_indices()
                     for c in next_pmapping_groups.pmapping_groups
                 )
+                # A group whose binding the next Einsum does not share can still reach
+                # it through an adapter, so with adapters on, the lookahead only drops
+                # a group that no binding of the next Einsum would take.
+                if binding_adapters:
+                    next_keys_any_binding = oset(
+                        c.clear_bound_ranks() for c in next_keys
+                    )
+                else:
+                    next_keys_any_binding = None
                 for k in list[Compatibility](combined):
                     perms = k.make_equivalent_compatibilities()
                     perms = [
@@ -889,7 +948,14 @@ def join_pmappings(
                         .clear_tile_patterns_and_reservation_indices()
                         for p in perms
                     ]
-                    if not any(p in next_keys for p in perms):
+                    if next_keys_any_binding is not None:
+                        matched = any(
+                            p.clear_bound_ranks() in next_keys_any_binding
+                            for p in perms
+                        )
+                    else:
+                        matched = any(p in next_keys for p in perms)
+                    if not matched:
                         if DO_PRINT:
                             for b, _ in combined[k]:
                                 print(

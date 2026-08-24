@@ -665,6 +665,12 @@ class Storage(TensorHolder):
     this Storage, each binding a rank of the tensor (or ANY, meaning that the tensor is
     replicated across that spatial dimension). Should only be used if `tensors` only has
     one tensor.
+
+    Only the rank each loop binds is meaningful, and the pairing with the spatial loops
+    below is positional. Everything else about a binding loop -- how many iterations it
+    runs, in particular -- comes from the spatial loop it pairs with, and is filled in
+    before the mapping is modeled. A binding written out by hand should therefore give
+    each loop a `rank_variable` and a null `tile_shape`.
     """
 
     @override

@@ -40,6 +40,19 @@ from accelforge.util import _expfmt, fzs, oset, Permutation
 #    their tile shape (the bound ranks may have different shapes). These are in
 #    TensorReservations.physical_spatial_loops.
 
+# 4. Two Compatibilities that agree on everything but the ranks their binding loops
+#    bind are *adaptable* into one another: the data has to be shuffled among the
+#    physical instances that hold it, which the adapter of
+#    :mod:`.binding_adapter` charges for. `BINDING_RANK_ANY` stands in for a bound
+#    rank while the two are compared with the bindings set aside.
+
+BINDING_RANK_ANY: Rank = "ANY BOUND RANK"
+"""The bound rank of a binding loop whose rank has deliberately been forgotten, so
+that two Compatibilities can be compared with their bindings set aside. Never the
+name of a real rank, and never present in a Compatibility that the mapper models or
+joins -- only in the keys it groups them under."""
+
+
 T = TypeVar("T", bound="Updatable")
 
 
@@ -176,6 +189,14 @@ class Loop(Updatable):
     def add_n_iteration_symbols(self) -> "Loop":
         return self.update(tile_pattern=self.tile_pattern.add_n_iteration_symbols())
 
+    def clear_bound_rank(self) -> "Loop":
+        """
+        This binding loop with the rank it binds forgotten. The spatial dimension it
+        binds over and its iteration count are kept, because those still have to agree
+        between two Compatibilities for one to be adaptable into the other.
+        """
+        return self.update(rank_name=BINDING_RANK_ANY)
+
     def _rename_to_match(self, other: "Loop") -> tuple["Loop", dict[str, str]]:
         new_tp, renames = self.tile_pattern._rename_to_match(other.tile_pattern)
         return self.update(rank_name=other.rank_name, tile_pattern=new_tp), renames
@@ -285,6 +306,49 @@ class TensorReservation(Updatable):
             physical_spatial_loops=tuple(
                 l.update(rank_name=index2rank[i]) if i in index2rank else l
                 for i, l in enumerate(self.physical_spatial_loops)
+            )
+        )
+
+    def clear_bound_ranks(self) -> "TensorReservation":
+        """This reservation with every binding loop's bound rank forgotten."""
+        return self.update(
+            physical_spatial_loops=tuple(
+                l.clear_bound_rank() for l in self.physical_spatial_loops
+            )
+        )
+
+    def binding_lines_up_with(self, other: "TensorReservation") -> bool:
+        """
+        Whether this reservation's binding can be compared loop-for-loop with
+        `other`'s: one binding loop each, over the same spatial dimensions in the same
+        order. Two groups that dropped a different set of degenerate binding loops do
+        not line up, and neither do two that bind the same dimensions in a different
+        order, so there is no telling which loop of one answers which of the other.
+        """
+        return [l.spatial_dim for l in self.physical_spatial_loops] == [
+            l.spatial_dim for l in other.physical_spatial_loops
+        ]
+
+    def binding_differs_from(self, other: "TensorReservation") -> bool:
+        """Whether the two bindings bind different ranks anywhere."""
+        return [l.rank_name for l in self.physical_spatial_loops] != [
+            l.rank_name for l in other.physical_spatial_loops
+        ]
+
+    def adopt_bound_ranks_of(self, other: "TensorReservation") -> "TensorReservation":
+        """
+        This reservation with each binding loop binding the rank that the loop in the
+        same position of `other`'s binding does. Everything else is kept, including the
+        tile patterns, whose symbols name this side's columns rather than `other`'s.
+        """
+        assert self.binding_lines_up_with(other), (
+            f"Binding of {self} does not line up with {other}, so there is no telling "
+            f"which of its loops answers which of the other's."
+        )
+        return self.update(
+            physical_spatial_loops=tuple(
+                l.update(rank_name=o.rank_name)
+                for l, o in zip(self.physical_spatial_loops, other.physical_spatial_loops)
             )
         )
 
@@ -829,6 +893,36 @@ class Compatibility(Updatable):
                         per_tensor[(t.name, t.resource_name)]
                     )
                     if (t.name, t.resource_name) in per_tensor
+                    else t
+                )
+                for t in self.tensors
+            )
+        )
+
+    def clear_bound_ranks(self) -> "Compatibility":
+        """
+        This compatibility with the rank every binding loop binds forgotten. Two
+        compatibilities that are equal once cleared this way differ only in their
+        bindings, and so may be adaptable into one another (see
+        :mod:`.binding_adapter`).
+        """
+        return self.update(tensors=fzs(t.clear_bound_ranks() for t in self.tensors))
+
+    def adopt_bound_ranks_of(self, other: "Compatibility") -> "Compatibility":
+        """
+        This compatibility with every tensor that `other` also holds bound the way
+        `other` binds it. Used on the left side of a join once the adapter has been
+        charged for moving the data: from there on the tensor really is laid out the
+        way the right side wants it, so that is what the join carries forward.
+
+        Tensors that `other` does not hold are left alone.
+        """
+        other_tensors = {t.name: t for t in other.tensors}
+        return self.update(
+            tensors=fzs(
+                (
+                    t.adopt_bound_ranks_of(other_tensors[t.name])
+                    if t.name in other_tensors
                     else t
                 )
                 for t in self.tensors

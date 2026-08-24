@@ -89,6 +89,25 @@ class BindingConstraints(EvalableModel):
     Every tensor named here must also be named by `may_duplicate`.
     """
 
+    may_adapt: EvalsTo[InvertibleSet[TensorName]] = "Nothing"
+    """
+    The tensors whose binding in this memory two neighboring Einsums may *disagree*
+    about. A tensor named here can be left by one Einsum bound one way and picked up by
+    the next bound another; the data is shuffled among the memory's physical instances in
+    between, and the mapper is charged the latency and energy of that shuffle over the
+    network below this memory (see
+    :mod:`accelforge.mapper.FFM._join_pmappings.binding_adapter`).
+
+    A tensor left out of this set has to be bound the same way by every Einsum that
+    shares it, which is what happens with no adaptation at all: the two Einsums simply
+    do not fuse unless their bindings already agree.
+
+    Adapting is only ever *needed* when `max_binding_rank_changes` lets the two sides
+    reach different bindings in the first place, and it is only possible where there is a
+    network below this memory to charge and this memory's size is finite, since the size
+    is what turns the mapper's fractional occupancies back into bits.
+    """
+
     dimension_ranks: dict[str, set[Rank]] = {}
     """
     Per spatial dimension name (e.g. ``X``), the only ranks that a binding loop over that
@@ -131,6 +150,7 @@ class BindingConstraints(EvalableModel):
                 ("may_duplicate", self.may_duplicate),
                 ("must_duplicate", self.must_duplicate),
                 ("may_explore_binding", self.may_explore_binding),
+                ("may_adapt", self.may_adapt),
             )
             if not isinstance(value, InvertibleSet)
         }
@@ -150,6 +170,15 @@ class BindingConstraints(EvalableModel):
         """
         self._assert_evaluated()
         return tensor in self.may_explore_binding
+
+    def may_adapt_binding(self, tensor: TensorName) -> bool:
+        """
+        Whether two Einsums sharing `tensor` in this memory may disagree on its binding,
+        paying for the data to be moved from one binding to the other rather than
+        failing to fuse.
+        """
+        self._assert_evaluated()
+        return tensor in self.may_adapt
 
     def allowed_ranks(
         self, tensor: TensorName, dimension: str, tensor_ranks: Iterable[Rank]
