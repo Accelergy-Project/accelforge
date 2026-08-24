@@ -26,7 +26,7 @@ class InvertibleSet(BaseModel, Generic[T]):
     space_type: type[T]
     # child_access_name: Optional[str] = None
     element_to_child_space: Optional[dict[str, Any]] = None
-    element_bits_per_value: Optional[dict[str, int]] = None
+    element_to_bits_per_value: Optional[dict[str, int]] = None
     _bits_per_value: Optional[int] = None
 
     def __init__(self, *args, **kwargs):
@@ -119,7 +119,7 @@ class InvertibleSet(BaseModel, Generic[T]):
             space_type=self.space_type,
             # child_access_name=self.child_access_name,
             element_to_child_space=self.element_to_child_space,
-            element_bits_per_value=self.element_bits_per_value,
+            element_to_bits_per_value=self.element_to_bits_per_value,
         )
 
     @staticmethod
@@ -192,7 +192,7 @@ class InvertibleSet(BaseModel, Generic[T]):
                 space_type=self.space_type,
                 # child_access_name=self.child_access_name,
                 element_to_child_space=self.element_to_child_space,
-                element_bits_per_value=self.element_bits_per_value,
+                element_to_bits_per_value=self.element_to_bits_per_value,
             )
 
     @property

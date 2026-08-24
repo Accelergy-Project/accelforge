@@ -708,7 +708,7 @@ class Einsum(EvalableModel):
             space_type=TensorName,
             child_access_name="rank_variables",
             element_to_child_space=element_to_child_space,
-            element_bits_per_value=element_bits,
+            element_to_bits_per_value=element_bits,
         )
         kwargs_rank_variables = dict(
             full_space=all_rank_variables,
@@ -824,7 +824,7 @@ class Einsum(EvalableModel):
             if isinstance(r.source, InvertibleSet) and all(
                 t in element_bits for t in r.source.instance
             ):
-                r.source.element_bits_per_value = element_bits
+                r.source.element_to_bits_per_value = element_bits
 
         if symbol_table.get("workload_persistent_tensors", None):
             rename_st_with_evaluated = {**st}
