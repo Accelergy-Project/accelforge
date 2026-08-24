@@ -1,0 +1,7 @@
+mapping:
+  nodes:
+  - !Storage {component: MainMemory, tensors: [I, W, O]}
+  - !Temporal {rank_variable: p, tile_shape: 1}
+  - !Storage {component: GlobalBuffer, tensors: [I, W, O]}
+  - !Temporal {rank_variable: r, tile_shape: 1}
+  - !Compute {einsum: Conv, component: MAC}

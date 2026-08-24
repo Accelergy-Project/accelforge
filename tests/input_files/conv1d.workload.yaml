@@ -1,0 +1,13 @@
+# A 1D convolution, whose halo projection (I[p + r]) exercises expression-indexed
+# tensor accesses in the access trace.
+workload:
+  iteration_space_shape:
+    p: 0 <= p < 8
+    r: 0 <= r < 3
+  bits_per_value: {All: 8}
+  einsums:
+  - name: Conv
+    tensor_accesses:
+    - {name: I, projection: {P: p + r}}
+    - {name: W, projection: [r]}
+    - {name: O, projection: [p], output: True}

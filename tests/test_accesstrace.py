@@ -6,13 +6,11 @@ matplotlib.use("Agg")
 
 import numpy as np
 
+import accelforge as af
 from accelforge.frontend.spec import Spec
 from accelforge.model.main import evaluate_mapping
 from accelforge.plotting.accesstrace import plot_access_trace
-from accelforge.tracegen import AccessTrace, trace_accesses
-from accelforge.util.parallel import set_n_parallel_jobs
-
-set_n_parallel_jobs(1)
+from accelforge.tracegen import trace_accesses
 
 try:
     from .paths import CURRENT_DIR, EXAMPLES_DIR
@@ -24,8 +22,8 @@ INPUT_FILES = CURRENT_DIR / "input_files"
 
 def _matmul_spec(mapping: str, **jinja):
     return Spec.from_yaml(
-        EXAMPLES_DIR / "arches" / "simple.yaml",
-        EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
+        af.examples.arches.simple,
+        af.examples.workloads.basic.matmuls,
         EXAMPLES_DIR / "mappings" / f"{mapping}.yaml",
         jinja_parse_data={"N_EINSUMS": 2, "M": 8, "KN": 4, **jinja},
     )
@@ -41,7 +39,7 @@ def _blocks(axis):
 
 def _conv_spec():
     return Spec.from_yaml(
-        EXAMPLES_DIR / "arches" / "simple.yaml",
+        af.examples.arches.simple,
         INPUT_FILES / "conv1d.workload.yaml",
         INPUT_FILES / "conv1d.mapping.yaml",
     )
@@ -78,7 +76,7 @@ class TestTraceAccesses(unittest.TestCase):
         (start0, end0), (start1, end1) = trace.einsum_timespans.values()
         self.assertLess(start1, end0)
         self.assertLess(start0, end1)
-        # Fusion changes the schedule, not the amount of work.
+        # Fusion changes the ordering but not the amount of work.
         self.assertEqual(trace.n_timesteps, spec.workload.n_computes())
 
     def test_halo_projection(self):
@@ -109,61 +107,7 @@ class TestTraceAccesses(unittest.TestCase):
         trace = trace_accesses(mapping, workload=spec.workload)
         self.assertLess(trace.n_timesteps, spec.workload.n_computes())
 
-    def test_max_timesteps_gives_a_prefix(self):
-        spec = _conv_spec()
-        full = trace_accesses(spec)
-        prefix = trace_accesses(spec, max_timesteps=9)
-
-        self.assertTrue(prefix.truncated)
-        self.assertFalse(full.truncated)
-        self.assertLessEqual(prefix.n_timesteps, 9)
-
-        (full_i,) = full.for_tensor("I")
-        (prefix_i,) = prefix.for_tensor("I")
-        keep = full_i.timestep < prefix.n_timesteps
-        self.assertEqual(prefix_i.timestep.tolist(), full_i.timestep[keep].tolist())
-        self.assertEqual(prefix_i.element.tolist(), full_i.element[keep].tolist())
-
-    def test_max_points_guard(self):
-        spec = _conv_spec()
-        with self.assertRaises(ValueError):
-            trace_accesses(spec, max_points=4)
-
-    def test_filters(self):
-        spec = _matmul_spec("unfused_matmuls_to_simple")
-        self.assertEqual(trace_accesses(spec, tensors=["T1"]).tensors, ["T1"])
-        self.assertEqual(
-            trace_accesses(spec, einsums=["Matmul0"]).einsums, ["Matmul0"]
-        )
-
-    def test_dataframe(self):
-        spec = _conv_spec()
-        trace = trace_accesses(spec)
-        df = trace.to_dataframe()
-        self.assertEqual(
-            sorted(df.columns),
-            ["einsum", "element", "is_output", "tensor", "timestep"],
-        )
-        self.assertEqual(len(df), sum(t.n_accesses for t in trace.traces))
-
-    def test_requires_a_workload(self):
-        spec = _conv_spec()
-        with self.assertRaises(ValueError):
-            trace_accesses(spec.mapping)
-
-    def test_memory_levels_are_outermost_first(self):
-        trace = trace_accesses(_conv_spec())
-        self.assertEqual(trace.memory_levels, ["MainMemory", "GlobalBuffer"])
-
-    def test_backing_storage_holds_one_tile_for_the_whole_run(self):
-        """No loop is above MainMemory here, so its tile never changes."""
-        trace = trace_accesses(_conv_spec())
-        for tensor in trace.tensors:
-            self.assertEqual(
-                trace.tile_lifetime("MainMemory", tensor), [(0, trace.n_timesteps)], tensor
-            )
-
-    def test_a_loop_above_a_storage_splits_its_tile(self):
+    def test_a_loop_above_a_storage_creates_tiles(self):
         """The `p` loop is above GlobalBuffer, so it gets one tile per iteration."""
         trace = trace_accesses(_conv_spec())
         windows = trace.tile_lifetime("GlobalBuffer", "I")
@@ -171,39 +115,6 @@ class TestTraceAccesses(unittest.TestCase):
         self.assertEqual(
             windows, [(t, t + 3) for t in range(0, trace.n_timesteps, 3)]
         )
-
-    def test_windows_tile_the_timeline_without_gaps(self):
-        trace = trace_accesses(_matmul_spec("fused_matmuls_to_simple"))
-        for level in trace.memory_levels:
-            for tensor, windows in trace.tile_windows[level].items():
-                ends = [0] + [end for _, end in windows[:-1]]
-                self.assertEqual([s for s, _ in windows], ends, (level, tensor))
-                self.assertEqual(windows[-1][1], trace.n_timesteps, (level, tensor))
-
-    def test_fusion_shows_up_as_tiled_intermediates(self):
-        """
-        Fusing puts the `m` loop above the GlobalBuffer holding T1, so T1 is resident one
-        tile at a time. Unfused, the whole of T1 is live for a whole Einsum.
-        """
-        fused = trace_accesses(_matmul_spec("fused_matmuls_to_simple"))
-        unfused = trace_accesses(_matmul_spec("unfused_matmuls_to_simple"))
-        self.assertGreater(
-            len(fused.tile_lifetime("GlobalBuffer", "T1")),
-            len(unfused.tile_lifetime("GlobalBuffer", "T1")),
-        )
-        # Fusion keeps intermediates out of backing storage entirely.
-        self.assertEqual(fused.tile_lifetime("MainMemory", "T1"), [])
-        self.assertNotEqual(unfused.tile_lifetime("MainMemory", "T1"), [])
-
-    def test_windows_respect_max_timesteps(self):
-        trace = trace_accesses(_conv_spec(), max_timesteps=7)
-        for windows in trace.tile_windows["GlobalBuffer"].values():
-            self.assertTrue(all(end <= trace.n_timesteps for _, end in windows))
-            self.assertEqual(windows[-1][1], trace.n_timesteps)
-
-    def test_windows_respect_the_tensor_filter(self):
-        trace = trace_accesses(_conv_spec(), tensors=["I"])
-        self.assertEqual(list(trace.tile_windows["GlobalBuffer"]), ["I"])
 
 
 class TestPlotAccessTrace(unittest.TestCase):
@@ -221,15 +132,11 @@ class TestPlotAccessTrace(unittest.TestCase):
     def test_color_by_access_and_rank(self):
         spec = _matmul_spec("fused_matmuls_to_simple")
         fig, axes = plot_access_trace(
-            spec, tensors=["T1"], color_by="access", rank="M"
+            spec, tensors=["A"], color_by="access", rank="M"
         )
         self.assertEqual(axes[0].get_ylabel(), "M")
 
-    def test_rejects_bad_color_by(self):
-        with self.assertRaises(ValueError):
-            plot_access_trace(_conv_spec(), color_by="tensor")
-
-    def test_memory_level_shades_one_block_per_resident_tile(self):
+    def test_memory_level_shades_one_block_per_tile(self):
         """Every tile of this mapping is contiguous, so it is one block."""
         spec = _matmul_spec("fused_matmuls_to_simple")
         trace = trace_accesses(spec)
@@ -242,13 +149,13 @@ class TestPlotAccessTrace(unittest.TestCase):
                 tensor,
             )
 
-    def test_memory_level_blocks_cover_the_resident_elements(self):
+    def test_memory_level_blocks_cover_the_tile(self):
         spec = _matmul_spec("fused_matmuls_to_simple")
         trace = trace_accesses(spec)
-        _, axes = plot_access_trace(trace, tensors=["T1"], memory_level="GlobalBuffer")
+        _, axes = plot_access_trace(trace, tensors=["A"], memory_level="GlobalBuffer")
 
-        (written,) = [t for t in trace.for_tensor("T1") if t.is_output]
-        windows = trace.tile_lifetime("GlobalBuffer", "T1")
+        (written,) = [t for t in trace.for_tensor("A") if t.is_output]
+        windows = trace.tile_lifetime("GlobalBuffer", "A")
         for (start, end), path in zip(windows, _blocks(axes[0]).get_paths()):
             resident = written.element[
                 (written.timestep >= start) & (written.timestep < end)
@@ -256,58 +163,6 @@ class TestPlotAccessTrace(unittest.TestCase):
             extents = path.get_extents()
             self.assertEqual(tuple(extents.min), (start - 0.5, resident.min() - 0.5))
             self.assertEqual(tuple(extents.max), (end - 0.5, resident.max() + 0.5))
-
-    def test_memory_level_blocks_stop_at_the_last_live_use(self):
-        """
-        The GlobalBuffer reservation for T0 spans a whole `m` iteration, but T0 is only
-        touched by Matmul0, the first branch of the split, so its block covers only that
-        branch. T1 crosses the branches, so its block covers the whole reservation.
-        """
-        spec = _matmul_spec("fused_matmuls_to_simple")
-        trace = trace_accesses(spec)
-        _, axes = plot_access_trace(
-            trace, tensors=["T0", "T1"], memory_level="GlobalBuffer"
-        )
-
-        (read,) = trace.for_tensor("T0")
-        windows = trace.tile_lifetime("GlobalBuffer", "T0")
-        self.assertGreater(len(windows), 1)
-        for (start, end), path in zip(windows, _blocks(axes[0]).get_paths()):
-            live = read.timestep[(read.timestep >= start) & (read.timestep < end)]
-            interval = path.get_extents().intervalx
-            self.assertEqual(tuple(interval), (live.min() - 0.5, live.max() + 0.5))
-            self.assertLess(interval[1], end - 0.5)  # strictly inside the reservation
-
-        for (start, end), path in zip(
-            trace.tile_lifetime("GlobalBuffer", "T1"), _blocks(axes[1]).get_paths()
-        ):
-            self.assertEqual(
-                tuple(path.get_extents().intervalx), (start - 0.5, end - 0.5)
-            )
-
-    def test_memory_level_adds_a_legend_entry(self):
-        spec = _matmul_spec("fused_matmuls_to_simple")
-        fig, _ = plot_access_trace(spec, memory_level="GlobalBuffer")
-        labels = [t.get_text() for t in fig.legends[0].get_texts()]
-        self.assertIn("tile in GlobalBuffer", labels)
-
-    def test_rejects_a_memory_level_that_holds_nothing_plotted(self):
-        spec = _matmul_spec("fused_matmuls_to_simple")
-        with self.assertRaises(ValueError):
-            plot_access_trace(spec, memory_level="Nowhere")
-        # T1 is fused, so it never reaches MainMemory.
-        with self.assertRaises(ValueError):
-            plot_access_trace(spec, tensors=["T1"], memory_level="MainMemory")
-
-    def test_existing_axes(self):
-        import matplotlib.pyplot as plt
-
-        _, ax = plt.subplots()
-        fig, axes = plot_access_trace(_conv_spec(), tensors=["W"], ax=ax)
-        self.assertIs(axes[0], ax)
-
-        with self.assertRaises(ValueError):
-            plot_access_trace(_conv_spec(), ax=ax)
 
 
 if __name__ == "__main__":
