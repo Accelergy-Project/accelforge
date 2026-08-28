@@ -1,0 +1,59 @@
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
+
+  - !Array
+    name: Array
+    spatial:
+    - {name: X, fanout: 2}
+    - {name: Y, fanout: 2}
+    nodes:
+    - !Memory
+      name: GlobalBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: ~MainMemory, may_keep: All}
+      actions:
+      - {name: read, energy: 0, throughput: inf}
+      - {name: write, energy: 0, throughput: inf}
+
+    # Physically distributed (spatial fanout > 1 inside the Array) and finite, so
+    # the fractional tensor-size column converts back to raw bits.
+    - !Memory
+      name: SharedBuffer
+      size: 1048576
+      area: 0
+      leak_power: 0
+      tensors: {keep: All, may_keep: All}
+      actions:
+      - {name: read, energy: 5, throughput: 1}
+      - {name: write, energy: 5, throughput: inf}
+      spatial:
+      - {name: X, fanout: 2}
+      - {name: Y, fanout: 2}
+
+    # All-to-all switch (NVLink-like): one hop between any pair, so the transfer
+    # cost is independent of mesh stride and easy to predict.
+    - !Network
+      name: NoC
+      topology: all_to_all
+      area: 0
+      leak_power: 0
+      actions:
+      - {name: hop, energy: 1, latency: 0, throughput: inf}
+
+  - !Compute
+    name: MAC
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 1, throughput: inf}

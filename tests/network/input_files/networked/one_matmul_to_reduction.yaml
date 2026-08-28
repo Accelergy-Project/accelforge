@@ -1,0 +1,47 @@
+# MatmulA is A[m, nA] = sum over nI of I[m, nI] * WA[nI, nA].
+#
+# `DIST_TENSOR` picks what the DistributedBuffer holds and `SPATIAL_RANK` what
+# the loop below it spreads over. Choosing a rank the held tensor does not
+# project onto makes that loop irrelevant to it, and the binding the model infers
+# then replicates the tensor across the array. For an input (WA over m) that is
+# the free case; for the output (A over nI) it is a spatial reduction.
+mapping:
+  nodes:
+  - !Storage
+    component: MainMemory
+    tensors: [I, WA, A]
+
+  # Tiling m here splits the run into M / OUTER_TILE trips through everything
+  # below, each moving a proportionally smaller tile. The total that crosses the
+  # network is the same however it is cut, which is the invariant the latency
+  # accounting has to reproduce.
+  - !Temporal
+    rank_variable: m
+    tile_shape: {{ OUTER_TILE }}
+
+  - !Storage
+    component: DistributedBuffer
+    tensors: [{{ DIST_TENSOR }}]
+
+  - !Spatial
+    rank_variable: {{ SPATIAL_RANK }}
+    tile_shape: 1
+    component: Array
+    name: X
+
+  - !Storage
+    component: Scratchpad
+    tensors: [I, WA, A]
+
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Temporal
+    rank_variable: nA
+    tile_shape: 1
+  - !Temporal
+    rank_variable: nI
+    tile_shape: 1
+  - !Compute
+    einsum: MatmulA
+    component: MAC

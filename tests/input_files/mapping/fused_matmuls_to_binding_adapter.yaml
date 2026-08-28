@@ -1,0 +1,88 @@
+# Two matmuls fused through T1, which they back together in the physically-distributed
+# SharedBuffer -- so the Storage that holds it speaks for both of them and sits above
+# the split. Each of them then binds T1 to the buffer's instances under spatial loops of
+# its own, and the two are free to disagree: that is what the !Binding node in each
+# branch says.
+#
+# The bindings below are spelled out rather than left to the model, which is the point
+# of the fixture: Matmul0 leaves T1 partitioned along N1 across Y, and Matmul1 wants a
+# whole copy of it in every instance along Y instead.
+mapping:
+  nodes:
+  - !Storage
+    component: MainMemory
+    tensors: [T0, T2, W0, W1]
+
+  - !Storage
+    component: SharedBuffer
+    tensors: [T1]
+
+  - !Sequential
+    nodes:
+    - !Nested
+      nodes:
+      - !Binding
+        bindings:
+          SharedBuffer:
+            T1:
+            - {name: X, rank_variable: {{ MATMUL0_X | default('M') }}, tile_shape: null}
+            - {name: Y, rank_variable: {{ MATMUL0_Y | default('N1') }}, tile_shape: null}
+      - !Spatial
+        rank_variable: m
+        tile_shape: {{ M_TILE }}
+        component: Array
+        name: X
+      - !Spatial
+        rank_variable: n1
+        tile_shape: {{ N_TILE }}
+        component: Array
+        name: Y
+      - !Storage
+        component: Scratchpad
+        tensors: [T0, W0, T1]
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n0
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul0
+        component: MAC
+
+    - !Nested
+      nodes:
+      - !Binding
+        bindings:
+          SharedBuffer:
+            T1:
+            - {name: X, rank_variable: {{ MATMUL1_X | default('M') }}, tile_shape: null}
+            - {name: Y, rank_variable: {{ MATMUL1_Y | default('DUPLICATE') }}, tile_shape: null}
+      - !Spatial
+        rank_variable: m
+        tile_shape: {{ M_TILE }}
+        component: Array
+        name: X
+      - !Spatial
+        rank_variable: n2
+        tile_shape: {{ N_TILE }}
+        component: Array
+        name: Y
+      - !Storage
+        component: Scratchpad
+        tensors: [W1, T2, T1]
+      - !Temporal
+        rank_variable: m
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n1
+        tile_shape: 1
+      - !Temporal
+        rank_variable: n2
+        tile_shape: 1
+      - !Compute
+        einsum: Matmul1
+        component: MAC

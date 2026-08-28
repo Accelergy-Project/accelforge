@@ -1,0 +1,86 @@
+# A 2x2 array whose SharedBuffer is physically distributed over it, one instance per
+# array coordinate, with a network below it to move data between those instances.
+#
+# Intermediate tensors are backed by the SharedBuffer, so how each one is bound to its
+# instances is part of the mapspace -- and two Einsums sharing one may be left
+# disagreeing about that binding, which is what an adapter is for. The NoC is what the
+# adapter is charged to.
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: ~Intermediates, may_keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
+
+  - !Array
+    name: Array
+    spatial:
+    - {name: X, fanout: 2}
+    - {name: Y, fanout: 2}
+    nodes:
+    {% if not NO_GLOBAL_BUFFER | default(false) %}
+    - !Memory
+      name: GlobalBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: ~Intermediates, may_keep: All}
+      actions:
+      - {name: read, energy: 0, throughput: inf}
+      - {name: write, energy: 0, throughput: inf}
+    {% endif %}
+
+    # Finite, so the fractional occupancy the mapper carries converts back to bits --
+    # which is what an adapter needs to know how much data it has to move.
+    - !Memory
+      name: SharedBuffer
+      size: {{ SHARED_SIZE | default(1048576) }}
+      area: 0
+      leak_power: 0
+      tensors: {keep: All, may_keep: All}
+      actions:
+      - {name: read, energy: 0, throughput: inf}
+      - {name: write, energy: 0, throughput: inf}
+      spatial:
+      - {name: X, fanout: 2}
+      - {name: Y, fanout: 2}
+      binding:
+        max_binding_rank_changes: {{ MAX_BINDING_RANK_CHANGES | default(0) }}
+        may_adapt: {{ MAY_ADAPT | default('Nothing') }}
+
+    {% if not NO_NETWORK | default(false) %}
+    - !Network
+      name: NoC
+      topology: {{ TOPOLOGY | default('all_to_all') }}
+      area: 0
+      leak_power: 0
+      actions:
+      - name: hop
+        energy: {{ HOP_ENERGY | default(1) }}
+        latency: {{ HOP_LATENCY | default(0) }}
+        throughput: {{ HOP_THROUGHPUT | default("float('inf')") }}
+    {% endif %}
+
+  # Outside the Array, so it sits below the spatial loops that spread the
+  # SharedBuffer's instances over it and can hold whatever a PE reads locally.
+  - !Memory
+    name: Scratchpad
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All, may_keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
+
+  - !Compute
+    name: MAC
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 0, throughput: inf}

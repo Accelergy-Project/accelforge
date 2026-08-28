@@ -1,0 +1,62 @@
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
+
+  - !Array
+    name: Array
+    spatial:
+    - {name: X, fanout: 2}
+    - {name: Y, fanout: 2}
+    nodes:
+    # Physically distributed over the whole array, one instance per array
+    # coordinate, so the binding of the tensor it holds to its instances is
+    # exactly the pair of spatial loops below it.
+    - !Memory
+      name: DistributedBuffer
+      size: {{ BUFFER_SIZE | default('inf') }}
+      area: 0
+      leak_power: 0
+      tensors: {keep: All, may_keep: All}
+      actions:
+      - {name: read, energy: 0, throughput: inf}
+      - {name: write, energy: 0, throughput: inf}
+      spatial:
+      - {name: X, fanout: 2}
+      - {name: Y, fanout: 2}
+
+    # A mesh charges one hop per link crossed, so a destination reading from a
+    # distant instance of the DistributedBuffer costs more than one reading next
+    # door. A switch charges one traversal however far apart the two are, but
+    # still nothing at all for a read that stays inside one instance.
+    - !Network
+      name: NoC
+      topology: {{ TOPOLOGY | default('mesh') }}
+      area: 0
+      leak_power: 0
+      actions:
+      - {name: hop, energy: 1, latency: 0, throughput: inf}
+
+  - !Memory
+    name: Scratchpad
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All, may_keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
+
+  - !Compute
+    name: MAC
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 0, throughput: inf}

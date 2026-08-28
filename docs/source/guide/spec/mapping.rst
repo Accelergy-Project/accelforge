@@ -29,7 +29,7 @@ reused.
 .. include:: ../../../../examples/mappings/simple_fused.yaml
    :code: yaml
 
-There are four node types in LoopTree:
+There are five node types in LoopTree:
     - *Loop nodes*, rectangles in the LoopTree, represent nested for loops that iterate
       over rank variables in the workload. A loop may be shared between multiple fused
       Einsums, such as the outer :math:`nA` loop.
@@ -41,6 +41,50 @@ There are four node types in LoopTree:
       A and B using ComputeUnit.
     - *Splits* in the LoopTree represent points where two or more Einsums are processed
       sequentially.
+    - *Binding nodes*, notes in the LoopTree, say how the physically-distributed
+      memories of the storage nodes above them spread their tiles over their physical
+      instances. See :ref:`binding-nodes` below.
+
+
+.. _binding-nodes:
+
+Binding Nodes
+-------------
+A memory that is *physically distributed* has one instance per coordinate of the array
+it sits in, so a tile held there is spread over those instances: each spatial loop below
+the storage node either partitions the tile along one rank of the tensor or hands every
+instance a whole copy of it. Which of the two, and along which rank, is the tile's
+*binding* to that memory.
+
+A binding is per-Einsum, while the memory holding a shared tensor is not: two Einsums
+that pass a tensor between them agree on where it lives but may want it laid out two
+different ways, with an adapter shuffling the data in between. So a binding is a node of
+its own rather than part of a storage node. The storage node of a shared tensor sits
+above the split, where it speaks for every Einsum; a Binding node sits below the split
+when the Einsums disagree and above it when they agree.
+
+One Binding node speaks for every ``(memory, tensor)`` pair held by the storage nodes
+above it, as a dictionary from component name to a dictionary from tensor name to that
+tensor's binding in that component:
+
+.. code-block:: yaml
+
+    !Binding
+    bindings:
+      SharedBuffer:      # the memory
+        A:               # the tensor it holds
+        # One loop per spatial loop below the storage node, in the same order. `X` is
+        # partitioned along rank `NA`; `Y` gets a whole copy of the tile (`DUPLICATE`).
+        - {name: X, rank_variable: NA, tile_shape: null}
+        - {name: Y, rank_variable: DUPLICATE, tile_shape: null}
+
+Only the rank each loop binds is meaningful, and the pairing with the spatial loops
+below is positional. Everything else about a binding loop -- how many iterations it
+runs, in particular -- comes from the spatial loop it pairs with, and is filled in
+before the mapping is modeled, so a binding written by hand gives each loop a
+``rank_variable`` and a null ``tile_shape``. A mapping that names no binding is given
+the locally-optimal one: partition along the rank each spatial loop's rank variable
+indexes, and replicate where it indexes nothing.
 
 
 Interpreting LoopTrees

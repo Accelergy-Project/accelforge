@@ -1,0 +1,41 @@
+mapping:
+  nodes:
+  - !Storage
+    component: MainMemory
+    tensors: [T0, T1, W0]
+
+  # W0 is indexed by n0 and n1, so of the two spatial loops below, the X loop
+  # (over m) is irrelevant to it and the Y loop (over n0) is relevant. The
+  # locally-optimal binding therefore replicates W0 along X and partitions it
+  # along N0 on Y.
+  - !Storage
+    component: DistributedBuffer
+    tensors: [W0]
+
+  - !Spatial
+    rank_variable: m
+    tile_shape: {{ M_TILE }}
+    component: Array
+    name: X
+  - !Spatial
+    rank_variable: n0
+    tile_shape: {{ N_TILE }}
+    component: Array
+    name: Y
+
+  - !Storage
+    component: Scratchpad
+    tensors: [T0, T1, W0]
+
+  - !Temporal
+    rank_variable: m
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n0
+    tile_shape: 1
+  - !Temporal
+    rank_variable: n1
+    tile_shape: 1
+  - !Compute
+    einsum: Matmul0
+    component: MAC

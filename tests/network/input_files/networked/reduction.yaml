@@ -1,0 +1,59 @@
+# A 1-D array whose DistributedBuffer has one physical instance per array
+# coordinate, so the single spatial loop below it *is* its binding.
+#
+# The hop action costs one unit of energy and no time, which makes the hop count
+# the thing under test. Give it a finite `HOP_THROUGHPUT` instead and the NoC's
+# latency becomes the busiest link's whole-run traffic divided by it.
+arch:
+  nodes:
+  - !Memory
+    name: MainMemory
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
+
+  - !Array
+    name: Array
+    spatial:
+    - {name: X, fanout: {{ FANOUT }}}
+    nodes:
+    - !Memory
+      name: DistributedBuffer
+      size: inf
+      area: 0
+      leak_power: 0
+      tensors: {keep: All, may_keep: All}
+      actions:
+      - {name: read, energy: 0, throughput: inf}
+      - {name: write, energy: 0, throughput: inf}
+      spatial:
+      - {name: X, fanout: {{ FANOUT }}}
+
+    - !Network
+      name: NoC
+      topology: all_to_all
+      area: 0
+      leak_power: 0
+      actions:
+      - {name: hop, energy: 1, latency: 0, throughput: {{ HOP_THROUGHPUT }}}
+
+  - !Memory
+    name: Scratchpad
+    size: inf
+    area: 0
+    leak_power: 0
+    tensors: {keep: All, may_keep: All}
+    actions:
+    - {name: read, energy: 0, throughput: inf}
+    - {name: write, energy: 0, throughput: inf}
+
+  - !Compute
+    name: MAC
+    area: 0
+    leak_power: 0
+    actions:
+    - {name: compute, energy: 0, throughput: inf}
