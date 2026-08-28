@@ -29,13 +29,39 @@ class NetworkStats:
     """Maximum traffic occuring on any single link along a dimension."""
 
     def repeat(self, n_repeats):
+        """These stats for a node run `n_repeats` times over, one run after
+        another.
+
+        Hops and link traffic accumulate: every run pushes its own data through
+        the same links. The longest route does not -- repeating a transfer does
+        not make it travel further -- so `max_hops` stays a per-transfer quantity
+        and it is `max_traffic` that carries the whole run's bandwidth demand.
+        """
         new = copy.copy(self)
         if n_repeats == 1:
             return new
         if type(n_repeats) is float and n_repeats == int(n_repeats):
             n_repeats = int(n_repeats)
         new.total_hops = new.total_hops * n_repeats
+        # copy.copy is shallow, so max_traffic is still the dict this was called
+        # on. Build a new one rather than scaling the caller's values in place.
+        new.max_traffic = {k: v * n_repeats for k, v in new.max_traffic.items()}
         return new
+
+    def accumulate_in_series(self, other: "NetworkStats"):
+        """Fold in the stats of something that happens *after* this, on the same
+        links -- another tile shape of the same temporal loop, say.
+
+        Hops and traffic add up over time; the longest route is the longer of the
+        two. Note that this is not how repetitions of a *spatial* loop combine:
+        those run side by side on links of their own, so
+        :meth:`NetworkAnalyzer.accumulate_child_result` maxes their traffic
+        instead of adding it.
+        """
+        self.total_hops = self.total_hops + other.total_hops
+        self.max_hops = max_nonzero(self.max_hops, other.max_hops)
+        for dim, traffic in other.max_traffic.items():
+            self.max_traffic[dim] = self.max_traffic.get(dim, 0) + traffic
 
 
 @dataclass

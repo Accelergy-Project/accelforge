@@ -10,6 +10,7 @@ from accelforge.frontend.renames import EinsumName, TensorName
 from accelforge.frontend.spec import Mapping, Spec
 from accelforge.util._frozenset import oset
 from accelforge.frontend.mapping import (
+    Binding,
     Compute,
     Reservation,
     Split,
@@ -205,8 +206,11 @@ def evaluate_mapping(
         symbol_renames, compatibility = compatibility.make_fused_loop_symbols(
             einsum_name
         )
-        for k, v in symbol_renames.items():
-            df[v] = df.pop(k)
+        for new_name, old_name in symbol_renames.items():
+            df[new_name] = df[old_name]
+        # Popped after the copies because two new names may share one old column.
+        for old_name in set(symbol_renames.values()):
+            df.pop(old_name, None)
 
         new_df = {}
         for key, value in df.items():
@@ -312,6 +316,14 @@ def _remove_storage_of_unrelevant_tensors(pmapping: Mapping, workload: Workload)
         if isinstance(node, TensorHolder):
             node.tensors = [t for t in node.tensors if t in relevant_tensors]
             if node.tensors:
+                new_nodes.append(node)
+        elif isinstance(node, Binding):
+            # A Binding node above a Split speaks for every branch below it, so a
+            # pmapping can inherit the binding of a tensor its Einsum never touches.
+            for component, tensor, _ in node.entries():
+                if tensor not in relevant_tensors:
+                    node.remove_binding(component, tensor)
+            if node.bindings:
                 new_nodes.append(node)
         else:
             new_nodes.append(node)

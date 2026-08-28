@@ -520,3 +520,95 @@ class TestMeshAgainstBruteForce(TestCase):
                 )
                 self.assertLessEqual(got, want + 1e-9, msg=where)
                 self.assertGreaterEqual(got, want * (0.83 - 1e-9), msg=where)
+
+
+class TestAllToAllSpatialReduction(TestCase):
+    """A spatial loop over a rank an output does not project onto leaves one
+    partial copy of the tile at each destination, and they have to be summed.
+
+    This is the one place an output inverts an input's arithmetic: the
+    replicating binding that lets every destination read an input from next door
+    for free is, for an output, the promise that every instance ends up holding
+    the finished tile -- an all-reduce.
+    """
+
+    def _cost(self, src_rank, relevancy, *, n=5, volume=10, src=None, output=True):
+        return AllToAllTopologyModel().per_loop_transfer_cost(
+            src_rank,
+            relevancy,
+            shape_repeats=n,
+            last_fanout=1,
+            volume=volume,
+            src_component=src if src is not None else _NoDistribution(),
+            dim_name="X",
+            is_reduced_output=output,
+        )
+
+    def test_replicated_output_is_an_all_reduce(self):
+        n, volume = 5, 10
+        cost = self._cost(RANK_DUPLICATE, Irrelevant(), n=n, volume=volume)
+        # Reduce-scatter then all-gather: two passes of "all but one partial
+        # crosses", two traversals deep, one tile per link in each pass.
+        self.assertEqual(cost.total_cost, 2 * (n - 1) * volume)
+        self.assertEqual(cost.max_hops, 2 * AllToAllTopologyModel.HOPS_PER_TRANSFER)
+        self.assertEqual(cost.max_traffic, 2 * volume)
+
+    def test_replication_is_the_expensive_binding_for_an_output(self):
+        # The bug this guards: read as an input, a replicated source with an
+        # instance beside every destination is next door to everyone and costs
+        # nothing. The identical call for an output is an all-reduce.
+        n, volume = 5, 10
+        common = dict(
+            n=n, volume=volume, src=_Distributed(fanout=n, stride=1)
+        )
+        as_input = self._cost(RANK_DUPLICATE, Irrelevant(), output=False, **common)
+        as_output = self._cost(RANK_DUPLICATE, Irrelevant(), **common)
+        self.assertEqual(as_input.total_cost, 0)
+        self.assertEqual(as_output.total_cost, 2 * (n - 1) * volume)
+
+    def test_undistributed_source_funnels_every_partial_into_one_link(self):
+        # One instance forms the sum, so its link carries all n - 1 partials and
+        # is squarely the bottleneck -- nothing combines them in flight.
+        n, volume = 5, 10
+        cost = self._cost("m0", Irrelevant(), n=n, volume=volume)
+        self.assertEqual(cost.total_cost, (n - 1) * volume)
+        self.assertEqual(cost.max_hops, AllToAllTopologyModel.HOPS_PER_TRANSFER)
+        self.assertEqual(cost.max_traffic, (n - 1) * volume)
+
+    def test_owners_share_the_reduction_traffic(self):
+        # Partitioned over four instances, each owns a quarter of the tile and
+        # takes a quarter of each crossing partial.
+        n, volume = 4, 12
+        cost = self._cost(
+            "m0", Irrelevant(), n=n, volume=volume, src=_Distributed(fanout=4, stride=1)
+        )
+        self.assertEqual(cost.total_cost, (n - 1) * volume)
+        self.assertEqual(cost.max_traffic, (n - 1) * volume / 4)
+
+    def test_all_reduce_is_twice_the_plain_reduce(self):
+        duplicated = self._cost(RANK_DUPLICATE, Irrelevant())
+        partitioned = self._cost("m0", Irrelevant())
+        self.assertEqual(duplicated.total_cost, 2 * partitioned.total_cost)
+        self.assertEqual(duplicated.max_hops, 2 * partitioned.max_hops)
+
+    def test_relevant_loop_over_an_output_is_still_a_unicast(self):
+        # A loop over a rank the output *does* project onto hands each
+        # destination a distinct slice to write back. Nothing is reduced, and it
+        # costs what delivering those slices costs.
+        for src_rank in (RANK_DUPLICATE, "m0"):
+            self.assertEqual(
+                self._cost(src_rank, Relevant("n0")),
+                self._cost(src_rank, Relevant("n0"), output=False),
+            )
+
+    def test_single_iteration_loop_reduces_nothing(self):
+        # One destination, one partial, already the answer.
+        for src_rank in (RANK_DUPLICATE, "m0"):
+            cost = self._cost(src_rank, Irrelevant(), n=1)
+            self.assertEqual(cost.total_cost, 0)
+            self.assertEqual(cost.max_hops, 0)
+            self.assertEqual(cost.max_traffic, 0)
+
+    def test_partially_relevant_not_implemented(self):
+        with self.assertRaises(NotImplementedError):
+            self._cost(RANK_DUPLICATE, PartiallyRelevant("n0"))

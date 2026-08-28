@@ -1345,9 +1345,11 @@ class Network(Component, Leaf):
       dominates the overall communication latency.
 
     Keywords:
-    - `max_hops` returns the number of hops in the longest route.
-    - `max_link_traffic` returns the amount of traffic (in bits) over the most congested
-      link.
+    - `max_hops` returns the number of hops in the longest route. This is
+      **per transfer**.
+    - `max_link_traffic` returns the amount of traffic (in bits) over the most
+      congested link, **summed over the whole run**, so dividing it by the link
+      throughput gives the time the run spends bandwidth-bound.
     """
 
     bits_per_value: EvalsTo[dict] = {}

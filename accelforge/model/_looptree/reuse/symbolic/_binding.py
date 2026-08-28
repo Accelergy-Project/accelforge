@@ -51,12 +51,13 @@ class BindingLookups:
 def index_bindings(nodes: list[MappingNode]) -> BindingLookups:
     """Index the bindings of every physically-distributed Storage of a mapping."""
     lookups = BindingLookups()
-    for storage, spatials in iter_binding_blocks(nodes):
+    for block in iter_binding_blocks(nodes):
+        binding = block.binding
         # A mapping that is still being built may not have a binding yet.
-        if len(storage.binding) != len(spatials):
+        if len(binding) != len(block.spatials):
             continue
-        tensor_key = (storage.component, storage.tensor)
-        for binding_loop, spatial in zip(storage.binding, spatials):
+        tensor_key = block.key
+        for binding_loop, spatial in zip(binding, block.spatials):
             rank = binding_loop.rank_variable
             lookups.rank_by_loop[(id(spatial), *tensor_key)] = rank
             if rank == RANK_DUPLICATE:

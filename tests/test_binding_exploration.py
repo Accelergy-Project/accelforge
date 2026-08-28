@@ -11,6 +11,7 @@ from pathlib import Path
 import accelforge as af
 from accelforge.frontend.arch import BindingConstraints
 from accelforge.frontend.mapping import (
+    Binding,
     Loop,
     Spatial,
     Storage,
@@ -119,12 +120,12 @@ def _get_jobs(**mapper_settings) -> dict:
 
 
 def _first_job_with_binding():
-    """The first job whose mapping has a bound, physically-distributed Storage."""
+    """The first job whose mapping binds a physically-distributed memory."""
     for compatibility2jobs in _get_jobs().values():
         for job_list in compatibility2jobs.values():
             for job in job_list:
                 if any(
-                    isinstance(node, Storage) and node.binding
+                    isinstance(node, Binding) and node.bindings
                     for node in job.mapping.nodes
                 ):
                     return job
@@ -132,11 +133,12 @@ def _first_job_with_binding():
 
 
 def _bindings_of(job) -> tuple:
-    """The (component, tensor, bound ranks) of every bound Storage node of a job."""
+    """The (component, tensor, bound ranks) of every bound pair of a job."""
     return tuple(
-        (node.component, node.tensor, tuple(l.rank_variable for l in node.binding))
+        (component, tensor, tuple(l.rank_variable for l in loops))
         for node in job.mapping.nodes
-        if isinstance(node, Storage) and node.binding
+        if isinstance(node, Binding)
+        for component, tensor, loops in node.entries()
     )
 
 
@@ -151,21 +153,16 @@ class TestBindingExploration(unittest.TestCase):
                         f"{einsum_name} has a physically-distributed memory, so its "
                         f"templates should have a binding.",
                     )
-                    for node in job.mapping.nodes:
-                        if not isinstance(node, Storage) or not node.binding:
+                    for block in iter_binding_blocks(job.mapping.nodes):
+                        if not block.binding:
                             continue
                         irrelevant = job.einsum.tensor2irrelevant_rank_variables[
-                            node.tensor
+                            block.tensor
                         ]
                         rank_variable2ranks = job.einsum.tensor_accesses[
-                            node.tensor
+                            block.tensor
                         ].rank_variable2ranks
-                        _, spatials = next(
-                            (s, l)
-                            for s, l in iter_binding_blocks(job.mapping.nodes)
-                            if s is node
-                        )
-                        for spatial, bound in zip(spatials, node.binding):
+                        for spatial, bound in zip(block.spatials, block.binding):
                             expected = (
                                 RANK_DUPLICATE
                                 if spatial.rank_variable in irrelevant
@@ -209,13 +206,13 @@ class TestBindingExploration(unittest.TestCase):
         ).items():
             for job_list in compatibility2jobs.values():
                 for job in job_list:
-                    for storage, spatials in iter_binding_blocks(job.mapping.nodes):
+                    for block in iter_binding_blocks(job.mapping.nodes):
                         # One binding loop per spatial loop that binds the storage...
-                        self.assertEqual(len(storage.binding), len(spatials))
+                        self.assertEqual(len(block.binding), len(block.spatials))
                         allowed = set(
-                            job.einsum.tensor_accesses[storage.tensor].ranks
+                            job.einsum.tensor_accesses[block.tensor].ranks
                         ) | {RANK_DUPLICATE}
-                        for spatial, bound in zip(spatials, storage.binding):
+                        for spatial, bound in zip(block.spatials, block.binding):
                             # ...binding a rank of the tensor being bound...
                             self.assertIn(bound.rank_variable, allowed)
                             # ...and iterating as many times as its spatial loop...
@@ -251,13 +248,13 @@ class TestBindingExploration(unittest.TestCase):
         ).values():
             for job_list in compatibility2jobs.values():
                 for job in job_list:
-                    for storage, spatials in iter_binding_blocks(job.mapping.nodes):
-                        if storage.tensor in job.fusable_tensors:
+                    for block in iter_binding_blocks(job.mapping.nodes):
+                        if block.tensor in job.fusable_tensors:
                             continue
                         saw_unshared = True
                         self.assertEqual(
-                            [l.rank_variable for l in storage.binding],
-                            default_binding_ranks(storage, spatials, job),
+                            [l.rank_variable for l in block.binding],
+                            default_binding_ranks(block, job),
                         )
         self.assertTrue(saw_unshared, "The fixture binds no unshared tensor.")
 
@@ -290,12 +287,12 @@ class TestBindingExploration(unittest.TestCase):
 
         kept = {id(node) for node in m_spatials}
         expected = {
-            id(storage): [
+            block.key: [
                 bound
-                for bound, spatial in zip(storage.binding, spatials)
+                for bound, spatial in zip(block.binding, block.spatials)
                 if id(spatial) in kept
             ]
-            for storage, spatials in iter_binding_blocks(mapping.nodes)
+            for block in iter_binding_blocks(mapping.nodes)
         }
         self.assertTrue(any(expected.values()), "Fixture has no binding to prune.")
 
@@ -303,12 +300,14 @@ class TestBindingExploration(unittest.TestCase):
 
         blocks = iter_binding_blocks(mapping.nodes)
         self.assertTrue(blocks, "Beautifying removed the bound storages themselves.")
-        for storage, spatials in blocks:
+        for block in blocks:
             # One binding loop per spatial loop, still...
-            self.assertEqual(len(storage.binding), len(spatials))
-            self.assertEqual([node.rank_variable for node in spatials], ["m", "m"])
+            self.assertEqual(len(block.binding), len(block.spatials))
+            self.assertEqual(
+                [node.rank_variable for node in block.spatials], ["m", "m"]
+            )
             # ...and the ones that were dropped are the ones whose spatial loop was.
-            self.assertEqual(list(storage.binding), expected[id(storage)])
+            self.assertEqual(list(block.binding), expected[block.key])
 
     def test_mapper_evaluates_mappings_with_single_iteration_spatial_loops(self):
         """
@@ -323,7 +322,7 @@ class TestBindingExploration(unittest.TestCase):
         self.assertTrue(len(result))
         self.assertTrue(
             any(
-                isinstance(node, Storage) and node.binding
+                isinstance(node, Binding) and node.bindings
                 for node in result.mapping(0).nodes
             ),
             "The mapper returned a mapping with no binding.",
@@ -338,19 +337,22 @@ class TestBindingExploration(unittest.TestCase):
         result = spec.map_workload_to_arch(print_progress=False)
         mapping = result.mapping(0)
         bindings = {
-            (node.component, node.tensor): [l.rank_variable for l in node.binding]
+            (component, tensor): [l.rank_variable for l in loops]
             for node in mapping.nodes
-            if isinstance(node, Storage) and node.binding
+            if isinstance(node, Binding)
+            for component, tensor, loops in node.entries()
         }
         self.assertTrue(bindings, "The mapper returned a mapping with no binding.")
 
         spec.mapping = mapping
         spec.evaluate_mapping()
         for node in mapping.nodes:
-            if isinstance(node, Storage) and node.binding:
+            if not isinstance(node, Binding):
+                continue
+            for component, tensor, loops in node.entries():
                 self.assertEqual(
-                    [l.rank_variable for l in node.binding],
-                    bindings[(node.component, node.tensor)],
+                    [l.rank_variable for l in loops],
+                    bindings[(component, tensor)],
                 )
 
 
@@ -540,10 +542,10 @@ class TestBindingExpansion(unittest.TestCase):
                         mapping = pmapping_objects[einsum_name][job_id]
                         bound = [
                             (loop.name, loop.rank_variable)
-                            for storage, _ in iter_binding_blocks(mapping.nodes)
-                            if storage.tensor == tensor.name
-                            and storage.component == tensor.resource_name
-                            for loop in storage.binding
+                            for block in iter_binding_blocks(mapping.nodes)
+                            if block.tensor == tensor.name
+                            and block.component == tensor.resource_name
+                            for loop in block.binding
                         ]
                         self.assertTrue(
                             is_subsequence(wanted, bound),

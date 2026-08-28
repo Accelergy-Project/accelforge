@@ -733,6 +733,9 @@ def join_pmappings(
         left = PmappingGroup.group(left, right_tensors)
         # print_time("Grouping")
 
+        if binding_adapters:
+            left = binding_adapters.adapt_buckets(left, right, print_progress)
+
         # =============================================================================
         # If we're multiprocessing and the left side has fewer groups than the number of
         # processes, repeatedly split the largest group in half so that the merge work
@@ -773,30 +776,12 @@ def join_pmappings(
         combined: list[PmappingGroup] = []
         combined_ids: set[tuple[int, int, tuple[tuple[int, int], ...]]] = oset()
 
-        # Right buckets whose compatibility differs from a left bucket's only in the
-        # ranks their bindings bind can still be joined, by moving the shared tensor
-        # from the layout the left side leaves it in to the one the right side wants.
-        # Indexed with the bindings set aside, which is the only way to find them.
-        right_by_binding: dict[Compatibility, list[Compatibility]] = defaultdict(list)
-        if binding_adapters:
-            for right_key in right:
-                right_by_binding[right_key.clear_bound_ranks()].append(right_key)
-
         for k in left:
             found = False
             if DO_PRINT:
                 print(f"Left key {k}")
-            right_keys = [k] if k in right else []
-            if binding_adapters:
-                right_keys += [
-                    other
-                    for other in right_by_binding.get(k.clear_bound_ranks(), ())
-                    if other != k
-                ]
-            for k_right, (a, perm_a), (b, perm_b) in (
-                (key, x, y)
-                for key in right_keys
-                for x, y in itertools.product(left[k], right[key])
+            for (a, perm_a), (b, perm_b) in itertools.product(
+                left[k], right.get(k, [])
             ):
                 a: PmappingGroup
                 b: PmappingGroup
@@ -806,27 +791,10 @@ def join_pmappings(
                 if key_check in combined_ids:
                     continue
                 combined_ids.add(key_check)
+                found = True
 
                 compatibility_a = perm_a.apply(a.compatibility)
                 compatibility_b = perm_b.apply(b.compatibility)
-
-                # The two sides disagree about a binding. Charge for moving the data
-                # into the binding the right side wants, and carry that binding
-                # forward: from here on, that is where the data is.
-                binding_adaptations = ()
-                if k_right != k:
-                    binding_adaptations = binding_adapters.adaptations(
-                        compatibility_a,
-                        compatibility_b,
-                        oset(a.mappings.data.columns) | oset(b.mappings.data.columns),
-                    )
-                    if binding_adaptations is None:
-                        continue
-                    compatibility_a = compatibility_a.adopt_bound_ranks_of(
-                        compatibility_b
-                    )
-
-                found = True
                 try:
                     compatibility_joined = compatibility_a.merge_next(
                         compatibility_b,
@@ -852,7 +820,6 @@ def join_pmappings(
                         compatibility_joined=compatibility_joined,
                         permuted_compatibility_left=compatibility_a,
                         permuted_compatibility_right=compatibility_b,
-                        binding_adaptations=binding_adaptations,
                         delay=DELAY,
                         _pmapping_row_filter_function=_pmapping_row_filter_function,
                         ignored_resources=ignored_resources,

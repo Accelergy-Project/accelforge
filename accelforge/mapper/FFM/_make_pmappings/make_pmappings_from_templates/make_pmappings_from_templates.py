@@ -11,6 +11,7 @@ from accelforge.frontend.mapping import (
     Mapping,
     Spatial,
     Temporal,
+    Binding,
     iter_binding_blocks,
 )
 from accelforge.util._basetypes import EvalableList
@@ -304,21 +305,28 @@ def _rebind_mapping_column(
         if mapping is None:
             continue
 
-        new_mapping = Mapping(nodes=[copy.copy(n) for n in mapping.nodes])
+        # The Binding nodes are copied too, rather than shared with the template: a
+        # rebound copy says something different about the same (memory, tensor) pair.
+        new_mapping = Mapping(
+            nodes=[
+                copy.deepcopy(n) if isinstance(n, Binding) else copy.copy(n)
+                for n in mapping.nodes
+            ]
+        )
         new_mapping._n_loop_orders = mapping._n_loop_orders
         new_mapping._template_index = mapping._template_index
-        for storage, _ in iter_binding_blocks(new_mapping.nodes):
+        for block in iter_binding_blocks(new_mapping.nodes):
             rebound = EvalableList()
             changed = False
-            for i, loop in enumerate(storage.binding):
-                rank = assignment.get((storage.tensor, storage.component, i))
+            for i, loop in enumerate(block.binding):
+                rank = assignment.get((block.tensor, block.component, i))
                 if rank is not None and rank != loop.rank_variable:
                     loop = loop.model_copy()
                     loop.rank_variable = rank
                     changed = True
                 rebound.append(loop)
             if changed:
-                storage.binding = rebound
+                block.set_binding(rebound)
 
         rebound_id = uuid4()
         pmapping_objects[rebound_id] = new_mapping
@@ -544,8 +552,8 @@ def make_pmappings_from_templates(
 
         base_compatibility = compatibility
         symbol_renames, compatibility = _for_this_group(compatibility)
-        for k, v in symbol_renames.items():
-            mappings[v] = mappings[f"{einsum_name}<SEP>{k}"]
+        for new_name, old_name in symbol_renames.items():
+            mappings[new_name] = mappings[f"{einsum_name}<SEP>{old_name}"]
         mappings = shift_reservations_by_null_loop_indices(mappings, null_loop_indices)
 
         energy_cols = [c for c in mappings.columns if "Total<SEP>energy" in c]

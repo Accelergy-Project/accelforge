@@ -16,6 +16,7 @@ from accelforge.frontend.mapping import (
     Split as MappingSplit,
     TilePattern,
     Loop as MappingLoop,
+    binding_of,
 )
 from accelforge.frontend.renames import Rank, RankVariable, TensorName
 from accelforge.frontend.workload import Einsum, Workload
@@ -154,6 +155,11 @@ class Loop(Updatable):
         return self.update(tile_pattern=self.tile_pattern._clear_symbols())
 
     def make_fused_loop_symbols(self, prefix: str) -> tuple[dict[str, str], "Loop"]:
+        """
+        Returns the renames keyed by the new name, because one mapping loop may be a
+        fused loop for one tensor and a binding loop for another. Both roles rename the
+        same original symbol, and only the new names tell them apart.
+        """
         r = {}
         new = self
 
@@ -162,7 +168,7 @@ class Loop(Updatable):
             if not isinstance(g, str):
                 return new
             g2 = make_fused_loop_col(f"{prefix}<SEP>{g}")
-            r[g] = g2
+            r[g2] = g
             return new.update(tile_pattern=new.tile_pattern.update(**{attr: g2}))
 
         for s in new.tile_pattern._symbol_attrs():
@@ -171,6 +177,9 @@ class Loop(Updatable):
         return r, new
 
     def make_binding_symbols(self, prefix: str) -> tuple[dict[str, str], "Loop"]:
+        """
+        Returns the renames keyed by the new name, as `make_fused_loop_symbols` does.
+        """
         assert self.is_spatial
         r = {}
         new = self
@@ -179,7 +188,7 @@ class Loop(Updatable):
             attr_val = getattr(self.tile_pattern, attr)
             if isinstance(attr_val, str):
                 new_attr_val = make_binding_col(f"{prefix}<SEP>{attr_val}")
-                r[attr_val] = new_attr_val
+                r[new_attr_val] = attr_val
             else:
                 new_attr_val = attr_val
             new = new.update(tile_pattern=new.tile_pattern.update(**{attr: new_attr_val}))
@@ -256,7 +265,7 @@ class TensorReservation(Updatable):
     def populate_loops(
         self,
         ranks_with_tile_pattern: set[Rank],
-        reservation_node: MappingReservation
+        binding: "list[Spatial]",
     ) -> "TensorReservation":
         updated_loops = self.update(
             loops=tuple(
@@ -265,14 +274,14 @@ class TensorReservation(Updatable):
             ),
         )
         if len(self.physical_spatial_loops) > 0:
-            assert len(updated_loops.physical_spatial_loops) == len(
-                reservation_node.binding
-            ), (
+            assert len(updated_loops.physical_spatial_loops) == len(binding), (
                 f"Physical spatial loops {updated_loops.physical_spatial_loops} do not "
-                f"match binding {reservation_node.binding}"
+                f"match binding {binding}"
             )
             new_loop = []
-            for compat_loop, mapping_loop in zip(updated_loops.physical_spatial_loops, reservation_node.binding):
+            for compat_loop, mapping_loop in zip(
+                updated_loops.physical_spatial_loops, binding
+            ):
                 mapping_tile_pattern = mapping_loop.tile_pattern._symbol2str()
                 new_loop.append(compat_loop.update(tile_pattern=mapping_tile_pattern))
             return updated_loops.update(physical_spatial_loops=tuple(new_loop))
@@ -317,13 +326,10 @@ class TensorReservation(Updatable):
             )
         )
 
-    def binding_lines_up_with(self, other: "TensorReservation") -> bool:
+    def binding_spatial_dim_matches(self, other: "TensorReservation") -> bool:
         """
-        Whether this reservation's binding can be compared loop-for-loop with
-        `other`'s: one binding loop each, over the same spatial dimensions in the same
-        order. Two groups that dropped a different set of degenerate binding loops do
-        not line up, and neither do two that bind the same dimensions in a different
-        order, so there is no telling which loop of one answers which of the other.
+        Whether this reservation's binding matches `other`'s in the spatial
+        dimensions. Ranks of the tensor do not have to match.
         """
         return [l.spatial_dim for l in self.physical_spatial_loops] == [
             l.spatial_dim for l in other.physical_spatial_loops
@@ -335,16 +341,8 @@ class TensorReservation(Updatable):
             l.rank_name for l in other.physical_spatial_loops
         ]
 
-    def adopt_bound_ranks_of(self, other: "TensorReservation") -> "TensorReservation":
-        """
-        This reservation with each binding loop binding the rank that the loop in the
-        same position of `other`'s binding does. Everything else is kept, including the
-        tile patterns, whose symbols name this side's columns rather than `other`'s.
-        """
-        assert self.binding_lines_up_with(other), (
-            f"Binding of {self} does not line up with {other}, so there is no telling "
-            f"which of its loops answers which of the other's."
-        )
+    def update_binding_to_match(self, other: "TensorReservation") -> "TensorReservation":
+        assert self.binding_spatial_dim_matches(other)
         return self.update(
             physical_spatial_loops=tuple(
                 l.update(rank_name=o.rank_name)
@@ -377,6 +375,10 @@ class TensorReservation(Updatable):
     def make_fused_loop_symbols(
         self, prefix: str
     ) -> tuple[dict[str, str], "TensorReservation"]:
+        """
+        Renames keyed by new name, so a loop that is fused here and bound there keeps
+        both of its names instead of one overwriting the other.
+        """
         result = {}
         loops = []
         for l in self.loops:
@@ -699,15 +701,17 @@ class Compatibility(Updatable):
         return self.update(tensors=fzs(t.clear_loop_bounds() for t in self.tensors))
 
     def populate_loops(self, ranks_with_tile_pattern: set[Rank], mapping: Mapping):
-        tensor2reservation = {}
+        tensor2binding = {}
         for node in mapping.nodes:
             if not isinstance(node, MappingReservation):
                 continue
             for tensor in node._backing:
-                tensor2reservation[tensor] = node
+                tensor2binding[tensor] = binding_of(
+                    mapping.nodes, node.resource, tensor
+                )
         return self.update(
             tensors=fzs(
-                t.populate_loops(ranks_with_tile_pattern, tensor2reservation[t.name])
+                t.populate_loops(ranks_with_tile_pattern, tensor2binding[t.name])
                 for t in self.tensors
             ),
         )
@@ -788,8 +792,9 @@ class Compatibility(Updatable):
 
         def make_physical_spatial_loops(above_index: int) -> tuple[Loop]:
             """Make data binding of physically distributed storages."""
-            assert isinstance(reservation_node := mapping.nodes[above_index], MappingReservation)
-            assert isinstance(storage_node := reservation_node._tensor_holder, MappingStorage)
+            assert isinstance(
+                reservation_node := mapping.nodes[above_index], MappingReservation
+            )
             memory = reservation_node._component_object
             if memory is None or not memory._is_distributed():
                 return ()
@@ -800,7 +805,9 @@ class Compatibility(Updatable):
                     is_spatial=True,
                     spatial_dim=loop.name,
                 )
-                for loop in storage_node.binding
+                for loop in binding_of(
+                    mapping.nodes, reservation_node.resource, reservation_node.purpose
+                )
             )
             return out
 
@@ -908,21 +915,16 @@ class Compatibility(Updatable):
         """
         return self.update(tensors=fzs(t.clear_bound_ranks() for t in self.tensors))
 
-    def adopt_bound_ranks_of(self, other: "Compatibility") -> "Compatibility":
+    def update_binding_to_match(self, other: "Compatibility") -> "Compatibility":
         """
-        This compatibility with every tensor that `other` also holds bound the way
-        `other` binds it. Used on the left side of a join once the adapter has been
-        charged for moving the data: from there on the tensor really is laid out the
-        way the right side wants it, so that is what the join carries forward.
-
-        Tensors that `other` does not hold are left alone.
+        Updates binding to match `other`.
         """
-        other_tensors = {t.name: t for t in other.tensors}
+        other_tensors = {(t.name, t.resource_name): t for t in other.tensors}
         return self.update(
             tensors=fzs(
                 (
-                    t.adopt_bound_ranks_of(other_tensors[t.name])
-                    if t.name in other_tensors
+                    t.update_binding_to_match(other_tensors[key])
+                    if (key := (t.name, t.resource_name)) in other_tensors
                     else t
                 )
                 for t in self.tensors
@@ -962,6 +964,9 @@ class Compatibility(Updatable):
     def make_fused_loop_symbols(
         self, prefix: str
     ) -> tuple[dict[str, str], "Compatibility"]:
+        """
+        Renames keyed by new name; see `TensorReservation.make_fused_loop_symbols`.
+        """
         result = {}
         tensors = []
         for t in self.tensors:

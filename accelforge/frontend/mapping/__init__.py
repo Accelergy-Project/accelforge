@@ -1,11 +1,15 @@
 from .mapping import *
 from ._util import (
+    BindingBlock,
+    binding_of,
     binding_summary,
     drop_binding_loops_for_removed_spatials,
+    find_binding_node,
     iter_binding_blocks,
 )
 
 __all__ = [
+    "Binding",
     "Compute",
     "Loop",
     "Mapping",
@@ -27,7 +31,10 @@ __all__ = [
     "TilePattern",
     "Toll",
 
+    "BindingBlock",
+    "binding_of",
     "binding_summary",
     "drop_binding_loops_for_removed_spatials",
+    "find_binding_node",
     "iter_binding_blocks",
 ]

@@ -38,6 +38,7 @@ from accelforge.frontend.renames import EinsumName, Rank, RANK_DUPLICATE, Tensor
 from accelforge.util._basetypes import (
     # Parsing helpers for the input files.
     EvalableModel,
+    EvalableDict,
     EvalableList,
     EvalsTo,
     # Retrieves information from YAML tags.
@@ -60,6 +61,7 @@ NodeList: TypeAlias = EvalableList[
             Annotated["Split", Tag("Split")],
             Annotated["Compute", Tag("Compute")],
             Annotated["Storage", Tag("Storage")],
+            Annotated["Binding", Tag("Binding")],
             Annotated["Temporal", Tag("Temporal")],
             Annotated["Spatial", Tag("Spatial")],
             Annotated["Sequential", Tag("Sequential")],
@@ -175,9 +177,6 @@ class MappingNode(EvalableModel):
             if node is not self:
                 nodes.append(node)
         return nodes
-
-    def has_binding(self) -> bool:
-        return False
 
     def _flatten(self) -> list["MappingNode"]:
         if isinstance(self, MappingNodeWithChildren):
@@ -657,70 +656,120 @@ class TensorHolder(MappingNode):
 class Storage(TensorHolder):
     """
     A Storage :class:`~.TensorHolder` that can hold tensors for reuse.
+
+    A Storage says which memory holds which tensors and nothing about how a
+    physically-distributed memory spreads them over its instances -- that is what a
+    :class:`~.Binding` node says. Keeping the two apart is what lets the Storage of a
+    tensor that several Einsums share sit above the :class:`~.Split` that separates
+    them even when those Einsums want the tensor laid out differently.
     """
 
-    binding: EvalableList[Spatial] = []
+
+def _binding_str(loops: Iterable["Spatial"]) -> str:
     """
-    Spatial loops that make up the binding of the tensor: one per spatial loop below
-    this Storage, each binding a rank of the tensor (or ANY, meaning that the tensor is
-    replicated across that spatial dimension). Should only be used if `tensors` only has
-    one tensor.
+    A compact, one-line rendering of one binding: the rank that each spatial loop
+    below the bound Storage partitions the tensor along, keyed by the spatial
+    dimension of that loop, with ``*`` where the tensor is replicated instead of
+    partitioned. For example ``X:*, Y:N0``.
+    """
+    parts = []
+    for loop in loops:
+        rank = loop.rank_variable
+        if isinstance(rank, (set, frozenset)):
+            rank = ",".join(sorted(rank))
+        if rank == RANK_DUPLICATE:
+            rank = "*"
+        parts.append(f"{loop.name}:{rank}")
+    return ", ".join(parts)
+
+
+class Binding(MappingNode):
+    """
+    How the physically-distributed memories of the :class:`~.Storage` nodes above this
+    node spread the tensors they hold over their instances.
+
+    One Binding node speaks for every ``(memory, tensor)`` pair held above it:
+    :attr:`bindings` maps a component -- a memory name -- to a map from tensor name to
+    that tensor's binding in that memory. A binding is one Spatial loop per spatial
+    loop below the Storage that holds the tensor, each binding a rank of the tensor (or
+    :data:`~accelforge.frontend.renames.RANK_DUPLICATE`, meaning the tensor is
+    replicated across that spatial dimension rather than partitioned).
 
     Only the rank each loop binds is meaningful, and the pairing with the spatial loops
     below is positional. Everything else about a binding loop -- how many iterations it
     runs, in particular -- comes from the spatial loop it pairs with, and is filled in
     before the mapping is modeled. A binding written out by hand should therefore give
     each loop a `rank_variable` and a null `tile_shape`.
+
+    A binding is per-Einsum: two Einsums that share a tensor may want it laid out two
+    different ways, with an adapter shuffling the data between them in between. That is
+    why a binding is a node of its own rather than part of a Storage. The Storage of a
+    shared tensor sits above the :class:`~.Split`, where it speaks for every Einsum;
+    a Binding node sits below the Split when the Einsums disagree and above it when
+    they agree.
     """
 
-    @override
-    def has_binding(self):
-        return len(self.binding) > 0
+    bindings: EvalableDict[str, EvalableDict[TensorName, EvalableList[Spatial]]] = (
+        EvalableDict()
+    )
+    """ Component name to tensor name to that tensor's binding in that component. """
 
-    def _binding_str(self) -> str:
-        """
-        A compact, one-line rendering of this Storage's binding: the rank that each
-        spatial loop below this Storage partitions the tensor along, keyed by the
-        spatial dimension of that loop, with ``*`` where the tensor is replicated
-        instead of partitioned. For example ``X:*, Y:N0``.
-        """
-        parts = []
-        for loop in self.binding:
-            rank = loop.rank_variable
-            if isinstance(rank, (set, frozenset)):
-                rank = ",".join(sorted(rank))
-            if rank == RANK_DUPLICATE:
-                rank = "*"
-            parts.append(f"{loop.name}:{rank}")
-        return ", ".join(parts)
+    def binding_of(
+        self, component: str, tensor: TensorName
+    ) -> "EvalableList[Spatial] | None":
+        """The binding of `tensor` in `component`, or None if this node has none."""
+        return self.bindings.get(component, {}).get(tensor, None)
 
-    def _merge(self, other: "Storage") -> "Storage":
-        if not isinstance(other, Storage):
-            raise ValueError(f"Expected Storage, got {type(other)}")
+    def set_binding(
+        self, component: str, tensor: TensorName, loops: Iterable["Spatial"]
+    ) -> None:
+        """Bind `tensor` in `component` to `loops`, replacing any binding it had."""
+        per_tensor = self.bindings.setdefault(component, EvalableDict())
+        per_tensor[tensor] = EvalableList(loops)
 
-        if len(self.binding) > 0 or len(other.binding) > 0:
-            raise ValueError(
-                f"Cannot merge if binding is used because binding is per-tensor."
+    def remove_binding(self, component: str, tensor: TensorName) -> None:
+        """Drop the binding of `tensor` in `component`, if this node has one."""
+        per_tensor = self.bindings.get(component, None)
+        if per_tensor is None:
+            return
+        per_tensor.pop(tensor, None)
+        if not per_tensor:
+            self.bindings.pop(component, None)
+
+    def entries(self) -> list[tuple[str, TensorName, "EvalableList[Spatial]"]]:
+        """Every ``(component, tensor, binding)`` this node holds."""
+        return [
+            (component, tensor, loops)
+            for component, per_tensor in self.bindings.items()
+            for tensor, loops in per_tensor.items()
+        ]
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, Binding) and self._entry_strs() == other._entry_strs()
+
+    def _entry_strs(self) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                f"{component}.{tensor}[{_binding_str(loops)}]"
+                for component, tensor, loops in self.entries()
             )
-
-        return super()._merge(other)
+        )
 
     @override
-    def compact_str(self):
-        s = super().compact_str()
-        if self.binding:
-            s += f"-bind[{self._binding_str()}]"
-        return s
+    def compact_str(self) -> str:
+        return f"bind[{'; '.join(self._entry_strs())}]"
 
-    def __str__(self, color_map: ColorMap = None) -> str:
-        binding = self._binding_str()
-        if color_map is not None:
-            format_list = [f"{self.component} reuses"] + list(self.tensors)
-            return color_map.format_list(
-                format_list, suffix=f"bind {binding}" if binding else None
-            )
-        s = super().__str__()
-        return f"{s} (bind {binding})" if binding else s
+    def __str__(self) -> str:
+        return "\n".join(
+            f"{component} bind {tensor} to {_binding_str(loops) or '<nothing>'}"
+            for component, tensor, loops in self.entries()
+        )
+
+    def _render_node_shape(self) -> str:
+        return "note"
+
+    def _render_node_color(self) -> str:
+        return "#DCD0FF"
 
 
 class Toll(TensorHolder):
@@ -868,10 +917,6 @@ class MappingNodeWithChildren(MappingNode):
                 found = False
                 for n in new_nodes[::-1]:
                     if isinstance(n, TensorHolder) and n.component == node.component:
-                        # A binding is per-tensor, so a Storage that has one is kept
-                        # separate from the other tensors of its component.
-                        if n.has_binding() or node.has_binding():
-                            break
                         n.tensors.extend(
                             n2 for n2 in node.tensors if n2 not in n.tensors
                         )
@@ -971,6 +1016,40 @@ class MappingNodeWithChildren(MappingNode):
             new_nodes.append(node)
         self.nodes = EvalableList(new_nodes)
 
+    def _elevate_agreed_bindings_above_splits(self) -> None:
+        """
+        Hoist above each :class:`~.Split` the binding of every ``(memory, tensor)``
+        pair that more than one branch binds and that no branch binds differently.
+
+        A binding is per-Einsum, so branches that want their own layout of a tensor
+        keep it where it is. Branches that agree, though, are describing one layout of
+        one tensor: saying so once above the Split is shorter, and is the picture
+        saying that they agreed.
+        """
+        for node in self.nodes:
+            if isinstance(node, MappingNodeWithChildren):
+                node._elevate_agreed_bindings_above_splits()
+
+        new_nodes: list[MappingNode] = []
+        for node in self.nodes:
+            if isinstance(node, Split):
+                agreed = node._pop_agreed_bindings()
+                if agreed is not None:
+                    new_nodes.append(agreed)
+            new_nodes.append(node)
+        self.nodes = EvalableList(new_nodes)
+
+    def _drop_empty_binding_nodes(self) -> None:
+        """Remove :class:`~.Binding` nodes that bind nothing."""
+        new_nodes: list[MappingNode] = []
+        for node in self.nodes:
+            if isinstance(node, Binding) and not node.bindings:
+                continue
+            if isinstance(node, MappingNodeWithChildren):
+                node._drop_empty_binding_nodes()
+            new_nodes.append(node)
+        self.nodes = EvalableList(new_nodes)
+
     def _propagate_backing_reservations_between_splits(self) -> None:
         for node in self.nodes:
             if isinstance(node, MappingNodeWithChildren):
@@ -1007,12 +1086,17 @@ class MappingNodeWithChildren(MappingNode):
                             node3.nodes.insert(0, copy.deepcopy(s))
 
     def _move_tensor_holders_above_reservations(self) -> None:
+        # A Binding node rides between the two: it speaks for the TensorHolders above
+        # it, so it must stay below them, and reading it right after the Storage it
+        # binds -- rather than after that Storage's reservation -- is what a reader
+        # expects.
+        movable = (TensorHolder, Binding, Reservation)
         groups = []
         cur_group = []
         for node in self.nodes:
             if isinstance(node, MappingNodeWithChildren):
                 node._move_tensor_holders_above_reservations()
-            if not isinstance(node, (TensorHolder, Reservation)):
+            if not isinstance(node, movable):
                 groups.append(cur_group)
                 cur_group = []
             cur_group.append(node)
@@ -1020,8 +1104,9 @@ class MappingNodeWithChildren(MappingNode):
         groups = [g for g in groups if g]
 
         groups = [
-            [x for x in g if not isinstance(x, (TensorHolder, Reservation))]
+            [x for x in g if not isinstance(x, movable)]
             + [x for x in g if isinstance(x, (TensorHolder))]
+            + [x for x in g if isinstance(x, (Binding))]
             + [x for x in g if isinstance(x, (Reservation))]
             for g in groups
         ]
@@ -1053,6 +1138,46 @@ class Split(MappingNodeWithChildren):
             nodes.extend(n.get_nodes_of_type(TensorHolder))
             nodes.extend(n.get_nodes_of_type(Reservation))
         return [n for n in nodes if n.persistent]
+
+    def _pop_agreed_bindings(self) -> "Binding | None":
+        """
+        Take out of this Split's branches the binding of every ``(memory, tensor)``
+        pair that more than one branch binds and that no branch binds differently, and
+        return them as the one :class:`~.Binding` node that goes above this Split.
+        None if the branches agree on nothing.
+
+        A pair is taken out of *every* branch that binds it or out of none of them, so
+        that no pair is ever bound both above and below this Split.
+        """
+        BoundPair = tuple[str, TensorName]
+        per_branch: list[dict[BoundPair, tuple[Binding, EvalableList]]] = []
+        for branch in self.nodes:
+            entries = {}
+            for node in branch.get_nodes_of_type(Binding):
+                for component, tensor, loops in node.entries():
+                    entries[(component, tensor)] = (node, loops)
+            per_branch.append(entries)
+
+        agreed = Binding()
+        keys = oset(k for entries in per_branch for k in entries)
+        for component, tensor in keys:
+            holders = [
+                entries[(component, tensor)]
+                for entries in per_branch
+                if (component, tensor) in entries
+            ]
+            if len(holders) < 2:
+                continue
+            if len({_binding_str(loops) for _, loops in holders}) > 1:
+                continue
+            agreed.set_binding(component, tensor, holders[0][1])
+            for node, _ in holders:
+                node.remove_binding(component, tensor)
+
+        if not agreed.bindings:
+            return None
+        self._drop_empty_binding_nodes()
+        return agreed
 
     def _get_shared_tensor_holders(self) -> list[TensorHolder]:
         tensor_holders = [n.get_nodes_of_type(TensorHolder) for n in self.nodes]
@@ -1687,11 +1812,6 @@ class Reservation(MappingNode):
             return self.purposes[0]
         raise ValueError(f"Reservation has multiple purposes: {self.purposes}")
 
-    @property
-    def binding(self) -> EvalableList[Spatial]:
-        assert isinstance(self._tensor_holder, Storage)
-        return self._tensor_holder.binding
-
     def __eq__(self, other: "Reservation") -> bool:
         return (
             isinstance(other, Reservation)
@@ -1711,6 +1831,7 @@ MappingNodeTypes: TypeAlias = Union[
     Temporal,
     Spatial,
     Storage,
+    Binding,
     Pipeline,
     Sequential,
     Compute,
@@ -1783,6 +1904,12 @@ class Mapping(Nested):
                 node.tensors = [t for t in node.tensors if t in relevant_tensors]
                 if node.tensors:
                     new_nodes.append(node)
+            elif isinstance(node, Binding):
+                for component, tensor, _ in node.entries():
+                    if tensor not in relevant_tensors:
+                        node.remove_binding(component, tensor)
+                if node.bindings:
+                    new_nodes.append(node)
             elif isinstance(node, MappingNodeWithChildren):
                 node._clear_irrelevant_reservations(relevant_tensors)
                 new_nodes.append(node)
@@ -1799,9 +1926,7 @@ class Mapping(Nested):
         self.nodes = new_nodes
 
     def _clear_bindings(self):
-        for node in self.nodes:
-            if isinstance(node, Storage):
-                node.binding = EvalableList()
+        self.clear_nodes_of_type(Binding)
 
     def _split_tensor_holders_with_multiple_tensors(self):
         new_nodes = []
@@ -2020,6 +2145,7 @@ class Mapping(Nested):
         # source.
         if not _for_model:
             mapping._elevate_tensor_holders_above_splits()
+        mapping._elevate_agreed_bindings_above_splits()
         mapping._propagate_backing_reservations_between_splits()
         mapping._consolidate_tensor_holders()
         mapping._consolidate_reservations()

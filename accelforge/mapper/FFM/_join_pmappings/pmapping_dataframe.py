@@ -9,10 +9,7 @@ import sympy
 
 from accelforge.frontend.mapping import Nested, TilePattern
 from accelforge.frontend.mapping import Loop as MappingLoop
-from accelforge.mapper.FFM._join_pmappings.binding_adapter import (
-    BindingAdaptation,
-    charge_adaptations,
-)
+from accelforge.mapper.FFM._join_pmappings.binding_adapter import BindingAdapter
 from accelforge.mapper.FFM._join_pmappings.compatibility import (
     Compatibility,
     Loop,
@@ -387,7 +384,6 @@ class PmappingDataframe:
         compatibility_joined: Compatibility,
         ignored_resources: set[str],
         do_not_free: set[str] = fzs(),
-        binding_adaptations: Iterable[BindingAdaptation] = (),
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
         _is_invalid: bool = False,
@@ -494,13 +490,6 @@ class PmappingDataframe:
             df = pd.merge(sd, rd, how="cross", suffixes=["", "_RIGHT_MERGE"])
 
         df = reduce_precision(df)
-
-        # The two sides disagreed about how some shared tensor is laid out across the
-        # physical instances of the memory holding it, so the data has to be moved from
-        # the left side's binding into the right side's before the right side can read
-        # it. Charged here, while both sides' occupancies of the tensor and both sides'
-        # loop trip counts are still in hand.
-        charge_adaptations(df, binding_adaptations)
 
         # Drop all fused loop columns that are not used anymore
         remaining_symbols = compatibility_joined.symbols()
@@ -685,7 +674,6 @@ class PmappingDataframe:
                 # Passed by keyword: `do_not_free` is the next positional parameter,
                 # and this used to hand it the row filter by mistake.
                 do_not_free=do_not_free,
-                binding_adaptations=binding_adaptations,
                 _pmapping_row_filter_function=_pmapping_row_filter_function,
                 _force_allow_invalid_only_for_runtime_test=False,
             )
@@ -798,6 +786,27 @@ class PmappingDataframe:
             drop_valid_reservations=next(iter(paretos)).drop_valid_reservations,
         )
         return p
+
+    def merge_adapter(self, adapter: BindingAdapter) -> "PmappingDataframe":
+        """
+        These pmappings with `adapter` applied: what it costs to move the tensors it
+        rebinds is added to their objectives.
+
+        The pmappings themselves are untouched. An adapter moves data that is already
+        there from one set of the memory's instances to another, so it changes neither
+        what the mapping does nor how much of the memory it needs -- only what it cost
+        to leave the data where the next Einsum wants it. Pareto pruning afterwards is
+        what makes the extra bucket the adapter adds cheap to carry: the cost is not
+        the same for every row, so rows that were worth keeping before it may not be
+        worth keeping after.
+        """
+        adapted = self.copy()
+        # `copy` does not carry it, and how much of a resource a dirty round is willing
+        # to overshoot by is a property of the round, not of one set of pmappings.
+        adapted.excess_resource_tolerance = self.excess_resource_tolerance
+        adapter.charge(adapted.data)
+        adapted.make_pareto()
+        return adapted
 
     def update(
         self,

@@ -76,11 +76,12 @@ class BindingCostTestCase(TestCase):
         # rewritten. `evaluate_mapping` keeps a binding that is already there.
         mapping = result.mapping(0)
         rebound = False
-        for storage, _ in iter_binding_blocks(mapping.nodes):
-            if storage.component != "DistributedBuffer":
+        for block in iter_binding_blocks(mapping.nodes):
+            if block.component != "DistributedBuffer":
                 continue
-            self.assertEqual(len(storage.binding), len(binding))
-            for loop, rank in zip(storage.binding, binding):
+            bound = block.binding
+            self.assertEqual(len(bound), len(binding))
+            for loop, rank in zip(bound, binding):
                 loop.rank_variable = rank
             rebound = True
         self.assertTrue(rebound, "the fixture lost its distributed storage")
@@ -91,9 +92,9 @@ class BindingCostTestCase(TestCase):
 
     def default_binding(self):
         mapping = self._spec().evaluate_mapping().mapping(0)
-        for storage, _ in iter_binding_blocks(mapping.nodes):
-            if storage.component == "DistributedBuffer":
-                return [loop.rank_variable for loop in storage.binding]
+        for block in iter_binding_blocks(mapping.nodes):
+            if block.component == "DistributedBuffer":
+                return [loop.rank_variable for loop in block.binding]
         self.fail("the fixture lost its distributed storage")
 
 

@@ -27,6 +27,7 @@ from accelforge.frontend.arch import (
 )
 from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend.mapping.mapping import (
+    Binding,
     Mapping,
     Temporal,
     Spatial,
@@ -349,13 +350,16 @@ class TestMappingRender(unittest.TestCase):
 
         return Mapping(
             nodes=[
-                Storage(
-                    tensors=["A"],
-                    component="Buf",
-                    binding=[
-                        binding_loop("X", "M"),
-                        binding_loop("Y", RANK_DUPLICATE),
-                    ],
+                Storage(tensors=["A"], component="Buf"),
+                Binding(
+                    bindings={
+                        "Buf": {
+                            "A": [
+                                binding_loop("X", "M"),
+                                binding_loop("Y", RANK_DUPLICATE),
+                            ]
+                        }
+                    }
                 ),
                 Spatial(rank_variable="m", name="X", component="Array", tile_shape=1),
                 Spatial(rank_variable="n", name="Y", component="Array", tile_shape=1),
@@ -368,17 +372,24 @@ class TestMappingRender(unittest.TestCase):
         (node,) = graph.get_node(storage._render_node_name())
         return node.get_label()
 
+    def _binding_label(self, mapping, graph):
+        binding = mapping.nodes[1]
+        (node,) = graph.get_node(binding._render_node_name())
+        return node.get_label()
+
     def test_render_shows_binding(self):
         mapping = self._make_bound_mapping()
-        label = self._storage_label(mapping, mapping.render_pydot())
-        self.assertIn("bind X:M, Y:*", label)
+        label = self._binding_label(mapping, mapping.render_pydot())
+        self.assertIn("bind A in Buf to X:M, Y:*", label)
 
-    def test_render_binding_adds_no_rows_to_the_storage_node(self):
-        # Compactness: the binding rides along in the row the Storage already has,
-        # so it costs the node no extra height.
+    def test_render_binding_is_a_node_of_its_own(self):
+        # A binding is per-Einsum where the Storage above it is not, so it is drawn as
+        # its own node and the Storage's own label says nothing about it.
         mapping = self._make_bound_mapping()
-        label = self._storage_label(mapping, mapping.render_pydot())
-        self.assertEqual(label.count("<TR>"), 1)
+        graph = mapping.render_pydot()
+        storage_label = self._storage_label(mapping, graph)
+        self.assertEqual(storage_label.count("<TR>"), 1)
+        self.assertNotIn("bind", storage_label)
 
     def test_render_omits_binding_when_there_is_none(self):
         mapping = self._make_mapping()
@@ -387,15 +398,15 @@ class TestMappingRender(unittest.TestCase):
 
     def test_render_binding_reaches_the_svg(self):
         svg = str(self._make_bound_mapping().render())
-        self.assertIn("bind X:M, Y:*", svg)
+        self.assertIn("X:M, Y:*", svg)
 
     def test_binding_in_compact_str(self):
         mapping = self._make_bound_mapping()
-        self.assertEqual(mapping.nodes[0].compact_str(), "[A in Buf]-bind[X:M, Y:*]")
+        self.assertEqual(mapping.nodes[1].compact_str(), "bind[Buf.A[X:M, Y:*]]")
 
     def test_binding_in_str(self):
         mapping = self._make_bound_mapping()
-        self.assertEqual(str(mapping.nodes[0]), "Buf reuses A (bind X:M, Y:*)")
+        self.assertEqual(str(mapping.nodes[1]), "bind A in Buf to X:M, Y:*")
 
     def test_render_nested_mapping(self):
         mapping = Mapping(

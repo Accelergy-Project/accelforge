@@ -22,6 +22,7 @@ from accelforge.frontend.mapping import (
     Storage,
     TensorHolder,
     Temporal,
+    BindingBlock,
     iter_binding_blocks,
 )
 from accelforge.frontend.arch.binding_constraints import BindingConstraints
@@ -450,26 +451,24 @@ def _tensor_ranks(tensor: TensorName, job: Job) -> list[Rank]:
     return list(job.einsum.tensor_accesses[tensor].ranks)
 
 
-def default_binding_ranks(
-    storage: Storage, spatials: list[Spatial], job: Job
-) -> list[Rank] | None:
+def default_binding_ranks(block: BindingBlock, job: Job) -> list[Rank] | None:
     """
-    The locally-optimal binding of `storage`'s tensor to the spatial loops `spatials`:
-    partition the tensor along the rank that each spatial loop's rank variable projects
-    into, and replicate it (RANK_DUPLICATE) if the loop's rank variable does not index
-    the tensor.
+    The locally-optimal binding of `block`'s tensor to its spatial loops: partition the
+    tensor along the rank that each spatial loop's rank variable projects into, and
+    replicate it (RANK_DUPLICATE) if the loop's rank variable does not index the tensor.
 
-    The binding constraints in force for `storage` may forbid that rank for some loop.
+    The binding constraints in force for `block` may forbid that rank for some loop.
     Such a loop instead takes the first rank the constraints do allow it, preferring one
     that no other loop of this binding already partitions -- which spreads the tensor
     over the spatial dimensions rather than piling it onto one rank. The result is a
     valid, deterministic binding rather than a provably optimal one, and it is the
     binding that `max_binding_rank_changes` counts changes against.
 
-    Returns None if no binding of `storage` satisfies the constraints.
+    Returns None if no binding of `block` satisfies the constraints.
     """
-    tensor = storage.tensor
-    constraints = binding_constraints_for(job, storage.component)
+    tensor = block.tensor
+    spatials = block.spatials
+    constraints = binding_constraints_for(job, block.component)
     irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
     rank_variable2ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks
     tensor_ranks = _tensor_ranks(tensor, job)
@@ -524,31 +523,31 @@ def _binding_rank_classes(
 
 
 def binding_rank_options(
-    storage: Storage, spatials: list[Spatial], job: Job
+    block: BindingBlock, job: Job
 ) -> list[list[tuple[Rank, ...]]] | None:
     """
-    The classes of ranks that each binding loop of `storage`'s tensor may take. A
+    The classes of ranks that each binding loop of `block`'s tensor may take. A
     binding loop may partition the tensor along any of the tensor's ranks, or replicate
-    it (RANK_DUPLICATE), except as the binding constraints in force for `storage`
+    it (RANK_DUPLICATE), except as the binding constraints in force for `block`
     restrict it; `_binding_rank_classes` collects the ones that model alike, so a loop
     offers one option per class rather than one per rank. The default choice (see
     `default_binding_ranks`) is the first class of each loop, so the first combination
     of the options is the default binding.
 
-    Returns None if no binding of `storage` satisfies the constraints.
+    Returns None if no binding of `block` satisfies the constraints.
     """
-    tensor = storage.tensor
-    constraints = binding_constraints_for(job, storage.component)
+    tensor = block.tensor
+    constraints = binding_constraints_for(job, block.component)
     tensor_ranks = _tensor_ranks(tensor, job)
 
-    default = default_binding_ranks(storage, spatials, job)
+    default = default_binding_ranks(block, job)
     if default is None:
         return None
     return [
         _binding_rank_classes(
             constraints.allowed_ranks(tensor, loop.name, tensor_ranks), d
         )
-        for loop, d in zip(spatials, default)
+        for loop, d in zip(block.spatials, default)
     ]
 
 
@@ -576,19 +575,19 @@ def binding_rank_aliases(
     """
     aliases: dict[tuple[TensorName, str, int], tuple[Rank, ...]] = {}
     seen: set[tuple[TensorName, str]] = set()
-    for (storage, spatials), block in zip(iter_binding_blocks(mapping.nodes), choice):
-        for i, (loop, ranks) in enumerate(zip(spatials, block)):
+    for block, classes in zip(iter_binding_blocks(mapping.nodes), choice):
+        for i, (loop, ranks) in enumerate(zip(block.spatials, classes)):
             if len(ranks) > 1:
                 # A tensor held twice in one memory would make (tensor, memory, index)
                 # name two loops at once. Nothing downstream could tell them apart, so
                 # say so here rather than expand one loop's ranks onto the other's.
-                assert (storage.tensor, storage.component) not in seen, (
-                    f"{storage.tensor} is held more than once in "
-                    f"{storage.component}, so its binding loops cannot be named "
+                assert (block.tensor, block.component) not in seen, (
+                    f"{block.tensor} is held more than once in "
+                    f"{block.component}, so its binding loops cannot be named "
                     f"by (tensor, memory, index)."
                 )
-                aliases[(storage.tensor, storage.component, i)] = tuple(ranks)
-        seen.add((storage.tensor, storage.component))
+                aliases[(block.tensor, block.component, i)] = tuple(ranks)
+        seen.add((block.tensor, block.component))
     return aliases
 
 
@@ -613,8 +612,8 @@ def iter_binding_choices(
     caller must drop the template: there is no binding it could be modeled with.
     """
     blocks = iter_binding_blocks(mapping.nodes)
-    block_lengths = [len(spatials) for _, spatials in blocks]
-    constraints = [binding_constraints_for(job, s.component) for s, _ in blocks]
+    block_lengths = [len(b.spatials) for b in blocks]
+    constraints = [binding_constraints_for(job, b.component) for b in blocks]
 
     def split(flat: list[Rank]) -> list[list[Rank]]:
         """Re-split one flat list of per-loop ranks into per-block ranks."""
@@ -625,9 +624,7 @@ def iter_binding_choices(
         return out
 
     # One list of candidate rank classes per binding loop, the default class first.
-    per_block = [
-        binding_rank_options(storage, spatials, job) for storage, spatials in blocks
-    ]
+    per_block = [binding_rank_options(b, job) for b in blocks]
     if any(o is None for o in per_block):
         return
     options: list[list[Rank]] = list(itertools.chain(*per_block))
@@ -650,7 +647,7 @@ def iter_binding_choices(
     shared = job.fusable_tensors or set()
 
     def explorable_tensor(block: int) -> bool:
-        tensor = blocks[block][0].tensor
+        tensor = blocks[block].tensor
         return tensor in shared and constraints[block].may_explore(tensor)
 
     explorable = [
@@ -682,33 +679,31 @@ def iter_binding_choices(
                 yield split(choice)
 
 
-def _set_binding(storage: Storage, spatials: list[Spatial], ranks: list[Rank]) -> None:
-    """Give `storage` a binding that names `ranks`, one per loop of `spatials`."""
-    assert len(ranks) == len(spatials), (
-        f"Binding of {storage.tensor} in {storage.component} has {len(ranks)} loops, "
-        f"but the storage is bound by {len(spatials)} spatial loops."
+def _set_binding(block: BindingBlock, ranks: list[Rank]) -> None:
+    """Give `block` a binding that names `ranks`, one per loop of its spatial loops."""
+    assert len(ranks) == len(block.spatials), (
+        f"Binding of {block.tensor} in {block.component} has {len(ranks)} loops, "
+        f"but the storage is bound by {len(block.spatials)} spatial loops."
     )
     binding = EvalableList()
-    for loop, rank in zip(spatials, ranks):
+    for loop, rank in zip(block.spatials, ranks):
         binding_spatial = loop.model_copy()
         binding_spatial.rank_variable = rank
         binding_spatial.tile_shape = None
         binding_spatial.initial_tile_shape = None
         binding.append(binding_spatial)
-    storage.binding = binding
+    block.set_binding(binding)
 
 
-def _default_binding_ranks_or_raise(
-    storage: Storage, spatials: list[Spatial], job: Job
-) -> list[Rank]:
-    ranks = default_binding_ranks(storage, spatials, job)
+def _default_binding_ranks_or_raise(block: BindingBlock, job: Job) -> list[Rank]:
+    ranks = default_binding_ranks(block, job)
     if ranks is None:
         raise ValueError(
-            f"No binding of {storage.tensor} in {storage.component} satisfies "
-            f"{storage.component}.binding. The memory is bound by "
-            f"{len(spatials)} spatial loops "
-            f"({', '.join(l.name for l in spatials)}) and the tensor has ranks "
-            f"{_tensor_ranks(storage.tensor, job)}."
+            f"No binding of {block.tensor} in {block.component} satisfies "
+            f"{block.component}.binding. The memory is bound by "
+            f"{len(block.spatials)} spatial loops "
+            f"({', '.join(l.name for l in block.spatials)}) and the tensor has ranks "
+            f"{_tensor_ranks(block.tensor, job)}."
         )
     return ranks
 
@@ -717,17 +712,27 @@ def apply_binding(
     mapping: Mapping, job: Job, ranks: list[list[Rank]] | None
 ) -> None:
     """
-    Sets binding in storage nodes in the mapping to `ranks`, which is specified
-    in the same order as `iter_binding_blocks` would return. If `ranks` is None, the
-    default binding of each storage is used.
+    Sets the binding of every physically-distributed (memory, tensor) pair of the
+    mapping to `ranks`, which is specified in the same order as `iter_binding_blocks`
+    would return, in the mapping's :class:`~.Binding` nodes. If `ranks` is None, the
+    default binding of each pair is used.
     """
-    for i, (storage, spatials) in enumerate(iter_binding_blocks(mapping.nodes)):
+    blocks = iter_binding_blocks(mapping.nodes)
+    # A Binding node is keyed by (memory, tensor), so a mapping that held one tensor
+    # twice in one memory could not say two things about it. Nothing downstream builds
+    # such a mapping; say so here rather than let the second binding overwrite the
+    # first.
+    keys = [block.key for block in blocks]
+    assert len(set(keys)) == len(keys), (
+        f"A tensor is held more than once in one physically-distributed memory "
+        f"({[k for k in keys if keys.count(k) > 1]}), so its two bindings cannot both "
+        f"be written down."
+    )
+    for i, block in enumerate(blocks):
         block_ranks = (
-            _default_binding_ranks_or_raise(storage, spatials, job)
-            if ranks is None
-            else ranks[i]
+            _default_binding_ranks_or_raise(block, job) if ranks is None else ranks[i]
         )
-        _set_binding(storage, spatials, block_ranks)
+        _set_binding(block, block_ranks)
 
 
 def apply_default_binding_if_unspecified(mapping: Mapping, job: Job) -> None:
@@ -742,26 +747,27 @@ def apply_default_binding_if_unspecified(mapping: Mapping, job: Job) -> None:
     that does not have a loop per spatial loop is left alone, since there is no telling
     which of its loops pairs with which.
     """
-    for storage, spatials in iter_binding_blocks(mapping.nodes):
-        if len(storage.binding) == 0:
-            ranks = _default_binding_ranks_or_raise(storage, spatials, job)
-        elif len(storage.binding) == len(spatials):
-            named = [loop.name for loop in storage.binding if loop.name is not None]
-            expected = [loop.name for loop in spatials]
+    for block in iter_binding_blocks(mapping.nodes):
+        binding = block.binding
+        if len(binding) == 0:
+            ranks = _default_binding_ranks_or_raise(block, job)
+        elif len(binding) == len(block.spatials):
+            named = [loop.name for loop in binding if loop.name is not None]
+            expected = [loop.name for loop in block.spatials]
             if named and named != expected:
                 raise ValueError(
-                    f"The binding of {storage.tensor} in {storage.component} binds "
+                    f"The binding of {block.tensor} in {block.component} binds "
                     f"dimensions {named}, but the spatial loops below it are over "
                     f"{expected}. A binding is positional: its i-th loop pairs with "
                     f"the i-th spatial loop below its Storage."
                 )
-            ranks = [loop.rank_variable for loop in storage.binding]
+            ranks = [loop.rank_variable for loop in binding]
         else:
             # A mapping still being built can have a binding that has not caught up
             # with its spatial loops; `validate_binding` leaves that alone too, and
             # `_beautify_loops` is what brings the two back into step.
             continue
-        _set_binding(storage, spatials, ranks)
+        _set_binding(block, ranks)
 
 
 def validate_binding(mapping: Mapping, job: Job) -> None:
@@ -771,20 +777,21 @@ def validate_binding(mapping: Mapping, job: Job) -> None:
     is evaluated under cannot silently disagree.
     """
     problems: list[str] = []
-    for storage, spatials in iter_binding_blocks(mapping.nodes):
+    for block in iter_binding_blocks(mapping.nodes):
+        binding = block.binding
         # A binding may have fewer loops than the storage has spatial loops if the
         # mapping has not been given one yet; `_beautify_loops` keeps the two in step.
-        if len(storage.binding) != len(spatials):
+        if len(binding) != len(block.spatials):
             continue
-        constraints = binding_constraints_for(job, storage.component)
+        constraints = binding_constraints_for(job, block.component)
         for problem in constraints.violations(
-            storage.tensor,
-            [loop.name for loop in storage.binding],
-            [loop.rank_variable for loop in storage.binding],
-            _tensor_ranks(storage.tensor, job),
+            block.tensor,
+            [loop.name for loop in binding],
+            [loop.rank_variable for loop in binding],
+            _tensor_ranks(block.tensor, job),
         ):
             problems.append(
-                f"The binding of {storage.tensor} in {storage.component} is invalid: "
+                f"The binding of {block.tensor} in {block.component} is invalid: "
                 f"{problem}."
             )
     if problems:
@@ -798,8 +805,8 @@ def _copy_mapping(mapping: Mapping) -> Mapping:
     """
     A copy of `mapping` whose nodes may be given a different binding without affecting
     `mapping`. The nodes themselves are shallow copies, matching how templates are built
-    in `iterate_mappings_constraints`; `apply_binding` replaces the binding list of each
-    Storage node rather than mutating it, so the copies do not share bindings.
+    in `iterate_mappings_constraints`; `apply_binding` puts each binding in a Binding
+    node of the copy's own node list, so the copies do not share bindings.
     """
     new = Mapping(nodes=[copy.copy(n) for n in mapping.nodes])
     new._n_loop_orders = mapping._n_loop_orders

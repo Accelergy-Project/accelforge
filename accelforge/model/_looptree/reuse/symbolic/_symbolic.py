@@ -417,7 +417,7 @@ def insert_reservation_nodes(
     while i < n_nodes:
         node = mapping[i]
         to_remove = []
-        if isinstance(node, Reservation):
+        if isinstance(node, (Reservation, mapping_spec.Binding)):
             pass
         elif isinstance(node, Temporal):
             rank = node.rank_variable
@@ -524,10 +524,10 @@ def label_shared_tensor_binding_loops(
     # (e.g., reuse-only fanouts) sit in the same region of the mapping but do not
     # distribute the tensor, and Compatibility.from_mapping does not carry them. If we
     # labeled them, they would get n_iterations columns that nothing renames.
-    for storage, spatials in iter_binding_blocks(mapping):
-        if not (storage._backing & fusable_tensors):
+    for block in iter_binding_blocks(mapping):
+        if block.tensor not in (block.storage._backing & fusable_tensors):
             continue
-        for spatial in spatials:
+        for spatial in block.spatials:
             spatial._shared_tensor_binding = True
 
     return mapping
@@ -542,10 +542,23 @@ def analyze_node(node_idx, current_shape, info: AnalysisInfo) -> SymbolicAnalysi
         Reservation: analyze_reservation,
         mapping_spec.Compute: analyze_compute,
         Toll: analyze_toll,
+        mapping_spec.Binding: analyze_binding,
     }
     if type(node) not in class2analysis_function:
         raise TypeError(f"Unknown node type {type(node)}")
     return class2analysis_function[type(node)](node_idx, current_shape, info)
+
+
+def analyze_binding(
+    node_idx, current_shape, info: AnalysisInfo
+) -> SymbolicAnalysisOutput:
+    """
+    A :class:`~accelforge.frontend.mapping.Binding` node says how the memories above it
+    spread their tensors over their instances, which
+    :func:`~._binding.index_bindings` has already read off the whole mapping. It holds
+    no data and runs no iterations of its own, so the analysis walks straight through.
+    """
+    return analyze_node(node_idx + 1, current_shape, info)
 
 
 def analyze_temporal(
@@ -579,10 +592,13 @@ def analyze_temporal(
             )
             accumulated_stats += stats.repeat_temporal(shape_repeats, is_fully_relevant)
 
+        # One call per distinct tile shape of this loop, and the shapes run one
+        # after another, so these accumulate rather than replace each other.
         for network, network_stats in child_result.network_stats.items():
-            result_accumulator.network_stats[network] = network_stats.repeat(
-                shape_repeats
+            accumulated = result_accumulator.network_stats.setdefault(
+                network, NetworkStats()
             )
+            accumulated.accumulate_in_series(network_stats.repeat(shape_repeats))
 
         for einsum, child_steps in child_result.temporal_steps.items():
             if einsum not in result_accumulator.temporal_steps:
@@ -900,6 +916,9 @@ def analyze_storage(
         # ==========================
         # Recalculate usage of distributed buffers
         stats.max_occupancy /= n_units_holding_the_tile
+        # TODO: This feels rather hacky, should maybe come from network instead
+        stats.max_per_unit_read_actions /= n_units_holding_the_tile
+        stats.max_per_unit_write_actions /= n_units_holding_the_tile
 
         # ==========================
         # Data exchanges with parent
@@ -1171,12 +1190,13 @@ def insert_sympy_symbols(mapping: list[MappingNode], job: Job):
     # have different shapes. So, the tile shape of a binding loop is left unset;
     # it is implied by the shape of the bound rank (at this # storage) and the
     # iteration count.
-    for storage, spatials in iter_binding_blocks(mapping):
-        assert len(storage.binding) == len(spatials), (
-            f"Binding of {storage.compact_str()} has {len(storage.binding)} loops, but "
-            f"found only {len(spatials)} spatial loops."
+    for block in iter_binding_blocks(mapping):
+        binding = block.binding
+        assert len(binding) == len(block.spatials), (
+            f"Binding of {block.tensor} in {block.component} has {len(binding)} loops, "
+            f"but found only {len(block.spatials)} spatial loops."
         )
-        for binding_loop, node in zip(storage.binding, spatials):
+        for binding_loop, node in zip(binding, block.spatials):
             binding_loop.initial_tile_shape = None
             binding_loop.tile_shape = None
             binding_loop.calculated_n_iterations = node.calculated_n_iterations

@@ -4,6 +4,7 @@ from typing import Any, override
 
 from accelforge.frontend.mapping import Spatial
 from accelforge.frontend.arch.components import TopologySpec
+from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend._workload_isl._symbolic import (
     compute_dense_tile_occupancy,
     Irrelevant,
@@ -174,20 +175,24 @@ class TopologyModel(ABC):
     @abstractmethod
     def per_loop_transfer_cost(
         self,
-        relevancy,
-        *,
+        src_bound_rank,
+        dst_relevancy,
         shape_repeats,
         last_fanout,
         volume,
         src_component,
         dim_name: str,
-        data_is_local: bool = True,
+        is_reduced_output: bool = False,
     ) -> PerLoopTransferCost:
         """Return the :class:`PerLoopTransferCost` for moving ``volume`` of data across one
         spatial loop.
 
         Args:
-            relevancy: The relevancy of the spatial loop's rank variable to the
+            src_bound_rank: The rank the mapping's binding partitions the source
+                along for this loop, ``RANK_DUPLICATE`` where it replicates the
+                tensor instead, or None where the source is not distributed (see
+                :mod:`._binding`).
+            dst_relevancy: The relevancy of the spatial loop's rank variable to the
                 tensor (``Irrelevant``, ``Relevant``, or ``PartiallyRelevant``).
             shape_repeats: The number of iterations of this spatial loop.
             last_fanout: The fanout in this dimension among mapping nodes below
@@ -196,13 +201,8 @@ class TopologyModel(ABC):
             src_component: The flattened-arch component sourcing the data, used
                 to query physical fanout/stride.
             dim_name: The name of the spatial dimension (e.g., ``X`` or ``Y``).
-            data_is_local: Whether the source instance nearest a destination is
-                the one holding what that destination asks for, which is what the
-                locally-optimal binding buys (see :mod:`._binding`). When False,
-                the mapping binds the tensor along some other rank, so each
-                destination's data is spread in equal parts over every instance
-                and has to be delivered from all of them. Only meaningful when
-                the source is physically distributed along ``dim_name``.
+            is_reduced_output: Whether the tensor is an output that requires a
+                reduction.
         """
         raise NotImplementedError
 
@@ -223,6 +223,13 @@ class MeshTopologyModel(TopologyModel):
     destinations and the instances share a spacing. Where they do not, the
     scattered ones thin one evenly-spaced grid onto the other and under-count by
     a few percent at the boundary; see ``TestMeshAgainstBruteForce``.
+
+    TODO: this model does not yet distinguish an output the einsum accumulates
+    into, so a spatial reduction is charged as though it were the broadcast of an
+    input -- which, under a replicating binding, is free. See
+    :meth:`AllToAllTopologyModel._spatial_reduction` for the shape of the fix: the
+    reduce runs the multicast the other way for the same hop count, and a
+    replicated binding needs the result carried back out again.
     """
 
     def per_loop_transfer_cost(
@@ -234,6 +241,7 @@ class MeshTopologyModel(TopologyModel):
         volume,
         src_component,
         dim_name,
+        is_reduced_output: bool = False,
     ) -> PerLoopTransferCost:
         layout = physical_layout(src_component, dim_name, shape_repeats, last_fanout)
         data_is_local = binding_is_local(src_bound_rank, dst_relevancy)
@@ -369,17 +377,7 @@ class AllToAllTopologyModel(TopologyModel):
     """Cost model for an all-to-all network using a switch (e.g. NVLink).
 
     Every node connects to every other node through a switch, so any
-    source reaches any destination in one hop regardless of distance. Distance
-    therefore never enters the cost, and neither does ``last_fanout`` except to
-    work out which instance of the source a destination sits with.
-
-    What does matter is how much of what a destination asks for it can read
-    without touching the switch at all. Every unit that has to cross costs one
-    traversal, so the cost is simply the volume delivered minus the volume that
-    was already next door -- which is where the binding comes in: a locally-bound
-    source hands a co-located destination its whole tile, while a source
-    partitioned along another rank hands it only the one share of it that this
-    instance happens to hold.
+    source reaches any destination in one hop regardless of distance.
     """
 
     HOPS_PER_TRANSFER = 1
@@ -396,6 +394,7 @@ class AllToAllTopologyModel(TopologyModel):
         volume,
         src_component,
         dim_name,
+        is_reduced_output: bool = False,
     ) -> PerLoopTransferCost:
         hops = self.HOPS_PER_TRANSFER
         data_is_local = binding_is_local(src_bound_rank, dst_relevancy)
@@ -409,6 +408,11 @@ class AllToAllTopologyModel(TopologyModel):
         else:
             n_physical = layout.n_srcs
             n_dsts_per_physical = layout.n_dsts_per_src
+
+        if is_reduced_output and isinstance(dst_relevancy, Irrelevant):
+            return self._spatial_reduction(
+                src_bound_rank, shape_repeats, n_physical, volume, hops
+            )
 
         # One destination per instance sits with it, and reads whatever that
         # instance holds for it without going near the switch.
@@ -456,6 +460,30 @@ class AllToAllTopologyModel(TopologyModel):
 
         return PerLoopTransferCost(
             total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic
+        )
+
+    @staticmethod
+    def _spatial_reduction(src_bound_rank, shape_repeats, n_physical, volume, hops):
+        # One partial per destination, all but one of which has to move.
+        crossing = shape_repeats - 1
+        # 1 while anything crosses at all, 0 once the loop has a single iteration.
+        crosses_at_all = min_take_zero(crossing, 1)
+
+        # Implemented as reduce-scatter + all-gather
+        if src_bound_rank == RANK_DUPLICATE:
+            return PerLoopTransferCost(
+                total_cost=2 * crossing * hops * volume,
+                max_hops=2 * crosses_at_all * hops,
+                max_traffic=2 * crosses_at_all * volume,
+            )
+
+        # No replication, reduced at the destination
+        return PerLoopTransferCost(
+            total_cost=crossing * hops * volume,
+            max_hops=crosses_at_all * hops,
+            # n_physical is >= 1 by construction: SingularLayout reports one
+            # instance and DistributedLayout's ratio_geq_one floors at one.
+            max_traffic=crossing * volume / n_physical,
         )
 
 
@@ -546,6 +574,7 @@ class NetworkAnalyzer:
                 volume=volume,
                 src_component=src_component,
                 dim_name=self.node.name,
+                is_reduced_output=self._is_reduced_output(network),
             )
 
             overall_max_hops = topology_model.accumulate_max_hops(
@@ -560,16 +589,38 @@ class NetworkAnalyzer:
                 accumulated_network_stats.max_hops,
                 overall_max_hops + child_network_stats.max_hops,
             )
-            accumulated_network_stats.max_traffic[self.node.name] = max_nonzero(
-                accumulated_network_stats.max_traffic.get(self.node.name, 0),
+            # Traffic the child puts on the links of *other* dimensions crosses
+            # them once per instance of this loop, and the instances have links of
+            # their own, so it carries through unchanged. Only this dimension's
+            # own links also carry what this loop itself contributes.
+            own_dim = self.node.name
+            for dim, traffic in child_network_stats.max_traffic.items():
+                if dim == own_dim:
+                    continue
+                accumulated_network_stats.max_traffic[dim] = max_nonzero(
+                    accumulated_network_stats.max_traffic.get(dim, 0), traffic
+                )
+            accumulated_network_stats.max_traffic[own_dim] = max_nonzero(
+                accumulated_network_stats.max_traffic.get(own_dim, 0),
                 per_loop_transfer_cost.max_traffic
-                + child_network_stats.max_traffic.get(self.node.name, 0),
+                + child_network_stats.max_traffic.get(own_dim, 0),
             )
 
         overall_max_hops = {}
         for model in self.topology_models.values():
             overall_max_hops.update(model.overall_max_hops)
         return overall_max_hops
+
+    def _is_reduced_output(self, network) -> bool:
+        """Whether this network carries an output that the einsum accumulates
+        into. A spatial loop over a rank such a tensor does not project onto is
+        then a reduction, not a broadcast. A copy operation writes its output
+        without accumulating, so it never reduces."""
+        einsum = self.info.workload.einsums[self.einsum_name]
+        return (
+            network.tensor in einsum.output_tensor_names
+            and not self.info.is_copy_operation
+        )
 
     def _get_data_volume(self, network, child_shape):
         info = self.info

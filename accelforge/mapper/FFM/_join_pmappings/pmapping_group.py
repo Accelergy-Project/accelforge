@@ -4,7 +4,7 @@ from typing import Any, Callable, Iterable
 from accelforge._accelerated_imports import pandas as pd
 from joblib import delayed
 
-from accelforge.mapper.FFM._join_pmappings.binding_adapter import BindingAdaptation
+from accelforge.mapper.FFM._join_pmappings.binding_adapter import BindingAdapter
 from accelforge.mapper.FFM._join_pmappings.pmapping_dataframe import PmappingDataframe
 
 from accelforge.mapper.FFM._join_pmappings.compatibility import *
@@ -68,7 +68,6 @@ class PmappingGroup:
         ignored_resources: set[str],
         permuted_compatibility_left: Compatibility,
         permuted_compatibility_right: Compatibility,
-        binding_adaptations: Iterable[BindingAdaptation] = (),
         delay: bool = False,
         _pmapping_row_filter_function: Callable[[pd.Series], bool] | None = None,
         _force_allow_invalid_only_for_runtime_test: bool = False,
@@ -125,7 +124,6 @@ class PmappingGroup:
             compatibility_right=permuted_compatibility_right,
             compatibility_joined=compatibility_joined,
             do_not_free=do_not_free,
-            binding_adaptations=binding_adaptations,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
             ignored_resources=ignored_resources,
             _force_allow_invalid_only_for_runtime_test=_force_allow_invalid_only_for_runtime_test,
@@ -143,6 +141,21 @@ class PmappingGroup:
         s.tensors.update(self.tensors)
         s.n_pre_prune_mappings = len(self.mappings.data) * len(right.mappings.data)
         return s
+
+    def merge_adapter(self, adapter: BindingAdapter) -> "PmappingGroup":
+        """
+        This group joined with `adapter`: the tensors it rebinds are laid out the way
+        the adapter's target wants them, and what moving them cost has been charged.
+
+        The first half of joining ``A + adapter + B``, and a join in its own right --
+        two compatibilities in, one out, with the cost of putting them together added
+        to the pmappings. What comes out is the left side of an ordinary join with B,
+        which is why the joiner needs no notion of an adapter beyond this call.
+        """
+        return PmappingGroup(
+            adapter.adapt(self.compatibility),
+            self.mappings.merge_adapter(adapter),
+        )
 
     def get_shared_loop_index(self, live_tensors: set[str]) -> int:
         live_tensors = list(self.compatibility.tensor_names) + [live_tensors]

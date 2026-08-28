@@ -41,6 +41,38 @@ The cost is charged once per tile, i.e. once for every iteration of the fused lo
 above the tensor's reservation, since the producing side refills the buffer on each
 of them.
 
+An adapter as a step of the join
+--------------------------------
+
+Nothing about an adapter comes from the workload, so there are no pmappings of one to
+make ahead of time the way there are for an Einsum -- but the joiner treats it as
+though there were. Every adapter is built up front, by looking at the compatibilities
+of the two sides about to be joined and asking which bindings of the right side each
+group of the left side could be moved into; applying one to a group is a join like any
+other, giving a new group with a compatibility of its own and a cost added to its
+pmappings. Joining ``A + adapter + B`` is then joining ``A + adapter``, whose answer
+is A laid out the way B wants it, and joining *that* with B down the ordinary path,
+which finds the two sides agreeing about the binding and needs to know nothing about
+adapters at all.
+
+Building the adapters first is what makes them cheap. An adapter is applied once per
+group of the left side rather than once per pair of groups the joiner might try, and
+the result is shared by every one of those pairs. And within one adapter everything
+but the volume is settled before a single row is looked at: how far the data has to
+travel, what a hop costs, and the network's own latency expression all depend only on
+how many times each binding loop iterates, so rows that vary only in their tile
+shapes -- the overwhelming majority -- are charged by one vectorized expression.
+
+What an adaptation is charged for, and what it is not
+----------------------------------------------------
+
+The volume it moves is what one instance of the memory ends up holding once the data
+has been moved, which is the volume the network model is written in terms of. The
+adapter is applied to the left side alone, so it reads the left side's occupancy of
+the tensor and converts it: the two sides hold the very same tile above the very same
+fused loops, and differ only in how many instances share it. See
+:meth:`BindingAdaptation._rebinding_factor`.
+
 One thing an adaptation is *not* charged for: how much of the memory it needs. A
 binding decides how much of a tensor one instance holds -- a replicated one holds a
 whole copy where a partitioned one holds a share -- so the two sides of an adaptation
@@ -49,9 +81,11 @@ figure forward as it does for any shared tensor. The movement is charged; the
 occupancy is the left side's.
 """
 
+import itertools
 import logging
-from dataclasses import dataclass
-from typing import Any, Iterable
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Iterable, Mapping
 
 import sympy
 
@@ -67,16 +101,31 @@ from accelforge.mapper.FFM._join_pmappings.compatibility import (
     TensorReservation,
 )
 from accelforge.mapper.FFM._pareto_df.df_convention import add_to_col, tensor2col
+from accelforge.util import delayed, oset, parallel
 from accelforge.util._basetypes import EvalableList
 from accelforge.util._eval_expressions import eval_expression
-from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero, Min
+from accelforge.util._sympy.broadcast_max import Max, MaxGeqZero, Min, max_nonzero
 
 logger = logging.getLogger(__name__)
 
-RIGHT_MERGE_SUFFIX = "_RIGHT_MERGE"
-"""The suffix `PmappingDataframe.merge_next` gives the right side's copy of a column
-that both sides have. The right side's occupancy of the adapted tensor is what one
-instance ends up holding, so that is the column the volume comes from."""
+_HOP_MODEL: dict[tuple, tuple] = {}
+"""
+What one unit of volume of an adaptation costs, keyed by everything it depends on:
+the memory and the network the data moves over, the two bindings loop for loop, and
+how many times each of those loops iterates. Nothing else enters into it -- not the
+tile shapes, not the occupancies, not which Einsums are being joined -- so two
+adapters that move data the same way share an answer however far apart in the join
+they were made. Held here rather than per adapter for that reason, and rebuilt per
+process, since what it holds is a compiled expression.
+"""
+
+_TARGET_TOKENS = itertools.count()
+"""Hands each :class:`AdapterTarget` something to be keyed by in :data:`_HOP_MODEL`.
+Not the memory's name: two specs of one session may well name the same memory and
+give it a different network, or the same network a different energy. Not `id` either,
+which is reused as soon as a target is collected. A token travels with a target into
+a worker process, so the workers of one join share its entries and no two targets
+ever share an entry."""
 
 _VOLUME = sympy.Symbol("adapter_volume_per_destination")
 """Stands in for the per-destination volume while the network's `total_latency`
@@ -150,6 +199,8 @@ class AdapterTarget:
     """This memory's `BindingConstraints`, one per flattened arch that holds the
     memory. Each was evaluated against its own Einsum, so they may not agree, and a
     tensor is adaptable only if every Einsum that touches it says so."""
+    token: int = field(default_factory=lambda: next(_TARGET_TOKENS), repr=False)
+    """What :data:`_HOP_MODEL` keys this target by."""
 
     def allows(self, tensor: TensorName) -> bool:
         """
@@ -176,9 +227,10 @@ class BindingAdaptation:
     The rebinding of one tensor of one memory, from the binding the left side of a
     join leaves it in to the one the right side wants, and what that costs.
 
-    The hop counts are worked out once, from the architecture and the two bindings;
-    only the volume and the number of tiles vary from row to row, and both scale the
-    answer linearly.
+    The hop counts are worked out once, from the architecture and the two bindings,
+    and shared with every other adaptation that moves data the same way (see
+    :data:`_HOP_MODEL`); only the volume and the number of tiles vary from row to row,
+    and both scale the answer linearly.
     """
 
     def __init__(
@@ -199,9 +251,13 @@ class BindingAdaptation:
         """Columns whose product is how many times the tile is refilled, and so how
         many times the adaptation happens."""
         self._symbol_table = symbol_table
-        self._cache: dict[tuple, tuple] = {}
         self._iterations = self._iteration_terms()
         self._check_architecture()
+        if all(not isinstance(n, str) for n in self._iterations):
+            # Every binding loop says how many times it runs without having to look at
+            # a row, so the whole hop model is settled here and now and every row of
+            # every group this adapter is ever applied to is charged from it.
+            self._per_unit_volume(tuple(self._iterations))
 
     def __repr__(self):
         def binding(index):
@@ -221,15 +277,16 @@ class BindingAdaptation:
     def _iteration_terms(self) -> list[str | int | float]:
         """
         How many iterations each binding loop runs, as either a number or the name of
-        the column holding it. Taken from the right side, whose binding is the one the
-        data ends up in; the join equates the two sides' counts, so either would do.
+        the column holding it. Taken from the left side, which is the side the adapter
+        is charged against and so the only one whose columns are in hand; the join
+        equates the two sides' counts, so either would say the same thing.
         """
         terms = []
-        for _, right in self.loops:
-            n = right.tile_pattern.calculated_n_iterations
+        for left, _ in self.loops:
+            n = left.tile_pattern.calculated_n_iterations
             if n is None:
                 raise AdapterUnavailable(
-                    f"binding loop {right} of {self.tensor} does not say how many "
+                    f"binding loop {left} of {self.tensor} does not say how many "
                     f"times it iterates, so how far its data has to move is unknown"
                 )
             terms.append(n)
@@ -269,20 +326,21 @@ class BindingAdaptation:
             )
 
     def required_columns(self) -> list[str]:
-        """The columns of a joined dataframe that costing this adaptation reads."""
+        """The columns of the left side's pmappings that costing this adaptation
+        reads."""
         columns = [tensor2col(self.tensor), *self.tiles_columns]
         columns += [n for n in self._iterations if isinstance(n, str)]
         return columns
 
     def validate(self, available_columns) -> None:
         """
-        Raise :class:`AdapterUnavailable` unless every column this adaptation reads
-        will be there once the two sides are merged.
+        Raise :class:`AdapterUnavailable` unless every column this adaptation reads is
+        one the left side carries.
         """
         missing = [c for c in self.required_columns() if c not in available_columns]
         if missing:
             raise AdapterUnavailable(
-                f"the pmappings being joined do not carry {sorted(missing)}, so how "
+                f"the pmappings being adapted do not carry {sorted(missing)}, so how "
                 f"much of {self.tensor} has to move, and how far, is unknown"
             )
 
@@ -350,6 +408,48 @@ class BindingAdaptation:
             _as_number(link_traffic, "the busiest link of the adaptation"),
         )
 
+    def _replication(
+        self, side: int, iterations: tuple[int | float, ...]
+    ) -> dict[str, float]:
+        """
+        How many times over one side's binding replicates the tensor along each
+        spatial dimension: the product of the iteration counts of its binding loops
+        that bind no rank at all. The same quantity as
+        :func:`~accelforge.model._looptree.reuse.symbolic._symbolic.replicated_binding_iterations`,
+        which is what divided the occupancies this adapter reads.
+        """
+        replication: dict[str, float] = {}
+        for pair, n in zip(self.loops, iterations):
+            if pair[side].rank_name != RANK_DUPLICATE:
+                continue
+            dim = pair[1].spatial_dim
+            replication[dim] = replication.get(dim, 1) * n
+        return replication
+
+    def _rebinding_factor(self, iterations: tuple[int | float, ...]) -> float:
+        """
+        What the left side's occupancy of the tensor has to be multiplied by to give
+        what one instance holds once the data has been moved, which is the volume the
+        hop model is written in terms of.
+
+        Both sides hold the same tile of the same tensor below the same fused loops,
+        so their occupancies differ only in how many instances share it -- and that,
+        per :func:`~accelforge.model._looptree.reuse.symbolic._symbolic.analyze_storage`,
+        is the fanout below the memory divided by the greater of the memory's own
+        stride and how many times the binding replicates. The fanouts are the same on
+        both sides, since the join equates the binding loops' iteration counts, so
+        they cancel and only the replication is left.
+        """
+        left = self._replication(0, iterations)
+        right = self._replication(1, iterations)
+        factor = 1.0
+        for dim in {**left, **right}:
+            stride = self.target.memory._get_physical_stride_along(dim)
+            what = f"how many instances of {self.target.memory.name} share {self.tensor}"
+            factor *= _as_number(max_nonzero(right.get(dim, 1), stride), what)
+            factor /= _as_number(max_nonzero(left.get(dim, 1), stride), what)
+        return factor
+
     # =========================================================================
     # Turning hops into energy and latency
     # =========================================================================
@@ -403,40 +503,57 @@ class BindingAdaptation:
         )
 
     def _per_unit_volume(self, iterations: tuple[int | float, ...]):
-        """``(energy, latency_of_volume)`` for one adaptation of one unit of volume.
+        """
+        ``(energy, latency_of_volume, rebinding_factor)`` for one adaptation of one
+        unit of volume, where a unit is what one instance ends up holding.
+
         The latency is a callable of the volume, since a network may well be
-        bandwidth-bound in one row and latency-bound in the next."""
-        if iterations not in self._cache:
+        bandwidth-bound in one row and latency-bound in the next. The factor turns the
+        left side's occupancy into that unit; it belongs here because it, too, depends
+        on nothing but how many times each binding loop iterates.
+        """
+        key = self._key(iterations)
+        if key not in _HOP_MODEL:
             hops, max_hops, traffic = self._hops(iterations)
             latency = self._latency_expression(hops, max_hops, traffic)
-            self._cache[iterations] = (
+            _HOP_MODEL[key] = (
                 self._energy_per_unit_volume(hops),
                 # Not the mapper's `_lambdify_type_check`: that one insists on the
                 # single-precision the pmapping columns are stored in, and a volume in
                 # bits has more significant digits than that.
                 sympy.lambdify((_VOLUME,), latency, "numpy"),
+                self._rebinding_factor(iterations),
             )
-        return self._cache[iterations]
+        return _HOP_MODEL[key]
+
+    def _key(self, iterations: tuple[int | float, ...]) -> tuple:
+        """This adaptation's entry in :data:`_HOP_MODEL`."""
+        return (
+            self.target.token,
+            tuple(
+                (left.rank_name, right.rank_name, right.spatial_dim)
+                for left, right in self.loops
+            ),
+            iterations,
+        )
 
     # =========================================================================
-    # Charging a joined dataframe
+    # Charging a dataframe
     # =========================================================================
-    def _volume(self, df: pd.DataFrame):
+    def _occupancy(self, df: pd.DataFrame):
         """
-        The volume one destination ends up holding, in actions of the network. The
-        mapper carries a tensor's occupancy as a fraction of the memory it is backed
-        in, so the memory's size turns it back into bits, and the network's
-        ``bits_per_action`` turns bits into actions the way
+        What one instance of the memory holds of the tensor before the adaptation, in
+        actions of the network. The mapper carries a tensor's occupancy as a fraction
+        of the memory it is backed in, so the memory's size turns it back into bits,
+        and the network's ``bits_per_action`` turns bits into actions the way
         :meth:`~accelforge.model._looptree.reuse.symbolic._network.NetworkAnalyzer._get_data_volume`
         does.
         """
         column = tensor2col(self.tensor)
-        right = column + RIGHT_MERGE_SUFFIX
-        column = right if right in df.columns else column
         if column not in df.columns:
             raise AdapterUnavailable(
-                f"the joined pmappings do not carry the occupancy of {self.tensor}, "
-                f"so how much data has to move is unknown"
+                f"the pmappings being adapted do not carry the occupancy of "
+                f"{self.tensor}, so how much data has to move is unknown"
             )
         bits = df[column].astype(float) * self.target.size
         bits_per_action = self.target.network.bits_per_action
@@ -453,14 +570,15 @@ class BindingAdaptation:
 
     def cost(self, df: pd.DataFrame) -> tuple[Any, Any]:
         """
-        ``(energy, latency)`` of adapting this tensor, for every row of a joined
-        dataframe.
+        ``(energy, latency)`` of adapting this tensor, for every row of the left side's
+        pmappings.
 
         Rows are grouped by how many times each binding loop iterates, because that
         is what decides how far the data has to travel; within a group only the
-        volume differs, and the hop counts scale with it.
+        volume differs, and the hop counts scale with it. Rows that vary in nothing
+        but their tile shapes are therefore one group, charged by one expression.
         """
-        volume = self._volume(df)
+        occupancy = self._occupancy(df)
         tiles = self._tiles(df)
         energy = pd.Series(0.0, index=df.index)
         latency = pd.Series(0.0, index=df.index)
@@ -469,9 +587,12 @@ class BindingAdaptation:
         columns = [t for t in terms if isinstance(t, str)]
 
         def charge(rows, iterations: tuple):
-            per_volume_energy, latency_of_volume = self._per_unit_volume(iterations)
-            energy.loc[rows] = volume[rows] * tiles[rows] * per_volume_energy
-            latency.loc[rows] = tiles[rows] * latency_of_volume(volume[rows].to_numpy())
+            per_volume_energy, latency_of_volume, factor = self._per_unit_volume(
+                iterations
+            )
+            volume = occupancy[rows] * factor
+            energy.loc[rows] = volume * tiles[rows] * per_volume_energy
+            latency.loc[rows] = tiles[rows] * latency_of_volume(volume.to_numpy())
 
         if not columns:
             charge(df.index, tuple(terms))
@@ -496,7 +617,7 @@ def charge_adaptations(
     df: pd.DataFrame, adaptations: Iterable[BindingAdaptation]
 ) -> None:
     """
-    Add what `adaptations` cost to the objectives of a joined dataframe, in place.
+    Add what `adaptations` cost to the objectives of a dataframe, in place.
 
     Several tensors being re-laid-out at once are charged one after the other rather
     than at the same time, which is how the joiner treats the latency of two Einsums
@@ -518,6 +639,95 @@ def charge_adaptations(
             break
     if LATENCY_COLUMN in df.columns:
         add_to_col(df, LATENCY_COLUMN, latency)
+
+
+class BindingAdapter:
+    """
+    One step of a join: the left side of it, laid out the way one binding of the right
+    side wants it.
+
+    Built from the two sides' compatibilities alone, before any pmapping is looked at,
+    and then applied to each group of the left bucket it leads out of. Applying it is
+    itself a join -- a new group, with a compatibility of its own and a cost added to
+    its pmappings -- which is what lets the joiner go on to join the result with the
+    right side by the ordinary path, knowing nothing about adapters.
+    """
+
+    def __init__(
+        self,
+        source: Compatibility,
+        target: Compatibility,
+        adaptations: Iterable[BindingAdaptation],
+    ):
+        self.source = source
+        """The compatibility of the groups this adapter is applied to."""
+        self.target = target
+        """The compatibility whose binding it moves them into: a key of the right side
+        of the join, whose tile patterns the joiner has already cleared, so nothing but
+        its bindings may be read from it."""
+        self.adaptations: tuple[BindingAdaptation, ...] = tuple(adaptations)
+        """One per tensor the two sides disagree about, charged one after the other."""
+
+    def __repr__(self):
+        return f"BindingAdapter({', '.join(repr(a) for a in self.adaptations)})"
+
+    @property
+    def tensors(self) -> list[TensorName]:
+        return [a.tensor for a in self.adaptations]
+
+    def adapt(self, compatibility: Compatibility) -> Compatibility:
+        """
+        `compatibility`, bound the way this adapter leaves the data. From here on that
+        really is where the data is, so that is what the join carries forward.
+
+        Applies to the compatibility of a group as readily as to the permuted one the
+        adapter was built from: a binding loop is not one of the loops a permutation
+        moves.
+        """
+        return compatibility.update_binding_to_match(self.target)
+
+    def required_columns(self) -> list[str]:
+        return list(oset(c for a in self.adaptations for c in a.required_columns()))
+
+    def can_charge(self, available_columns: Iterable[str]) -> bool:
+        """
+        Whether a group carrying `available_columns` has enough in it to be charged
+        for this adapter. One that does not is left unadapted, which is the answer the
+        mapper gives with no adapter at all: these two do not fuse.
+        """
+        available_columns = oset(available_columns)
+        try:
+            for adaptation in self.adaptations:
+                adaptation.validate(available_columns)
+        except AdapterUnavailable as e:
+            logger.info(f"Cannot adapt a binding, so it will not be joined: {e}")
+            return False
+        return True
+
+    def charge(self, df: pd.DataFrame) -> None:
+        """
+        Add what this adapter costs to the objectives of `df`, in place.
+
+        Several tensors being re-laid-out at once are charged one after the other rather
+        than at the same time, which is how the joiner treats the latency of two Einsums
+        as well: it sums them.
+        """
+        adaptations = list(self.adaptations)
+        if not adaptations or df.empty:
+            return
+        energy = pd.Series(0.0, index=df.index)
+        latency = pd.Series(0.0, index=df.index)
+        for adaptation in adaptations:
+            adaptation_energy, adaptation_latency = adaptation.cost(df)
+            energy = energy + adaptation_energy
+            latency = latency + adaptation_latency
+
+        for column in ENERGY_COLUMNS:
+            if column in df.columns:
+                add_to_col(df, column, energy)
+                break
+        if LATENCY_COLUMN in df.columns:
+            add_to_col(df, LATENCY_COLUMN, latency)
 
 
 def flattened_arches_of(pmappings) -> list[FlattenedArch]:
@@ -542,9 +752,9 @@ class BindingAdapters:
     """
     Which rebindings the architecture allows, and what they cost.
 
-    Built once for a join from the flattened architectures the pmappings were
-    modeled against, then asked, for every pair of compatibilities the join
-    considers, whether their bindings can be adapted into one another.
+    Built once for a join from the flattened architectures the pmappings were modeled
+    against, then asked, at each step of the join, for every adapter that leads from a
+    bucket of the left side into a binding of the right.
     """
 
     def __init__(self, spec: Spec, flattened_arches: Iterable[FlattenedArch]):
@@ -595,11 +805,30 @@ class BindingAdapters:
     def __bool__(self) -> bool:
         return self.enabled
 
+    # =========================================================================
+    # One adapter
+    # =========================================================================
+    def adapter(
+        self, source: Compatibility, target: Compatibility
+    ) -> BindingAdapter | None:
+        """
+        The adapter that moves `source` into `target`'s binding, or None if it has no
+        work to do or cannot be built at all.
+
+        `source` is the compatibility of a group of the left side of a join, symbols
+        and all; `target` is a key of the right side, of which nothing but the
+        bindings is read.
+        """
+        adaptations = self.adaptations(source, target)
+        if not adaptations:
+            return None
+        return BindingAdapter(source, target, adaptations)
+
     def adaptations(
         self,
         left: Compatibility,
         right: Compatibility,
-        available_columns: Iterable[str] = (),
+        available_columns: Iterable[str] | None = None,
     ) -> list[BindingAdaptation] | None:
         """
         The adaptations that turn `left`'s bindings into `right`'s, or None if any
@@ -620,16 +849,18 @@ class BindingAdapters:
         self,
         left: Compatibility,
         right: Compatibility,
-        available_columns: Iterable[str],
+        available_columns: Iterable[str] | None,
     ) -> list[BindingAdaptation] | None:
         result = []
-        right_tensors = {t.name: t for t in right.tensors}
+        right_tensors = {(t.name, t.resource_name): t for t in right.tensors}
         for left_tensor in sorted(left.tensors):
-            right_tensor = right_tensors.get(left_tensor.name)
+            right_tensor = right_tensors.get(
+                (left_tensor.name, left_tensor.resource_name)
+            )
             if right_tensor is None:
                 # Nothing on the right binds it, so there is nothing to disagree with.
                 continue
-            if not left_tensor.binding_lines_up_with(right_tensor):
+            if not left_tensor.binding_spatial_dim_matches(right_tensor):
                 return None
             if not left_tensor.binding_differs_from(right_tensor):
                 continue
@@ -644,9 +875,82 @@ class BindingAdapters:
                 tiles_columns=_tiles_columns(left, left_tensor),
                 symbol_table=self._symbol_table,
             )
-            adaptation.validate(available_columns)
+            if available_columns is not None:
+                adaptation.validate(available_columns)
             result.append(adaptation)
         return result
+
+    # =========================================================================
+    # A whole step of the join
+    # =========================================================================
+    def adapt_buckets(
+        self,
+        left: dict[Compatibility, list],
+        right: Mapping[Compatibility, Any],
+        print_progress: bool = True,
+    ) -> dict[Compatibility, list]:
+        """
+        `left`, with a group added under every key of `right` that one of its groups
+        can be moved into.
+
+        The joiner pairs a left bucket with the right bucket of the same key and
+        nothing else, so this is all it takes for an adapted group to be joined: the
+        groups this adds are already the left side of an ordinary join, laid out the
+        way the right side wants and charged for having been moved. A group is
+        adapted, never replaced -- the binding it was modeled with may well be one
+        some other bucket of the right side wants as it is.
+        """
+        todo = self._make_adapters(left, right)
+        if not todo:
+            return left
+
+        n_adapters = len(oset(id(adapter) for adapter, _, _ in todo))
+        logger.info(
+            f"Made {n_adapters} binding adapter(s), between them taking {len(todo)} "
+            f"group(s) of the left side into a binding of the right"
+        )
+        adapted = parallel(
+            [delayed(group.merge_adapter)(adapter) for adapter, group, _ in todo],
+            pbar=f"Adapting bindings for {len(todo)} groups" if print_progress else None,
+        )
+        for (adapter, _, permutation), group in zip(todo, adapted):
+            left.setdefault(adapter.target, []).append((group, permutation))
+        return left
+
+    def _make_adapters(
+        self, left: Mapping[Compatibility, list], right: Mapping[Compatibility, Any]
+    ) -> list[tuple[BindingAdapter, Any, Any]]:
+        """
+        Every adapter the two sides call for, made from their compatibilities alone
+        before a single pmapping is looked at, paired with the group it is to be
+        applied to and that group's permutation.
+
+        Two buckets are adaptable into one another exactly when they are equal with
+        the bindings set aside, which is the only way to find the pairs: the joiner's
+        own bucket keys are what they agree and disagree on. Groups of one bucket that
+        describe the same thing share an adapter, since what an adapter costs is
+        settled by the compatibilities and the architecture.
+        """
+        by_binding: dict[Compatibility, list[Compatibility]] = defaultdict(list)
+        for key in right:
+            by_binding[key.clear_bound_ranks()].append(key)
+
+        made: dict[tuple[Compatibility, Compatibility], BindingAdapter | None] = {}
+        todo = []
+        for key, groups in left.items():
+            targets = [t for t in by_binding.get(key.clear_bound_ranks(), ()) if t != key]
+            for target in targets:
+                for group, permutation in groups:
+                    source = permutation.apply(group.compatibility)
+                    if (source, target) not in made:
+                        made[(source, target)] = self.adapter(source, target)
+                    adapter = made[(source, target)]
+                    if adapter is None:
+                        continue
+                    if not adapter.can_charge(group.mappings.data.columns):
+                        continue
+                    todo.append((adapter, group, permutation))
+        return todo
 
 
 def _tiles_columns(

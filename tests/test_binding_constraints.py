@@ -8,7 +8,7 @@ from pathlib import Path
 
 import accelforge as af
 from accelforge.frontend.arch import BindingConstraints
-from accelforge.frontend.mapping import Storage, binding_summary
+from accelforge.frontend.mapping import Binding, binding_summary
 from accelforge.frontend.renames import RANK_DUPLICATE
 from accelforge.frontend.spec import Spec
 from accelforge.mapper import Metrics
@@ -422,10 +422,10 @@ class TestBindingConstraintsEndToEnd(unittest.TestCase):
         bound = [
             node
             for node in mapping.nodes
-            if isinstance(node, Storage) and node.binding
+            if isinstance(node, Binding) and node.bindings
         ]
         self.assertTrue(bound, "The mapper returned a mapping with no binding.")
-        bound[0].binding[0].rank_variable = RANK_DUPLICATE
+        bound[0].entries()[0][2][0].rank_variable = RANK_DUPLICATE
 
         spec.arch[DISTRIBUTED_MEMORY].binding = BindingConstraints(
             may_duplicate="Nothing"
