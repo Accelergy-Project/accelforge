@@ -4,12 +4,12 @@ locally-optimal one.
 
 The fixture is a 2x2 array whose DistributedBuffer has one physical instance per
 array coordinate, so the two spatial loops below it *are* its binding, one per
-array dimension, with two instances a single hop apart along each. It holds W0,
-which is indexed by n0 and n1, and the loops below it iterate m on X and n0 on Y.
-The locally-optimal binding therefore replicates W0 along X (m does not index it)
-and partitions it along N0 on Y.
+array dimension, with two instances a single hop apart along each. It holds WA,
+which is indexed by nI and nA, and the loops below it iterate m on X and nI on Y.
+The locally-optimal binding therefore replicates WA along X (m does not index it)
+and partitions it along NI on Y.
 
-Bind W0 along some other rank and a destination's tile no longer sits in the
+Bind WA along some other rank and a destination's tile no longer sits in the
 instance next to it: it straddles both instances, and each has to ship its share
 over. On a mesh that turns a free local read into an all-to-all delivery costing
 `(n^2 - 1) * volume / 3` hops for `n` instances -- the closed form in
@@ -36,12 +36,12 @@ BITS_PER_VALUE = 8
 N_INSTANCES = 2
 SPACING = 1
 
-W0_HOPS = "Matmul0<SEP>action<SEP>NoC<SEP>W0<SEP>hop"
-W0_USAGE = "Matmul0<SEP>usage<SEP>memory<SEP>DistributedBuffer<SEP>W0"
+WA_HOPS = "MatmulA<SEP>action<SEP>NoC<SEP>WA<SEP>hop"
+WA_USAGE = "MatmulA<SEP>usage<SEP>memory<SEP>DistributedBuffer<SEP>WA"
 
-# W0 is N0 x N1, and no loop above the DistributedBuffer tiles either, so every
+# WA is NI x NA, and no loop above the DistributedBuffer tiles either, so every
 # instance's share of it comes only from the binding.
-W0_ACTIONS = KN * KN * BITS_PER_VALUE
+WA_ACTIONS = KN * KN * BITS_PER_VALUE
 
 
 class BindingCostTestCase(TestCase):
@@ -65,7 +65,7 @@ class BindingCostTestCase(TestCase):
         )
 
     def evaluate(self, binding=None):
-        """Evaluate the fixture. `binding` gives the ranks that W0's binding
+        """Evaluate the fixture. `binding` gives the ranks that WA's binding
         loops bind, [X, Y]; None uses the locally-optimal binding the model
         infers for itself."""
         result = self._spec().evaluate_mapping()
@@ -102,8 +102,8 @@ class DeliveryTests:
     """Shared body for both topologies. Each supplies what its own closed form
     says a scattered dimension costs; the shape of the answer is the same."""
 
-    # What one destination reads: W0 is N0 x N1, the X loop is above any tiling
-    # of it, and the Y loop tiles N0.
+    # What one destination reads: WA is NI x NA, the X loop is above any tiling
+    # of it, and the Y loop tiles NI.
     X_VOLUME = KN * KN * BITS_PER_VALUE
     Y_VOLUME = N_TILE * KN * BITS_PER_VALUE
 
@@ -111,56 +111,56 @@ class DeliveryTests:
     scattered_on_y: float
 
     def test_default_binding_is_locally_optimal(self):
-        # Replicated along X, whose loop (m) does not index W0; partitioned along
-        # N0 on Y, which its loop does index.
-        self.assertEqual(self.default_binding(), [RANK_DUPLICATE, "N0"])
+        # Replicated along X, whose loop (m) does not index WA; partitioned along
+        # NI on Y, which its loop does index.
+        self.assertEqual(self.default_binding(), [RANK_DUPLICATE, "NI"])
 
     def test_locally_optimal_binding_never_leaves_an_instance(self):
         # Every PE sits with an instance that holds everything it asks for, so
         # nothing goes onto the network at all.
-        self.assertEqual(self.evaluate()[W0_HOPS].iloc[0], 0)
+        self.assertEqual(self.evaluate()[WA_HOPS].iloc[0], 0)
 
     def test_locally_optimal_binding_costs_what_inferring_it_does(self):
         # Spelling the locally-optimal binding out explicitly must change nothing.
         self.assertEqual(
-            self.evaluate([RANK_DUPLICATE, "N0"])[W0_HOPS].iloc[0],
-            self.evaluate()[W0_HOPS].iloc[0],
+            self.evaluate([RANK_DUPLICATE, "NI"])[WA_HOPS].iloc[0],
+            self.evaluate()[WA_HOPS].iloc[0],
         )
 
     def test_replicated_source_delivers_locally_wherever_it_is_needed(self):
         # An instance that holds the whole tile holds any slice of it, so
         # replicating along Y as well still serves every destination from next
         # door, however the destinations want the data partitioned.
-        self.assertEqual(self.evaluate([RANK_DUPLICATE, RANK_DUPLICATE])[W0_HOPS].iloc[0], 0)
+        self.assertEqual(self.evaluate([RANK_DUPLICATE, RANK_DUPLICATE])[WA_HOPS].iloc[0], 0)
 
     def test_scattering_the_relevant_dimension(self):
-        # Binding N1 to Y partitions W0 along a rank other than the one its
+        # Binding NA to Y partitions WA along a rank other than the one its
         # destinations are spread over, so no destination's tile is next door any
         # more and each is collected from both instances.
         self.assertEqual(
-            self.evaluate([RANK_DUPLICATE, "N1"])[W0_HOPS].iloc[0], self.scattered_on_y
+            self.evaluate([RANK_DUPLICATE, "NA"])[WA_HOPS].iloc[0], self.scattered_on_y
         )
 
     def test_scattering_the_irrelevant_dimension(self):
-        # The X loop iterates m, which does not index W0, so every PE along X
+        # The X loop iterates m, which does not index WA, so every PE along X
         # wants the whole tile. Replicated, each reads it locally; partitioned,
         # each has to fetch the half it does not hold.
         self.assertEqual(
-            self.evaluate(["N0", "N0"])[W0_HOPS].iloc[0], self.scattered_on_x
+            self.evaluate(["NI", "NI"])[WA_HOPS].iloc[0], self.scattered_on_x
         )
 
     def test_both_dimensions_add_up(self):
         self.assertEqual(
-            self.evaluate(["N1", "N1"])[W0_HOPS].iloc[0],
+            self.evaluate(["NA", "NA"])[WA_HOPS].iloc[0],
             self.scattered_on_x + self.scattered_on_y,
         )
 
     def test_rebinding_only_charges_the_tensor_it_moves(self):
-        # T0 and T1 are not held in the distributed buffer, so rebinding W0 must
-        # leave their traffic alone.
-        base, rebound = self.evaluate(), self.evaluate(["N1", "N1"])
-        for tensor in ("T0", "T1"):
-            col = f"Matmul0<SEP>action<SEP>NoC<SEP>{tensor}<SEP>hop"
+        # The activations I and A are not held in the distributed buffer, so
+        # rebinding WA must leave their traffic alone.
+        base, rebound = self.evaluate(), self.evaluate(["NA", "NA"])
+        for tensor in ("I", "A"):
+            col = f"MatmulA<SEP>action<SEP>NoC<SEP>{tensor}<SEP>hop"
             self.assertEqual(base[col].iloc[0], rebound[col].iloc[0])
 
 
@@ -195,19 +195,19 @@ class TestBindingOccupancy(BindingCostTestCase):
     """A replicated binding puts a whole copy of the tile in every instance,
     where a partitioned one gives each instance a share."""
 
-    # One whole copy of W0 exactly fills the buffer, so usage reads off as the
+    # One whole copy of WA exactly fills the buffer, so usage reads off as the
     # fraction of the tile that one instance holds.
-    buffer_size = W0_ACTIONS
+    buffer_size = WA_ACTIONS
 
     def test_partitioned_along_one_dimension(self):
-        # The locally-optimal binding splits W0 two ways along Y and replicates
+        # The locally-optimal binding splits WA two ways along Y and replicates
         # it along X.
-        self.assertEqual(self.evaluate()[W0_USAGE].iloc[0], 1 / 2)
+        self.assertEqual(self.evaluate()[WA_USAGE].iloc[0], 1 / 2)
 
     def test_partitioned_along_both_dimensions(self):
-        self.assertEqual(self.evaluate(["N1", "N0"])[W0_USAGE].iloc[0], 1 / 4)
+        self.assertEqual(self.evaluate(["NA", "NI"])[WA_USAGE].iloc[0], 1 / 4)
 
     def test_replicated_along_both_dimensions(self):
         # Every instance holds the whole tensor: the cheapest binding to move
         # data for is the most expensive one to store.
-        self.assertEqual(self.evaluate([RANK_DUPLICATE, RANK_DUPLICATE])[W0_USAGE].iloc[0], 1)
+        self.assertEqual(self.evaluate([RANK_DUPLICATE, RANK_DUPLICATE])[WA_USAGE].iloc[0], 1)

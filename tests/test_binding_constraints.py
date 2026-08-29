@@ -85,7 +85,7 @@ def _bound_ranks(jobs: dict, tensor: str | None = None) -> set:
     }
 
 
-def _symbol_table(einsum_name: str = "Matmul0") -> dict:
+def _symbol_table(einsum_name: str = "MatmulA") -> dict:
     """The Einsum symbols that a tensor set expression is written against."""
     spec = _make_spec()
     spec = spec._spec_eval_expressions(eval_arch=False, eval_non_arch=True)
@@ -106,7 +106,7 @@ class TestBindingConstraintsModel(unittest.TestCase):
         # written against them applies to whatever the workload happens to hold.
         spec = _make_spec()
         spec = spec._spec_eval_expressions(eval_arch=False, eval_non_arch=True)
-        tensors = set(spec.workload.einsums["Matmul0"].tensor_names)
+        tensors = set(spec.workload.einsums["MatmulA"].tensor_names)
 
         self.assertEqual(
             set(_evaluate(BindingConstraints(may_duplicate="All")).may_duplicate),
@@ -127,7 +127,7 @@ class TestBindingConstraintsModel(unittest.TestCase):
         # Inversion and the named subsets work too.
         self.assertEqual(
             set(_evaluate(BindingConstraints(may_duplicate="~Inputs")).may_duplicate),
-            tensors - set(spec.workload.einsums["Matmul0"].input_tensor_names),
+            tensors - set(spec.workload.einsums["MatmulA"].input_tensor_names),
         )
 
     def test_an_unevaluated_constraint_cannot_be_queried(self):
@@ -135,7 +135,7 @@ class TestBindingConstraintsModel(unittest.TestCase):
         # then would test membership against the expression string itself, which would
         # silently answer for the wrong set of tensors.
         with self.assertRaises(ValueError):
-            BindingConstraints().allowed_ranks("T0", "X", ["M", "N"])
+            BindingConstraints().allowed_ranks("I", "X", ["M", "N"])
 
     def test_a_bad_expression_is_an_error(self):
         with self.assertRaises(Exception):
@@ -160,35 +160,35 @@ class TestBindingConstraintsModel(unittest.TestCase):
 
         unconstrained = _evaluate(BindingConstraints())
         self.assertEqual(
-            unconstrained.allowed_ranks("T0", "X", ranks), ["M", "N", RANK_DUPLICATE]
+            unconstrained.allowed_ranks("I", "X", ranks), ["M", "N", RANK_DUPLICATE]
         )
 
         never = _evaluate(BindingConstraints(may_duplicate="Nothing"))
-        self.assertEqual(never.allowed_ranks("T0", "X", ranks), ["M", "N"])
+        self.assertEqual(never.allowed_ranks("I", "X", ranks), ["M", "N"])
 
         always = _evaluate(BindingConstraints(must_duplicate="All"))
-        self.assertEqual(always.allowed_ranks("T0", "X", ranks), [RANK_DUPLICATE])
+        self.assertEqual(always.allowed_ranks("I", "X", ranks), [RANK_DUPLICATE])
 
         # A per-tensor selection applies only to the tensors it names.
-        per_tensor = _evaluate(BindingConstraints(may_duplicate="T0"))
-        self.assertIn(RANK_DUPLICATE, per_tensor.allowed_ranks("T0", "X", ranks))
-        self.assertNotIn(RANK_DUPLICATE, per_tensor.allowed_ranks("W0", "X", ranks))
+        per_tensor = _evaluate(BindingConstraints(may_duplicate="I"))
+        self.assertIn(RANK_DUPLICATE, per_tensor.allowed_ranks("I", "X", ranks))
+        self.assertNotIn(RANK_DUPLICATE, per_tensor.allowed_ranks("WA", "X", ranks))
 
         # dimension_ranks constrains the dimensions it names and no others.
         per_dimension = _evaluate(BindingConstraints(dimension_ranks={"X": {"M"}}))
-        self.assertEqual(per_dimension.allowed_ranks("T0", "X", ranks), ["M"])
+        self.assertEqual(per_dimension.allowed_ranks("I", "X", ranks), ["M"])
         self.assertEqual(
-            per_dimension.allowed_ranks("T0", "Y", ranks), ["M", "N", RANK_DUPLICATE]
+            per_dimension.allowed_ranks("I", "Y", ranks), ["M", "N", RANK_DUPLICATE]
         )
 
     def test_violations_describes_every_problem(self):
         constraints = _evaluate(BindingConstraints(may_duplicate="Nothing"))
         problems = constraints.violations(
-            "T0", ["X", "Y"], [RANK_DUPLICATE, RANK_DUPLICATE], ["M", "N"]
+            "I", ["X", "Y"], [RANK_DUPLICATE, RANK_DUPLICATE], ["M", "N"]
         )
         self.assertEqual(len(problems), 2)
         self.assertEqual(
-            constraints.violations("T0", ["X", "Y"], ["M", "N"], ["M", "N"]), []
+            constraints.violations("I", ["X", "Y"], ["M", "N"], ["M", "N"]), []
         )
 
 
@@ -228,9 +228,9 @@ class TestBindingConstraints(unittest.TestCase):
 
     def test_per_tensor_duplication(self):
         # Only the tensors named by the set expression may duplicate.
-        jobs = _get_jobs(binding=BindingConstraints(may_duplicate="W0 | W1"))
-        self.assertNotIn(RANK_DUPLICATE, _bound_ranks(jobs, tensor="T1"))
-        self.assertIn(RANK_DUPLICATE, _bound_ranks(jobs, tensor="W0"))
+        jobs = _get_jobs(binding=BindingConstraints(may_duplicate="WA | WB"))
+        self.assertNotIn(RANK_DUPLICATE, _bound_ranks(jobs, tensor="A"))
+        self.assertIn(RANK_DUPLICATE, _bound_ranks(jobs, tensor="WA"))
 
     def test_dimension_ranks(self):
         # Y may only duplicate; X is left alone.
@@ -337,18 +337,18 @@ class TestMayExploreBinding(unittest.TestCase):
         self.assertEqual(_explored_bindings(held), _explored_bindings(_get_jobs()))
 
     def test_the_named_tensor_is_explored(self):
-        # T1 and T2 are both shared in a three-Einsum chain, so naming one of them is a
+        # A and B are both shared in a three-Einsum chain, so naming one of them is a
         # real choice rather than the only option.
         named = _get_jobs(
             n_einsums=3,
             binding=BindingConstraints(
-                max_binding_rank_changes=1, may_explore_binding="T1"
+                max_binding_rank_changes=1, may_explore_binding="A"
             ),
         )
         unexplored = _get_jobs(n_einsums=3)
         self.assertTrue(
-            self._bindings_of_tensor(named, "T1")
-            - self._bindings_of_tensor(unexplored, "T1"),
+            self._bindings_of_tensor(named, "A")
+            - self._bindings_of_tensor(unexplored, "A"),
             "The tensor named by may_explore_binding was not explored.",
         )
 
@@ -356,40 +356,40 @@ class TestMayExploreBinding(unittest.TestCase):
         named = _get_jobs(
             n_einsums=3,
             binding=BindingConstraints(
-                max_binding_rank_changes=1, may_explore_binding="T1"
+                max_binding_rank_changes=1, may_explore_binding="A"
             ),
         )
         unexplored = _get_jobs(n_einsums=3)
-        # T2 is shared, so it would have been explored had it been named.
+        # B is shared, so it would have been explored had it been named.
         self.assertEqual(
-            self._bindings_of_tensor(named, "T2"),
-            self._bindings_of_tensor(unexplored, "T2"),
+            self._bindings_of_tensor(named, "B"),
+            self._bindings_of_tensor(unexplored, "B"),
             "A tensor that may not be explored was explored anyway.",
         )
 
     def test_naming_a_tensor_does_not_explore_it_if_nobody_shares_it(self):
-        # may_explore_binding bounds exploration; it does not widen it. W0 is named but
+        # may_explore_binding bounds exploration; it does not widen it. WA is named but
         # no other Einsum touches it, so it stays at its locally-optimal binding.
         named = _get_jobs(
             binding=BindingConstraints(
-                max_binding_rank_changes=1, may_explore_binding="W0"
+                max_binding_rank_changes=1, may_explore_binding="WA"
             )
         )
         self.assertEqual(
-            self._bindings_of_tensor(named, "W0"),
-            self._bindings_of_tensor(_get_jobs(), "W0"),
+            self._bindings_of_tensor(named, "WA"),
+            self._bindings_of_tensor(_get_jobs(), "WA"),
         )
 
     def test_may_explore_reads_the_evaluated_set(self):
-        constraints = _evaluate(BindingConstraints(may_explore_binding="T1"))
-        self.assertTrue(constraints.may_explore("T1"))
-        self.assertFalse(constraints.may_explore("T0"))
+        constraints = _evaluate(BindingConstraints(may_explore_binding="A"))
+        self.assertTrue(constraints.may_explore("A"))
+        self.assertFalse(constraints.may_explore("I"))
 
     def test_may_explore_cannot_be_queried_before_evaluation(self):
         # As with the other tensor sets: the expression string is not a set of tensors,
         # and testing membership against it would quietly answer for the wrong ones.
         with self.assertRaises(ValueError) as ctx:
-            BindingConstraints().may_explore("T0")
+            BindingConstraints().may_explore("I")
         self.assertIn("may_explore_binding", str(ctx.exception))
 
 

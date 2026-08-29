@@ -111,7 +111,11 @@ class TestModelMesh(TestCase):
             * KN
             * BITS_PER_VALUE,
         )
-        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 4)
+        # The longest route is the links between the first and last destination,
+        # (n - 1) * spacing, matching the multicast and unicast hop counts checked
+        # above. PeArray spans four Scratchpads one coordinate apart, so 3; the
+        # two-wide MacArray is 1; overall latency is the greater of the two.
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 3)
 
     def test_hierarchical(self):
         M = 8
@@ -247,6 +251,13 @@ class TestModelMesh(TestCase):
                 * M_TILE
                 * MAC_TILE  # tile shape
                 * BITS_PER_VALUE
+                # T1 is the output, and the X loop spreads it over n0 -- a rank it
+                # does not index -- so every column ends up holding a partial sum
+                # of the same tile. The binding replicates T1, promising every
+                # instance the finished one, so the partials are all-reduced: the
+                # line reduced in and the result carried back out, twice over the
+                # multicast that delivers an input the same distance.
+                * 2
             ),
         )
         self.assertEqual(
@@ -383,11 +394,13 @@ class TestModelAllToAll(TestCase):
         )
 
         # --- Latency ------------------------------------------------------
-        # The switch's uniform single-hop routing gives MacArray a constant
-        # latency of 1, versus the mesh PeArray's 2.
+        # The switch routes every pair in one hop however far apart they are. The
+        # mesh PeArray spans the links between its first and last destination,
+        # (n - 1) * spacing; with KN // MAC_TILE = 2 of them one coordinate apart
+        # that is also 1, so here the two topologies happen to agree.
         self.assertEqual(result.data["Matmul0<SEP>latency<SEP>MacArray"].iloc[0], 1)
-        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>PeArray"].iloc[0], 2)
-        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 2)
+        self.assertEqual(result.data["Matmul0<SEP>latency<SEP>PeArray"].iloc[0], 1)
+        self.assertEqual(result.data["Total<SEP>latency"].iloc[0], 1)
 
 
 class TestMapper(TestCase):

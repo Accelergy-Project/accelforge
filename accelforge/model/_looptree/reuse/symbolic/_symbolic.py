@@ -865,6 +865,15 @@ def analyze_storage(
                 inherit_add("total_skipped_first_reads_to_parent")
                 inherit_add("min_per_parent_skipped_first_reads_to_parent")
 
+        # Reads to peer when reducing over the network
+        for network, network_stats in child_result.network_stats.items():
+            if network.source != buffet:
+                continue
+            stats.total_reads_to_peer += network_stats.total_reduction_values
+            stats.max_per_unit_reads_to_peer += (
+                network_stats.max_per_unit_reduction_values
+            )
+
         # ==============================================================================
         # Convert to actions. These are not used used upward; they are used to get
         # energy and latency.
@@ -945,9 +954,17 @@ def analyze_storage(
             )
 
         # ========================
-        # Data exchanges with peer
+        # Data exchanges with peer. A value fetched from a peer is read there and
+        # written here, so one peer read is one of each. Unlike the parent and
+        # child exchanges above, the per-unit figure is not this total divided by
+        # the instance count: whether the work spread over every instance or
+        # landed on a single owner is the network's business, and it says so.
         stats.total_read_actions += stats.total_reads_to_peer * read_scale
         stats.total_write_actions += stats.total_reads_to_peer * write_scale
+        stats.max_per_unit_read_actions += stats.max_per_unit_reads_to_peer * read_scale
+        stats.max_per_unit_write_actions += (
+            stats.max_per_unit_reads_to_peer * write_scale
+        )
 
         # =========================
         # Data exchanges with child

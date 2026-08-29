@@ -380,7 +380,7 @@ class TestMappingRender(unittest.TestCase):
     def test_render_shows_binding(self):
         mapping = self._make_bound_mapping()
         label = self._binding_label(mapping, mapping.render_pydot())
-        self.assertIn("bind A in Buf to X:M, Y:*", label)
+        self.assertIn("Buf bind A to X:M, Y:*", label)
 
     def test_render_binding_is_a_node_of_its_own(self):
         # A binding is per-Einsum where the Storage above it is not, so it is drawn as
@@ -406,7 +406,7 @@ class TestMappingRender(unittest.TestCase):
 
     def test_binding_in_str(self):
         mapping = self._make_bound_mapping()
-        self.assertEqual(str(mapping.nodes[1]), "bind A in Buf to X:M, Y:*")
+        self.assertEqual(str(mapping.nodes[1]), "Buf bind A to X:M, Y:*")
 
     def test_render_nested_mapping(self):
         mapping = Mapping(

@@ -36,6 +36,20 @@ class PerLoopTransferCost:
     max_traffic: Any
     """Maximum traffic (in actions) on any single link along this dimension."""
 
+    reduction_tiles: Any = 0
+    """Whole tiles that have to be read out of one memory and written into
+    another to combine the partial sums this loop leaves scattered, summed over
+    every instance. Zero unless the loop is a spatial reduction.
+
+    The memories at either end are charged for this; ``total_cost`` is what the
+    network charges for carrying it, and the two are not the same number -- a
+    tile crossing a mesh pays a hop per link but is still read once and written
+    once."""
+
+    max_reduction_tiles_per_unit: Any = 0
+    """The most of that work any one instance does. An all-reduce spreads it
+    evenly; a reduction into a single owner lands all of it on that owner."""
+
 
 @dataclass
 class PhysicalLayout:
@@ -224,12 +238,12 @@ class MeshTopologyModel(TopologyModel):
     scattered ones thin one evenly-spaced grid onto the other and under-count by
     a few percent at the boundary; see ``TestMeshAgainstBruteForce``.
 
-    TODO: this model does not yet distinguish an output the einsum accumulates
-    into, so a spatial reduction is charged as though it were the broadcast of an
-    input -- which, under a replicating binding, is free. See
-    :meth:`AllToAllTopologyModel._spatial_reduction` for the shape of the fix: the
-    reduce runs the multicast the other way for the same hop count, and a
-    replicated binding needs the result carried back out again.
+    An output the einsum accumulates into runs the line the other way. A loop
+    over a rank the output does not project onto leaves a partial copy of the
+    tile at every destination, and they have to be summed -- which on a mesh is
+    the multicast played backwards, at the same cost, because a node adds its own
+    partial to what passes through before forwarding it. See
+    :meth:`_spatial_reduction`.
     """
 
     def per_loop_transfer_cost(
@@ -245,6 +259,9 @@ class MeshTopologyModel(TopologyModel):
     ) -> PerLoopTransferCost:
         layout = physical_layout(src_component, dim_name, shape_repeats, last_fanout)
         data_is_local = binding_is_local(src_bound_rank, dst_relevancy)
+
+        if is_reduced_output and isinstance(dst_relevancy, Irrelevant):
+            return self._spatial_reduction(src_bound_rank, layout, volume)
 
         match dst_relevancy, layout:
             case Irrelevant(), SingularLayout():
@@ -286,6 +303,53 @@ class MeshTopologyModel(TopologyModel):
 
         return PerLoopTransferCost(
             total_cost=total_cost, max_hops=max_hops, max_traffic=max_traffic
+        )
+
+    @staticmethod
+    def _spatial_reduction(src_bound_rank, layout: "PhysicalLayout", volume):
+        """Sum the partial copies of the tile that a loop over a reduced rank
+        leaves at every destination along the line.
+
+        A reducing node adds its own partial to what arrives before passing it
+        on, so one tile's worth crosses each link and the whole line costs the
+        same as the multicast that runs the other way -- linear in the span, not
+        quadratic as delivering each partial separately to a sink would be. It is
+        also why the busiest link carries one tile however many destinations there
+        are, where the all-to-all switch, which cannot add anything in flight,
+        funnels every partial onto the owner's link.
+
+        The binding decides whether the line is walked once or twice:
+
+        - Replicated (``RANK_DUPLICATE``): every instance is meant to hold the
+          finished tile, so the sum is carried back out and the reduction is an
+          all-reduce -- the span twice over. Note this spans the *whole* line;
+          :meth:`_local_multicast`'s break-up into independent groups is wrong
+          here, because a partial in one group still has to reach the instances
+          in all the others. For an input this same binding is the free case.
+        - Partitioned along another rank, or a single instance: the sum is formed
+          once where the finished tile lives and stays there. Each of the
+          ``n_srcs`` owners reduces its own share along the line, and n_srcs
+          reductions of a 1/n_srcs share cost the same wire as one reduction of
+          the whole tile -- the mirror of the argument in
+          :meth:`_scattered_multicast`.
+        """
+        span = multicast_cost(layout.n_dsts, layout.delta_between_dsts)
+        # One partial per destination, all but one of which has to move.
+        crossing = layout.n_dsts - 1
+        trips = 2 if src_bound_rank == RANK_DUPLICATE else 1
+
+        return PerLoopTransferCost(
+            total_cost=trips * span * volume,
+            max_hops=trips * span,
+            max_traffic=trips * volume * min_take_zero(crossing, 1),
+            # What the memories at either end owe is a count of tiles read out and
+            # written in, and does not depend on how far they travelled.
+            reduction_tiles=trips * crossing,
+            max_reduction_tiles_per_unit=(
+                2 * crossing / layout.n_dsts
+                if src_bound_rank == RANK_DUPLICATE
+                else crossing / layout.n_srcs
+            ),
         )
 
     @staticmethod
@@ -475,6 +539,10 @@ class AllToAllTopologyModel(TopologyModel):
                 total_cost=2 * crossing * hops * volume,
                 max_hops=2 * crosses_at_all * hops,
                 max_traffic=2 * crosses_at_all * volume,
+                # Both passes are read out of one memory and written into the
+                # next, and the instances share that evenly between them.
+                reduction_tiles=2 * crossing,
+                max_reduction_tiles_per_unit=2 * crossing / shape_repeats,
             )
 
         # No replication, reduced at the destination
@@ -484,6 +552,9 @@ class AllToAllTopologyModel(TopologyModel):
             # n_physical is >= 1 by construction: SingularLayout reports one
             # instance and DistributedLayout's ratio_geq_one floors at one.
             max_traffic=crossing * volume / n_physical,
+            reduction_tiles=crossing,
+            # Only the owners combine anything, so a single owner does all of it.
+            max_reduction_tiles_per_unit=crossing / n_physical,
         )
 
 
@@ -546,6 +617,13 @@ class NetworkAnalyzer:
                     accumulated_network_stats.max_traffic[k] = max_nonzero(
                         accumulated_network_stats.max_traffic.get(k, 0), v
                     )
+                accumulated_network_stats.total_reduction_values += (
+                    child_network_stats.total_reduction_values * shape_repeats
+                )
+                accumulated_network_stats.max_per_unit_reduction_values = max_nonzero(
+                    accumulated_network_stats.max_per_unit_reduction_values,
+                    child_network_stats.max_per_unit_reduction_values,
+                )
                 continue
 
             volume = self._get_data_volume(network, child_shape)
@@ -589,6 +667,19 @@ class NetworkAnalyzer:
                 accumulated_network_stats.max_hops,
                 overall_max_hops + child_network_stats.max_hops,
             )
+            # What the memories at either end owe for the combining, in values --
+            # which is what a buffet counts its accesses in, not the network's
+            # own actions.
+            occupancy = self._get_tile_occupancy(network, child_shape)
+            accumulated_network_stats.total_reduction_values += (
+                per_loop_transfer_cost.reduction_tiles * occupancy
+                + child_network_stats.total_reduction_values * shape_repeats
+            )
+            accumulated_network_stats.max_per_unit_reduction_values = max_nonzero(
+                accumulated_network_stats.max_per_unit_reduction_values,
+                per_loop_transfer_cost.max_reduction_tiles_per_unit * occupancy
+                + child_network_stats.max_per_unit_reduction_values,
+            )
             # Traffic the child puts on the links of *other* dimensions crosses
             # them once per instance of this loop, and the instances have links of
             # their own, so it carries through unchanged. Only this dimension's
@@ -622,11 +713,21 @@ class NetworkAnalyzer:
             and not self.info.is_copy_operation
         )
 
+    def _get_tile_occupancy(self, network, child_shape):
+        """The tile one destination asks for, in values.
+
+        That is what a buffet counts its accesses in; :meth:`_get_data_volume`
+        turns it into the network's own actions, which the network component's
+        ``bits_per_action`` may make something else entirely.
+        """
+        projection = self.info.einsum_tensor_to_projection[
+            (self.einsum_name, network.tensor)
+        ]
+        return compute_dense_tile_occupancy(projection, child_shape)
+
     def _get_data_volume(self, network, child_shape):
         info = self.info
-        einsum_name = self.einsum_name
         flattened_arch = info.job.flattened_arch
-        projection = info.einsum_tensor_to_projection[(einsum_name, network.tensor)]
         component_object = flattened_arch[network.component]
         workload_bpv = info.job.einsum.tensor_accesses[network.tensor].bits_per_value
         bits_per_value = component_object.bits_per_value.get(
@@ -637,10 +738,7 @@ class NetworkAnalyzer:
             actions_per_value = bits_per_value / bits_per_action
         else:
             actions_per_value = bits_per_value
-        volume = (
-            compute_dense_tile_occupancy(projection, child_shape) * actions_per_value
-        )
-        return volume
+        return self._get_tile_occupancy(network, child_shape) * actions_per_value
 
 
 def multicast_cost(n_dsts, stride):

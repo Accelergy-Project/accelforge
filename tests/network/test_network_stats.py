@@ -109,13 +109,18 @@ class _Arch:
 
 
 class _Analyzer(NetworkAnalyzer):
-    """The volume a destination asks for is the workload's business, not the
-    accumulation's, so it is pinned here."""
+    """What a destination asks for is the workload's business, not the
+    accumulation's, so both sizes are pinned here. They differ because a network
+    counts its own actions while a memory counts values."""
 
     VOLUME = 10
+    OCCUPANCY = 2
 
     def _get_data_volume(self, network, child_shape):
         return self.VOLUME
+
+    def _get_tile_occupancy(self, network, child_shape):
+        return self.OCCUPANCY
 
 
 NETWORK = Network(
@@ -178,3 +183,13 @@ class TestSpatialAccumulationKeepsEveryDimension(TestCase):
         stats = self._accumulate({"P": 7})
         self.assertEqual(stats.total_hops, 30 + 5 * 4)
         self.assertEqual(stats.max_hops, 2)
+
+    def test_the_memories_owe_for_the_combining(self):
+        # Four partials reduced into the one instance holding the tensor: three
+        # tiles of 2 values are read out of a peer and written back in, and with
+        # a single owner that instance does all of it itself.
+        stats = self._accumulate({"P": 7})
+        self.assertEqual(stats.total_reduction_values, 3 * _Analyzer.OCCUPANCY)
+        self.assertEqual(
+            stats.max_per_unit_reduction_values, 3 * _Analyzer.OCCUPANCY
+        )

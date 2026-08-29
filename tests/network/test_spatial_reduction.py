@@ -39,13 +39,18 @@ WA_VOLUME = NI * NA * BITS_PER_VALUE
 
 
 class SpatialReductionTestCase(TestCase):
+    TOPOLOGY = "all_to_all"
+
     def _spec(
         self,
         tensor,
         rank,
         m=M,
         outer_tile=None,
+        fanout=FANOUT,
+        spatial_tile=1,
         hop_throughput="inf",
+        mem_throughput="inf",
     ):
         return af.Spec.from_yaml(
             af.examples.workloads.basic.matmuls,
@@ -55,12 +60,15 @@ class SpatialReductionTestCase(TestCase):
                 "N_EINSUMS": 1,
                 "M": m,
                 "KN": NI,
-                "FANOUT": FANOUT,
+                "FANOUT": fanout,
                 "DIST_TENSOR": tensor,
                 "SPATIAL_RANK": rank,
+                "SPATIAL_TILE": spatial_tile,
+                "TOPOLOGY": self.TOPOLOGY,
                 # One trip through everything below unless a test asks otherwise.
                 "OUTER_TILE": m if outer_tile is None else outer_tile,
                 "HOP_THROUGHPUT": hop_throughput,
+                "MEM_THROUGHPUT": mem_throughput,
             },
         )
 
@@ -204,3 +212,110 @@ class TestTotalTrafficIsConserved(SpatialReductionTestCase):
         for outer_tile in (1, 2, M):
             with self.subTest(outer_tile=outer_tile):
                 self.assertEqual(self._hops(outer_tile), self.EXPECTED_HOPS)
+
+
+READ = "MatmulA<SEP>action<SEP>DistributedBuffer<SEP>{tensor}<SEP>read"
+WRITE = "MatmulA<SEP>action<SEP>DistributedBuffer<SEP>{tensor}<SEP>write"
+BUFFER_LATENCY = "MatmulA<SEP>latency<SEP>DistributedBuffer"
+
+
+class TestTheMergePointPaysForCombining(SpatialReductionTestCase):
+    """Carrying the partials across the network is only half of a reduction. The
+    memories at either end have to read each one out and write it back in, and
+    until they are charged for that the instances are holding partial sums that
+    nothing ever adds up.
+
+    Fanout is what is varied here: with a single instance there is nothing to
+    combine, which gives an honest baseline for the same mapping.
+    """
+
+    MEM_THROUGHPUT = 64
+
+    def _row(self, fanout):
+        # NI values spread over `fanout` instances, so one instance's slice grows
+        # as the array shrinks and the total work stays put.
+        return (
+            self._spec(
+                "A",
+                "nI",
+                fanout=fanout,
+                spatial_tile=NI // fanout,
+                mem_throughput=self.MEM_THROUGHPUT,
+            )
+            .evaluate_mapping()
+            .data.iloc[0]
+        )
+
+    def test_one_instance_has_nothing_to_combine(self):
+        alone = self._row(1)
+        self.assertEqual(alone[HOPS.format(tensor="A")], 0)
+        # Just the write-back of the one copy of A, read out again on its way up.
+        self.assertEqual(alone[READ.format(tensor="A")], A_VOLUME)
+        self.assertEqual(alone[WRITE.format(tensor="A")], A_VOLUME)
+
+    def test_every_bit_carried_is_read_out_and_written_in(self):
+        # One hop carries one bit across this switch, and each of those bits
+        # leaves one instance and lands in another.
+        alone = self._row(1)
+        for fanout in (2, FANOUT):
+            with self.subTest(fanout=fanout):
+                row = self._row(fanout)
+                hops = row[HOPS.format(tensor="A")]
+                self.assertGreater(hops, 0)
+                self.assertEqual(
+                    row[READ.format(tensor="A")] - alone[READ.format(tensor="A")],
+                    hops,
+                )
+                self.assertEqual(
+                    row[WRITE.format(tensor="A")] - alone[WRITE.format(tensor="A")],
+                    hops,
+                )
+
+    def test_the_merge_point_spends_time_on_it(self):
+        # The buffer's latency is its whole traffic spread over the instances
+        # doing it -- an all-reduce shares the combining out evenly. Charge the
+        # reduction to the totals but not to the per-instance figures and this
+        # comes out at the write-back alone.
+        for fanout in (1, 2, FANOUT):
+            with self.subTest(fanout=fanout):
+                row = self._row(fanout)
+                traffic = row[READ.format(tensor="A")] + row[WRITE.format(tensor="A")]
+                self.assertAlmostEqual(
+                    row[BUFFER_LATENCY],
+                    traffic / (fanout * self.MEM_THROUGHPUT),
+                    places=5,
+                )
+
+    def test_a_replicated_input_is_not_charged(self):
+        # The same inferred binding on an input: every instance reads its copy
+        # from next door, and there is nothing to combine afterwards.
+        row = (
+            self._spec("WA", "m", mem_throughput=self.MEM_THROUGHPUT)
+            .evaluate_mapping()
+            .data.iloc[0]
+        )
+        self.assertEqual(row[HOPS.format(tensor="WA")], 0)
+        self.assertEqual(row[READ.format(tensor="WA")], WA_VOLUME)
+        self.assertEqual(row[WRITE.format(tensor="WA")], WA_VOLUME)
+
+
+class TestReducedOutputIsAllReducedOnAMesh(TestReducedOutputIsAllReduced):
+    """The same story on a mesh. The hop counts happen to agree here because the
+    destinations sit one array coordinate apart, so a switch traversal and a link
+    crossing cost the same; what is being checked is that the topology is asked at
+    all, and answers.
+    """
+
+    TOPOLOGY = "mesh"
+
+
+class TestTheMergePointPaysForCombiningOnAMesh(TestTheMergePointPaysForCombining):
+    """What a memory reads out and writes back in is a count of tiles, so it does
+    not depend on how far they travelled -- the merge point owes the same on
+    either topology."""
+
+    TOPOLOGY = "mesh"
+
+
+class TestReplicatedInputStaysFreeOnAMesh(TestReplicatedInputStaysFree):
+    TOPOLOGY = "mesh"

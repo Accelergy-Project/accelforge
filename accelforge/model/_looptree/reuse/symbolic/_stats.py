@@ -27,6 +27,18 @@ class NetworkStats:
     """Longest hops among all routes."""
     max_traffic: dict[int | str, Any] = field(default_factory=dict)
     """Maximum traffic occuring on any single link along a dimension."""
+    total_reduction_values: Any = field(default=0)
+    """Values the memories at either end of this network have to read out and
+    write back in to combine the partial sums a spatial reduction leaves
+    scattered across their instances, summed over every instance.
+
+    The network charges hops for carrying them; this is what the *memories* owe,
+    and nothing else in the analysis accounts for it -- a partial that is never
+    read back out is a partial forever. Drained at the source level by
+    :func:`~._symbolic.analyze_storage`."""
+    max_per_unit_reduction_values: Any = field(default=0)
+    """The most of that work any one instance does, which is what its latency
+    turns on. An all-reduce spreads it; a reduction into one owner does not."""
 
     def repeat(self, n_repeats):
         """These stats for a node run `n_repeats` times over, one run after
@@ -46,6 +58,13 @@ class NetworkStats:
         # copy.copy is shallow, so max_traffic is still the dict this was called
         # on. Build a new one rather than scaling the caller's values in place.
         new.max_traffic = {k: v * n_repeats for k, v in new.max_traffic.items()}
+        # Every run leaves its own partials to combine, and every instance is
+        # back the next time round, so both the total and the per-instance share
+        # of the combining grow with the repeats.
+        new.total_reduction_values = new.total_reduction_values * n_repeats
+        new.max_per_unit_reduction_values = (
+            new.max_per_unit_reduction_values * n_repeats
+        )
         return new
 
     def accumulate_in_series(self, other: "NetworkStats"):
@@ -62,6 +81,12 @@ class NetworkStats:
         self.max_hops = max_nonzero(self.max_hops, other.max_hops)
         for dim, traffic in other.max_traffic.items():
             self.max_traffic[dim] = self.max_traffic.get(dim, 0) + traffic
+        self.total_reduction_values = (
+            self.total_reduction_values + other.total_reduction_values
+        )
+        self.max_per_unit_reduction_values = (
+            self.max_per_unit_reduction_values + other.max_per_unit_reduction_values
+        )
 
 
 @dataclass

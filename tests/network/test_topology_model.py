@@ -612,3 +612,110 @@ class TestAllToAllSpatialReduction(TestCase):
     def test_partially_relevant_not_implemented(self):
         with self.assertRaises(NotImplementedError):
             self._cost(RANK_DUPLICATE, PartiallyRelevant("n0"))
+
+
+class TestMeshSpatialReduction(TestCase):
+    """On a mesh a reduction is the multicast played backwards.
+
+    A reducing node adds its own partial to what arrives before forwarding, so
+    one tile's worth crosses each link and the line costs its span -- not the
+    quadratic sum it would cost to carry every partial separately to a sink.
+    """
+
+    N, DELTA, VOLUME = 5, 2, 10
+    SPAN = (N - 1) * DELTA
+
+    def _cost(self, src_rank, relevancy, *, src=None, output=True, n=None):
+        return MeshTopologyModel().per_loop_transfer_cost(
+            src_rank,
+            relevancy,
+            shape_repeats=self.N if n is None else n,
+            last_fanout=self.DELTA,
+            volume=self.VOLUME,
+            src_component=src if src is not None else _NoDistribution(),
+            dim_name="X",
+            is_reduced_output=output,
+        )
+
+    def _distributed(self):
+        # One instance beside every destination, each holding a whole copy: the
+        # binding that hands an input to its neighbour for nothing.
+        return _Distributed(fanout=self.N, stride=self.DELTA)
+
+    def test_reducing_costs_what_the_multicast_costs(self):
+        # Same links, same count, opposite direction.
+        reduce = self._cost("m0", Irrelevant())
+        multicast = self._cost("m0", Irrelevant(), output=False)
+        self.assertEqual(reduce.total_cost, multicast.total_cost)
+        self.assertEqual(reduce.max_hops, multicast.max_hops)
+        self.assertEqual(reduce.total_cost, self.SPAN * self.VOLUME)
+
+    def test_replication_is_the_expensive_binding_for_an_output(self):
+        # As an input, every destination reads a whole copy from the instance it
+        # sits with and nothing moves. As an output, those copies are partial
+        # sums and every instance is promised the finished tile.
+        src = self._distributed()
+        self.assertEqual(
+            self._cost(RANK_DUPLICATE, Irrelevant(), src=src, output=False).total_cost,
+            0,
+        )
+        self.assertEqual(
+            self._cost(RANK_DUPLICATE, Irrelevant(), src=src).total_cost,
+            2 * self.SPAN * self.VOLUME,
+        )
+
+    def test_the_all_reduce_spans_the_whole_line_twice(self):
+        # Reduced in, then carried back out. The line does not break into the
+        # independent groups a replicated multicast enjoys: a partial in one
+        # group is still needed by the instances in all the others.
+        cost = self._cost(RANK_DUPLICATE, Irrelevant(), src=self._distributed())
+        self.assertEqual(cost.max_hops, 2 * self.SPAN)
+        self.assertEqual(cost.total_cost, 2 * self._cost("m0", Irrelevant()).total_cost)
+
+    def test_combining_keeps_one_tile_on_each_link(self):
+        # However many destinations there are, a link carries the running sum
+        # once. A switch, which cannot add anything in flight, instead funnels
+        # every partial onto the owner's link.
+        for n in (2, 5, 50):
+            with self.subTest(n=n):
+                self.assertEqual(
+                    self._cost("m0", Irrelevant(), n=n).max_traffic, self.VOLUME
+                )
+        self.assertEqual(
+            self._cost(
+                RANK_DUPLICATE, Irrelevant(), src=self._distributed()
+            ).max_traffic,
+            2 * self.VOLUME,
+        )
+
+    def test_the_memories_owe_a_tile_for_every_partial_that_moves(self):
+        # Distance is the network's business; what a memory reads out and writes
+        # back in is a count of tiles, and the same count on either topology.
+        reduce = self._cost("m0", Irrelevant())
+        self.assertEqual(reduce.reduction_tiles, self.N - 1)
+        self.assertEqual(reduce.max_reduction_tiles_per_unit, self.N - 1)
+
+        all_reduce = self._cost(
+            RANK_DUPLICATE, Irrelevant(), src=self._distributed()
+        )
+        self.assertEqual(all_reduce.reduction_tiles, 2 * (self.N - 1))
+        self.assertEqual(
+            all_reduce.max_reduction_tiles_per_unit, 2 * (self.N - 1) / self.N
+        )
+
+    def test_a_single_destination_reduces_nothing(self):
+        for src_rank in (RANK_DUPLICATE, "m0"):
+            cost = self._cost(src_rank, Irrelevant(), n=1)
+            self.assertEqual(cost.total_cost, 0)
+            self.assertEqual(cost.max_hops, 0)
+            self.assertEqual(cost.max_traffic, 0)
+            self.assertEqual(cost.reduction_tiles, 0)
+
+    def test_relevant_loop_over_an_output_is_still_a_unicast(self):
+        # A rank the output does project onto gives each destination a distinct
+        # slice to write back. Nothing is combined.
+        for src_rank in (RANK_DUPLICATE, "m0"):
+            self.assertEqual(
+                self._cost(src_rank, Relevant("n0")),
+                self._cost(src_rank, Relevant("n0"), output=False),
+            )
