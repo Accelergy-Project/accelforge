@@ -25,7 +25,7 @@ mapping:
 
   - !Spatial
     rank_variable: {{ SPATIAL_RANK }}
-    tile_shape: 1
+    tile_shape: {{ SPATIAL_TILE }}
     component: Array
     name: X
 

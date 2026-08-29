@@ -89,9 +89,11 @@ class TestNetworkStatsAccumulateInSeries(TestCase):
 
 
 class _Component:
-    """Stand-in for a flattened-arch node: an undistributed source, and a switch."""
+    """Stand-in for a flattened-arch node: an undistributed source, and a switch
+    that is the interconnect of the array named ``Array``."""
 
     topology = TopologySpec.ALL_TO_ALL
+    _physical_spatial_component = "Array"
 
     def _get_physical_fanout_along(self, dim_name, default=1):
         return 1
@@ -132,17 +134,12 @@ NETWORK = Network(
 )
 
 
-class TestSpatialAccumulationKeepsEveryDimension(TestCase):
-    """A spatial loop costs its own dimension's links, and everything the levels
-    below it put on the links of *other* dimensions carries through untouched --
-    the instances of this loop run side by side, each with its own links.
+class _Accumulates:
+    """Runs one spatial loop's worth of accumulation over a stub arch in which
+    ``NoC`` is the interconnect of the array named ``Array``."""
 
-    Dropping those other dimensions leaves the busiest link looking empty, and a
-    network with nothing to be bandwidth-bound by.
-    """
-
-    def _accumulate(self, child_traffic, *, shape_repeats=4):
-        node = SimpleNamespace(name="X", component="Array", rank_variable="m")
+    def _accumulate(self, child_traffic, *, shape_repeats=4, loop_component="Array"):
+        node = SimpleNamespace(name="X", component=loop_component, rank_variable="m")
         info = SimpleNamespace(
             job=SimpleNamespace(flattened_arch=_Arch(above=False)),
             tensor_to_relevancy={"A": {"m": Irrelevant()}, "I": {"m": Relevant("M")}},
@@ -162,6 +159,16 @@ class TestSpatialAccumulationKeepsEveryDimension(TestCase):
             child, shape_repeats, {}
         )
         return accumulated[NETWORK]
+
+
+class TestSpatialAccumulationKeepsEveryDimension(_Accumulates, TestCase):
+    """A spatial loop costs its own dimension's links, and everything the levels
+    below it put on the links of *other* dimensions carries through untouched --
+    the instances of this loop run side by side, each with its own links.
+
+    Dropping those other dimensions leaves the busiest link looking empty, and a
+    network with nothing to be bandwidth-bound by.
+    """
 
     def test_a_dimension_below_survives(self):
         # The child's traffic sits on some inner array dimension's links, which
@@ -193,3 +200,45 @@ class TestSpatialAccumulationKeepsEveryDimension(TestCase):
         self.assertEqual(
             stats.max_per_unit_reduction_values, 3 * _Analyzer.OCCUPANCY
         )
+
+
+class TestOnlyTheArraysOwnDimensionsAreCharged(_Accumulates, TestCase):
+    """A `!Network` inside an `!Array` is that array's interconnect. Its links
+    run between array units, so only the array's own spatial dimensions put
+    traffic on it -- a fanout declared by a component inside a unit (a PE grid
+    under the array's buffer, say) is private wiring that never reaches it, even
+    though the network sits above it in the flattened hierarchy.
+
+    `_Component` puts the network in the array named ``Array``, so a loop of any
+    other component is one of those inner fanouts.
+    """
+
+    def _accumulate_inner(self, child_traffic, *, shape_repeats=4):
+        return self._accumulate(
+            child_traffic,
+            shape_repeats=shape_repeats,
+            loop_component="ProcessingElement",
+        )
+
+    def test_an_inner_fanout_puts_nothing_on_the_array_network(self):
+        # The 30 of `test_this_loops_own_dimension_is_charged` is what this same
+        # loop would cost were it one of the array's own.
+        stats = self._accumulate_inner({"P": 7})
+        self.assertIsNone(stats.max_traffic.get("X"))
+        self.assertEqual(stats.total_reduction_values, 0)
+
+    def test_the_child_still_carries_up(self):
+        stats = self._accumulate_inner({"P": 7})
+        self.assertEqual(stats.max_traffic.get("P"), 7)
+        self.assertEqual(stats.total_hops, 5 * 4)
+        self.assertEqual(stats.max_hops, 1)
+
+    def test_a_network_outside_any_array_still_carries_every_fanout(self):
+        # Nothing scopes it, so it keeps the older behaviour of costing whatever
+        # fans out below it -- what `hierarchical.yaml`'s PeArray relies on.
+        try:
+            _Component._physical_spatial_component = None
+            stats = self._accumulate_inner({"P": 7})
+        finally:
+            _Component._physical_spatial_component = "Array"
+        self.assertEqual(stats.max_traffic.get("X"), 30)

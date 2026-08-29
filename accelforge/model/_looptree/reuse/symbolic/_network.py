@@ -603,9 +603,14 @@ class NetworkAnalyzer:
                 self.network_stats[network] = NetworkStats()
             accumulated_network_stats = self.network_stats[network]
 
-            # We only need to update the summary if the spatial loop is for
-            # a component higher than the network of interest
-            if flattened_arch.is_above(self.node.component, network.component):
+            # We only charge a network for a spatial loop it actually has links
+            # along: one above it replicates the whole network rather than
+            # putting traffic on it, and one below it may fan out over wiring
+            # private to an array unit. Either way, the child's stats still
+            # carry up.
+            if flattened_arch.is_above(
+                self.node.component, network.component
+            ) or not self._has_links_along_dim(network):
                 accumulated_network_stats.total_hops += (
                     child_network_stats.total_hops * shape_repeats
                 )
@@ -701,6 +706,24 @@ class NetworkAnalyzer:
         for model in self.topology_models.values():
             overall_max_hops.update(model.overall_max_hops)
         return overall_max_hops
+
+    def _has_links_along_dim(self, network) -> bool:
+        """Whether ``network`` has links along the dimension this analyzer's
+        spatial loop fans out over.
+
+        A ``!Network`` declared inside an ``!Array`` is that array's
+        interconnect: its links run between array units, along the array's own
+        spatial dimensions and no others. A fanout declared by a component
+        *inside* a unit -- a PE grid under the array's buffer, say -- is wiring
+        private to that unit, so its traffic never reaches the array's network
+        even though the network sits above it in the flattened hierarchy.
+
+        A network declared outside any array has no array to scope it to, so it
+        carries every fanout below it.
+        """
+        network_component = self.info.job.flattened_arch[network.component]
+        array = network_component._physical_spatial_component
+        return array is None or array == self.node.component
 
     def _is_reduced_output(self, network) -> bool:
         """Whether this network carries an output that the einsum accumulates

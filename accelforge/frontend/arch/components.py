@@ -1330,6 +1330,13 @@ class Network(Component, Leaf):
 
     The routing is currently defined using the mapping, the routing follows the order
     of the spatial nodes from top to bottom.
+
+    A network declared inside an `Array` is that array's interconnect: it carries
+    traffic along the array's own spatial dimensions and no others. A fanout
+    declared by a component inside an array unit -- a PE grid under the array's
+    buffer, say -- is wiring private to that unit, and puts nothing on the array's
+    network even though the network sits above it. A network declared outside any
+    array has no array to scope it to, so it carries every fanout below it.
     """
 
     actions: EvalableList[Action] = NETWORK_ACTIONS
