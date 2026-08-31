@@ -1,0 +1,25 @@
+# A chain of N_EINSUMS back-to-back matrix multiplications. Einsum i computes T{i+1} =
+# T{i} * W{i};
+#
+# Unlike matmuls.yaml, this workload has no limit on N_EINSUMS, but by not
+# following our common tensor-naming convention.
+workload:
+  iteration_space_shape:
+    {% set M = M | default(128) %}
+    {% set KN = KN | default(128) %}
+    m:  0 <= m  < {{M}}                # Input & output tensor rows, weight columns
+    {% for i in range(N_EINSUMS+1) %}
+    n{{i}}: 0 <= n{{i}} < {{KN}}       # Input & output columns, weight rows 
+    {% endfor %}
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  {% for i in range(N_EINSUMS) %}
+  - name: Matmul{{i}}
+    tensor_accesses:
+    - {name: T{{i}}, projection: [m, n{{i}}]}
+    - {name: W{{i}}, projection: [n{{i}}, n{{i+1}}]}
+    - {name: T{{i+1}}, projection: [m, n{{i+1}}], output: True}
+    renames: {weight: W{{i}}, input: T{{i}}, output: T{{i+1}}}
+  {% endfor %}

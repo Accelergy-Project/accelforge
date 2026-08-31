@@ -1,51 +1,61 @@
+{% from "_matmul_convention.yaml" import tensor_name %}
+
 mapping:
   nodes:
   - !Storage
-    tensors: [T0, T{{N_EINSUMS}}]
+    tensors:
+    - {{tensor_name(0)}}
+    - {{tensor_name(N_EINSUMS)}}
+    {% for i in range(N_EINSUMS) %}
+    - W{{tensor_name(i+1)}}
+    {% endfor %}
     component: MainMemory
-  {% for i in range(N_EINSUMS) %}
   - !Storage
-    tensors: [W{{i}}]
-    component: MainMemory
-  {% endfor %}
-  {% for i in range(N_EINSUMS) %}
-  - !Storage
-    tensors: [W{{i}}]
+    tensors:
+    {% for i in range(N_EINSUMS) %}
+    - W{{tensor_name(i+1)}}
+    {% endfor %}
     component: GlobalBuffer
-  {% endfor %}
   - !Temporal
     rank_variable: m
     tile_shape: 1
+  - !Storage
+    tensors:
+    - {{tensor_name(0)}}
+    - {{tensor_name(N_EINSUMS)}}
+    component: GlobalBuffer
+  {% for i in range(1, N_EINSUMS) %}
+  - !Storage
+    tensors: [{{tensor_name(i)}}]
+    component: GlobalBuffer
+  {% endfor %}
   {% if N_EINSUMS > 1 %}
   - !Sequential
     nodes:
     {% for i in range(N_EINSUMS) %}
     - !Nested
       nodes:
-      - !Storage
-        tensors: [T{{i}}, T{{i+1}}]
-        component: GlobalBuffer
       - !Temporal
-        rank_variable: n{{i}}
+        rank_variable: n{{tensor_name(i)}}
         tile_shape: 1
       - !Temporal
-        rank_variable: n{{i+1}}
+        rank_variable: n{{tensor_name(i+1)}}
         tile_shape: 1
       - !Compute
-        einsum: Matmul{{i}}
+        einsum: Matmul{{tensor_name(i+1)}}
         component: MAC
     {% endfor %}
   {% else %}
   - !Storage
-    tensors: [T0, T1]
+    tensors: [{{tensor_name(0)}}, {{tensor_name(1)}}]
     component: GlobalBuffer
   - !Temporal
-    rank_variable: n0
+    rank_variable: n{{tensor_name(0)}}
     tile_shape: 1
   - !Temporal
-    rank_variable: n1
+    rank_variable: n{{tensor_name(1)}}
     tile_shape: 1
   - !Compute
-    einsum: Matmul0
+    einsum: Matmul{{tensor_name(1)}}
     component: MAC
   {% endif %}

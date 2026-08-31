@@ -88,20 +88,33 @@ class PmappingGroup:
             live_tensors_post_join
         ), "joined compatibility includes tensors not live after joining"
 
-        still_live_reservations = [
-            r
-            for r in self.compatibility.tensors
-            if r.name in live_tensors_post_join
-            and r.name not in right.compatibility.tensor_names
-        ]
-
+        # Tensors on the right that are copies of a left tensor living in the same
+        # memory level
         duplicated_aliased_tensors = oset()
         for name, my_tensor in self.tensors.items():
             for aliased_tensor in aliased_tensors.get(name, oset()):
                 if (aliased_tensor := right.tensors.get(aliased_tensor, None)) is None:
                     continue
                 if my_tensor.resource_name == aliased_tensor.resource_name:
-                    duplicated_aliased_tensors.add(aliased_tensor.name)
+                    duplicated_aliased_tensors.add(aliased_tensor)
+
+        # Cannot free aliased tensors that will still be alive in this level later. Copy
+        # Einsums will only make one reservation for all of the aliases, and we cannot
+        # free that until all of them have been freed.
+        all_tensors = {**right.tensors, **self.tensors}
+        do_not_free = oset()
+        for name, res in all_tensors.items():
+            if name in live_tensors_post_join:
+                continue
+            for aliased in aliased_tensors.get(name, oset()):
+                other = all_tensors.get(aliased)
+                if (
+                    other is not None
+                    and other.resource_name == res.resource_name
+                    and aliased in live_tensors_post_join
+                ):
+                    do_not_free.add(name)
+                    break
 
         mapping = delayed(self.mappings.merge_next)(
             right.mappings,
@@ -109,6 +122,7 @@ class PmappingGroup:
             compatibility_left=permuted_compatibility_left,
             compatibility_right=permuted_compatibility_right,
             compatibility_joined=compatibility_joined,
+            do_not_free=do_not_free,
             _pmapping_row_filter_function=_pmapping_row_filter_function,
             ignored_resources=ignored_resources,
             _force_allow_invalid_only_for_runtime_test=_force_allow_invalid_only_for_runtime_test,

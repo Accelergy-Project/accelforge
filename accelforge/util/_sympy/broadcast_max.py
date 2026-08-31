@@ -51,6 +51,25 @@ def get_zero_with_number(args) -> Any | None:
     return nonzero
 
 
+def min_take_zero(*args) -> Any:
+    """Min, except that a zero argument wins."""
+    nonzero = set()
+    for a in args:
+        eq_zero = False
+        try:
+            eq_zero = a == 0
+        except:
+            pass
+        if eq_zero:
+            return 0
+        nonzero.add(a)
+    if not nonzero:
+        return 0
+    if len(nonzero) == 1:
+        return nonzero.pop()
+    return Min(*sorted(nonzero, key=str))
+
+
 def min_nonzero(*args) -> Any:
     if (x := get_zero_with_number(args)) is not None:
         return x

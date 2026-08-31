@@ -65,7 +65,7 @@ class TestMapper(ActionChecker, unittest.TestCase):
     def test_one_matmul(self):
         spec = Spec.from_yaml(
             af.examples.arches.simple,
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             jinja_parse_data={"N_EINSUMS": 1, "M": 64, "KN": 64},
         )
         result = map_workload_to_arch(spec)
@@ -74,7 +74,7 @@ class TestMapper(ActionChecker, unittest.TestCase):
     def test_two_matmuls(self):
         spec = Spec.from_yaml(
             af.examples.arches.simple,
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             jinja_parse_data={"N_EINSUMS": 2, "M": 64, "KN": 64},
         )
         result = map_workload_to_arch(spec)
@@ -83,7 +83,7 @@ class TestMapper(ActionChecker, unittest.TestCase):
     def test_mapper_return_many_mappings(self):
         spec = Spec.from_yaml(
             af.examples.arches.simple,
-            af.examples.workloads.basic.matmuls,
+            af.examples.workloads.basic.matmuls_any_einsums,
             jinja_parse_data={
                 "N_EINSUMS": 1,
                 "M": 64,
@@ -110,7 +110,7 @@ class TestFanout(ActionChecker):
     def _run_with_arch(self, arch_fname: str, n_einsums=1):
         spec = Spec.from_yaml(
             EXAMPLES_DIR / "arches" / "fanout_variations" / arch_fname,
-            EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml",
+            EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml",
             jinja_parse_data={"N_EINSUMS": n_einsums, "M": 64, "KN": 64},
         )
         spec.mapper.metrics = Metrics.LATENCY

@@ -939,21 +939,31 @@ def check_loops(
     max_loop_check_groups: list[tuple[Number, list[Symbol]]],
     what_tiles_symbol: SymbolRelations,
 ):
+    def known_or_int(x: Symbol | int):
+        return isinstance(x, int) or isinstance(x, Symbol) and x in symbols_enumerated
+
     def get_size(x: Symbol | int):
-        if isinstance(x, Symbol) and x in symbols_enumerated:
+        if isinstance(x, Symbol):
             return choices_enumerated[:, symbols_enumerated.index(x)]
-        elif isinstance(x, Symbol):
-            return what_tiles_symbol.get_max_size(x)
-        else:
+        elif isinstance(x, int):
             return x
+        raise TypeError(f"cannot get_size object of type: {type(x)}")
 
     def has_fanout(x: Symbol | int):
-        try:
-            outer = get_size(what_tiles_symbol.get_outer_tiles(x))
-        except ValueError:
+        # A loop exists iff the tile shape differs from the one just outside it. Only
+        # count loops for which we can prove that here: if either tile shape is not
+        # enumerated yet, the two may still be chosen equal, and guessing a size for
+        # the un-enumerated one would prune choices that are still valid. Every group
+        # is fully enumerated by the time enumeration finishes, so the count becomes
+        # exact before we return any tile shapes.
+        if isinstance(x, int):
             return False
-        inner = get_size(x)
-        return outer != inner
+        elif isinstance(x, Symbol):
+            outer = what_tiles_symbol.get_outer_tiles(x)
+            if not known_or_int(x) or not known_or_int(outer):
+                return False
+            return get_size(outer) != get_size(x)
+        raise TypeError("cannot if has_fanout an object of type: {type(x)}")
 
     for limit, group in max_loop_check_groups:
         if len(group) <= limit:
@@ -2486,10 +2496,14 @@ def _make_tile_shapes(job: "Job"):
         )
 
     rank2symbols = {}
+    spatial_symbol_groups = {}  # lists of the tile shape symbols of loops that map to the same arch fanout
     for node in pmapping.nodes:
         if isinstance(node, (Temporal, Spatial)):
             if node.tile_shape in symbols:
                 rank2symbols.setdefault(node.rank_variable, []).append(node.tile_shape)
+        if isinstance(node, Spatial):
+            key = (node.name, node.component)
+            spatial_symbol_groups[key] = spatial_symbol_groups.get(key, []) + [node.tile_shape]
 
     max_loop_check_groups = [
         (job.spec_one_einsum.mapper.max_fused_loops, all_fused_loops),
@@ -2498,8 +2512,12 @@ def _make_tile_shapes(job: "Job"):
             for x in rank_var_to_fused_loops.values()
         ],
     ]
-
     max_loop_check_groups = [g for g in max_loop_check_groups if g[1]]
+
+    max_loop_check_groups += [
+        (job.spec_one_einsum.mapper.max_loops_per_spatial_dimension, spatial_group)
+        for spatial_group in spatial_symbol_groups.values()
+    ]
 
     alt_objectives_first = n_total_objectives > 1
     choices_enumerated = get_tile_shape_choices(

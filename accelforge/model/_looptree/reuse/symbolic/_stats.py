@@ -12,6 +12,7 @@ from accelforge.util._frozenset import oset
 from accelforge.util._sympy.broadcast_max import (
     max_nonzero,
     min_nonzero,
+    min_take_zero,
     max_dict,
 )
 
@@ -227,10 +228,19 @@ class BuffetStats:
             setattr(self, key, value)
         return self
 
-    def net_total_actions(self, action: str | None = None) -> Any:
-        if action is not None:
-            return self.total_actions[action] - self.total_skipped_first_actions[action]
-        return ActionCounts({a: self.net_total_actions(a) for a in self.total_actions})
+    def min_take_zero(self, other: "BuffetStats") -> "BuffetStats":
+        """ Take the smallest value of each stat, or zero if either is zero """
+        new = copy.copy(self)
+        for k, v in self.__dict__.items():
+            other_v = other.__dict__[k]
+            if k.startswith(("total_", "max_", "min_")):
+                new.__dict__[k] = min_take_zero(v, other_v)
+            elif v is None:
+                new.__dict__[k] = other_v
+        return new
+
+    def net_total_read_actions(self) -> Any:
+        return self.total_read_actions - self.total_skipped_first_read_actions
 
     def net_max_per_unit_actions(self, action: str | None = None) -> Any:
         if action is not None:

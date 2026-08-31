@@ -1,0 +1,12 @@
+{% if N_EINSUMS is defined %}
+  {% assert N_EINSUMS <= 8, "N_EINSUMS must be <= 8 for this workload. Use matmuls_any_einsums.yaml if you need more than 8 einsums." %}
+{% endif %}
+
+{% set TENSOR_NAMES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+{%- macro tensor_name(i) -%}
+  {% if i == 0 %}
+    {{- TENSOR_NAMES[8] -}}
+  {% else %}
+    {{- TENSOR_NAMES[i-1] -}}
+  {% endif %}
+{%- endmacro -%}

@@ -123,6 +123,9 @@ def get_fused_loop_indices(
     einsum_name: EinsumName,
     return_as_int: bool = False,
 ) -> pd.Series | int:
+    """
+    If `return_as_int`
+    """
     result = []
 
     loops = compatibility.loops

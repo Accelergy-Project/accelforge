@@ -23,6 +23,13 @@ html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 html_logo = "_static/logo.svg"
 
+html_js_files = [
+    (
+        "https://plausible.emer.org/js/script.file-downloads.outbound-links.js",
+        {"defer": "defer", "data-domain": "accelergy-project.github.io/accelforge"},
+    )
+]
+
 extensions = [
     "sphinx.ext.autodoc",  # Pull docstrings
     "sphinx.ext.napoleon",  # NumPy / Google style docstrings

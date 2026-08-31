@@ -315,16 +315,16 @@ class TestThreeMatmulsEvaluated(unittest.TestCase):
 
 
 # ============================================================================
-# matmuls.yaml (Jinja parametric) -- golden values
+# matmuls_any_einsums.yaml (Jinja parametric) -- golden values
 # ============================================================================
 
 
 class TestMatmulsJinjaParsed(unittest.TestCase):
-    """Golden-value tests for examples/workloads/basic/matmuls.yaml with Jinja vars."""
+    """Golden-value tests for examples/workloads/basic/matmuls_any_einsums.yaml with Jinja vars."""
 
     @classmethod
     def setUpClass(cls):
-        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        yaml_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists():
             raise unittest.SkipTest(f"YAML not found: {yaml_path}")
         cls.spec_1 = Spec.from_yaml(yaml_path, jinja_parse_data={"N_EINSUMS": 1})
@@ -505,7 +505,7 @@ class TestSimpleArchParsed(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         yaml_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(yaml_path, wl_path, jinja_parse_data={"N_EINSUMS": 1})
@@ -577,7 +577,7 @@ class TestSimpleArchEvaluated(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         yaml_path = EXAMPLES_DIR / "arches" / "simple.yaml"
-        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls.yaml"
+        wl_path = EXAMPLES_DIR / "workloads" / "basic" / "matmuls_any_einsums.yaml"
         if not yaml_path.exists() or not wl_path.exists():
             raise unittest.SkipTest("YAML not found")
         cls.spec = Spec.from_yaml(
@@ -792,10 +792,10 @@ class TestUnfusedMapping1Einsum(unittest.TestCase):
         cls.mapping = cls.spec.mapping
 
     def test_node_count(self):
-        # T0@MainMemory, W0@MainMemory, T1@MainMemory,
-        # T0+W0+T1@GlobalBuffer,
-        # Temporal(m), Temporal(n0), Temporal(n1),
-        # Compute(Matmul0)
+        # I@MainMemory, WA@MainMemory, A@MainMemory,
+        # I+WA+A@GlobalBuffer,
+        # Temporal(m), Temporal(nI), Temporal(nA),
+        # Compute(MatmulA)
         self.assertEqual(len(self.mapping.nodes), 8)
 
     def test_first_three_are_storage_main_memory(self):
@@ -808,19 +808,19 @@ class TestUnfusedMapping1Einsum(unittest.TestCase):
         tensors_at_mm = set()
         for i in range(3):
             tensors_at_mm.update(self.mapping.nodes[i].tensors)
-        self.assertEqual(tensors_at_mm, {"T0", "W0", "T1"})
+        self.assertEqual(tensors_at_mm, {"I", "WA", "A"})
 
     def test_fourth_is_storage_global_buffer(self):
         node = self.mapping.nodes[3]
         self.assertIsInstance(node, Storage)
         self.assertEqual(node.component, "GlobalBuffer")
-        self.assertEqual(set(node.tensors), {"T0", "W0", "T1"})
+        self.assertEqual(set(node.tensors), {"I", "WA", "A"})
 
     def test_temporal_loops(self):
         temporals = [n for n in self.mapping.nodes if isinstance(n, Temporal)]
         self.assertEqual(len(temporals), 3)
         rvs = [t.rank_variable for t in temporals]
-        self.assertEqual(rvs, ["m", "n0", "n1"])
+        self.assertEqual(rvs, ["m", "nI", "nA"])
 
     def test_temporal_tile_shapes(self):
         temporals = [n for n in self.mapping.nodes if isinstance(n, Temporal)]
@@ -830,7 +830,7 @@ class TestUnfusedMapping1Einsum(unittest.TestCase):
     def test_compute_node(self):
         computes = [n for n in self.mapping.nodes if isinstance(n, MappingCompute)]
         self.assertEqual(len(computes), 1)
-        self.assertEqual(computes[0].einsum, "Matmul0")
+        self.assertEqual(computes[0].einsum, "MatmulA")
         self.assertEqual(computes[0].component, "MAC")
 
 
@@ -858,7 +858,7 @@ class TestUnfusedMapping2Einsums(unittest.TestCase):
         cls.mapping = cls.spec.mapping
 
     def test_top_level_structure(self):
-        """Top-level: 5 Storages (T0, T1, T2, W0, W1 at MainMemory) + 1 Sequential."""
+        """Top-level: 5 Storages (I, A, B, WA, WB at MainMemory) + 1 Sequential."""
         storage_count = sum(1 for n in self.mapping.nodes if isinstance(n, Storage))
         seq_count = sum(1 for n in self.mapping.nodes if isinstance(n, Sequential))
         self.assertEqual(storage_count, 5)
@@ -873,23 +873,23 @@ class TestUnfusedMapping2Einsums(unittest.TestCase):
     def test_nested_0_structure(self):
         seq = [n for n in self.mapping.nodes if isinstance(n, Sequential)][0]
         nested0 = seq.nodes[0]
-        # Storage(T0,W0,T1@GlobalBuffer), Temporal(m), Temporal(n0), Temporal(n1), Compute(Matmul0)
+        # Storage(I,WA,A@GlobalBuffer), Temporal(m), Temporal(nI), Temporal(nA), Compute(MatmulA)
         self.assertEqual(len(nested0.nodes), 5)
         self.assertIsInstance(nested0.nodes[0], Storage)
         self.assertEqual(nested0.nodes[0].component, "GlobalBuffer")
-        self.assertEqual(set(nested0.nodes[0].tensors), {"T0", "W0", "T1"})
+        self.assertEqual(set(nested0.nodes[0].tensors), {"I", "WA", "A"})
 
     def test_nested_0_compute(self):
         seq = [n for n in self.mapping.nodes if isinstance(n, Sequential)][0]
         nested0 = seq.nodes[0]
         compute = [n for n in nested0.nodes if isinstance(n, MappingCompute)][0]
-        self.assertEqual(compute.einsum, "Matmul0")
+        self.assertEqual(compute.einsum, "MatmulA")
 
     def test_nested_1_compute(self):
         seq = [n for n in self.mapping.nodes if isinstance(n, Sequential)][0]
         nested1 = seq.nodes[1]
         compute = [n for n in nested1.nodes if isinstance(n, MappingCompute)][0]
-        self.assertEqual(compute.einsum, "Matmul1")
+        self.assertEqual(compute.einsum, "MatmulB")
 
 
 # ============================================================================
