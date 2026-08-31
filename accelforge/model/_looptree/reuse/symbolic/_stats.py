@@ -228,6 +228,11 @@ class BuffetStats:
             setattr(self, key, value)
         return self
 
+    def net_total_actions(self, action: str | None = None) -> Any:
+        if action is not None:
+            return self.total_actions[action] - self.total_skipped_first_actions[action]
+        return ActionCounts({a: self.net_total_actions(a) for a in self.total_actions})
+
     def min_take_zero(self, other: "BuffetStats") -> "BuffetStats":
         """ Take the smallest value of each stat, or zero if either is zero """
         new = copy.copy(self)

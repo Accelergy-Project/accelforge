@@ -1,11 +1,22 @@
+{# Same naming convention as examples/mappings/_matmul_convention.yaml, inlined
+   because Jinja only searches this file's own directory for imports. #}
+{% set TENSOR_NAMES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" %}
+{%- macro tensor_name(i) -%}
+  {% if i == 0 %}
+    {{- TENSOR_NAMES[8] -}}
+  {% else %}
+    {{- TENSOR_NAMES[i-1] -}}
+  {% endif %}
+{%- endmacro -%}
+
 mapping:
   nodes:
   - !Storage
-    tensors: [T0, T{{N_EINSUMS}}]
+    tensors: [{{tensor_name(0)}}, {{tensor_name(N_EINSUMS)}}]
     component: MainMemory
   {% for i in range(N_EINSUMS) %}
   - !Storage
-    tensors: [W{{i}}]
+    tensors: [W{{tensor_name(i+1)}}]
     component: MainMemory
   {% endfor %}
   - !Temporal
@@ -17,18 +28,18 @@ mapping:
     - !Nested
       nodes:
       - !Storage
-        tensors: [W{{i}}]
+        tensors: [W{{tensor_name(i+1)}}]
         component: GlobalBuffer
       - !Storage
-        tensors: [T{{i}}, T{{i+1}}]
+        tensors: [{{tensor_name(i)}}, {{tensor_name(i+1)}}]
         component: GlobalBuffer
       - !Temporal
-        rank_variable: n{{i}}
+        rank_variable: n{{tensor_name(i)}}
         tile_shape: 1
       - !Temporal
-        rank_variable: n{{i+1}}
+        rank_variable: n{{tensor_name(i+1)}}
         tile_shape: 1
       - !Compute
-        einsum: Matmul{{i}}
+        einsum: Matmul{{tensor_name(i+1)}}
         component: MAC
     {% endfor %}
