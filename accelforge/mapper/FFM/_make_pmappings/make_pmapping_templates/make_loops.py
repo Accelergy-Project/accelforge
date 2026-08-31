@@ -1,12 +1,15 @@
 from accelforge.frontend.renames import TensorName
 
 
+import copy
 import itertools
 from enum import Enum
+from typing import Iterator
 
 import accelforge.frontend.arch as arch
 from accelforge.frontend.arch._flattened_arch import FlattenedArch
 from accelforge.util._frozenset import oset
+from accelforge.util._setexpressions import InvertibleSet
 from accelforge.frontend.mapping import (
     MappingNode,
     Toll,
@@ -355,10 +358,57 @@ def insert_spatial_loops(
     einsum: Einsum,
     flattened_arch: FlattenedArch,
     intermediate_tensors: set[TensorName],
+    explore_loop_orders: bool,
 ):
+    """
+    Yield a copy of `mapping` with spatial loops inserted. One copy is yielded per
+    combination of the loop orders of each block of spatial loops.
+    """
+    tensor2relevant_rank_vars = einsum.tensor2rank_variables
+
+    # Which rank variables go in each block, and where each block goes, are the same
+    # for every loop order, so we work them out with one throwaway insertion.
+    blocks = _insert_spatial_loops(
+        list(mapping), einsum, flattened_arch, intermediate_tensors
+    )
+    choices = [
+        list(
+            spatial_loop_orders(
+                rank_variables,
+                tensor2relevant_rank_vars,
+                fanout_dim.tensor_order_options,
+                explore_loop_orders,
+            )
+        )
+        for rank_variables, fanout_dim in blocks
+    ]
+
+    for block_orders in itertools.product(*choices):
+        new_mapping = copy.deepcopy(mapping)
+        _insert_spatial_loops(
+            new_mapping, einsum, flattened_arch, intermediate_tensors, block_orders
+        )
+        yield new_mapping
+
+
+def _insert_spatial_loops(
+    mapping: list[MappingNode],
+    einsum: Einsum,
+    flattened_arch: FlattenedArch,
+    intermediate_tensors: set[TensorName],
+    block_orders: tuple[tuple[RankVariable, ...], ...] | None = None,
+) -> list[tuple[set[RankVariable], arch.Spatial]]:
+    """
+    Insert one spatial loop per rank variable for each spatial dimension of each fanout
+    in the arch, in place. The i-th block of spatial loops is ordered by
+    `block_orders[i]`, or alphabetically if `block_orders` is None.
+
+    Returns the rank variables and the fanout dimension of each block, in the order the
+    blocks were inserted.
+    """
     nodes_with_fanout = [n for n in flattened_arch if n.get_fanout() > 1]
     tensor2fully_relevant_rank_vars = einsum.tensor2directly_indexing_rank_variables
-    simple_rank_variables = einsum._simple_rank_variables
+    blocks: list[tuple[set[RankVariable], arch.Spatial]] = []
 
     for node in nodes_with_fanout:
         # Insert spatials below the lowest storage node whose component is
@@ -381,17 +431,23 @@ def insert_spatial_loops(
             rank_variables &= tensor2fully_relevant_rank_vars[t]
 
         for fanout_dim in node.spatial:
-            for r in sorted(rank_variables):
-                s = Spatial(
+            if block_orders is None:
+                order = sorted(rank_variables)
+            else:
+                order = block_orders[len(blocks)]
+            blocks.append((rank_variables, fanout_dim))
+
+            mapping[insertion_point:insertion_point] = [
+                Spatial(
                     rank_variable=r,
                     name=fanout_dim.name,
                     component_object=node,
                     component=node.name,
                 )
-                if insertion_point == len(mapping):
-                    mapping.append(s)
-                else:
-                    mapping.insert(insertion_point, s)
+                for r in order
+            ]
+
+    return blocks
 
 
 def _tensors_seen_above_point(idx, mapping):
@@ -472,5 +528,90 @@ def canonical_loop_orders(
             + tuple(sorted(rest_of_partially_relevant))
             + tuple(sorted(rest_rank_vars))
         )
+        if not explore_loop_orders:
+            return
+
+
+def permitted_tensor_orders(
+    tensors: list[TensorName],
+    tensor_order_options: list[list[InvertibleSet[TensorName]]],
+) -> Iterator[tuple[TensorName, ...]]:
+    """The orders of `tensors` that at least one of `tensor_order_options` permits.
+
+    Each option is a list of sets of tensors, from highest in the mapping to lowest, and
+    permits an order if the tensors it names appear in the order its sets do. Tensors
+    that an option does not name may go anywhere, as may tensors of an option that this
+    Einsum does not have -- their set expressions did not evaluate against this Einsum's
+    symbol table, so they are left as strings and skipped here, the same way
+    `get_tensor_order_constraint` skips tensors that are not in the mapping.
+
+    An option that ends up naming fewer than two of `tensors` permits every order, and
+    so leaves the whole constraint permitting every order.
+    """
+    all_orders = itertools.permutations(tensors)
+
+    # The position that each option constrains each tensor to.
+    option_positions: list[dict[TensorName, int]] = []
+    for option in tensor_order_options:
+        tensor2position = {}
+        for position, together_tensors in enumerate(option):
+            if not isinstance(together_tensors, InvertibleSet):
+                continue
+            for tensor in tensors:
+                if tensor in together_tensors:
+                    tensor2position[tensor] = position
+        if len(tensor2position) < 2:
+            return all_orders
+        option_positions.append(tensor2position)
+
+    if not option_positions:
+        return all_orders
+
+    def permits(tensor2position: dict[TensorName, int], order) -> bool:
+        positions = [tensor2position[t] for t in order if t in tensor2position]
+        return all(p0 <= p1 for p0, p1 in zip(positions, positions[1:]))
+
+    return (
+        order
+        for order in all_orders
+        if any(permits(positions, order) for positions in option_positions)
+    )
+
+
+def spatial_loop_orders(
+    rank_variables: set[RankVariable],
+    tensor2relevant_rank_vars: dict[TensorName, set[RankVariable]],
+    tensor_order_options: list[list[InvertibleSet[TensorName]]],
+    explore_loop_orders: bool,
+):
+    """
+    Generate orders of a block of spatial loops that give unique reuse patterns.
+
+    A rank variable relevant to every tensor is relevant to whichever tensor comes
+    first, so it is always placed highest in the block. A rank variable irrelevant to
+    every tensor tiles nothing, so it is always placed lowest.
+
+    See :py:attr:`accelforge.frontend.arch.Spatial.tensor_order_options`.
+    """
+    seen = set()
+    for tensor_order in permitted_tensor_orders(
+        sorted(tensor2relevant_rank_vars), tensor_order_options
+    ):
+        remaining = oset(rank_variables)
+        order = []
+        for tensor in tensor_order:
+            # These tile `tensor` and reuse the tensor above them, which is the one
+            # whose group of rank variables we just placed.
+            tiling_this_tensor = remaining & tensor2relevant_rank_vars[tensor]
+            # Order within a group does not matter, so alphabetical is canonical.
+            order.extend(sorted(tiling_this_tensor))
+            remaining -= tiling_this_tensor
+        order.extend(sorted(remaining))
+
+        order = tuple(order)
+        if order in seen:
+            continue
+        seen.add(order)
+        yield order
         if not explore_loop_orders:
             return

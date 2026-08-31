@@ -1,0 +1,18 @@
+# A single batched matmul. The batch rank variable `b` is relevant to every tensor,
+# which is what tests/test_spatial_loop_order.py checks the mapper for.
+workload:
+  iteration_space_shape:
+    b:  0 <= b  < {{B  | default(4)}}
+    m:  0 <= m  < {{M  | default(8)}}
+    nI: 0 <= nI < {{KN | default(8)}}
+    nA: 0 <= nA < {{KN | default(8)}}
+
+  bits_per_value: {All: 8}
+
+  einsums:
+  - name: MatmulA
+    tensor_accesses:
+    - {name: I,  projection: [b, m, nI]}
+    - {name: WA, projection: [b, nI, nA]}
+    - {name: A,  projection: [b, m, nA], output: True}
+    renames: {weight: WA, input: I, output: A}

@@ -320,18 +320,23 @@ def iterate_mappings_no_constraints(
             spec.mapper._let_non_intermediate_tensors_respawn_in_backing_storage,
             spec.mapper.explore_loop_orders,
         ):
-            mapping = copy.deepcopy(mapping)
-            insert_spatial_loops(
-                mapping, einsum, flattened_arch, job.intermediate_tensors
-            )
-            mapping = unpack_loops_to_rank_variables(mapping)
-            if spec.mapper._timeloop_style_even:
-                mapping = _timeloop_style_even(mapping)
+            # insert_spatial_loops copies the mapping for each spatial loop order it
+            # yields, so there's no need to copy it here.
+            for spatial_mapping in insert_spatial_loops(
+                mapping,
+                einsum,
+                flattened_arch,
+                job.intermediate_tensors,
+                spec.mapper.explore_loop_orders,
+            ):
+                spatial_mapping = unpack_loops_to_rank_variables(spatial_mapping)
+                if spec.mapper._timeloop_style_even:
+                    spatial_mapping = _timeloop_style_even(spatial_mapping)
 
-            place_missing_temporal_loops(mapping, einsum, flattened_arch)
-            label_fused_loops(mapping, fusable_tensors)
-            assert_proper_fusion_labeling(mapping, fusable_tensors)
-            yield mapping, symbol_table, compute, n_orders
+                place_missing_temporal_loops(spatial_mapping, einsum, flattened_arch)
+                label_fused_loops(spatial_mapping, fusable_tensors)
+                assert_proper_fusion_labeling(spatial_mapping, fusable_tensors)
+                yield spatial_mapping, symbol_table, compute, n_orders
 
 
 def _template_dedup_key(mapping: Mapping) -> tuple:

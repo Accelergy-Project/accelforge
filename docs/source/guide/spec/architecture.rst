@@ -115,6 +115,16 @@ in the ``reuse_input`` and ``reuse_output`` dimensions, respectively. Additional
 all spatial instances must use the same input values, otherwise the mapping will be
 invalid.
 
+The order of the spatial loops over a dimension may be constrained with the
+:py:attr:`~accelforge.frontend.arch.Spatial.tensor_order_options` keyword, which is
+similar to
+:py:attr:`~accelforge.frontend.arch.Tensors.tensor_order_options`.
+The mapper places one spatial loop per rank variable along a dimension and orders them
+by which tensor each one tiles, so giving an order of the tensors gives an order of the
+loops. For example, ``tensor_order_options: [[input, weight | output]]`` explores only
+the order whose outermost loops tile ``input``; the loops below them tile ``weight`` or
+``output`` and are multicast to (reused across) ``input``.
+
 Spatial fanouts support the following keywords:
 
 .. include-attrs:: accelforge.frontend.arch.Spatial

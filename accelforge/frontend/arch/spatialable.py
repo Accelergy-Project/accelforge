@@ -71,6 +71,19 @@ class Spatial(EvalableModel):
     here and they do not appear in another loop bound constraint.
     """
 
+    tensor_order_options: EvalableList[
+        EvalableList[TryEvalTo[InvertibleSet[TensorName]]]
+    ] = EvalableList()
+    """
+    Options for the order of the spatial loops over this dimension. This is given
+    in the same form as the ``tensor_order_options`` of
+    :class:`~accelforge.frontend.arch.Tensors`.
+
+    For example, an option of [input | output, weight] means that the loops tiling
+    ``input`` or ``output`` come first, in no required order relative to each other,
+    and the loops that tile only ``weight`` must be below them.
+    """
+
     usage_scale: EvalsTo[int | float | str] = 1
     """
     This factor scales the usage in this dimension. For example, if usage_scale is 2 and
@@ -90,7 +103,26 @@ class Spatial(EvalableModel):
             self.may_reuse = "All" if reuse == "<Defaults to Nothing>" else reuse
         if reuse == "<Defaults to Nothing>":
             self.reuse = "Nothing"
-        return super(self.__class__, self)._eval_expressions(*args, **kwargs)
+        evaluated, symbol_table = super(self.__class__, self)._eval_expressions(
+            *args, **kwargs
+        )
+
+        # A tensor in two entries of one option would give that option two conflicting
+        # positions for the loops that tile the tensor.
+        for order in evaluated.tensor_order_options:
+            for i, s0 in enumerate(order):
+                for s1 in order[i + 1 :]:
+                    if not isinstance(s0, InvertibleSet) or not isinstance(
+                        s1, InvertibleSet
+                    ):
+                        continue
+                    if s0 & s1:
+                        raise ValueError(
+                            f"Intersecting entries in the tensor_order_options of "
+                            f"spatial dimension {evaluated.name}: {s0} and {s1}"
+                        )
+
+        return evaluated, symbol_table
 
 
 class _PhysicalSpatial(EvalableModel):
