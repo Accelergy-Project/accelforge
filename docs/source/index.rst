@@ -68,3 +68,11 @@ We welcome contributions to AccelForge! If you'd like to contribute, please see
 
 The AccelForge source code is available on `GitHub
 <https://github.com/Accelergy-Project/accelforge>`_.
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: MICRO 2026 Tutorial
+   :hidden:
+
+   guide/micro2026_tutorial
