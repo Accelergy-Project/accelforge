@@ -393,6 +393,57 @@ class TestMayExploreBinding(unittest.TestCase):
         self.assertIn("may_explore_binding", str(ctx.exception))
 
 
+class TestShardUnsharedTensorsModel(unittest.TestCase):
+    """
+    The two fields that say what a memory does with a tensor no other Einsum touches:
+    replicate it along the loops that do not index it, or partition it along a rank.
+    """
+
+    def test_neither_is_set_by_default(self):
+        constraints = _evaluate(BindingConstraints())
+        self.assertEqual(set(constraints.must_shard_unshared_tensors), set())
+        self.assertEqual(set(constraints.may_shard_unshared_tensors), set())
+
+    def test_may_defaults_to_must(self):
+        # A tensor named only in must_ is sharded outright rather than also measured
+        # against replicating it, which is what naming it in may_ would ask for.
+        constraints = _evaluate(
+            BindingConstraints(must_shard_unshared_tensors="WA")
+        )
+        self.assertEqual(set(constraints.may_shard_unshared_tensors), {"WA"})
+
+    def test_may_can_be_widened_past_must(self):
+        constraints = _evaluate(
+            BindingConstraints(may_shard_unshared_tensors="All")
+        )
+        self.assertEqual(set(constraints.must_shard_unshared_tensors), set())
+        self.assertTrue(set(constraints.may_shard_unshared_tensors))
+
+    def test_must_outside_may_is_a_contradiction(self):
+        # As with must_duplicate: the mapper would otherwise read it as a tensor with no
+        # valid binding at all rather than as the spec saying two opposite things.
+        with self.assertRaises(ValueError) as ctx:
+            _evaluate(
+                BindingConstraints(
+                    must_shard_unshared_tensors="All",
+                    may_shard_unshared_tensors="Nothing",
+                )
+            )
+        self.assertIn("must_shard_unshared_tensors", str(ctx.exception))
+
+    def test_the_sets_read_as_evaluated(self):
+        constraints = _evaluate(BindingConstraints(may_shard_unshared_tensors="WA"))
+        self.assertTrue(constraints.may_shard_unshared("WA"))
+        self.assertFalse(constraints.may_shard_unshared("I"))
+        self.assertFalse(constraints.must_shard_unshared("WA"))
+
+    def test_they_cannot_be_queried_before_evaluation(self):
+        for query in ("may_shard_unshared", "must_shard_unshared"):
+            with self.assertRaises(ValueError) as ctx:
+                getattr(BindingConstraints(), query)("I")
+            self.assertIn("shard_unshared_tensors", str(ctx.exception))
+
+
 class TestBindingConstraintsEndToEnd(unittest.TestCase):
     """The mapper and the model, which is where an experiment actually reads results."""
 

@@ -356,6 +356,179 @@ class TestBindingExploration(unittest.TestCase):
                 )
 
 
+def _n_templates(jobs: dict) -> dict:
+    """How many templates each Einsum has."""
+    return {
+        einsum_name: sum(len(job_list) for job_list in compatibility2jobs.values())
+        for einsum_name, compatibility2jobs in jobs.items()
+    }
+
+
+def _iter_unshared_blocks(jobs: dict):
+    """Every binding block of a tensor that no Einsum but its own touches."""
+    for compatibility2jobs in jobs.values():
+        for job_list in compatibility2jobs.values():
+            for job in job_list:
+                shared = job.fusable_tensors or set()
+                for block in iter_binding_blocks(job.mapping.nodes):
+                    if block.tensor not in shared and block.binding:
+                        yield job, block
+
+
+def _bindings_of_tensor(jobs: dict, tensor: str) -> set:
+    """Every binding any template gives `tensor`, as a tuple of bound ranks."""
+    return {
+        tuple(loop.rank_variable for loop in block.binding)
+        for compatibility2jobs in jobs.values()
+        for job_list in compatibility2jobs.values()
+        for job in job_list
+        for block in iter_binding_blocks(job.mapping.nodes)
+        if block.tensor == tensor and block.binding
+    }
+
+
+class TestShardUnsharedTensors(unittest.TestCase):
+    """
+    The one binding question an unshared tensor is asked. Which rank it partitions along
+    is nobody else's business -- no other Einsum has to agree with it -- but whether it
+    is partitioned at all is its memory's capacity problem, since replicating puts a
+    whole copy of it in every physical instance.
+
+    In the fixture, `A` is the only tensor two Einsums share; `I`, `WA`, `WB` and `B`
+    are each touched by one.
+    """
+
+    UNSHARED = ("I", "WA", "WB", "B")
+
+    def test_nothing_is_sharded_by_default(self):
+        # Both fields default to Nothing, so an unshared tensor still replicates along
+        # the loops that do not index it.
+        self.assertTrue(
+            any(
+                RANK_DUPLICATE in {loop.rank_variable for loop in block.binding}
+                for _, block in _iter_unshared_blocks(_get_jobs())
+            ),
+            "The fixture has no replicated binding loop left to shard.",
+        )
+
+    def test_must_shard_partitions_every_loop(self):
+        jobs = _get_jobs(
+            binding=BindingConstraints(must_shard_unshared_tensors="All")
+        )
+        blocks = list(_iter_unshared_blocks(jobs))
+        self.assertTrue(blocks)
+        for job, block in blocks:
+            ranks = set(job.einsum.tensor_accesses[block.tensor].ranks)
+            for loop in block.binding:
+                self.assertIn(
+                    loop.rank_variable,
+                    ranks,
+                    f"{block.tensor} still replicates along {loop.name}.",
+                )
+
+    def test_must_shard_leaves_shared_tensors_replicating(self):
+        # `A` is shared, so this constraint has nothing to say about it.
+        jobs = _get_jobs(
+            binding=BindingConstraints(must_shard_unshared_tensors="All")
+        )
+        self.assertEqual(
+            _bindings_of_tensor(jobs, "A"), _bindings_of_tensor(_get_jobs(), "A")
+        )
+
+    def test_must_shard_costs_no_templates(self):
+        # It moves the binding every template starts from rather than adding templates.
+        self.assertEqual(
+            _n_templates(
+                _get_jobs(binding=BindingConstraints(must_shard_unshared_tensors="All"))
+            ),
+            _n_templates(_get_jobs()),
+        )
+
+    def test_may_shard_explores_both_ways(self):
+        without = _get_jobs()
+        with_ = _get_jobs(
+            binding=BindingConstraints(may_shard_unshared_tensors="All")
+        )
+        for einsum_name, n_with in _n_templates(with_).items():
+            self.assertGreater(
+                n_with,
+                _n_templates(without)[einsum_name],
+                f"Sharding unshared tensors added no templates for {einsum_name}.",
+            )
+        for tensor in self.UNSHARED:
+            explored = _bindings_of_tensor(with_, tensor)
+            # Everything the mapper explored without the field is still explored...
+            self.assertTrue(_bindings_of_tensor(without, tensor) <= explored)
+            # ...and a binding that partitions where the default replicated is too.
+            self.assertTrue(
+                any(RANK_DUPLICATE not in binding for binding in explored),
+                f"{tensor} was never sharded.",
+            )
+
+    def test_may_shard_leaves_the_loops_that_index_the_tensor_alone(self):
+        # Which rank such a loop partitions along is not a question an unshared tensor
+        # gets asked, so it binds what it would have bound with no exploration at all.
+        jobs = _get_jobs(
+            binding=BindingConstraints(may_shard_unshared_tensors="All")
+        )
+        for job, block in _iter_unshared_blocks(jobs):
+            irrelevant = job.einsum.tensor2irrelevant_rank_variables[block.tensor]
+            rank_variable2ranks = job.einsum.tensor_accesses[
+                block.tensor
+            ].rank_variable2ranks
+            for spatial, bound in zip(block.spatials, block.binding):
+                if spatial.rank_variable in irrelevant:
+                    continue
+                self.assertEqual(
+                    bound.rank_variable,
+                    next(iter(rank_variable2ranks[spatial.rank_variable])),
+                )
+
+    def test_may_shard_leaves_shared_tensors_alone(self):
+        jobs = _get_jobs(
+            binding=BindingConstraints(may_shard_unshared_tensors="All")
+        )
+        self.assertEqual(
+            _bindings_of_tensor(jobs, "A"), _bindings_of_tensor(_get_jobs(), "A")
+        )
+
+    def test_may_shard_is_not_budgeted(self):
+        # max_binding_rank_changes buys the rank changes that let two Einsums disagree
+        # about a shared tensor. An unshared tensor has nobody to disagree with, so its
+        # one choice is not paid for out of that budget and is explored without one.
+        jobs = _get_jobs(
+            binding=BindingConstraints(
+                may_shard_unshared_tensors="All", max_binding_rank_changes=0
+            )
+        )
+        for einsum_name, n_with in _n_templates(jobs).items():
+            self.assertGreater(n_with, _n_templates(_get_jobs())[einsum_name])
+
+    def test_may_shard_defaults_to_must_shard(self):
+        # Naming a tensor in must_ alone shards it rather than also measuring what
+        # replicating it would have cost, so it adds no templates.
+        self.assertEqual(
+            _n_templates(
+                _get_jobs(binding=BindingConstraints(must_shard_unshared_tensors="All"))
+            ),
+            _n_templates(_get_jobs()),
+        )
+
+    def test_a_tensor_that_must_duplicate_has_nothing_to_choose(self):
+        # may_duplicate/must_duplicate settle the loop; there is no second way to bind
+        # it left for this to explore.
+        self.assertEqual(
+            _n_templates(
+                _get_jobs(
+                    binding=BindingConstraints(
+                        must_duplicate="All", may_shard_unshared_tensors="All"
+                    )
+                )
+            ),
+            _n_templates(_get_jobs(binding=BindingConstraints(must_duplicate="All"))),
+        )
+
+
 class TestBindingRankClasses(unittest.TestCase):
     """
     Which ranks a binding loop is modeled the same for. Partitioning along a rank other

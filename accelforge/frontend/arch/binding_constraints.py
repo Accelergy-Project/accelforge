@@ -15,6 +15,7 @@ another. Each memory carries its own constraints in
 architecture, they are evaluated per-Einsum.
 """
 
+import copy
 from typing import Iterable
 
 from accelforge.frontend.renames import Rank, RANK_DUPLICATE, TensorName
@@ -65,7 +66,8 @@ class BindingConstraints(EvalableModel):
 
     This bounds exploration; it does not widen it. A tensor named here is still only
     explored if it is shared with another Einsum, since a tensor nobody else touches has
-    no other Einsum to agree with.
+    no other Einsum to agree with. The one choice an unshared tensor's binding does
+    leave open -- replicating or sharding -- is `may_shard_unshared_tensors` instead.
     """
 
     may_duplicate: EvalsTo[InvertibleSet[TensorName]] = "All"
@@ -87,6 +89,52 @@ class BindingConstraints(EvalableModel):
     experimental baseline: no tensor is ever partitioned.
 
     Every tensor named here must also be named by `may_duplicate`.
+    """
+
+    must_shard_unshared_tensors: EvalsTo[InvertibleSet[TensorName]] = "Nothing"
+    """
+    The *unshared* tensors -- those that only one Einsum touches -- that must be sharded
+    rather than replicated in this memory. Every binding loop of such a tensor
+    partitions it along one of its ranks, including the loops whose rank variable does
+    not index it, which the locally-optimal binding would have replicated along.
+
+    This is how a weight too large to sit whole in one physical instance is spread over
+    them. `max_binding_rank_changes` cannot do it: a tensor nobody else touches is not
+    part of the fusion mapspace, so its binding is never explored, and a template whose
+    only binding of it overflows the memory is dropped with every pmapping it would have
+    had.
+
+    Naming a tensor here shifts the binding that everything else is measured against
+    rather than adding templates, so it costs nothing to turn on. As with
+    `may_duplicate="Nothing"`, a template whose tensor cannot be partitioned along some
+    spatial dimension has no such binding at all, and is dropped.
+
+    This says nothing about shared tensors, whose binding two Einsums have to agree on;
+    see `may_explore_binding` for those.
+    """
+
+    may_shard_unshared_tensors: EvalsTo[InvertibleSet[TensorName]] = (
+        "<Same as must_shard_unshared_tensors>"
+    )
+    """
+    The *unshared* tensors whose binding loops the mapper explores both ways: once
+    replicating and once sharding. Defaults to `must_shard_unshared_tensors`, so that
+    naming a tensor there alone shards it outright rather than also measuring what
+    replicating it would have cost.
+
+    Only the loops whose rank variable does not index the tensor are explored -- the
+    loops the locally-optimal binding replicates along, and so the only ones where there
+    is a choice to make. A loop whose rank variable does index the tensor partitions it
+    along the rank it indexes, the same as with no exploration at all.
+
+    Each such loop doubles the templates of its Einsum. The exploration is not budgeted
+    by `max_binding_rank_changes`, which counts the rank changes that let two Einsums
+    disagree about a shared tensor; replicating or sharding a tensor that only one
+    Einsum touches is that Einsum's own capacity-against-traffic tradeoff and there is
+    nobody to disagree with.
+
+    A tensor that `must_shard_unshared_tensors`, `must_duplicate` or `may_duplicate`
+    has already settled has nothing left to choose, and is not explored.
     """
 
     may_adapt: EvalsTo[InvertibleSet[TensorName]] = "Nothing"
@@ -121,22 +169,35 @@ class BindingConstraints(EvalableModel):
     def _eval_expressions(self, *args, **kwargs):
         """
         The constraints with their tensor set expressions evaluated, checked for a
-        contradiction between `may_duplicate` and `must_duplicate` while the two are in
-        hand. The sets are only comparable once evaluated, and the mapper would otherwise
-        read the contradiction as a memory whose tensor has no valid binding at all.
+        contradiction between each `may_`/`must_` pair while the two are in hand. The
+        sets are only comparable once evaluated, and the mapper would otherwise read the
+        contradiction as a memory whose tensor has no valid binding at all.
         """
+        self = copy.copy(self)
+        if self.may_shard_unshared_tensors == "<Same as must_shard_unshared_tensors>":
+            self.may_shard_unshared_tensors = self.must_shard_unshared_tensors
         evaluated, symbol_table = super()._eval_expressions(*args, **kwargs)
 
-        if isinstance(evaluated.must_duplicate, InvertibleSet) and isinstance(
-            evaluated.may_duplicate, InvertibleSet
+        for must_name, may_name, verb in (
+            ("must_duplicate", "may_duplicate", "duplicate"),
+            (
+                "must_shard_unshared_tensors",
+                "may_shard_unshared_tensors",
+                "shard",
+            ),
         ):
-            contradictory = evaluated.must_duplicate - evaluated.may_duplicate
+            must, may = getattr(evaluated, must_name), getattr(evaluated, may_name)
+            if not isinstance(must, InvertibleSet) or not isinstance(
+                may, InvertibleSet
+            ):
+                continue
+            contradictory = must - may
             if contradictory:
                 raise ValueError(
                     f"In the binding constraints of a memory, tensors "
-                    f"{sorted(contradictory)} must duplicate but are not among the "
-                    f"tensors that may duplicate ({sorted(evaluated.may_duplicate)}). "
-                    f"may_duplicate must include every tensor of must_duplicate."
+                    f"{sorted(contradictory)} must {verb} but are not among the "
+                    f"tensors that may {verb} ({sorted(may)}). "
+                    f"{may_name} must include every tensor of {must_name}."
                 )
         return evaluated, symbol_table
 
@@ -150,6 +211,8 @@ class BindingConstraints(EvalableModel):
                 ("may_duplicate", self.may_duplicate),
                 ("must_duplicate", self.must_duplicate),
                 ("may_explore_binding", self.may_explore_binding),
+                ("must_shard_unshared_tensors", self.must_shard_unshared_tensors),
+                ("may_shard_unshared_tensors", self.may_shard_unshared_tensors),
                 ("may_adapt", self.may_adapt),
             )
             if not isinstance(value, InvertibleSet)
@@ -170,6 +233,25 @@ class BindingConstraints(EvalableModel):
         """
         self._assert_evaluated()
         return tensor in self.may_explore_binding
+
+    def must_shard_unshared(self, tensor: TensorName) -> bool:
+        """
+        Whether `tensor`, if no other Einsum touches it, must be partitioned along one
+        of its ranks by every binding loop of this memory rather than replicated along
+        the loops that do not index it. The caller decides whether the tensor is
+        unshared; this only answers whether it is named.
+        """
+        self._assert_evaluated()
+        return tensor in self.must_shard_unshared_tensors
+
+    def may_shard_unshared(self, tensor: TensorName) -> bool:
+        """
+        Whether `tensor`, if no other Einsum touches it, may have its binding loops
+        explored both replicating and sharding. `must_shard_unshared` settles the loops
+        of a tensor named by both, leaving nothing to explore.
+        """
+        self._assert_evaluated()
+        return tensor in self.may_shard_unshared_tensors
 
     def may_adapt_binding(self, tensor: TensorName) -> bool:
         """

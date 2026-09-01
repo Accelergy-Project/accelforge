@@ -456,11 +456,34 @@ def _tensor_ranks(tensor: TensorName, job: Job) -> list[Rank]:
     return list(job.einsum.tensor_accesses[tensor].ranks)
 
 
+def _is_unshared(tensor: TensorName, job: Job) -> bool:
+    return tensor not in (job.fusable_tensors or set())
+
+
+def _allowed_binding_ranks(block: BindingBlock, loop: Spatial, job: Job) -> list[Rank]:
+    """
+    The ranks that `block`'s binding loop over `loop`'s spatial dimension may name:
+    `BindingConstraints.allowed_ranks`, minus RANK_DUPLICATE when `block`'s tensor is
+    unshared and this memory's `must_shard_unshared_tensors` names it.
+    """
+    constraints = binding_constraints_for(job, block.component)
+    allowed = constraints.allowed_ranks(
+        block.tensor, loop.name, _tensor_ranks(block.tensor, job)
+    )
+    if _is_unshared(block.tensor, job) and constraints.must_shard_unshared(
+        block.tensor
+    ):
+        allowed = [r for r in allowed if r != RANK_DUPLICATE]
+    return allowed
+
+
 def default_binding_ranks(block: BindingBlock, job: Job) -> list[Rank] | None:
     """
     The locally-optimal binding of `block`'s tensor to its spatial loops: partition the
     tensor along the rank that each spatial loop's rank variable projects into, and
-    replicate it (RANK_DUPLICATE) if the loop's rank variable does not index the tensor.
+    replicate it (RANK_DUPLICATE) if the loop's rank variable does not index the tensor
+    -- unless `must_shard_unshared_tensors` has taken replicating away from it, in which
+    case it partitions along a rank there too (see `_allowed_binding_ranks`).
 
     The binding constraints in force for `block` may forbid that rank for some loop.
     Such a loop instead takes the first rank the constraints do allow it, preferring one
@@ -473,14 +496,12 @@ def default_binding_ranks(block: BindingBlock, job: Job) -> list[Rank] | None:
     """
     tensor = block.tensor
     spatials = block.spatials
-    constraints = binding_constraints_for(job, block.component)
     irrelevant_rvs = job.einsum.tensor2irrelevant_rank_variables[tensor]
     rank_variable2ranks = job.einsum.tensor_accesses[tensor].rank_variable2ranks
-    tensor_ranks = _tensor_ranks(tensor, job)
 
     ranks: list[Rank] = []
     for loop in spatials:
-        allowed = constraints.allowed_ranks(tensor, loop.name, tensor_ranks)
+        allowed = _allowed_binding_ranks(block, loop, job)
         rv = loop.rank_variable
         if rv in irrelevant_rvs:
             preferred = RANK_DUPLICATE
@@ -541,17 +562,11 @@ def binding_rank_options(
 
     Returns None if no binding of `block` satisfies the constraints.
     """
-    tensor = block.tensor
-    constraints = binding_constraints_for(job, block.component)
-    tensor_ranks = _tensor_ranks(tensor, job)
-
     default = default_binding_ranks(block, job)
     if default is None:
         return None
     return [
-        _binding_rank_classes(
-            constraints.allowed_ranks(tensor, loop.name, tensor_ranks), d
-        )
+        _binding_rank_classes(_allowed_binding_ranks(block, loop, job), d)
         for loop, d in zip(block.spatials, default)
     ]
 
@@ -596,6 +611,57 @@ def binding_rank_aliases(
     return aliases
 
 
+def _shardable_positions(
+    blocks: list[BindingBlock],
+    constraints: list[BindingConstraints],
+    options: list[list[tuple[Rank, ...]]],
+    default: list[tuple[Rank, ...]],
+    block_of: list[int],
+    loop_of: list[int],
+    shared: set[TensorName],
+    job: Job,
+) -> dict[int, tuple[Rank, ...]]:
+    """
+    The binding loops whose unshared tensor may be sharded instead of replicated, each
+    mapped to the class of ranks it would partition along. `options`, `default`,
+    `block_of` and `loop_of` are indexed by the flat binding-loop position that
+    `iter_binding_choices` works in.
+
+    A loop qualifies when all three of these hold:
+
+    - its tensor is unshared and this memory's `may_shard_unshared_tensors` names it,
+      which is what opts the tensor into being explored at all;
+    - its rank variable does not index the tensor, so the loop is one the locally-optimal
+      binding replicates along. A loop whose rank variable does index the tensor already
+      partitions it, and which rank it partitions along is not a question an unshared
+      tensor gets asked;
+    - the default really is to replicate, and there is a rank to partition along
+      instead. `must_shard_unshared_tensors`, `must_duplicate`, `may_duplicate` and
+      `dimension_ranks` may each have settled the loop already, and a settled loop has
+      nothing left to choose.
+    """
+    shard_classes: dict[int, tuple[Rank, ...]] = {}
+    for position in range(len(options)):
+        block = blocks[block_of[position]]
+        tensor = block.tensor
+        if tensor in shared:
+            continue
+        if not constraints[block_of[position]].may_shard_unshared(tensor):
+            continue
+        loop = block.spatials[loop_of[position]]
+        irrelevant = job.einsum.tensor2irrelevant_rank_variables[tensor]
+        if loop.rank_variable not in irrelevant:
+            continue
+        if default[position][0] != RANK_DUPLICATE:
+            continue
+        shards = [c for c in options[position] if c[0] != RANK_DUPLICATE]
+        if shards:
+            # One class holds every rank the loop could partition along, since they all
+            # model alike; see `_binding_rank_classes`.
+            shard_classes[position] = shards[0]
+    return shard_classes
+
+
 def iter_binding_choices(
     mapping: Mapping, job: Job
 ) -> Iterator[list[list[tuple[Rank, ...]]]]:
@@ -607,11 +673,18 @@ def iter_binding_choices(
     are expanded into their own compatibilities once the template has been modeled.
     Ranks that model alike therefore cost one template between them, not one each.
 
-    Only the storages of shared tensors -- those this Einsum passes to or receives from
-    another one -- are explored, and only those their memory's `may_explore_binding`
-    admits. The binding of a tensor that only this Einsum touches is nobody else's
-    business: no other Einsum has to agree with it, so it always takes its
-    locally-optimal binding rather than multiplying the templates.
+    Which rank a binding loop names is explored only for the shared tensors -- those
+    this Einsum passes to or receives from another one -- and only for those their
+    memory's `may_explore_binding` admits, within the budget `max_binding_rank_changes`
+    gives them. No other Einsum has to agree with the binding of a tensor that only this
+    Einsum touches, so there is no rank to negotiate and no budget spent on one.
+
+    An unshared tensor is still asked one question, where its memory's
+    `may_shard_unshared_tensors` names it: whether the loops that do not index it
+    replicate it, as the locally-optimal binding does, or partition it along one of its
+    ranks. That is this Einsum's own tradeoff of capacity against traffic -- a whole
+    copy in every physical instance may not fit where a shard would -- so it is not
+    budgeted, and it multiplies with the shared tensors' rank changes.
 
     Yields nothing if the constraints admit no binding of `mapping`, in which case the
     caller must drop the template: there is no binding it could be modeled with.
@@ -646,6 +719,7 @@ def iter_binding_choices(
     # distributed memories.
     budgets = [c.max_binding_rank_changes for c in constraints]
     block_of = [b for b, length in enumerate(block_lengths) for _ in range(length)]
+    loop_of = [i for length in block_lengths for i in range(length)]
 
     # A binding loop is explored only if its tensor is shared with another Einsum and
     # its memory allows that tensor to be explored; the rest keep the default.
@@ -667,19 +741,38 @@ def iter_binding_choices(
         max((budgets[b] for b in explorable_blocks), default=0), len(explorable)
     )
 
-    if total_budget <= 0:
-        yield split(default)
-        return
+    shard_classes = _shardable_positions(
+        blocks, constraints, options, default, block_of, loop_of, shared, job
+    )
 
-    for n_changes in range(int(total_budget) + 1):
-        for positions in itertools.combinations(explorable, n_changes):
-            changes_per_block = Counter(block_of[p] for p in positions)
-            if any(n > budgets[b] for b, n in changes_per_block.items()):
-                continue
-            # [1:] because the default class of a loop is not a change to it.
-            for classes in itertools.product(*[options[p][1:] for p in positions]):
+    def budgeted_changes() -> Iterator[list[tuple[int, tuple[Rank, ...]]]]:
+        """
+        The rank changes the budget affords the shared tensors, one list of
+        (position, rank class) pairs at a time, the empty list of them first.
+        """
+        if total_budget <= 0:
+            yield []
+            return
+        for n_changes in range(int(total_budget) + 1):
+            for positions in itertools.combinations(explorable, n_changes):
+                changes_per_block = Counter(block_of[p] for p in positions)
+                if any(n > budgets[b] for b, n in changes_per_block.items()):
+                    continue
+                # [1:] because the default class of a loop is not a change to it.
+                for classes in itertools.product(*[options[p][1:] for p in positions]):
+                    yield list(zip(positions, classes))
+
+    # Sharding an unshared tensor is not a change to a binding two Einsums have to
+    # agree on, so it is not counted against any budget and multiplies with the shared
+    # tensors' changes rather than competing with them.
+    shardable = sorted(shard_classes)
+    for n_sharded in range(len(shardable) + 1):
+        for sharded in itertools.combinations(shardable, n_sharded):
+            for changes in budgeted_changes():
                 choice = list(default)
-                for position, rank_class in zip(positions, classes):
+                for position in sharded:
+                    choice[position] = shard_classes[position]
+                for position, rank_class in changes:
                     choice[position] = rank_class
                 yield split(choice)
 
