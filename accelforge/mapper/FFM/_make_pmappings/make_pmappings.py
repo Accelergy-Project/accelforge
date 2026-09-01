@@ -89,7 +89,7 @@ def get_jobs(
     spec = spec
 
     einsum2jobs = {}
-    fusable_tensors = spec.workload.tensor_names_used_in_multiple_einsums
+    fusable_tensors = spec.workload.shared_tensor_names()
     rank_variable_bounds = get_rank_variable_bounds_for_all_einsums(spec)
 
     einsum2spec: dict[EinsumName, Spec] = {}
