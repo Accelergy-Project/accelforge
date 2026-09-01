@@ -203,7 +203,7 @@ class TestThreeMatmulsAnnotatedWorkload(unittest.TestCase):
 
     def test_workload_tensor_names(self):
         self.assertEqual(
-            self.wl.tensor_names,
+            self.wl.tensor_names(),
             {"T0", "W0", "T1", "W1", "T2", "W2", "T3"},
         )
 
@@ -1036,7 +1036,7 @@ class TestProgrammaticWorkloadValues(unittest.TestCase):
                 }
             ],
         )
-        self.assertEqual(wl.tensor_names, {"A", "B", "C"})
+        self.assertEqual(wl.tensor_names(), {"A", "B", "C"})
         self.assertEqual(wl.rank_variables, {"m", "k", "n"})
         self.assertEqual(len(wl.einsums), 1)
 

@@ -351,7 +351,7 @@ class TestWorkload(unittest.TestCase):
 
     def test_tensor_names(self):
         w = self._make_workload()
-        self.assertEqual(w.tensor_names, {"A", "B", "C"})
+        self.assertEqual(w.tensor_names(), {"A", "B", "C"})
 
     def test_rank_variables(self):
         w = self._make_workload()
@@ -442,7 +442,7 @@ class TestWorkload(unittest.TestCase):
             ],
         )
         self.assertEqual(len(w.einsums), 2)
-        self.assertEqual(w.tensor_names_used_in_multiple_einsums, {"T1"})
+        self.assertEqual(w.shared_tensor_names(), {"T1"})
 
     def test_tensor_copies(self):
         w = Workload(
@@ -466,7 +466,7 @@ class TestWorkload(unittest.TestCase):
     def test_empty_workload(self):
         w = Workload()
         self.assertEqual(len(w.einsums), 0)
-        self.assertEqual(w.tensor_names, set())
+        self.assertEqual(w.tensor_names(), set())
         self.assertEqual(w.rank_variables, set())
 
     def test_iteration_space_shape(self):
